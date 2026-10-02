@@ -27,7 +27,6 @@ export const DEFAULTS = Object.freeze({
     release: null,
     requiredChecks: [],
     ownerGate: null,
-    trustedAuthors: [],
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
     noAutoMergePaths: DEFAULT_PROTECTED,
@@ -71,6 +70,7 @@ const FORBIDDEN = {
     removeProtectedPaths: "a repository's lists add to the default protected paths; they cannot remove them",
     reverts:
         "reverts belong to actions.incidents: a revert is vetoed on the incident issue, so it never runs without it",
+    trustedAuthors: "githerd trusts only the account gh is logged in as, resolved at start; there is no list to add to",
     revert: "reverts belong to actions.incidents: a revert is vetoed on the incident issue, so it never runs without it",
 };
 
@@ -89,7 +89,7 @@ const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
  *   requiredChecks: string[],
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
- *   trustedAuthors: string[], labels: { types: string[], priorities: string[], efforts: string[] },
+ *   labels: { types: string[], priorities: string[], efforts: string[] },
  *   protectedPaths: string[], noAutoMergePaths: string[], worktreeSetup: string[] | null,
  *   runRulesFile: string | null, actions: Record<string, boolean>,
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
@@ -354,7 +354,6 @@ export function normalizeConfig(input) {
         release,
         requiredChecks: opt("requiredChecks", strings),
         ownerGate: ownerGate(raw.ownerGate),
-        trustedAuthors: opt("trustedAuthors", strings),
         labels: /** @type {any} */ (labels),
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),
         noAutoMergePaths: withDefaults(raw.noAutoMergePaths, DEFAULT_PROTECTED, "noAutoMergePaths"),

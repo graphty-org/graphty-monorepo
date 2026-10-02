@@ -310,3 +310,16 @@ export function resolveDerived(state, stillHolds, now) {
     }
     return cleared;
 }
+
+/**
+ * Whether `who` is the account gh is logged in as (`state.trust.login`), the only author whose
+ * issues, pull requests and comments githerd acts on or shows a run. Always false while the login
+ * is unresolved, so a missing author can never match a missing login.
+ * @param {any} state the daemon state
+ * @param {string | null | undefined} who a GitHub login
+ * @returns {boolean} true for the owner
+ */
+export function byOwner(state, who) {
+    const login = state.trust?.login;
+    return typeof login === "string" && login !== "" && who === login;
+}

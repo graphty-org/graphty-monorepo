@@ -7,7 +7,7 @@
  * `board.mjs` and hand a ledger entry to `ctx.commit`, which persists the state before the reply.
  *
  * Text that came from outside the owner's control is never shown as-is: PR and issue titles appear
- * only for `trustedAuthors` (others show number and author), and text a judgment run wrote is
+ * only for the owner, the account gh is logged in as (others show number and author), and text a judgment run wrote is
  * prefixed `[run text]` so a reader treats it as data. While phone alerts are broken, every tool
  * result starts with the PHONE ALERTS BROKEN banner.
  */
@@ -152,26 +152,26 @@ function masterData(state) {
  * One PR as status shows it.
  * @param {string} number the PR number
  * @param {any} pr the PR record
- * @param {Set<string>} trusted the trusted authors
+ * @param {boolean} owned the owner wrote it
  * @param {boolean} full include the check list
- * @returns {object} the PR, titled only when its author is trusted
+ * @returns {object} the PR, titled only when the owner wrote it
  */
-function prData(number, pr, trusted, full) {
+function prData(number, pr, owned, full) {
     const out = {
         number: Number(number),
         author: pr.author ?? null,
-        ...(trusted.has(pr.author) ? { title: pr.title ?? null } : {}),
+        ...(owned ? { title: pr.title ?? null } : {}),
         draft: Boolean(pr.draft),
         autoMerge: Boolean(pr.autoMerge),
         stuck: pr.stuck ?? [],
     };
     if (full) {
-        // A fork's own workflow names its checks, so an untrusted PR shows only how many fail.
+        // A fork's own workflow names its checks, so another author's PR shows only how many fail.
         const failing = pr.failingChecks ?? [];
         Object.assign(out, {
             headSha: pr.headSha ?? null,
             required: pr.required ?? {},
-            ...(trusted.has(pr.author) ? { failingChecks: failing } : { failingCheckCount: failing.length }),
+            ...(owned ? { failingChecks: failing } : { failingCheckCount: failing.length }),
             mergeable: pr.mergeable ?? null,
             breaking: pr.breaking ?? null,
         });
@@ -180,7 +180,7 @@ function prData(number, pr, trusted, full) {
 }
 
 /**
- * Builds the status answer as data: every untrusted title is already dropped and every run-written
+ * Builds the status answer as data: every title by another author is already dropped and every run-written
  * string already marked, so the text and JSON forms show the same thing.
  * @param {any} state the daemon state
  * @param {ToolContext} ctx the request context
@@ -190,7 +190,7 @@ function prData(number, pr, trusted, full) {
 export function statusData(state, ctx, { section = "all", pr } = {}) {
     if (!SECTIONS.includes(section)) throw new Error(`unknown section: ${section}`);
     const { config, now, startedAt } = ctx;
-    const trusted = new Set(config.trustedAuthors ?? []);
+    const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
     /** @type {Record<string, any>} */
     const out = {
@@ -204,13 +204,13 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
     };
     if (pr !== undefined) {
         const record = state.prs?.[String(pr)];
-        out.prs = record ? [prData(String(pr), record, trusted, true)] : [];
+        out.prs = record ? [prData(String(pr), record, owned(record.author), true)] : [];
     }
     if (want("master")) out.master = masterData(state);
     if (want("prs")) {
         out.prs = Object.entries(state.prs ?? {})
             .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([n, p]) => prData(n, p, trusted, false));
+            .map(([n, p]) => prData(n, p, owned(p.author), false));
     }
     if (want("claims")) {
         out.claims = Object.values(state.claims ?? {})
@@ -275,8 +275,15 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
         const issues = Object.values(state.issues?.byNumber ?? {}).filter((i) => i.state !== "closed");
         out.issues = {
             open: issues.length,
-            untrusted: issues.filter((i) => !trusted.has(i.author)).length,
             since: state.issues?.since ?? null,
+        };
+        // What githerd leaves alone because someone other than the owner wrote it.
+        out.trust = {
+            login: state.trust?.login ?? null,
+            error: state.trust?.error ?? null,
+            skippedIssues: issues.filter((i) => !owned(i.author)).length,
+            skippedPrs: Object.values(state.prs ?? {}).filter((p) => !owned(p.author)).length,
+            hiddenComments: Object.values(state.trust?.hidden ?? {}).reduce((sum, n) => sum + n, 0),
         };
     }
     return out;
@@ -365,7 +372,7 @@ function statusText(data, now) {
                 lines.push(`    required: ${req.length ? req.join(", ") : "none reported"}`);
                 if (p.failingChecks?.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
                 if (p.failingCheckCount)
-                    lines.push(`    failing: ${p.failingCheckCount} (names hidden: untrusted author)`);
+                    lines.push(`    failing: ${p.failingCheckCount} (names hidden: another author)`);
             }
         }
     }
@@ -406,8 +413,15 @@ function statusText(data, now) {
     }
     if (data.issues) {
         const i = data.issues;
+        lines.push(`ISSUES: ${i.open} open${i.since ? `, polled since ${i.since}` : ""}`);
+    }
+    if (data.trust) {
+        const t = data.trust;
+        const who = t.login
+            ? `acting only on ${t.login}'s issues and PRs`
+            : `login unresolved, no runs start${t.error ? ` (${t.error})` : ""}`;
         lines.push(
-            `ISSUES: ${i.open} open (${i.untrusted} by untrusted authors)${i.since ? `, polled since ${i.since}` : ""}`,
+            `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from runs`,
         );
     }
     return lines.join("\n");

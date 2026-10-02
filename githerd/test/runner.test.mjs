@@ -506,7 +506,7 @@ describe("runs against fake-claude", () => {
     });
 
     it("uses the given worktree for a code-editing kind and refuses one without", async () => {
-        const env = setup({ result: ok }, { sandboxMissing: () => [] });
+        const env = setup({ result: ok });
         const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
         const { seen } = await finish(env, start(env.runner, { kind: "pr-fix", target: "pr:2", cwd: wt }));
         expect(seen.cwd).toBe(wt);
@@ -525,23 +525,30 @@ describe("the Bash sandbox", () => {
         expect(sandboxMissing(`/nonexistent:${dir}`)).toEqual([]);
     });
 
-    it("refuses a code-editing run without it, and still starts a read-only one", async () => {
-        const env = setup({ result: ok }, { sandboxMissing: () => ["bwrap"] });
-        const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
-        const res = start(env.runner, { kind: "master-red", target: "master", cwd: wt });
-        expect(res).toEqual({ ok: false, reason: expect.stringMatching(/code-editing runs are off.*bwrap/) });
-        expect(env.state.runs).toEqual({});
-        expect((await finish(env, start(env.runner, {}))).record.status).toBe("ended");
-    });
-
-    it("kills a code-editing run whose claude reports the sandbox disabled", async () => {
-        const env = setup(
-            { hang: true, stderr: "Sandbox disabled: dependencies are missing" },
-            { sandboxMissing: () => [] },
-        );
-        const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
-        const { record } = await finish(env, start(env.runner, { kind: "pr-fix", target: "pr:2", cwd: wt }));
-        expect(record).toMatchObject({ status: "failed", outcome: "sandbox-disabled" });
+    it("starts every code-editing kind without bwrap or socat, noting the disabled sandbox", async () => {
+        const bare = mkdtempSync(join(tmpdir(), "githerd-path-"));
+        expect(sandboxMissing(bare)).toEqual(["bwrap", "socat"]);
+        for (const kind of ["master-red", "pr-fix", "pr-conflict", "backlog"]) {
+            const env = setup(
+                { result: ok, stderr: "Sandbox disabled: dependencies are missing" },
+                // Acting: master-red's $6 cap is over the dry-run day's $5.
+                { env: { PATH: bare, HOME: "/home/x" }, mode: () => "acting" },
+            );
+            const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
+            const { record } = await finish(env, start(env.runner, { kind, target: "pr:2", cwd: wt }));
+            expect(record, kind).toMatchObject({ status: "ended", outcome: "done", sandboxDisabled: true });
+            expect(
+                env.ledger.filter((e) => e.event === "sandbox-disabled"),
+                kind,
+            ).toHaveLength(1);
+            expect(
+                env.logs.some((l) => l.includes("without the sandbox")),
+                kind,
+            ).toBe(true);
+            // The sandbox is still asked for, so it turns on wherever bwrap and socat exist.
+            const settings = JSON.parse(readFileSync(join(env.dir, "runs", record.id, "settings.json"), "utf8"));
+            expect(settings.sandbox, kind).toMatchObject({ enabled: true, allowUnsandboxedCommands: false });
+        }
     });
 });
 

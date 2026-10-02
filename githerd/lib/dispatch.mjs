@@ -12,21 +12,25 @@
  *
  * | Row | State | Run |
  * |---|---|---|
- * | 1 | open incident, 15 minute hold over, no live session claims `master`, no trusted PR opened after the red | master-red |
+ * | 1 | open incident, 15 minute hold over, no live session claims `master`, no owner's PR opened after the red | master-red |
  * | 6 | open `release-failed`, `release-stalled` or `lane-stuck:` escalation with no run yet | release |
- * | 8 | trusted, non-draft PR with a failing required check, master green, not in the owner gate | pr-fix |
+ * | 8 | the owner's non-draft PR with a failing required check, master green, not in the owner gate | pr-fix |
  * | 9 | the same while master is red | none |
- * | 10 | trusted, non-draft PR conflicting on two sightings, master green | pr-conflict |
+ * | 10 | the owner's non-draft PR conflicting on two sightings, master green | pr-conflict |
  * | 12 | the owner rejected the PR's images | pr-fix with the reject block |
- * | 16 | open issue missing a type, priority or effort label, changed since its last triage | triage, up to 10, one run per 30 minutes |
+ * | 16 | the owner's open issue missing a type, priority or effort label, changed since its last triage | triage, up to 10, one run per 30 minutes |
  * | 17 | merged PRs changed paths, refresh due | refresh, the top issues by `rankForRefresh` |
  * | 23 | nothing else queued, master not red, under the WIP cap, an agent-ready issue | backlog |
  *
  * Every other row is deterministic and belongs to the daemon or the actor. Re-triage items come
  * from the re-triage module through `extra`.
+ *
+ * Only the owner's items count: the owner is the account gh is logged in as (`state.trust.login`),
+ * and an issue or PR by anyone else, bots included, starts no run of any kind. While that login is
+ * unresolved, no run starts at all.
  */
 
-import { escalate, holderAlive, resolve } from "./board.mjs";
+import { byOwner, escalate, holderAlive, resolve } from "./board.mjs";
 import { rankForRefresh } from "./merged.mjs";
 import { admit, consumesAttempt } from "./runner.mjs";
 import { RUN_TEXT } from "./tools.mjs";
@@ -190,7 +194,8 @@ function missingLabels(labels, config) {
 
 /**
  * Whether an issue is agent-ready (section 10, row 23). Only the issue's author counts as trust:
- * githerd's own labels are made as the owner, so who labeled it proves nothing.
+ * githerd's own labels are made as the owner, so who labeled it proves nothing, and the author must
+ * be the owner.
  * @param {number} number the issue number
  * @param {any} issue the issue record
  * @param {{state: any, config: import("./config.mjs").Config, now: Date}} ctx the state, config
@@ -209,7 +214,7 @@ export function agentReady(number, issue, { state, config, now }) {
     );
     return (
         issue.state === "open" &&
-        config.trustedAuthors.includes(issue.author) &&
+        byOwner(state, issue.author) &&
         has(types) &&
         has(priorities) &&
         has(efforts) &&
@@ -243,8 +248,7 @@ function wanted(ctx, raise, unhandled, waiting) {
         const confirmed = Date.parse(incident.confirmedAt ?? incident.openedAt);
         incident.holdUntil ??= new Date(confirmed + MASTER_RED_HOLD_MS).toISOString();
         const fixPrOpened = Object.values(state.prs ?? {}).some(
-            (/** @type {any} */ p) =>
-                config.trustedAuthors.includes(p.author) && p.createdAt && p.createdAt > incident.openedAt,
+            (/** @type {any} */ p) => byOwner(state, p.author) && p.createdAt && p.createdAt > incident.openedAt,
         );
         const jobs = failingJobs(incident);
         const runs = (incident.runs ?? []).filter((/** @type {any} */ r) => counts(state, r.run));
@@ -252,7 +256,7 @@ function wanted(ctx, raise, unhandled, waiting) {
         if (t < Date.parse(incident.holdUntil)) waiting.push({ item: target, reason: "15 minute hold" });
         else if (sessionClaims(state, "master", now, startedAt)) {
             waiting.push({ item: target, reason: "a session claims master" });
-        } else if (fixPrOpened) waiting.push({ item: target, reason: "a trusted PR was opened after the red" });
+        } else if (fixPrOpened) waiting.push({ item: target, reason: "an owner's PR was opened after the red" });
         else if (runs.length === 0 || (runs.length === 1 && runs[0].failingJobs.join("\n") !== jobs.join("\n"))) {
             items.push({ ...target, event: "master-red-confirmed", incident: incident.id, failingJobs: jobs });
         } else if (!runs.some((/** @type {any} */ r) => state.runs?.[r.run]?.status === "running")) {
@@ -272,7 +276,7 @@ function wanted(ctx, raise, unhandled, waiting) {
     // Rows 8, 10 and 12: pull requests. Row 9: nothing while master is red.
     for (const [number, rec] of Object.entries(state.prs ?? {})) {
         const attempts = syncAttempts(state, number, rec, now);
-        if (verdict !== "green" || rec.draft || !config.trustedAuthors.includes(rec.author)) continue;
+        if (verdict !== "green" || rec.draft || !byOwner(state, rec.author)) continue;
         /** @type {Item | null} */
         let item = null;
         const failing = Object.values(rec.required ?? {}).includes("FAILURE");
@@ -325,6 +329,7 @@ function wanted(ctx, raise, unhandled, waiting) {
         .filter(
             ([n, i]) =>
                 i.state === "open" &&
+                byOwner(state, i.author) &&
                 missingLabels(i.labels ?? [], config) &&
                 !(i.lastTriagedAt && i.lastTriagedAt >= i.updatedAt) &&
                 !sessionClaims(state, `issue:${n}`, now, startedAt),
@@ -342,7 +347,7 @@ function wanted(ctx, raise, unhandled, waiting) {
 }
 
 /**
- * The refresh run, when one is due (row 17): the open issues that name the most changed paths,
+ * The refresh run, when one is due (row 17): the owner's open issues that name the most changed paths,
  * leaving out issues refreshed in the last `refresh.minDaysBetween` days and issues a merged PR
  * closes.
  * @param {DispatchContext} ctx the context
@@ -356,7 +361,7 @@ async function refreshItem(ctx) {
     if (now.getTime() - last < config.refresh.everyHours * 60 * MINUTE) return null;
     const minAge = config.refresh.minDaysBetween * DAY;
     const open = Object.entries(state.issues?.byNumber ?? {})
-        .filter(([, i]) => i.state === "open")
+        .filter(([, i]) => i.state === "open" && byOwner(state, i.author))
         .filter(([, i]) => !(i.lastRefreshedAt && now.getTime() - Date.parse(i.lastRefreshedAt) < minAge))
         .map(([n]) => Number(n));
     const ranked = open.length
@@ -455,6 +460,10 @@ export async function dispatch(ctx) {
     const raise = ctx.raise ?? ((args) => escalate(state, args, { daemon: true }, now));
     /** @type {DispatchResult} */
     const result = { started: [], waiting: [], masterRedUnhandled: [], slotsFull: false };
+    if (!state.trust?.login) {
+        result.slotsFull = true;
+        return result;
+    }
     const items = wanted(ctx, raise, result.masterRedUnhandled, result.waiting);
     const refresh = await refreshItem(ctx);
     if (refresh) items.push(refresh);

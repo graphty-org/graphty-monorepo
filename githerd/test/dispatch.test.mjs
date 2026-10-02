@@ -14,7 +14,6 @@ const CONFIG = normalizeConfig({
     repo: "o/r",
     mode: "acting",
     lanes: { ci: { workflow: "ci.yml", gating: "required" } },
-    trustedAuthors: ["owner"],
     labels: {
         types: ["bug", "enhancement"],
         priorities: ["priority:high", "priority:low"],
@@ -40,6 +39,7 @@ const CONFIG = normalizeConfig({
  */
 function baseState() {
     return {
+        trust: { login: "owner" },
         master: { verdict: "green" },
         incidents: {},
         prs: {},
@@ -240,7 +240,7 @@ describe("dispatch: one row of the event table each", () => {
 });
 
 describe("dispatch: who gets a code-editing run", () => {
-    it("gives no run to a failing PR from an author outside trustedAuthors, and does not queue it", async () => {
+    it("gives no run to a failing PR by another author, and does not queue it", async () => {
         const state = baseState();
         state.prs[5] = pr({ author: "stranger" });
         const h = harness(state);
@@ -256,6 +256,70 @@ describe("dispatch: who gets a code-editing run", () => {
         const result = await h.pass();
         expect(h.launched).toEqual([]);
         expect(result.waiting.filter((w) => w.item.target === "pr:6")).toEqual([]);
+    });
+});
+
+describe("dispatch: only the owner's items", () => {
+    const LIMITS = {
+        caps: { default: { turns: 30, budgetUsd: 0.1, timeoutMinutes: 15 } },
+        maxConcurrent: 20,
+        dailyBudgetUsd: 100,
+    };
+    const roomy = { ...CONFIG, runs: { ...CONFIG.runs, ...LIMITS } };
+    const issueTexts = async (/** @type {number[]} */ ns) =>
+        ns.map((n) => ({ number: n, title: "Edge.ts draws wrong" }));
+
+    /**
+     * A state with an item for every author-driven run kind, all by `author`.
+     * @param {string} author who wrote them
+     * @returns {any} the state
+     */
+    function everyKind(author) {
+        const state = baseState();
+        state.prs[5] = pr({ author });
+        state.prs[6] = pr({ author, required: {}, conflictSightings: 2, headRef: "fix/y" });
+        state.prs[7] = pr({ author, ownerGate: true, ownerRejected: true, headRef: "fix/z" });
+        state.issues.byNumber[8] = issue({ author, labels: [], lastRefreshedAt: ago(HOUR) });
+        state.issues.byNumber[9] = issue({ author, labels: ["bug", "priority:low", "effort:high"] });
+        state.issues.byNumber[10] = issue({ author });
+        state.merged.pendingPaths = { "src/Edge.ts": [3] };
+        state.schedule.lastRefreshAt = ago(2 * DAY);
+        return state;
+    }
+
+    it("gives the owner's items their runs", async () => {
+        const h = harness(everyKind("owner"), { issueTexts, config: roomy });
+        await h.pass();
+        expect(new Set(h.launched.map((l) => l.kind))).toEqual(new Set(["pr-fix", "pr-conflict", "triage", "refresh"]));
+        // The backlog waits for an otherwise empty queue; alone, the owner's ready issue gets it.
+        const alone = baseState();
+        alone.issues.byNumber[10] = issue();
+        const b = harness(alone);
+        await b.pass();
+        expect(b.launched.map((l) => l.kind)).toEqual(["backlog"]);
+    });
+
+    for (const author of ["stranger", "dependabot[bot]", null]) {
+        it(`gives an issue or PR by ${author ?? "a deleted account"} no run of any kind, and queues none`, async () => {
+            const h = harness(everyKind(/** @type {any} */ (author)), { issueTexts, config: roomy });
+            const result = await h.pass();
+            expect(h.launched).toEqual([]);
+            expect(result.waiting).toEqual([]);
+        });
+    }
+
+    it("starts no run at all while the owner's login is unresolved, not even master-red", async () => {
+        const state = everyKind("owner");
+        state.master.verdict = "red";
+        state.incidents["inc-1"] = incident();
+        state.escalations["release-failed:9"] = { key: "release-failed:9", kind: "release-failed" };
+        for (const trust of [undefined, { login: null }, { login: "" }]) {
+            state.trust = trust;
+            const h = harness(state, { issueTexts, config: roomy });
+            const result = await h.pass({ extra: [{ kind: "retriage-candidates", event: "due", target: "task:r" }] });
+            expect(h.launched).toEqual([]);
+            expect(result.slotsFull).toBe(true);
+        }
     });
 });
 
@@ -426,14 +490,24 @@ describe("dispatch: ownership and holds", () => {
         expect(r.masterRedUnhandled).toEqual([]);
     });
 
-    it("skips a master-red run when a trusted author opened a PR after the red", async () => {
+    it("skips a master-red run when the owner opened a PR after the red", async () => {
         const state = baseState();
         state.master.verdict = "red";
         state.incidents["inc-1"] = incident();
         state.prs[6] = pr({ required: {}, createdAt: ago(30 * MIN) });
         const r = await harness(state).pass();
         expect(r.started).toEqual([]);
-        expect(r.waiting[0].reason).toBe("a trusted PR was opened after the red");
+        expect(r.waiting[0].reason).toBe("an owner's PR was opened after the red");
+    });
+
+    it("does not let another author's PR hold the master-red run", async () => {
+        const state = baseState();
+        state.master.verdict = "red";
+        state.incidents["inc-1"] = incident();
+        state.prs[6] = pr({ required: {}, createdAt: ago(30 * MIN), author: "stranger" });
+        const h = harness(state);
+        await h.pass();
+        expect(h.launched.map((l) => l.kind)).toEqual(["master-red"]);
     });
 
     it("waits while a run on the target is in flight, then queues one follow-up", async () => {

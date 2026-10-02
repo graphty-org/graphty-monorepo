@@ -9,6 +9,10 @@
  * any proposal of a filter run that does not match a candidate the same run confirmed is voided, so
  * only confirmed candidates become proposals.
  *
+ * Only the owner's issues are exported, the owner being the account gh is logged in as
+ * (`state.trust.login`), and of their comments only the owner's: a run never reads another
+ * account's text. How many were left out is counted in the pass report and in `state.trust`.
+ *
  * Everything the pass needs to continue lives in `state.retriage`, saved after every step: a
  * restart resumes the export at the saved cursor, keeps finished batches, and starts again any batch
  * whose run was interrupted or lost.
@@ -16,6 +20,8 @@
 
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { byOwner } from "./board.mjs";
 
 /** Issues per GraphQL page. Bodies and the last comments make a page heavy; 50 keeps it small. */
 export const PAGE_SIZE = 50;
@@ -47,11 +53,14 @@ export const EXPORT_QUERY = `query RetriageExport($owner: String!, $name: String
 }`;
 
 /**
- * One exported issue, as `issues.jsonl` holds it.
+ * One exported issue, as `issues.jsonl` holds it, with only the owner's comments.
  * @param {any} node a GraphQL issue node
- * @returns {object} the record
+ * @param {any} state the daemon state, for the owner
+ * @returns {object} the record; `hiddenComments` counts the comments left out
  */
-export function exportRecord(node) {
+export function exportRecord(node, state) {
+    const comments = node.comments?.nodes ?? [];
+    const mine = comments.filter((/** @type {any} */ c) => byOwner(state, c.author?.login));
     const prs = (node.timelineItems?.nodes ?? [])
         .map((/** @type {any} */ t) => t?.source?.number ?? t?.subject?.number)
         .filter((/** @type {any} */ n) => Number.isInteger(n));
@@ -63,7 +72,8 @@ export function exportRecord(node) {
         author: node.author?.login ?? null,
         createdAt: node.createdAt,
         updatedAt: node.updatedAt,
-        comments: (node.comments?.nodes ?? []).map((/** @type {any} */ c) => ({
+        hiddenComments: comments.length - mine.length,
+        comments: mine.map((/** @type {any} */ c) => ({
             author: c.author?.login ?? null,
             at: c.createdAt,
             body: String(c.body ?? "").slice(0, BODY_CHARS),
@@ -218,7 +228,12 @@ export function createRetriage({
         for (;;) {
             const data = await github.graphql(EXPORT_QUERY, { owner, name, after: pass.cursor });
             const page = data.repository.issues;
-            const recs = page.nodes.map(exportRecord);
+            const mine = page.nodes.filter((/** @type {any} */ n) => byOwner(state, n.author?.login));
+            pass.report.skipped = (pass.report.skipped ?? 0) + page.nodes.length - mine.length;
+            const recs = mine.map((/** @type {any} */ n) => exportRecord(n, state));
+            for (const r of recs) {
+                if (r.hiddenComments) ((state.trust ??= {}).hidden ??= {})[`issue:${r.number}`] = r.hiddenComments;
+            }
             if (recs.length)
                 appendFileSync(join(dir, "issues.jsonl"), recs.map((r) => JSON.stringify(r)).join("\n") + "\n");
             for (const r of recs) writeFileSync(join(dir, "issues", `${r.number}.md`), issueFile(r));

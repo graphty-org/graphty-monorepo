@@ -7,6 +7,11 @@
  * its git config has no credential helper, its tools are only the ones its kind needs, and a guard
  * hook checks every Bash, Edit and Write. Everything it wants to change leaves the machine only
  * through the daemon's tools.
+ *
+ * Code-editing kinds also ask for Claude Code's Bash sandbox. It is defense in depth, not the
+ * boundary: runs read only the owner's text, and githerd's own code checks and pushes their work.
+ * Where bubblewrap or socat is missing, claude prints "Sandbox disabled" and runs Bash without it;
+ * the runner records that as a note and lets the run go on.
  */
 
 import { execFileSync, spawn } from "node:child_process";
@@ -68,7 +73,7 @@ const SANDBOX_COMMANDS = ["bwrap", "socat"];
 
 /**
  * The sandbox commands missing from `path`. Claude Code only warns and runs Bash unsandboxed when
- * they are missing, so a code-editing run must not start then (design section 9.3).
+ * they are missing (design section 9.3); the smoke script reports them.
  * @param {string | undefined} path the run's PATH
  * @returns {string[]} the missing commands; empty when the sandbox can run
  */
@@ -474,10 +479,8 @@ function inside(dir, path) {
  * @param {(level: string, text: string) => void} [options.log] the daemon log
  * @param {() => Date} [options.now] the clock
  * @param {number} [options.killGraceMs] SIGTERM to SIGKILL delay
- * @param {() => string[]} [options.sandboxMissing] the sandbox commands this machine lacks; a
- *   code-editing run is refused while any is missing
  * @returns {{start: (req: RunRequest) => {ok: false, reason: string} | {ok: true, id: string,
- *   done: Promise<any>}, refuses: (kind: string) => string | null, shutdown: () => Promise<void>,
+ *   done: Promise<any>}, shutdown: () => Promise<void>,
  *   inFlight: () => string[]}} the runner
  */
 export function createRunner({
@@ -497,7 +500,6 @@ export function createRunner({
     log = () => {},
     now = () => new Date(),
     killGraceMs = KILL_GRACE_MS,
-    sandboxMissing: missingSandbox = () => sandboxMissing(env.PATH),
 }) {
     /** @type {Map<string, {kill: (why: string) => void, interrupt: () => void, done: Promise<any>}>} */
     const live = new Map();
@@ -517,20 +519,6 @@ export function createRunner({
     }
 
     /**
-     * Why a run of `kind` can never start on this machine, or null. The daemon asks before it
-     * prepares a worktree, so a run that cannot start costs no checkout and no setup.
-     * @param {string} kind the run kind
-     * @returns {string | null} the reason
-     */
-    function refuses(kind) {
-        if (!CODE_EDITING.has(kind)) return null;
-        const missing = missingSandbox();
-        return missing.length
-            ? `code-editing runs are off: no Bash sandbox (${missing.join(", ")} not installed)`
-            : null;
-    }
-
-    /**
      * Admits, prepares and spawns a run. Admission and the `running` record happen before anything
      * asynchronous, so two runs admitted together are both counted.
      * @param {RunRequest} req the run
@@ -541,8 +529,6 @@ export function createRunner({
         const cfg = config();
         const at = now();
         state.runs ??= {};
-        const refused = refuses(req.kind);
-        if (refused) return { ok: false, reason: refused };
         const admitted = admit(state, cfg, mode(), req.kind, at);
         if (!admitted.ok) return /** @type {{ok: false, reason: string}} */ (admitted);
         const caps = capsFor(cfg, req.kind);
@@ -671,8 +657,12 @@ export function createRunner({
         });
         child.stderr.on("data", (chunk) => {
             appendFileSync(streamFile, chunk);
-            // Claude Code's own word that Bash will run unsandboxed.
-            if (CODE_EDITING.has(req.kind) && String(chunk).includes("Sandbox disabled")) kill("sandbox-disabled");
+            // Claude Code's own word that Bash will run unsandboxed: a note, not a reason to stop.
+            if (CODE_EDITING.has(req.kind) && !record.sandboxDisabled && String(chunk).includes("Sandbox disabled")) {
+                record.sandboxDisabled = true;
+                log("info", `${id}: Bash runs without the sandbox (bubblewrap or socat missing)`);
+                void ledger({ kind: "event", event: "sandbox-disabled", run: id });
+            }
         });
 
         const done = new Promise((resolve) => {
@@ -824,7 +814,7 @@ export function createRunner({
         for (const r of [...live.values()]) r.interrupt();
     }
 
-    return { start, refuses, shutdown, inFlight: () => [...live.keys()] };
+    return { start, shutdown, inFlight: () => [...live.keys()] };
 }
 
 /**

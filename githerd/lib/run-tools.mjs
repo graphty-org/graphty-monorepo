@@ -5,13 +5,18 @@
  * Every write tool checks the target against the run's batch, applies `checkOutgoing`, adds the
  * hidden marker `<!-- githerd run=<id> -->` to anything it posts, counts against the run's write cap
  * (`runs.writesPerRun`) and records `would-do` unless the mode is `acting` and the write's `actions`
- * group is on. Text a run wrote is marked `untrusted: true` in the ledger. Code-editing kinds never
- * see untrusted text: their context keeps only what `trustedAuthors` wrote, their ledger slice has
- * no run-written fields, and they get neither `githerd_gh_get` nor search.
+ * group is on. Text a run wrote is marked `untrusted: true` in the ledger.
+ *
+ * No run of any kind sees text by anyone but the owner, the account gh is logged in as
+ * (`state.trust.login`). Every tool that returns GitHub content drops issues, pull requests,
+ * comments, reviews and review comments by other accounts (bots included), and the logs of pull
+ * request workflow runs another account started, and says how many it hid. Code-editing kinds
+ * also get a ledger slice without run-written fields, and neither `githerd_gh_get` nor search.
  */
 
 import { createHash, timingSafeEqual } from "node:crypto";
 
+import { byOwner } from "./board.mjs";
 import { assertAscii, checkOutgoing } from "./text.mjs";
 
 /** Kinds that edit code in a githerd worktree. */
@@ -140,6 +145,64 @@ function daemonFieldsOnly(entry) {
 }
 
 /**
+ * Who wrote a GitHub object, as far as a run is concerned: REST `user`, GraphQL `author`, and for a
+ * pull request's workflow run the account that started it (its title, commit message and logs
+ * come from the pull request).
+ * @param {any} v a value from a GitHub answer
+ * @returns {string | null | undefined} the login; null for a deleted account; undefined when the
+ *   value names no writer
+ */
+function writer(v) {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+    for (const key of ["user", "author"]) {
+        if (key in v && (v[key] === null || (typeof v[key] === "object" && "login" in v[key]))) {
+            return v[key]?.login ?? null;
+        }
+    }
+    if (typeof v.event === "string" && v.event.startsWith("pull_request") && "head_repository" in v) {
+        return v.triggering_actor?.login ?? v.actor?.login ?? null;
+    }
+    return undefined;
+}
+
+/**
+ * Drops everything another account wrote from a GitHub answer, at any depth: an array loses the
+ * element, an object keeps only its writer. A REST commit's `author` is the GitHub account, so a
+ * commit by someone else goes too; its `commit.author` (name and email) names no account.
+ * @param {any} value the answer
+ * @param {any} state the daemon state, for the owner
+ * @returns {{value: any, hidden: number}} what is left, and how many items went
+ */
+function ownerOnly(value, state) {
+    let hidden = 0;
+    /**
+     * Copies one value without what another account wrote.
+     * @param {any} v a value
+     * @returns {any} its owner-only copy
+     */
+    const walk = (v) => {
+        if (Array.isArray(v)) {
+            return v
+                .filter((x) => {
+                    const w = writer(x);
+                    if (w === undefined || byOwner(state, w)) return true;
+                    hidden++;
+                    return false;
+                })
+                .map(walk);
+        }
+        if (!v || typeof v !== "object") return v;
+        const w = writer(v);
+        if (w !== undefined && !byOwner(state, w)) {
+            hidden++;
+            return { hidden: `written by ${w ?? "a deleted account"}, not the owner` };
+        }
+        return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    };
+    return { value: walk(value), hidden };
+}
+
+/**
  * Parses an `issue:N` or `pr:N` target.
  * @param {string} target the target
  * @returns {{type: string, number: number}} its parts
@@ -183,7 +246,6 @@ export function runTools(ctx) {
     const kind = run.kind;
     const codeEditing = CODE_EDITING_KINDS.has(kind);
     const repo = config.repo;
-    const trusted = new Set(config.trustedAuthors ?? []);
     const marker = `<!-- githerd run=${id} -->`;
     const batch = new Set([run.target, ...(run.batch ?? [])].filter(Boolean));
     const cap = config.runs?.writesPerRun ?? 10;
@@ -249,26 +311,41 @@ export function runTools(ctx) {
     }
 
     /**
-     * Reads one issue or PR with its comments, as the run may see it.
+     * Records how many items by other accounts a run was not shown for a target, for status.
+     * @param {string} target the target, or a tool name when the answer has none
+     * @param {number} n how many were hidden in this answer
+     */
+    async function noteHidden(target, n) {
+        if (n === 0) return;
+        state.trust ??= {};
+        state.trust.hidden ??= {};
+        state.trust.hidden[target] = Math.max(state.trust.hidden[target] ?? 0, n);
+        await ctx.save();
+    }
+
+    /**
+     * Reads one issue or PR with its comments, as the run may see it: the owner's text only.
      * @param {string} target `issue:N` or `pr:N`
-     * @returns {Promise<object>} the text, filtered for code-editing kinds
+     * @returns {Promise<object>} the text
      */
     async function targetText(target) {
         const { number } = parseTarget(target);
         const issue = (await github.get(`repos/${repo}/issues/${number}`)).body ?? {};
         const comments = (await github.get(`repos/${repo}/issues/${number}/comments?per_page=100`)).body ?? [];
         const author = issue.user?.login ?? null;
-        const keep = (/** @type {string | null} */ who) => !codeEditing || trusted.has(who ?? "");
+        const mine = byOwner(state, author);
+        const kept = comments.filter((/** @type {any} */ c) => byOwner(state, c.user?.login));
+        const hidden = comments.length - kept.length + (mine ? 0 : 1);
+        await noteHidden(target, hidden);
         return {
             target,
             author,
-            title: keep(author) ? issue.title : null,
-            body: keep(author) ? issue.body : null,
+            title: mine ? issue.title : null,
+            body: mine ? issue.body : null,
             labels: (issue.labels ?? []).map((/** @type {any} */ l) => l.name),
-            comments: comments
-                .filter((/** @type {any} */ c) => keep(c.user?.login))
-                .map((/** @type {any} */ c) => ({ author: c.user?.login, at: c.created_at, body: c.body })),
-            ...(codeEditing ? { note: "text by authors outside trustedAuthors is withheld" } : {}),
+            comments: kept.map((/** @type {any} */ c) => ({ author: c.user?.login, at: c.created_at, body: c.body })),
+            hidden,
+            note: "only the owner's text is shown; hidden counts the items by other accounts left out",
         };
     }
 
@@ -328,7 +405,7 @@ export function runTools(ctx) {
         {
             name: "githerd_ci_log",
             description:
-                "For a workflow run of this repository: the failed jobs, their failed steps and the last 400 lines of each failed job's log.",
+                "For a workflow run of this repository: the failed jobs, their failed steps and the last 400 lines of each failed job's log. A pull request run another account started is hidden.",
             inputSchema: {
                 type: "object",
                 required: ["runId"],
@@ -339,6 +416,12 @@ export function runTools(ctx) {
                 additionalProperties: false,
             },
             handler: async (args) => {
+                const wf = (await github.get(`repos/${repo}/actions/runs/${args.runId}`)).body ?? {};
+                const w = writer(wf);
+                if (w !== undefined && !byOwner(state, w)) {
+                    await noteHidden(`ci:${args.runId}`, 1);
+                    return `hidden: run ${args.runId} is a pull request run started by ${w ?? "a deleted account"}, not the owner`;
+                }
                 const jobs =
                     (await github.get(`repos/${repo}/actions/runs/${args.runId}/jobs?filter=latest&per_page=100`)).body
                         ?.jobs ?? [];
@@ -369,7 +452,7 @@ export function runTools(ctx) {
             {
                 name: "githerd_gh_get",
                 description:
-                    "Read-only GitHub access for this repository: a REST path under repos/<owner>/<name>/, or one named GraphQL query (issue, issueTimeline, pr, prFiles) with a number.",
+                    "Read-only GitHub access for this repository: a REST path under repos/<owner>/<name>/, or one named GraphQL query (issue, issueTimeline, pr, prFiles) with a number. Answers {hidden, data}: everything another account wrote is left out of data, and hidden counts it.",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -384,7 +467,12 @@ export function runTools(ctx) {
                         if (args.number === undefined) throw new Error("a named query needs number");
                         const [owner, name] = repo.split("/");
                         const doc = `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { ${QUERIES[/** @type {keyof typeof QUERIES} */ (args.query)]} } }`;
-                        return JSON.stringify(await github.graphql(doc, { owner, name, number: args.number }));
+                        const data = ownerOnly(await github.graphql(doc, { owner, name, number: args.number }), state);
+                        await noteHidden(
+                            `${args.query === "pr" || args.query === "prFiles" ? "pr" : "issue"}:${args.number}`,
+                            data.hidden,
+                        );
+                        return JSON.stringify({ hidden: data.hidden, data: data.value });
                     }
                     const path = String(args.path ?? "");
                     if (!path.startsWith(`repos/${repo}/`))
@@ -393,13 +481,16 @@ export function runTools(ctx) {
                     if (segments.includes("..") || segments.some((s) => SECRET_SEGMENTS.has(s.toLowerCase()))) {
                         throw new Error(`githerd does not read ${path}`);
                     }
-                    return JSON.stringify((await github.get(path)).body);
+                    const data = ownerOnly((await github.get(path)).body, state);
+                    const n = /\/(?:issues|pulls)\/(\d+)/.exec(path)?.[1];
+                    await noteHidden(n ? `${path.includes("/pulls/") ? "pr" : "issue"}:${n}` : path, data.hidden);
+                    return JSON.stringify({ hidden: data.hidden, data: data.value });
                 },
             },
             {
                 name: "githerd_search_issues",
                 description:
-                    "Search this repository's issues and pull requests. repo:, org: and user: qualifiers are removed; the search is always limited to this repository.",
+                    "Search this repository's issues and pull requests by the owner. repo:, org: and user: qualifiers are removed; the search is always limited to this repository, and items by other accounts are counted in hidden, not listed.",
                 inputSchema: {
                     type: "object",
                     required: ["query"],
@@ -410,7 +501,12 @@ export function runTools(ctx) {
                     const q = scopeSearch(args.query, repo);
                     await (ctx.searchPace ?? sharedSearchPace)();
                     const body = (await github.get(`search/issues?q=${encodeURIComponent(q)}&per_page=20`)).body ?? {};
-                    const items = (body.items ?? []).map((/** @type {any} */ i) => ({
+                    const all = body.items ?? [];
+                    const mine = all.filter((/** @type {any} */ i) => byOwner(state, i.user?.login));
+                    for (const i of all) {
+                        if (!mine.includes(i)) await noteHidden(`${i.pull_request ? "pr" : "issue"}:${i.number}`, 1);
+                    }
+                    const items = mine.map((/** @type {any} */ i) => ({
                         number: i.number,
                         title: i.title,
                         state: i.state,
@@ -418,7 +514,12 @@ export function runTools(ctx) {
                         pr: Boolean(i.pull_request),
                         labels: (i.labels ?? []).map((/** @type {any} */ l) => l.name),
                     }));
-                    return JSON.stringify({ query: q, total: body.total_count ?? 0, items });
+                    return JSON.stringify({
+                        query: q,
+                        total: body.total_count ?? 0,
+                        hidden: all.length - mine.length,
+                        items,
+                    });
                 },
             },
             {

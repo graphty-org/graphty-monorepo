@@ -37,6 +37,29 @@ const rate = (remaining, extra = {}) => ({
     ...extra,
 });
 
+describe("login", () => {
+    it("asks gh api user every time and answers its login", async () => {
+        let login = "apowers313";
+        const gh = createFakeGh(() => httpOutput({ status: 200, headers: rate(4000), body: { login } }));
+        const { gitHub } = client(gh);
+        expect(await gitHub.login()).toBe("apowers313");
+        login = "someone-else";
+        expect(await gitHub.login()).toBe("someone-else");
+        expect(gh.calls.map((c) => c.args)).toEqual([
+            ["api", "-i", "user"],
+            ["api", "-i", "user"],
+        ]);
+        expect(gh.writes()).toEqual([]);
+    });
+
+    it("throws a credential error for an answer without a login, or a refused token", async () => {
+        const empty = client(createFakeGh(() => httpOutput({ status: 200, body: {} }))).gitHub;
+        await expect(empty.login()).rejects.toMatchObject({ kind: "credential" });
+        const refused = client(createFakeGh(() => httpOutput({ status: 401, body: { message: "Bad credentials" } })));
+        await expect(refused.gitHub.login()).rejects.toMatchObject({ kind: "credential" });
+    });
+});
+
 describe("get", () => {
     it("sends the saved ETag and returns the saved body on 304", async () => {
         const gh = createFakeGh(({ args }) =>

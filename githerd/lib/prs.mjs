@@ -226,17 +226,19 @@ export function countsAsBreaking(rec) {
  * Whether design section 8 would turn auto-merge on for this PR.
  * @param {PrRecord} rec the record
  * @param {MasterView} master the default branch's verdict
- * @param {Config} config the normalized config
+ * @param {string | null | undefined} login the owner, the account gh is logged in as; only the
+ *   owner's PRs are eligible
  * @returns {boolean} true when eligible
  */
-export function autoMergeEligible(rec, master, config) {
+export function autoMergeEligible(rec, master, login) {
     return (
         !rec.draft &&
         !countsAsBreaking(rec) &&
         rec.baseRef === master.branch &&
         !rec.labels.includes("breaking-hold") &&
         !rec.touchesNoAutoMerge &&
-        config.trustedAuthors.includes(rec.author)
+        Boolean(login) &&
+        rec.author === login
     );
 }
 
@@ -244,10 +246,10 @@ export function autoMergeEligible(rec, master, config) {
  * The reasons a PR is not merging, in the order of design section 6.5.
  * @param {number} number the PR number
  * @param {PrRecord} rec its record
- * @param {{ master: MasterView, config: Config, now?: number,
+ * @param {{ master: MasterView, config: Config, now?: number, login?: string | null,
  *   claims?: Record<string, { holder: string, holderName?: string | null }>,
  *   sessions?: Record<string, { branch?: string, name?: string }> }} ctx `claims` and `sessions`
- *   hold only the live ones; `now` is milliseconds since the epoch
+ *   hold only the live ones; `now` is milliseconds since the epoch; `login` is the owner
  * @returns {string[]} the reasons, empty when nothing holds the PR
  */
 export function whyStuck(number, rec, ctx) {
@@ -270,7 +272,7 @@ export function whyStuck(number, rec, ctx) {
     if (failing.length && master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
         reasons.push("failure predates master fix");
     }
-    if (!rec.autoMerge && autoMergeEligible(rec, master, config)) reasons.push("auto-merge off");
+    if (!rec.autoMerge && autoMergeEligible(rec, master, ctx.login)) reasons.push("auto-merge off");
     if (rec.touchesNoAutoMerge) reasons.push("owner merges: touches githerd or CI config");
     if (pending.length) reasons.push("checks pending");
 

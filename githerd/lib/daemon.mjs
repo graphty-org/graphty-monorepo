@@ -17,6 +17,11 @@
  * a second daemon never duplicates the shared daemon's pages; `GITHERD_DEV_NOTIFY=1` delivers
  * them, for testing the notifier. The `quiet` option (the one-poll check) does the same.
  *
+ * Trust: the only author githerd acts on is the account gh is logged in as. Every poll asks GitHub
+ * for that login (`gh api user`) and keeps it in `state.trust.login`; it starts null at every start
+ * and is never read from the config. While it is unresolved no run starts and a `blocked`
+ * escalation stays open.
+ *
  * Fencing: after binding, the daemon writes `daemon.json` with its process identity. Before every
  * poll and every state write it reads the file again; when the file names another live process,
  * this daemon stops without writing anything. A daemon that finds such a file at startup never
@@ -284,6 +289,8 @@ export async function startDaemon({
     state.github ??= { downSince: null, lastError: null };
     state.schedule ??= {};
     state.runs ??= {};
+    // Resolved again by the first poll; a login saved by an earlier process is not trusted.
+    state.trust = { login: null, resolvedAt: null, error: null, hidden: state.trust?.hidden ?? {} };
     const recovered = recoverRuns(state, { now: now() });
     for (const id of recovered.lost) say("info", `run ${id} lost: the machine restarted since it started`);
     for (const id of recovered.interrupted) say("info", `run ${id} interrupted by the restart`);
@@ -544,7 +551,10 @@ export async function startDaemon({
                 if (config.ownerGate.rejectMarker) {
                     const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
                     const res = await github().get(`repos/${repo}/issues/${n}/comments?since=${since}&per_page=100`);
-                    detail.comments = (res.body ?? []).map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
+                    // Only the owner can reject: another account's comment never reaches a run.
+                    detail.comments = (res.body ?? [])
+                        .filter((c) => board.byOwner(state, c.user?.login))
+                        .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
                 }
             }
         }
@@ -612,7 +622,10 @@ export async function startDaemon({
                 page({
                     type: "master-red-confirmed",
                     incident: open.id,
-                    runStarting: runner !== null && admit(state, config, mode(), "master-red", now()).ok,
+                    runStarting:
+                        runner !== null &&
+                        Boolean(state.trust.login) &&
+                        admit(state, config, mode(), "master-red", now()).ok,
                     restartedSince,
                 });
             }
@@ -625,6 +638,35 @@ export async function startDaemon({
             page({ type: "master-recovered", incident: open.id });
         }
         page({ type: "poll", now: iso });
+    }
+
+    /**
+     * Asks GitHub which account gh is logged in as. An outage keeps a login already resolved (it
+     * says nothing about who is logged in); a refused or empty answer clears it.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {string} iso the poll's time
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     */
+    async function resolveLogin(gh, iso, derived) {
+        const trust = state.trust;
+        try {
+            const login = await gh.login();
+            if (login !== trust.login) say("info", `trusted author: ${login}, the account gh is logged in as`);
+            Object.assign(trust, { login, resolvedAt: iso, error: null });
+        } catch (err) {
+            const e = /** @type {import("./github.mjs").GitHubError} */ (err);
+            if (!["network", "timeout", "server", "rate", "secondary"].includes(e.kind)) trust.login = null;
+            trust.error = e.message;
+        }
+        if (!trust.login) {
+            derived({
+                key: "login-unresolved",
+                kind: "blocked",
+                summary: "githerd cannot tell which GitHub account gh is logged in as, so it starts no runs",
+                detail: trust.error ?? undefined,
+                clearWhen: "login-resolved",
+            });
+        }
     }
 
     /**
@@ -649,6 +691,7 @@ export async function startDaemon({
             holding.add(args.key);
             raise(args);
         };
+        await resolveLogin(gh, iso, derived);
 
         let headSha = m.headSha ?? null;
         /** @type {any[] | null} */
@@ -760,6 +803,7 @@ export async function startDaemon({
                 rec.stuck = whyStuck(Number(n), rec, {
                     master: view,
                     config,
+                    login: state.trust.login,
                     now: ms,
                     claims: state.claims,
                     sessions: state.sessions,
@@ -771,7 +815,8 @@ export async function startDaemon({
             state.issues = { since: issues.since, byNumber: issues.byNumber };
         }
 
-        if (runner) await runs(t);
+        // No owner, no runs: every run kind acts only on the owner's items.
+        if (runner && state.trust.login) await runs(t);
 
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
@@ -819,8 +864,6 @@ export async function startDaemon({
         const run = /** @type {NonNullable<typeof runner>} */ (runner);
         const greenSha = state.master.greenSha;
         if (!greenSha) return { ok: false, reason: "no green SHA yet" };
-        const refused = run.refuses(item.kind);
-        if (refused) return { ok: false, reason: refused };
         let prompt;
         try {
             prompt = buildPrompt({ root, sha: greenSha, kind: item.kind, rulesFile: config.runRulesFile });

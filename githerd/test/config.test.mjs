@@ -87,6 +87,13 @@ describe("normalizeConfig", () => {
         expect(() => with_({ protectedPaths: ["../outside"] })).toThrow(/inside the repository/);
     });
 
+    it("has no list of trusted authors: githerd trusts only the account gh is logged in as", () => {
+        for (const list of [[], ["apowers313"], ["apowers313", "someone"]]) {
+            expect(() => with_({ trustedAuthors: list })).toThrow(/trustedAuthors is forbidden.*gh is logged in as/);
+        }
+        expect(Object.keys(with_({}))).not.toContain("trustedAuthors");
+    });
+
     it("lets reverts happen only through actions.incidents", () => {
         expect(with_({ actions: { incidents: true } }).actions.incidents).toBe(true);
         expect(() => with_({ revert: true })).toThrow(/revert is forbidden.*incident issue/);

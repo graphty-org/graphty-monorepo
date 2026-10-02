@@ -132,7 +132,7 @@ function isMutation(query) {
  *   (anything but `acting` records instead of writing); `ledger` appends one ledger entry; `rate`
  *   is the persisted rate record, mutated in place so `downSince` survives a restart; `env` is
  *   the environment whose secret values `checkOutgoing` refuses.
- * @returns the client: `get`, `graphql`, `write`, `mutate`, `pace` and the `rate` record
+ * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `pace` and the `rate` record
  */
 export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env = process.env, now = Date.now }) {
     /** @type {RateState} */
@@ -314,6 +314,19 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
             }
             if (res.headers.etag) etags.set(path, { etag: res.headers.etag, body: res.body });
             return { ...res, changed: true };
+        },
+
+        /**
+         * The login of the account gh is logged in as (`gh api user`): the only author githerd
+         * trusts. Asked fresh every time, so a change of `gh auth` shows on the next poll.
+         * @returns {Promise<string>} the login
+         */
+        async login() {
+            const login = (await call(["user"])).body?.login;
+            if (typeof login !== "string" || login === "") {
+                throw new GitHubError("credential", "gh api user answered without a login");
+            }
+            return login;
         },
 
         /**

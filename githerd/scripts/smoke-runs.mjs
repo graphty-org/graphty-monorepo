@@ -15,13 +15,13 @@
  * Nothing can reach GitHub as a write: the mode is dry-run, every `actions` group is off, and the
  * `gh` this daemon uses refuses anything but reads. The phone is never paged (no notify command).
  * Runs use sonnet and caps that sum to under $3; a run whose cap would take the total over $3 is
- * not started. Code-editing runs need the Bash sandbox (bwrap and socat); without it the runner
- * refuses them and this script reports them as skipped.
+ * not started. Code-editing runs ask for the Bash sandbox (bwrap and socat); without it they run
+ * anyway, and the summary lists what is missing.
  *
  * Usage: node githerd/scripts/smoke-runs.mjs <work dir>. Prints a JSON summary and exits 0 only
  * when every run ended with a valid result (`done`, `escalated`, or `nothing-to-do` when its
  * issues needed nothing) and no denial, the ledger holds no performed write,
- * and the sandbox probe found every credential route blocked.
+ * and, where the sandbox can run, the sandbox probe found every credential route blocked.
  */
 import { execFile, execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -120,6 +120,8 @@ const daemon = await startDaemon({
 if (!daemon.runner) throw new Error(`the daemon has no runner; see ${join(work, "daemon.log")}`);
 const runner = daemon.runner;
 daemon.state.master.greenSha = greenSha;
+// The daemon resolves this on its first poll; the smoke script polls nothing.
+daemon.state.trust.login = ghGet("user").login;
 
 let spent = 0;
 /** @type {any[]} */
@@ -199,8 +201,9 @@ try {
     // 1. Triage on the 3 most recent open issues, preferring ones missing a type, priority or
     // effort label (what the dispatcher triages).
     const sets = [config.labels.types, config.labels.priorities, config.labels.efforts];
+    // Only the owner's issues, as the dispatcher would choose.
     const open = ghGet(`repos/${repo}/issues?state=open&sort=created&direction=desc&per_page=50`).filter(
-        (/** @type {any} */ i) => !i.pull_request,
+        (/** @type {any} */ i) => !i.pull_request && i.user?.login === daemon.state.trust.login,
     );
     const untriaged = (/** @type {any} */ i) =>
         sets.some((set) => !i.labels.some((/** @type {any} */ l) => set.includes(l.name)));
@@ -246,14 +249,9 @@ try {
         }
     }
 
-    // 3 and 4. Code-editing runs, only with the Bash sandbox.
-    if (missing.length) {
-        const why = `code-editing runs are off: no Bash sandbox (${missing.join(", ")} not installed)`;
-        results.push({ step: "master-red", ok: false, skipped: why }, { step: "pr-conflict", ok: false, skipped: why });
-    } else {
-        await masterRed();
-        await prConflict();
-    }
+    // 3 and 4. Code-editing runs, with or without the Bash sandbox.
+    await masterRed();
+    await prConflict();
 } finally {
     await daemon.shutdown();
 }
@@ -320,7 +318,7 @@ async function masterRed() {
         },
     );
     const last = results.at(-1);
-    if (last.step === "master-red" && last.run) last.ok &&= last.sandboxHolds;
+    if (last.step === "master-red" && last.run && missing.length === 0) last.ok &&= last.sandboxHolds;
     rmSync(join(wt.dir, `${probe}.sh`), { force: true });
     rmSync(join(wt.dir, `${probe}.out`), { force: true });
     await drop(wt);

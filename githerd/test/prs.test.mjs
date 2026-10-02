@@ -78,7 +78,8 @@ function polls(...rounds) {
     return saved;
 }
 
-const stuck = (rec, ctx = {}) => whyStuck(704, rec, { master: GREEN, config, now: Date.parse(NOW), ...ctx });
+const stuck = (rec, ctx = {}) =>
+    whyStuck(704, rec, { master: GREEN, config, now: Date.parse(NOW), login: "apowers313", ...ctx });
 
 describe("mergeability", () => {
     it("UNKNOWN never changes state", () => {
@@ -303,10 +304,14 @@ describe("whyStuck", () => {
         expect(stuck(polls([upper])["704"])).toContain("stacked: waiting on branch feat/base");
     });
 
-    it("auto-merge off for an eligible PR, not for an untrusted author", () => {
-        expect(stuck(polls([node({ autoMergeRequest: null })])["704"])).toEqual(["auto-merge off"]);
+    it("auto-merge off for an eligible PR, not for another author or an unresolved login", () => {
+        const mine = polls([node({ autoMergeRequest: null })])["704"];
+        expect(stuck(mine)).toEqual(["auto-merge off"]);
+        expect(autoMergeEligible(mine, GREEN, "apowers313")).toBe(true);
+        expect(autoMergeEligible(mine, GREEN, null)).toBe(false);
+        expect(stuck(mine, { login: null })).toEqual([]);
         const other = polls([node({ autoMergeRequest: null, author: { login: "someone" } })])["704"];
-        expect(autoMergeEligible(other, GREEN, config)).toBe(false);
+        expect(autoMergeEligible(other, GREEN, "apowers313")).toBe(false);
         expect(stuck(other)).toEqual([]);
         const held = polls([node({ autoMergeRequest: null, labels: { nodes: [{ name: "breaking-hold" }] } })])["704"];
         expect(stuck(held)).toEqual([]);

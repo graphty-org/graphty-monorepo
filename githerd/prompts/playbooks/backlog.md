@@ -2,7 +2,7 @@
 
 Implement one ready issue on the branch you were given.
 
-1. Call `githerd_run_context`: the issue, its trusted comments, the green SHA and the branch.
+1. Call `githerd_run_context`: the issue, the owner's comments on it, the green SHA and the branch.
 2. Read the code the issue concerns. If the issue is unclear, larger than its effort label, or
    needs a decision that cannot be undone cheaply, call `githerd_escalate` (`kind: "decision"`)
    and finish with `outcome: "escalated"` without changing code.

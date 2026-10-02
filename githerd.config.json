@@ -16,7 +16,6 @@
         "rejectMarker": "visual-review-rejects",
         "reviewServer": { "name": "visual-review", "command": ["node", "visual-review/trusted/cli.mjs", "serve"] }
     },
-    "trustedAuthors": ["apowers313"],
     "labels": {
         "types": ["bug", "enhancement", "research", "infrastructure", "documentation"],
         "priorities": ["priority:critical", "priority:high", "priority:medium", "priority:low"],

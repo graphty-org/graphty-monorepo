@@ -1751,16 +1751,6 @@ export const TwoDAllLines: Story = {
 };
 
 /**
- * A caption for one edge of the two pattern stories below, set by the same layer as its line.
- * @param text - What the edge is called.
- * @returns The label channels.
- */
-const patternCaption = (text: string): Record<string, unknown> => ({
-    "edge.label": text,
-    "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent", location: "top", attachOffset: 1 },
-});
-
-/**
  * A solid line and a dashed line, both at half opacity, one above the other.
  *
  * WHAT TO LOOK FOR: the dashes are the same pale grey as the solid line. A dash drawn darker than
@@ -1812,7 +1802,14 @@ export const PatternedLineOpacity: Story = {
                         "edge.opacity": 0.5,
                         "edge.style": "solid",
                         "edge.arrowHead": "none",
-                        ...patternCaption("solid, opacity 0.5"),
+                        "edge.label": "solid, opacity 0.5",
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
                 {
@@ -1824,7 +1821,14 @@ export const PatternedLineOpacity: Story = {
                         "edge.opacity": 0.5,
                         "edge.style": "dash",
                         "edge.arrowHead": "none",
-                        ...patternCaption("dash, opacity 0.5"),
+                        "edge.label": "dash, opacity 0.5",
+                        "edge.labelStyle": {
+                            sizePx: 32,
+                            color: "#000000",
+                            background: "transparent",
+                            location: "top",
+                            attachOffset: 1,
+                        },
                     },
                 },
             ],
@@ -1858,9 +1862,9 @@ const ANGLES = [
  * vertical line, or zigzag teeth that stay horizontal on a vertical or diagonal edge, is a 2D pattern that does not
  * turn to follow its edge (issue #620).
  */
-export const TwoDPatternAngles: Story = {
+export const TwoDLineAngles: Story = {
     play: async ({ canvasElement }) => {
-        const scene = await drawn(canvasElement, "Styles/Edge TwoDPatternAngles");
+        const scene = await drawn(canvasElement, "Styles/Edge TwoDLineAngles");
 
         await assertGraphLoaded(scene, { nodes: ANGLE_PATTERNS.length * ANGLES.length * 2, edges: 9 });
         await assertViewMode(scene, "2d");
@@ -1885,7 +1889,7 @@ export const TwoDPatternAngles: Story = {
 
         await holds(
             across.length === 0,
-            `Styles/Edge TwoDPatternAngles: ${String(across.length)} pattern elements do not point along their ` +
+            `Styles/Edge TwoDLineAngles: ${String(across.length)} pattern elements do not point along their ` +
                 `line: ${across.slice(0, 5).join(", ")}`,
         );
 
@@ -1894,12 +1898,26 @@ export const TwoDPatternAngles: Story = {
     args: {
         setup: storySetup({
             viewMode: "2d",
-            layers: ANGLE_PATTERNS.map((pattern) => ({
-                name: `edges in the ${pattern} row`,
-                target: "edge" as const,
-                selector: { match: "expression" as const, where: `data.pattern == '${pattern}'` },
-                set: { "edge.color": "darkgrey", "edge.style": pattern, "edge.arrowHead": "none" },
-            })),
+            layers: [
+                {
+                    name: "edges in the dash row",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.pattern == 'dash'" },
+                    set: { "edge.color": "darkgrey", "edge.style": "dash", "edge.arrowHead": "none" },
+                },
+                {
+                    name: "edges in the diamond row",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.pattern == 'diamond'" },
+                    set: { "edge.color": "darkgrey", "edge.style": "diamond", "edge.arrowHead": "none" },
+                },
+                {
+                    name: "edges in the zigzag row",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.pattern == 'zigzag'" },
+                    set: { "edge.color": "darkgrey", "edge.style": "zigzag", "edge.arrowHead": "none" },
+                },
+            ],
         }),
         nodeData: ANGLE_PATTERNS.flatMap((pattern, row) =>
             ANGLES.flatMap((angle, column) => {

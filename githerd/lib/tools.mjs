@@ -364,7 +364,8 @@ function statusText(data, now) {
                 const req = Object.entries(p.required).map(([k, v]) => `${k}: ${v}`);
                 lines.push(`    required: ${req.length ? req.join(", ") : "none reported"}`);
                 if (p.failingChecks?.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
-                if (p.failingCheckCount) lines.push(`    failing: ${p.failingCheckCount} (names hidden: untrusted author)`);
+                if (p.failingCheckCount)
+                    lines.push(`    failing: ${p.failingCheckCount} (names hidden: untrusted author)`);
             }
         }
     }

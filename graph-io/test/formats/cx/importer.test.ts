@@ -718,6 +718,75 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
         expect((s.meta.extra.cx as Record<string, unknown[]>).cyVisualProperties).toHaveLength(6);
     });
 
+    it("reads the per-element visual values of the graph's own view only, and counts table styles", async () => {
+        const { snapshot: s, report } = await load(
+            cx([
+                { nodes: [{ "@id": 1 }] },
+                { cySubNetworks: [{ "@id": 50, nodes: "all", edges: "all" }] },
+                {
+                    cyViews: [
+                        { "@id": 60, s: 50 },
+                        { "@id": 61, s: 50 },
+                    ],
+                },
+                {
+                    cyVisualProperties: [
+                        { properties_of: "nodes", applies_to: 1, view: 60, properties: { NODE_SIZE: "10.0" } },
+                        { properties_of: "nodes", applies_to: 1, view: 61, properties: { NODE_SIZE: "99.0" } },
+                        {
+                            properties_of: "network",
+                            applies_to: 61,
+                            view: 61,
+                            properties: { NETWORK_SCALE_FACTOR: "2" },
+                        },
+                    ],
+                },
+                { tableVisualProperties: [{ applies_to: "node_table", n: "x" }] },
+            ]),
+        );
+        expect(value(s, "NODE_SIZE", 1)).toBe("10.0");
+        expect(s.graph.get("NETWORK_SCALE_FACTOR")).toBeNull();
+        expect(codes(report)).toEqual([CX_ISSUE.STYLES_NOT_IMPORTED]);
+        expect(report.issues[0].message).toMatch(/1 table style element/);
+        const tableOnly = await load(cx([{ nodes: [{ "@id": 1 }] }, { tableVisualProperties: [{ n: "x" }] }]));
+        expect(codes(tableOnly.report)).toEqual([CX_ISSUE.STYLES_NOT_IMPORTED]);
+    });
+
+    it("reports an attribute element without v, nodes and edges in no subnetwork, and a too-deep element", async () => {
+        // built as text: JSON.stringify itself overflows the stack on such a value
+        const deep = `${"[".repeat(5000)}${"]".repeat(5000)}`;
+        const text = cx([
+            { nodes: [{ "@id": 1 }, { "@id": 2 }, { "@id": 3 }] },
+            {
+                edges: [
+                    { "@id": 7, s: 1, t: 2 },
+                    { "@id": 8, s: 2, t: 3 },
+                ],
+            },
+            { cySubNetworks: [{ "@id": 50, nodes: [1, 2], edges: [7] }] },
+            {
+                nodeAttributes: [
+                    { po: 1, n: "a" },
+                    { po: 2, n: "a", v: "x" },
+                    { po: 2, n: "b", v: "DEEP" },
+                ],
+            },
+            { provenanceHistory: [{ entity: "DEEP" }] },
+        ])
+            .split('"DEEP"')
+            .join(deep);
+        const { snapshot: s, report } = await load(text);
+        expect(s.nodeCount).toBe(2);
+        expect(s.edgeCount).toBe(1);
+        expect(value(s, "a", 2)).toBe("x");
+        expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK, CX_ISSUE.ROOT_ONLY, CX_ISSUE.BAD_VALUE]);
+        expect(report.issues.find((i) => i.code === CX_ISSUE.ROOT_ONLY)?.message).toMatch(
+            /1 node\(s\) and 1 edge\(s\)/,
+        );
+        expect(report.issues.find((i) => i.code === CX_ISSUE.BAD_VALUE)?.message).toMatch(/has no v/);
+        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
+    });
+
     it("reads citations and supports as extension tables and the links, function terms and reified edges as columns", async () => {
         const { snapshot: s, report } = await load(
             cx([

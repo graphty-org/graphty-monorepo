@@ -323,10 +323,11 @@ losses and format rules, in addition to the table:
   types for one name widen (`W_WIDENED`). A collection (several `cySubNetworks`) is one graph per
   subnetwork: `listGraphs()` lists them, `import()` reads the one `graphIndex` / `graphName` picks
   (the first by default, `W_MULTIPLE_GRAPHS`), `importAll()` reads them all; a subnetwork's own
-  values (`s`) beat the shared ones. Positions come from the subnetwork's view (y negated to y-up,
+  values (`s`) beat the shared ones, and nodes or edges no subnetwork holds are not read
+  (`W_CX_ROOT_ONLY`). Positions come from the subnetwork's view (y negated to y-up,
   other views as `position@2`, ...); `cyGroups` give `parent` or `parents` (a group whose id is
-  not a node gets one, `W_CX_GROUP_NODE_ADDED`); per-element `cyVisualProperties` are one column
-  per property (origin namespace `cx.bypass`) and style rules are kept in `meta.extra.cx`
+  not a node gets one, `W_CX_GROUP_NODE_ADDED`); per-element `cyVisualProperties` of that view are
+  one column per property (origin namespace `cx.bypass`) and style rules are kept in `meta.extra.cx`
   (`W_STYLES_NOT_IMPORTED`); citations and supports become the extension tables `cx:citations` /
   `cx:supports`. Old aspect names (`visualProperties`, `subNetworks`, ...) are read with
   `W_CX_OLD_ASPECT_NAME`; a CX2 document is refused naming the CX2 importer (`E_CX_NOT_CX`).

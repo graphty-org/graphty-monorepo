@@ -80,6 +80,7 @@ import {
     JsonScanError,
     plainJson,
     positionDecl,
+    reportTooDeep,
     scanAspects,
     zDecl,
 } from "../../common/json-elements.js";
@@ -253,7 +254,13 @@ const EDGE_KEYS: ReadonlySet<string> = new Set(["id", "s", "t", "v"]);
 const SINGLE_ELEMENT_ASPECTS: readonly string[] = ["networkAttributes", "visualProperties", "visualEditorProperties"];
 
 /** The aspects whose content is a style rule (design section 2). */
-const STYLE_ASPECTS: readonly string[] = ["visualProperties", "visualEditorProperties", "cyVisualProperties"];
+const STYLE_ASPECTS: readonly string[] = [
+    "visualProperties",
+    "visualEditorProperties",
+    "cyVisualProperties",
+    "tableVisualProperties",
+    "cyTableVisualProperties",
+];
 
 /** The aspects the stream structure owns; never kept as opaque. */
 const STRUCTURE_ASPECTS: ReadonlySet<string> = new Set(["metaData", "status"]);
@@ -411,6 +418,9 @@ function convertValue(
  * @returns the text, at most 60 characters
  */
 function shown(value: unknown): string {
+    if (value instanceof ExactInteger) {
+        return value.digits;
+    }
     let text: string;
     try {
         text = JSON.stringify(value) ?? String(value);
@@ -577,6 +587,12 @@ async function readDocument(
                 case "element":
                     collect(event.aspect, event.value, event.text, event.line, event.exact);
                     break;
+                case "deep":
+                    reportTooDeep(report, event);
+                    if (!descriptor) {
+                        readDescriptor(null, event.line, doc, report);
+                    }
+                    break;
                 case "extraKeys":
                     report.error(
                         "parse-error",
@@ -699,8 +715,10 @@ interface Declaration {
     /** The type: declared, or inferred from the values (null: nested or mixed values, a json column). */
     type: Cx2Type | null;
     alias: string | null;
-    readonly hasDefault: boolean;
-    readonly defaultValue: unknown;
+    hasDefault: boolean;
+    defaultValue: unknown;
+    /** The default as written, while the type is still to be inferred (a type CX2 does not define). */
+    readonly rawDefault: unknown;
     handle: ColumnHandle;
     /** Whether the file does not declare the attribute (W_CX2_UNDECLARED_ATTRIBUTE). */
     readonly undeclared: boolean;
@@ -856,7 +874,8 @@ class Cx2Reader {
 
     private edgeIdHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
-    private positioned = 0;
+    /** The rows that have a position (a set: a duplicate node may carry coordinates twice). */
+    private readonly positioned = new Set<number>();
 
     private sinceCheck = 0;
 
@@ -903,11 +922,11 @@ class Cx2Reader {
             this.readNode(held);
         }
         this.readLegacyLayout();
-        if (this.positioned > 0 && this.positioned < this.nodeRows.size) {
+        if (this.positioned.size > 0 && this.positioned.size < this.nodeRows.size) {
             report.warnOnce(
                 "missing-value",
                 CX2_ISSUE.PARTIAL_LAYOUT,
-                `${this.nodeRows.size - this.positioned} of ${this.nodeRows.size} node(s) have no coordinates; their positions are unset`,
+                `${this.nodeRows.size - this.positioned.size} of ${this.nodeRows.size} node(s) have no coordinates; their positions are unset`,
                 { element: "nodes" },
             );
         }
@@ -1010,6 +1029,11 @@ class Cx2Reader {
             const decl = table.byName.get(name);
             if (decl !== undefined) {
                 decl.type = type;
+                if (decl.hasDefault && type !== null) {
+                    // the default of a type CX2 does not define, converted now the values typed the column
+                    decl.defaultValue = this.convertDefault(name, decl.rawDefault, type, { element: name });
+                    decl.hasDefault = decl.defaultValue !== BAD;
+                }
                 continue;
             }
             table.byName.set(name, {
@@ -1018,6 +1042,7 @@ class Cx2Reader {
                 alias: null,
                 hasDefault: false,
                 defaultValue: undefined,
+                rawDefault: undefined,
                 handle: INVALID_INDEX as ColumnHandle,
                 undeclared: true,
             });
@@ -1099,6 +1124,7 @@ class Cx2Reader {
             alias,
             hasDefault,
             defaultValue,
+            rawDefault: hasDefault && type === null ? plainJson(raw.v) : undefined,
             handle: INVALID_INDEX as ColumnHandle,
             undeclared: false,
         });
@@ -1119,7 +1145,7 @@ class Cx2Reader {
         name: string,
         value: unknown,
         type: Cx2Type,
-        where: { line: number; element: string },
+        where: { line?: number; element: string },
     ): unknown {
         const converted = convertValue(value, type, this.options.long, () => undefined);
         if (converted !== BAD) {
@@ -1208,7 +1234,8 @@ class Cx2Reader {
                               origin: { format: CX2_FORMAT, id: decl.alias, type: decl.type.d },
                           };
                 if (decl.hasDefault) {
-                    column.default = decl.defaultValue;
+                    // a type nothing settled (no values) keeps its default as written, in the json column
+                    column.default = decl.type === null ? decl.rawDefault : decl.defaultValue;
                 }
                 if (domain === "node" && decl.name === "name") {
                     column.role = "label";
@@ -1254,9 +1281,10 @@ class Cx2Reader {
      * @param raw - the parsed id
      * @param inexact - whether the literal was not a plain integer
      * @param element - the element name for issues
+     * @param edgeId - whether this is an edge's own id (stored in the f64 id column, not kept as digits)
      * @returns the id, or null when it was reported
      */
-    private idOf(raw: unknown, inexact: boolean, element: string): NodeId | null {
+    private idOf(raw: unknown, inexact: boolean, element: string, edgeId = false): NodeId | null {
         let id: NodeId;
         try {
             const parsed = cxId(raw, inexact);
@@ -1266,6 +1294,15 @@ class Cx2Reader {
                     ID_TEXT_TYPE_CODE,
                     `${element}: the id ${shown(raw)} is not written as an integer; read as ${String(parsed.id)}`,
                     { element },
+                );
+            } else if (parsed.note === "precision" && edgeId) {
+                // the edge is told apart by its digits, but the id column is f64
+                this.report.warnOnce(
+                    "precision",
+                    PRECISION_CODE,
+                    `${element}: the edge id ${String(parsed.id)} is beyond 2^53; the id column holds the nearest double`,
+                    { element },
+                    `${PRECISION_CODE}:edge`,
                 );
             } else if (parsed.note === "precision") {
                 this.idType = "mixed";
@@ -1438,6 +1475,16 @@ class Cx2Reader {
                 `${CX2_ISSUE.PARTIAL_LAYOUT}:half`,
             );
         }
+        if (z !== null && x === null && y === null) {
+            // the specification requires x and y with z
+            this.report.warnOnce(
+                "missing-value",
+                CX2_ISSUE.PARTIAL_LAYOUT,
+                `${element} has z without x and y; ${this.zAs === "column" ? "z is kept in the z column" : "with no position, z is dropped"}`,
+                { line, element },
+                `${CX2_ISSUE.PARTIAL_LAYOUT}:z`,
+            );
+        }
         if (x !== null && y !== null) {
             this.setPosition(row, x, y, z);
         }
@@ -1469,7 +1516,7 @@ class Cx2Reader {
         this.point[1] = flipY(y);
         this.point[2] = this.zAs === "position" && z !== null ? z : 0;
         this.sink.setNodeValue(this.positionHandle, row, this.point);
-        this.positioned++;
+        this.positioned.add(row);
     }
 
     /** Apply a CX1 cartesianLayout aspect when no node carries coordinates; keep and warn otherwise. */
@@ -1478,7 +1525,7 @@ class Cx2Reader {
         if (cartesianLayout.length === 0) {
             return;
         }
-        if (this.positioned > 0) {
+        if (this.positioned.size > 0) {
             this.doc.opaque.set(
                 "cartesianLayout",
                 cartesianLayout.map((h) => plainJson(h.value)),
@@ -1694,7 +1741,7 @@ class Cx2Reader {
                 return;
             }
         }
-        const id = this.idOf(value.id, (held.inexact & 1) !== 0, element);
+        const id = this.idOf(value.id, (held.inexact & 1) !== 0, element, true);
         const s = id === null ? null : this.idOf(value.s, (held.inexact & 2) !== 0, element);
         const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element);
         if (id === null || s === null || t === null) {
@@ -1927,7 +1974,8 @@ class Cx2Reader {
                 name: property,
                 dtype: bypassDtype(values),
                 nullable: true,
-                origin: { format: CX2_FORMAT, id: null, namespace: BYPASS_NAMESPACE },
+                // origin.id keeps the property's name: a column renamed for a clash is written back under it
+                origin: { format: CX2_FORMAT, id: property, namespace: BYPASS_NAMESPACE },
             };
             const handle = declareFresh(this.sink, domain, decl, this.report);
             for (let i = 0; i < targets.length; i++) {
@@ -1988,11 +2036,13 @@ class Cx2Reader {
             report.error("validation-error", CX2_ISSUE.NO_STATUS, "the document ends without a status block", {
                 element: "status",
             });
-        } else if (!structure.statusWellFormed()) {
+        } else if (!structure.statusWellFormed() || structure.counts.get("status") !== 1) {
+            // the specification: exactly one status aspect holding exactly one element
+            const count = structure.counts.get("status") ?? 0;
             report.error(
                 "validation-error",
                 CX2_ISSUE.NO_STATUS,
-                `the status block is malformed (${shown(structure.status)}): it must hold one object with a boolean success`,
+                `the status is malformed (${count === 1 ? shown(structure.status) : `${count} elements`}): a document ends with one status block holding one object with a boolean success`,
                 { element: "status" },
             );
         }

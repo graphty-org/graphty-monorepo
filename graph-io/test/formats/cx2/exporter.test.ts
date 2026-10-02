@@ -98,6 +98,23 @@ describe("cx2Exporter", () => {
         expect(aspect("metaData")).toContainEqual({ name: "nodes", elementCount: 3 });
     });
 
+    it("writes a bypass column renamed for a clash with an attribute back under its property name", async () => {
+        const text = JSON.stringify([
+            { CXVersion: "2.0" },
+            { attributeDeclarations: [{ nodes: { NODE_LABEL: { d: "string" } } }] },
+            { nodes: [{ id: 1, v: { NODE_LABEL: "attribute" } }] },
+            { nodeBypasses: [{ id: 1, v: { NODE_LABEL: "bypass" } }] },
+            { status: [{ success: true }] },
+        ]);
+        const first = await importGraph(text, { format: "cx2" });
+        expect(first.snapshot.nodes.names()).toContain("NODE_LABEL#2");
+        const out = JSON.parse(await cx2Exporter.exportToString(first.snapshot)) as Record<string, unknown[]>[];
+        const bypasses = out.find((m) => "nodeBypasses" in m)?.nodeBypasses;
+        expect(bypasses).toEqual([{ id: 1, v: { NODE_LABEL: "bypass" } }]);
+        const back = await importGraph(JSON.stringify(out), { format: "cx2" });
+        expectSameSnapshot(back.snapshot, first.snapshot);
+    });
+
     it("refuses string ids by default and keeps them through mangle and restoreMangledIds", async () => {
         const builder = new GraphBuilder({ directed: true });
         builder.addEdge("a", "b");

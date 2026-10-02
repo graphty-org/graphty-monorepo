@@ -31,7 +31,10 @@ interface AttrCheck {
     readonly column?: string;
     /** The column role ("label", "position", ...), when no name is given. */
     readonly role?: string;
-    /** The expected value; numbers compare with a relative tolerance of 1e-6, arrays element-wise. */
+    /**
+     * The expected value; numbers compare with a relative tolerance of 1e-6, arrays element-wise;
+     * null: the cell is unset and the column has no default (a value the reader must refuse).
+     */
     readonly value: unknown;
 }
 
@@ -209,14 +212,19 @@ function plain(value: unknown): unknown {
 
 /**
  * Loose equality for spot checks: numbers within a relative 1e-6, arrays element-wise, records
- * key by key (a json cell; its string form would make any two records agree), anything else by
- * its string form (so 1 and "1" of an inferred column agree).
+ * key by key (a json cell; its string form would make any two records agree), null an unset cell,
+ * anything else by its string form (so 1 and "1" of an inferred column agree).
  * @param expected - the oracle's value
  * @param actual - graph-io's value
  * @returns true when they agree
  */
 function agrees(expected: unknown, actual: unknown): boolean {
     const a = plain(actual);
+    // Object.is, not ===: no narrowing, so the string comparison below still sees an unknown
+    if (Object.is(expected, null)) {
+        // an unset cell, or a null inside a json record
+        return a === undefined || a === null;
+    }
     if (Array.isArray(expected)) {
         return Array.isArray(a) && a.length === expected.length && expected.every((e, i) => agrees(e, a[i]));
     }

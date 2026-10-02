@@ -243,6 +243,11 @@ describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () 
         expect(codes((await load(cx2([], [{ success: true, error: "partial" }]))).report)).toEqual([
             CX2_ISSUE.STATUS_WARNING,
         ]);
+        // exactly one element in exactly one block: two well-formed elements, or two blocks, are malformed too
+        const twice = await load(cx2([{ nodes: [{ id: 1 }] }], [{ success: true }, { success: true }]));
+        expect(codes(twice.report)).toEqual([CX2_ISSUE.ASPECT_ORDER, CX2_ISSUE.NO_STATUS]);
+        expect(twice.report.issues[1].message).toMatch(/2 elements/);
+        expect(twice.snapshot.nodeCount).toBe(1);
         const early = JSON.stringify([{ CXVersion: "2.0" }, { status: [{ success: true }] }, { nodes: [{ id: 1 }] }]);
         const { report, snapshot } = await load(early);
         expect(codes(report)).toEqual([CX2_ISSUE.ASPECT_ORDER]);
@@ -329,6 +334,75 @@ describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () 
         const controller = new AbortController();
         controller.abort(new Error("stop"));
         await expect(load(RICH, { signal: controller.signal })).rejects.toThrow("stop");
+    });
+});
+
+describe("cx2Importer: review fixes", () => {
+    it("skips an element nested deeper than a graph keeps, with an ImportIssue, and reads the rest", async () => {
+        // built as text: JSON.stringify itself overflows the stack on such a value
+        const deep = `${"[".repeat(5000)}${"]".repeat(5000)}`;
+        const { snapshot, report } = await load(
+            `[{"CXVersion":"2.0"},{"nodes":[{"id":1,"v":{"a":${deep}}},{"id":2}]},{"provenance":[{"x":${deep}}]},{"status":[{"success":true}]}]`,
+        );
+        expect(snapshot.nodeCount).toBe(1);
+        expect(codes(report)).toEqual([CX2_ISSUE.BAD_ASPECT_BLOCK]);
+        expect(report.issues.map((i) => i.message).join("\n")).toMatch(/nested 5002 levels deep/);
+        const first = await failure(`[{"x":{"y":${deep}}},{"status":[{"success":true}]}]`);
+        expect(codes(first.report)).toEqual([CX2_ISSUE.BAD_ASPECT_BLOCK, CX2_ISSUE.NO_DESCRIPTOR]);
+    });
+
+    it("warns about a partial layout when a duplicate node carries the coordinates twice", async () => {
+        const { report } = await load(cx2([{ nodes: [{ id: 1, x: 1, y: 1 }, { id: 1, x: 2, y: 2 }, { id: 2 }] }]));
+        expect(codes(report)).toEqual([CX2_ISSUE.DUPLICATE_NODE, CX2_ISSUE.PARTIAL_LAYOUT]);
+        expect(report.issues[1].message).toMatch(/1 of 2 node/);
+    });
+
+    it("warns about z without x and y, keeping it in the z column", async () => {
+        const { snapshot, report } = await load(cx2([{ nodes: [{ id: 1, z: 3 }] }]));
+        expect(value(snapshot, "z", 1)).toBe(3);
+        expect(snapshot.nodes.byRole("position")).toBeNull();
+        expect(codes(report)).toEqual([CX2_ISSUE.PARTIAL_LAYOUT]);
+        expect(report.issues[0].message).toMatch(/z without x and y/);
+    });
+
+    it("keeps the default of a declaration whose type CX2 does not define", async () => {
+        const typed = await load(
+            cx2([
+                { attributeDeclarations: [{ nodes: { when: { d: "date", v: "2020" }, n: { d: "date", v: 1 } } }] },
+                { nodes: [{ id: 1, v: { when: "2021", n: "x" } }, { id: 2 }] },
+            ]),
+        );
+        const when = typed.snapshot.nodes.get("when");
+        expect(when?.meta.dtype).toBe("string");
+        expect(when?.meta.default).toBe("2020");
+        expect(when?.value(typed.snapshot.ids.indexOf(2))).toBe("2020");
+        // a default that does not fit the inferred type is reported, not kept
+        expect(typed.snapshot.nodes.get("n")?.meta.default).toBeUndefined();
+        expect(codes(typed.report)).toEqual([CX2_ISSUE.UNKNOWN_ATTR_TYPE, CX2_ISSUE.BAD_DEFAULT]);
+        // no value types the column: it stays json and keeps the default as written
+        const untyped = await load(
+            cx2([
+                { attributeDeclarations: [{ nodes: { when: { d: "date", v: { y: 2020 } } } }] },
+                { nodes: [{ id: 1 }] },
+            ]),
+        );
+        expect(untyped.snapshot.nodes.get("when")?.meta.default).toEqual({ y: 2020 });
+    });
+
+    it("tells a big edge id (stored as the nearest double) from a big node id (kept as digits)", async () => {
+        const text = `[{"CXVersion":"2.0"},{"nodes":[{"id":9007199254740993}]},{"edges":[{"id":9007199254740995,"s":9007199254740993,"t":9007199254740993}]},{"status":[{"success":true}]}]`;
+        const { snapshot, report } = await load(text);
+        expect(snapshot.ids.indexOf("9007199254740993")).toBe(0);
+        const precision = report.issues.filter((i) => i.code === CX2_ISSUE.PRECISION).map((i) => i.message);
+        expect(precision).toHaveLength(2);
+        expect(precision[0]).toMatch(/kept as its digits/);
+        expect(precision[1]).toMatch(/edge 9007199254740995: the edge id .* nearest double/);
+    });
+
+    it("checks only the element's own id keys for a non-integer literal, not keys inside v", async () => {
+        const text = `[{"CXVersion":"2.0"},{"nodes":[{"v":{"x":1.5},"id":1},{"id":2}]},{"edges":[{"v":{"s":2.5},"id":3,"s":1,"t":2}]},{"status":[{"success":true}]}]`;
+        const { report } = await load(text);
+        expect(codes(report)).not.toContain(CX2_ISSUE.ID_TEXT_TYPE);
     });
 });
 

@@ -989,7 +989,9 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
     const out: Record<string, unknown> = {};
     for (const column of columns) {
         if (column.isSet(row)) {
-            out[column.meta.name] = column.value(row);
+            // the visual property's own name: a column renamed for a clash with an attribute keeps it in origin.id
+            const property = column.meta.origin?.id;
+            out[typeof property === "string" && property.length > 0 ? property : column.meta.name] = column.value(row);
         }
     }
     return out;

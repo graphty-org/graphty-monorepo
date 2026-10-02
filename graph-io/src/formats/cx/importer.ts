@@ -86,6 +86,7 @@ import {
     JsonScanError,
     plainJson,
     positionDecl,
+    reportTooDeep,
     scanAspects,
     zDecl,
 } from "../../common/json-elements.js";
@@ -150,6 +151,8 @@ export const CX_ISSUE = Object.freeze({
     OLD_ASPECT_NAME: "W_CX_OLD_ASPECT_NAME",
     /** A cyGroups group whose id is not a node: the group node is added. */
     GROUP_NODE_ADDED: "W_CX_GROUP_NODE_ADDED",
+    /** Nodes or edges of the root network that no subnetwork holds: Cytoscape shows them in no network; not read. */
+    ROOT_ONLY: "W_CX_ROOT_ONLY",
     /** The producer marked the document as failed (fatal). */
     STATUS_FAILED: STATUS_FAILED_CODE,
     /** The producer marked the document as successful with an error text. */
@@ -292,6 +295,9 @@ const ALSO_KEPT: ReadonlySet<string> = new Set([
     "numberVerification",
     "metaData",
 ]);
+
+/** Cytoscape's table-cell style aspects (both spellings): style rules, kept and reported, never read. */
+const TABLE_STYLE_ASPECTS: readonly string[] = ["tableVisualProperties", "cyTableVisualProperties"];
 
 /** The first keys that make a head CX for sure, and the other aspect names a CX document may start with. */
 const CX_FIRST_KEYS: readonly string[] = ["numberVerification", "metaData"];
@@ -596,6 +602,9 @@ function toColumn(value: unknown, type: CxType): unknown {
  * @returns the text, at most 60 characters
  */
 function shown(value: unknown): string {
+    if (value instanceof ExactInteger) {
+        return value.digits;
+    }
     let text: string;
     try {
         text = JSON.stringify(value) ?? String(value);
@@ -679,6 +688,28 @@ function attributeTable(doc: CxDocument, name: string): Map<string, Held[]> | nu
 }
 
 /**
+ * Check a numberVerification element: 2^48 - 1 (or Java's Long.MAX_VALUE), and only one.
+ * @param value - the element
+ * @param count - how many numberVerification elements were read, this one included
+ * @param report - the report
+ * @param line - its line
+ */
+function checkNumberVerification(value: unknown, count: number, report: ImportReportBuilder, line: number): void {
+    const raw = isRecord(value) ? value.longNumber : undefined;
+    const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
+    if (count > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
+        report.warning(
+            "validation-error",
+            CX_ISSUE.NUMBER_VERIFICATION,
+            count > 1
+                ? "a second numberVerification element; ignored"
+                : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
+            { line, element: "numberVerification" },
+        );
+    }
+}
+
+/**
  * Read the whole document through the streaming scanner, checking its structure.
  * @param input - the input
  * @param report - the report
@@ -725,19 +756,7 @@ async function readDocument(
             return;
         }
         if (name === "numberVerification") {
-            verifications++;
-            const raw = isRecord(value) ? value.longNumber : undefined;
-            const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
-            if (verifications > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
-                report.warning(
-                    "validation-error",
-                    CX_ISSUE.NUMBER_VERIFICATION,
-                    verifications > 1
-                        ? "a second numberVerification element; ignored"
-                        : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
-                    { line, element: name },
-                );
-            }
+            checkNumberVerification(value, ++verifications, report, line);
             return;
         }
         let inexact = 0;
@@ -814,6 +833,9 @@ async function readDocument(
                     collect(name, event.value, event.text, event.line, event.exact);
                     break;
                 }
+                case "deep":
+                    reportTooDeep(report, event);
+                    break;
                 case "extraKeys":
                     report.error(
                         "parse-error",
@@ -1125,6 +1147,7 @@ class CxReader {
         const { report } = this;
         this.direction.setHeader(true);
         this.checkMembers();
+        this.checkRootOnly();
         const nodeColumns = this.declareAttributes("node");
         this.readNodes();
         this.readGroups();
@@ -1196,9 +1219,10 @@ class CxReader {
      * @param raw - the parsed id
      * @param inexact - whether the literal was not a plain integer
      * @param element - the element name for issues
+     * @param edgeId - whether this is an edge's own id (stored in the f64 id column, not kept as digits)
      * @returns the id, or null when it was reported
      */
-    private idOf(raw: unknown, inexact: boolean, element: string): NodeId | null {
+    private idOf(raw: unknown, inexact: boolean, element: string, edgeId = false): NodeId | null {
         try {
             const parsed = cxId(raw, inexact);
             if (parsed.note === "text") {
@@ -1207,6 +1231,15 @@ class CxReader {
                     ID_TEXT_TYPE_CODE,
                     `${element}: the id ${shown(raw)} is not written as an integer; read as ${String(parsed.id)}`,
                     { element },
+                );
+            } else if (parsed.note === "precision" && edgeId) {
+                // the edge is told apart by its digits, but the id column is f64
+                this.report.warnOnce(
+                    "precision",
+                    PRECISION_CODE,
+                    `${element}: the edge id ${String(parsed.id)} is beyond 2^53; the id column holds the nearest double`,
+                    { element },
+                    `${PRECISION_CODE}:edge`,
                 );
             } else if (parsed.note === "precision") {
                 this.idType = "mixed";
@@ -1250,6 +1283,44 @@ class CxReader {
             if (!this.rootEdges.has(id)) {
                 this.dangle("subnetwork edge member");
             }
+        }
+    }
+
+    /**
+     * Report the root network's nodes and edges that no subnetwork holds (W_CX_ROOT_ONLY): they
+     * belong to no graph Cytoscape opens, so no graph of this file reads them.
+     */
+    private checkRootOnly(): void {
+        const subs = aspect(this.doc, "cySubNetworks");
+        if (subs.length === 0) {
+            return;
+        }
+        const held = { nodes: new Set<NodeId>(), edges: new Set<NodeId>() };
+        const all = { nodes: false, edges: false };
+        for (const { value } of subs) {
+            if (!isRecord(value)) {
+                continue;
+            }
+            for (const key of ["nodes", "edges"] as const) {
+                const members = memberSet(value[key]);
+                if (members === null) {
+                    all[key] = true;
+                } else {
+                    members.forEach((id) => held[key].add(id));
+                }
+            }
+        }
+        const lost = (key: "nodes" | "edges", root: ReadonlySet<NodeId>): number =>
+            all[key] ? 0 : [...root].filter((id) => !held[key].has(id)).length;
+        const nodes = lost("nodes", this.rootNodes);
+        const edges = lost("edges", this.rootEdges);
+        if (nodes + edges > 0) {
+            this.report.warning(
+                "unsupported",
+                CX_ISSUE.ROOT_ONLY,
+                `${nodes} node(s) and ${edges} edge(s) of the root network belong to no subnetwork (cySubNetworks); they are not read`,
+                { element: "cySubNetworks" },
+            );
         }
     }
 
@@ -1445,7 +1516,19 @@ class CxReader {
                     }
                     continue;
                 }
-                if (value.v === undefined || value.v === null) {
+                if (value.v === undefined) {
+                    this.report.error(
+                        "missing-value",
+                        BAD_VALUE_CODE,
+                        `a ${domain}Attributes element for "${column.name}" has no v; skipped`,
+                        {
+                            line,
+                            element: column.name,
+                        },
+                    );
+                    continue;
+                }
+                if (value.v === null) {
                     continue;
                 }
                 const previous = chosen.get(row);
@@ -2000,7 +2083,7 @@ class CxReader {
                 continue;
             }
             const element = `edge ${shown(value["@id"])}`;
-            const id = this.idOf(value["@id"], (held.inexact & 1) !== 0, element);
+            const id = this.idOf(value["@id"], (held.inexact & 1) !== 0, element, true);
             if (id === null) {
                 report.counts.skippedEdges++;
                 continue;
@@ -2204,10 +2287,10 @@ class CxReader {
      */
     private readVisualProperties(): void {
         const entries = aspect(this.doc, "cyVisualProperties");
-        if (entries.length === 0) {
-            return;
-        }
-        const views = new Set(this.plan.views);
+        // Cytoscape's table-cell styles: a visual property aspect graph-io keeps but does not read
+        const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
+        // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
+        const views = new Set(this.plan.views.slice(0, 1));
         const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
         const network = new Map<string, string>();
         let defaults = 0;
@@ -2286,11 +2369,17 @@ class CxReader {
                 this.report.recordError(err, { element: property });
             }
         }
-        if (defaults + mappings + dependencies > 0) {
+        if (defaults + mappings + dependencies + tableStyles > 0) {
+            const parts = [
+                `cyVisualProperties: ${defaults} default(s), ${mappings} mapping(s), ${dependencies} dependenc(ies)`,
+            ];
+            if (tableStyles > 0) {
+                parts.push(`${tableStyles} table style element(s)`);
+            }
             this.report.warning(
                 "unsupported",
                 STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (cyVisualProperties: ${defaults} default(s), ${mappings} mapping(s), ${dependencies} dependenc(ies)); they are kept in meta.extra.cx (style import is issue #706)`,
+                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx (style import is issue #706)`,
                 { element: "cyVisualProperties" },
             );
         }

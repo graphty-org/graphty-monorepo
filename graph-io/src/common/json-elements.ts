@@ -23,6 +23,7 @@ import {
 import { declareResolved, uniqueColumnName } from "./attributes.js";
 import {
     ASPECT_ORDER_CODE,
+    BAD_ASPECT_BLOCK_CODE,
     COLUMN_RENAMED_CODE,
     COUNT_MISMATCH_CODE,
     STATUS_FAILED_CODE,
@@ -295,6 +296,17 @@ export type AspectEvent =
           readonly line: number;
       }
     | {
+          /**
+           * An element, or a member, nested deeper than MAX_ELEMENT_DEPTH: not parsed, so nothing
+           * downstream recurses into it (aspect: the block's aspect, null for a member).
+           */
+          readonly kind: "deep";
+          readonly aspect: string | null;
+          readonly block: number;
+          readonly depth: number;
+          readonly line: number;
+      }
+    | {
           /** Any other member of the top-level array (a CX2 descriptor, `{"ndexStatus": {...}}`, `1`), parsed. */
           readonly kind: "member";
           readonly block: number;
@@ -320,6 +332,13 @@ const endsScalar = (c: number): boolean => isSpace(c) || c === 44 || c === 93 ||
 const QUOTE_OR_BACKSLASH = /["\\]/g;
 
 /**
+ * The deepest nesting of an element the scanner parses. graph-format refuses JSON values (a json
+ * cell, meta.extra) nested deeper than 256 levels, and a kept element sits a few levels down
+ * meta.extra; a deeper element is reported instead, before anything recurses into it.
+ */
+const MAX_ELEMENT_DEPTH = 200;
+
+/**
  * A cursor over text chunks with capture: the text of the value being read is kept across chunk
  * boundaries as a list of parts, so a long element costs linear time.
  */
@@ -337,6 +356,9 @@ class ChunkCursor {
     private parts: string[] | null = null;
 
     private captureStart = 0;
+
+    /** The deepest nesting the last skipValue() reached. */
+    deepest = 0;
 
     /**
      * Wrap text chunks.
@@ -426,6 +448,7 @@ class ChunkCursor {
      */
     async skipValue(startDepth = 0): Promise<void> {
         let depth = startDepth;
+        this.deepest = depth;
         if (depth === 0) {
             const c = this.buf.charCodeAt(this.pos);
             if (c === 34) {
@@ -448,6 +471,9 @@ class ChunkCursor {
                 await this.skipString();
             } else if (c === 123 || c === 91) {
                 depth++;
+                if (depth > this.deepest) {
+                    this.deepest = depth;
+                }
             } else if (c === 125 || c === 93) {
                 depth--;
                 if (depth === 0) {
@@ -620,6 +646,11 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
     if (c !== "{") {
         cur.beginCapture();
         await cur.skipValue();
+        if (cur.deepest > MAX_ELEMENT_DEPTH) {
+            cur.dropCapture();
+            yield { kind: "deep", aspect: null, block, depth: cur.deepest, line };
+            return;
+        }
         const parsed = parseAt(cur.endCapture(), line);
         yield { kind: "member", block, value: parsed.value, exact: parsed.exact, line };
         return;
@@ -630,6 +661,11 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
     if (k !== '"') {
         // `{}` or not JSON: parse the whole member so a syntax error is reported as such
         await cur.skipValue(1);
+        if (cur.deepest > MAX_ELEMENT_DEPTH) {
+            cur.dropCapture();
+            yield { kind: "deep", aspect: null, block, depth: cur.deepest, line };
+            return;
+        }
         const parsed = parseAt(cur.endCapture(), line);
         yield { kind: "member", block, value: parsed.value, exact: parsed.exact, line };
         return;
@@ -647,6 +683,11 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
         // not a block: read the rest of the object and parse the member whole
         cur.beginCapture();
         await cur.skipValue(1);
+        if (cur.deepest > MAX_ELEMENT_DEPTH) {
+            cur.dropCapture();
+            yield { kind: "deep", aspect, block, depth: cur.deepest, line };
+            return;
+        }
         const rest = cur.endCapture();
         const text = `${outer}${JSON.stringify(aspect)}:${rest}`;
         const parsed = parseAt(text, keyLine);
@@ -666,9 +707,22 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
             const elementLine = cur.line();
             cur.beginCapture();
             await cur.skipValue();
-            const text = cur.endCapture();
-            const parsed = parseAt(text, elementLine);
-            yield { kind: "element", aspect, block, value: parsed.value, exact: parsed.exact, text, line: elementLine };
+            if (cur.deepest > MAX_ELEMENT_DEPTH) {
+                cur.dropCapture();
+                yield { kind: "deep", aspect, block, depth: cur.deepest, line: elementLine };
+            } else {
+                const text = cur.endCapture();
+                const parsed = parseAt(text, elementLine);
+                yield {
+                    kind: "element",
+                    aspect,
+                    block,
+                    value: parsed.value,
+                    exact: parsed.exact,
+                    text,
+                    line: elementLine,
+                };
+            }
             const next = await cur.peek();
             if (next === ",") {
                 cur.pos++;
@@ -720,6 +774,20 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
     }
     cur.pos++;
     yield { kind: "extraKeys", aspect, block, keys, line: extraLine };
+}
+
+/**
+ * Report an element or member the scanner refused for its depth (E_BAD_ASPECT_BLOCK; skipped).
+ * @param report - the report
+ * @param event - the "deep" event
+ */
+export function reportTooDeep(report: ImportReportBuilder, event: Extract<AspectEvent, { kind: "deep" }>): void {
+    report.error(
+        "parse-error",
+        BAD_ASPECT_BLOCK_CODE,
+        `${event.aspect === null ? "a member of the document" : `an element of "${event.aspect}"`} is nested ${event.depth} levels deep, more than the ${MAX_ELEMENT_DEPTH} a graph keeps; skipped`,
+        { line: event.line, element: event.aspect },
+    );
 }
 
 // ============================================================ the CX id rule (design section 1.0.2)
@@ -777,19 +845,36 @@ function invalidCxId(raw: unknown, reason: string): GraphFormatError {
 
 /**
  * Whether the element text writes a top-level key's number as a non-integer literal (`"id": 5.0`,
- * `"@id": 1e3`). A lexical check, so the parsed value (5) cannot tell; the first occurrence of the
- * key is the one checked.
+ * `"@id": 1e3`). A lexical check, so the parsed value (5) cannot tell. Only a key of the element
+ * itself counts, not one nested in its `v` (where `s` and `id` are ordinary attribute names).
  * @param text - the element's JSON text
  * @param key - the key
  * @returns true when the literal holds a fraction or an exponent
  */
 export function inexactLiteral(text: string, key: string): boolean {
-    const at = text.indexOf(`"${key}"`);
-    if (at < 0) {
-        return false;
+    const quoted = JSON.stringify(key);
+    let depth = 0;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (c === "{" || c === "[") {
+            depth++;
+        } else if (c === "}" || c === "]") {
+            depth--;
+        } else if (c === '"') {
+            const start = i;
+            for (i++; i < text.length && text[i] !== '"'; i++) {
+                if (text[i] === "\\") {
+                    i++;
+                }
+            }
+            // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
+            if (depth === 1 && text.startsWith(quoted, start) && /^\s*:/.test(text.slice(i + 1, i + 16))) {
+                const match = /^\s*:\s*(-?[0-9][0-9.eE+-]*)/.exec(text.slice(i + 1, i + 64));
+                return match !== null && /[.eE]/.test(match[1]);
+            }
+        }
     }
-    const match = /^\s*:\s*(-?[0-9][0-9.eE+-]*)/.exec(text.slice(at + key.length + 2, at + key.length + 64));
-    return match !== null && /[.eE]/.test(match[1]);
+    return false;
 }
 
 // ============================================================ Cytoscape positions (design section 1.0.2)

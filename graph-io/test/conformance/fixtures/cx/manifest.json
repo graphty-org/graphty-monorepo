@@ -2545,6 +2545,56 @@
             "id": 9,
             "column": "nb",
             "value": true
+          },
+          {
+            "id": 1,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 3,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 5,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "b",
+            "value": null
+          },
+          {
+            "id": 1,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 1,
+            "column": "ls",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "sc",
+            "value": null
+          },
+          {
+            "id": 1,
+            "column": "w",
+            "value": 1
           }
         ],
         "warnings": [

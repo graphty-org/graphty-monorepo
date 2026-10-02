@@ -2280,6 +2280,51 @@
             "id": 9,
             "column": "i",
             "value": 3
+          },
+          {
+            "id": 1,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 3,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 4,
+            "column": "b",
+            "value": null
+          },
+          {
+            "id": 5,
+            "column": "l",
+            "value": null
+          },
+          {
+            "id": 6,
+            "column": "l",
+            "value": null
+          },
+          {
+            "id": 7,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 8,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 9,
+            "column": "d",
+            "value": 0
           }
         ],
         "warnings": [

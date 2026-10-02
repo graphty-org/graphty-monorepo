@@ -141,6 +141,19 @@ describe("scanAspects", () => {
         ]);
     });
 
+    it("reports an element or a member nested deeper than graph-format keeps, without parsing it", async () => {
+        const deep = `${"[".repeat(201)}${"]".repeat(201)}`;
+        const ok = `${"[".repeat(199)}${"]".repeat(199)}`;
+        const text = `[{"nodes":[{"v":${deep}},{"v":${ok}}]},{"x":{"y":${deep}}},${deep},{"z":[1]}]`;
+        for (const size of [text.length, 7]) {
+            const events = await scan(text, size);
+            expect(events.map((e) => e.kind)).toEqual(["block", "deep", "element", "deep", "deep", "block", "element"]);
+            expect(events[1]).toMatchObject({ kind: "deep", aspect: "nodes", block: 0, depth: 202 });
+            expect(events[3]).toMatchObject({ kind: "deep", aspect: "x", block: 1 });
+            expect(events[4]).toMatchObject({ kind: "deep", aspect: null, block: 2, depth: 201 });
+        }
+    });
+
     it("fails with the line of a syntax error", async () => {
         const cases: [string, RegExp, number][] = [
             ['[\n{"nodes":[\n{"id": x}]}]', /invalid JSON/, 3],
@@ -213,6 +226,12 @@ describe("the CX id rule (design section 1.0.2)", () => {
         expect(inexactLiteral('{"@id":1e3}', "@id")).toBe(true);
         expect(inexactLiteral('{"id": 5}', "id")).toBe(false);
         expect(inexactLiteral('{"s": 1}', "id")).toBe(false);
+        // only the element's own key counts: not a key nested in v, not a value spelled like the key
+        expect(inexactLiteral('{"v": {"id": 5.5}, "id": 2}', "id")).toBe(false);
+        expect(inexactLiteral('{"v": {"s": 1.5}, "s": 1, "t": 2.0}', "s")).toBe(false);
+        expect(inexactLiteral('{"v": {"s": 1.5}, "s": 1, "t": 2.0}', "t")).toBe(true);
+        expect(inexactLiteral('{"i": "s", "s": 1e0}', "s")).toBe(true);
+        expect(inexactLiteral('{"n": "a\\"s\\"", "s": 1}', "s")).toBe(false);
         expect(flipY(0)).toBe(0);
         expect(Object.is(flipY(-0), 0)).toBe(true);
         expect(flipY(3)).toBe(-3);

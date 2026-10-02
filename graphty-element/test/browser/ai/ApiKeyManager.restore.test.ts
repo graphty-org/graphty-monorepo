@@ -88,6 +88,18 @@ describe("ApiKeyManager restore after reload", () => {
         assert.strictEqual(new ApiKeyManager().getKey("openai"), "sk-typed-first");
     });
 
+    it("stays on after clear(): clearing the keys is not turning remembering off", () => {
+        const before = new ApiKeyManager();
+        before.enablePersistence();
+        before.setKey("openai", "sk-cleared");
+        before.setDefaultProvider("openai");
+        before.clear();
+
+        const after = new ApiKeyManager();
+        assert.strictEqual(after.isPersistenceEnabled(), true);
+        assert.strictEqual(after.getKey("openai"), undefined);
+    });
+
     it("stays off after disablePersistence clears storage", () => {
         const before = new ApiKeyManager();
         before.enablePersistence({ encryptionKey: "my-own-secret-key" });

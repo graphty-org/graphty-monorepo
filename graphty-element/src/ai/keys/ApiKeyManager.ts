@@ -123,8 +123,9 @@ export class ApiKeyManager {
     }
 
     /**
-     * Disable persistent storage. With `clearStorage` false the stored keys stay where they are,
-     * so the next page load restores them and turns persistence back on.
+     * Disable persistent storage. With `clearStorage` false the stored keys stay where they are:
+     * the next page load restores them, and turns persistence back on, if they were saved with the
+     * built-in encryption key. Keys saved with a custom key wait for `enablePersistence` with it.
      * @param clearStorage - Whether to clear stored keys from storage (default: true)
      */
     disablePersistence(clearStorage = true): void {
@@ -226,15 +227,11 @@ export class ApiKeyManager {
     }
 
     /**
-     * Clear all stored keys.
+     * Clear all keys, in memory and in storage. Persistence stays on, so it is still on after a reload.
      */
     clear(): void {
         this.keys.clear();
-
-        // Clear from storage
-        if (this.encryptStorage) {
-            this.encryptStorage.removeItem(KEYS_ITEM);
-        }
+        this.persistKeys();
     }
 
     /**
@@ -379,7 +376,15 @@ export class ApiKeyManager {
 function readKeys(store: EncryptStorage): Record<string, string> | null {
     try {
         const value: unknown = store.getItem(KEYS_ITEM);
-        return typeof value === "object" && value !== null ? (value as Record<string, string>) : null;
+        if (typeof value !== "object" || value === null) {
+            return null;
+        }
+
+        // A non-string entry (corrupt or tampered data) is skipped, never handed out as a key
+        return Object.fromEntries(Object.entries(value).filter(([, key]) => typeof key === "string")) as Record<
+            string,
+            string
+        >;
     } catch {
         return null;
     }

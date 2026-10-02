@@ -29,6 +29,7 @@ import { describe, expect, it } from "vitest";
 import { countUnrepresentableIds } from "../../src/common/export.js";
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cxImporter } from "../../src/formats/cx/importer.js";
 import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
 import { cx2Importer } from "../../src/formats/cx2/importer.js";
 import { dotExporter } from "../../src/formats/dot/exporter.js";
@@ -70,6 +71,7 @@ interface Pair {
 }
 
 const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
+    cx: { exporter: null, importer: cxImporter as GraphImporter<AnyImportOptions> },
     cx2: {
         exporter: cx2Exporter as GraphExporter<AnyExportOptions>,
         importer: cx2Importer as GraphImporter<AnyImportOptions>,

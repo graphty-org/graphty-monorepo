@@ -1,0 +1,2792 @@
+{
+  "format": "cx",
+  "description": "CX version 1 (the NDEx and Cytoscape exchange format): real files from ndex2-client, cx2js, ndex-object-model, RCX and NDEx, and the authored groups, collection and edge-case set of research-cx.md",
+  "fixtures": [
+    {
+      "file": "ndex2-client/SimpleNetwork.cx",
+      "exercises": "the minimal complete document: numberVerification, metaData, nodes with n and r, one edge with i, status",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "node1",
+          "node2"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "interaction",
+            "value": "neighbor"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/SimpleNetwork.cx",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex2-client/my_cx.cx",
+      "exercises": "native JSON values (an integer 1, a list of doubles), the @context aspect, an explicit d string",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "ABC",
+          "DEF"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "testing_attr_double",
+            "value": [
+              1.0,
+              2.0,
+              3.0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "diffusion_output_heat",
+            "value": "1.4599107187941883E-4"
+          },
+          {
+            "id": 0,
+            "column": "aliases",
+            "value": [
+              "uniprot knowledgebase:Q5I2A4",
+              "uniprot knowledgebase:Q8N7E5",
+              "uniprot knowledgebase:Q8TAZ6"
+            ]
+          },
+          {
+            "id": 0,
+            "column": "diffusion_output_rank",
+            "value": 1
+          },
+          {
+            "id": 1,
+            "column": "diffusion_output_heat",
+            "value": "1.2387941883E-4"
+          },
+          {
+            "id": 1,
+            "column": "diffusion_output_rank",
+            "value": 2
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 0,
+            "target": 1,
+            "column": "interaction",
+            "value": "test-relationship"
+          },
+          {
+            "source": 0,
+            "target": 1,
+            "column": "citation",
+            "value": [
+              "pubmed:21880741"
+            ]
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/my_cx.cx",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex2-client/SIMPLE_NETWORK.cx",
+      "exercises": "ndexStatus and provenanceHistory, double edge weights, non-contiguous edge ids",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "labels": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          },
+          {
+            "source": 1,
+            "target": 4
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/SIMPLE_NETWORK.cx",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex2-client/glypican2_no_cartesian_layout.cx",
+      "exercises": "the old aspect name visualProperties, no layout, list_of_string aliases",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_CX_OLD_ASPECT_NAME",
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "MDK",
+          "GPC2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "type",
+            "value": "Protein"
+          },
+          {
+            "id": 0,
+            "column": "alias",
+            "value": [
+              "uniprot knowledgebase:Q2LEK4",
+              "uniprot knowledgebase:Q9UCC7"
+            ]
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "Protein"
+          },
+          {
+            "id": 1,
+            "column": "alias",
+            "value": [
+              "uniprot knowledgebase:Q8N158"
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 0
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 0,
+            "column": "interaction",
+            "value": "in-complex-with"
+          },
+          {
+            "source": 1,
+            "target": 0,
+            "column": "directed",
+            "value": false
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2_no_cartesian_layout.cx",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "cx2js/primitive_attributes.cx",
+      "exercises": "a Cytoscape export with every scalar type, pre and post metadata, cyTableColumn with empty columns, integer coordinates",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          63,
+          62
+        ],
+        "labels": [
+          "Node 1",
+          "Node 2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 63,
+            "role": "position",
+            "value": [
+              -197,
+              128,
+              0
+            ]
+          },
+          {
+            "id": 63,
+            "column": "shared name",
+            "value": "Node 1"
+          },
+          {
+            "id": 63,
+            "column": "intCol",
+            "value": 1
+          },
+          {
+            "id": 63,
+            "column": "stringCol",
+            "value": "abc"
+          },
+          {
+            "id": 63,
+            "column": "floatCol",
+            "value": 3.4
+          },
+          {
+            "id": 62,
+            "role": "position",
+            "value": [
+              -42,
+              87,
+              0
+            ]
+          },
+          {
+            "id": 62,
+            "column": "shared name",
+            "value": "Node 2"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 63,
+            "target": 62
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 63,
+            "target": 62,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 63,
+            "target": 62,
+            "column": "shared name",
+            "value": "Node 1 (interacts with) Node 2"
+          },
+          {
+            "source": 63,
+            "target": 62,
+            "column": "name",
+            "value": "Node 1 (interacts with) Node 2"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/primitive_attributes.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/UD-219.cx",
+      "exercises": "edges in two fragments, the first before nodes (forward references)",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 6,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          4706,
+          4700,
+          4695,
+          4688,
+          4675
+        ],
+        "labels": [
+          "INSR",
+          "INS",
+          "Ca2+",
+          "INS",
+          ""
+        ],
+        "nodeAttrs": [
+          {
+            "id": 4706,
+            "column": "FillColor",
+            "value": "#ffffff"
+          },
+          {
+            "id": 4706,
+            "column": "Shape",
+            "value": "Rectangle"
+          },
+          {
+            "id": 4706,
+            "column": "BorderThickness",
+            "value": 1.0
+          },
+          {
+            "id": 4706,
+            "column": "BorderStyle",
+            "value": ""
+          },
+          {
+            "id": 4700,
+            "column": "FillColor",
+            "value": "#ffffff"
+          },
+          {
+            "id": 4700,
+            "column": "Shape",
+            "value": "Rectangle"
+          },
+          {
+            "id": 4700,
+            "column": "BorderThickness",
+            "value": 1.0
+          },
+          {
+            "id": 4700,
+            "column": "BorderStyle",
+            "value": ""
+          },
+          {
+            "id": 4695,
+            "column": "FillColor",
+            "value": "#ffffff"
+          },
+          {
+            "id": 4695,
+            "column": "Shape",
+            "value": "Rectangle"
+          },
+          {
+            "id": 4695,
+            "column": "BorderThickness",
+            "value": 1.0
+          },
+          {
+            "id": 4695,
+            "column": "BorderStyle",
+            "value": ""
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 4700,
+            "target": 4662
+          },
+          {
+            "source": 4695,
+            "target": 4700
+          },
+          {
+            "source": 4688,
+            "target": 4706
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 4700,
+            "target": 4662,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 4700,
+            "target": 4662,
+            "column": "EndArrow",
+            "value": "Arrow"
+          },
+          {
+            "source": 4695,
+            "target": 4700,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 4695,
+            "target": 4700,
+            "column": "EndArrow",
+            "value": "Arrow"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/UD-219.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/NWA-383.cx",
+      "exercises": "a BEL network: citations, supports, edgeCitations, edgeSupports, functionTerms, reifiedEdges, @context, parallel edges, large ids",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 37,
+        "edges": 37,
+        "directed": true,
+        "nodeIds": [
+          105590860,
+          105590865,
+          105590869,
+          105590874,
+          105590878
+        ],
+        "edgeChecks": [
+          {
+            "source": 105590860,
+            "target": 105590865
+          },
+          {
+            "source": 105590860,
+            "target": 105590869
+          },
+          {
+            "source": 105590874,
+            "target": 105590878
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 105590860,
+            "target": 105590865,
+            "column": "interaction",
+            "value": "bel:positiveCorrelation"
+          },
+          {
+            "source": 105590860,
+            "target": 105590865,
+            "column": "CardiovascularSystem",
+            "value": "Arteries"
+          },
+          {
+            "source": 105590860,
+            "target": 105590865,
+            "column": "Disease",
+            "value": "Atherosclerosis"
+          },
+          {
+            "source": 105590860,
+            "target": 105590869,
+            "column": "interaction",
+            "value": "bel:positiveCorrelation"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/NWA-383.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/5views1network.cx",
+      "exercises": "one subnetwork with five views (cyViews, cyNetworkRelations): five layouts per node, scoped attributes, nameless nodes",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 81,
+        "edges": 56,
+        "directed": true,
+        "nodeIds": [
+          142,
+          141,
+          140,
+          139,
+          138
+        ],
+        "labels": [
+          "NADH",
+          "FBA",
+          "malate",
+          "enolase 2",
+          "F6P"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 142,
+            "role": "position",
+            "value": [
+              200.9321535426912,
+              -794.9803538264583,
+              0
+            ]
+          },
+          {
+            "id": 141,
+            "role": "position",
+            "value": [
+              769.1088870094511,
+              -281.50749664839464,
+              0
+            ]
+          },
+          {
+            "id": 140,
+            "role": "position",
+            "value": [
+              330.65484458703594,
+              -916.7240807546187,
+              0
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 142,
+            "target": 107
+          },
+          {
+            "source": 141,
+            "target": 113
+          },
+          {
+            "source": 140,
+            "target": 111
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/5views1network.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/simple_bundled_edges.cx",
+      "exercises": "parallel and antiparallel edges between two nodes, edge bend visual properties",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          518,
+          516
+        ],
+        "labels": [
+          "Node 2",
+          "Node 1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 518,
+            "role": "position",
+            "value": [
+              -75.0,
+              9.0,
+              0
+            ]
+          },
+          {
+            "id": 518,
+            "column": "shared name",
+            "value": "Node 2"
+          },
+          {
+            "id": 516,
+            "role": "position",
+            "value": [
+              -249.0,
+              11.0,
+              0
+            ]
+          },
+          {
+            "id": 516,
+            "column": "shared name",
+            "value": "Node 1"
+          },
+          {
+            "id": 516,
+            "column": "selected",
+            "value": true
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 518,
+            "target": 516
+          },
+          {
+            "source": 516,
+            "target": 518
+          },
+          {
+            "source": 516,
+            "target": 518
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 518,
+            "target": 516,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 518,
+            "target": 516,
+            "column": "name",
+            "value": "Node 2 (interacts with) Node 1"
+          },
+          {
+            "source": 518,
+            "target": 516,
+            "column": "name",
+            "value": "Node 2 (interacts with) Node 1"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/simple_bundled_edges.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/UD-294.cx",
+      "exercises": "z in cartesianLayout as a draw order (32775)",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 24,
+        "edges": 8,
+        "directed": true,
+        "nodeIds": [
+          191,
+          190,
+          189,
+          188,
+          187
+        ],
+        "labels": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "nodeAttrs": [
+          {
+            "id": 191,
+            "role": "position",
+            "value": [
+              155.5,
+              -244.0,
+              0
+            ]
+          },
+          {
+            "id": 191,
+            "column": "__gpml:textlabel",
+            "value": ""
+          },
+          {
+            "id": 191,
+            "column": "FillColor",
+            "value": ""
+          },
+          {
+            "id": 191,
+            "column": "Shape",
+            "value": ""
+          },
+          {
+            "id": 191,
+            "column": "BorderThickness",
+            "value": 0.0
+          },
+          {
+            "id": 190,
+            "role": "position",
+            "value": [
+              180.0,
+              -132.0,
+              0
+            ]
+          },
+          {
+            "id": 190,
+            "column": "__gpml:textlabel",
+            "value": ""
+          },
+          {
+            "id": 190,
+            "column": "FillColor",
+            "value": ""
+          },
+          {
+            "id": 190,
+            "column": "Shape",
+            "value": ""
+          },
+          {
+            "id": 190,
+            "column": "BorderThickness",
+            "value": 0.0
+          },
+          {
+            "id": 189,
+            "role": "position",
+            "value": [
+              350.5,
+              -167.0,
+              0
+            ]
+          },
+          {
+            "id": 189,
+            "column": "__gpml:textlabel",
+            "value": ""
+          },
+          {
+            "id": 189,
+            "column": "FillColor",
+            "value": ""
+          },
+          {
+            "id": 189,
+            "column": "Shape",
+            "value": ""
+          },
+          {
+            "id": 189,
+            "column": "BorderThickness",
+            "value": 0.0
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 191,
+            "target": 192
+          },
+          {
+            "source": 190,
+            "target": 189
+          },
+          {
+            "source": 189,
+            "target": 188
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 191,
+            "target": 192,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 191,
+            "target": 192,
+            "column": "EndArrow",
+            "value": "Arrow"
+          },
+          {
+            "source": 190,
+            "target": 189,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 190,
+            "target": 189,
+            "column": "EndArrow",
+            "value": "Arrow"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/UD-294.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "cx2js/default_edge_bends.cx",
+      "exercises": "the same edge attribute twice with one value (silent, the later wins)",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "forbidCodes": [
+          "W_DUPLICATE_ATTRIBUTE"
+        ],
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeIds": [
+          117,
+          92,
+          91,
+          90
+        ],
+        "labels": [
+          "Node 4",
+          "Node 1",
+          "Node 2",
+          "Node 3"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 117,
+            "role": "position",
+            "value": [
+              -168.0,
+              -68.0,
+              0
+            ]
+          },
+          {
+            "id": 117,
+            "column": "shared name",
+            "value": "Node 4"
+          },
+          {
+            "id": 92,
+            "role": "position",
+            "value": [
+              -160.0,
+              83.0,
+              0
+            ]
+          },
+          {
+            "id": 92,
+            "column": "shared name",
+            "value": "Node 1"
+          },
+          {
+            "id": 91,
+            "role": "position",
+            "value": [
+              33.0,
+              82.0,
+              0
+            ]
+          },
+          {
+            "id": 91,
+            "column": "shared name",
+            "value": "Node 2"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 92,
+            "target": 91
+          },
+          {
+            "source": 91,
+            "target": 90
+          },
+          {
+            "source": 90,
+            "target": 117
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 92,
+            "target": 91,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 92,
+            "target": 91,
+            "column": "name",
+            "value": "Node 1 (interacts with) Node 2"
+          },
+          {
+            "source": 92,
+            "target": 91,
+            "column": "name",
+            "value": "Node 1 (interacts with) Node 2"
+          },
+          {
+            "source": 91,
+            "target": 90,
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/anti-resources/default_edge_bends.cx",
+      "license": "MIT (cx2js LICENSE, Cytoscape Consortium)",
+      "version": "commit 7ed4adc"
+    },
+    {
+      "file": "ndex-object-model/10_networks_new.cx",
+      "exercises": "a collection of ten subnetworks, each with its view; the CX Element ID SUID map; cartesianLayout and cyVisualProperties in ten fragments; scoped network attributes",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "graphs": 10,
+        "nodeIds": [
+          61
+        ],
+        "labels": [
+          "Node 7"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 61,
+            "role": "position",
+            "value": [
+              -151.91540196469774,
+              152.96138281665912,
+              0
+            ]
+          }
+        ],
+        "graphNames": [
+          "Network7",
+          "Network4",
+          "Network1",
+          "Network9",
+          "Network6",
+          "Network3",
+          "Network8",
+          "Network5",
+          "Network2",
+          "Network10"
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS",
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/10_networks_new.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "oracleDisagrees": "ndex2 reads a collection as its root network (ten nodes); Cytoscape opens one network per subnetwork, in cyNetworkRelations order, which is what the CX data model describes"
+    },
+    {
+      "file": "ndex-object-model/network1_3n2e_no_numVerification.cx",
+      "exercises": "a document without numberVerification",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_CX_NUMBER_VERIFICATION"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          70,
+          66,
+          64
+        ],
+        "labels": [
+          "Node 3",
+          "Node 2",
+          "Node 1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 70,
+            "role": "position",
+            "value": [
+              -88.0,
+              -19.0,
+              0
+            ]
+          },
+          {
+            "id": 66,
+            "role": "position",
+            "value": [
+              -26.0,
+              122.0,
+              0
+            ]
+          },
+          {
+            "id": 64,
+            "role": "position",
+            "value": [
+              -324.0,
+              29.0,
+              0
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 64,
+            "target": 70
+          },
+          {
+            "source": 64,
+            "target": 66
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 64,
+            "target": 70,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 64,
+            "target": 70,
+            "column": "name",
+            "value": "Node 1 (interacts with) Node 3"
+          },
+          {
+            "source": 64,
+            "target": 66,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 64,
+            "target": 66,
+            "column": "name",
+            "value": "Node 1 (interacts with) Node 2"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/network1_3n2e_no_numVerification.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96"
+    },
+    {
+      "file": "ndex-object-model/cx2_tiny_double_and_longattribute.cx",
+      "exercises": "CX2 content under a .cx name: the CX importer refuses it naming CX2, sniffing sends it to the CX2 importer",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CX_NOT_CX"
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny_double_and_longattribute.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "sniffAs": "cx2",
+      "oracleDisagrees": "ndex2 reads a CX2 document as an empty CX network because its metaData names no CX1 aspect"
+    },
+    {
+      "file": "rcx/Direct-p53-effectors.cx",
+      "exercises": "48 empty list_of_string values, discrete mappings, an NDEx-era network",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 145,
+        "edges": 213,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "labels": [
+          "AFP",
+          "FOXA1",
+          "TP53",
+          "AIFM2",
+          "APAF1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "role": "position",
+            "value": [
+              12.071131528657077,
+              -347.1993548426135,
+              0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 0,
+            "column": "alias",
+            "value": [
+              "uniprot:P02771"
+            ]
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              6.433733762543795,
+              -506.88227720589475,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 1,
+            "column": "alias",
+            "value": [
+              "uniprot:B7ZAP5",
+              "uniprot:P55317",
+              "uniprot:Q9H2A0"
+            ]
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              4.221270383637545,
+              -19.777937606285377,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 2,
+            "column": "alias",
+            "value": [
+              "uniprot:Q15086",
+              "uniprot:Q15087",
+              "uniprot:Q15088",
+              "uniprot:Q16535",
+              "uniprot:Q16807",
+              "uniprot:Q16808",
+              "uniprot:Q16809",
+              "uniprot:Q16810",
+              "uniprot:Q16811",
+              "uniprot:Q16848",
+              "uniprot:Q2XN98",
+              "uniprot:Q3LRW1",
+              "uniprot:Q3LRW2",
+              "uniprot:Q3LRW3",
+              "uniprot:Q3LRW4",
+              "uniprot:Q3LRW5",
+              "uniprot:Q86UG1",
+              "uniprot:Q8J016",
+              "uniprot:Q99659",
+              "uniprot:Q9BTM4",
+              "uniprot:Q9HAQ8",
+              "uniprot:Q9NP68",
+              "uniprot:Q9NPJ2",
+              "uniprot:Q9NZD0",
+              "uniprot:Q9UBI2",
+              "uniprot:Q9UQ61"
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 8,
+            "target": 9
+          },
+          {
+            "source": 8,
+            "target": 14
+          },
+          {
+            "source": 16,
+            "target": 17
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 8,
+            "target": 9,
+            "column": "interaction",
+            "value": "controls-expression-of"
+          },
+          {
+            "source": 8,
+            "target": 9,
+            "column": "citation",
+            "value": [
+              "pubmed:11278953",
+              "pubmed:11684014",
+              "pubmed:11850816",
+              "pubmed:15598651",
+              "pubmed:17189187"
+            ]
+          },
+          {
+            "source": 8,
+            "target": 9,
+            "column": "directed",
+            "value": true
+          },
+          {
+            "source": 8,
+            "target": 14,
+            "column": "interaction",
+            "value": "controls-expression-of"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/frankkramer-lab/RCX/f6571e01164625f94c2ec6eabba2cc8ecaf5ceaf/inst/extdata/Direct-p53-effectors-67c3b75d-6191-11e5-8ac5-06603eb7f303.cx",
+      "license": "MIT (RCX LICENSE.md, Florian Auer); originally NCI-PID on NDEx",
+      "version": "RCX commit f6571e0"
+    },
+    {
+      "file": "ndex/WP4742-ketogenesis.cx",
+      "exercises": "NDEx server output: z as a draw order, @context as a network attribute string, __Annotations, HTML in values, nameless nodes",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 58,
+        "edges": 48,
+        "directed": true,
+        "nodeIds": [
+          748082,
+          748081,
+          748080,
+          748079,
+          748078
+        ],
+        "labels": [
+          "FA",
+          "glucose",
+          "BHB",
+          "BHB",
+          "BHB"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 748082,
+            "role": "position",
+            "value": [
+              1013.0647554680585,
+              -245.38436346058725,
+              0
+            ]
+          },
+          {
+            "id": 748081,
+            "role": "position",
+            "value": [
+              311.84511153225316,
+              -470.5799806659004,
+              0
+            ]
+          },
+          {
+            "id": 748080,
+            "role": "position",
+            "value": [
+              611.5501767024015,
+              -293.46801449079726,
+              0
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 748080,
+            "target": 748053
+          },
+          {
+            "source": 748074,
+            "target": 748042
+          },
+          {
+            "source": 748068,
+            "target": 748029
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 748080,
+            "target": 748053,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 748080,
+            "target": 748053,
+            "column": "EndArrow",
+            "value": "Line"
+          },
+          {
+            "source": 748074,
+            "target": 748042,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 748074,
+            "target": 748042,
+            "column": "EndArrow",
+            "value": "mim-conversion"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v2/network/cc593864-8b6c-11eb-9e72-0ac135e8bacf",
+      "license": "CC0 (network rights: Waiver-No Rights Reserved (CC0), holder WikiPathways)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/ITCR-connectivity-map.cx",
+      "exercises": "93 nodes, 247 edges, 1,117 edge attributes, integer and boolean node columns",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 93,
+        "edges": 247,
+        "directed": true,
+        "nodeIds": [
+          104,
+          103,
+          102,
+          101,
+          100
+        ],
+        "labels": [
+          "CrossDome",
+          "PhysiCell",
+          "CytoAnalyst",
+          "IPSA",
+          "RAIDS"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 104,
+            "role": "position",
+            "value": [
+              1075.8413930468696,
+              2365.9603482617176,
+              0
+            ]
+          },
+          {
+            "id": 104,
+            "column": "ITCR Award ID",
+            "value": "CA289333"
+          },
+          {
+            "id": 104,
+            "column": "Connectivity Score",
+            "value": 2
+          },
+          {
+            "id": 104,
+            "column": "Just Added",
+            "value": true
+          },
+          {
+            "id": 104,
+            "column": "NIH Reporter ID",
+            "value": "nih:10866859"
+          },
+          {
+            "id": 103,
+            "role": "position",
+            "value": [
+              -69.93467109371358,
+              3342.6360293018074,
+              0
+            ]
+          },
+          {
+            "id": 103,
+            "column": "ITCR Award ID",
+            "value": "CA284156"
+          },
+          {
+            "id": 103,
+            "column": "Resource Website",
+            "value": "https://physicell.org/"
+          },
+          {
+            "id": 103,
+            "column": "Connectivity Score",
+            "value": 3
+          },
+          {
+            "id": 103,
+            "column": "Just Added",
+            "value": true
+          },
+          {
+            "id": 102,
+            "role": "position",
+            "value": [
+              -689.368293154135,
+              -1021.6649058978655,
+              0
+            ]
+          },
+          {
+            "id": 102,
+            "column": "ITCR Award ID",
+            "value": "CA274573"
+          },
+          {
+            "id": 102,
+            "column": "Reference",
+            "value": "https://doi.org/10.1038/s41598-025-14398-x"
+          },
+          {
+            "id": 102,
+            "column": "Resource Website",
+            "value": "https://cytoanalyst.tinnguyen-lab.com/"
+          },
+          {
+            "id": 102,
+            "column": "Connectivity Score",
+            "value": 3
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 104,
+            "target": 96
+          },
+          {
+            "source": 104,
+            "target": 54
+          },
+          {
+            "source": 102,
+            "target": 21
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 104,
+            "target": 96,
+            "column": "interaction",
+            "value": "connected with"
+          },
+          {
+            "source": 104,
+            "target": 96,
+            "column": "Status",
+            "value": "Ongoing"
+          },
+          {
+            "source": 104,
+            "target": 96,
+            "column": "Suggested By",
+            "value": "Antunes Lab"
+          },
+          {
+            "source": 104,
+            "target": 54,
+            "column": "interaction",
+            "value": "connected with"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v2/network/04c0a7e8-af92-11e7-94d3-0ac135e8bacf",
+      "license": "CC0 (network rights: Waiver-No rights reserved (CC0))",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/SIGNOR-multiple-sclerosis.cx",
+      "exercises": "list_of_string-heavy edges, boolean edge attributes",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 42,
+        "edges": 61,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "labels": [
+          "NfKb-p65/p50",
+          "IL6",
+          "M1_polarization",
+          "Immune_response",
+          "Inflammation"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "role": "position",
+            "value": [
+              -178.97653061053677,
+              -317.95382643178186,
+              0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "type",
+            "value": "complex"
+          },
+          {
+            "id": 0,
+            "column": "location",
+            "value": "factor"
+          },
+          {
+            "id": 0,
+            "column": "member",
+            "value": [
+              "hgnc.symbol:RELA",
+              "hgnc.symbol:NFKB1"
+            ]
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              343.59291564817823,
+              241.01409854255618,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 1,
+            "column": "location",
+            "value": "extracellular"
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              106.04149394115746,
+              355.9738564510729,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "type",
+            "value": "phenotype"
+          },
+          {
+            "id": 2,
+            "column": "location",
+            "value": "extracellular"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 0,
+            "target": 3
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 0,
+            "target": 1,
+            "column": "interaction",
+            "value": "up-regulates"
+          },
+          {
+            "source": 0,
+            "target": 1,
+            "column": "citation",
+            "value": [
+              "pubmed:20086235"
+            ]
+          },
+          {
+            "source": 0,
+            "target": 1,
+            "column": "mechanism",
+            "value": [
+              "transcriptional regulation"
+            ]
+          },
+          {
+            "source": 0,
+            "target": 2,
+            "column": "interaction",
+            "value": "up-regulates"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v2/network/0522eea1-97f1-11eb-9e72-0ac135e8bacf",
+      "license": "CC BY-SA 4.0 (network rights, holder Prof. Gianni Cesareni): test-only",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/parkinson-cytoscape-analysis.cx",
+      "exercises": "self-loops, parallel edges, NetworkAnalyzer's double / integer / long / boolean node columns",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 18,
+        "edges": 35,
+        "directed": true,
+        "nodeIds": [
+          17,
+          16,
+          15,
+          14,
+          13
+        ],
+        "labels": [
+          "UCHL1",
+          "HTRA2",
+          "ER stress",
+          "Lewy_body_formation",
+          "ROS"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 17,
+            "role": "position",
+            "value": [
+              -354.22186595494907,
+              69.56515992292928,
+              0
+            ]
+          },
+          {
+            "id": 17,
+            "column": "ClosenessCentrality",
+            "value": 0.31578947368421056
+          },
+          {
+            "id": 17,
+            "column": "Eccentricity",
+            "value": 5
+          },
+          {
+            "id": 17,
+            "column": "Outdegree",
+            "value": 1
+          },
+          {
+            "id": 17,
+            "column": "PartnerOfMultiEdgedNodePairs",
+            "value": 0
+          },
+          {
+            "id": 16,
+            "role": "position",
+            "value": [
+              -384.67763543339385,
+              -157.97853587400377,
+              0
+            ]
+          },
+          {
+            "id": 16,
+            "column": "ClosenessCentrality",
+            "value": 0.4
+          },
+          {
+            "id": 16,
+            "column": "Eccentricity",
+            "value": 4
+          },
+          {
+            "id": 16,
+            "column": "Outdegree",
+            "value": 1
+          },
+          {
+            "id": 16,
+            "column": "PartnerOfMultiEdgedNodePairs",
+            "value": 0
+          },
+          {
+            "id": 15,
+            "role": "position",
+            "value": [
+              -342.0056203697906,
+              370.6224717884197,
+              0
+            ]
+          },
+          {
+            "id": 15,
+            "column": "ClosenessCentrality",
+            "value": 0.0
+          },
+          {
+            "id": 15,
+            "column": "Eccentricity",
+            "value": 0
+          },
+          {
+            "id": 15,
+            "column": "Outdegree",
+            "value": 0
+          },
+          {
+            "id": 15,
+            "column": "PartnerOfMultiEdgedNodePairs",
+            "value": 0
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 17,
+            "target": 9
+          },
+          {
+            "source": 16,
+            "target": 2
+          },
+          {
+            "source": 14,
+            "target": 8
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 17,
+            "target": 9,
+            "column": "interaction",
+            "value": "up-regulates quantity"
+          },
+          {
+            "source": 17,
+            "target": 9,
+            "column": "sentence",
+            "value": [
+              "<a target=\"_blank\" href=\"http://identifiers.org/pubmed/9521656\">pubmed:9521656</a> These data suggest that the physiological role of UCH is to hydrolyze small adducts of ubiquitin and to generate free monomeric ubiquitin from ubiquitin proproteins, but not to deubiquitinate ubiquitin-protein conjugates or disassemble polyubiquitin chains"
+            ]
+          },
+          {
+            "source": 17,
+            "target": 9,
+            "column": "EdgeBetweenness",
+            "value": 42.0
+          },
+          {
+            "source": 16,
+            "target": 2,
+            "column": "interaction",
+            "value": "down-regulates"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v2/network/70375fa2-7474-11ef-ad6c-005056ae3c32",
+      "license": "CC BY-SA 4.0 (network rights, holder Prof. Gianni Cesareni): test-only",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/schizophrenia-subnetwork.cx",
+      "exercises": "a 2024 Cytoscape-to-NDEx export: cyTableColumn, integer node columns, double edge columns",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 47,
+        "edges": 49,
+        "directed": true,
+        "nodeIds": [
+          551013,
+          304942,
+          303982,
+          304237,
+          309037
+        ],
+        "labels": [
+          "CHEMBL3",
+          "https://identifiers.org/aop.events/1549",
+          "https://identifiers.org/aop.events/888",
+          "https://identifiers.org/aop.events/1881",
+          "ENSG00000186868"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 551013,
+            "role": "position",
+            "value": [
+              17245.572144373098,
+              -3242.7719402722555,
+              0
+            ]
+          },
+          {
+            "id": 551013,
+            "column": "ChEMBLid",
+            "value": "CHEMBL3"
+          },
+          {
+            "id": 551013,
+            "column": "Outdegree",
+            "value": 4
+          },
+          {
+            "id": 551013,
+            "column": "type",
+            "value": "ChEBI node"
+          },
+          {
+            "id": 551013,
+            "column": "Indegree",
+            "value": 0
+          },
+          {
+            "id": 304942,
+            "role": "position",
+            "value": [
+              15635.572144373098,
+              -3242.7719402722555,
+              0
+            ]
+          },
+          {
+            "id": 304942,
+            "column": "Outdegree",
+            "value": 3
+          },
+          {
+            "id": 304942,
+            "column": "type",
+            "value": "AO"
+          },
+          {
+            "id": 304942,
+            "column": "Indegree",
+            "value": 0
+          },
+          {
+            "id": 304942,
+            "column": "AOid",
+            "value": "https://identifiers.org/aop.events/1549"
+          },
+          {
+            "id": 303982,
+            "role": "position",
+            "value": [
+              15405.572144373098,
+              -3747.7719402722555,
+              0
+            ]
+          },
+          {
+            "id": 303982,
+            "column": "KEisMIEin",
+            "value": "https://identifiers.org/aop/273; https://identifiers.org/aop/276; https://identifiers.org/aop/3"
+          },
+          {
+            "id": 303982,
+            "column": "Outdegree",
+            "value": 1
+          },
+          {
+            "id": 303982,
+            "column": "type",
+            "value": "KE"
+          },
+          {
+            "id": 303982,
+            "column": "Indegree",
+            "value": 3
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 551013,
+            "target": 308737
+          },
+          {
+            "source": 551013,
+            "target": 308772
+          },
+          {
+            "source": 551013,
+            "target": 308762
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 551013,
+            "target": 308737,
+            "column": "EdgeBetweenness",
+            "value": 5359.25
+          },
+          {
+            "source": 551013,
+            "target": 308737,
+            "column": "CTL.datasource",
+            "value": "ChEMBL (pChEMBL > 6)_Homo sapiens_0.1"
+          },
+          {
+            "source": 551013,
+            "target": 308772,
+            "column": "EdgeBetweenness",
+            "value": 1576.25
+          },
+          {
+            "source": 551013,
+            "target": 308772,
+            "column": "CTL.datasource",
+            "value": "ChEMBL (pChEMBL > 6)_Homo sapiens_0.1"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v2/network/90bd68fb-1dd0-11ef-9621-005056ae23aa",
+      "license": "CC BY 4.0 (network rights, holder Pierre Klemmer; attribution in sources.md section 12)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "authored/groups.cx",
+      "exercises": "cyGroups: a group node with internal and external edges, collapsed, a nested group, a node in two groups (parents), a group whose id is not a node, a member naming no node, a membership that closes a cycle",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 3,
+        "nodeAttrs": [
+          {
+            "id": 100,
+            "column": "collapsed",
+            "value": true
+          },
+          {
+            "id": 200,
+            "column": "collapsed",
+            "value": false
+          }
+        ],
+        "warnings": [
+          "W_CX_GROUP_NODE_ADDED",
+          "E_UNKNOWN_PARENT",
+          "E_PARENT_CYCLE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps cyGroups as an opaque aspect; the memberships, the added group node and the reference errors follow Cytoscape's group model"
+    },
+    {
+      "file": "authored/collection.cx",
+      "exercises": "a collection of two subnetworks with views, a subnetwork-scoped attribute that beats the shared one, scoped network attributes",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "graphs": 2,
+        "graphNames": [
+          "First",
+          "Second"
+        ],
+        "nodeIds": [
+          1,
+          2
+        ],
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "score",
+            "value": 1
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              2,
+              -2,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 reads a collection as its root network; Cytoscape opens one network per subnetwork"
+    },
+    {
+      "file": "authored/collection-chosen-by-name.cx",
+      "exercises": "the second subnetwork of the same collection (a copy of collection.cx), chosen by graphName",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeIds": [
+          2,
+          3
+        ],
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "score",
+            "value": 2
+          },
+          {
+            "id": 3,
+            "role": "position",
+            "value": [
+              30,
+              -30,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "options": {
+        "graphName": "Second"
+      },
+      "oracleDisagrees": "as collection.cx"
+    },
+    {
+      "file": "authored/collection-without-metadata.cx",
+      "exercises": "the same collection without numberVerification and metaData, subnetworks after the elements",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "graphs": 2,
+        "graphNames": [
+          "First",
+          "Second"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 reads only the aspects metaData names, so it reads nothing here; metaData is optional for a reader"
+    },
+    {
+      "file": "authored/attributes-before-nodes.cx",
+      "exercises": "nodeAttributes and cartesianLayout before the nodes they describe",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "a",
+          "b"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              10,
+              -20,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "score",
+            "value": 0.5
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              30,
+              40,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "score",
+            "value": 1.5
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/big-id-after-safe-ones.cx",
+      "exercises": "an id beyond 2^53 after 1,000 safe ones, read per id while streaming",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1001,
+        "edges": 1001,
+        "nodeIds": [
+          0,
+          999,
+          "18014398509481985"
+        ],
+        "warnings": [
+          "W_PRECISION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/string-and-exponent-ids.cx",
+      "exercises": "ids written as strings and as 1e3 and 2.0: the integers they spell, 12 and \"12\" one node",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "nodeIds": [
+          12,
+          1000,
+          -5,
+          0
+        ],
+        "labels": [
+          "twelve again"
+        ],
+        "warnings": [
+          "W_ID_TEXT_TYPE",
+          "W_DUPLICATE_NODE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps the string \"12\" and the number 12 as two nodes and reads 1e3 as a float id; the Java reader (Jackson) coerces both to the integer"
+    },
+    {
+      "file": "authored/null-values.cx",
+      "exercises": "v: null on node and network attributes: unset cells",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "a",
+            "value": "kept"
+          }
+        ],
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/single-object-aspects.cx",
+      "exercises": "ndexStatus written as one object (the specification's own example), provenanceHistory, the @context aspect: kept verbatim",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "forbidCodes": [
+          "E_BAD_ASPECT_BLOCK"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/bypass-name-collision.cx",
+      "exercises": "a per-element visual property named like an attribute: the visual column is renamed",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "NODE_SIZE",
+            "value": "an attribute"
+          },
+          {
+            "id": 1,
+            "column": "NODE_SIZE#2",
+            "value": "40.0"
+          },
+          {
+            "id": 1,
+            "column": "NODE_FILL_COLOR",
+            "value": "#FF0000"
+          }
+        ],
+        "warnings": [
+          "W_COLUMN_RENAMED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/duplicate-ids.cx",
+      "exercises": "a node id twice (merged, the later fields win) and an edge id twice (the second skipped)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "first"
+          },
+          {
+            "id": 1,
+            "column": "represents",
+            "value": "HGNC:1"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "interaction",
+            "value": "kept"
+          }
+        ],
+        "warnings": [
+          "W_DUPLICATE_NODE",
+          "E_DUPLICATE_EDGE_ID"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 lets the last element win silently; NDEx rejects duplicate ids"
+    },
+    {
+      "file": "authored/dangling.cx",
+      "exercises": "edges whose endpoints name no node, attributes and layout entries naming nothing",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "E_UNKNOWN_NODE",
+          "W_DANGLING_REFERENCE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps edges with unknown endpoints; NDEx rejects them and Cytoscape fails on them"
+    },
+    {
+      "file": "authored/number-verification-75.cx",
+      "exercises": "numberVerification holding 75 instead of 2^48 - 1",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_CX_NUMBER_VERIFICATION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/status-failed.cx",
+      "exercises": "status.success false: the document is incomplete",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_STATUS_FAILED"
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "sniffAs": "cx",
+      "oracleDisagrees": "ndex2 ignores the status; the Java reader throws on it"
+    },
+    {
+      "file": "authored/status-warning.cx",
+      "exercises": "status.success true with an error text",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_STATUS_WARNING"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/status-missing.cx",
+      "exercises": "no status: legal in CX version 1",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "forbidCodes": [
+          "E_STATUS_FAILED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/truncated.cx",
+      "exercises": "a document cut inside the nodes",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "sniffAs": "cx"
+    },
+    {
+      "file": "authored/empty.cx",
+      "exercises": "an empty file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/empty-array.cx",
+      "exercises": "[]: an empty network",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "sniffAs": "json"
+    },
+    {
+      "file": "authored/multi-key-fragment.cx",
+      "exercises": "a fragment with two keys: the first is read, the others reported",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "warnings": [
+          "E_BAD_ASPECT_BLOCK"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/typed-values.cx",
+      "exercises": "Cytoscape's value rule and its edge cases: empty, null and Null unset, NaN, Java-only 1.0d, True, 1 as a boolean, an integer beyond 2^31, an unknown type, a list where a scalar is declared and the reverse, null-ish list items, integer and double for one name, native values",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "nodeAttrs": [
+          {
+            "id": 6,
+            "column": "d",
+            "value": 8.5
+          },
+          {
+            "id": 1,
+            "column": "b",
+            "value": true
+          },
+          {
+            "id": 3,
+            "column": "i",
+            "value": 42
+          },
+          {
+            "id": 1,
+            "column": "u",
+            "value": "x"
+          },
+          {
+            "id": 2,
+            "column": "w",
+            "value": 2.5
+          },
+          {
+            "id": 7,
+            "column": "native",
+            "value": 3
+          },
+          {
+            "id": 8,
+            "column": "native",
+            "value": 4
+          },
+          {
+            "id": 9,
+            "column": "nb",
+            "value": true
+          }
+        ],
+        "warnings": [
+          "E_BAD_VALUE",
+          "W_UNKNOWN_ATTR_TYPE",
+          "W_WIDENED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 leaves every value untyped; the CX data model types them by d and Cytoscape reads empty, null and NaN as missing values"
+    },
+    {
+      "file": "authored/old-aspect-names.cx",
+      "exercises": "the old Cytoscape aspect names subNetworks, networkRelations, hiddenAttributes and visualProperties",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "NODE_SIZE",
+            "value": "35.0"
+          }
+        ],
+        "graphNames": [
+          "Legacy network"
+        ],
+        "warnings": [
+          "W_CX_OLD_ASPECT_NAME",
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/all-members.cx",
+      "exercises": "a subnetwork listing \"all\" nodes and edges; a scoped value beating the shared one",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "scoped",
+            "value": "local"
+          },
+          {
+            "id": 2,
+            "column": "scoped",
+            "value": "shared only"
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/name-and-n.cx",
+      "exercises": "a name attribute that differs from n (the attribute wins) and an interaction attribute beside i",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "long name"
+          },
+          {
+            "id": 2,
+            "column": "name",
+            "value": "same"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "interaction",
+            "value": "attribute"
+          }
+        ],
+        "warnings": [
+          "W_DUPLICATE_ATTRIBUTE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/views-and-z.cx",
+      "exercises": "two views of one subnetwork (position and position@2), z as a draw order, a layout entry for an unknown view",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              5,
+              -6,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "position@2",
+            "value": [
+              50,
+              -60,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "z",
+            "value": 32775
+          }
+        ],
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/provenance.cx",
+      "exercises": "citations and supports (extension tables), edgeCitations, edgeSupports and nodeCitations (list columns), functionTerms (json), reifiedEdges",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "citations",
+            "value": [
+              7
+            ]
+          },
+          {
+            "id": 3,
+            "column": "reifiedEdge",
+            "value": 0
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "supports",
+            "value": [
+              8
+            ]
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/visual-properties.cx",
+      "exercises": "cyVisualProperties: network properties, node and edge defaults with dependencies and mappings (a doubled comma in a definition), per-element values",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "NODE_FILL_COLOR",
+            "value": "#00FF00"
+          },
+          {
+            "id": 1,
+            "column": "NODE_LABEL_FONT_FACE",
+            "value": "SansSerif.italic,,plain,,14"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "EDGE_BEND",
+            "value": "0.5,0.5,0.5"
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/bom.cx",
+      "exercises": "a UTF-8 byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "labels": [
+          "caf\u00e9",
+          "na\u00efve"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/latin1.cx",
+      "exercises": "bytes that are not UTF-8: read as windows-1252 with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "labels": [
+          "caf\u00e9"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    }
+  ]
+}

@@ -2601,7 +2601,7 @@
       "options": {
         "format": "cx2"
       },
-      "sniffAs": "json",
+      "sniffAs": "cx",
       "oracleDisagrees": "ndex2 reads a CX1 file as an empty CX2 network"
     },
     {

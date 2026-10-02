@@ -12,6 +12,7 @@ the expectation today; the reference points into
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
 | csv | 83 | 69 | 14 | 67 | 1 |
+| cx | 49 | 49 | 0 | 0 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 1 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
@@ -88,6 +89,17 @@ rest of the format's expectations does something else.
 - obo (obonet-1.3.0): fastobo and ROBOT reject the unquoted literal; graph-io reads it as the value (1 file)
 - obo (spec): fastobo rejects the Typedef tag after its frame's clauses; obonet keeps the spaces before a ! comment in an id and makes FBbt:00005106 and 'FBbt:00005106 ' two nodes (16); the hidden comment and its whitespace are not part of the value (1 file)
 - obo (spec): fastobo and obonet reject the escaped colon; the guides' \: is a literal colon (1 file)
+- cx (spec): ndex2 reads a collection as its root network (ten nodes); Cytoscape opens one network per subnetwork, in cyNetworkRelations order, which is what the CX data model describes (1 file)
+- cx (spec): ndex2 reads a CX2 document as an empty CX network because its metaData names no CX1 aspect (1 file)
+- cx (spec): ndex2 keeps cyGroups as an opaque aspect; the memberships, the added group node and the reference errors follow Cytoscape's group model (1 file)
+- cx (spec): ndex2 reads a collection as its root network; Cytoscape opens one network per subnetwork (1 file)
+- cx (spec): as collection.cx (1 file)
+- cx (spec): ndex2 reads only the aspects metaData names, so it reads nothing here; metaData is optional for a reader (1 file)
+- cx (spec): ndex2 keeps the string "12" and the number 12 as two nodes and reads 1e3 as a float id; the Java reader (Jackson) coerces both to the integer (1 file)
+- cx (spec): ndex2 lets the last element win silently; NDEx rejects duplicate ids (1 file)
+- cx (spec): ndex2 keeps edges with unknown endpoints; NDEx rejects them and Cytoscape fails on them (1 file)
+- cx (spec): ndex2 ignores the status; the Java reader throws on it (1 file)
+- cx (spec): ndex2 leaves every value untyped; the CX data model types them by d and Cytoscape reads empty, null and NaN as missing values (1 file)
 - cx2 (spec): ndex2 types an attribute declared without d from its values, so the percentile scores read as numbers; the specification requires d and the Java reader (which NDEx runs) reads such a declaration as string, so a number there is a value of the wrong type (E_BAD_VALUE) and the cell is unset (1 file)
 - cx2 (spec): as cx2_tiny.cx2: ndex2 infers a type for declarations without d where the Java reader reads string (1 file)
 - cx2 (spec): ndex2 resolves aliases only for declarations that come before the elements, so it reads the node names under the alias n; the declarations are read before the elements are typed, as the Java reader's two-pass Cytoscape import does (1 file)
@@ -159,6 +171,10 @@ rest of the format's expectations does something else.
 
 - `dialect/whitespace-around-fields.csv`: nodes: expected 3, got 4; node "c" missing
 
+
+## cx
+
+No known failures.
 
 ## cx2
 

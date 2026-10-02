@@ -17,7 +17,19 @@ import { fileURLToPath } from "node:url";
 export const CORPUS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "corpus");
 
 /** The formats the corpus covers, by directory name. */
-export const CORPUS_FORMATS = ["csv", "cx2", "dot", "gexf", "gml", "graphml", "json", "neo4j", "obo", "pajek"] as const;
+export const CORPUS_FORMATS = [
+    "csv",
+    "cx",
+    "cx2",
+    "dot",
+    "gexf",
+    "gml",
+    "graphml",
+    "json",
+    "neo4j",
+    "obo",
+    "pajek",
+] as const;
 
 /**
  * A corpus format name.

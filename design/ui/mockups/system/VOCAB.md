@@ -121,7 +121,7 @@ implemented). No letter-spacing anywhere.
 | input value | 11px | 400 | `#d5d7da` | 24px box | theme.ts `--input-fz: 11px` |
 | checkbox / switch label | 11px | 400 | `#d5d7da` | 1.2 | theme.ts, CompactCheckbox |
 | button text (compact) | 11px | 500 | varies | 24px box | theme.ts Button compact |
-| stat row label / value | 11px | 400 / 500 | `#7a828e` / `#d5d7da` | 1.2 | **chosen** (the library draws the pair with `<DataRow stat>`, at its own metrics: it formats a numeric value for the locale and exposes the pair as one group named by the label) |
+| stat row label / value | 11px | 400 / 500 | `#7a828e` / `#d5d7da` | 1.2 | **chosen** (the library draws the pair with `DataRow`, at its own metrics) |
 | rail label, status bar, tooltip, kbd chip, technical name | 11px | 400 | `#7a828e` | 1.2 | **chosen** |
 | section header (ControlSection) | 12px | 500 | `#d5d7da` | 1.2 | ControlSection `Text size="xs" fw={500}` |
 | sub-group header (ControlSubGroup) | 12px | 400 | `#7a828e` | 1.2 | ControlSubGroup |

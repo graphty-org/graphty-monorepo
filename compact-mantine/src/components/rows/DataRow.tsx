@@ -175,12 +175,7 @@ export function DataRow({
                 Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <span
-                className="cm-data-row-name"
-                data-testid="data-row-name"
-                id={stat ? nameId : undefined}
-                title={name}
-            >
+            <span className="cm-data-row-name" data-testid="data-row-name" id={stat ? nameId : undefined} title={name}>
                 {name}
             </span>
 

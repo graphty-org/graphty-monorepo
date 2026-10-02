@@ -41,7 +41,7 @@
             ".sp-cell{min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 4px;border-radius:5px;color:var(--cm-icon)}" +
             ".sp-cell:hover,.sp-cell:focus-visible{background:var(--cm-bg-hover)}" +
             ".sp-cell[aria-selected=true]{background:var(--cm-bg-selected);box-shadow:inset 0 0 0 1px var(--cm-border-selected)}" +
-            ".sp-cell>span{width:100%;text-align:center;font-size:11px;line-height:13px;color:var(--cm-text-secondary);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}" +
+            ".sp-cell>span{width:100%;text-align:center;font-size:11px;line-height:13px;color:var(--cm-text-secondary);overflow-wrap:break-word}" +
             ".sp-cell svg{flex:none}" +
             ".sp-filter{display:flex;align-items:center;gap:6px;margin:0 16px 8px;color:var(--cm-icon-secondary)}" +
             ".sp-color{display:flex;align-items:center;gap:6px;min-width:0;flex:1}" +
@@ -80,7 +80,13 @@
             ".sp-lsctl{flex:1;min-width:0;display:flex;align-items:center}" +
             ".sp-minus{flex:none;width:24px;visibility:hidden}" +
             ".sp-lsrow:is(:hover,:focus-within) .sp-minus{visibility:visible}" +
-            "@media (pointer:coarse){.sp-minus{visibility:visible}}"));
+            "@media (pointer:coarse){.sp-minus{visibility:visible}}" +
+            // a long name wraps in a picker (never cut), so the part that tells two names apart stays visible
+            ".k-field.sp-wrapf{height:auto;min-height:24px;padding-top:3px;padding-bottom:3px;white-space:normal}" +
+            ".sp-wrapf .k-ellipsis,.sp-wrapf .sp-ml{white-space:normal;overflow:visible;text-overflow:clip;align-items:flex-start}" +
+            ".sp-wrap{min-width:0;overflow-wrap:anywhere;white-space:normal}" +
+            ".sp-pop .k-popover-head{height:auto;min-height:40px;padding-top:8px;padding-bottom:8px}" +
+            ".sp-pop .k-popover-head .k-grow{min-width:0;overflow-wrap:anywhere;white-space:normal}"));
     }
 
     // ---------- the element's lists (stand-ins) ----------
@@ -217,18 +223,18 @@
     // The bind icon on an unbound line: its property, and the panels it was clicked in (bind-prop draws over them)
     let bindOpener = null;
     document.addEventListener("click", (e) => {
-        const b = e.target.closest && e.target.closest('#ab-right .ab-sline [aria-label^="Use a field or result for "]');
+        const b = e.target.closest && e.target.closest('#ab-right .ab-sline [aria-label$=" by attribute"]');
         const ln = b && b.closest(".ab-sline");
         if (!ln || ln.hasAttribute("data-bound")) return;
         const r = AB.route, f = r && r.frame;
-        bindOpener = { prop: b.getAttribute("aria-label").replace("Use a field or result for ", ""), ch: ln.dataset.ch, left: f && f.left, canvas: f && f.canvas, dataset: f && f.dataset,
+        bindOpener = { prop: b.getAttribute("aria-label").replace(/ by attribute$/, ""), ch: ln.dataset.ch, left: f && f.left, canvas: f && f.canvas, dataset: f && f.dataset,
             right: f && typeof f.right === "string" ? f.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null };
     }, true);
     // A bound line's value clicked (style-pickers/bound): its channel and the inspector it is on
     let lastLine = null, boundOpener = null;
     document.addEventListener("click", (e) => {
         // the bound value, or the bind icon on a bound line
-        const b = e.target.closest && (e.target.closest("#ab-right .ab-sline .ab-bound") || e.target.closest('#ab-right .ab-sline[data-bound] [aria-label^="Use a field or result for "]'));
+        const b = e.target.closest && (e.target.closest("#ab-right .ab-sline .ab-bound") || e.target.closest('#ab-right .ab-sline[data-bound] [aria-label$=" by attribute"]'));
         if (!b) return;
         const r = AB.route, f = r && r.frame;
         lastLine = b.closest(".ab-sline").dataset.ch;
@@ -338,6 +344,10 @@
         grid.filter = draw;
         return grid;
     }
+    // A long attribute name or path in a picker wraps whole; the full name is also its tooltip
+    // (it breaks after a "." or "_" first, so a path wraps at its segments)
+    const wrapName = (name) => AB.tip(h("span", { class: "sp-wrap" }, String(name).split(/(?<=[._])/).flatMap((p) => [p, h("wbr")]).slice(0, -1)), name, { label: false });
+    const wrapField = (f) => (f.classList.add("sp-wrapf"), f);
     const pop = (anchor, title, body, o) => AB.popover(Object.assign({ anchor, title, body, width: 280 }, o || {}));
 
     // ---------- "+": the shared menu on the real button (no local copy) ----------
@@ -366,13 +376,13 @@
     // shows Source alone, its list open; a source that reads nothing shows graphty-element's error.
     const L = () => AB.fx.datasets.lesmis;
     const BINDINGS = {
-        color: { prop: "Color", source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" },
-        diverging: { prop: "Color", source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" },
+        color: { prop: "Color", source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], ds: "lesmis" },
+        diverging: { prop: "Color", source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", ds: "transactions" },
         // Everything's Size from Note count: 0 on an element with no note, 2 on Valjean (the notes fixture)
-        size: { prop: "Size", source: "Note count", type: "number", from: "fit", range: ["0", "2"], out: ["1", "3"], total: "77", unit: "nodes" },
+        size: { prop: "Size", source: "Note count", type: "number", from: "fit", range: ["0", "2"], out: ["1", "3"], ds: "lesmis" },
         // A measure row's binding whose stored name matches no attribute: graphty-element raises
         // E_UNKNOWN_ATTRIBUTE with the path instead of painting nothing (element-requirements-5.md)
-        unknown: { prop: "Color", source: "pagerank", type: "number", pal: "ylorbr", from: "fit", range: null, total: "77", unit: "nodes",
+        unknown: { prop: "Color", source: "pagerank", type: "number", pal: "ylorbr", from: "fit", range: null, ds: "lesmis",
             error: { what: "No node has an attribute \"pagerank\", so this binding paints nothing.", todo: "Pick another source. Names are case-sensitive; the closest is PageRank.", fix: "PageRank" } },
     };
     // The values of a field on the project on screen, for "Fit to data" (the element computes these;
@@ -386,14 +396,15 @@
         if (!rows) return null;
         const v = rows.map((r) => name.split(".").reduce((o, k) => (o == null ? o : o[k]), r)).filter((x) => typeof x === "number");
         if (!v.length) return null;
-        const f = (x) => Number(x).toLocaleString("en-US");
-        return [f(Math.min(...v)), f(Math.max(...v))];
+        return [Math.min(...v), Math.max(...v)];
     }
-    const UNITS = { wide: ["300", "hosts"], nested: ["170", "researchers"] };
+    // what Detach counts: the project's nodes, in its own noun
+    const NOUN = { lesmis: "node", transactions: "account", wide: "host", nested: "researcher" };
+    const detached = (ds) => { const n = (AB.projectCounts(ds) || {}).nodes; return n == null ? (rowsOf(ds) || []).length : n; };
     function boundFrom(prop, name, type) {
-        const ds = AB.route && AB.route.frame.dataset, u = UNITS[ds] || ["77", "nodes"];
+        const ds = (AB.route && AB.route.frame.dataset) || "lesmis";
         const num = type === "num";
-        return { prop, source: name, type: num ? "number" : "category", pal: num ? "ylorbr" : "okabe-ito", from: "fit", range: num ? rangeOf(name) : null, out: ["0.5", "3"], total: u[0], unit: u[1] };
+        return { prop, source: name, type: num ? "number" : "category", pal: num ? "ylorbr" : "okabe-ito", from: "fit", range: num ? rangeOf(name) : null, out: ["0.5", "3"], ds };
     }
     // A pick in a loaded project (wide, nested, plain JSON) is a binding the panels then show: on is
     // "row" (a measure row's own line) or the inspector route whose line the bind icon was on
@@ -408,11 +419,10 @@
         o = o || {};
         const B = typeof spec === "string" ? BINDINGS[spec] : spec;
         const isColor = B.prop === "Color";
-        const MAXN = 28; // the Source field's width in characters: a longer path takes the middle ellipsis
         const srcText = h("span", { class: "sp-ml", style: "min-width:0" });
-        const drawSrc = (name, type) => srcText.replaceChildren(...(name ? [AB.typeGlyph(type === "number" || type === "num" ? "num" : "cat"), AB.truncMiddle(name, MAXN)] : [h("span", { class: "sp-eff" }, "Pick a field")]));
+        const drawSrc = (name, type) => srcText.replaceChildren(...(name ? [AB.typeGlyph(type === "number" || type === "num" ? "num" : "cat"), wrapName(name)] : [h("span", { class: "sp-eff" }, "Pick an attribute")]));
         drawSrc(B.source, B.type);
-        const titleOf = (name) => (name ? [B.prop + " from ", AB.truncMiddle(name, 30)] : [B.prop + " from data"]);
+        const titleOf = (name) => (name ? [B.prop + " by ", wrapName(name)] : [B.prop + " by attribute"]);
         let pop1 = null;
         // A pick on a binding with no source, or with an error, draws the whole popover for the field
         // picked; otherwise Source changes in place and the rest stays
@@ -433,7 +443,7 @@
             AB.announce(B.prop + " from " + name);
         };
         let current = B.source;
-        const src = AB.field(srcText, { caret: true, onClick: () => AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", onPick: (n, t) => { current = n; repick(n, t); } }) });
+        const src = wrapField(AB.field(srcText, { caret: true, onClick: () => AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", onPick: (n, t) => { current = n; repick(n, t); } }) }));
         src.setAttribute("aria-label", "Source" + (B.source ? ": " + B.source : ", none picked"));
         src.setAttribute("aria-haspopup", "listbox");
         src.setAttribute("data-autofocus", "");
@@ -446,10 +456,10 @@
             if (isColor) {
                 let palId = B.pal, reversed = false;
                 const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
-                const palName = h("span", { class: "k-ellipsis" });
+                const palName = h("span", { class: "sp-wrap" });
                 const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
                 drawPal();
-                const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, onClick: () => { palFor = { kind: B.type === "number" ? "number" : "category", id: palId }; AB.go("style-pickers", "palette"); } });
+                const palField = wrapField(AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, onClick: () => { palFor = { kind: B.type === "number" ? "number" : "category", id: palId }; AB.go("style-pickers", "palette"); } }));
                 palField.setAttribute("aria-label", "Palette");
                 const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
                 rev.setAttribute("aria-pressed", "false");
@@ -459,10 +469,11 @@
                 palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] }), "px"));
             }
             const num = B.type === "number";
-            const R = B.range || ["", ""];
+            // the one number formatter, so the range reads as the legend does ("0.00330 to 0.0754")
+            const R = B.range ? B.range.map((x) => AB.num(x)) : ["", ""];
             const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, value: R[0] }), "to", input({ label: "To", num: true, value: R[1] }));
             const typedRow = row("Range", typed);
-            const fitText = B.range ? B.range[0] + " to " + B.range[1] : "No values to fit";
+            const fitText = B.range ? R[0] + " to " + R[1] : "No values to fit";
             const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range ? fitText + ", the lowest and highest value" : "The source reads no values" }, fitText));
             typedRow.hidden = true;
             let noValue = null;
@@ -491,7 +502,7 @@
                 B.mid ? h("div", { class: "k-secondary", style: "padding:0 16px 8px;font-size:11px" }, "A column with values below and above 0 centers on 0 by itself. " + B.source + " has none below 0, so its midpoint is set here.") : null,
                 // Note count is 0 on an element with no note, so a count binding never meets "no value"
                 noValue ? row("No value", noValue) : null,
-                h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, disabled: B.error ? "Nothing is painted to keep" : null, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their " + (isColor ? "colors" : "sizes"), { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
+                h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, disabled: B.error ? "Nothing is painted to keep" : null, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { const said = "Detached: " + AB.count(detached(B.ds), NOUN[B.ds] || "node") + " keep their " + (isColor ? "colors" : "sizes"); AB.close(); setTimeout(() => AB.notice(said, { label: "Undo", onClick: () => AB.announce("Binding restored") }), 0); } })),
             ];
         }
         if (!isColor && B.source && !o.anchor) {
@@ -582,7 +593,7 @@
             h("div", { class: "k-section-head", style: "padding:0 16px" }, h("span", { class: "ab-sec-h" }, "Colors, in order"), h("span", { class: "k-grow" }), AB.plus({ label: "Add a color", items: ["Color"], onAdd: () => stops.append(Object.assign(AB.chit(src.colors[src.colors.length - 1]), { tabIndex: 0 })) })),
             stops,
         ];
-        const foot = [AB.button("Add palette", { onClick: () => { palFor = { kind: "number", id: src.id }; AB.go("style-pickers", "palette"); AB.flash("Added Orange to brown 2, saved with this style"); } })];
+        const foot = [AB.button("Add palette", { onClick: () => { palFor = { kind: "number", id: src.id }; AB.go("style-pickers", "palette"); setTimeout(() => AB.flash("Added Orange to brown 2, saved with this style"), 0); } })];
         el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Custom palette", body, { foot, width: 340 }));
     }
 
@@ -656,7 +667,7 @@
                 h("div", { class: "sp-head" }, "Palettes"),
                 ...PALETTES.filter((p) => !/highlight/.test(p.id)).map((p) => [h("div", { class: "sp-head", style: "font-weight:400" }, p.name), swatches(p.colors, v.set)]));
         const box = h("div");
-        const show = (t) => box.replaceChildren(...(t === "Libraries" ? libs() : custom()));
+        const show = (t) => box.replaceChildren(...(t === "Libraries" ? libs() : custom()).filter(Boolean));
         show(o.tab || "Custom");
         return [h("div", { class: "sp-tabs" }, AB.tabs(["Custom", "Libraries"], o.tab || "Custom", show)), box];
     }
@@ -711,14 +722,11 @@
         const cap = AB.field(h("span", { class: "sp-eff" }, "None"), { go: ["style-pickers", "label-style"] });
         cap.setAttribute("aria-label", end + " caption: none");
         cap.setAttribute("aria-haspopup", "dialog");
-        // the caption's style: the same Label popover, from its "Aa" swatch
-        const capStyle = AB.iconButton("type", "Caption style", { go: ["style-pickers", "label-style"] });
-        capStyle.setAttribute("aria-haspopup", "dialog");
         el.append(pop(find(lineAt("edge.arrow" + end), headSel("Arrows")), "Arrow " + end.toLowerCase(), [
             glyphGrid("Arrow type", chChoices("edge.arrowHead"), tail ? "dot" : "normal", arrowGlyph, () => {}, "arrow"),
             row(AB.scrub(h("span", null, "Size"), size), size),
             row("Color", AB.colorField({ name: end + " color", eff: lineColor, pct: 100 })),
-            row("Caption", cap, capStyle),
+            row("Caption", cap),
         ], { width: 300 }));
     }
 
@@ -759,13 +767,13 @@
     const posId = (word) => (AB.CHANNELS.positions.find((p) => p[1] === word) || [word])[0];
     const GRID = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
     // Press the Label "+" and pick a field, once per line, then optionally leave one more draft open
-    // While Show is offered the Label "+" is a two-item menu first; its Label line opens the field list.
+    // While Show is offered the Label "+" is a two-item menu first; its "Add label line" opens the attribute list, empty.
     function pressLabelPlus(then) {
         const hd = headOf("Label"), plus = hd && hd.querySelector(".ab-plus");
         if (!plus) return then(false);
         plus.click();
         requestAnimationFrame(() => {
-            const line = [...document.querySelectorAll("#ab-overlay .ab-menu .k-menu-item")].find((x) => x.textContent.trim() === "Label line");
+            const line = [...document.querySelectorAll("#ab-overlay .ab-menu .k-menu-item")].find((x) => /^(Add )?label line$/i.test(x.textContent.trim()));
             if (line) line.click();
             requestAnimationFrame(() => then(true));
         });
@@ -847,8 +855,8 @@
         drawGrid();
         // Text: where the words come from. A field or result is a chip (type glyph and name), never typed text.
         const srcText = h("span", { class: "sp-ml", style: "min-width:0" });
-        const drawSrc = () => { srcText.replaceChildren(...[ed.type ? AB.typeGlyph(ed.type) : null, ed.type ? AB.truncMiddle(ed.field, 28) : ed.text || ""].filter(Boolean)); paint(); };
-        const srcField = AB.field(srcText, { caret: true, onClick: () => openSrc() });
+        const drawSrc = () => { srcText.replaceChildren(...[ed.type ? AB.typeGlyph(ed.type) : null, ed.type ? wrapName(ed.field) : ed.text || ""].filter(Boolean)); paint(); };
+        const srcField = wrapField(AB.field(srcText, { caret: true, onClick: () => openSrc() }));
         srcField.setAttribute("aria-label", "Text");
         srcField.setAttribute("aria-haspopup", "listbox");
         srcField.setAttribute("data-autofocus", "");
@@ -865,7 +873,7 @@
             const items = [];
             // each unset field says its effective value and where it comes from
             GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], desc: (f[3] == null ? "Not set" : String(f[3])) + ", " + DEF, f }))); });
-            const plus = AB.plus({ label: "Add a label field", items, onAdd: (it) => { set[it.f[0]] = it.f[3] == null || it.f[1] === "color" ? (it.f[1] === "color" ? "#FFFFFF" : null) : it.f[3]; draw(it.f[0]); paint(); } });
+            const plus = AB.plus({ label: "Add to Style", items, onAdd: (it) => { set[it.f[0]] = it.f[3] == null || it.f[1] === "color" ? (it.f[1] === "color" ? "#FFFFFF" : null) : it.f[3]; draw(it.f[0]); paint(); } });
             fields.replaceChildren(...all.filter((f) => f[0] in set).map((f) => {
                 const minus = AB.iconButton("minus", "Remove " + f[2], { onClick: () => { delete set[f[0]]; draw(); paint(); AB.notice("Removed " + f[2], { label: "Undo", onClick: () => { set[f[0]] = f[3]; draw(); } }); } });
                 const r = row(f[2], h("span", { class: "sp-lsctl" }, lsControl(f, set[f[0]], (v) => { set[f[0]] = v; paint(); })), h("span", { class: "sp-minus" }, minus));
@@ -873,7 +881,7 @@
                 r.dataset.key = f[0];
                 return r;
             }));
-            if (!Object.keys(set).length) fields.append(AB.empty("Nothing set here. Every field uses the default look."));
+            if (!Object.keys(set).length) fields.append(AB.empty("Nothing set here. The label uses the default look."));
             const head = sectionEl.querySelector(".k-section-head");
             const old = head.querySelector(".ab-plus");
             if (old) old.replaceWith(plus); else head.append(plus);
@@ -886,7 +894,7 @@
         let topBy = "PageRank";
         const topN = input({ label: "How many", num: true, value: "10" });
         topN.style.cssText = "flex:0 0 44px;width:44px";
-        const byField = AB.field(h("span", { class: "sp-ml" }, AB.typeGlyph("num"), topBy), { caret: true, onClick: () => AB.openFieldList(byField, { kind: "number", element: "node", current: topBy, label: "Top by", onPick: (n) => { topBy = n; byField.firstChild.replaceChildren(AB.typeGlyph("num"), n); AB.announce("Label the top " + topN.value + " by " + n); } }) });
+        const byField = wrapField(AB.field(h("span", { class: "sp-ml" }, AB.typeGlyph("num"), wrapName(topBy)), { caret: true, onClick: () => AB.openFieldList(byField, { kind: "number", element: "node", current: topBy, label: "Top by", onPick: (n) => { topBy = n; byField.querySelector(".sp-ml").replaceChildren(AB.typeGlyph("num"), wrapName(n)); AB.announce("Label the top " + topN.value + " by " + n); } }) }));
         byField.setAttribute("aria-label", "By");
         byField.setAttribute("aria-haspopup", "listbox");
         const topRow = row("Top", h("span", { class: "sp-pair" }, topN, "by", byField));
@@ -1012,8 +1020,9 @@
         "wide-search": (el) => colorBy(el, { add: true, query: "cpu p95" }),
         "wide-no-match": (el) => colorBy(el, { add: true, query: "xyz" }),
         "nested-color-by": (el) => colorBy(el, { reveal: "Not usable here" }),
-        // Size by on the hosts: the bound Size line's Binding, its Source list open on the number fields
-        "wide-size-by": (el) => binding(el, boundFrom("Size", VULN, "num"), { open: true, reveal: "Not a number" }),
+        // Size by on the hosts: the bound Size line's Binding, its Source list open at its top: the usable
+        // numbers first (In use, then the rest), Not a number closed at the end
+        "wide-size-by": (el) => binding(el, boundFrom("Size", VULN, "num"), { open: true }),
         // bind on a label line: the real "+" adds Above: hostname, then its Label popover opens its Text list
         "wide-bind": (el) => labelAfterLines(el, ["hostname"], { lines: [{ pos: "top", field: "hostname", type: "text" }], openSource: true }),
         // the Label "+" on the hosts row: Label line, then the field list (Typed text, the attributes, Notes)

@@ -35,8 +35,11 @@
 
     const L = () => AB.fx.datasets.lesmis;
     const C = () => AB.fx.datasets.citations;
-    const n = (x) => Number(x).toLocaleString("en-US");
+    const n = (x) => AB.num(x); // the one number formatter
     const byLabel = (label) => L().rows.find((r) => r.label === label);
+    // The legend card only when something paints: an unstyled drawing shows no card (the canvas carries
+    // no controls, and an empty card read as a coloring control that did nothing)
+    const legend = (parts) => (parts.length ? AB.legendCard(parts) : null);
 
     // ---------- derived drawings (cached per theme) ----------
     const cache = {};
@@ -86,12 +89,7 @@
     const PAGERANK = {"909.6,224.4":0.0428,"991.8,211.2":0.0056,"879.6,269.7":0.0103,"850.4,230.9":0.0103,"915.9,145.9":0.0056,"960.6,176.1":0.0056,"988.2,242.2":0.0056,"951.8,145.6":0.0056,"991.4,178.5":0.0056,"870.8,247.3":0.0056,"677.5,481.1":0.0037,"698.7,394.3":0.0754,"585.1,225.5":0.0053,"651.7,469.5":0.0037,"668.4,326.2":0.0037,"624.2,465.4":0.0037,"587.2,166.7":0.0156,"592.5,119.9":0.0126,"561.6,132.6":0.0126,"617.9,106.3":0.0126,"546.4,112.1":0.0126,"567,90.8":0.0126,"595.8,85.6":0.0126,"626.4,181":0.027,"785.3,352.8":0.0195,"789.4,393.1":0.0279,"587.1,378.9":0.0206,"755.4,392":0.0303,"739.9,241.2":0.0116,"642.6,349.5":0.0156,"548.3,179.2":0.0054,"674.3,294.9":0.0091,"699.4,457.8":0.0037,"716.9,323.1":0.0052,"651.4,400":0.0124,"630.5,375.6":0.0124,"605.3,385.3":0.0124,"635.2,425.1":0.0124,"606.8,415.6":0.0124,"731.4,371.4":0.0074,"550.7,572.1":0.0034,"848,423.2":0.0178,"853.2,355.6":0.0063,"595.1,314":0.0068,"749.2,196.7":0.0062,"752.6,148.9":0.0044,"1130,477.6":0.0053,"1054.2,497.5":0.0078,"820.6,539.7":0.0358,"557.8,457.8":0.015,"492.3,435.2":0.0053,"530.1,404.4":0.0163,"468.2,354.1":0.006,"426.2,392.9":0.0039,"524.4,445.2":0.0087,"750.6,530.6":0.0309,"530.1,529.3":0.0051,"800.4,553.3":0.0175,"777.8,559.5":0.0219,"789.9,588.3":0.0159,"795.8,635.6":0.0131,"767.9,611.1":0.0159,"800.4,605.2":0.0186,"827.3,576.1":0.0172,"764.2,584.6":0.019,"822.1,597":0.0172,"827.6,627.6":0.0145,"681,714.4":0.0033,"820.2,407.9":0.0167,"831.5,385":0.0167,"793.3,428.6":0.0166,"815.6,446.3":0.0152,"559.4,330.6":0.0068,"1006.2,572.9":0.0058,"990,619.7":0.0058,"866.6,438.6":0.0119,"854.9,597.3":0.0107};
     const PR_DOMAIN = [0.0033, 0.0754];
     const PR_STOPS = ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"]; // kit.css .k-ramp-measure
-    function rampColor(v) {
-        const t = Math.max(0, Math.min(1, (v - PR_DOMAIN[0]) / (PR_DOMAIN[1] - PR_DOMAIN[0]))) * (PR_STOPS.length - 1);
-        const i = Math.min(PR_STOPS.length - 2, Math.floor(t)), f = t - i;
-        const a = PR_STOPS[i].match(/\w\w/g).map((x) => parseInt(x, 16)), b = PR_STOPS[i + 1].match(/\w\w/g).map((x) => parseInt(x, 16));
-        return "#" + a.map((x, k) => Math.round(x + (b[k] - x) * f).toString(16).padStart(2, "0")).join("");
-    }
+    const rampColor = (v) => rampAt(Math.max(0, Math.min(1, (v - PR_DOMAIN[0]) / (PR_DOMAIN[1] - PR_DOMAIN[0]))));
     function paintPagerank(doc) {
         doc.querySelectorAll("circle").forEach((c) => {
             const v = PAGERANK[c.getAttribute("cx") + "," + c.getAttribute("cy")];
@@ -176,7 +174,7 @@
         const go = ["inspector-measure-row", "style"], deg = L().rows.map((r) => r.degree);
         const lo = Math.min(...deg), hi = Math.max(...deg);
         return AB.legendCard([
-            { title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: PR_DOMAIN[0] + " to " + PR_DOMAIN[1], go }] },
+            { title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.num(PR_DOMAIN[0]) + " to " + AB.num(PR_DOMAIN[1]), go }] },
             sizeKey("Degree", [lo].concat(roundValues(lo, hi).filter((v) => v > lo)), LM_R, "Square root scale (area), " + lo + " to " + hi, ["inspector-measure-row", "degree"]),
         ]);
     }
@@ -251,7 +249,7 @@
             if (!/^Arrow/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
             e.preventDefault();
             e.stopPropagation();
-            if (!e.shiftKey) { AB.flash(AB.route.frame.mode === "2d" ? "Arrows pan the view (not modeled in the skeleton)" : "Arrows orbit the camera (not modeled in the skeleton)"); return; }
+            if (!e.shiftKey) { AB.flash((AB.route.frame.mode === "2d" ? "Arrows pan the view" : "Arrows orbit the camera") + " (not modeled in the skeleton). Shift+Arrow steps to the next node."); return; }
             const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
             const pos = walkPos(ds), cur = current(ds), from = cur >= 0 && pos[cur] ? pos[cur] : CENTER;
             const i = nextIn(pos, from, dir[0], dir[1], (j) => j === cur || (hidden && hidden(j)));
@@ -262,40 +260,22 @@
             setTimeout(() => AB.announce(text), 150);
         });
     }
-    // A click on empty canvas (the drawing, or the canvas around it) clears the selection with an Undo
-    // notice. It listens in the capture phase, so it reads the selection before the shell's own canvas
-    // click goes to the place with nothing selected.
+    // A click on empty canvas clears the selection through the shell (AB.clearSelection): the inspector
+    // shows the graph's own panel and keeps it until something else is selected. No Undo notice and no
+    // redraw here, so nothing brings the old selection back. The package registry keeps its own
+    // selection (regSel), so its click clears that one too.
     let clearHandler = null;
     function clearClick(el) {
-        if (clearHandler) el.removeEventListener("click", clearHandler, true);
+        if (clearHandler) el.removeEventListener("click", clearHandler);
         clearHandler = (e) => {
-            const t = e.target, ds = liveDs;
-            if (!ds || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || t === el || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
-            const sel = selected(ds);
-            if (!sel) return;
-            const back = location.hash, w = AB.walked && Object.assign({}, AB.walked), reg = regSel;
+            const t = e.target;
+            if (liveDs !== "registry" || regSel < 0 || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || t === el || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
             regSel = -1;
-            const undo = () => {
-                if (ds === "registry") { regSel = reg; AB.render(); refocus(); }
-                else if (w) AB.selectNode(w.dataset, w.index);
-                else location.hash = back;
-                AB.announce("Selection restored");
-            };
-            // Only the selection: the notice's Undo is what Ctrl+Z presses while it shows; after it, Ctrl+Z is the header's
-            const show = () => AB.notice("Selection cleared (" + sel + ")", { label: "Undo", onClick: undo });
-            // the shell's own canvas click (after this one) goes to the place with nothing selected
-            setTimeout(() => { if (location.hash === back) { AB.render(); refocus(); show(); } else window.addEventListener("hashchange", show, { once: true }); }, 0);
+            AB.render();
+            refocus();
+            AB.announce("Selection cleared");
         };
-        el.addEventListener("click", clearHandler, true);
-    }
-    function selected(ds) {
-        if (ds === "registry") return regSel >= 0 ? AB.count(1, "node") : null;
-        const r = String((AB.route && AB.route.frame.right) || "");
-        if (r.startsWith("inspector-node/")) return AB.count(1, "node");
-        if (r.startsWith("inspector-edge/")) return AB.count(1, "edge");
-        // the several-elements states the selection bar shows as five nodes, else two (README)
-        if (r.startsWith("inspector-several-elements/")) return AB.count(/\/(style|data)$/.test(r) ? 5 : 2, "node");
-        return null;
+        el.addEventListener("click", clearHandler);
     }
     const refocus = () => setTimeout(() => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); }, 50);
 
@@ -368,7 +348,7 @@
             const pth = pathShown("transactions");
             const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized));
             live(st, "transactions");
-            AB.append(el, [st, AB.legendCard(pth ? [pth.legend] : [])]);
+            AB.append(el, [st, legend(pth ? [pth.legend] : [])]);
             if (state === "selection-full") {
                 AB.notice("Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.", { label: "Narrow the query", go: ["select-where", "where-error"] });
                 AB.announce("Selection is full: 5,000 of " + n(T.edges) + " matching transfers selected.");
@@ -454,7 +434,7 @@
             stage.setAttribute("aria-label", alt + "; " + AB.walked.name + " selected");
         }
         live(stage, "doorEntries");
-        AB.append(el, [stage, AB.legendCard(pth ? [pth.legend] : [])]);
+        AB.append(el, [stage, legend(pth ? [pth.legend] : [])]);
     }
     // The path a Find path just added on the door entries or the transfers, while the tree shows it
     function pathShown(ds) {
@@ -467,13 +447,14 @@
     }
     // Loading what the Data page set up, per data set (the Les Miserables file, the door-entries tables, the transfers)
     function loadingCard(ds) {
+        const ne = (nodes, edges) => AB.count(nodes, "node") + ", " + AB.count(edges, "edge") + "...";
         if (ds === "doorEntries") {
             const D = AB.fx.datasets.doorEntries;
-            return { title: "Reading " + D.tables.length + " tables", text: D.tables.map((t) => t.file).join(", ") + ": " + n(D.loadedTypes().total) + " nodes, " + n(D.loadedEdges()) + " edges..." };
+            return { title: "Reading " + AB.count(D.tables.length, "table"), text: D.tables.map((t) => t.file).join(", ") + ": " + ne(D.loadedTypes().total, D.loadedEdges()) };
         }
-        if (ds === "transactions") { const T = AB.fx.datasets.transactions; return { title: "Reading " + T.frame.file, text: n(T.nodes) + " nodes, " + n(T.edges) + " edges..." }; }
-        if (ds === "registry") { const R = AB.fx.datasets[AB.registryDataset()]; return { title: "Reading " + R.file, text: n(R.nodes) + " nodes, " + n(R.edges) + " edges..." }; }
-        return { title: "Reading miserables.gexf", text: L().nodes + " nodes, " + L().edges + " edges..." };
+        if (ds === "transactions") { const T = AB.fx.datasets.transactions; return { title: "Reading " + T.frame.file, text: ne(T.nodes, T.edges) }; }
+        if (ds === "registry") { const R = AB.fx.datasets[AB.registryDataset()]; return { title: "Reading " + R.file, text: ne(R.nodes, R.edges) }; }
+        return { title: "Reading miserables.gexf", text: ne(L().nodes, L().edges) };
     }
 
     // Everything hidden: only the two kept sets paint; the legend lists only what paints
@@ -481,7 +462,7 @@
         const g = (lab) => L().frame.legend.rows.find((r) => r.label === lab);
         const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node drawn unstyled" });
         stage.append(...derived("lesmis-groups-onesize", "everything-hidden-v2", everythingHidden));
-        const part = (lab) => ({ title: "Color: Group " + lab, go: ["inspector-group-set-path-row", "kept-2"], rows: [{ swatch: g(lab).color, label: g(lab).count + " nodes" }] });
+        const part = (lab) => ({ title: "Color: Group " + lab, go: ["inspector-group-set-path-row", "kept-2"], rows: [{ swatch: g(lab).color, label: AB.count(g(lab).count, "node") }] });
         live(stage, "lesmis");
         AB.append(el, [stage, AB.legendCard([part("2"), part("8")])]);
     }
@@ -604,7 +585,7 @@
         const scalar = (v) => (v == null || v === "" || typeof v === "object" ? null : v);
         const read = (p, recs, tabs) => recs.map((r, i) => (tabs[i] === p.table ? scalar(AB.valueAt(r, p.name)) : null));
         const go = (p) => (p.on === "row" ? ["inspector-measure-row", "painted-" + p.prop.toLowerCase()] : p.on.split("/"));
-        const fmt = (v) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
+        const fmt = AB.num;
         const spec = (p, vals) => {
             const nums = vals.filter((v) => typeof v === "number");
             const title = p.prop === "Color" ? "Color: " : p.element === "edge" ? "Width: " : "Size: ";
@@ -615,7 +596,7 @@
             const c = {};
             vals.forEach((v) => { if (v != null) c[v] = (c[v] || 0) + 1; });
             const top = Object.entries(c).sort((a, b) => b[1] - a[1]), col = Object.fromEntries(top.map(([v], i) => [v, CATS[i] || OTHER]));
-            return { col: (v) => (v == null ? null : col[v]), part: { title: title + p.name, go: go(p), rows: top.slice(0, 7).map(([v, k]) => ({ swatch: col[v], label: AB.truncMiddle(String(v), 24), count: k.toLocaleString("en-US"), go: go(p) })), more: top.length > 7 ? top.length - 7 + " more values" : null } };
+            return { col: (v) => (v == null ? null : col[v]), part: { title: title + p.name, go: go(p), rows: top.slice(0, 7).map(([v, k]) => ({ swatch: col[v], label: AB.truncMiddle(String(v), 24), count: AB.num(k), go: go(p) })), more: top.length > 7 ? top.length - 7 + " more values" : null } };
         };
         const color = (p, vals) => { const sp = spec(p, vals); out.parts.push(sp.part); return vals.map((v) => (sp.col ? sp.col(v) : sp.t(v) == null ? null : rampAt(sp.t(v)))); };
         const size = (p, vals, from, to) => {
@@ -666,7 +647,7 @@
         const i = idx != null ? idx : HOT[ds] ? HOT[ds](AB.fx.datasets[ds]) : -1, w = AB.walkList(ds)[i];
         if (!w || !xy) return null;
         // hover reads what the size layer reads on this node ("degree 34"), then its neighbors
-        const hot = AB.tip(h("span", Object.assign({ class: "ab-hot", role: "button", style: `left:${(xy[0] / 12).toFixed(2)}%;top:${(xy[1] / 8).toFixed(2)}%;width:${Math.max(14, r * 2 + 6)}px;height:${Math.max(14, r * 2 + 6)}px` }, AB.act({ onClick: () => AB.selectNode(ds, i) }))), w.name, { second: [sizeValue(ds, i, true), AB.count(w.neighbors, "neighbor")].filter(Boolean).join(", ") });
+        const hot = AB.tip(AB.selectHot(h("span", { class: "ab-hot", style: `left:${(xy[0] / 12).toFixed(2)}%;top:${(xy[1] / 8).toFixed(2)}%;width:${Math.max(14, r * 2 + 6)}px;height:${Math.max(14, r * 2 + 6)}px` }), ds, i), w.name, { second: [sizeValue(ds, i, true), AB.count(w.neighbors, "neighbor")].filter(Boolean).join(", ") });
         hot.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
         return hot;
     }
@@ -699,7 +680,7 @@
         if (hot) stage.append(hot);
         live(stage, ds);
         if (set) { AB.append(el, [stage, AB.legendCard([{ title: "Color: sets", go: SET.go, rows: [{ swatch: SET.color, label: SET.name, count: n(set.length), go: SET.go }] }].concat(paint.parts))]); return; }
-        if (!sized) { const lg = AB.legendCard(paint.parts); AB.append(el, [stage, lg]); trueSize(stage, lg); return; }
+        if (!sized) { const lg = legend(paint.parts); AB.append(el, [stage, lg]); trueSize(stage, lg); return; }
         // The legend's title is the row's name, the attribute: middle ellipsis, the full name in its tooltip and accessible name
         const go = ["inspector-measure-row", "long-name"], g = otherGraph(ds);
         const lo = Math.min(...g.size), hi = Math.max(...g.size);

@@ -67,11 +67,11 @@
     return {
         pagerank: {
             title: "PageRank", over: "node", unit: "nodes", total: L.nodes, run: true, icon: "chart-column",
-            fmt: (v) => v.toFixed(4),
+            fmt: (v) => A.num(v),
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "node.color": { field: "PageRank", palette: "Orange to brown", ramp: RAMP } },
             order: "Covers Louvain for Color",
-            range: "0.0033 to 0.0754, median 0.0124",
+            range: A.num(0.0033) + " to " + A.num(0.0754) + ", median " + A.num(0.0124),
             hist: { from: 0, width: 0.005, bins: [9, 24, 19, 16, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 1] },
             // the ten highest of the PageRank column the Nodes table shows (table-dock.js PR)
             top: [["Valjean", 0.0754], ["Myriel", 0.0428], ["Gavroche", 0.0358], ["Marius", 0.0309], ["Javert", 0.0303], ["Thenardier", 0.0279], ["Fantine", 0.027], ["Enjolras", 0.0219], ["Cosette", 0.0206], ["Mme.Thenardier", 0.0195]],
@@ -83,10 +83,10 @@
         },
         edge: {
             title: "Edge betweenness", over: "edge", unit: "edges", total: L.edges, edgeMark: true, run: true, icon: "chart-column",
-            fmt: (v) => v.toFixed(4),
+            fmt: (v) => A.num(v),
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "edge.color": { field: "Edge betweenness", palette: "Orange to brown", ramp: RAMP }, "edge.width": { field: "Edge betweenness", range: "0.5 to 6" } },
-            range: "0.0003 to 0.1832, median 0.0058",
+            range: A.num(0.0003) + " to " + A.num(0.1832) + ", median " + A.num(0.0058),
             hist: { from: 0, width: 0.01, bins: [170, 40, 33, 3, 4, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
             top: [["Myriel - Valjean", 0.1832], ["Valjean - Gavroche", 0.083], ["Valjean - Fantine", 0.0762], ["Mme.Burgon - Gavroche", 0.0513], ["Valjean - Mlle.Gillenormand", 0.045]],
             binNames: { 5: ["Mme.Burgon - Gavroche"], 7: ["Valjean - Fantine"], 8: ["Valjean - Gavroche"], 18: ["Myriel - Valjean"] },
@@ -109,7 +109,7 @@
             sort: "degree",
         },
         risk: {
-            title: "riskScore", over: "node", unit: "accounts", total: T.nodes, run: false, icon: "hash",
+            title: "riskScore", over: "node", unit: "accounts", total: T.nodes, run: false, type: "num",
             fmt: (v) => String(v),
             provenance: ["from accounts-2026-03.csv", "data-place", "attributes"],
             bound: { "node.color": { field: "riskScore", palette: "Orange to brown", ramp: RAMP } },
@@ -121,7 +121,7 @@
         },
         // The hosts' longest attribute name, painting Size: the row graph-place/wide-sized adds (lib.js STYLED). Counts from kit/wide-nested.json
         vuln: {
-            title: "vuln_count_critical_unremediated_over_30_days", long: true, over: "node", unit: "hosts", total: W.nodes, run: false, icon: "hash",
+            title: "vuln_count_critical_unremediated_over_30_days", long: true, over: "node", unit: "hosts", total: W.nodes, run: false, type: "num",
             fmt: (v) => String(v),
             provenance: ["from hosts-2026-03.csv", "data-place", "attributes-wide"],
             bound: { "node.size": { field: "vuln_count_critical_unremediated_over_30_days", range: "0.5 to 3" } },
@@ -139,8 +139,8 @@
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "node.color": { field: "Betweenness", palette: "Yellow to orange", ramp: ["#fde7c8", "#E69F00"] } },
             order: "Covered by PageRank for Color on " + A.count(L.nodes, null, { of: L.nodes }),
-            // every value it paints is covered, so the Paints line says it shows nothing
-            hidden: "none visible: PageRank covers their Color",
+            // every value it paints is covered: the Paints line says so, the paint-order line says by what
+            hidden: "none visible",
             range: "0 to " + A.num(L.topByBetweenness[0].betweenness),
             hist: { from: 0, width: 0.04, bins: [L.nodes - 10, 5, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
             top: L.topByBetweenness.slice(0, 10).map((x) => [x.label, x.betweenness]),
@@ -173,7 +173,7 @@
         // Transfers: betweenness weighted by amount, sampled from 500 source accounts
         sampled: {
             title: "Betweenness", over: "node", unit: "accounts", total: T.nodes, run: true, icon: "chart-column", table: "transfers",
-            fmt: (v) => v.toFixed(3),
+            fmt: (v) => A.num(v),
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "node.color": { field: "Betweenness", palette: "Orange to brown", ramp: RAMP } },
             range: "0 to 0.412, median below 0.001",
@@ -252,7 +252,7 @@
         const has = vals.filter((v) => v != null), num = x.type === "num";
         const fmt = (v) => (typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : String(v));
         const m = {
-            title: p.name, long: p.name.length > 24, over: g.element, unit: g.table, total: recs.length, run: false, icon: num ? "hash" : "type", fmt, table: "wide",
+            title: p.name, long: p.name.length > 24, over: g.element, unit: g.table, total: recs.length, run: false, type: num ? "num" : "cat", fmt, table: "wide",
             provenance: ["from " + file, "data-place", A.placeOf(ds, "data") || "attributes-wide"], writes: p.name, writesGo: ["data-place", A.placeOf(ds, "data") || "attributes-wide"],
             made: [["Source", file], ["Type", num ? "Number" : "Category"]], bindingState: "painted-" + prop.toLowerCase(),
             bound: prop === "Color" ? { [g.element + ".color"]: num ? { field: p.name, palette: "Orange to brown", ramp: RAMP } : { field: p.name, palette: "Eight distinct" } } : { [g.element + (edge ? ".width" : ".size")]: { field: p.name, range: edge ? "0.5 to 4" : "0.5 to 3" } },
@@ -386,7 +386,7 @@
         const rk = ranks(m);
         const topRow = ([name, v], i) =>
             h("div", Object.assign({ class: "k-row" }, name === "Valjean" ? A.act({ go: ["inspector-node", "why-this-look"] }) : A.act({ onClick: () => A.flash("Selects " + name) })),
-                h("span", { class: "imr-rank", style: m.err ? "min-width: 52px" : null }, rk[i]), h("span", { class: "k-grow k-ellipsis" }, name), h("span", { class: "k-secondary k-num" }, m.fmt(v) + (m.scopeNote || st.scopeNote ? ", " + (m.scopeNote || st.scopeNote) : "")));
+                h("span", { class: "imr-rank", style: m.err ? "min-width: 52px" : null }, rk[i]), h("span", { class: "k-grow k-ellipsis" }, name), h("span", { class: "k-secondary k-num", style: "white-space: nowrap" }, m.fmt(v) + (m.scopeNote || st.scopeNote ? ", " + (m.scopeNote || st.scopeNote) : "")));
         // a sampled run: one sentence on how stable the ranks are, from the first range wider than one rank
         const firstRange = rk.findIndex((r) => r.includes("-"));
         const stable = m.err ? h("div", { class: "imr-cap", style: "padding: 4px 16px" }, firstRange < 0 ? "No rank swaps between runs" : firstRange === 0 ? "Every rank may swap between runs" : "Ranks below #" + firstRange + " may swap between runs") : null;
@@ -461,7 +461,7 @@
             { id: "settings-changed", label: "Data: settings changed (state bar)" },
             { id: "scope-mark", label: "Scope changed by a filter step (Data: values name the 77)" },
             { id: "scope-mark-style", label: "Scope changed by a filter step, Style tab" },
-            { id: "degree", label: "Degree: a row hidden from the list" },
+            { id: "degree", label: "Degree: a row not listed" },
             { id: "degree-data", label: "Degree, Data tab (histogram)" },
             { id: "covered", label: "Betweenness covered by PageRank for Color" },
             { id: "on-filter", label: "Betweenness run under a filter that is now off" },
@@ -475,19 +475,33 @@
             { id: "painted-color", label: "Color by an attribute (directly: the hosts by cpu_util_p95_pct)" },
             { id: "painted-size", label: "Size by an attribute (directly: the hosts by cpu_util_p95_pct)" },
         ],
-        render(el, state) {
+        render(el, state) { draw(el, state, null); },
+    });
+
+    // The rerun on a changed scope is the one compute-in-place door: it says what it costs (graphty-element's
+    // estimate; on Les Miserables every rerun is under a second) and redraws this panel where it is.
+    // ran: null, "running" (PageRank on the 60: the fixtures hold no values for it) or "done" (the result is on screen)
+    const COST = "under a second";
+    function draw(el, state, ran) {
+        const again = (next, said) => { el.replaceChildren(); draw(el, state, next); A.announce(said); };
+        {
             const st = Object.assign({ id: STATES[state] ? state : "style" }, STATES[state] || STATES.style);
             const L = A.fx.datasets.lesmis, now = L.filterSteps.after.step1;
-            const m = st.painted ? painted(st.painted) : MEASURES()[st.m];
+            // a rerun of Betweenness on the whole graph is the whole-graph result the fixtures hold
+            const m = st.painted ? painted(st.painted) : ran === "done" ? Object.assign({}, MEASURES().betweenness, { ran: "Just now, on the CPU" }) : MEASURES()[st.m];
             if (st.scope) Object.assign(st, { scopeNote: "on all " + A.num(L.nodes), scopeRow: "All " + A.count(L.nodes, "node") + "; the filter now leaves " + A.num(now), paints: now });
             let stateBar = null;
             if (st.edited) stateBar = { text: "Settings changed", why: "Settings changed since the run: Damping 0.85 to 0.90", actions: [{ label: "Rerun", go: ["graph-place", "running"] }, { label: "Revert", go: ["inspector-measure-row", "data"] }] };
-            if (st.scope) stateBar = { text: "Ran on " + A.num(L.nodes) + "; now " + A.num(now), why: "Ran on " + A.count(L.nodes, "node") + "; a filter step now leaves " + A.num(now) + ". It keeps painting.", actions: [{ label: "Rerun on " + A.num(now), onClick: () => A.flash("Reruns PageRank on the " + A.count(now, "node") + " the filter keeps") }] };
-            if (m.scopeWhy) stateBar = { text: "Ran on " + A.num(m.has) + "; now " + A.num(m.total), why: m.scopeWhy, actions: [{ label: "Rerun on " + A.num(m.total), onClick: () => A.flash("Reruns Betweenness on all " + A.count(m.total, "node")) }] };
+            const rerun = (n, why) => ({ text: "Ran on " + A.num(n[0]) + "; now " + A.num(n[1]) + ", " + COST + " to rerun", why, actions: [{ label: "Rerun on " + A.num(n[1]), onClick: () => again(st.scope ? "running" : "done", "Rerunning " + m.title + " on " + A.count(n[1], "node") + ", " + COST) }] });
+            if (st.scope && ran === "running") stateBar = { text: "Rerunning on " + A.count(now, "node") + ", " + COST, why: "Reruns PageRank on the " + A.count(now, "node") + " the filter keeps; it keeps painting until the new values arrive." };
+            else if (st.scope) stateBar = rerun([L.nodes, now], "Ran on " + A.count(L.nodes, "node") + "; a filter step now leaves " + A.num(now) + ". It keeps painting.");
+            if (m.scopeWhy) stateBar = rerun([m.has, m.total], m.scopeWhy);
             // The kind slot: the funnel while the values were computed on another set than the graph on screen
             // (spec 3.3: a different scope is not out of date, so no warning mark); an edge measure carries an edge mark
-            const funnel = stateBar && (st.scope || m.scopeWhy) ? A.tip(h("span", { class: "ab-status", role: "img" }, icon(A.ICON.filter)), stateBar.why) : null;
-            const kindIcon = funnel || (m.edgeMark ? A.tip(h("span", { class: "imr-edge-kind", role: "img" }, icon(m.icon), h("i")), "Edge measure") : m.icon);
+            const funnel = stateBar && stateBar.actions && (st.scope || m.scopeWhy) ? A.tip(h("span", { class: "ab-status", role: "img" }, icon(A.ICON.filter)), stateBar.why) : null;
+            // a row named after an attribute shows that attribute's type glyph, as its tree row does
+            const kind = m.type ? A.typeGlyph(m.type) : m.icon;
+            const kindIcon = funnel || (m.edgeMark ? A.tip(h("span", { class: "imr-edge-kind", role: "img" }, typeof kind === "string" ? icon(kind) : kind, h("i")), "Edge measure") : kind);
             const ramp = (m.bound["node.color"] || m.bound["edge.color"] || {}).ramp;
             el.append(A.inspector({
                 icon: kindIcon,
@@ -498,15 +512,18 @@
                 menu: ["context-menus", "measure-row"],
                 onRename: (n) => A.flash("Renamed to " + n + "; the legend title follows"),
                 stateBar,
-                changed: !!stateBar && !funnel,
+                changed: !!stateBar && !funnel && ran !== "running",
                 kindKey: "measure-row",
                 tab: st.tab,
                 tabs: { Style: () => styleTab(m, st), Data: () => dataTab(m, st) },
             }));
             // the shortened header name still says the whole name to a screen reader
             if (m.long) el.querySelector(".ab-insp-head .k-name").setAttribute("aria-label", m.title);
-        },
-    });
+            // the header's "..." names its owner, so it is never one of several "More actions"
+            const more = el.querySelector(".ab-insp-sub .k-icon-btn");
+            if (more) { more.removeAttribute("aria-label"); A.tip(more, "Actions for " + m.title, { key: "Shift+F10" }); }
+        }
+    }
 
     // "All options..." under Made with: every option of the run, from the element's schema. Editing
     // one changes the run's settings, which the inspector's state bar then reports.

@@ -50,8 +50,6 @@
 .st-quote { margin: 6px 0 0; padding: 6px 10px; border-left: 2px solid var(--cm-border-strong); color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; max-width: 60ch; }
 .st-list { margin: 4px 0 0; padding-left: 18px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
 .st-limits .k-data { padding-left: 0; padding-right: 0; }
-.st-hit mark { background: var(--cm-bg-brand-light, var(--cm-bg-secondary)); color: inherit; border-radius: 2px; }
-.st-empty { color: var(--cm-text-secondary); padding: 24px 0; }
 .st-group { margin-top: 8px; }
 .st-row .k-section { margin-top: 6px; max-width: 60ch; }
 .st-sel { max-width: 320px; margin-top: 4px; }
@@ -61,14 +59,13 @@
     if (!document.getElementById("st-style")) document.head.append(h("style", { id: "st-style" }, CSS));
 
     const LM = () => AB.fx.datasets.lesmis;
-    const n = (v) => Number(v).toLocaleString("en-US");
 
     // What the person has chosen, for this page view (the real app keeps it in this browser)
     const S = {
         name: "", usage: false, theme: "system", numfmt: "system",
         motion: "system", singleKey: true, selOverride: false, pinDrag: true,
-        gpu: "auto", threshold: "", provider: "anthropic", remember: true, voice: "system",
-        key_openai: "", key_anthropic: "sk-ant-...4f2a", key_google: "",
+        gpu: "auto", threshold: "", provider: "", remember: true, voice: "system",
+        key_openai: "", key_anthropic: "", key_google: "",
         hands: true, controllers: true, nearTouch: true, teleport: true, space: "room", depthBoost: true,
         logging: false, level: "warn", modules: "", profiling: false, fps: false,
     };
@@ -87,7 +84,7 @@
         return h("span", {
             class: "k-switch st-switch", role: "switch", tabindex: "0", "aria-label": label, "aria-checked": String(!!S[key]),
             on: {
-                click: () => { S[key] = !S[key]; if (key === "singleKey" && AB.store) AB.store.set("singleKeys", S[key] ? "on" : "off"); paint(); focusSel(`[role=switch][aria-label="${label}"]`); },
+                click: () => { S[key] = !S[key]; if (key === "singleKey" && AB.store) AB.store.set("singleKeys", S[key] ? "on" : "off"); if (key === "usage") AB.setUsageData(S.usage); paint(); focusSel(`[role=switch][aria-label="${label}"]`); },
                 keydown: (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.currentTarget.click(); } },
             },
         });
@@ -105,6 +102,11 @@
     const goLink = (text, id, state) => h("a", { class: "st-link", href: AB.href(id, state) }, text);
     const provName = () => ({ openai: "OpenAI", anthropic: "Anthropic", google: "Google", browser: "In this browser" })[S.provider];
     const anyKey = () => ["openai", "anthropic", "google"].some((p) => S["key_" + p]);
+    // The one sentence about what the Assistant sends, word for word on Assistant and on Privacy.
+    // It ships with no provider, so it is off by the Assistant's one rule: off until a provider is chosen.
+    const assistantSends = () => !S.provider ? "Off until you choose a provider. Nothing is sent."
+        : S.provider === "browser" ? "Runs in this browser. Nothing is sent."
+            : "Only when you ask it something, it sends your question, node names and statistics to " + provName() + ". Never the file.";
 
     // ---------- the sections ----------
     // Each setting: { label, words (extra search terms), help, ctl, stack (control under the label), extra (full width) }
@@ -141,7 +143,7 @@
                     extra: h("div", { class: "st-limits st-wide" },
                         AB.data("Files you open", "Read on this computer. Never uploaded."),
                         AB.data("Your project", "Saved where you save it."),
-                        AB.data("The Assistant", S.provider === "browser" ? "Runs in this browser. Nothing is sent." : "Only when you ask it something, it sends your question with node names and statistics to " + provName() + ". Never the file."),
+                        AB.data("The Assistant", assistantSends()),
                         AB.data("Data sources", "A source you connect (a URL, a database) receives only the request for its data, from this computer. Nothing from your graph is sent to it."),
                         AB.data("Assistant keys", S.remember ? "Kept in this browser until you forget them, while Remember keys is on." : "Kept until you close the tab, then forgotten."),
                         AB.data("Passwords and keys", "Never written into a project file or anything you export."),
@@ -161,31 +163,32 @@
                 { label: "Pin a node when I drag it", words: "drag pin fix position mouse canvas input", ctl: sw("Pin a node when I drag it", "pinDrag"),
                     help: help("A dragged node stays where you drop it while the layout keeps running. Unpin it from its menu.") },
             ] },
-            { id: "performance", title: "Performance", icon: "cpu", items: [
-                { label: "GPU use", words: "gpu webgpu acceleration graphics", ctl: seg("GPU use", [["auto", "When available"], ["never", "Never"], ["required", "Required"]], "gpu"),
-                    help: help("When available: large runs use the GPU if this browser has one. Never: everything runs on the CPU. Required: a run that cannot use the GPU stops with the reason instead of running on the CPU.") },
-                { label: "GPU status", words: "gpu status device webgpu", wide: true, ctl: null,
-                    extra: h("div", { class: "st-status st-wide", role: "status" }, gpuOff ? AB.icon("triangle-alert", "sm") : AB.icon("cpu", "sm"),
+            { id: "performance", title: "Performance", icon: "cpu", lede: "This device, as graphty-element reports it.", items: [
+                { label: "GPU status", words: "gpu status device webgpu cpu same method tolerance results", wide: true, ctl: null,
+                    extra: h("div", { class: "st-wide" }, h("div", { class: "st-status", role: "status" }, gpuOff ? AB.icon("triangle-alert", "sm") : AB.icon("cpu", "sm"),
                         h("div", null, gpuOff
                             ? [h("b", null, "Unavailable. "), "This browser has no WebGPU, so every run uses the CPU.", S.gpu === "required" ? " With Required, runs will stop instead." : "", help("Reported by graphty-element when it checked this browser.")]
                             : S.gpu === "never" ? [h("b", null, "Off. "), "Every run uses the CPU."]
-                                : [h("b", null, "Idle. "), `This graph (${L.title}, ${L.nodes} nodes) is below the threshold, so runs use the CPU.`, help("Reported by graphty-element. It says Checking, Running on the GPU with the device name, Idle, Unavailable with a reason, or Error.")])) },
+                                : [h("b", null, "Idle. "), `This graph (${L.title}, ${AB.count(L.nodes, "node")}) is below the threshold, so runs use the CPU.`, help("Reported by graphty-element. It says Checking, Running on the GPU with the device name, Idle, Unavailable with a reason, or Error.")])),
+                        help("A GPU run uses the same method as the CPU run. Where an algorithm states a tolerance, its GPU result agrees with the CPU result within that tolerance, and the run is labeled with it.")) },
+                { label: "GPU use", words: "gpu webgpu acceleration graphics", ctl: seg("GPU use", [["auto", "When available"], ["never", "Never"], ["required", "Required"]], "gpu"),
+                    help: help("When available: large runs use the GPU if this browser has one. Never: everything runs on the CPU. Required: a run that cannot use the GPU stops with the reason instead of running on the CPU.") },
                 { label: "Use the GPU from N nodes", words: "gpu threshold advanced nodes", ctl: input("Use the GPU from N nodes", "threshold", { type: "number", placeholder: "Each algorithm's own", attrs: { min: "0", step: "1000", disabled: gpuOff || S.gpu === "never" ? "" : null } }),
                     help: help("Advanced. Blank uses graphty-element's own starting point for each algorithm.") },
                 { label: "Limits", words: "limit maximum nodes edges detail selection sample", wide: true, ctl: null,
                     help: help("graphty-element's limits for this browser. They cannot be changed here."),
                     extra: h("div", { class: "st-limits st-wide" },
-                        AB.data("Draws up to", n(50000) + " nodes, " + n(100000) + " edges"),
-                        AB.data("Less detail above", n(10000) + " nodes"),
-                        AB.data("Selections up to", n(5000) + " elements"),
-                        AB.data("Sampled above", n(2000) + " nodes, where an algorithm allows")) },
+                        AB.data("Draws up to", AB.count(50000, "node") + ", " + AB.count(100000, "edge")),
+                        AB.data("Less detail above", AB.count(10000, "node")),
+                        AB.data("Selections up to", AB.count(5000, "element")),
+                        AB.data("Sampled above", AB.count(2000, "node") + ", where an algorithm allows")) },
             ] },
-            { id: "assistant", title: "Assistant", icon: "bot", items: [
-                { label: "Provider", words: "ai llm openai anthropic google webllm model provider", ctl: select("Provider", "provider", [["openai", "OpenAI"], ["anthropic", "Anthropic"], ["google", "Google"], ["browser", "In this browser"]]),
-                    help: help(S.provider === "browser" ? "Runs a model inside this browser. No key, and nothing leaves your computer; the first use downloads the model." : "The Assistant sends your question and a summary of the graph to this provider.") },
-                { label: "Model", words: "ai model", ctl: select("Model", "model", [["x", S.provider === "browser" ? "Choose after the download" : S["key_" + S.provider] ? "Listed from " + provName() : "Listed once the key is checked"]]),
+            { id: "assistant", title: "Assistant", icon: "bot", lede: assistantSends(), items: [
+                { label: "Provider", words: "ai llm openai anthropic google webllm model provider", ctl: select("Provider", "provider", [["", "None"], ["openai", "OpenAI"], ["anthropic", "Anthropic"], ["google", "Google"], ["browser", "In this browser"]]),
+                    help: help(!S.provider ? "Choosing one turns the Assistant on." : S.provider === "browser" ? "Runs a model inside this browser. No key; the first use downloads the model." : "Choose None to turn the Assistant off.") },
+                !S.provider ? null : { label: "Model", words: "ai model", ctl: select("Model", "model", [["x", S.provider === "browser" ? "Choose after the download" : S["key_" + S.provider] ? "Listed from " + provName() : "Listed once the key is checked"]]),
                     help: help("The list comes from the provider.") },
-                S.provider === "browser" ? null : { label: "Key", words: "api key secret token", ctl: input("Key for " + provName(), "key_" + S.provider, { type: "password", placeholder: "Paste your " + provName() + " key" }),
+                !S.provider || S.provider === "browser" ? null : { label: "Key", words: "api key secret token", ctl: input("Key for " + provName(), "key_" + S.provider, { type: "password", placeholder: "Paste your " + provName() + " key" }),
                     help: help("One key per provider. Switching provider keeps the others.") },
                 { label: "Remember keys on this device", words: "key storage session remember", ctl: sw("Remember keys on this device", "remember"),
                     help: help("Off, keys are forgotten when you close the tab.") },
@@ -217,7 +220,7 @@
         else document.documentElement.setAttribute("data-theme", v);
         if (AB.store) AB.store.set("theme", v === "system" ? "" : v);
     }
-    const matches = (it, q) => (it.label + " " + (it.words || "")).toLowerCase().includes(q);
+    const matches = (it, q) => !!(AB.wordMatch(it.label, q) || AB.wordMatch(it.words || "", q));
 
     // ---------- drawing ----------
     let root = null;
@@ -227,16 +230,19 @@
         const field = it.ctl && it.ctl.tagName === "INPUT" ? it.ctl : null;
         const id = "st-f" + ++rowN;
         if (field) { field.id = id; field.removeAttribute("aria-label"); if (it.help) { it.help.id = id + "-help"; field.setAttribute("aria-describedby", id + "-help"); } }
-        return h("div", { class: "st-row" + (query ? " st-hit" : "") },
+        return h("div", { class: "st-row" },
             // A text field sits under its label, where the eye reads next; switches and choices sit right
             h("div", { class: "st-row-l" }, field ? h("label", { class: "st-label", for: id }, mark(it.label)) : h("div", { class: "st-label" }, mark(it.label)), it.stack && it.ctl ? h("div", { style: "margin:6px 0 2px" }, it.ctl) : null, it.help || null),
             it.ctl && !it.stack ? h("div", { class: "st-ctl" }, it.ctl) : null,
             it.extra || null);
     }
     function mark(text) {
-        if (!query) return text;
-        const i = text.toLowerCase().indexOf(query);
-        return i < 0 ? text : [text.slice(0, i), h("mark", null, text.slice(i, i + query.length)), text.slice(i + query.length)];
+        const m = query.trim() ? AB.wordMatch(text, query) : null;
+        if (!m || !m.length) return text;
+        const out = [];
+        let at = 0;
+        m.forEach(([a, b]) => { out.push(text.slice(at, a), h("b", null, text.slice(a, b))); at = b; });
+        return out.concat(text.slice(at));
     }
     function paint() {
         if (!root) return;
@@ -271,13 +277,13 @@
             t.click();
         };
 
-        root.querySelector(".st-count").textContent = q ? (total === 1 ? "1 setting matches" : total + " settings match") : "";
+        root.querySelector(".st-count").textContent = q ? AB.count(total, "setting") + (total === 1 ? " matches" : " match") : "";
 
         const main = root.querySelector(".st-main");
         main.replaceChildren();
         if (q) {
             main.append(h("h2", { id: "st-h" }, "Settings matching \"" + query.trim() + "\""));
-            if (!total) main.append(h("div", { class: "st-empty" }, "No setting matches. Try a shorter word, or pick a section on the left."));
+            if (!total) main.append(AB.noMatch(query.trim()));
             hits.filter((x) => x.items.length).forEach((x) => {
                 main.append(h("h3", null, h("a", { class: "st-link", href: "#", on: { click: (e) => { e.preventDefault(); query = ""; root.querySelector("#st-q").value = ""; current = x.s.id; paint(); } } }, x.s.title)));
                 main.append(h("div", { class: "st-group" }, x.items.map(itemRow)));
@@ -306,7 +312,8 @@
             { id: "accessibility", label: "Accessibility and input" },
             { id: "performance", label: "Performance" },
             { id: "performance-gpu-unavailable", label: "Performance, no GPU" },
-            { id: "assistant", label: "Assistant" },
+            { id: "assistant", label: "Assistant, no provider chosen" },
+            { id: "assistant-provider-set", label: "Assistant, Anthropic chosen with a key" },
             { id: "headset", label: "Headset" },
             { id: "diagnostics", label: "Diagnostics" },
             { id: "forget-keys-confirm", label: "Forget all keys, asking first" },
@@ -316,12 +323,11 @@
             state = state || "general";
             if (OLD[state]) { location.replace(AB.href("settings", OLD[state])); return; }
             const confirming = state === "forget-keys-confirm";
-            current = confirming ? "assistant" : state.replace(/-(on|gpu-unavailable|name-set)$/, "");
+            current = confirming ? "assistant" : state.replace(/-(on|gpu-unavailable|name-set|provider-set)$/, "");
             if (state === "general") S.name = "";
             if (state === "general-name-set") S.name = "Maya Chen";
-            if (state === "privacy") S.usage = false;
-            if (state === "privacy-on") S.usage = true;
-            if (confirming && !anyKey()) S.key_anthropic = "sk-ant-...4f2a";
+            S.usage = !!AB.usageData; // the shell's one answer (the header chip, the start screen)
+            if (state === "assistant-provider-set" || (confirming && !anyKey())) { S.provider = "anthropic"; S.key_anthropic = "sk-ant-...4f2a"; }
             query = state === "search" ? "gpu" : "";
             if (state === "search") current = "performance";
             const q = h("input", { id: "st-q", type: "search", "aria-label": "Search settings", "aria-describedby": "st-count", placeholder: "Search settings", value: query, autocomplete: "off",

@@ -26,16 +26,22 @@
 //                                                     from its name; routes.json is for graders and the preflight
 //   node app-b/study.mjs --fresh <png or task id> ... exit 1 unless each PNG (each task's routes.json and every PNG
 //                                                     it lists) exists and is newer than every file under app-b/
-//   node app-b/study.mjs --try <out.png> <route or task:<id>> [--click "<name>" | --rclick "<name>" | --hover "<name>" | --key <Key>
+//   node app-b/study.mjs --try <out.png> <route or task:<id>> [--click "<name>" | --rclick "<name>" | --dblclick "<name>"
+//                                                     | --shift-click "<name>" | --ctrl-click "<name>" | --alt-click "<name>"
+//                                                     | --hover "<name>" | --key <Key> | --type "<text>"
 //                                                     | --expect "<text>" | --expect-not "<text>"] ...
 //                                                     a participant's click-through: opens the route, does each step
 //                                                     in order, saves what is on screen; prints only the PNG path.
 //                                                     <name> is what the control says or its tooltip name; --hover
 //                                                     shows the tooltip of an icon-only control. task:<id> starts at
 //                                                     that task's first route without naming it. --rclick right-clicks;
+//                                                     --dblclick double-clicks (rename); --shift-click, --ctrl-click
+//                                                     and --alt-click hold that key (add to the selection, solo a row);
+//                                                     --type types the text into whatever has focus, a key at a time;
 //                                                     --expect exits 1 unless that text (or role=<role>, e.g. role=menu)
 //                                                     is visible at that step, --expect-not unless it is gone: a
-//                                                     click-through regression, which --check (direct loads) cannot see
+//                                                     click-through regression, which --check (direct loads) cannot see.
+//                                                     An unknown step is refused (exit 2) before the browser opens
 //   node app-b/study.mjs --matrix                     checks ../study/structure-comparison/state-matrix.md: every cell of
 //                                                     its surface tables (no blank cell, no N/A without a reason, no
 //                                                     BUILD left), the routes in backticks in the prose under the tables,
@@ -69,7 +75,7 @@ const { chromium } = await import(resolve(proto, "../../../node_modules/playwrig
 const args = process.argv.slice(2);
 const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix|counts)$/.test(a));
 if (!mode) {
-    console.error("usage: node app-b/study.mjs --list | --matrix | --counts | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click name | --hover name | --key Key]...");
+    console.error("usage: node app-b/study.mjs --list | --matrix | --counts | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click|--dblclick|--shift-click|--ctrl-click|--alt-click|--rclick|--hover name | --key Key | --type text | --expect text]...");
     process.exit(2);
 }
 const dark = args.includes("--dark");
@@ -421,6 +427,15 @@ try {
         const out = rest[0];
         const route = rest[1];
         const start = route.startsWith("task:") ? JSON.parse(await readFile(join(proto, "shots/tasks", route.slice(5), "routes.json"), "utf8"))[0] : route;
+        // every step is known, and every step that takes a value has one, before anything opens
+        const CLICKS = { "--click": {}, "--hover": {}, "--rclick": { button: "right" }, "--dblclick": {}, "--shift-click": { modifiers: ["Shift"] }, "--ctrl-click": { modifiers: ["Control"] }, "--alt-click": { modifiers: ["Alt"] } };
+        const STEPS = new Set([...Object.keys(CLICKS), "--key", "--type", "--expect", "--expect-not"]);
+        for (let i = args.indexOf(route) + 1; i < args.length; i += 2) {
+            if (!STEPS.has(args[i]) || i + 1 >= args.length) {
+                console.error(`--try: ${STEPS.has(args[i]) ? `${args[i]} needs a value` : `unknown step "${args[i]}"`}; steps: ${[...STEPS].join(", ")}`);
+                process.exit(2);
+            }
+        }
         const { page } = await open(start);
         for (let i = args.indexOf(route) + 1; i < args.length; i++) {
             const a = args[i];
@@ -429,13 +444,14 @@ try {
                 // role: role=menu is an open menu), or for --expect-not unless nothing does
                 const what = args[++i];
                 const loc = what.startsWith("role=") ? page.getByRole(what.slice(5)) : page.getByText(what, { exact: false });
-                const seen = (await loc.filter({ visible: true }).count()) > 0;
+                // text in a field counts too: what --type put in a query or a name is on screen
+                const seen = (await loc.filter({ visible: true }).count()) > 0 || (!what.startsWith("role=") && await page.evaluate((w) => [...document.querySelectorAll("input, textarea")].some((f) => f.checkVisibility() && f.value.includes(w)), what));
                 if (seen !== (a === "--expect")) { console.log(`${a === "--expect" ? "expected on screen, not there" : "expected gone, still on screen"}: "${what}"`); code = 1; }
                 continue;
             }
-            if (a === "--click" || a === "--hover" || a === "--rclick") {
-                const verb = a === "--rclick" ? "click" : a.slice(2);
-                const how = a === "--rclick" ? { button: "right", timeout: 3000 } : { timeout: 3000 };
+            if (a in CLICKS) {
+                const verb = a === "--hover" ? "hover" : a === "--dblclick" ? "dblclick" : "click";
+                const how = Object.assign({ timeout: 3000 }, CLICKS[a]);
                 const name = args[++i];
                 // the first visible control by that name: exact names before partial ones, controls before text
                 let hit = false;
@@ -449,6 +465,13 @@ try {
                 await page.waitForTimeout(verb === "hover" ? 800 : 400); // a tooltip shows 500 ms after the pointer arrives
             } else if (a === "--key") {
                 await page.keyboard.press(args[++i]);
+                await page.waitForTimeout(400);
+            } else if (a === "--type") {
+                // into what has focus, as a person types: each character a key press, so input handlers run
+                const what = args[++i];
+                const into = await page.evaluate(() => { const e = document.activeElement; return !!e && (e.tagName === "INPUT" || e.tagName === "TEXTAREA" || e.isContentEditable); });
+                if (!into) console.log(`nothing that takes text has focus; typed "${what}" as keys`);
+                await page.keyboard.type(what, { delay: 20 });
                 await page.waitForTimeout(400);
             }
         }

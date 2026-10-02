@@ -117,6 +117,7 @@
     }
     let route = null;
     let railCarry = false; // a rail place opened from a project that is not Les Miserables keeps that project
+    let clearing = false; // the next render is a cleared selection: the inspector shows the graph
     let prevLeft = null;
     let prevRight = null;
     // Focus goes back to the control that opened an overlay when the overlay closes
@@ -150,6 +151,23 @@
         AB.repaint = false;
         go(route.closeTo.id, route.closeTo.state);
     };
+    // Clear the selection: the selection is empty and the inspector shows the graph on screen as its
+    // subject (the graph is never put into the selection). The left panel stays the place it was, in
+    // the project on screen. The empty canvas and Escape both call this.
+    AB.clearSelection = function () {
+        if (!route) return;
+        const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
+        const ds = route.frame.dataset, left = refOf(route.frame.left);
+        // the left panel's own state, unless it is at-rest, which only means this project while the frame carries it
+        const st = ds === "lesmis" ? (left && left.id === place ? left.state : RAIL_STATE.lesmis[route.rail] || null) : left && left.id === place && left.state !== "at-rest" ? left.state : (RAIL_STATE[ds] || {})[route.rail] || null;
+        const right = refOf(route.frame.right);
+        if (route.id === place && (!right || right.id === "inspector-nothing-selected")) return;
+        clearing = true;
+        AB.keepLeft = route.id === place || (left && left.id === place);
+        if (location.hash === href(place, st)) render(); else go(place, st);
+        AB.announce("Selection cleared");
+    };
+    const hasSelection = () => !!(route && !route.frame.overlay && !["workspace", "full"].includes(route.sec.region) && route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected");
     AB.toggleDock = function () {
         shell.dock = shell.dock === "open" ? "closed" : "open";
         store.set("dock", shell.dock);
@@ -391,6 +409,15 @@
         if (!sec) { location.replace("#/map"); return; }
         const state = p.state || sec.states[0].id;
         const frameOf = (s, st) => (typeof s.frame === "function" ? s.frame(st) : s.frame) || {};
+        // A link to a place's default state (the note-count bubble, "Back to the tree") from another
+        // project opens that project's own state of the place, exactly as the rail button does, so no
+        // door lands on Les Miserables from the transfers or the door entries
+        const placeKey0 = Object.keys(PLACES).find((k) => PLACES[k][2] === sec.id);
+        if (placeKey0 && route && route.frame.dataset !== "lesmis" && !["workspace", "full"].includes(route.sec.region) && state === sec.states[0].id && !frameOf(sec, state).dataset) {
+            const own = placeOf(route.frame.dataset, placeKey0);
+            if (own && own !== state && sec.states.some((x) => x.id === own)) { location.replace(href(sec.id, own)); return; }
+            if (!own) railCarry = true;
+        }
         const extra = frameOf(sec, state);
         // The project on screen stays on screen. A menu, popover or dialog that names no data set (or
         // the same one) opens over the panels that were showing, and Esc goes back to them; a rail
@@ -425,6 +452,11 @@
         if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
         // the canvas stays as it was drawn (communities, a legend) when an inspector opens beside the same project
         if (carried === "dataset" && sec.region === "right" && !("canvas" in extra)) frame.canvas = was.frame.canvas;
+        if (clearing && sec.region !== "right") {
+            frame.right = (DATASET_FRAME[frame.dataset] || {}).right || DEFAULT_FRAME.right;
+            if (/^selection-bar/.test(frame.toolbar || "")) frame.toolbar = DEFAULT_FRAME.toolbar;
+        }
+        clearing = false;
         if (carried !== "panels" && sec.region !== "toolbar" && !("toolbar" in extra)) frame.toolbar = selectionBarFor(frame.right) || frame.toolbar;
         // frame.walk: n puts the canvas walk n steps along this project's nodes (a route drawn after Shift+Arrow)
         if (typeof extra.walk === "number") walkTo(frame.dataset, extra.walk - 1);
@@ -506,7 +538,9 @@
         // (never a control that is not drawn, such as a design-note chip hidden in the participant view;
         // a dialog with nothing else to focus focuses its Close)
         const FIRST = "[data-autofocus], [aria-modal='true'] .k-modal-body :is([tabindex='0'], input, select, textarea), [tabindex='0']:not([aria-label='Close']), input, .k-menu-item";
-        const firstDrawn = () => [...$("ab-overlay").querySelectorAll(FIRST)].concat([...$("ab-overlay").querySelectorAll("[aria-modal='true'] [aria-label='Close']")]).find((x) => x.getClientRects().length && !x.closest("[hidden]"));
+        // a field marked data-autofocus wins over anything earlier in the DOM (the query, not the tabs above it)
+        const drawnEl = (x) => x.getClientRects().length && !x.closest("[hidden]");
+        const firstDrawn = () => [...$("ab-overlay").querySelectorAll("[data-autofocus]")].find(drawnEl) || [...$("ab-overlay").querySelectorAll(FIRST)].concat([...$("ab-overlay").querySelectorAll("[aria-modal='true'] [aria-label='Close']")]).find(drawnEl);
         const first = $("ab-overlay").querySelector(FIRST);
         // Menus are placed (and made visible) a frame later, and a hidden element cannot take focus
         if (first && frame.overlay) requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -531,7 +565,7 @@
         requestAnimationFrame(setInert);
         // Controls that write data-tip by hand get their label and key; the notice sits over the new bars
         AB.tipSweep(document.getElementById("ab-app"));
-        requestAnimationFrame(() => { AB.tipSweep(document.getElementById("ab-app")); AB.placeNotice(); });
+        requestAnimationFrame(() => { AB.tipSweep(document.getElementById("ab-app")); AB.scrollStops(document.getElementById("ab-app")); AB.placeNotice(); });
         // Focus was lost to the redraw (a toolbar toggle, a direct link): put it back where it was,
         // or on the place's heading, never on the page body
         if (!frame.overlay && !hadOverlay) setTimeout(() => {
@@ -652,8 +686,8 @@
         const page = route && AB.sections[route.id] && ["workspace", "full"].includes(AB.sections[route.id].region);
         const free = !popup && !page && store.get("singleKeys") !== "off";
         // App keys never use W, A, S, D, Q, E, the arrows, = or -: graphty-element's canvas keys.
-        // F2 (rename) belongs to the tree, the inspector header and the project name. Ctrl+G (create
-        // set) belongs to the selection bar. T is not a key: the time slider opens from the table's options.
+        // F2 (rename) belongs to the tree, the inspector header and the project name. Ctrl+G groups
+        // what is selected: in the tree a folder (New folder), elsewhere a set (the selection bar's Create set). T is not a key: the time slider opens from the table's options.
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
         // A key the menus and the shortcuts sheet advertise: the same action as its button or menu item,
         // else a notice that says what it would do. Never the browser's own (Ctrl+S, Ctrl+O, Ctrl+E).
@@ -664,12 +698,12 @@
         const keys = [
             [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = noticeAction("Undo"); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
             [() => mod && e.shiftKey && !e.altKey && k === "z", () => { const r = noticeAction("Redo"); if (r) r.click(); else press("#ab-top [aria-label='Redo']", "Nothing to redo")(); }],
-            [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go("data-page", "edge-list")],
-            [() => mod && !e.shiftKey && !e.altKey && k === "s", stub("Save")],
+            [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go(...AB.COMMANDS["open-file"].go)],
+            [() => mod && !e.shiftKey && !e.altKey && k === "s", () => AB.COMMANDS.save.onClick()],
             [() => mod && e.shiftKey && !e.altKey && k === "s", stub("Save as")],
             [() => mod && !e.shiftKey && !e.altKey && k === "e", () => go("export-dialog")],
             [() => free && mod && !e.shiftKey && !e.altKey && k === "a", () => go("inspector-selection-and-everything", "selection")],
-            [() => free && mod && !e.shiftKey && !e.altKey && k === "g", press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")],
+            [() => free && mod && !e.shiftKey && !e.altKey && k === "g", () => (t && t.closest && t.closest("#ab-left [role=tree]") ? ((route.frame.dataset || "lesmis") === "lesmis" ? go(...AB.COMMANDS["new-folder"].go) : AB.flash("New folder (not wired in the skeleton)")) : press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")())],
             [() => free && mod && e.shiftKey && !e.altKey && k === "h", press("#ab-toolbar [data-tool='Hide on canvas'], #ab-toolbar [data-tool='Show on canvas']", "Ctrl+Shift+H hides the selection on canvas: select something first")],
             [() => free && !mod && !e.altKey && e.key === "/", () => go("graph-place", "find")],
             [() => free && !mod && !e.shiftKey && !e.altKey && k === "i", stub("I inverts the selection")],
@@ -702,24 +736,20 @@
         const hit = keys.find(([test]) => test());
         if (hit) { e.preventDefault(); hit[1](); }
         else if (e.key === "Escape" && route && AB.onPageCancel && !route.frame.overlay) { e.preventDefault(); AB.onPageCancel(); }
+        else if (e.key === "Escape" && route && route.frame.overlay && route.id !== route.closeTo.id) { e.preventDefault(); AB.close(); }
+        else if (e.key === "Escape" && hasSelection()) { e.preventDefault(); AB.clearSelection(); }
         else if (e.key === "Escape" && route && route.id !== route.closeTo.id) { e.preventDefault(); AB.close(); }
         // Nothing open: in the participant view Esc leaves it (the review bar and design notes come back)
         else if (e.key === "Escape" && route && notesHidden() && !participant() && !route.frame.overlay) { e.preventDefault(); setNotes(false); }
     });
     document.addEventListener("DOMContentLoaded", () => {
-        // A click on empty canvas clears the selection: back to the place at rest (nothing selected)
+        // A click on empty canvas clears the selection (focus stays on the drawing, so Shift+Arrow walks from here)
         $("ab-canvas").addEventListener("click", (e) => {
             const t = e.target;
             if (!route || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
-            const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
-            // In another project, back to that project's place (the door entries' Graph place), not Les Miserables
-            const ds = route.frame.dataset, left = refOf(route.frame.left);
-            // the left panel's own state, unless it is at-rest, which only means this project while the frame carries it
-            const st = ds === "lesmis" ? RAIL_STATE.lesmis[route.rail] || null : left && left.id === place && left.state !== "at-rest" ? left.state : (RAIL_STATE[ds] || {})[route.rail] || null;
-            // focus stays on the drawing (a click beside it too), so Shift+Arrow walks from here
             const stage = $("ab-canvas").querySelector(".k-stage");
             if (stage) stage.focus({ preventScroll: true });
-            if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place, st);
+            AB.clearSelection();
         });
         if (!participant()) document.body.append(h("button", { id: "ab-leave-study", class: "ab-leave-study", type: "button", "aria-label": "Show design notes", hidden: !notesHidden() || null, on: { click: () => setNotes(false) } }, "Review"));
         $("ab-overlay").addEventListener("click", (e) => { if (e.target === $("ab-overlay") || e.target.classList.contains("ab-modal-wrap")) AB.close(); });

@@ -376,3 +376,95 @@ The next milestone asks nothing about hosting, telemetry, the Assistant switch, 
 ### Participant view was a trap
 
 Not written as done. In round 6 a single Esc both closed the undo page's steps list and left the participant view, resetting the page, which spoiled four sessions. The rule is now: Esc does one thing per press, starting with the innermost open item, and leaves the participant view only when nothing is open. Every page is fixed to follow it, the kit's gate proves it by opening the steps list and pressing Esc, and every page gets a 768 px touch shot.
+
+## Round 7
+
+How each item the owner wrote in `owner-feedback.md` on 2026-09-30 and 2026-10-01 was handled, after the seventh simulated study round, the first run on the clickable refined B skeleton. Every route below opens at http://dev.ato.ms:9825/app-b/#/<route>. "Done" means `node app-b/study.mjs --check` passed on that route on 2026-10-02; "decided" means the change is agreed and not yet drawn. The full reasons are under "Round 7" in `study/decision-log.md`.
+
+### 2026-09-30, third review: "Line 5", "Arrow head 4"
+
+The number counted how many properties in that section the row sets, and nothing on screen said so. It is gone: the section headings now read "Line" and "Arrows" with no number, and every style number shows its unit. Done for the line width, which now reads "Width 8 px"; route `inspector-selection-and-everything/everything-edges`. Decided, not yet drawn: the arrow's size in the Arrows popover reads "Size 1" with no unit until that popover takes the unit from the shared list of style properties, as the width does; route `style-pickers/arrow`.
+
+### 2026-09-30, third review: empty and unset style values
+
+Each style section shows only what is set, with a "+" on its heading that adds a property, the way Figma does. Done; route `inspector-selection-and-everything/everything`.
+
+### 2026-09-30, third review: Everything styled differently from "For the report"
+
+Both rows now use the same panel, side by side. Done; route `style-tab-same-panel/nodes`.
+
+### 2026-09-30, third review: legend and camera buttons on the canvas
+
+They moved to the toolbar; the legend itself still draws on the canvas. Done; route `toolbar/at-rest`. Decided this round: the same one legend state also drives Present and the exported image, and graphty-element draws the legend into the picture, because a participant left an export believing it matched her screen.
+
+### 2026-09-30, third review: no text on the toolbar
+
+Icons only, with tooltips after a hover delay and on keyboard focus. Done; routes `toolbar/tooltip-hover` and `toolbar/tooltip-focus`. The selection bar follows the same rule.
+
+### 2026-09-30, third review: the data sidebar is too complex
+
+Loading, joining and editing a source moved out of the sidebar to the full-width Data page; the sidebar keeps sources, filters and attributes. Done; routes `data-place/at-rest` and `data-page/entries`. Decided this round: rows can be added to a loaded table from its source row ("Add rows from file..."), on a page headed "Add to <table>".
+
+### 2026-09-30, third review: how much of Tableau to copy
+
+Answered in `study/structure-comparison/owner-questions-3.md`, section 7: the data source page, typed fields and joins on any key column are copied; blending is not. Done; route `data-page/entries`.
+
+### 2026-09-30, third review: a label from a field, a note's text or the note count
+
+A label line picks its text from a list of attributes, results and notes. Done; routes `style-pickers/bind` and `inspector-selection-and-everything/notes-row-label`. A note's text as a label source is a graphty-element requirement, proposed in `framework-changes.md`.
+
+### 2026-09-30, third review: notes on edges
+
+Yes. Done; route `notes-place/edge-note`.
+
+### 2026-09-30, third review: "Why this look" collapsible
+
+It collapses. Done; routes `inspector-node/why-this-look` and `inspector-node/why-closed`. Decided this round: each winning row lists the rows it covers, and its "Covers ..." text names every covered row.
+
+### 2026-09-30, earlier review: rename by double-click
+
+Drawn (route `graph-place/rename`): double-clicking anywhere on a row, not only on its name, now opens the name for editing, and typing a new name and pressing Enter keeps it. Untested, not failed: no participant could double-click in round 7 because the study tool could not. The tool can now double-click, type and Shift-, Ctrl- or Alt-click, so round 8 tests it.
+
+### 2026-09-30, Tableau notes: which field holds the ids
+
+The Data page asks which column holds each table's ids and which columns point at them. Done; route `data-page/role-menu`. Decided this round: each link line says how many keys were found ("9,113 of 9,113 from_account found in accounts").
+
+### 2026-09-30, Tableau notes: node and edge weight set at load
+
+Weight is chosen on the Data page when the source is loaded. Done; route `data-page/buildings`. Decided this round: the weight list gains "Number of rows per pair", and Path between names the weight it uses, "<attribute> (set at load)", rather than changing the default.
+
+### 2026-09-30, Tableau notes: labels picked in styling, several per node
+
+A label is a line in a style row, and a row can hold several (above, below). Done; route `inspector-group-set-path-row/label-two`.
+
+### 2026-09-30, Tableau notes: "+" next to Label starts empty
+
+A new label line binds nothing until a field is picked. Done; route `inspector-group-set-path-row/label-empty`. Decided this round: one command, "Add label line", replaces the three ways to add a label.
+
+### 2026-09-30, Tableau notes: loading and joining several sources on any key
+
+The door-entries example (person_id, building_id, time, joined to people and buildings) loads as one graph. Done; routes `data-page/entries`, `data-page/people` and `data-page/buildings`.
+
+### 2026-09-30, Tableau notes: blending, live data
+
+Blending is out of scope, as the owner decided. Live sources against snapshots is filed as issue #643 and is not in the design.
+
+### 2026-10-01: notes in graphty-element's API
+
+Specified in `study/structure-comparison/element-notes-api.md`. Done; route `notes-place/all`.
+
+### 2026-10-01: no author name as the normal case, and note metadata
+
+Notes save with no name, and time and target are always shown. Done; routes `notes-place/writing` and `notes-place/selected`. Decided this round: notes show the stored date and time ("Sep 28, 2026, 14:05"), and with no name set the writing box says once, quietly, "Notes are saved without a name. Add your name in Settings." It asks for nothing. Notes with no name reached 75% success, short of the 80% bar.
+
+### 2026-10-01: move on to user studies without waiting for review
+
+Round 7 ran on the skeleton. Its targets were not met; `study/round-7/insights.md` has the results, and 18 tasks could not be finished because the skeleton had no click that reached their end, so those are fixed before rescoring.
+
+### 2026-10-01: the state matrix, wide data and nested JSON
+
+The state matrix is `study/structure-comparison/state-matrix.md`; `node app-b/study.mjs --matrix` checked 343 routes with 0 failures. Wide data: routes `data-page/wide-hosts` and `data-place/attributes-wide-search` (done). Nested JSON: routes `data-page/json-tree` and `data-page/json-report` (done).
+
+### Still not done: the avatar, "Export files" and the rail redraw
+
+Unchanged from round 6: not written as done.

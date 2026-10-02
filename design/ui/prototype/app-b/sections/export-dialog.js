@@ -39,7 +39,7 @@
 .ex-chk { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; line-height: 24px; }
 .ex-callout { display: flex; gap: 8px; align-items: flex-start; margin-left: 16px; padding: 8px 10px; border-radius: 6px; background: var(--cm-bg-secondary); }
 .ex-callout > svg, .ex-callout > .k-icon { flex: none; margin-top: 2px; }
-.ex-callout[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--cm-border-warning, #d89a00); }
+.ex-callout[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--cm-bg-warning); }
 .ex-callout[data-tone="error"] { box-shadow: inset 0 0 0 1px var(--cm-border-danger-strong); }
 .ex-callout ul { margin: 2px 0 0; padding-left: 16px; }
 .ex-h { font-weight: 550; padding-left: 16px; margin-bottom: -6px; }
@@ -137,7 +137,16 @@
     }
 
     // ---------- reader choices for this visit ----------
-    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", onlyStyle: false, methodsOnly: false, adv: {} };
+    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", cols: "Visible", onlyStyle: false, methodsOnly: false, adv: {} };
+    // A table export writes the columns the table shows (its one Columns state), so it needs no
+    // picker of its own. table-dock keeps that state private, so this reads its Columns button
+    // ("Columns: 7 of 7") on the active tab (a shell gap: table-dock should publish it on AB).
+    function tableCols() {
+        const b = document.querySelector("#ab-dock .td-cols"), tab = document.querySelector("#ab-dock .td-tab[aria-selected=true]");
+        const m = b && b.textContent.match(/(\d+) of (\d+)/);
+        return m && tab && tab.textContent.trim() === S.table ? { shown: +m[1], total: +m[2] } : null;
+    }
+    const isTable = () => S.format === "CSV" && S.table !== "Adjacency";
     // The open filter step (Les Miserables' first step, as graph-place/scope-mark shows it): a data
     // export opened with a step open starts from that step's edges
     const STEP = () => ({ name: L().filterSteps.steps[0], nodes: L().filterSteps.statsByState["1"].nodes, edges: L().filterSteps.statsByState["1"].edges });
@@ -161,7 +170,7 @@
         // a project loaded from nested JSON: graph-io writes its flattened columns back as dotted keys (element-requirements-5.md, Deferred)
         if (AB.route && AB.route.frame.dataset === "nested") return ["Nested fields are written as flat dotted keys (\"attributes.profile.h_index\": 24), not in the nesting of " + AB.fx.datasets.nested.file + "."];
         const nodeCols = "label, group, degree, betweenness, PageRank, the Louvain community, the position and the drawn color and size";
-        if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them: each rank is a whole-number column with a separate Tie column, and a sampled estimate is a Rank low and a Rank high column.`];
+        if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them.`];
         if (S.format === "CSV" && S.table === "Nodes") return [`The node table holds nodes only: the ${n(L().edges)} edges and their value are not written. Choose Table: Edges to keep them.`];
         if (S.format === "CSV") return ["An adjacency table holds who links to whom and the edge value only; every node attribute and run result is not written."];
         if (S.format === "Pajek NET") return ["Pajek has a slot for a label and a position per node: group, degree, betweenness, PageRank and the community are not written."];
@@ -177,6 +186,8 @@
     function dataPreview() {
         const rs = L().rows.slice(0, 3);
         const ext = FMT[S.format].ext;
+        // the table's own columns, in its order; the rest of its header is not drawn in the skeleton
+        if (ext === "csv" && S.table === "Nodes" && S.cols === "Visible") return ["label,group,degree,..."].concat(rs.map((r) => [r.label, r.group, r.degree].join(",") + ",...")).join("\n") + "\n...";
         if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,betweenness,betweenness_rank,betweenness_tie,results.louvain.community,x,y,color,size"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
         if (ext === "csv" && S.table === "Edges") return "source,target,value\n0,1,...\n...";
         if (ext === "csv") return ",Myriel,Napoleon,Mlle.Baptistine,...\nMyriel,0,1,...\n...";
@@ -215,7 +226,8 @@
         const scopeTxt = S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : S.scope === "Step" ? `${st.name}: ${AB.count(st.edges, "edge", { of: L().edges })}, among ${AB.count(st.nodes, "node")}` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
         const scopeOpts = ["Full graph", "Watchlist"].concat(stepOpen() ? ["Step"] : []);
         const scopeName = (o) => (o === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : o === "Step" ? "Open filter step: " + st.name : o);
-        const notes = lossNotes();
+        const tc = isTable() && S.cols === "Visible" ? tableCols() : null;
+        const notes = (tc && tc.shown < tc.total ? [`The ${tc.total - tc.shown} columns the table hides are not written. Choose Columns: Every column to keep them.`] : []).concat(lossNotes());
         const inline = f.inline.map(([label, v, k]) => {
             if (!Array.isArray(v)) return row(label, check("On", true, () => AB.flash(label + " (not wired in the skeleton)")));
             const cur = k === "table" ? S.table : S.adv[S.format] || v[0];
@@ -231,17 +243,19 @@
             advBtn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); advBtn.click(); } });
         }
         return h("div", { class: "ex-main" },
-            head("Data", `${scopeTxt} - every attribute and run result - ${S.format}`),
+            head("Data", `${scopeTxt} - ${isTable() && S.cols === "Visible" ? "the columns the table shows" : "every attribute and run result"} - ${S.format}`),
             h("div", { class: "ex-set" },
                 row("Format", dropdown(S.format, Object.keys(FMT), (x) => { S.format = x; redraw(); }, "Format")),
                 row("Scope", dropdown(scopeName(S.scope), scopeOpts.map((o) => ({ label: scopeName(o), check: o === S.scope, onClick: () => { S.scope = o; redraw(); } })), null, "Scope"),
                     S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a filter step's or a set's elements needs graphty-element") : null),
-                S.scope === "Step" ? h("div", { class: "ex-line ex-sum" }, "Starts from the filter step you have open, its edges. The full graph and the nodes are one choice away.") : null,
-                inline, advBtn ? row("", advBtn) : null),
+                inline,
+                isTable() ? row("Columns", AB.seg([["Visible", "Shown in the table"], ["All", "Every column"]], S.cols, (x) => { S.cols = x; redraw(); }, { label: "Columns" }),
+                    h("span", { class: "ex-sum" }, S.cols === "All" ? "Hidden columns too" : tableCols() ? `${tableCols().shown} of ${tableCols().total}, as the table's Columns shows them` : `As the ${S.table} table's Columns shows them`)) : null,
+                advBtn ? row("", advBtn) : null),
             notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
             h("div", { class: "ex-h" }, "Preview"),
             h("pre", { class: "ex-pre", tabindex: "0", "aria-label": "Preview of the exported data" }, dataPreview()),
-            FMT[S.format].ext === "csv" && S.table === "Nodes" ? h("div", { class: "ex-line ex-sum" }, "A rank is a whole number (1 = highest) and Tie says how many other nodes share the value, so the column stays numeric in a spreadsheet. A sampled estimate writes Rank low and Rank high columns in its place.") : null,
+            FMT[S.format].ext === "csv" && S.table === "Nodes" && S.cols === "All" ? h("div", { class: "ex-line ex-sum" }, "A rank is a whole number (1 = highest) and Tie says how many other nodes share the value, so the column stays numeric in a spreadsheet. A sampled estimate writes Rank low and Rank high columns in its place.") : null,
             );
     }
     const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : S.scope === "Step" ? "_degree-2-or-more" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
@@ -260,7 +274,7 @@
             h("div", { class: "ex-set" },
                 row("Include", check("Only the style", S.onlyStyle, () => { S.onlyStyle = !S.onlyStyle; redraw(); })),
                 row("File", h("span", null, S.onlyStyle ? `${PROJECT}.style` : `${PROJECT}.recipe`), AB.openQuestion("The recipe and style files' name endings"))),
-            S.onlyStyle ? null : callout("info", "Applying it to other data runs each analysis again. ", "Restoring the results without running again", " ", AB.needsElement("graphty-element keeps no run records a recipe could restore without recomputing")),
+            S.onlyStyle ? null : callout("info", "Applying it to other data runs each analysis again.", " ", AB.needsElement("Restoring the results without running again: graphty-element keeps no run records a recipe could restore without recomputing")),
             h("div", { class: "ex-h" }, "What the file holds"),
             h("p", { class: "ex-line", style: "margin:0" }, h("b", null, "No data inside. "), "What your recipient does: load a graph with a group column on its nodes and a value column on its edges, then Apply. Columns are matched by name."),
             h("dl", { class: "ex-dl" },
@@ -270,7 +284,7 @@
                     dd((step ? "2. " : "") + "Runs", RUNS),
                     dd("Layout", "Spread Out, engine NGraph Force, seed 7. Positions are drawn again on the recipient's data."),
                 ],
-                dd("Style", "Every paint row in the tree, with the custom palettes they use (styles.toDocument)"),
+                dd("Style", "Every paint row in the tree, with the custom palettes they use"),
                 S.onlyStyle ? null : dd("Saved views", views.join(", ")),
                 dd("Needs", "group (node) and value (edge), from the recipient's data"),
                 dd("Not included", L().file + " (named, not carried), node names and values, positions, the Watchlist's members, Overrides and notes: they name things in this data")));
@@ -280,7 +294,7 @@
     function reportBody() {
         return h("div", { class: "ex-main" },
             head("Report", null),
-            h("p", { class: "ex-line", style: "margin:0" }, "One self-contained HTML file -- the views in tour as pages, in order, with their notes and the methods text -- or, with Methods text only, just how every number was computed."),
+            h("p", { class: "ex-line", style: "margin:0" }, `One self-contained HTML file: the saved views as pages, in tour order, with their notes, ${AB.legendOn() ? "the legend card as the canvas shows it" : "no legend card (the legend is off, as on the canvas)"} and the methods text, which says how every number was computed.`),
             h("div", { class: "ex-line" }, AB.needsElement("graphty-element keeps no run records a methods writer could read; writing the methods in the app would be the app describing the graph")));
     }
 

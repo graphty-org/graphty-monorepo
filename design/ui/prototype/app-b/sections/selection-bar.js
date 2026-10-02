@@ -1,8 +1,8 @@
 /* Selection bar, version 3: while something is selected, a second bar sits directly above the
    toolbar, drawn with the same 32 px icon buttons, tooltip and separators. Five verbs, in the node
    menu's order: Neighborhood, Path between, Create set, Hide on canvas (or Show on canvas), Add note. The same verbs are in
-   the selection's context menu. The Neighborhood popover grows the one-hop selection to 1 to 3
-   hops (and Out, In or Both on a directed graph) and commits as a filter step or as step groups.
+   the selection's context menu. The Neighborhood popover grows the selection from 1 edge away to
+   1 to 3 edges away (and Out, In or Both on a directed graph) and commits as a filter step or as step groups.
    This section also patches the canvas it sits on: the drawing for the selection, and the "not
    drawn" line after Hide on canvas. Plain ASCII. */
 (function () {
@@ -94,7 +94,10 @@
     function longPathPopover(el, ctx) {
         ctx.renderSection("path-popover/from-selection", el);
         const fill = () => el.querySelectorAll(".pp-pick").forEach((f) => {
-            const which = /^From/.test(f.getAttribute("aria-label")) ? "from" : "to", label = which === "from" ? "From" : "To";
+            // only From and To: Scope is a pick field too, and keeps its own value
+            const m = /^(From|To):/.exec(f.getAttribute("aria-label") || "");
+            if (!m) return;
+            const label = m[1], which = label.toLowerCase();
             const span = f.querySelector(".k-ellipsis");
             if (!span || span.textContent === LONG[which]) return;
             span.textContent = LONG[which];
@@ -164,16 +167,18 @@
         AB.go(to[0], to[1]);
     }
 
-    // One edge: Path between needs two nodes, and Neighborhood is a node's; Create set, Hide and Add note act on the edge
+    // A new set takes the next kind-plus-counter name and is announced where it lives
+    const SET_TEXT = "Created 'Set 1' in Sets";
+
+    // One edge: Neighborhood and Path between are a node's verbs, so the edge's bar leaves both out
+    // (a contextual bar shows only what applies); Create set, Hide and Add note act on the edge
     function edgeBar() {
         const s = subject("one-edge");
         const here = [AB.route.id, AB.route.state];
         const ds = AB.route.frame.dataset;
         const tree = ["graph-place", AB.placeOf(ds, "graph") || "at-rest"];
         return AB.toolbarBar([
-            AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", disabled: "Select two nodes, or a node and a set; an edge has no path to find" }),
-            "sep",
-            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, "Created set of 1 edge", here) }),
+            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, SET_TEXT, here) }),
             AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, onClick: () => AB.notice(s.names + " hidden on canvas", { label: "Undo", go: here }) }),
             "sep",
             AB.toolbarButton(AB.ICON.addNote, C("add-note").label, { key: C("add-note").shortcut, onClick: () => AB.addNote() }),
@@ -191,13 +196,12 @@
         const here = [AB.route.id, AB.route.state];
         const back = ds ? here : state === "neighborhood-directed" ? ["selection-bar", "neighborhood-directed"] : ["selection-bar", state === "two-nodes" ? "two-nodes" : isLong(state) ? "long-name" : "one-node"];
         const tree = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
-        const setText = "Created set of " + s.n + (s.n === 1 ? " node" : " nodes");
         // The node menu's order (explore, then organize, then visibility, then notes), one command record per verb
         return AB.toolbarBar([
             AB.toolbarButton("target", C("neighborhood").label.replace(/\.\.\.$/, ""), { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
             AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", open: state === "long-name-path", go: isLong(state) ? ["selection-bar", "long-name-path"] : C("find-paths").go }),
             "sep",
-            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, setText, back) }),
+            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, SET_TEXT, back) }),
             hidden
                 ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "one-node"] })
                 : AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "hidden"] }),
@@ -225,18 +229,20 @@
         const dateWord = () => new Date(from + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
         const said = h("div", { role: "status", style: "color:var(--cm-text-secondary);padding:0 16px 8px" });
         const hopsBox = h("span"), dirBox = h("span");
-        const stepName = () => "Neighbors of " + who + ", " + (hops === 1 ? "1 hop" : "1 to " + hops + " hops") + (directed && dir !== "both" ? ", " + dir : "") + (dated() ? ", from " + dateWord() : "");
+        // Distance is counted in edges, the noun every domain shares ("hops" and "steps" are search aliases)
+        const away = () => (hops === 1 ? "1 edge away" : "1 to " + hops + " edges away");
+        const stepName = () => "Neighbors of " + who + ", " + away() + (directed && dir !== "both" ? ", " + dir : "") + (dated() ? ", from " + dateWord() : "");
         function paint() {
             // AB.seg is redrawn on each pick; focus returns to the picked option so arrows keep working
             const again = (box) => { paint(); const f = box.querySelector("[aria-checked='true']"); if (f) f.focus(); };
-            hopsBox.replaceChildren(AB.seg([1, 2, 3].map((n) => [n, String(n)]), hops, (n) => { hops = n; again(hopsBox); }, { label: "Hops" }));
+            hopsBox.replaceChildren(h("span", { style: "display:flex;align-items:center;gap:6px" }, AB.seg([1, 2, 3].map((n) => [n, String(n)]), hops, (n) => { hops = n; again(hopsBox); }, { label: "Distance in edges" }), h("span", { class: "k-caption" }, hops === 1 ? "edge away" : "edges away")));
             if (directed) dirBox.replaceChildren(AB.seg([["out", "Out"], ["in", "In"], ["both", "Both"]], dir, (d) => { dir = d; again(dirBox); }, { label: "Direction" }));
             // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
-            if (ds) said.textContent = "Selected: " + who + " and every node within " + (hops === 1 ? "1 hop" : hops + " hops") + (directed && dir === "out" ? " it points to." : directed && dir === "in" ? " that points to it." : ".");
-            else if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: everyone within " + hops + " hops of Valjean.";
-            else if (dated()) said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + " by a transfer on or after " + dateWord() + ".";
+            if (ds) said.textContent = "Selected: " + who + " and every node " + away() + (directed && dir === "out" ? " it points to." : directed && dir === "in" ? " that points to it." : ".");
+            else if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: Valjean and everyone " + away() + ".";
+            else if (dated()) said.textContent = "Selected: " + who + " and every account " + away() + " by a transfer on or after " + dateWord() + ".";
             else if (hops === 1 && dir === "in") said.textContent = "Selected: " + who + " and the " + T().payers.count + " accounts that paid it.";
-            else said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + (dir === "out" ? " it pays." : dir === "in" ? " that pays it." : ", either way.");
+            else said.textContent = "Selected: " + who + " and every account " + away() + (dir === "out" ? " that it pays." : dir === "in" ? " that pays it." : ", either way.");
         }
         paint();
         const back = ds ? ["selection-bar", "one-node"] : ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
@@ -246,13 +252,13 @@
             title: "Neighborhood of " + who,
             width: 300,
             body: [
-                AB.fieldRow("Hops", hopsBox, { popover: true }),
+                AB.fieldRow("Distance", hopsBox, { popover: true }),
                 AB.fieldRow("Direction", directed ? dirBox : h("span", { class: "k-caption" }, "Undirected graph"), { popover: true }),
                 timed ? AB.fieldRow("From date", h("span", { style: "display:flex;align-items:center;gap:4px" }, fromBox, AB.needsElement("graphty-element's neighborhood takes depth and direction; a from date needs an edge time option")), { popover: true }) : null,
                 said,
             ],
             foot: [
-                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(steps, "Added " + stepName() + ": one group per hop", back) }),
+                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(steps, "Added " + stepName() + ": one group per distance", back) }),
                 AB.button("Filter to neighbors", { onClick: () => {
                     const fr = AB.route.frame;
                     // the panels it was committed from; the Les Miserables popover keeps Valjean's

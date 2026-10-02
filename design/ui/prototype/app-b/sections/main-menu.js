@@ -1,10 +1,11 @@
-/* Main menu: the header button left of the project name. One dark menu, one level, three groups:
-   New project, Open..., Open recent > | Select where..., Select edges between, Show hidden elements
-   | Settings..., Keyboard shortcuts, Help >. Only Open recent and Help cascade. The main menu is the
-   app; the project-name menu is this project (Apply recipe or style file... lives there too).
-   Open... takes any file: a data file lands on the Data page, a recipe or style file opens the
-   Apply file dialog (never a new project). The open-file state stands in for the system file
-   picker with one file of each kind, so a click-through reaches both destinations.
+/* Main menu: the header button left of the project name. One dark menu, one level, four groups:
+   New project, Open recent > | the File list (AB.fileList(): Open project or file..., Save,
+   Export..., Apply recipe or style file..., Version history -- the same words as the project-name
+   menu) | Select where..., Select edges between, Show hidden elements | Settings..., Keyboard
+   shortcuts, Help >. Only Open recent and Help cascade. The main menu is the app; the project-name
+   menu is this project. Open project or file... is the one intake: a data file lands on the Data
+   page, a recipe or style file opens the Apply file dialog, a project file opens in place of this
+   one. The open-file state stands in for the system file picker with one file of each kind.
    Undo and Redo have the header buttons; Select all, Invert and Reselect previous live in the
    canvas menu; Copy ids lives in the several-elements menu; Select by ids is a tab of Select where.
    Only the overlay region is drawn; the frame underneath is the app at rest. Plain ASCII. */
@@ -20,19 +21,17 @@
     ];
 
     function topItems(state) {
-        const hidden = AB.COMMANDS["show-hidden"];
         return [
             { label: "New project", go: ["graph-place", "empty"] },
-            { label: "Open...", shortcut: "Ctrl+O", go: ["main-menu", "open-file"] }, // the file decides: data -> Data page, recipe or style -> Apply file
             { label: "Open recent", sub: true, go: ["main-menu", "open-recent"] },
             { sep: true },
-            { label: "Select where...", go: ["select-where", "where"] },
+            ...AB.fileList(),
+            { sep: true },
+            cmd("select-where"),
             state === "two-selected"
                 ? { label: "Select edges between", onClick: () => AB.flash("Selected 1 edge between Valjean and Javert") }
                 : { label: "Select edges between", disabled: "Needs two or more nodes selected" },
-            state === "after-hide"
-                ? { label: hidden.label, go: hidden.go }
-                : { label: hidden.label, disabled: "Nothing is hidden on the canvas" },
+            cmd("show-hidden", state === "after-hide" ? undefined : { disabled: "Nothing is hidden on the canvas" }),
             { sep: true },
             cmd("settings"),
             cmd("shortcuts"),
@@ -49,6 +48,7 @@
                 { label: "transfers-2026-04.csv", desc: "Data file: opens on the Data page", go: ["data-page", "edge-list"] },
                 { label: "mule-ring-triage.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "binding"] },
                 { label: "risk-review-look.json", desc: "Style file: opens the Apply file dialog over this project", go: ["recipe-apply", "style-unbound"] },
+                { label: "March transfers.graphty", desc: "Project file: opens in place of this project", onClick: flash("Open March transfers") },
             ],
         },
         "open-recent": {
@@ -100,7 +100,7 @@
         closeTo: "graph-place",
         states: [
             { id: "open", label: "Open" },
-            { id: "open-file", label: "Open...: a data, recipe or style file" },
+            { id: "open-file", label: "Open project or file...: a data, recipe, style or project file" },
             { id: "open-recent", label: "Open recent" },
             { id: "help", label: "Help" },
             { id: "two-selected", label: "Two nodes selected (Select edges between on)" },

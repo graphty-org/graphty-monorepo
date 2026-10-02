@@ -1,7 +1,8 @@
 /* Quick actions (Ctrl+K), Find (/) and the keyboard shortcuts panel (?).
    Quick actions finds commands and places, grouped by their homes; a row's hint shows only when it teaches
    a place ("Place > Control"). Find (/) finds rows and notes: it is the tree's search field, so its state
-   draws the Graph place's own Find results. The shortcuts panel lists graphty-element's canvas keys first,
+   draws the Graph place's own Find results. A typed rule ("country = UK and amount > 1000") makes Find offer
+   Select where with that rule, the one Select where dialog. The shortcuts panel lists graphty-element's canvas keys first,
    then the app's keys by home. This file also binds / for the skeleton (the shell binds ? and Ctrl+K).
    Plain ASCII. */
 (function () {
@@ -21,7 +22,7 @@
 .qs-quick .k-result mark { background: transparent; color: inherit; font-weight: 650; }
 .qs-foot { display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; font-size: 11px; color: var(--cm-text-secondary); border-top: 1px solid var(--cm-border); }
 .qs-foot .k-kbd { margin-inline-end: 4px; }
-.qs-none { padding: 8px 16px; color: var(--cm-text-secondary); }
+.qs-quick .ab-empty { padding: 8px 16px; }
 .qs-sheet { column-count: 2; column-gap: 32px; padding: 4px 16px 0; }
 .qs-group { break-inside: avoid; padding-bottom: 14px; }
 .qs-group h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
@@ -53,7 +54,8 @@
     const SETTINGS = [["general", "General"], ["privacy", "Privacy"], ["accessibility", "Accessibility and input"], ["performance", "Performance"],
         ["assistant", "Assistant"], ["headset", "Headset"], ["diagnostics", "Diagnostics"]];
     const ALIASES = { general: ["name", "author", "your name", "theme", "dark mode", "number format", "projects"], performance: ["gpu", "webgpu"], accessibility: ["reduced motion", "single-key", "keyboard", "canvas input"] };
-    const COMMANDS = [
+    // Built on each read, so a two-state command (Pause or Resume layout, Hide or Show legend) reads its state now
+    const commands = () => [
         // Go to: places, and the parts of a place people ask for by name
         L("Go to", "network", "Graph", "Rail > Graph", { go: ["graph-place", "at-rest"], aka: ["tree", "layers", "rows", "results", "styles"] }),
         L("Go to", "database", "Data", "Rail > Data", { go: ["data-place", "at-rest"], aka: ["sources", "import data", "files", "datasets"] }),
@@ -98,7 +100,7 @@
         C("present", "View", "play", { aka: ["slides", "slideshow", "presentation"] }),
         C("record-tour", "View", "camera", { aka: ["fly-through", "animation", "movie"] }),
         // Layout
-        C("layout", "Layout", "pause", { aka: ["stop", "freeze", "settle", "continue", "unfreeze", "start"] }),
+        C("layout", "Layout", AB.layoutState === "running" ? "pause" : "play", { aka: ["stop", "freeze", "settle", "continue", "unfreeze", "start"] }),
         C("rerun-layout", "Layout", "refresh-cw", { aka: ["untangle", "relayout", "arrange"] }),
         L("Layout", "refresh-cw", "Reshuffle layout seed", "Canvas menu > Reshuffle layout seed", { go: ["context-menus", "canvas"], aka: ["seed", "random"] }),
         L("Layout", "refresh-cw", "Unpin all", "Canvas menu > Unpin all", { go: ["context-menus", "canvas"], aka: ["pin", "pinned"] }),
@@ -111,13 +113,12 @@
         L("Selection", "scan", "Select all visible", "Canvas menu > Select all visible", { key: "Ctrl+A", go: ["inspector-selection-and-everything", "selection"] }),
         L("Selection", "scan", "Invert selection", "Canvas menu > Invert selection", { key: "I", run: () => AB.flash("Invert selection") }),
         C("reselect-previous", "Selection", "undo-2", { aka: ["previous selection"] }),
-        L("Selection", "search", "Select where...", "Main menu > Select where", { go: ["select-where", "where"], aka: ["query", "select by", "by ids"] }),
+        C("select-where", "Selection", "search", { aka: ["query", "select by", "by ids"] }),
         // Project
-        // Open... is not in AB.COMMANDS; it goes where the main menu's Open... goes (the picked file lands on the Data page)
-        L("Project", "folder-open", "Open...", "Main menu > Open", { key: "Ctrl+O", go: ["data-page", "edge-list"], aka: ["load", "file", "csv"] }),
-        L("Project", "file", "Save", "Project menu > Save", { key: "Ctrl+S", run: () => AB.flash("Save") }),
+        C("open-file", "Project", "folder-open", { aka: ["load", "file", "csv"] }),
+        C("save", "Project", "file"),
         C("export", "Project", "download", { aka: ["save as", "svg", "download", "graphml", "csv", "png", "image", "video", "report"] }),
-        L("Project", "sparkles", "Apply recipe or style file...", "Project menu > Apply recipe or style file", { go: ["recipe-apply", "binding"], aka: ["recipe", "template", "style file"] }),
+        C("apply-file", "Project", "sparkles", { aka: ["recipe", "template", "style file"] }),
         C("version-history", "Project", "history", { aka: ["history", "revisions"] }),
         C("undo", "Project", "undo-2", { run: () => AB.flash("Undo") }),
         C("redo", "Project", "redo-2", { run: () => AB.flash("Redo") }),
@@ -149,8 +150,8 @@
     // The measures sit in the Analyze group, after the table's own Analyze rows.
     // A command marked needs (a control the study build hides) is left out of the study build here too
     function shown() {
-        const at = COMMANDS.findIndex((c) => c.g === "Analyze" && c.name === "Betweenness") + 1;
-        const all = COMMANDS.slice(0, at).concat(measures(), COMMANDS.slice(at));
+        const list = commands(), at = list.findIndex((c) => c.g === "Analyze" && c.name === "Betweenness") + 1;
+        const all = list.slice(0, at).concat(measures(), list.slice(at));
         return document.documentElement.hasAttribute("data-design-notes-hidden") ? all.filter((c) => !c.needs) : all;
     }
     const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
@@ -160,18 +161,23 @@
         if (!s) return null;
         const out = [];
         shown().forEach((c) => {
-            const byName = c.name.toLowerCase().includes(s);
+            const byName = AB.wordMatch(c.name, s); // the one matcher: typed words start the name's words
             const alias = !byName && (c.aka || []).some((a) => a.includes(s) || (s.includes(a) && a.length > 3));
-            if (byName || alias) out.push({ c, rank: c.name.toLowerCase().startsWith(s) ? 0 : byName ? 1 : 2 });
+            if (byName || alias) out.push({ c, rank: byName ? (byName[0][0] === 0 ? 0 : 1) : 2 });
         });
         // keep the groups together, in the table's order; rank only orders rows within a group
-        const order = [...new Set(COMMANDS.map((c) => c.g))];
+        const order = [...new Set(commands().map((c) => c.g))];
         return out.sort((a, b) => order.indexOf(a.c.g) - order.indexOf(b.c.g) || a.rank - b.rank);
     }
 
+    // bold the word starts AB.wordMatch matched
     function hl(name, q) {
-        const s = q.trim().toLowerCase(), i = s ? name.toLowerCase().indexOf(s) : -1;
-        return i < 0 ? name : [name.slice(0, i), h("mark", null, name.slice(i, i + s.length)), name.slice(i + s.length)];
+        const r = q.trim() ? AB.wordMatch(name, q) : null;
+        if (!r) return name;
+        const out = [];
+        let at = 0;
+        r.forEach(([a, b]) => { out.push(name.slice(at, a), h("mark", null, name.slice(a, b))); at = b; });
+        return out.concat(name.slice(at));
     }
 
     // The hint teaches a place ("Place > Control"); a disabled row says why instead.
@@ -209,13 +215,14 @@
                 RECENT.forEach((n) => list.append(resultRow(all.find((c) => c.name === n), "")));
                 groups(all, "");
             } else {
-                if (!hits.length) list.append(h("div", { class: "qs-none" }, 'No match for "' + q.trim() + '"'));
+                if (!hits.length) list.append(AB.noMatch(q.trim()));
                 groups(hits.map((x) => x.c), q);
                 // the hand-off: Quick actions finds commands and places; rows and notes are Find's
                 list.append(h("div", { class: "qs-head" }, "Rows and notes"));
-                const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '"'), h("span", { class: "qs-why" }, AB.COMMANDS.find.home), h("span", { class: "k-kbd qs-key" }, "/"));
-                // the skeleton's one Find with results is "Jav"; anything else is Find's no-match line
-                find._run = () => AB.go("commands-and-search", /^jav/i.test(q.trim()) ? "find" : "find-no-match");
+                const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '"'), h("span", { class: "qs-why" }, AB.cmd("find").home), h("span", { class: "k-kbd qs-key" }, AB.cmd("find").shortcut));
+                // the skeleton's one Find with results is "Jav"; a rule goes to Find's Select where offer;
+                // anything else is Find's no-match line
+                find._run = () => ruleShaped(q.trim()) ? findRuleFrom(q.trim()) : AB.go("commands-and-search", /^jav/i.test(q.trim()) ? "find" : "find-no-match");
                 find.addEventListener("click", find._run);
                 list.append(find);
             }
@@ -258,8 +265,8 @@
             ["/", "Find rows and notes"],
             ["?", "These shortcuts"],
             ["Ctrl+Z", "Undo"], ["Ctrl+Shift+Z, Ctrl+Y", "Redo (Ctrl+Y not on macOS)"],
-            ["Ctrl+O", "Open..."], ["Ctrl+S", "Save"], ["Ctrl+E", "Export..."], ["Ctrl+,", "Settings"],
-            ["Esc", "Close one level. Never clears the selection"],
+            ...["open-file", "save", "export", "settings"].map((id) => [AB.cmd(id).shortcut, AB.cmd(id).label]),
+            ["Esc", "Close one level; with nothing open, clear the selection"],
         ] },
         { title: "Toolbar", keys: [
             ["Shift+A", "Analyze"], ["Left, Right", "Move between toolbar buttons"], ["Alt+Down", "Open a button's flyout"],
@@ -269,13 +276,12 @@
             ["5", "Switch between 2D and 3D"], ["L", "Show or hide the legend"],
         ] },
         { title: "Selection", keys: [
-            ["Ctrl+G", "Create set"], ["P", "Path between"], ["Ctrl+Shift+H", "Hide on canvas"],
-            ["N", "Add note"], ["Ctrl+A", "Select all visible"], ["I", "Invert selection"],
+            ...["create-set", "find-paths", "hide-on-canvas", "add-note"].map((id) => [AB.cmd(id).shortcut, AB.cmd(id).label]), ["Ctrl+A", "Select all visible"], ["I", "Invert selection"],
         ] },
         { title: "Tree", keys: [
             ["Up, Down", "Move between rows"], ["Home, End", "First or last row"], ["Left, Right", "Collapse or expand"],
             ["Enter", "Open the row in the inspector"], ["Space", "Show or hide the row's paint"], ["Alt+Space", "Show only this row"],
-            ["F2", "Rename"], ["Ctrl+], Ctrl+[", "Move the row up or down"], ["Ctrl+Shift+L", "Lock or unlock the row"],
+            ["F2", "Rename"], [AB.cmd("new-folder").shortcut, "New folder from the selected rows"], ["Ctrl+], Ctrl+[", "Move the row up or down"], ["Ctrl+Shift+L", "Lock or unlock the row"],
             ["Delete", "Delete (with Undo)"], ["Shift+F10", "Row menu"],
         ] },
         { title: "Panels", keys: [
@@ -348,6 +354,58 @@
         AB.announce(text);
     }
 
+    // ---------- Find on a rule ----------
+    // A query that compares an attribute with a value ("country = UK and amount > 1000") is a rule, not a
+    // name: Find offers "Select where <rule> ..." first, which hands the rule to the one Select where
+    // dialog, and finds no rows or notes under it. The rule is handed as typed; the dialog (graphty-element's
+    // query parser) reads it. Drawn on the transfers, the project whose attributes the example names.
+    const RULE = "country = UK and amount > 1000";
+    let rule = RULE;
+    const ruleShaped = (q) => /[\w"']\s*(==?|!=|>=?|<=?)\s*\S/.test(q);
+    function findRuleFrom(q) {
+        rule = q;
+        if (AB.route && AB.route.id === "commands-and-search" && AB.route.state === "find-rule") findRule();
+        else AB.go("commands-and-search", "find-rule");
+    }
+    // Hands the rule to the one Select where dialog: its Query field holds the rule, its count follows
+    function toSelectWhere() {
+        const r = rule;
+        window.addEventListener("hashchange", () => setTimeout(() => {
+            const q = document.querySelector(".ab-overlay .sw-q");
+            if (!q) return;
+            q.value = r;
+            q.dispatchEvent(new Event("input", { bubbles: true }));
+            q.focus();
+            q.setSelectionRange(r.length, r.length);
+        }, 0), { once: true });
+        AB.go("select-where", "where");
+    }
+    function findRule() {
+        const input = document.querySelector(".ab-left .ab-treebar input");
+        const scroll = document.querySelector(".ab-left .k-scroll");
+        if (!input || !scroll) return;
+        input.value = rule;
+        scroll.querySelectorAll(".ab-trow, .gp-runfind").forEach((x) => { x.hidden = true; }); // no row name holds a rule
+        scroll.querySelectorAll(".ab-fl-none, .qs-rule").forEach((x) => x.remove());
+        const short = rule.split(/\s+(?:and|or)\s+/i)[0]; // the first clause; the dialog shows the whole rule
+        const label = AB.cmd("select-where").label.replace(/\.\.\.$/, "") + " " + short + " ...";
+        const offer = h("div", Object.assign({ class: "gp-hit", role: "option", "aria-label": label }, AB.act({ onClick: toSelectWhere })),
+            icon("search"), h("span", { class: "gp-hit-text" }, label, h("span", { class: "gp-hit-sub" }, "Opens Select where with this rule")));
+        scroll.prepend(h("div", { class: "qs-rule", role: "listbox", "aria-label": "Find results" },
+            h("div", { class: "gp-find-head" }, "Select"), offer,
+            h("div", { class: "gp-find-head" }, "Rows and notes"), h("div", { class: "ab-fl-none" }, AB.noMatch(rule))));
+        AB.announce(label);
+        requestAnimationFrame(() => offer.focus());
+    }
+    // Enter in the tree's Find field with a rule in it goes here, before the field's own name search
+    document.addEventListener("keydown", (e) => {
+        const t = e.target;
+        if (e.key !== "Enter" || !t || !t.closest || !t.closest(".ab-left .ab-treebar") || !ruleShaped(t.value.trim())) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        findRuleFrom(t.value.trim());
+    }, true);
+
     // ---------- keys this section owns ----------
     document.addEventListener("keydown", (e) => {
         const t = e.target;
@@ -365,7 +423,9 @@
         // Find is the tree's search field, so both Find states draw the Graph place's own Find. No match is the
         // field list's empty line, `No match for "xyz"` and Clear; Find lists rows and notes, never attributes,
         // so an attribute name (middle ellipsis, AB.truncMiddle) only shows in the field list's own find.
-        frame: (state) => (state === "find" || state === "find-no-match" ? { left: "graph-place/" + state } : { left: "graph-place/at-rest" }),
+        frame: (state) => (state === "find" || state === "find-no-match" ? { left: "graph-place/" + state }
+            : state === "find-rule" ? { left: "graph-place/many-groups", dataset: "transactions" }
+            : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
             { id: "quick-actions", label: "Quick actions, empty" },
@@ -375,12 +435,14 @@
             { id: "quick-actions-settings", label: "Quick actions, typed \"settings\"" },
             { id: "find", label: "Find, row and note results" },
             { id: "find-no-match", label: "Find, no match on an id: 0 matches" },
+            { id: "find-rule", label: "Find, typed a rule: offers Select where with it" },
             { id: "shortcuts", label: "Keyboard shortcuts panel" },
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
             else if (state === "find") setTimeout(findNotes, 0); // the Graph place draws Find's field and rows
             else if (state === "find-no-match") setTimeout(findId, 0); // the Graph place draws the field and its no-match line
+            else if (state === "find-rule") setTimeout(findRule, 0); // the Graph place draws the field and the tree
             else quick(el, { "quick-actions-results": "important", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
         },
     });

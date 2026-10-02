@@ -120,7 +120,7 @@
                 AB.button("Use 24 fps", { kind: "secondary", onClick: change(() => { s.fps = 24; }) }));
         }
 
-        const summary = [`Full graph - ${secs()} s - legend not drawn `, AB.needsElement("graphty-element draws no legend into a captured frame")];
+        const summary = [`Full graph - ${secs()} s - ${AB.legendOn() ? "with the legend" : "no legend (the legend is off)"} `, AB.needsElement("graphty-element draws the legend card into each captured frame, at the video's scale.")];
 
         return h("div", { class: "ex-main" },
             AB.exportHead(["Video ", h("span", { class: "k-secondary", style: "font-weight:400" }, ext())], summary),

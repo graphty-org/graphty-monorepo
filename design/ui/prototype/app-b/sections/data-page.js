@@ -329,7 +329,7 @@
             roles: { "parent": role("links", t.type, "id", { locked: true, parentCol: true }) } });
     }
     function nested(o) {
-        const m = base(Object.assign({ door: { title: "Open as a new graph", done: ["graph-place", "nested"] }, tables: nestedTables(), sel: "doc", direction: "undirected", json: "nested", coPer: "pair" }, o));
+        const m = base(Object.assign({ door: { title: "Add data", done: ["graph-place", "nested"] }, tables: nestedTables(), sel: "doc", direction: "undirected", json: "nested", coPer: "pair" }, o));
         // graphty-element proposes an array of ids that match a proposed node table's keys as Several
         // edges (element-requirements section 8); the loaded defaults are AB.NESTED_LOADED in lib.js
         if (!o || !o.tables) coauthorEdges(m);
@@ -407,7 +407,7 @@
 
     // ---------- the states ----------
     // door: title, verb, where Load goes; plus the tables, the selected table and what is open
-    const NEW = { title: "Open as a new graph", done: ["canvas-and-states", "loading"] };
+    const NEW = { title: "Add data", done: ["canvas-and-states", "loading"] };
     const base = (o) => Object.assign({ door: NEW, direction: "directed", filter: null }, o);
     // Load ends on the graph it loaded: the canvas reads the same fixture the page shows
     const NEW_DOOR = Object.assign({}, NEW, { done: ["canvas-and-states", "door-entries-loading"] });
@@ -462,8 +462,10 @@
         "unsupported-format": () => base({ tables: [mk({ id: "sif", name: "interactions", file: "interactions.sif", kind: "text", format: "SIF", rows: null, refusal: { terminal: true, text: "SIF: " + UNSERVED.SIF + ".", todo: "Save it from Cytoscape as GraphML or as a CSV edge list, and open that." } })], sel: "sif" }),
         // A file dropped while a project is open opens as a new graph: no "this graph or a new one?" question
         "load-into": () => Object.assign(edgeOnly(april()), { sel: "april" }),
-        // A table added to the March transfers whose columns match a loaded source: a warning that offers Replace
-        "add-matching": () => { const m = transfers({ door: { title: "Add to " + T().graphName, done: ["canvas-and-states", "transfers-loading"] }, sel: "april" }); m.tables.push(transfersTable(april({ matches: "transfers" }))); return m; },
+        // Add rows from file... on the transfers source row: the header says what the door said ("Add to
+        // transfers"); the file's columns match, so its rows are added to transfers, and Load stays on
+        "add-rows": () => addRows(),
+        "add-matching": () => addRows(),
         "one-at-a-time": () => {
             const ta = TA().files.transfers;
             const m = edgeOnly();
@@ -486,13 +488,13 @@
         // Regression (d): person_id linked to person by badge, not by its Key
         "link-by-badge": () => { const m = door(); m.tables[2].roles.person_id.by = "badge"; return m; },
         // ----- wide data: 69 and 26 columns -----
-        "wide-hosts": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts" }),
-        "wide-find-column": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
-        "wide-link-menu": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "connections", menu: { col: "source", sub: "from" } }),
+        "wide-hosts": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts" }),
+        "wide-find-column": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
+        "wide-link-menu": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "connections", menu: { col: "source", sub: "from" } }),
         // ----- nested JSON -----
-        "json-plain": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: oneStep(), pj: "node-link", sel: "pj-nodes", direction: "file", focusLoad: true }),
-        "json-graphology": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: oneStep("graphology"), pj: "graphology", sel: "pj-nodes", direction: "file", focusLoad: true }),
-        "json-jgf": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: oneStep("jgf"), pj: "jgf", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-plain": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep(), pj: "node-link", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-graphology": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep("graphology"), pj: "graphology", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-jgf": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep("jgf"), pj: "jgf", sel: "pj-nodes", direction: "file", focusLoad: true }),
         // Edit source from the loaded projects' Sources rows: the clicked table selected, Apply back to the Data place
         "edit-wide-hosts": () => base({ door: { title: "Edit: " + W().file, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "hosts" }),
         "edit-wide-connections": () => base({ door: { title: "Edit: " + W().edgesFile, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "connections" }),
@@ -510,15 +512,20 @@
         "json-affiliations": () => affiliationRows(nested({ sel: "affiliations" })),
         "json-any-type": () => nested({ sel: "links", menu: { col: "target", sub: "to", any: true } }),
         "json-report": () => affiliationRows(coauthorEdges(nested())),
-        "json-invalid": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "nested"] }, sel: "doc", direction: "undirected",
+        "json-invalid": () => base({ door: { title: "Add data", done: ["graph-place", "nested"] }, sel: "doc", direction: "undirected",
             tables: [mk({ id: "doc", group: true, kind: "json", name: NX().file, file: NX().file, format: "JSON", rows: null, json: true, auto: { format: true },
                 refusal: { terminal: true, text: NX().file + " is not valid JSON: line 1,214, column 9 expects a comma or a closing brace.", todo: "Fix the file at that place, or choose another file.", stand: true } })] }),
         "json-no-records": () => { const m = nested({ tables: nestedTables({ only: "meta", file: "network-export-meta.json", preview: NX().document.meta }) }); const d = m.tables[0]; d.refusal = { terminal: true, text: "network-export-meta.json holds no array of records, so it makes no nodes and no edges.", todo: "Its objects and arrays are listed in Tables. Choose another file, one that holds the records." }; m.tables.forEach((t) => { if (t.struct) t.open = true; }); return m; },
         "json-path-gone": () => { const m = nested({ sel: "links", door: { title: "Edit: " + NX().file, verb: "Apply", done: ["data-place", "attributes-nested"], edit: true } }); table(m, "links").gone = true; return m; },
-        "json-keyed-weight": () => base({ door: { title: "Open as a new graph", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "installed_together", json: "registry" }),
-        "json-keyed": () => base({ door: { title: "Open as a new graph", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
+        "json-keyed-weight": () => base({ door: { title: "Add data", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "installed_together", json: "registry" }),
+        "json-keyed": () => base({ door: { title: "Add data", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
         "edit-registry": () => base({ door: { title: "Edit: " + REGISTRY.file, verb: "Apply", done: ["data-place", "registry"], edit: true }, tables: registryTables(), sel: "packages", json: "registry" }),
     };
+    function addRows() {
+        const m = transfers({ door: { title: "Add to transfers", done: ["canvas-and-states", "transfers-loading"] }, sel: "april" });
+        m.tables.push(transfersTable(april({ matches: "transfers", append: true })));
+        return m;
+    }
     // Edit source on the nested project opens on the load as it was (AB.nestedLoaded: the last Load's choices)
     function editNested(sel) {
         const NL = AB.nestedLoaded(), co = "relationships.coauthor_ids", ad = "attributes.profile.contact.addresses";
@@ -632,7 +639,8 @@
         if (t.gone) return { level: "err", text: "ticked, and the file no longer has it" };
         if (t.refusal) return { level: "err", text: t.refusal.busy ? "not loaded: another file is still reading" : t.refusal.fetch ? "the address did not answer" : t.refusal.setting ? "could not be read" : "cannot be loaded" };
         if (t.reading) return null;
-        if (t.matches) return { level: "warn", text: "has the same columns as " + t.matches + ", already loaded: Replace it, or remove this table" };
+        // a file whose columns match a loaded table never blocks Load: its rows are added, or it loads as its own table
+        if (t.matches) return null;
         if (t.kind === "text") return { level: "warn", text: t.candidates && t.candidates.length ? "choose " + t.candidates.join(" or ") + " in File settings" : "choose a format in File settings" };
         if (t.kind === "edge" && (!colWith(t, "from") || !colWith(t, "to"))) return { level: "warn", text: (colWith(t, "from") || colWith(t, "to") ? "choose a From and a To under two column headers" : "no endpoint columns found; choose From and To under two of its columns") + (t.cols.length ? " (the file has " + t.cols.join(", ") + ")" : "") };
         const known = types(m).map((x) => x.name);
@@ -652,6 +660,12 @@
     // "412 + 25 added": a type's rows plus the nodes an Add choice made (the report's added count per type)
     const addedTo = (m, name) => { const a = m.add || {}, e = DE().report.entries; return name === "person" && a.people ? e.missingPeople : name === "building" && a.bldg ? e.missingBuildings : 0; };
     const plusAdded = (m, name, rows) => n(rows) + (addedTo(m, name) ? " + " + n(addedTo(m, name)) + " added" : "");
+    // One line per link column whose target a table here makes: "9,113 of 9,113 from_account found in accounts".
+    // found(c) is the report's matched count for that column (default: every row)
+    const linkLines = (m, t, rows, found) => linkCols(t).map((c) => {
+        const ty = types(m).find((y) => y.name === t.roles[c].target);
+        return ty ? { level: null, parts: [AB.count(found ? found(c) : rows, c, { of: rows, plural: c }) + " found in " + ty.table.name + "."] } : null;
+    }).filter(Boolean);
     const c2 = (c, t) => c + " links to " + t.roles[c].target + ", and no table here makes " + t.roles[c].target + " nodes: add that table or choose another type";
     // ---------- the model strip (drawn from the roles; read-only) ----------
     function strip(m) {
@@ -672,11 +686,13 @@
         const lines = [];
         const used = new Set();
         vis.forEach((t) => {
-            if (t.refusal || t.kind === "text") return;
+            // rows added to a loaded table are drawn on that table's line
+            if (t.refusal || t.kind === "text" || t.append) return;
+            const app = vis.find((x) => x.append && x.matches === t.id);
             const lk = linkCols(t);
             const wt = colWith(t, "weight");
             const wtip = wt ? "; weight: " + wt + (t.kind === "edge" ? " (higher means " + MEANS.find((x) => x[0] === (t.means || "stronger"))[1].toLowerCase() + ")" : "") : "";
-            const rows = n(rowsOf(m, t));
+            const rows = n(rowsOf(m, t)) + (app ? " + " + n(rowsOf(m, app)) + " added" : "");
             if (t.kind === "edge") {
                 const f = colWith(t, "from"), to = colWith(t, "to");
                 if (!f || !to) return;
@@ -757,14 +773,20 @@
             (t.refusal.setting && t.kind !== "text") || t.refusal.stand ? L1(null, AB.openQuestion("The line and column are a stand-in: the fixture file reads cleanly; graph-io's error summary supplies the real ones")) : null].filter(Boolean);
         if (t.reading) return [L1(null, "Reading " + t.file + ": " + (t.readRows ? n(t.readRows) + " of " + n(t.rows) + " rows read." : "..."))];
         if (t.kind === "text") return [L1("warn", t.candidates && t.candidates.length ? "The text matches " + t.candidates.join(" and ") + ": choose one in File settings." : "Nothing recognized this text. Choose a format in File settings, or paste a file's text as it is saved.")];
-        if (m.json && (t.json || t.childOf)) return nestedReport(m, t, count, pick);
-        // A table whose columns match a loaded source: offer Replace, which keeps every role, instead of a second copy
+        if (m.json && (t.json || t.childOf)) return nestedReport(m, t, count, pick, cb);
+        // A table whose columns match a loaded source: its rows are added to that table (the default), or it
+        // loads as its own table. Load stays on either way
         if (t.matches) {
-            const was = table(m, t.matches);
-            return [P1({ level: "partial", what: t.file + " has the same " + t.cols.length + " columns as " + fileOf(m, was) + ", already loaded: loading it adds a second copy of " + was.name + ".",
-                todo: "Replace " + fileOf(m, was) + " with it to keep every role, or remove this table.", action: { label: "Replace " + fileOf(m, was), go: ["data-page", "replace"] } }),
-            L1(null, count(n(rowsOf(m, t)) + " rows", "all"), "; every row has both ends."),
-            t.sampleFrom ? L1(null, AB.openQuestion("The sample rows are " + t.sampleFrom + "'s: the fixture holds " + t.file + "'s counts and columns, not its rows")) : null].filter(Boolean);
+            const was = table(m, t.matches), va = TA().versionDiff;
+            const choice = L1(null, t.file + " has the same " + t.cols.length + " columns as " + was.name + ".",
+                pick([["add", "Add these rows to " + was.name], ["own", "Load as its own table"]], t.append ? "add" : "own", (v) => { t.append = v === "add"; t.said = t.append ? "These rows are added to " + was.name + ". Set aside: " + t.name + " as its own table." : t.name + " loads as its own table. Set aside: adding its rows to " + was.name + "."; },
+                    "What " + t.file + " does", "app", ["Each row is added to " + was.name + ", with its roles", "A second edge table beside " + was.name + ": each row a second edge, its roles set here"]));
+            // repeated rows: a row equal to a loaded one in every column. A row's timestamp is in April, so none repeats a March row
+            const counts = t.append ? L1("res", AB.count(rowsOf(m, t), "row") + " to add - " + AB.count(0, "repeated row") + " - " + AB.count(va.accountsAdded, "new account"), AB.needsElement("Adding rows to a loaded table, and its three counts, is not in graphty-element yet"))
+                : L1("res", n(rowsOf(m, t)) + " rows became " + n(rowsOf(m, t)) + " edges of " + t.name + ".");
+            return [choice, counts,
+                t.append ? L1(null, "Or ", AB.link("data-page", "replace", "replace " + fileOf(m, was) + " with it"), ", which drops March's rows.") : null,
+                t.sampleFrom ? L1(null, AB.openQuestion("The sample rows are " + t.sampleFrom + "'s and the new accounts are the April accounts file's: the fixture holds " + t.file + "'s counts and columns, not its rows")) : null].flat().filter(Boolean);
         }
         const pr = problem(m, t);
         const out = [];
@@ -783,10 +805,11 @@
             // one row per unmatched value in this file; the report gives both counts, so values and rows are never mixed
             const unm = (key, num, col, word, other) => L1("warn", count(num + " " + col + " values (" + num + " rows)", key), " are not in " + other + ".", seg(key, col, [["add", "Add as " + word], ["leave", asNode ? "Leave out the link" : "Leave out"]], m.add && m.add[key] ? "add" : "leave"),
                 m.add && m.add[key] ? h("span", { class: "k-secondary" }, num + " " + word + " are added, each with only an id") : null);
-            const lc = linkCols(t);
-            // With one link column there are no "both ends": say how many rows that one link matches
-            if (lc.length === 1) out.push(L1(null, count(n(e.rows) + " rows", "all"), "; " + n(e.rows - (lc[0] === "person_id" ? (m.add && m.add.people ? 0 : e.missingPeople) : (m.add && m.add.bldg ? 0 : e.missingBuildings))) + " link to a " + (lc[0] === "person_id" ? "person" : "building") + "."));
+            // With one link column there are no "both ends": its found-keys line says how many rows it matches
+            if (linkCols(t).length === 1) out.push(L1(null, count(n(e.rows) + " rows", "all"), "."));
             else out.push(L1(null, count(n(e.rows) + " rows", "all"), "; ", count(n(now.bothEnds), "both"), " have both ends."));
+            // found in the file's own table: a value an Add choice makes a node is still not found there
+            out.push(...linkLines(m, t, e.rows, (c) => e.rows - (c === "person_id" ? e.missingPeople : e.missingBuildings)));
             if (t.roles.person_id) out.push(unm("people", e.missingPeople, "person_id", "people", "people"));
             if (t.roles.building_id) out.push(unm("bldg", e.missingBuildings, "building_id", "buildings", "buildings"));
             // The one fixture note about a left-out building (B12): only an edit has notes; a new graph has none yet
@@ -796,7 +819,7 @@
             if (!asNode && t.per === "row" && !colWith(t, "edgeId")) out.push(L1("warn", "No Edge id column: notes on entries may move if the row order changes."));
             if (m.door.edit && DE().hasNotes() && t.loadedPer && t.kind === "edge" && t.per !== t.loadedPer) out.push(L1("warn", t.per === "pair" ? "Switching to Pair brings back the edge 1 note on entries is about (Ana Ruiz -> B1)." : "Switching to Row changes which edge each note is about: 1 note on entries will read 'Not in the current data'."));
             if (asNode && !colWith(t, "key")) out.push(L1("warn", "No Key column: each entry is keyed by its row number. Notes on entries may move if the row order changes."));
-            out.push(L1("warn", "person_id is Number here and Category in people: matched as text. ", count(e.leadingZeroKeys + " keys", "zeros"), " differ only by leading zeros (not merged)."));
+            out.push(L1("warn", "person_id is Number here and Category in people: matched as text. ", count(e.leadingZeroKeys + " keys", "zeros"), " have leading zeros (such as 0007): ids match as written, so 0007 and 7 stay two keys."));
             if (asNode) out.push(L1("res", n(e.rows) + " entries became " + n(e.rows) + " entry nodes" + (linkCols(t).length === 2 ? "; " + n(now.bothEnds) + " have both edges." : ".")));
             else if (linkCols(t).length === 2) {
                 out.push(L1("res", n(now.bothEnds) + " entries became " + n(t.per === "pair" ? now.pairEdges : now.bothEnds) + " person-building edges."));
@@ -805,7 +828,8 @@
             return out;
         }
         const weighsOne = (tt) => (!colWith(tt, "weight") && m.tables.some((x) => x.kind === "node" && x !== tt && colWith(x, "weight")) ? L1(null, (tt.type || tt.name) + " has no weight column: each " + (tt.type || tt.name) + " weighs 1.") : null);
-        if (t.id === "people") return out.concat([L1(null, count(n(R.people.rows) + " rows", "all"), ", ", count(R.people.repeatedKeys + " repeated key", "repeated"), " (kept the first). ", count(R.people.noEntries + " people", "none"), " have no entries (kept, unconnected)."), weighsOne(t)].filter(Boolean));
+        if (t.id === "people") return out.concat([L1(null, count(n(R.people.rows) + " rows", "all"), ", ", count(R.people.repeatedKeys + " repeated key", "repeated"), " (kept the first). ", count(R.people.noEntries + " people", "none"), " have no entries (kept, unconnected)."),
+            L1(null, count(R.entries.leadingZeroKeys + " keys", "zeros"), " have leading zeros (such as 0007). Ids match as written: nothing is trimmed."), weighsOne(t)].filter(Boolean));
         if (t.id === "buildings") {
             const w = colWith(t, "weight");
             const nm = colWith(t, "name");
@@ -827,7 +851,7 @@
             if (pr) return out;
             const rows = rowsOf(m, t);
             const pairWord = t.per === "pair" ? "No two transfers share both ends: One edge per Pair changes nothing." : "No two transfers share both ends, so One edge per Pair would change nothing.";
-            const lines = [L1(null, count(n(rows) + " rows", "all"), m.replaced && m.replaced.id === t.id ? "; all " + t.cols.length + " columns of " + m.replaced.was + " are here, so every role carried over." : "; every row has both ends.")];
+            const lines = [L1(null, count(n(rows) + " rows", "all"), m.replaced && m.replaced.id === t.id ? "; all " + t.cols.length + " columns of " + m.replaced.was + " are here, so every role carried over." : "; every row has both ends.")].concat(linkLines(m, t, rows));
             if (/^transfers-2026-0[34]$/.test(t.name)) lines.push(L1(null, n((t.id === "april" ? TA() : T()).nodes) + " ids found in " + colWith(t, "from") + " and " + colWith(t, "to") + " become nodes of type node."));
             if (!m.replaced && /^transfers/.test(t.id)) lines.push(L1(null, pairWord));
             if (t.per === "pair" && m.direction === "undirected") lines.push(L1(null, "Undirected: (a, b) and (b, a) now merge: " + n(rows) + " edges become " + n(rows - R.transfers.reversePairs) + "."));
@@ -841,7 +865,7 @@
         return out;
     }
     // The nested document's report (graphty-element's preview report, figures in NREP)
-    function nestedReport(m, t, count, pick) {
+    function nestedReport(m, t, count, pick, cb) {
         const L1 = (level, ...parts) => ({ level, parts });
         const sub = (text) => ({ level: "sub", parts: [text] });
         if (m.json === "registry") {
@@ -868,7 +892,15 @@
                 out.push(L1(null, n(NREP.coauthorItems) + " relationships.coauthor_ids items; each is a researcher's id."));
                 out.push(L1(null, NREP.coauthorBoth + " co-author pairs are listed by both researchers.", h("span", { class: "dpg-lab" }, " One edge per"),
                     pick([["item", "Item"], ["pair", "Pair"]], m.coPer, (v) => { m.coPer = v; }, "One edge per", "co-per", ["Every item its own edge: a pair listed by both researchers makes two", "One edge per pair of researchers, so degree is not counted twice"])));
-            } else out.push(L1(null, "relationships.coauthor_ids: " + n(NREP.coauthorItems) + " items, each a researcher's id, " + (r.arrs["relationships.coauthor_ids"].pick === "one" ? "kept as one value per researcher." : "kept as Several values.")));
+            }
+            // An id list whose every item names a node here is offered as edges: one click, nothing set on its own
+            const doc = NX().document, rid = new Set(doc.data.researchers.map((x) => x.id));
+            Object.keys(r.arrs).filter((c) => r.arrs[c].items === "values" && r.arrs[c].pick !== "edges").forEach((c) => {
+                const items = doc.data.researchers.flatMap((x) => get(x, c) || []);
+                if (!items.length || !items.every((v) => rid.has(v))) return;
+                out.push(L1(null, c + ": all " + n(items.length) + " items are researcher ids, " + (r.arrs[c].pick === "one" ? "kept as one value per researcher. " : "kept as Several values. "),
+                    cb.offer("Make them " + c.split(".").pop().replace(/_ids?$/, "") + " edges", () => cb.toEdges(r, c), "e:" + c)));
+            });
             if (nameLost(r).length && !nameColsOf(r).length) out.push(L1("warn", nameLost(r).join(" and ") + " held the Name and are now kept whole inside " + r.keep.filter((k) => nameLost(r).some((c) => c.startsWith(k + "."))).join(", ") + ": researchers will be named by their id. Choose One column per field there, or give another column the Name."));
             if ((r.keep || []).includes("attributes.profile.contact")) out.push(L1(null, "attributes.profile.contact is kept as one value: each researcher's email and addresses in one sub-object."));
             else if ((r.arrs["attributes.profile.contact.addresses"] || {}).pick === "rows") out.push(L1("res", "attributes.profile.contact.addresses made a child table under researchers: " + n(table(m, "addresses").rows) + " rows, one address node per item, each linked to its researcher."));
@@ -876,10 +908,10 @@
             out.push(rows ? L1("res", "attributes.affiliations made a child table under researchers: " + n(NREP.affiliations) + " rows, one per item.") : L1(null, "attributes.affiliations: " + NREP.affTwoPlus + " researchers hold two or more; each list is kept as one value."));
             const il = idLinks(m);
             // a one-value id column whose values all name researchers is offered, not proposed (element-requirements-5.md section 8, Suggested tables)
-            const doc = NX().document, rid = new Set(doc.data.researchers.map((x) => x.id));
             r.cols.filter((c) => /_id$/.test(c) && !r.arrs[c] && ((r.roles[c] || {}).r || "attr") === "attr").forEach((c) => {
                 const vals = doc.data.researchers.map((x) => get(x, c)).filter((v) => v != null);
-                if (vals.length && vals.every((v) => rid.has(v))) out.push(L1(null, c + ": all " + n(vals.length) + " values are researcher ids, kept as an Attribute. Set Links to -> researcher on it to make " + c.split(".").pop().replace(/_id$/, "") + " edges."));
+                const name = c.split(".").pop().replace(/_id$/, "");
+                if (vals.length && vals.every((v) => rid.has(v))) out.push(L1(null, c + ": all " + n(vals.length) + " values are researcher ids, kept as an Attribute. ", cb.offer("Make them " + name + " edges", () => cb.linkTo(r, c, "researcher"), "e:" + c)));
             });
             il.forEach((x) => out.push(L1(x.n < x.of ? "warn" : null, x.col + ": " + n(x.of) + " values" + (x.n === x.of ? ", each a " + x.target + "'s id." : "; " + n(x.n) + " are " + x.target + " ids, the other " + n(x.of - x.n) + " match nothing and make no edge."))));
             const made = (co ? [n(m.coPer === "item" ? NREP.coauthorItems : NREP.coauthorPairs) + " coauthor edges"] : []).concat(il.map((x) => n(x.n) + " " + x.name + " edges"));
@@ -1026,6 +1058,9 @@
         const m = model;
         const sel = () => table(m, m.sel) || visible(m)[0];
         const changed = () => { if (m.door.edit) m.dirty = true; };
+        // what a mode switch can change on a table, and the table as the last draw left it (for Undo)
+        const SWITCHED = ["kind", "per", "roles", "combine", "type", "append"];
+        let lastDraw = null;
         const redraw = (focusKey) => {
             const fk = focusKey || (document.activeElement && document.activeElement.closest("[data-k]") && document.activeElement.closest("[data-k]").dataset.k);
             closeMenus();
@@ -1220,8 +1255,16 @@
                 const off = t.kind === "node" && lk !== 2 ? { edge: "An edge needs exactly two linking columns; this table has " + ["none", "one", "two", "three", "four"][lk] } : null;
                 kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Each row is"), segOf([["node", "a node"], ["edge", "an edge"]], t.kind, (v) => {
                     if (v === t.kind) return;
-                    if (v === "node") { toNodes(t, t.typeName || t.name); t.per = "row"; delete t.roles.count; }
-                    else { t.kind = "edge"; const [a, b] = linkCols(t); t.roles[a].r = "from"; t.roles[b].r = "to"; delete t.type; if (colWith(t, "key")) delete t.roles[colWith(t, "key")]; }
+                    // a mode switch says in one line what it set aside; switching back restores none of it
+                    if (v === "node") {
+                        const wasPair = t.per === "pair";
+                        toNodes(t, t.typeName || t.name); t.per = "row"; t.combine = {}; delete t.roles.count;
+                        t.said = "Each row is a node of type " + t.type + "; its link columns read as Links to." + (wasPair ? " Set aside: One edge per Pair, its Combine choices and count." : "");
+                    } else {
+                        const k = colWith(t, "key"), was = t.type;
+                        t.kind = "edge"; const [a, b] = linkCols(t); t.roles[a].r = "from"; t.roles[b].r = "to"; delete t.type; if (k) delete t.roles[k];
+                        t.said = "Each row is an edge from " + a + " to " + b + ". Set aside: the type " + was + (k ? " and " + k + " as its Key" : "") + ".";
+                    }
                     changed();
                 }, "Each row is", "kind", ["Each row of " + t.name + " becomes a node", "Each row of " + t.name + " becomes an edge between the two nodes it names"], off), off ? h("span", { class: "k-secondary" }, off.edge) : null, endsOf(t)));
             }
@@ -1247,19 +1290,59 @@
             }
             if (t.kind === "edge" && !t.locked) {
                 kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "One edge per"), segOf([["row", "Row"], ["pair", "Pair"]], t.per, (v) => {
-                    t.per = v;
-                    if (v === "pair") {
-                        t.cols.forEach((c) => { if (!["from", "to", "edgeId"].includes(roleOf(t, c))) t.combine[c] = t.combine[c] || (COMBINE[typeOfCol(t, c)] || COMBINE.cat)[0][0]; /* bool, a list or a whole value combine as a category */ });
-                        // count becomes the weight only when the table has none; a weight the reader set keeps
-                        // its role and combines by its Combine (Sum by default)
-                        if (!colWith(t, "weight")) t.roles.count = role("weight");
-                    } else { delete t.roles.count; }
+                    if (v === "pair") toPair(t); else toRow(t);
                     changed();
                 }, "One edge per", "per", ["Every row its own edge", "One edge per pair of ends, with a count" + (m.direction === "undirected" ? "; (a, b) and (b, a) are one pair" : "")])));
             }
-            // The weight is always said: with no Weight column, one quiet line
-            if (t.kind === "edge" && !colWith(t, "weight")) kids.push(AB.tip(h("span", { class: "dpg-locked", role: "note", tabindex: "0" }, "Weight: none (each edge counts 1)"), "Choose Weight in a Number column's role menu, under its header", { label: false }));
+            if (t.kind === "edge") kids.push(weightPicker(t));
             return h("div", { class: "dpg-head" }, kids);
+        }
+
+        // One edge per: Pair merges the rows that share both ends and combines the rest; Row sets that aside
+        function toPair(t, quiet) {
+            t.per = "pair";
+            t.cols.forEach((c) => { if (!["from", "to", "edgeId"].includes(roleOf(t, c))) t.combine[c] = (COMBINE[typeOfCol(t, c)] || COMBINE.cat)[0][0]; /* bool, a list or a whole value combine as a category */ });
+            // count becomes the weight only when the table has none; a weight the reader set keeps
+            // its role and combines by its Combine (Sum by default)
+            const w = colWith(t, "weight");
+            if (!w) t.roles.count = role("weight");
+            if (!quiet) t.said = "One edge per Pair: rows with the same two ends make one edge, and each other column combines" + (w ? "; " + w + " stays the Weight, summed." : "; the number of rows per pair, count, is the Weight.") + " Set aside: one edge per row.";
+        }
+        function toRow(t) {
+            const wasCount = colWith(t, "weight") === "count";
+            t.per = "row"; t.combine = {}; delete t.roles.count;
+            t.said = "One edge per Row: every row is its own edge. Set aside: the Combine choices and count" + (wasCount ? ", so the Weight is none; no column became the Weight again." : ".");
+        }
+        // The Weight picker: the table's Number columns, the number of rows per pair, or none. A column it
+        // picks gets the Weight role under its header, the same setting the role menu shows
+        function weightPicker(t) {
+            const w = colWith(t, "weight");
+            const nums = t.cols.filter((c) => typeOfCol(t, c) === "num" && !linkCols(t).includes(c) && !t.roles[c]?.locked);
+            const setW = (c) => { if (w && w !== "count") delete t.roles[w]; if (c) t.roles[c] = role("weight"); else delete t.roles.count; };
+            const items = [{ heading: "A column" }].concat(nums.length ? nums.map((c) => ({ label: c, check: w === c, desc: "Each edge weighs its " + c + " value", onClick: () => {
+                if (w === c) return;
+                setW(c);
+                if (w === "count") { delete t.roles.count; t.said = c + " is the Weight. Set aside: the number of rows per pair; One edge per stays Pair, and count stays a column."; }
+                else t.said = c + " is the Weight." + (w ? " Set aside: " + w + " as the Weight; it stays a column." : "");
+                changed(); redraw("w");
+            } })) : [{ label: "No Number column", disabled: "This table has no Number column to weigh by" }],
+            [{ sep: true }], t.locked ? [] : [{ label: "Number of rows per pair", check: w === "count", desc: "Each edge weighs how many rows share its two ends; this needs One edge per Pair", onClick: () => {
+                if (w === "count") return;
+                const wasRow = t.per !== "pair";
+                if (wasRow) toPair(t, true);
+                setW(null); t.roles.count = role("weight");
+                t.said = "The Weight is the number of rows per pair, so One edge per is now Pair." + (w ? " Set aside: " + w + " as the Weight; it stays a column, summed." : wasRow ? " Set aside: one edge per row." : "");
+                changed(); redraw("w");
+            } }], [{ label: "None: each edge counts 1", check: !w, onClick: () => {
+                if (!w) return;
+                setW(null);
+                t.said = "No Weight: each edge counts 1. Set aside: " + (w === "count" ? "the number of rows per pair; One edge per stays Pair." : w + " as the Weight; it stays a column.");
+                changed(); redraw("w");
+            } }]);
+            const word = w === "count" ? "Number of rows per pair" : w || "None (each edge counts 1)";
+            const f = AB.field(word, { caret: true, onClick: (e) => pickMenu(e.currentTarget, items, { label: "Weight" }) });
+            f.dataset.k = "w"; f.setAttribute("aria-haspopup", "menu"); f.setAttribute("aria-label", "Weight, set when loaded: " + word);
+            return h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Weight"), f);
         }
 
         // An edge table's two ends in words: "researcher to institution"
@@ -1512,7 +1595,7 @@
                     face, rr.auto ? auto("Suggested from the column's name and values") : null);
                 if (!locked) btn.addEventListener("click", () => openRoleMenu(btn, t, c));
                 roleBtns.push(btn);
-                const glyphEl = ty === "list" ? icon("list", "sm") : ty === "whole" ? h("span", { class: "ab-abc" }, "{ }") : AB.typeGlyph(ty);
+                const glyphEl = AB.typeGlyph(ty);
                 // A link to the attribute only once it exists: editing a loaded source whose attribute has a
                 // state of its own. Before Load (and for any other column) it is a mark: leaving would drop the load.
                 const goAttr = m.door && m.door.edit && (GLYPH_GO[AB.route.frame.dataset] || {})[c];
@@ -1663,8 +1746,12 @@
                 settings: () => openSettings(),
                 byKey: (tt, col) => { const r = tt.roles[col]; r.by = types(m).find((y) => y.name === r.target).unique[0]; changed(); redraw("t:" + tt.id); },
                 untick: (tt) => { tt.tick = false; tt.gone = false; m.tables = m.tables.filter((x) => x !== tt); m.sel = "doc"; changed(); redraw("t:doc"); AB.announce(tt.path + " is no longer read"); },
+                // a one-click offer in the report: it does what it says and nothing else
+                offer: (label, fn, key) => h("span", Object.assign({ class: "ab-link", role: "button", "data-k": key }, AB.act({ onClick: fn })), label),
+                toEdges: (tt, c) => setArr(tt, c, "edges"),
+                linkTo: (tt, c, target) => { tt.roles[c] = role("links", target, "id"); changed(); redraw("r:" + c); },
             };
-            const all = report(m, t, count, seg, (opts, value, set, label, key, tips) => segOf(opts, value, (v) => { set(v); changed(); }, label, key, tips), cb);
+            const all = report(m, t, count, seg, (opts, value, set, label, key, tips) => segOf(opts, value, (v) => { set(v); changed(); }, label, key, tips), cb).concat(lookLines(t, cb));
             // A problem block sits on the table it concerns, under its header strip; the report keeps the rest
             const probs = all.filter((l) => l.problem), lines = all.filter((l) => !l.problem);
             const sec = h("div", { class: "dpg-report", style: t.kind === "json" ? "max-height:64%" : null, role: "region", "aria-label": "Match report for " + (t.path || t.name) },
@@ -1672,6 +1759,23 @@
                 lines.length ? lines.map((l) => (l.level === "sub" ? h("div", { class: "dpg-rl dpg-rl-sub" }, l.parts)
                     : h("div", { class: "dpg-rl" + (l.level === "res" ? " dpg-rl-res" : "") }, l.level === "warn" || l.level === "err" ? glyph(l.level) : null, h("span", { class: "dpg-rt" }, l.parts)))) : AB.empty("Nothing to match: nothing was read."));
             return { probs: probs.length ? h("div", { class: "dpg-probs" }, probs.map((l) => AB.problem(l.problem))) : null, el: sec };
+        }
+
+        // How the graph will be drawn: graphty-element draws every node alike, with no name. Two offers, each
+        // one click that adds a layer the reader can delete; nothing is added on its own
+        function lookLines(t, cb) {
+            if (t.refusal || t.reading || t.kind === "text" || t.gone || t.tick === false || problem(m, t)) return [];
+            const tys = [...new Set(types(m).map((x) => x.name))];
+            const total = types(m).reduce((a, x) => a + (rowsOf(m, x.table) || 0), 0);
+            const offers = [];
+            if (tys.length > 1) offers.push(["type", "Color by type", AB.count(tys.length, "node type") + " are drawn alike: " + tys.join(", ") + "."]);
+            if (total && total < 50) offers.push(["names", "Show names", AB.count(total, "node") + " are drawn without names."]);
+            if (!offers.length) return [];
+            m.look = m.look || {};
+            const flip = (k, verb, on) => () => { m.look[k] = on; redraw("look:" + k); AB.announce(on ? verb + " is added as a layer" : verb + " is removed"); };
+            return [{ level: "sub", parts: ["How it is drawn"] }].concat(offers.map(([k, verb, text]) => ({ level: m.look[k] ? "res" : null,
+                parts: m.look[k] ? [verb + " is added as a layer, drawn when loaded; delete it like any layer. ", cb.offer("Remove " + verb, flip(k, verb, false), "look:" + k)]
+                    : [text + " ", cb.offer(verb, flip(k, verb, true), "look:" + k)] })));
         }
 
         // ----- footer -----
@@ -1729,6 +1833,14 @@
             };
             const head = AB.pageHead(m.door.title, { backTip: "Cancel", onCancel: leave });
             const main = h("div", { class: "dpg-main" }, modelStrip());
+            // A mode switch says what it set and what it set aside in the one notice, with Undo back to
+            // the table as the last draw left it (every switch redraws, so that is the table before it)
+            if (t && t.said) {
+                const before = lastDraw && lastDraw.t === t ? lastDraw.s : null;
+                AB.notice(t.said, before ? { label: "Undo", onClick: () => { SWITCHED.forEach((k) => { if (k in before) t[k] = JSON.parse(JSON.stringify(before[k])); else delete t[k]; }); changed(); redraw(); } } : null);
+                delete t.said;
+            }
+            if (t) lastDraw = { t, s: JSON.parse(JSON.stringify(SWITCHED.reduce((o, k) => (k in t ? Object.assign(o, { [k]: t[k] }) : o), {}))) };
             if (t) { const r = matchReport(t); main.append(...[headStrip(t), r.probs].concat(grid(t), [r.el]).filter(Boolean)); }
             else main.append(h("div", { class: "dpg-grid" }, AB.empty("No tables. Add one with + above the list.")));
             const f = footer();
@@ -1769,7 +1881,7 @@
     }
 
     const WIDE = ["wide-hosts", "wide-find-column", "wide-link-menu", "edit-wide-hosts", "edit-wide-connections"];
-    const TRANSFERS = ["reading", "transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "add-matching", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
+    const TRANSFERS = ["reading", "transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "add-matching", "add-rows", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
     registerSection({
         id: "data-page",
         title: "Data page",
@@ -1808,7 +1920,8 @@
             { id: "detect-none", label: "Paste: no format matches" },
             { id: "unsupported-format", label: "Unsupported format (SIF)" },
             { id: "load-into", label: "Dropped on an open graph: opens as a new graph" },
-            { id: "add-matching", label: "Added table matches a loaded source: Replace offered" },
+            { id: "add-rows", label: "Add to transfers: April's rows added to the loaded transfers" },
+            { id: "add-matching", label: "Added table matches a loaded source: its rows added" },
             { id: "one-at-a-time", label: "One load at a time" },
             { id: "refused-empty", label: "Refused: empty file" },
             { id: "refused-parse", label: "Refused: could not be read" },

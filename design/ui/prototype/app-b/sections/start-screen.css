@@ -35,7 +35,7 @@
 .ss-sample-name .k-secondary { font-weight: 400; white-space: nowrap; font-size: 11px; }
 .ss-sample-text p { margin: 2px 0 0; line-height: 18px; }
 /* The usage-data card: non-blocking, at the foot, never over the columns */
-.ss-card { display: flex; gap: 24px; align-items: flex-end; width: calc(100% - 48px); max-width: 1152px; margin: 0 auto 16px; padding: 16px; box-sizing: border-box; border-radius: 8px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border), 0 4px 16px rgb(0 0 0 / .12); }
+.ss-card { display: flex; gap: 24px; align-items: flex-end; width: calc(100% - 48px); max-width: 1152px; margin: 0 auto 16px; padding: 16px; box-sizing: border-box; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); }
 .ss-card-body { flex: 1 1 auto; min-width: 0; }
 .ss-card-body p { margin: 0 0 6px; line-height: 20px; max-width: 96ch; }
 .ss-card-h { font-weight: 550; }

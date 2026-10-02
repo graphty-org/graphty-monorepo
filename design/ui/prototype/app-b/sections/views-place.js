@@ -17,7 +17,7 @@
 .vp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cm-text); }
 .vp-err { color: var(--cm-text-danger); white-space: normal; }
 .vp-row .ab-rename[aria-invalid="true"] { border-color: var(--cm-text-danger); }
-.vp-row[data-lifted] { margin: 2px 4px; background: var(--cm-bg); box-shadow: var(--cm-elevation-toast, 0 4px 12px rgba(0,0,0,.2)); }
+.vp-row[data-lifted] { margin: 2px 4px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
 .vp-row[data-ghost] { color: var(--cm-text-secondary); font-style: italic; } /* the tree's dimmed italic, readable while dragging */
 .vp-row[data-ghost] .vp-name { color: inherit; }
 .vp-row[data-ghost] .vp-thumb { opacity: .5; }

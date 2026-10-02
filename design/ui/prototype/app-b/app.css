@@ -185,8 +185,11 @@ body[data-page="map"] .ab-app { display: none; }
 /* The one Paints line (spec 5.1 item 4) */
 .ab-paints { display: flex; align-items: flex-start; gap: 6px; padding: 6px 16px 8px; color: var(--cm-text-secondary); line-height: 16px; }
 .ab-paints > .k-i { flex: none; margin-top: 0; }
-/* Tree columns line up on every row: disclosure 16, type icon 16, swatch 20, then the name */
-.ab-trow > .ab-kind { width: 16px; min-width: 16px; }
+/* Tree columns line up on every row: disclosure 16, kind 20 (a 16 px icon or a type mark), swatch 20, then the name */
+.ab-trow > .ab-kind { width: 20px; min-width: 20px; }
+/* A type mark (Abc, #, T|F, [ ], { }) in a kind slot fits the slot, so a row named after an attribute
+   lines up with every other row and with its inspector header */
+.ab-kind > .ab-abc { font-size: 10px; letter-spacing: -0.3px; white-space: nowrap; }
 .ab-sw-slot { display: inline-flex; align-items: center; width: 20px; flex: none; }
 .ab-sw-slot > .ab-ramp { width: 16px; }
 .ab-skip { position: absolute; left: -9999px; }
@@ -311,6 +314,7 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs], .k-annot-tag, 
 .ab-sv { min-width: 0; display: flex; align-items: center; gap: 4px; }
 .ab-sv.k-field { gap: 6px; }
 .ab-sin { flex: 1 1 auto; min-width: 0; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); }
+.ab-sunit { flex: none; align-self: center; padding: 0 2px 0 4px; font-size: 11px; }
 .ab-sin:focus { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
 .ab-bound { color: var(--cm-text); }
 .ab-bound .ab-ramp { width: 24px; }
@@ -337,11 +341,10 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs], .k-annot-tag, 
 /* The legend card: top left, no close button (the toolbar's Legend button and L are its doors) */
 .ab-legend .k-lg-title[data-nav]:hover { background: var(--cm-bg-hover); border-radius: 4px; }
 .ab-confirm { margin: 0; padding: 0 16px; }
-/* Counts are short and never truncate; the name gives way first. A text kind glyph (Abc) and a
-   stacked swatch take the width they need. */
+/* Counts are short and never truncate; the name gives way first. A stacked swatch takes the width
+   it needs; the kind slot stays 20 px so names line up. */
 .ab-trow .ab-tcount { flex: none !important; }
 .ab-trow .ab-tname { min-width: 32px; }
-.ab-trow > .ab-kind { width: auto; min-width: 16px; }
 .ab-trow .ab-sw-slot { width: auto; min-width: 20px; }
 /* The tree in a 240 px panel: give the name the room the fixed slots do not need */
 .ab-tree { padding: 4px 4px 8px; }
@@ -402,6 +405,11 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs], .k-annot-tag, 
 /* In-panel object links underline only on hover or focus, so three stacked links do not shout */
 :is(.ab-insp-sub, .ab-paints, .ab-paint-order) .ab-link { text-decoration: none; }
 :is(.ab-insp-sub, .ab-paints, .ab-paint-order) .ab-link:is(:hover, :focus-visible) { text-decoration: underline; }
+/* ...except a link inside a sentence ("Paints " + link): in dark its blue is under 3:1 against the
+   white words beside it, so color alone cannot mark it (WCAG 1.4.1) */
+.ab-paints > span .ab-link { text-decoration: underline; }
+/* A key chip on a filled button takes the button's ink: the kit's gray is 2.5:1 on the blue fill */
+.k-btn .k-kbd { color: inherit; outline-color: currentColor; }
 /* The out-of-date mark in an inspector header: the shared triangle, never a dot */
 .ab-changed { width: auto; height: auto; background: none; border-radius: 0; display: inline-grid; place-items: center; color: var(--cm-icon-secondary); }
 /* Rows dimmed by "show only this row": secondary text (4.5:1), the struck swatch carries the state */
@@ -520,3 +528,6 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 }
 .ab-leave-study:hover, .ab-leave-study:focus-visible { opacity: 1; background: var(--cm-bg); }
 .ab-leave-study[hidden] { display: none; }
+/* The Paints line's link is 16 px of text: 4 px of padding above and below (an inline box, so the
+   line does not move) makes its target 24 px tall (WCAG 2.5.8) */
+.ab-paints-link { padding: 4px 0; }

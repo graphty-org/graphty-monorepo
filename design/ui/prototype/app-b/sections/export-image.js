@@ -1,10 +1,16 @@
 /* Export > Image: graphty-element's captureScreenshot, inside the one Export dialog with Image
    selected in its list (AB.exportDialogFrame, published by export-dialog.js).
 
-   Body: title with the extension, the summary line, five dropdown fields (Preset, Size, Format,
-   View, Background) and an Advanced field that opens a light popover (quality for JPEG and WebP,
-   sharper rendering, custom pixels with the aspect lock, print width). One callout above the
-   preview (info, warning or error). Footer: the one footer note, Cancel, Copy, Export. After a
+   Body: the dialog's head (title with the extension, the summary line), one callout (the dialog's
+   callout, or the problem block when no image can be made), the
+   preview (above the fold, with the legend exactly as the image draws it), then five dropdown
+   fields (Preset, Size, Format, View, Background), the Legend checkbox and an Advanced field that
+   opens a light popover (quality for JPEG and WebP, sharper rendering, custom pixels with the
+   aspect lock, print width).
+
+   Legend: there is one legend state (AB.legendOn / AB.setLegend), shared by the canvas, Present
+   and this image. "Include legend" IS that toggle, a third door beside the toolbar's Legend button
+   and L: unchecking it hides the canvas legend too. It is not an export-only setting. Footer: the one footer note, Cancel, Copy, Export. After a
    copy or an export the dialog closes and one notice names the file.
 
    Numbers follow the element's own rules in graphty-element/src/screenshot: dimensions.ts
@@ -14,30 +20,22 @@
 (function () {
     "use strict";
     const CSS = `
-.xi-main { overflow: auto; padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.xi-main > * { flex: none; }
-.xi-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
-.xi-sum { color: var(--cm-text-secondary); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: -6px; }
-.xi-fields { max-width: 420px; }
+.xi-main > .ab-problem, .xi-preview, .xi-fields { margin-left: 16px; }
+.xi-fields { max-width: 400px; }
 .xi-fields .ab-frow { padding: 0; }
 .xi-fields .k-field { width: 100%; box-sizing: border-box; }
 .xi-busy { opacity: .5; pointer-events: none; }
 .xi-busy [role=button], .xi-busy .k-field { cursor: default; }
-.xi-call { display: flex; gap: 8px; align-items: flex-start; padding: 6px 10px; border-radius: 6px; background: var(--cm-bg-secondary); line-height: 18px; }
-.xi-call > svg, .xi-call > .k-icon { flex: none; margin-top: 3px; }
-.xi-call b { font-weight: 550; }
-.xi-call[data-tone="warning"] > svg { color: var(--cm-icon-warning, var(--cm-text)); }
-.xi-call[data-tone="error"] { background: transparent; box-shadow: inset 0 0 0 1px var(--cm-border-danger-strong, var(--cm-border-strong)); }
-.xi-call[data-tone="error"] > svg { color: var(--cm-icon-danger, currentColor); }
-.xi-h { font-weight: 550; }
-.xi-preview { position: relative; max-width: 100%; width: 480px; aspect-ratio: 16 / 10; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--cm-bg); }
+.xi-preview { position: relative; max-width: calc(100% - 16px); box-sizing: border-box; width: 400px; aspect-ratio: 16 / 10; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--cm-bg); }
 .xi-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .xi-preview[data-bg="white"] { background: #fff; }
 .xi-preview[data-bg="transparent"] { background-color: #fff; background-image: linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%), linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
 /* A white or transparent image is previewed on paper, so draw the light-theme drawing */
 :root .xi-preview[data-bg="white"] .k-dark-only, :root .xi-preview[data-bg="transparent"] .k-dark-only { display: none !important; }
 :root .xi-preview[data-bg="white"] .k-light-only, :root .xi-preview[data-bg="transparent"] .k-light-only { display: block !important; }
-.xi-preview[data-waiting] img { opacity: .45; }
+.xi-preview[data-waiting] > * { opacity: .45; }
+/* The canvas's own legend card, scaled with the drawing (its shadow and theme follow the image's background) */
+.xi-preview .k-legend-card { top: 0; left: 0; bottom: auto; transform-origin: 0 0; pointer-events: none; }
 .xi-bar { flex: 0 0 120px; }
 .xi-bar > i { width: 35%; animation: xi-slide 1.4s ease-in-out infinite; }
 @keyframes xi-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
@@ -46,8 +44,6 @@
 .xi-in:focus { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .xi-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
 .xi-sub { color: var(--cm-text-secondary); font-size: 11px; line-height: 15px; }
-.xi-fallback { width: min(760px, calc(100vw - 48px)); height: min(560px, calc(100vh - 56px)); max-height: none; }
-.xi-fallback .k-modal-body { flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; display: flex; }
 `;
     if (!document.getElementById("xi-style")) document.head.append(h("style", { id: "xi-style" }, CSS));
 
@@ -56,7 +52,7 @@
     const MAX_PX = 33177600;         // BROWSER_LIMITS.MAX_PIXELS (8K)
     const WARN_PX = 8294400;         // BROWSER_LIMITS.WARN_PIXELS (4K)
     const SETTLE_S = 30;             // LAYOUT_SETTLE_TIMEOUT_MS / 1000
-    const n = (v) => Math.round(v).toLocaleString("en-US");
+    const n = (v) => AB.num(Math.round(v));
     const mp = (px) => (px / 1e6).toFixed(1);
     function check(w, hgt) {
         const px = w * hgt;
@@ -128,6 +124,14 @@
         return f;
     }
 
+    // A checkbox: one look for every yes or no in this body
+    function check2(label, on, flip) {
+        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(on), "aria-label": label });
+        box.addEventListener("click", flip);
+        box.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } });
+        return box;
+    }
+
     // ---------- the Advanced popover ----------
     function closeAdv(refocus) {
         if (!adv) return;
@@ -144,10 +148,7 @@
         const num = (value, label, set, o) => h("input", Object.assign({ class: "xi-in", type: "number", min: "1", value: String(value), "aria-label": label,
             on: { change: (e) => { set(Math.max(1, Number(e.target.value) || 1)); edited(); refresh(label); } } }, o || {}));
         const px = Math.round((s.mm / 25.4) * s.dpi);
-        const sharp = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(s.sharp), "aria-label": "Sharper rendering" });
-        const flip = () => { s.sharp = !s.sharp; edited(); refresh("Sharper rendering"); };
-        sharp.addEventListener("click", flip);
-        sharp.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } });
+        const sharp = check2("Sharper rendering", s.sharp, () => { s.sharp = !s.sharp; edited(); refresh("Sharper rendering"); });
         const toPx = () => { s.mode = "px"; s.w = out.w; s.h = out.h; };
         return [
             !LOSSY(s.format) ? null : AB.fieldRow("Quality", h("span", { class: "xi-line" }, num(s.quality, "Quality, 1 to 100", (v) => { s.quality = Math.min(100, v); }, { max: "100" }), h("span", { class: "xi-sub" }, "of 100")), { popover: true }),
@@ -164,6 +165,7 @@
     }
     function openAdv(anchor) {
         closeAdv();
+        anchor.scrollIntoView({ block: "nearest" });
         const el = AB.popover({ anchor, title: "Advanced", body: advBody(), width: 340, place: "below-start" });
         // This popover lives inside the dialog: X, Esc and an outside click close only the popover
         const x = el.querySelector(".k-popover-head .k-icon-btn");
@@ -189,9 +191,9 @@
     // ---------- the body ----------
     function callout(state, chk) {
         const c = canvasSize();
-        const call = (tone, ico, ...kids) => h("div", { class: "xi-call", "data-tone": tone, role: tone === "error" ? "alert" : "status" }, icon(ico, "sm"), h("span", null, kids));
-        if (state === "failed") return call("error", "circle-x", h("b", null, "No image was made. "), `The layout did not settle within ${SETTLE_S} seconds. Capture the graph as it is now, or try again.`);
-        if (!chk.ok) return call("error", "circle-x", h("b", null, "This size cannot be captured. "), chk.reason, " Choose a smaller size.");
+        const call = (tone, ico, ...kids) => AB.exportCallout(tone, h("span", null, kids));
+        if (state === "failed") return AB.problem({ what: `No image was made: the layout did not settle within ${SETTLE_S} seconds.`, todo: "Capture the graph as it is now, or try again." });
+        if (!chk.ok) return AB.problem({ what: "This size cannot be captured. " + chk.reason, todo: "Choose a smaller size." });
         const mem = chk.near ? `At ${mp(chk.px)} megapixels, capturing needs about ${n(chk.mem)} MB of memory and may fail on computers with less.` : null;
         if (state === "waiting-to-settle") return call("info", "info", h("span", { class: "xi-line" }, `Waiting for the layout to settle (up to ${SETTLE_S} seconds) before capturing.`, h("span", { class: "k-progress xi-bar", role: "progressbar", "aria-label": "Waiting for the layout to settle" }, h("i"))));
         if (s.fell) return call("warning", "triangle-alert", `${s.fell.preset} asks for ${s.fell.from}x, more than this browser can capture from a ${n(c.w)} x ${n(c.h)} canvas, so the size is ${s.fell.to}x. `, mem);
@@ -231,6 +233,12 @@
             onClick: () => { s.bg = id; edited(); redraw(); } });
         const bg = drop("Background", BG[s.bg], ["canvas", "white", "transparent"].map(bgItem));
 
+        // The one legend state: this checkbox, the toolbar's Legend button and L all flip it
+        const legendBox = check2("Include legend", AB.legendOn(), () => {
+            AB.setLegend(!AB.legendOn());
+            requestAnimationFrame(() => requestAnimationFrame(() => { const b = host && host.querySelector('[aria-label="Include legend"]'); if (b) b.focus(); }));
+        });
+
         const advSum = [!LOSSY(s.format) ? null : "Quality " + s.quality, s.sharp ? "Sharper rendering" : "Standard rendering"].filter(Boolean).join(", ");
         const advField = AB.field(advSum, { icon: "sliders-horizontal", onClick: (e) => (adv ? closeAdv(true) : openAdv(e.currentTarget)) });
         advField.setAttribute("data-adv", "");
@@ -243,25 +251,40 @@
             AB.fieldRow("Format", format, { popover: true }),
             AB.fieldRow("View", view, { popover: true }),
             AB.fieldRow("Background", bg, { popover: true }),
+            AB.fieldRow("Legend", h("span", { class: "xi-line" }, legendBox, "Include legend",
+                AB.needsElement("graphty-element draws the legend card into the captured image, at the image's scale.")), { popover: true }),
             AB.fieldRow("Advanced", advField, { popover: true }));
 
-        const title = h("div", { class: "xi-title" }, icon("camera"), "Image", h("span", { class: "k-secondary", style: "font-weight:400" }, "." + EXT[s.format]));
-        const summary = h("div", { class: "xi-sum" }, "Full graph - legend not drawn",
-            AB.needsElement("graphty-element captures the canvas only; drawing the legend into an image is filed for the element."));
+        const head = AB.exportHead(["Image ", h("span", { class: "k-secondary", style: "font-weight:400" }, "." + EXT[s.format])],
+            AB.legendOn() ? "Full graph, with the legend" : "Full graph, no legend (the legend is off)");
 
         const draw = (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Preview: Les Miserables as the canvas draws it" + (s.view === "Current camera" ? "" : ", from " + s.view));
-        const preview = h("div", { class: "xi-preview", "data-bg": s.bg, "data-waiting": busy ? "" : null }, draw);
+        const preview = h("div", { class: "xi-preview", "data-bg": s.bg, "data-waiting": busy ? "" : null }, draw, previewLegend());
 
-        return h("div", { class: "xi-main" }, title, summary, fields, callout(state, chk), h("div", { class: "xi-h" }, "Preview"), preview);
+        return h("div", { class: "ex-main xi-main" }, head, callout(state, chk), preview, fields);
+    }
+
+    // The canvas's legend card, cloned and scaled to the preview, so the preview shows the legend the
+    // image will carry. Nothing while the legend is off.
+    function previewLegend() {
+        const card = AB.legendOn() && document.querySelector("#ab-canvas .k-legend-card");
+        const c = document.querySelector(".k-canvas");
+        if (!card || !c || !c.getBoundingClientRect().width) return null;
+        const k = Math.min(1, 400 / c.getBoundingClientRect().width);
+        const copy = card.cloneNode(true);
+        copy.removeAttribute("id");
+        copy.setAttribute("aria-label", "In the image: " + (card.getAttribute("aria-label") || "Legend"));
+        copy.style.transform = `translate(${12 * k}px, ${12 * k}px) scale(${k})`;
+        return copy;
     }
 
     // ---------- the footer ----------
     function finish(how) {
         const out = outSize();
-        const text = how === "copy" ? `Copied a ${n(out.w)} x ${n(out.h)} image of les-miserables to the clipboard` : `Exported ${fileName()} to Downloads`;
         closeAdv();
+        if (how !== "copy") { AB.exportDone(fileName()); return; }
         AB.close();
-        setTimeout(() => AB.notice(text), 50);
+        setTimeout(() => AB.notice(`Copied a ${n(out.w)} x ${n(out.h)} image of les-miserables to the clipboard`), 50);
     }
     function start(how) {
         if (AB.layoutState === "running") { pending = how; AB.go("export-image", "waiting-to-settle"); }
@@ -309,10 +332,7 @@
         const draw = () => {
             const b = body(state);
             const f = foot(state);
-            if (AB.exportDialogFrame) { el.append(AB.exportDialogFrame("image", b, f)); return; }
-            const m = AB.modal({ title: "Export", body: b, foot: f });
-            m.querySelector(".k-modal").classList.add("xi-fallback");
-            el.append(m);
+            el.append(AB.exportDialogFrame("image", b, f));
         };
         redraw = () => { closeAdv(); el.textContent = ""; draw(); };
         draw();

@@ -27,13 +27,13 @@
     const RECENTS = [
         // Saved with the mule ring's accounts selected. Studio decision (reversible): reopening a project
         // resumes where it stopped, so its saved selection is selected again and a notice says so.
-        { name: "Mule ring review", size: "3,093 accounts", path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14", dataset: "transactions", restore: (fx) => fx.transactions.inspector.twoHop.ring },
-        { name: "Knockdown screen, September", size: "300 proteins", path: "~/Lab/screens/Knockdown screen, September.graphty", when: "Yesterday" },
-        { name: "March transfers", size: "3,000 accounts", path: "~/Documents/graphty/March transfers.graphty", when: "Sep 24" },
-        { name: "Patent citations 1999-2001", size: "124,318 patents", path: "~/Downloads/Patent citations 1999-2001.graphty", when: "Sep 19" },
+        { name: "Mule ring review", size: (fx) => AB.count(fx.transactionsApril.nodes, "account"), path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14", dataset: "transactions", restore: (fx) => fx.transactions.inspector.twoHop.ring },
+        { name: "Knockdown screen, September", size: (fx) => AB.count(fx.ppi.nodes, "protein"), path: "~/Lab/screens/Knockdown screen, September.graphty", when: "Yesterday" },
+        { name: "March transfers", size: (fx) => AB.count(fx.transactions.nodes, "account"), path: "~/Documents/graphty/March transfers.graphty", when: "Sep 24" },
+        { name: "Patent citations 1999-2001", size: (fx) => AB.count(fx.citations.nodes, "patent"), path: "~/Downloads/Patent citations 1999-2001.graphty", when: "Sep 19" },
     ];
     // start-screen/long-name: a 60-character name saved seven folders deep
-    const LONG = { name: "Cross-border card transfers, flagged accounts, Q3 2026 audit", size: "3,093 accounts", path: "~/Documents/Investigations/2026/Q3/Cross-border/Card transfers/Flagged accounts/working copies/Cross-border card transfers, flagged accounts, Q3 2026 audit.graphty", when: "Today 11:02" };
+    const LONG = { name: "Cross-border card transfers, flagged accounts, Q3 2026 audit", size: (fx) => AB.count(fx.transactionsApril.nodes, "account"), path: "~/Documents/Investigations/2026/Q3/Cross-border/Card transfers/Flagged accounts/working copies/Cross-border card transfers, flagged accounts, Q3 2026 audit.graphty", when: "Today 11:02" };
     // start-screen/recent-missing: the patent project's file was moved since it was last opened
     const MISSING = "Patent citations 1999-2001";
     let removed = false;
@@ -54,7 +54,7 @@
             icon(missing ? "triangle-alert" : "file"),
             h("span", { class: "k-grow ss-two" },
                 name,
-                h("span", { class: "ss-sub k-secondary k-num" }, missing ? h("span", { class: "ss-notfound" }, "Not found") : h("span", { class: "ss-size" }, r.size), path)),
+                h("span", { class: "ss-sub k-secondary k-num" }, missing ? h("span", { class: "ss-notfound" }, "Not found") : h("span", { class: "ss-size" }, r.size(AB.fx.datasets)), path)),
             h("span", { class: "k-secondary k-num ss-when" }, r.when),
             more);
         // the row opens its menu, so a click on the row while that menu is open closes it (a toggle, as the "..." is)

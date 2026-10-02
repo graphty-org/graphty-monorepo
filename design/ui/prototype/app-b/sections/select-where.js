@@ -12,28 +12,31 @@
 (function () {
     "use strict";
     const AB = window.AB;
-    const { h, icon } = window;
+    const { h } = window;
 
     const css = `
 .sw-body { display: grid; gap: 8px; }
 .sw-pad { padding: 0 16px; }
-.sw-input { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--cm-font-mono, monospace); font-size: 12px; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); padding: 4px 8px; }
-.sw-input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--cm-border-danger, #d64545); }
+.sw-input { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--cm-font-family-mono); font-size: 12px; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); padding: 4px 8px; }
+.sw-input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--cm-border-danger); }
 textarea.sw-input.sw-q { height: 40px; resize: none; }
 textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
 .sw-hint { color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
 .sw-status { display: flex; align-items: flex-start; gap: 6px; min-height: 20px; line-height: 18px; }
-.sw-status a { color: var(--cm-text-brand); cursor: pointer; }
-.sw-miss { font-family: var(--cm-font-mono, monospace); font-size: 11px; color: var(--cm-text-secondary); }
+.sw-status .ab-empty { padding: 0; }
+.sw-status .ab-link { cursor: pointer; white-space: nowrap; }
+.sw-col { width: 100%; }
+.sw-foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sw-miss { font-family: var(--cm-font-family-mono); font-size: 11px; color: var(--cm-text-secondary); }
 `;
     if (!document.getElementById("sw-style")) document.head.append(h("style", { id: "sw-style" }, css));
 
     const T = () => AB.fx.datasets.transactions;
-    const n = (x) => Number(x).toLocaleString("en-US");
+    const C = (id) => AB.cmd(id);
+    const n = (x) => AB.num(x);
     const CAP = 5000; // graphty-element's selection cap; the app reads it, never types it
     const SELECTED = 14; // the 14 flagged accounts, all personal
     const LONG = "vuln_count_critical_unremediated_over_30_days"; // the 46-character host attribute
-    const plural = (k, w) => n(k) + " " + w + (k === 1 ? "" : "s");
     // A stand-in for graphty-element's parse of a one-comparison query: { a, test(x), v, op } or null
     function parse(q) {
         const m = /^\s*"?([\w.]+)"?\s*(==|!=|>=|<=|>|<)\s*'?([^']*?)'?\s*$/.exec(q);
@@ -44,13 +47,17 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         return { a, op, v, test: (x) => x != null && ops[op](x) };
     }
     // ... and its count over rows the sample holds in full (the hosts, the 14 selected accounts)
+    // (conditions joined by "and" each have to hold)
+    const terms = (q) => q.split(/\s+and\s+/i);
     function countRows(rows, q) {
-        const p = parse(q);
-        return p && rows.filter((r) => p.test(AB.valueAt(r, p.a))).length;
+        const ps = terms(q).map(parse);
+        if (!ps.every(Boolean)) return null;
+        return rows.filter((r) => ps.every((p) => p.test(AB.valueAt(r, p.a)))).length;
     }
     // ... and over the transfers, which the sample holds as value tables and ranges, not rows:
     // a count the tables cannot give is null, and the status says graphty-element counts it
     function countTransfers(t, q, edges) {
+        if (terms(q).length > 1) return terms(q).every(parse) ? null : undefined;
         const p = parse(q);
         if (!p) return undefined;
         const at = t.attributes.find((x) => x.name === p.a || x.name.startsWith(p.a + " ("));
@@ -67,23 +74,32 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         }
         return null;
     }
-    // Create set where this is... from an attribute's menu: Select over that attribute's project, the
-    // attribute already in the query. `from` is { ds, name, rows, on, q }; the transfers keep their own state.
-    let from = null;
-    AB.whereFrom = (ds, name) => {
-        if (ds === "transactions") return AB.go("select-where", "where");
+    // The one door with a condition filled in: "Select where <attribute> is..." on the one attribute menu
+    // (Data > Attributes, the attribute inspector, a table column) and Find's typed rule. `AB.whereFrom(ds, name, q)` opens Select over that project with `q` as the query
+    // (default: a comparison on `name`). `from` is { ds, name, rows, on, q }; the transfers, which the
+    // sample holds as value tables rather than rows, open the Query state with `pre` = { q, on }.
+    let from = null, pre = null;
+    AB.whereFrom = (ds, name, q) => {
+        if (ds === "transactions") {
+            const edge = /\(edge\)$/.test(name || "");
+            const a = (name || "").replace(/ \(\w+\)$/, "");
+            pre = { on: edge ? "edges" : "nodes", q: q || (!a ? "" : a === "amount" || a === "riskScore" ? a + " > 0" : a === "kind" ? "kind == 'personal'" : a + " ") };
+            return AB.go("select-where", "where");
+        }
         const [x, g] = AB.fieldIn(ds, name);
         const rows = !g ? [] : ds === "lesmis" ? (g.element === "edge" ? [] : AB.fx.datasets.lesmis.rows) : ["wide", "nested", "plainJson"].includes(ds) ? AB.recordsOf(ds, g) : [];
         const path = name.includes(".") ? '"' + name + '"' : name;
         const first = rows.map((r) => AB.valueAt(r, name)).find((v) => v != null && v !== "" && !Array.isArray(v) && typeof v !== "object");
-        const q = !x ? "" : x.type === "num" ? path + " > 0" : first != null ? path + " == '" + first + "'" : path + " ";
-        from = { ds, name, rows, on: g && g.element === "edge" ? "edges" : "nodes", q };
+        const cond = !x ? "" : x.type === "num" ? path + " > 0" : first != null ? path + " == '" + first + "'" : path + " ";
+        from = { ds, name, rows, on: g && g.element === "edge" ? "edges" : "nodes", q: q != null ? q : cond };
         AB.go("select-where", "attribute");
     };
 
     function render(el, state) {
         const t = T();
         const fromAttr = state === "attribute" ? from || { ds: "wide", name: LONG, rows: AB.fx.datasets.wide.nodeRows, on: "nodes", q: LONG + " > 0" } : null;
+        const given = state === "where" ? pre : null; // a prefilled condition on the transfers, used once
+        pre = null;
         const wide = state === "wide" || state === "wide-inserted" || !!fromAttr;
         const W = AB.fx.datasets.wide;
         const P = fromAttr ? AB.fx.datasets[fromAttr.ds] : W; // the project the query runs over
@@ -91,8 +107,8 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         const MISS = ["ACC-36538", "Structuring alert"];
         const s = {
             tab: state === "by-ids" ? "ids" : "where",
-            on: fromAttr ? fromAttr.on : state === "where-error" ? "edges" : "nodes",
-            q: fromAttr ? fromAttr.q : { "where-error": "amout > 0", "no-match": "riskScore > 98", wide: "", "wide-inserted": LONG + " > 0" }[state] ?? "kind == 'personal'",
+            on: fromAttr ? fromAttr.on : given ? given.on : state === "where-error" ? "edges" : "nodes",
+            q: fromAttr ? fromAttr.q : given ? given.q : { "where-error": "amout > 0", "no-match": "riskScore > 98", wide: "", "wide-inserted": LONG + " > 0" }[state] ?? "kind == 'personal'",
             ids: ids.slice(0, 7).concat(MISS[0], ids.slice(7), MISS[1]).join("\n"),
             mode: "replace",
         };
@@ -125,9 +141,8 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
 
         function status(r) {
             if (r.error) {
-                return h("div", { class: "sw-status", role: "alert" }, icon("triangle-alert", "sm"),
-                    h("span", null, "Nothing in this graph answers ", h("b", null, r.error), ". Did you mean ",
-                        h("a", { role: "button", tabindex: "0", on: { click: () => { s.q = s.q.replace(/\bamout\b/, r.fix); draw(); } } }, r.fix), "?"));
+                return AB.problem({ what: h("span", null, "Nothing in this graph answers ", h("b", null, r.error), "."), todo: "Did you mean " + r.fix + "?",
+                    action: { label: "Use " + r.fix, onClick: () => { s.q = s.q.replace(/\bamout\b/, r.fix); draw(); } } });
             }
             if (r.hint) return h("div", { class: "sw-status k-secondary", role: "status" }, r.hint + ".");
             if (r.miss) {
@@ -136,9 +151,9 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             }
             if (!r.n) {
                 // The empty line: one gray line, its verb a link
-                return h("div", { class: "sw-status", role: "status" }, AB.empty("0 of " + plural(r.of, r.noun.replace(/s$/, "")) + " match.", { verb: "Clear the query", onClick: () => { s.q = ""; draw(); } }));
+                return h("div", { class: "sw-status", role: "status" }, AB.empty(AB.count(0, r.noun.replace(/s$/, ""), { of: r.of }) + " match.", { verb: "Clear the query", onClick: () => { s.q = ""; draw(); } }));
             }
-            return h("div", { class: "sw-status", role: "status" }, h("span", null, h("b", null, n(r.n) + " of " + plural(r.of, r.noun.replace(/s$/, ""))), " match",
+            return h("div", { class: "sw-status", role: "status" }, h("span", null, h("b", null, AB.count(r.n, r.noun.replace(/s$/, ""), { of: r.of })), " match",
                 r.n > CAP && s.mode !== "remove" ? h("span", { class: "k-secondary" }, ". A selection holds " + n(CAP) + "; the first " + n(CAP) + " in file order are kept.") : null));
         }
 
@@ -160,7 +175,8 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 s.q = s.q.slice(0, at) + path + s.q.slice(end);
                 draw();
                 const f = el.querySelector(".sw-input");
-                if (f) { f.focus(); f.setSelectionRange(at + path.length, at + path.length); }
+                const caret = at + path.length;
+                requestAnimationFrame(() => { if (f) { f.focus(); f.setSelectionRange(caret, caret); } }); // after the field list has gone
             };
             // The field list at menu size, placed beside the popover so the query stays in view (README:
             // a section drawing it in its own overlay places it with position(fieldList(o), anchor, place))
@@ -174,17 +190,33 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 insert.setAttribute("aria-expanded", "true");
                 requestAnimationFrame(() => requestAnimationFrame(() => { const f = list && list.querySelector("input, .ab-fl-list"); if (f) f.focus(); }));
             };
-            insert = h("a", { role: "button", tabindex: "0", "aria-haspopup": "listbox", "aria-expanded": "false", on: { click: openList, keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openList(); } } } }, "Insert attribute...");
+            insert = h("span", Object.assign({ class: "ab-link", role: "button", "aria-haspopup": "listbox", "aria-expanded": "false" }, AB.act({ onClick: openList })), "Insert attribute...");
+            // A second condition: "and" goes on the end and the field list opens for its attribute
+            const addCondition = () => { s.q = s.q.replace(/\s+$/, "") + " and "; draw(); const f = el.querySelector(".sw-input"); if (f) f.setSelectionRange(s.q.length, s.q.length); el.querySelector(".sw-hint .ab-link").click(); };
+            // shown once the query holds whole conditions; typing updates it (refresh)
+            const complete = () => !!s.q.trim() && terms(s.q).every(parse);
+            const more = h("span", Object.assign({ class: "ab-link", role: "button", "aria-label": "Add condition", hidden: bad || !complete() }, AB.act({ onClick: addCondition })), "+ condition");
             const hint = s.tab === "where"
-                ? h("span", null, "The same expressions as filters. ", insert)
+                ? h("span", null, "The same expressions as filters. ", insert, " ", more)
                 : (wide ? "One id per line, or comma separated. Matched against the " + (fromAttr ? "nodes'" : "hosts'") + " " + (P.nodeKey || "id") + " column." : "One id per line, or comma separated. Matched against the id column of accounts-2026-03.csv.");
             const pick = (k, v) => { s[k] = v; if (k === "on" && !wide) s.q = v === "edges" ? "amount > 0" : "kind == 'personal'"; draw(); };
             const body = h("div", { class: "sw-body" },
                 h("div", { class: "sw-pad" }, AB.seg([["where", "Query"], ["ids", "Ids"]], s.tab, (v) => AB.go("select-where", v === "ids" ? "by-ids" : "where"), { label: "Select by" })),
                 AB.fieldRow("Look for", AB.seg([["nodes", "Nodes"], ["edges", "Edges"]], s.on, (v) => pick("on", v), { label: "Look for" }), { popover: true }),
-                AB.fieldRow(s.tab === "where" ? "Query" : "Ids", h("div", { class: "sw-body" }, field, h("div", { class: "sw-hint sw-status" }, hint)), { popover: true }),
+                AB.fieldRow(s.tab === "where" ? "Query" : "Ids", h("div", { class: "sw-body sw-col" }, field, h("div", { class: "sw-hint sw-status" }, hint)), { popover: true }),
                 AB.fieldRow("Selection", AB.seg([["replace", "Replace"], ["add", "Add"], ["remove", "Remove"], ["within", "Within"]], s.mode, (v) => pick("mode", v), { label: "Selection" }), { popover: true }),
                 statusSlot);
+            // A readable default name for a set made here: "kind is personal", "riskScore over 98"
+            const setName = () => {
+                if (s.tab === "ids") return "Pasted ids";
+                const p = parse(s.q);
+                const op = p && { "==": "is", "!=": "is not", ">": "over", ">=": "at least", "<": "under", "<=": "at most" }[p.op];
+                return p ? p.a + " " + op + " " + p.v : s.q.trim();
+            };
+            // Both set kinds: Create set keeps today's members; Create set from rule keeps the query, so its
+            // members follow the data. Either lands in the project's Sets and says so in the one notice.
+            const here = [AB.route.id, AB.route.state];
+            const create = () => { const name = setName(); AB.close(); setTimeout(() => AB.notice("Created '" + name + "' in Sets", { label: "Undo", go: here }), 0); };
             // The primary button carries the live count: every keystroke redraws it with the status
             const footFor = (r) => {
                 const verb = s.mode === "remove" ? "Remove " : "Select ";
@@ -194,13 +226,19 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                     if (r.n > CAP && s.mode !== "remove") return AB.go("select-where", "selection-full");
                     AB.go("select-where", "selected");
                 };
-                return AB.button(r.error ? "Select" : verb + n(r.n), { disabled: r.error ? "Fix the query first" : r.hint && !r.n ? r.hint : !r.n ? "Nothing matches" : false, onClick: go });
+                const off = r.error ? "Fix the query first" : r.hint && !r.n ? r.hint : !r.n ? "Nothing matches" : false;
+                const matched = off ? null : [
+                    AB.button(C("create-set").label, { kind: "secondary", tip: "Keeps these " + n(r.n) + " as a set; they stay its members when the data changes", onClick: create }),
+                    s.tab === "ids" ? null : AB.button(C("create-set").label + " from rule", { kind: "secondary", tip: "Keeps the query as a set; its members follow the data", onClick: create }),
+                ];
+                return h("span", { class: "sw-foot" }, matched, AB.button(r.error ? "Select" : verb + n(r.n), { disabled: off, onClick: go }));
             };
             let foot = footFor(r);
             function refresh() {
                 const r2 = result();
                 statusSlot.replaceChildren(status(r2));
                 field.setAttribute("aria-invalid", String(!!r2.error));
+                more.hidden = !!r2.error || !complete();
                 const b = footFor(r2);
                 foot.replaceWith(b);
                 foot = b;
@@ -212,7 +250,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         }
         draw();
         // The wide state opens on the field list, after the popover has been placed
-        if (state === "wide") setTimeout(() => { const a = el.querySelector(".sw-hint a"); if (a) a.click(); }, 60);
+        if (state === "wide") setTimeout(() => { const a = el.querySelector(".sw-hint .ab-link"); if (a) a.click(); }, 60);
     }
 
     // Where Select lands: the usual selection picture in the project the query ran over -- the tree's
@@ -254,7 +292,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             { id: "no-match", label: "Query: nothing matches (0 nodes)" },
             { id: "wide", label: "Query on the hosts: Insert attribute... open (69 attributes)" },
             { id: "wide-inserted", label: "Query on the hosts holding the 46-character attribute" },
-            { id: "attribute", label: "Create set where this is... from an attribute (directly: the hosts' 46-character attribute)" },
+            { id: "attribute", label: "Select where <attribute> is... from an attribute's menu (directly: the hosts' 46-character attribute)" },
             { id: "selected", label: "After Select: the usual selection picture (directly: the transfers)" },
         ],
         render(el, state) {

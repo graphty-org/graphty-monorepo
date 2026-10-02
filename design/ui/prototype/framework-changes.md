@@ -4659,3 +4659,44 @@ The sixth simulated study round re-tested runs on the rail, undo with and withou
 - **Document and section:** `visual-language.md`, data and colour; `interaction-pattern-entries.md`, the legend; compact-mantine's color swatch.
 - **New text:** "Every color swatch a reader can meet (a legend row, a style layer's chip, a table swatch) has an accessible name that is its color in words, from the palette's own names for Okabe-Ito (orange, sky blue, bluish green, yellow, blue, red-orange, reddish purple, black) and 'gray, unstyled' and 'light gray' for the unstyled and Other grays, or a plain hue word for any other color. A multi-color chip says 'several colors'; a ramp says 'a color scale'."
 - **Why:** the simulated screen-reader participant could hear that the legend had groups 4, 3, 2 and 5 but not which color each was, so she could not follow a sighted colleague's "the orange ones" or match the legend to the drawing's description (WCAG 1.1.1). The names are the palette's, so they are the same words on every page and in every export.
+
+# After round 7
+
+The seventh simulated study round was the first run on the clickable refined B skeleton (`app-b/`). The entries below are the framework changes it motivates. The findings they cite are in `study/round-7/insights.md` and `study/round-7/tree-test.md`; the reasons in full are under "Round 7" in `study/decision-log.md`. Where an entry here contradicts an earlier one, this one replaces it.
+
+## A door is a command, registered once
+
+- **Document and section:** `interaction-patterns.md`, menus and commands; `information-architecture.md`, "one home per element".
+- **New text:** "A door is a command registered once (in the skeleton, through `AB.cmd`). It may appear in many menus, always with identical words. A door that renames its command, or opens a second form for the same job, is a second pattern. 'One home per element' forbids two controls that set the same state; it does not forbid two entries that open the same dialog."
+- **Why:** with no File menu, tree task 3 fell from 100% to 19% direct, and 13 of 16 opened the main menu first. Restoring one File list shown from two menus is one command with two doors, not two homes. Most other confirmed findings were the reverse: one job spelled three ways ("Keep as set", "Save as set", "Create set") across forty section files.
+
+## A count names its unit and its whole
+
+- **Document and section:** `content-design.md`, numbers (extends round 6's "Every number states what it was counted on").
+- **New text:** "A count names its unit ('4 of 4 attributes', '2,410 rows to add', 'Width 5 px'), and when it is a part it names its whole ('1,204 of 9,113 edges'). A bare number is never shown; a number that counts something other than what it sits beside (a property count beside a node count) is never shown."
+- **Why:** "Line 5" counted properties and read as a width; recipe counts, match reports and edge-filter counts were bare numbers, and participants guessed their unit.
+
+## Focus never changes selection or paint; an empty selection shows the graph
+
+- **Document and section:** `interaction-patterns.md`, selection, focus and Esc; `conceptual-model.md`, section 2 (the selection).
+- **New text:** "Moving focus never changes the selection or what is painted. When nothing is selected, the selection is empty and the inspector shows the graph on screen as its subject; the graph is never put into the selection, so commands that act on the selection never act on the whole graph by accident. Escape closes the innermost open thing first, then clears the selection and leaves the graph's panel open. A read-only link does one thing: it opens what it names."
+- **Why:** a row's "..." opened another row's menu (5 of 5), Escape returned to a previously selected row (6 of 6), a path's coloring switched off when a note box opened (3 of 3), and a compute link opened Clear graph data.
+
+## Vocabulary additions to the glossary
+
+- **Document and section:** `glossary.md`, terms and commands.
+- **New text:** add "hidden" (an element not drawn), "off" (a style row switched off), "covered" (a row whose property another row wins), "not listed" (a row removed from the list view that still paints), "Add label line", "Open project or file...", "New graph", "Add to <graph>", and the count rule above. "Steps, never hops" applies to path length only ("a path of 4 steps"); a neighborhood keeps the glossary's own "k hops" ("1 to 3 hops"), unchanged. "Create set" remains the one set verb, with "Create set from rule" for a set that keeps its condition.
+- **Why:** the skeleton drifted in wording because the glossary lacked these terms, and path length was written both as steps and as hops.
+
+## graphty-element requirements from round 7
+
+- **Document and section:** `element-contract.md`; recorded in full in `study/structure-comparison/element-requirements-5.md`.
+- **New text:** "graphty-element appends rows to a loaded source, reporting rows added, repeated rows and new nodes. It draws the legend, from the one legend state, into exported images. A note's text, and its note count, are label sources."
+- **Why:** adding rows was refused and its door mislabeled (severity 4); an exported picture left out the legend shown on the canvas (severity 4); labels from notes were asked for by the owner. Appending is a public contract, so it is a one-way door for the owner when built.
+
+## Neighborhood distance is counted in edges: "1 to 3 edges away"
+
+- **Document and section:** `glossary.md`, section 6, the **neighborhood** row ("The nodes within k hops of a node or set ...") and the **Add selection to step**, **Filter to neighbors** row ("the selection's neighbors k hops out"); `interface-specification.md` and `structure-b-refined.md` wherever the Neighborhood popover offers "1 to 3 hops".
+- **Old text:** "within k hops", "k hops out", "1 to 3 hops"; and, in the round-7 vocabulary entry above, "a neighborhood keeps the glossary's own 'k hops' ('1 to 3 hops'), unchanged."
+- **New text:** "The nodes up to k edges away from a node or set, in a direction, including the start (closed) unless labeled open." Screen wording: the popover's row is "Distance" with 1, 2 or 3 and "edges away"; a filter step is named "Neighbors of {name}, 1 to 3 edges away"; step groups are "one group per distance". Rejected aliases kept as search aliases only: "hops" and "steps". Path length keeps "steps" ("a path of 4 steps"), which this replaces nowhere. This replaces the vocabulary entry's neighborhood clause.
+- **Why:** "edge" is the one noun every domain on the canvas already shares (co-appearances, transfers, citations, interactions), so "edges away" needs no definition, where "hops" is network jargon and "steps" already means a filter step on the same popover ("Add as steps", "as a filter step or as step groups"), which participants misread. With "edges away" for distance, "steps" means path length and filter steps, and "hops" means nothing on screen. Two-way door: wording only, no published key.

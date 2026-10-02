@@ -5,15 +5,17 @@
    path, because it creates a row; Esc, X or a click outside close it. Most flow and Weakest cut are
    Analyze entries, not here. A pick field, while active, turns the canvas into a pick target (a
    crosshair and one hint line) and also takes a typed name, so the keyboard can pick too.
-   A found path states its length and its total in the weight column's own name ("3 edges, total
-   amount 22,929.05") in a bar above the toolbar; when routes tie on cost, the bar adds a
+   Weight opens on the attribute set at load ("amount (set at load)"); the other choice is
+   "None (fewest steps)". A found path states its step count and a summary named after the weight
+   attribute, read by the kind the weight was declared with: a distance sums ("Sum of amount along
+   the path: 22,397.82"), a capacity gives its smallest step, a similarity its weakest step, and a
+   weight with no declared kind sums, labeled as a sum. When routes tie, the bar says so and adds a
    "Route 1 of 2" stepper (previous and next, arrow keys while it has focus).
    Plain ASCII. */
 (function () {
     "use strict";
     const CSS = [
         ".pp-full.k-field { cursor: pointer; width: 100%; box-sizing: border-box; }",
-        ".pp-pick[data-armed] { box-shadow: inset 0 0 0 1px var(--cm-border-brand, var(--cm-primary)); }",
         ".pp-pick .pp-empty { color: var(--cm-text-tertiary); }",
         ".pp-pick input { all: unset; flex: 1; min-width: 0; font: inherit; color: var(--cm-text); }",
         ".pp-pick input::placeholder { color: var(--cm-text-tertiary); }",
@@ -22,12 +24,12 @@
         ".pp-loaded { color: var(--cm-text-tertiary); font-size: 11px; line-height: 16px; }",
         ".pp-result { height: auto; min-height: 32px; padding: 4px 8px 4px 12px; gap: 8px; font-size: 13px; color: var(--cm-text); }",
         ".pp-result .pp-step { display: inline-flex; align-items: center; gap: 2px; border-radius: 6px; }",
-        ".pp-result .pp-step:focus-visible { outline: 2px solid var(--cm-border-brand, var(--cm-primary)); outline-offset: 2px; }",
+        ".pp-result .pp-step:focus-visible { outline: 2px solid var(--cm-border-selected); outline-offset: 2px; }",
         ".pp-result .pp-of { min-width: 76px; text-align: center; color: var(--cm-text-secondary, var(--cm-text)); }",
         ".pp-catch { position: absolute; cursor: crosshair; }",
         ".pp-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px;",
-        "  padding: 4px 10px; border-radius: 6px; background: var(--cm-bg-elevated, var(--cm-bg)); color: var(--cm-text);",
-        "  box-shadow: 0 0 0 1px var(--cm-border), 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; pointer-events: none; }",
+        "  padding: 4px 10px; border-radius: 6px; background: var(--cm-bg); color: var(--cm-text);",
+        "  box-shadow: var(--cm-elevation-200); white-space: nowrap; pointer-events: none; }",
     ].join("\n");
 
     // The fixture ends and settings for each graph. Les Miserables is undirected, so Direction hides.
@@ -93,30 +95,43 @@
         const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === (ds || "lesmis") ? AB.lastPath : null;
         if (lp) return lp;
         const P = AB.fx.datasets.transactions.setsAndPaths.path;
-        return ds === "transactions" ? { ds, from: P.from.id, to: P.to.id, weight: "amount", meaning: "farther", loaded: "amount" } : { ds: "lesmis", from: "Valjean", to: "Javert", weight: "value", loaded: "value" };
+        return ds === "transactions" ? { ds, from: P.from.id, to: P.to.id, weight: "amount", meaning: "farther", loaded: "amount" } : { ds: "lesmis", from: "Valjean", to: "Javert", weight: "value", meaning: "stronger", loaded: "value" };
     }
-    // A total in the column's own precision (amount has cents, value is whole): no currency case.
-    // A stand-in for the total graphty-element's path result would report.
-    function total(vals) {
-        const d = Math.max(0, ...vals.map((v) => (String(v).split(".")[1] || "").length));
-        return vals.reduce((a, b) => a + b, 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+    // The weight's declared kind, from the meaning words the Data page and Analyze use
+    // (Stronger, Farther, Capacity); anything else is a weight with no declared kind.
+    const KIND = { farther: "distance", stronger: "similarity", capacity: "capacity" };
+    // A value in the column's own precision (amount has cents, value is whole): no currency case
+    function fmt(v, vals) {
+        const d = Math.max(0, ...vals.map((x) => (String(x).split(".")[1] || "").length));
+        return v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
     }
-    // The tied routes of a found path, each with its edge count and total. Only the two projects with
-    // path fixtures have them (ponytail: the door entries and loaded projects show no bar until they get one).
+    // The routes a found path ties with, each with its step count and its summary, read by the
+    // weight's kind. A stand-in for graphty-element's path result, which reports the route, its
+    // cost and its ties. Only the two projects with path fixtures have them (ponytail: the door
+    // entries and loaded projects show no bar until they get one).
     function routesOf(ds, p) {
-        const col = p.weight || p.loaded; // the run's weight, else the loaded one, so a tie on edges still names its totals
-        if (ds === "transactions") {
-            const P = AB.fx.datasets.transactions.setsAndPaths.path;
-            // The fixture's routes are equally short in edges, so unweighted they tie (the path inspector's route first);
-            // weighted they do not: amount as a distance finds one, 1/amount (Stronger) the other
-            const key = (r) => r.accounts.join(), shown = (p.weight && p.meaning === "stronger" ? P.asSimilarityOneOverW : P.asDistance).route.join();
-            const routes = P.routes.filter((r) => key(r) === shown).concat(p.weight ? [] : P.routes.filter((r) => key(r) !== shown));
-            return routes.map((r) => ({ edges: r.transfers.length, col, sum: col === "amount" ? total(r.transfers.map((t) => t.amount)) : null }));
-        }
-        if (!ds || ds === "lesmis") return [{ edges: 1, col, sum: col === "value" ? total([17]) : null }]; // Valjean -- Javert, value 17 (the edge inspector's row)
-        return [];
+        const P = AB.fx.datasets.transactions.setsAndPaths.path;
+        // each route's weights, in path order; Les Miserables' is Valjean -- Javert, value 17 (the edge inspector's row)
+        const all = ds === "transactions" ? P.routes.map((r) => ({ key: r.accounts.join(), w: r.transfers.map((t) => t.amount) }))
+            : !ds || ds === "lesmis" ? [{ key: "", w: [17] }] : [];
+        if (!all.length) return [];
+        const col = p.weight, kind = col ? KIND[p.meaning] || null : null;
+        // what the route minimizes: steps with no weight; 1/w summed for a similarity; the smallest step,
+        // negated, for a capacity (the widest route); the plain sum for a distance or no declared kind
+        const sum = (w) => w.reduce((a, b) => a + b, 0);
+        const cost = (w) => (!col ? w.length : kind === "similarity" ? sum(w.map((x) => 1 / x)) : kind === "capacity" ? -Math.min(...w) : sum(w));
+        const best = Math.min(...all.map((r) => cost(r.w)));
+        // the path inspector's route first, so the bar and the inspector open on the same route
+        const shown = P.asDistance.route.join();
+        const tied = all.filter((r) => Math.abs(cost(r.w) - best) < 1e-9).sort((a, b) => (b.key === shown) - (a.key === shown));
+        const say = (w) => (!col ? ""
+            : kind === "capacity" ? "Smallest " + col + " on the path: " + fmt(Math.min(...w), w)
+            : kind === "similarity" ? "Weakest " + col + " on the path: " + fmt(Math.min(...w), w)
+            : "Sum of " + col + " along the path: " + fmt(sum(w), w));
+        return tied.map((r) => ({ steps: r.w.length, col, text: say(r.w) }));
     }
-    // The result bar above the toolbar: "3 edges, total amount 22,929.05", and the stepper only on a tie
+    // The result bar above the toolbar: "3 steps. Sum of amount along the path: 22,397.82", and
+    // "2 routes tie" with the stepper only on a tie
     function resultBar(ds) {
         const routes = routesOf(ds, foundPath(ds)), dock = document.getElementById("ab-toolbar");
         if (!routes.length || !dock) return;
@@ -125,7 +140,7 @@
         const of = h("span", { class: "pp-of" });
         const show = () => {
             const r = routes[i];
-            line.textContent = AB.count(r.edges, "edge") + (r.sum ? ", total " + r.col + " " + r.sum : "");
+            line.textContent = AB.count(r.steps, "step") + (r.col ? ". " + r.text : "") + (routes.length > 1 ? ". " + AB.count(routes.length, "route") + " tie" : "");
             of.textContent = "Route " + (i + 1) + " of " + routes.length;
         };
         const step = (d) => { i = (i + d + routes.length) % routes.length; show(); };
@@ -169,7 +184,7 @@
             const val = s[which], on = active === which;
             const label = { from: "From", to: "To", scope: "Scope" }[which];
             // Armed, the field is the text box itself (a click anywhere on it types there); otherwise a button that arms it
-            const f = on ? h("span", { class: "k-field pp-pick pp-full", "data-armed": "" })
+            const f = on ? h("span", { class: "k-field pp-pick pp-full", "data-focus": "" })
                 : h("span", { class: "k-field pp-pick pp-full", role: "button", tabindex: "0", "aria-pressed": "false", "aria-label": label + ": " + (val || (which === "scope" ? "Whole graph" : "not chosen")) });
             f.append(icon(which === "scope" ? (val ? AB.ICON.set : "network") : s[which + "Icon"], "sm"));
             if (on) {
@@ -201,20 +216,22 @@
             draw();
         }
         const loadedLine = () => (s.loaded.weight ? s.loaded.weight + ", " + s.loaded.meaning : "none (each edge counts 1)"); // the graph inspector's words: "value, stronger"
+        // the Weight choice's words: the attribute set at load says so, None says what it does
+        const wordOf = (w) => (!w ? "None (fewest steps)" : w === s.loaded.weight ? w + " (set at load)" : w);
         const overridden = () => s.weight !== s.loaded.weight || (s.weight && s.meaning !== s.loaded.meaning);
         function weightField() {
             const L = s.loaded;
             // The same words as Analyze's Weight field: the loaded weight says so. The dropdown is the field
             // list at menu size (edge attributes, numbers suitable), so a project with dozens of edge
             // attributes gets Find and groups; None leads it, above the list.
-            const f = AB.field(s.weight ? s.weight + (s.weight === L.weight ? " (loaded weight)" : "") : "None", { caret: true, onClick: () => {
+            const f = AB.field(wordOf(s.weight), { caret: true, onClick: () => {
                 const m = AB.openFieldList(f, { kind: "number", element: "edge", current: s.weight, label: "Weight", results: false, notes: false,
                     onPick: (name) => { s.weight = name; if (name === L.weight) s.meaning = L.meaning; draw(); } });
                 if (!m) return;
                 // ponytail: None sits above the listbox, so arrows do not reach it; a lead-item option in fieldList would fold it in
                 const none = h("div", { class: "k-menu-item ab-fl-opt", role: "button", tabindex: "0", "aria-pressed": String(!s.weight) },
                     h("span", { class: "k-check-col" }, !s.weight ? icon("check", "sm") : null),
-                    h("span", { class: "ab-fl-name" }, L.weight ? "None" : "None (loaded: no weight)"));
+                    h("span", { class: "ab-fl-name" }, wordOf(null)));
                 AB.tip(none, "Every edge counts as one step", { label: false });
                 const pickNone = () => { AB.closeMenu(true); s.weight = null; draw(); };
                 none.addEventListener("click", pickNone);
@@ -222,7 +239,7 @@
                 m.insertBefore(none, m.querySelector(".ab-fl-list"));
             } });
             f.classList.add("pp-full");
-            f.setAttribute("aria-label", "Weight: " + (s.weight || "None"));
+            f.setAttribute("aria-label", "Weight: " + wordOf(s.weight));
             return f;
         }
         // No path: the two ends lie in different parts of what the graph draws (a filter split it)
@@ -246,7 +263,7 @@
                 AB.fieldRow("Weight", h("span", { class: "pp-col" },
                     weightField(),
                     s.weight ? AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
-                    h("span", { class: "pp-loaded" }, overridden() ? "This path only. Loaded weight: " + loadedLine() : "Loaded weight: " + loadedLine()),
+                    overridden() ? h("span", { class: "pp-loaded" }, "This path only. Set at load: " + loadedLine()) : null,
                     // The same words as Analyze: a path reads a weight as distance, so a Stronger weight is inverted
                     s.weight && s.meaning === "stronger" ? h("span", { class: "pp-loaded" }, "Shortest path reads a weight as distance: it uses 1/" + s.weight + ".") : null,
                     s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
@@ -275,7 +292,7 @@
                     const name = active === "from" ? s.pickFrom : active === "to" ? s.pickTo : s.set;
                     const which = active;
                     const catcher = h("div", { class: "pp-catch", style: `left:${C.left - O.left}px;top:${C.top - O.top}px;width:${C.width}px;height:${C.height}px`, "aria-hidden": "true" },
-                        h("div", { class: "pp-hint" }, icon("crosshair", "sm"), active === "scope" ? "Click a set or group for Scope" : "Click a node or set for " + (active === "from" ? "From" : "To")));
+                        h("div", { class: "pp-hint" }, icon("crosshair", "sm"), active === "scope" ? "Click a set or group for Scope" : "Click a node for " + (active === "from" ? "From" : "To")));
                     catcher.addEventListener("click", (e) => { e.stopPropagation(); choose(which, name); });
                     layer.unshift(catcher);
                 }
@@ -307,7 +324,7 @@
         frame(state) {
             if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
-            if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes + " of " + AB.fx.datasets.lesmis.nodes + " nodes", filterOn: ["group"] };
+            if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: AB.count(AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes, "node", { of: AB.fx.datasets.lesmis.nodes }), filterOn: ["group"] };
             if (state === "found" || state === "found-tied") {
                 // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
                 const ds = state === "found-tied" ? "transactions" : AB.route && AB.route.frame.dataset;

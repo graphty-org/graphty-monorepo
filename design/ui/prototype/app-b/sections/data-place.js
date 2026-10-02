@@ -2,7 +2,7 @@
    their headers and a one-line summary when closed ("3 sources", "2 steps, 1 on", "10 attributes")
    -- Sources, Filters, Attributes. They hold lists, not property editors, so the accordion rule for
    editable bodies does not apply. Sources are one row per table; every row opens the Data page
-   (there is no source inspector) and carries its verbs on a visible "..." (Replace with file...,
+   (there is no source inspector) and carries its verbs on a visible "..." (Replace with file..., Add rows from file...,
    Edit source..., Refresh). Every list is the shared tree (its keyboard model); this file adds only
    a quiet line under source and step rows, the trailing warning or step checkbox, the row menus, and
    the step keys the tree would otherwise treat as a paint row's (Space, Delete, Mod+] and Mod+[,
@@ -60,7 +60,6 @@
     const P = () => AB.fx.datasets.plainJson;
     const LONG_NAME = "accounts-structuring-review-export-q1-2026-final-checked.csv"; // 60 characters
     const VULN = "vuln_count_critical_unremediated_over_30_days";
-    const n = (x) => Number(x).toLocaleString("en-US");
     const URL_NAME = "alerts.bank.example/structuring/2026-03.json";
     const GEXF = "miserables.gexf";
     const FILTERS_TIP = "Filters change what is computed; the eye in the Graph tree only hides.";
@@ -155,11 +154,12 @@
         });
         return { per, left: size(left), total: sp.total };
     }
-    // The line under an applied step: a count always names what it counts
+    // The line under an applied step: a count always names what it counts. A step with no rule yet keeps
+    // nothing of its own, so it has no line (not "Kept all")
     function outcome(s, o) {
-        if (!s.on || s.gone || !o || (s.kind && s.kind !== "value" && !s.keep)) return null;
-        if (s.fullKeep) return `${n(o.after)} nodes left; ${n(o.full)} on the full graph`;
-        return o.after === o.before ? `Kept all ${n(o.before)} nodes` : AB.count(o.after, "node", { of: o.before });
+        if (!s.on || s.gone || !o || !s.keep) return null;
+        if (s.fullKeep) return `${AB.count(o.after, "node")} left; ${AB.num(o.full)} on the full graph`;
+        return o.after === o.before ? `Kept all ${AB.count(o.before, "node")}` : AB.count(o.after, "node", { of: o.before });
     }
     // What a step means, in one line: its tooltip on hover and on keyboard focus
     const meaningOf = (s) => s.meaning || (s.kind && KEEP_KIND[s.kind] ? KEEP_KIND[s.kind].desc : null) || (s.rule && s.rule.attr ? "Keeps the nodes where " + s.name : "Keeps everything until it has a rule; pick a field in its inspector");
@@ -285,8 +285,8 @@
         if (cfg.ds === "wide") {
             const w = W();
             return [
-                { id: "hosts", kind: "node", name: w.file, quiet: `host . ${n(w.nodes)} nodes`, go: ["data-page", "edit-wide-hosts"], edit: ["data-page", "edit-wide-hosts"] },
-                { id: "connections", kind: "edge", name: w.edgesFile, quiet: `connections . ${n(w.edges)} rows, ${n(w.edges)} edges`, go: ["data-page", "edit-wide-connections"], edit: ["data-page", "edit-wide-connections"] },
+                { id: "hosts", kind: "node", name: w.file, quiet: `host . ${AB.count(w.nodes, "node")}`, go: ["data-page", "edit-wide-hosts"], edit: ["data-page", "edit-wide-hosts"] },
+                { id: "connections", kind: "edge", name: w.edgesFile, quiet: `connections . ${AB.count(w.edges, "row")}, ${AB.count(w.edges, "edge")}`, go: ["data-page", "edit-wide-connections"], edit: ["data-page", "edit-wide-connections"] },
             ];
         }
         if (cfg.ds === "nested") {
@@ -298,56 +298,56 @@
             const co = NL.coPer === "item" ? 514 : 510;
             // links' targets are researchers (118) and institutions (42): with institutions not loaded, only the first make edges
             const linkEdges = NL.institutions === false ? 118 : ra["links[]"];
-            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(nodes)} nodes, ${n((AB.projectCounts("nested") || { edges: 0 }).edges)} edges from ${n([NL.researchers, NL.researchers && NL.aff === "rows", addr, NL.institutions, NL.links].filter(Boolean).length)} tables`, go, edit: go, open: true,
+            return [{ id: "json", kind: "file", name: d.file, quiet: `${AB.count(nodes, "node")}, ${AB.count((AB.projectCounts("nested") || { edges: 0 }).edges, "edge")} from ${AB.count([NL.researchers, NL.researchers && NL.aff === "rows", addr, NL.institutions, NL.links].filter(Boolean).length, "table")}`, go, edit: go, open: true,
                 children: [
-                    NL.researchers && { id: "json-researchers", kind: "node", name: "researchers", quiet: `researcher . ${n(ra["data.researchers[]"])} nodes` + (NL.co === "edges" ? `; coauthor . ${n(co)} edges` : "") + (NL.idLinks || []).map((x) => `; ${x.name} . ${n(x.n)} edges`).join(""), go, edit: go, drop: { researchers: false } },
-                    NL.researchers && NL.aff === "rows" && { id: "json-affiliations", kind: "edge", name: "affiliations", quiet: `affiliations . ${n(242)} rows, ${NL.institutions ? n(242) : 0} edges`, go: ed("affiliations"), edit: ed("affiliations"), drop: { aff: "one" } },
-                    addr && { id: "json-addresses", kind: "node", name: "addresses", quiet: `address . ${n(addr)} nodes`, go: ed("addresses"), edit: ed("addresses"), drop: { addr: "one" } },
-                    NL.institutions && { id: "json-institutions", kind: "node", name: "institutions", quiet: `institution . ${n(ra["data.institutions[]"])} nodes`, go: ed("institutions"), edit: ed("institutions"), drop: { institutions: false } },
-                    NL.links && { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(ra["links[]"])} rows, ${n(linkEdges)} edges`, go: ed("links"), edit: ed("links"), drop: { links: false } },
+                    NL.researchers && { id: "json-researchers", kind: "node", name: "researchers", quiet: `researcher . ${AB.count(ra["data.researchers[]"], "node")}` + (NL.co === "edges" ? `; coauthor . ${AB.count(co, "edge")}` : "") + (NL.idLinks || []).map((x) => `; ${x.name} . ${AB.count(x.n, "edge")}`).join(""), go, edit: go, drop: { researchers: false } },
+                    NL.researchers && NL.aff === "rows" && { id: "json-affiliations", kind: "edge", name: "affiliations", quiet: `affiliations . ${AB.count(242, "row")}, ${AB.count(NL.institutions ? 242 : 0, "edge")}`, go: ed("affiliations"), edit: ed("affiliations"), drop: { aff: "one" } },
+                    addr && { id: "json-addresses", kind: "node", name: "addresses", quiet: `address . ${AB.count(addr, "node")}`, go: ed("addresses"), edit: ed("addresses"), drop: { addr: "one" } },
+                    NL.institutions && { id: "json-institutions", kind: "node", name: "institutions", quiet: `institution . ${AB.count(ra["data.institutions[]"], "node")}`, go: ed("institutions"), edit: ed("institutions"), drop: { institutions: false } },
+                    NL.links && { id: "json-links", kind: "edge", name: "links", quiet: `links . ${AB.count(ra["links[]"], "row")}, ${AB.count(linkEdges, "edge")}`, go: ed("links"), edit: ed("links"), drop: { links: false } },
                 ].filter(Boolean) }];
         }
         if (cfg.ds === "plainJson") {
             const d = P(), go = ["data-page", "edit-plain-nodes"];
-            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(d.nodes)} nodes, ${n(d.edges)} edges`, go, edit: go, open: true,
+            return [{ id: "json", kind: "file", name: d.file, quiet: `${AB.count(d.nodes, "node")}, ${AB.count(d.edges, "edge")}`, go, edit: go, open: true,
                 children: [
-                    { id: "json-nodes", kind: "node", name: "nodes", quiet: `node . ${n(d.nodes)} nodes`, go, noMenu: true },
-                    { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(d.edges)} rows, ${n(d.edges)} edges`, go: ["data-page", "edit-plain-links"], noMenu: true },
+                    { id: "json-nodes", kind: "node", name: "nodes", quiet: `node . ${AB.count(d.nodes, "node")}`, go, noMenu: true },
+                    { id: "json-links", kind: "edge", name: "links", quiet: `links . ${AB.count(d.edges, "row")}, ${AB.count(d.edges, "edge")}`, go: ["data-page", "edit-plain-links"], noMenu: true },
                 ] }];
         }
         if (cfg.ds === "registry") {
             const R = AB.fx.datasets.registry, go = ["data-page", "edit-registry"];
-            return [{ id: "json", kind: "file", name: R.file, quiet: `${n(R.nodes)} nodes, ${n(R.edges)} edges`, go, edit: go, open: true,
-                children: [{ id: "json-packages", kind: "node", name: "packages", quiet: `package . ${n(R.nodes)} nodes` + (R.edges ? `; dependencies . ${n(R.edges)} edges` : ""), go, noMenu: true }] }];
+            return [{ id: "json", kind: "file", name: R.file, quiet: `${AB.count(R.nodes, "node")}, ${AB.count(R.edges, "edge")}`, go, edit: go, open: true,
+                children: [{ id: "json-packages", kind: "node", name: "packages", quiet: `package . ${AB.count(R.nodes, "node")}` + (R.edges ? `; dependencies . ${AB.count(R.edges, "edge")}` : ""), go, noMenu: true }] }];
         }
         if (cfg.ds === "door") {
             const d = D(), r = d.report, tbl = (name) => d.tables.find((x) => x.name === name);
             const e = r.entries;
             return [
-                { id: "people", kind: "node", name: tbl("people").file, quiet: `person . ${n(D().loadedTypes().person)} nodes` + (D().loadedTypes().added.person ? ` (${n(r.people.rows)} + ${D().loadedTypes().added.person} added)` : ""), go: ["data-page", "edit-people"], edit: ["data-page", "edit-people"] },
-                { id: "buildings", kind: "node", name: tbl("buildings").file, quiet: `building . ${n(r.buildings.rows)} nodes`, go: ["data-page", "edit-buildings"], edit: ["data-page", "edit-buildings"] },
-                { id: "entries", kind: D().loaded.per === "nodes" ? "node" : "edge", name: tbl("entries").file, quiet: D().loaded.per === "nodes" ? `entry . ${n(e.rows)} nodes, ${n(D().loadedEdges())} link edges` : `entries . ${n(e.rows)} rows, ${n(D().loadedEdges())} edges`, go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"],
+                { id: "people", kind: "node", name: tbl("people").file, quiet: `person . ${AB.count(D().loadedTypes().person, "node")}` + (D().loadedTypes().added.person ? ` (${AB.num(r.people.rows)} + ${D().loadedTypes().added.person} added)` : ""), go: ["data-page", "edit-people"], edit: ["data-page", "edit-people"] },
+                { id: "buildings", kind: "node", name: tbl("buildings").file, quiet: `building . ${AB.count(r.buildings.rows, "node")}`, go: ["data-page", "edit-buildings"], edit: ["data-page", "edit-buildings"] },
+                { id: "entries", kind: D().loaded.per === "nodes" ? "node" : "edge", name: tbl("entries").file, quiet: D().loaded.per === "nodes" ? `entry . ${AB.count(e.rows, "node")}, ${AB.count(D().loadedEdges(), "link edge")}` : `entries . ${AB.count(e.rows, "row")}, ${AB.count(D().loadedEdges(), "edge")}`, go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"],
                     // The first line of the element's match report for this table: its tooltip, not a warning.
                     // Leave out resolved both unmatched lines, so the status matches the Data page's green check.
-                    info: `${n(e.rows)} rows; ${n(e.bothEnds)} have both ends. ${e.missingPeople} person_id values are not in people and ${e.missingBuildings} building_id values are not in buildings: left out (${e.missingRows} rows).` },
+                    info: `${AB.count(e.rows, "row")}; ${AB.num(e.bothEnds)} have both ends. ${e.missingPeople} person_id values are not in people and ${e.missingBuildings} building_id values are not in buildings: left out (${e.missingRows} rows).` },
             ];
         }
         if (cfg.ds === "lesmis") {
             const l = L();
-            return [{ id: "gexf", kind: "file", name: GEXF, quiet: `${n(l.nodes)} nodes, ${n(l.edges)} edges`, go: ["data-page", "edit-graph-file"], edit: ["data-page", "edit-graph-file"], open: true,
+            return [{ id: "gexf", kind: "file", name: GEXF, quiet: `${AB.count(l.nodes, "node")}, ${AB.count(l.edges, "edge")}`, go: ["data-page", "edit-graph-file"], edit: ["data-page", "edit-graph-file"], open: true,
                 children: [
-                    { id: "gexf-nodes", kind: "node", name: "nodes", quiet: `node . ${n(l.nodes)} nodes`, go: ["data-page", "edit-graph-file"], noMenu: true },
-                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: `edges . ${n(l.edges)} rows, ${n(l.edges)} edges`, go: ["data-page", "edit-graph-file"], noMenu: true },
+                    { id: "gexf-nodes", kind: "node", name: "nodes", quiet: `node . ${AB.count(l.nodes, "node")}`, go: ["data-page", "edit-graph-file"], noMenu: true },
+                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: `edges . ${AB.count(l.edges, "row")}, ${AB.count(l.edges, "edge")}`, go: ["data-page", "edit-graph-file"], noMenu: true },
                 ] }];
         }
         const t = T();
         const rows = [
-            { id: "accounts", kind: "node", name: cfg.longName ? LONG_NAME : t.accountsFile, quiet: `account . ${n(t.nodes)} nodes`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
-            { id: "transfers", kind: "edge", name: t.file, quiet: `transfers . ${n(t.edges)} rows, ${n(t.edges)} edges${cfg.afterReplace ? ", replaced Sep 30" : ""}`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"] },
+            { id: "accounts", kind: "node", name: cfg.longName ? LONG_NAME : t.accountsFile, quiet: `account . ${AB.count(t.nodes, "node")}`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
+            { id: "transfers", kind: "edge", name: t.file, quiet: `transfers . ${AB.count(t.edges, "row")}, ${AB.count(t.edges, "edge")}${cfg.afterReplace ? ", replaced Sep 30" : ""}`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"] },
         ];
         if (cfg.url) {
             const flagged = t.attributes.find((a) => a.name === "flagged").values.true;
-            rows.push({ id: "url", kind: "node", url: true, name: URL_NAME, quiet: `account . ${n(flagged)} rows`, go: ["data-page", "url"],
+            rows.push({ id: "url", kind: "node", url: true, name: URL_NAME, quiet: `account . ${AB.count(flagged, "row")}`, go: ["data-page", "url"],
                 warn: cfg.urlChanged ? "The data at this address changed since Sep 29" : null,
                 progress: cfg.url === "refreshing" ? 0.4 : undefined,
                 status: cfg.url === "failed" ? "error" : undefined,
@@ -377,7 +377,7 @@
             const ul = AB.tree([{ id: "origin", kindIcon: "split", name: "From " + t.graphName + ", without merchants", builtin: true, go: ["data-place", "at-rest"] }], { label: "Sources" });
             const li = rowEl(ul, "origin");
             AB.tip(li.querySelector(".ab-tname"), "Opens " + t.graphName + "'s Data place; a derived graph has no sources of its own", { label: false });
-            quiet(li, `${n(w.nodes)} nodes, ${n(w.edges)} edges, Sep 28`);
+            quiet(li, `${AB.count(w.nodes, "node")}, ${AB.count(w.edges, "edge")}, Sep 28`);
             return AB.section({ title: "Sources", collapsible: true, key: "data-place.sources", summary: "From " + t.graphName },
                 h("div", { class: "dp-flat" }, ul),
                 h("div", { class: "dp-oq" }, AB.openQuestion("Whether a derived graph follows its origin when the origin changes, or stays as made.")));
@@ -398,6 +398,10 @@
                 { label: "Rename", shortcut: "F2", onClick: () => AB.createThenRename(li, { onSave: (v) => AB.announce("Renamed to " + v) }) },
                 { sep: true },
                 AB.cmd("replace-file"),
+                // Appending acts on one table, so its door is on the table's row; the page is headed "Add to <table>".
+                // The skeleton draws that page for the March transfers only (data-page add-matching).
+                { label: "Add rows from file...", desc: "More rows of the same table, kept with the rows already loaded",
+                    onClick: () => (s.id === "transfers" ? AB.go("data-page", "add-matching") : AB.flash("Add to " + s.name)) },
                 AB.cmd("edit-source", { go: s.edit || (s.go[1] === "url" ? ["data-page", "url"] : AB.cmd("edit-source").go) }),
                 s.url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", onClick: () => AB.go("data-place", "refreshing") }
                     : { label: "Refresh", desc: "Reads the file again from where it was opened; the graph is untouched if it fails", onClick: () => AB.flash("Refreshing " + s.name) },
@@ -438,7 +442,8 @@
             { label: "Style file: risk-review-look.json", desc: "A style file opens Apply file", onClick: () => AB.go("recipe-apply", "style-unbound") },
         ]);
         const plus = AB.plus({
-            label: "Add data to this graph",
+            // The door says what the page it opens is headed
+            label: "Add to " + graphName(cfg),
             items: [
                 { label: "File...", desc: "A data file, a recipe or a style file", pick: true },
                 { label: "From a URL...", to: ["data-page", "url"] },
@@ -523,7 +528,7 @@
         AB.filterToHere = (d, attr) => { if (ds !== d) return false; addStep(attr); return true; };
         const plus = AB.plus({ label: "Add filter step", items: [{ label: "filter step" }], onAdd: () => addStep() });
         const on = steps.filter((s) => s.on).length;
-        const summary = steps.length ? `${steps.length} ${steps.length === 1 ? "step" : "steps"}, ${on} on` : "No filters";
+        const summary = steps.length ? `${AB.count(steps.length, "step")}, ${on} on` : "No filters";
         const count = steps.length ? h("span", { class: "dp-count" }, summary) : null;
         const head = { title: "Filters", collapsible: true, key: "data-place.filters", summary, actions: h("span", { style: "display:flex;align-items:center" }, count, plus) };
         if (!steps.length) return AB.section(head, AB.empty("No filters. " + FILTERS_TIP, { verb: "Add filter step", onClick: () => addStep() }));
@@ -670,13 +675,13 @@
     }
 
     // ---------- the place ----------
+    const graphName = (cfg) => cfg.ds === "door" ? D().graphName : cfg.ds === "lesmis" ? L().title : cfg.ds === "none" ? L().frame.graphRow
+        : cfg.ds === "wide" ? W().graphName : cfg.ds === "nested" ? N().graphName : cfg.ds === "plainJson" ? P().graphName : cfg.ds === "registry" ? AB.fx.datasets.registry.graphName
+            : cfg.derived ? T().graphName + " without merchants" : T().graphName;
     function build(region, cfg, model) {
         const el = h("div", { class: "dp" });
         region.replaceChildren(el);
-        const name = cfg.ds === "door" ? D().graphName : cfg.ds === "lesmis" ? L().title : cfg.ds === "none" ? L().frame.graphRow
-            : cfg.ds === "wide" ? W().graphName : cfg.ds === "nested" ? N().graphName : cfg.ds === "plainJson" ? P().graphName : cfg.ds === "registry" ? AB.fx.datasets.registry.graphName
-                : cfg.derived ? T().graphName + " without merchants" : T().graphName;
-        el.append(AB.graphHead("Data", name));
+        el.append(AB.graphHead("Data", graphName(cfg)));
         const scroll = h("div", { class: "dp-scroll" });
         el.append(scroll);
         const redraw = (focusId) => {
@@ -756,7 +761,7 @@
             const f = { dataset: DATASET[c.ds] || "transactions", chip: chipOf(c), filterOn: STEP_ATTRS[c.steps] || null };
             if (RIGHT[state]) f.right = RIGHT[state];
             // A new project: nothing loaded, nothing drawn
-            if (c.ds === "none") Object.assign(f, { right: "inspector-nothing-selected", canvas: "canvas-and-states/empty", dock: false });
+            if (c.ds === "none") Object.assign(f, { right: "inspector-nothing-selected/empty-graph", canvas: "canvas-and-states/empty", dock: false });
             return f;
         },
         states: [

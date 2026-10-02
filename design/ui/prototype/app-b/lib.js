@@ -225,11 +225,33 @@
     ["pointerup", "pointercancel"].forEach((ev) => document.addEventListener(ev, (e) => { if (e.pointerType === "touch" && !TIP.touchShown) clearTimeout(TIP.timer); }));
     document.addEventListener("click", (e) => { if (TIP.swallow) { TIP.swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
     window.addEventListener("hashchange", hideTip);
+    // A table cell or header that takes focus at the edge of a sideways-scrolling table is brought fully
+    // into view; the browser leaves it half under the inspector otherwise (WCAG 2.4.11)
+    document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest(".k-table-wrap") && e.target.matches("th, td, th *, td *")) e.target.scrollIntoView({ block: "nearest", inline: "nearest" }); });
     // After a redraw: a section that wrote data-tip by hand on an icon-only control gets its label and key
     function tipSweep(root) {
         (root || document).querySelectorAll("[data-tip]").forEach((el) => {
             if (!el.hasAttribute("aria-label") && !el.textContent.trim()) el.setAttribute("aria-label", el.dataset.tip);
             if (el.dataset.key && !el.hasAttribute("aria-keyshortcuts")) el.setAttribute("aria-keyshortcuts", ariaKeys(el.dataset.key));
+        });
+    }
+
+    // A region that scrolls but holds nothing focusable (a dialog of shortcuts, an export's progress page)
+    // cannot be scrolled from the keyboard, so it becomes a Tab stop named by its dialog or region (WCAG 2.1.1).
+    // A list whose rows are reached by arrows (tabindex -1) already scrolls with them and is left alone.
+    function scrollStops(root) {
+        (root || document).querySelectorAll("div, section, ul, ol").forEach((el) => {
+            if (el.hasAttribute("tabindex") || el.scrollHeight <= el.clientHeight + 1) return;
+            // anything a key can reach inside it (a hidden design note or an inert field does not count)
+            if ([...el.querySelectorAll("[tabindex], a[href], input, textarea, select, button")].some((x) => x.getClientRects().length && !x.closest("[inert]") && !x.disabled)) return;
+            const oy = getComputedStyle(el).overflowY;
+            if (oy !== "auto" && oy !== "scroll") return;
+            el.tabIndex = 0;
+            if (!el.hasAttribute("role")) {
+                const owner = el.closest("[role=dialog], [role=region], [aria-label]");
+                el.setAttribute("role", "region");
+                el.setAttribute("aria-label", (owner && (owner.getAttribute("aria-label") || (document.getElementById(owner.getAttribute("aria-labelledby")) || {}).textContent)) || "Scrolling content");
+            }
         });
     }
 
@@ -586,7 +608,7 @@
         if (prov) tip(prov, o.kind ? o.kind + " " + o.provenance[0] : o.provenance[0], { label: false }); // a long source name is never lost to the ellipsis
         wrap.append(h("div", { class: "ab-insp-sub" }, o.kind ? h("span", { class: "k-secondary" }, o.kind) : null, prov, h("span", { class: "k-grow" }),
             // menu: [id, state] (a context-menus state), or a function of the button that opens a menu in place
-            o.menu ? iconButton("ellipsis", "More actions", typeof o.menu === "function" ? { key: "Shift+F10", onClick: (e) => o.menu(e.currentTarget) } : { key: "Shift+F10", go: o.menu }) : null));
+            o.menu ? iconButton("ellipsis", "More actions", typeof o.menu === "function" ? { key: "Shift+F10", onClick: (e) => o.menu(e.currentTarget) } : { key: "Shift+F10", onClick: () => { AB.menuTarget = { name: o.title, kind: o.kind || null }; go(o.menu[0], o.menu[1]); } }) : null));
         if (o.stateBar) {
             const txt = h("span", { class: "k-grow k-ellipsis" }, o.stateBar.text);
             if (o.stateBar.why || typeof o.stateBar.text === "string") tip(txt, o.stateBar.why || o.stateBar.text, { label: false });
@@ -598,7 +620,8 @@
         const put = (c) => append(body, [typeof c === "function" ? c() : c]);
         if (names.length >= 2) {
             const key = o.kindKey || o.kind || o.title;
-            let cur = o.tab || lastTab[key] || names[0];
+            // a walk step (Shift+Arrow) keeps the tab the reader chose; otherwise the route's tab wins
+            let cur = (AB.walked && lastTab[key]) || o.tab || lastTab[key] || names[0];
             if (!names.includes(cur)) cur = names[0];
             const id = "ab-insp-" + ++inspSeq;
             const strip = tabs(names, cur, (n) => show(n));
@@ -704,8 +727,9 @@
             const entry = { li, r, siblings, parent };
             all.push(entry);
             li._entry = entry;
+            // Double-click anywhere on the row renames it (the eye and the disclosure keep their own clicks).
             // One click selects in place and the shell keeps the left panel, so the real dblclick lands here
-            nameEl.addEventListener("dblclick", (e) => { e.stopPropagation(); startRename(entry); });
+            li.addEventListener("dblclick", (e) => { if (e.target.closest(".ab-eye, .ab-disc, input")) return; e.stopPropagation(); startRename(entry); });
             if (eye)
                 eye.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -753,7 +777,7 @@
                     r.onOpen();
                 });
             }
-            if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); go(r.menu[0], r.menu[1]); });
+            if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); AB.menuTarget = { name: r.name, kind: r.kind || null }; go(r.menu[0], r.menu[1]); });
             if (hasKids && r.open) r.children.forEach((c) => build(c, level + 1, r.children, r));
         };
         rows.forEach((r) => build(r, 1, rows, null));
@@ -779,7 +803,7 @@
             // Space flips the eye; Alt+Space is "Show only this row" (the row menu's command; Alt-click is its accelerator)
             else if (k === " ") { const eye = li.querySelector(".ab-eye"); if (eye) { e.preventDefault(); eye.dispatchEvent(new MouseEvent("click", { altKey: e.altKey, bubbles: true, detail: 1 })); } }
             else if (k === "F2") startRename(entry);
-            else if (k === "F10" && e.shiftKey || k === "ContextMenu") { if (r.menu) go(r.menu[0], r.menu[1]); }
+            else if (k === "F10" && e.shiftKey || k === "ContextMenu") { if (r.menu) { AB.menuTarget = { name: r.name, kind: r.kind || null }; go(r.menu[0], r.menu[1]); } }
             else if (k === "Delete" || k === "Backspace") {
                 if (r.builtin || r.pinned) { announce(r.name + " is built in and cannot be deleted"); }
                 else {
@@ -1135,9 +1159,10 @@
         if (AB.render) AB.render();
     }
     AB.layoutState = "settled";
+    // The one Layout button: its icon is the layout's state, a click opens the Layout popover (the
+    // graph's Layout group, toolbar/layout-open). Pause and Resume live inside it, and in "layout"
     function layoutButton() {
-        const running = AB.layoutState === "running";
-        return toolbarButton(running ? "pause" : "play", running ? "Pause layout" : "Resume layout", { tool: "Layout", onClick: () => setLayout(running ? "paused" : "running") });
+        return toolbarButton(AB.layoutState === "running" ? "pause" : "play", "Layout", { tool: "Layout", popup: "dialog", go: ["toolbar", "layout-open"] });
     }
     function setLayout(state) {
         AB.layoutState = state;
@@ -1216,20 +1241,20 @@
         ],
         edge: [
             ch("edge.color", "Color", "color", "Line", { opacity: "edge.opacity", picker: "color", def: "#808080" }),
-            ch("edge.width", "Width", "number", "Line", { range: [0, null], def: 1 }),
+            ch("edge.width", "Width", "number", "Line", { range: [0, null], def: 1, unit: "px" }),
             ch("edge.opacity", "Opacity", "number", "Line", { range: [0, 1], fold: "edge.color" }),
             ch("edge.style", "Pattern", "choice", "Line", { choices: LINES, picker: "pattern", def: "solid" }),
             ch("edge.patternCount", "Pattern count", "number", "Line", { range: [2, null], fold: "edge.style", caveat: "Counts the marks of a patterned line; solid, zigzag and sinewave ignore it." }),
             ch("edge.curvature", "Curve", "boolean", "Line", { def: true, caveat: "A switch, not an amount." }),
             ch("edge.animationSpeed", "Flow speed", "number", "Line", { range: [0, null], def: 1 }),
             ch("edge.arrowHead", "Head", "choice", "Arrows", { choices: ARROWS, picker: "arrow", def: "normal" }),
-            ch("edge.arrowHeadSize", "Head size", "number", "Arrows", { range: [0, null], fold: "edge.arrowHead" }),
+            ch("edge.arrowHeadSize", "Head size", "number", "Arrows", { range: [0, null], fold: "edge.arrowHead", unit: "px" }),
             ch("edge.arrowHeadColor", "Head color", "color", "Arrows", { fold: "edge.arrowHead" }),
             ch("edge.arrowHeadOpacity", "Head opacity", "number", "Arrows", { range: [0, 1], fold: "edge.arrowHead" }),
             ch("edge.arrowHeadText", "Head caption", "text", "Arrows", { fold: "edge.arrowHead" }),
             ch("edge.arrowHeadTextStyle", "Head caption style", "labelStyle", "Arrows", { fold: "edge.arrowHead" }),
             ch("edge.arrowTail", "Tail", "choice", "Arrows", { choices: ARROWS, picker: "arrow", def: "normal" }),
-            ch("edge.arrowTailSize", "Tail size", "number", "Arrows", { range: [0, null], fold: "edge.arrowTail" }),
+            ch("edge.arrowTailSize", "Tail size", "number", "Arrows", { range: [0, null], fold: "edge.arrowTail", unit: "px" }),
             ch("edge.arrowTailColor", "Tail color", "color", "Arrows", { fold: "edge.arrowTail" }),
             ch("edge.arrowTailOpacity", "Tail opacity", "number", "Arrows", { range: [0, 1], fold: "edge.arrowTail" }),
             ch("edge.arrowTailText", "Tail caption", "text", "Arrows", { fold: "edge.arrowTail" }),
@@ -1245,6 +1270,12 @@
     // node.label.bottom, ... one text and style per position) and a plain name per location are
     // missing in graphty-element (element-requirements-4.md, "Labels").
     CHANNELS.positions = [["top", "Above"], ["bottom", "Below"], ["right", "Right"], ["left", "Left"], ["top-left", "Top left"], ["top-right", "Top right"], ["bottom-left", "Bottom left"], ["bottom-right", "Bottom right"], ["center", "Center"]];
+    // Everything's base values. Every section that shows Everything or its look reads this one object,
+    // never a local copy. Shape, size, width and the edge color are graphty-element's defaults
+    // (NodeStyle.ts, EdgeStyle.ts, DEFAULT_LINE_WIDTH 8, darkgrey). The fill is the gray every
+    // drawing in kit/canvas/ paints unstyled nodes, not the element's #6366F1: the panel must say
+    // what the picture shows.
+    const BASE_STYLE = { "node.shape": "icosphere", "node.size": 1, "node.color": "#808080", "edge.style": "solid", "edge.width": 8, "edge.color": "#A9A9A9", "edge.arrowHead": "normal" };
     const SECTIONS = { node: ["Fill", "Shape", "Effects", "Label", "Tooltip", "More"], edge: ["Line", "Arrows", "Label", "More"] };
     const chanOf = (id) => CHANNELS.node.concat(CHANNELS.edge).find((c) => c.id === id);
     const secOf = (c) => (c.section && SECTIONS[c.id.split(".")[0]].includes(c.section) ? c.section : "More");
@@ -1269,6 +1300,7 @@
         if (v === true) return "On";
         if (v === false) return "Off";
         if (v == null || v === "") return "";
+        if (c.unit && typeof v === "number") return v + " " + c.unit; // every style number says its unit: "5 px"
         return c.picker ? plain(c.picker, v) : String(v).replace(/_/g, " ");
     }
     // The one color field, in the Style tab and in every popover: swatch, six-digit hex, opacity percent
@@ -1316,7 +1348,7 @@
     //   labels: [{ pos: "Above", field: "label", type: "cat" } | { pos: "Right", draft: true }] })
     // Node labels are label lines keyed by position (spec 16.6): the name column is the position, the
     // value the field. "+" adds a draft at the first free position and opens the From data list on it;
-    // a draft reads "Pick a field" and writes nothing. Without `labels`, a bound node.label is one Above
+    // a draft reads "Pick an attribute" and writes nothing. Without `labels`, a bound node.label is one Above
     // line. Edge labels keep their one middle line.
     // No counts. Sections are always open. A section with nothing set is its header and "+". A line is the
     // name and the value; bind and "-" show on hover, on focus within and on the selected line. `base` is
@@ -1387,11 +1419,11 @@
                 return lbl;
             }
             if (c.kind === "number" || c.kind === "text") {
-                const inp = h("input", { class: "ab-sin" + (c.kind === "number" ? " k-num" : ""), type: "text", inputmode: c.kind === "number" ? "decimal" : null, value: v == null ? "" : String(v), "aria-label": c.name, spellcheck: "false" });
+                const inp = h("input", { class: "ab-sin" + (c.kind === "number" ? " k-num" : ""), type: "text", inputmode: c.kind === "number" ? "decimal" : null, value: v == null ? "" : String(v), "aria-label": c.name + (c.unit ? " in " + (c.unit === "px" ? "pixels" : c.unit) : ""), spellcheck: "false" });
                 const commit = () => { const t = inp.value.trim(); set[c.id] = c.kind === "number" && t !== "" && !isNaN(+t) ? +t : t; if (c.id in base) changed.add(c.id); };
                 inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { commit(); inp.blur(); } else if (e.key === "Escape") { inp.value = v == null ? "" : String(v); inp.blur(); } });
                 inp.addEventListener("change", commit);
-                return h("span", { class: "ab-sv" }, inp);
+                return h("span", { class: "ab-sv" }, inp, c.unit ? h("span", { class: "ab-sunit k-secondary", "aria-hidden": "true" }, c.unit) : null);
             }
             if (c.kind === "color") return colorField({ name: c.name, hex: v, pct: c.opacity ? parseInt(pct(valueOf(c.opacity)), 10) : null, error: errors[c.id], go: pickerGo(c) });
             return h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "dialog", "aria-label": c.name + ": " + fmtValue(c, v), "data-error": errors[c.id] ? "" : null }, act({ go: pickerGo(c) })),
@@ -1443,9 +1475,9 @@
             if (!l.draft) notice("Removed the " + l.pos + " label", { label: "Undo", onClick: () => { labels.splice(at, 0, l); drawBody(); } });
         };
         const labelLine = (l, i) => {
-            const say = "Label, " + l.pos + ": " + (l.draft ? "no field, draws nothing" : l.field || l.text);
+            const say = "Label, " + l.pos + ": " + (l.draft ? "no attribute, draws nothing" : l.field || l.text);
             const val = l.draft
-                ? h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "menu", "aria-label": say }, act({ onClick: (e) => openFields(e.currentTarget, l) })), h("span", { class: "k-grow k-ellipsis k-secondary" }, "Pick a field"))
+                ? h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "menu", "aria-label": say }, act({ onClick: (e) => openFields(e.currentTarget, l) })), h("span", { class: "k-grow k-ellipsis k-secondary" }, "Pick an attribute"))
                 : h("span", Object.assign({ class: "k-field ab-sv" + (l.field ? " ab-bound" : ""), role: "button", "aria-haspopup": "dialog", "aria-label": say }, act({ go: ["style-pickers", "label-style"] })), l.field ? typeGlyph(l.type || "cat") : null, h("span", { class: "k-grow k-ellipsis" }, l.field || l.text));
             const sel = (o.selected === "node.label" && i === 0) || selected === "label:" + l.pos;
             const li = h("div", { class: "ab-sline", "data-ch": "node.label", "data-label": l.pos, "data-bound": l.field ? "" : null, "data-selected": sel ? "" : null },
@@ -1462,7 +1494,7 @@
         // for that property with no source yet, over the inspector and project on screen (bind-prop)
         const bindButton = (c) => {
             const b0 = c.id in bound && typeof bound[c.id] === "object" ? bound[c.id] : {};
-            const b = iconButton("database", "Use a field or result for " + c.name, { go: ["style-pickers", c.style ? "label-style" : c.id in bound ? b0.go || "binding" : "bind-prop"] });
+            const b = iconButton("database", c.name + " by attribute", { go: ["style-pickers", c.style ? "label-style" : c.id in bound ? b0.go || "binding" : "bind-prop"] });
             b.setAttribute("aria-haspopup", "dialog");
             b.setAttribute("aria-expanded", "false");
             return b;
@@ -1537,10 +1569,10 @@
         const list = h("div", { class: "ab-why" + (opts.coverage ? " ab-why-cov" : ""), role: "list", "aria-label": "Rows that paint it, top first" });
         winners.forEach((l) => {
             const sw = typeof l.swatch === "string" ? chit(l.swatch) : l.swatch || h("span");
-            // A row hidden from the list is drawn as the tree draws it with Show hidden rows on: dimmed
+            // A row not listed is drawn as the tree draws it with Show rows not listed on: dimmed
             // italic. The eye-off glyph means only "not drawn", here as in the tree.
             const name = l.locked || !l.go ? h("span", { class: "ab-why-name k-ellipsis", "data-dim": l.hiddenRow ? "" : null }, l.name) : link(l.go[0], l.go[1], l.name, { class: "ab-link ab-why-name k-ellipsis", "data-dim": l.hiddenRow ? "" : null });
-            if (l.hiddenRow) tip(name, "Hidden from the list; it still paints", { label: false, second: "Hidden from the list; it still paints" });
+            if (l.hiddenRow) tip(name, "Not listed: removed from this list view, it still paints", { label: false });
             // One fixed mark slot (lock), so every line's tokens start at the same place
             const marks = h("span", { class: "ab-why-marks" },
                 l.locked ? tip(h("span", null, icon("lock", "sm")), "Owned by graphty-element; not a row you can select", { label: false }) : null);
@@ -1597,11 +1629,13 @@
         "find-paths": { label: "Path between...", shortcut: "P", home: "Selection bar > Path between", more: true, go: ["path-popover", "from-selection"] },
         neighborhood: { label: "Neighborhood...", home: "Selection bar > Neighborhood", more: true, go: ["selection-bar", "neighborhood"] },
         "create-set": { label: "Create set", shortcut: "Ctrl+G", home: "Selection bar > Create set", go: ["selection-bar", "two-nodes"] },
+        // Ctrl+G groups what is selected: canvas elements make a set (above), rows in the tree a folder
+        "new-folder": { label: "New folder", shortcut: "Ctrl+G", home: "Graph > List options > New folder", go: ["inspector-folder", "empty"] },
         "hide-on-canvas": { label: "Hide on canvas", shortcut: "Ctrl+Shift+H", home: "Selection bar > Hide on canvas", go: ["selection-bar", "hidden"] },
         "show-hidden": { label: "Show hidden elements", home: "Main menu > Show hidden elements", go: ["canvas-and-states", "drawn"] },
         "reselect-previous": { label: "Reselect previous", home: "Canvas menu > Reselect previous", go: ["context-menus", "canvas"] },
         "add-note": { label: "Add note", shortcut: "N", home: "Selection bar > Add note", onClick: () => addNote() },
-        "label-by": { label: "Label by", home: "Attribute menu > Label by", go: ["context-menus", "attribute"] },
+        "label-by": { label: "Add label line", home: "Attribute menu > Add label line", go: ["context-menus", "attribute"] },
         "run-as-copy": { label: "Run as copy", home: "Run row menu > Run as copy", go: ["context-menus", "run-row"] },
         "clear-graph-data": { label: "Clear graph data", home: "Canvas menu > Clear graph data", onClick: () => notice("Cleared graph data", { label: "Undo", onClick: () => announce("Graph data restored") }) },
         "save-view": { label: "Save view", home: "Views > Save view", go: ["views-place", "saving"] },
@@ -1609,6 +1643,13 @@
         "record-tour": { label: "Record tour...", home: "Views > Record tour", more: true, go: ["export-video", "tour"] },
         "toggle-table": { toggle: ["Hide table", "Show table"], on: () => !document.querySelector(".ab-main[data-dock='closed']"), shortcut: "Shift+T", home: "Table dock > Collapse", onClick: () => AB.toggleDock() },
         export: { label: "Export...", shortcut: "Ctrl+E", home: "Project menu > Export", more: true, go: ["export-dialog"] },
+        // The File list (fileList()): the same five commands in the main menu and the project-name menu
+        "open-file": { label: "Open project or file...", shortcut: "Ctrl+O", home: "Main menu > Open project or file", more: true, desc: "A data, recipe or style file is added to this project; a project file opens in its place.", go: ["main-menu", "open-file"] },
+        save: { label: "Save", shortcut: "Ctrl+S", home: "Project menu > Save", onClick: () => flash("Saved") },
+        "apply-file": { label: "Apply recipe or style file...", home: "Project menu > Apply recipe or style file", more: true, desc: "Reuse another project's analysis or look on this data", go: ["recipe-apply", "binding"] },
+        "select-where": { label: "Select where...", home: "Main menu > Select where", more: true, go: ["select-where", "where"] },
+        // <attribute> is filled by cmd(id, { attribute }); the one Select where dialog, the condition filled in
+        "select-where-attribute": { label: "Select where <attribute> is...", home: "Attribute menu > Select where", more: true, onClick: () => flash("Select where (no attribute given)") },
         "add-data": { label: "Add data...", home: "Data > Sources +", more: true, go: ["data-page", "entries"] },
         "edit-source": { label: "Edit source...", home: "Source row menu > Edit source", more: true, go: ["data-page", "edit-source"] },
         "replace-file": { label: "Replace with file...", home: "Source row menu > Replace with file", more: true, go: ["data-page", "replace"] },
@@ -1620,6 +1661,10 @@
         undo: { label: "Undo", shortcut: "Ctrl+Z", home: "Header > Undo" },
         redo: { label: "Redo", shortcut: "Ctrl+Shift+Z", home: "Header > Redo" },
     };
+    // The File list: one definition, shown from the main menu and from the project-name menu with the
+    // same words. fileList() -> menu items; a menu appends them where its File group goes.
+    const FILE_LIST = ["open-file", "save", "export", "apply-file", "version-history"];
+    const fileList = () => FILE_LIST.map((id) => cmd(id));
     // The project's saved views, in the Views place's order. Every door (the View flyout, Export,
     // Present, Quick actions) reads this one list.
     const SAVED_VIEWS = ["Whole cast", "Valjean's circle", "From above"];
@@ -1627,9 +1672,10 @@
     function cmd(id, extra) {
         const c = COMMANDS[id];
         if (!c) throw new Error("Unknown command " + id);
-        const label = c.toggle ? (c.on() ? c.toggle[0] : c.toggle[1]) : c.label;
+        const label = (c.toggle ? (c.on() ? c.toggle[0] : c.toggle[1]) : c.label).replace("<attribute>", (extra && extra.attribute) || "an attribute");
         if (/\.\.\.$/.test(label) && !c.more) console.warn("cmd(" + id + "): '" + label + "' ends in '...' but asks for no more input");
-        const it = { label, shortcut: c.shortcut, home: c.home };
+        const it = { label, shortcut: c.shortcut, home: c.home, desc: c.desc };
+        if (extra) delete (extra = Object.assign({}, extra)).attribute;
         if (c.go) it.go = c.go;
         if (c.onClick) it.onClick = c.onClick;
         if (c.disabledReason && !(extra && extra.enabled)) it.disabled = c.disabledReason;
@@ -1665,11 +1711,14 @@
         return h("div", { class: "ab-treebar" }, h("label", { class: "ab-find" }, icon("search", "sm"), input), more);
     }
 
-    // One glyph per attribute type everywhere (Data place, table headers, Read as): Abc Category, # Number, calendar Time
+    // One glyph per attribute type everywhere (field lists, Data place, table headers, inspector headers,
+    // tree rows named after an attribute): Abc Category (and id, text), # Number, calendar Time, T|F
+    // yes or no, [ ] a list, { } a sub-object kept whole. Text marks, so none borrows an icon that
+    // means something else (circle-check is a set, list is the legend).
+    const TYPE_MARK = { num: "#", bool: "T|F", list: "[ ]", whole: "{ }" };
     function typeGlyph(type) {
         if (type === "time") return icon("calendar", "sm");
-        if (type === "bool") return icon("circle-check", "sm");
-        return h("span", { class: "ab-abc" }, type === "num" ? "#" : "Abc");
+        return h("span", { class: "ab-abc" }, TYPE_MARK[type] || "Abc");
     }
 
     // The one role tag (Data page grid, Data place attributes, attribute inspector): a k-badge naming a
@@ -1767,7 +1816,7 @@
     // names (frame.filterOn) -- never a binding the tree does not hold.
     const USED_BY = {
         lesmis: { label: "Name, Label", group: "Color (group)", degree: "Size (Degree)" },
-        transactions: { "id (account)": "Key", kind: "Color (kind)", "amount (edge)": "Weight" },
+        transactions: { "id (account)": "Key", "amount (edge)": "Weight" },
         doorEntries: { id: "Key", name: "Name, Label", bldg: "Key", person_id: "Link to person", building_id: "Link to building", time: "Time", count: "Weight" },
         wide: { id: "Key", hostname: "Name", source: "From", target: "To", bytes_total_24h: "Weight" },
         nested: { id: "Key", source: "From", target: "To", weight: "Weight", institution_id: "To" },
@@ -1947,7 +1996,7 @@
     // ---------- an attribute's menu (spec 10.3): Data > Attributes, the attribute inspector's "...", a table column ----------
     // attributeMenu(anchor, ds, name, { noTable, editOn, table }): one menu for every project. In a loaded
     // project (wide, nested, plain JSON) Color by and Size by add the measure row (paintRow), Filter to...
-    // adds a step on the attribute (AB.filterTo), Create set where this is... opens Select with the
+    // adds a step on the attribute (AB.filterTo), Select where <attribute> is... opens Select with the
     // attribute in its query (AB.whereFrom) and Read as... opens the attribute's inspector (AB.openField).
     // A command the skeleton does not model says so and gives focus back to the row it was opened on.
     function attributeMenu(anchor, ds, name, o) {
@@ -1963,12 +2012,12 @@
             { heading: name },
             { label: "Color by", disabled: no("color"), onClick: paint("Color") },
             { label: edge ? "Width by" : "Size by", disabled: no("number"), onClick: paint("Size") },
-            cmd("label-by", { go: null, onClick: say("Label by " + name) }),
+            cmd("label-by", { go: null, onClick: say("Add label line: " + name) }),
             { label: "Show as groups", onClick: say("Show as groups by " + name) },
             { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + name + " as an axis needs a layout that reads any attribute" },
             { sep: true },
             { label: "Filter to...", onClick: () => AB.filterTo(ds, name) },
-            { label: "Create set where this is...", onClick: () => AB.whereFrom(ds, name) },
+            cmd("select-where-attribute", { attribute: name, onClick: () => AB.whereFrom(ds, name) }),
             { sep: true },
             { label: "Read as...", onClick: () => AB.openField(ds, name) },
             o.editOn ? { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: o.editOn } : null,
@@ -2058,7 +2107,7 @@
         const choose = (el) => { if (el && el.getAttribute("aria-disabled") !== "true") el.click(); };
 
         let seq = 0;
-        const glyph = (x) => (x.type === "list" ? icon("list", "sm") : x.type === "whole" ? h("span", { class: "ab-abc" }, "{ }") : typeGlyph(x.type === "num" || x.type === "time" || x.type === "bool" ? x.type : "cat"));
+        const glyph = (x) => typeGlyph(x.type);
         const fillText = (x) => (x.fill != null && x.fill < 1 ? (x.fill > 0 && x.fill < 0.01 ? "<1%" : Math.round(x.fill * 100) + "%") : null);
         // a character budget for the middle ellipsis: the menu is 320 px, the panel the left panel's width
         const maxFor = (trail) => (menuSize ? (trail || o.trail ? 30 : 36) : trail || o.trail ? 20 : 26) - (checks ? 2 : 0); // o.trail: a value at the row's end (the inspector)
@@ -2260,13 +2309,13 @@
         graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
         fieldList, openFieldList, fieldsOf, nestedLoaded, painted, paintBy, paintOf, paintRow, recordsOf, valueAt, fieldIn, attributeMenu, boundOn, nameCols, nameOf, nameWord, problem, truncMiddle, wordMatch,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
-        tip, tipSweep, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
+        tip, tipSweep, scrollStops, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
         empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,
         announce, renameInPlace, needsElement, openQuestion,
         inspector, dataVocab, dataTab, tree, treeFooter, footer: treeFooter,
         position, popover, menu, openMenu, closeMenu, modal, confirm, notice, placeNotice, flash, deleted, dockToggle, drawing,
         toolbarButton, toolbarBar, mainToolbar, layoutButton, legendButton, setLayout, legendOn, setLegend, legendCard,
-        CHANNELS, SECTIONS, styleTab, whyThisLook, COMMANDS, SAVED_VIEWS, cmd, plain, colorField, scrub,
+        CHANNELS, SECTIONS, BASE_STYLE, styleTab, whyThisLook, COMMANDS, SAVED_VIEWS, cmd, fileList, plain, colorField, scrub,
     });
     Object.assign(window, { registerSection, h, icon, link });
 })();

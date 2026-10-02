@@ -34,7 +34,7 @@
 .as-turn-a { display: flex; flex-direction: column; gap: 6px; }
 .as-table-wrap { overflow-x: auto; max-width: 100%; }
 .as-table { table-layout: fixed; font-size: 12px; }
-.as-table th, .as-table td { height: 22px; padding: 0 6px; }
+.as-table th, .as-table td { height: 24px; /* row pitch 24 px: each name link gets its 24 px target (WCAG 2.5.8) */ padding: 0 6px; }
 .as-table th, .as-table td { padding: 0 4px; }
 .as-table td:first-child { overflow: hidden; text-overflow: ellipsis; }
 .as-tool.is-stopped { white-space: normal; }

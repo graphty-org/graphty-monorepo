@@ -10,6 +10,9 @@ for the skeleton, a design that holds up with dozens of attributes per node and 
 design for loading nested JSON. The studio's decisions are in `owner-questions-5.md`; the matrix is
 `state-matrix.md`; what graph-io and graphty-element must add is in `element-requirements-5.md`.
 
+Every term on this page means what the framework glossary says it means; this page keeps no
+glossary of its own. See `design/ui/framework/glossary.md`.
+
 Version 4 carries the owner's decisions after reviewing version 3: notes become part of
 graphty-element's API; a note's time and target are required and its author's name is optional
 and usually empty; the "+" next to Label starts empty and a node can carry several labels;
@@ -1302,9 +1305,15 @@ project.**
 
 One level, with separators; only Open recent and Help open submenus:
 
-New project; Open... (Mod+O); Open recent > | Select where...; Select edges between; Show hidden
+New project; Open recent > | the File list | Select where...; Select edges between; Show hidden
 elements | Settings... (Mod+,); Keyboard shortcuts (?); Help > (Documentation, Report a problem,
 About)
+
+**The File list** is one list, shown from both header menus with identical words (a reversible
+studio decision after round 7): Open project or file... (Mod+O), Save (Mod+S), Export... (Mod+E),
+Apply recipe or style file..., Version history. Open project or file... is the one intake for every
+kind of file; its tooltip says what the file decides: "A data, recipe or style file is added to this
+project; a project file opens in its place."
 
 - Undo and Redo: the header buttons and keys. Select all visible (Mod+A), Invert selection (I) and
   Reselect previous: keys and the canvas menu.
@@ -1319,8 +1328,8 @@ About)
 
 ### 10.2 Project-name menu (header)
 
-Rename (F2), Save (Mod+S), Save as... (Mod+Shift+S), Export... (Mod+E; owner), Apply recipe or
-style file..., Version history, Close project.
+Rename (F2) | the File list (section 10.1; Export... is there, as the owner asked) | Save as...
+(Mod+Shift+S), Close project.
 
 ### 10.3 Context menus (and the inspector's "...", which is the same list)
 
@@ -1338,7 +1347,7 @@ target's name only) | Rename | select and explore | Analyze... | organize (sets,
 | A measure row | Rename | Select top N... | Show in table, Filter to... | Lock / Unlock, Hide in list / Show in list | Add note, Compare with another row... | Delete |
 | A run row | Rename (needs graphty-element) | Rerun, Run as copy, Restore the suggested look, Show members in table, Lay out by these groups (group runs), Restore an earlier result, Check, Compare with another run (the last three need graphty-element) | Lock / Unlock, Hide in list / Show in list | Add note | Delete (the notice names how many style layers go with it, from the element's `runs.bindings`) |
 | A folder | Rename | Ungroup (Mod+Shift+G) | Lock / Unlock, Hide in list / Show in list | Delete |
-| An attribute | Color by, Size by (Width by), Label by, Show as groups, Place by | Filter to..., Create set where this is... | Read as... | Show in table |
+| An attribute | Color by, Size by (Width by), Label by, Show as groups, Place by | Filter to..., Select where <attribute> is... (the one Select where dialog with the condition filled in and "+ condition"; it offers Create set and Create set from rule) | Read as... | Show in table |
 | A source | Rename | Replace with file..., Edit source..., Refresh (URL) |
 | A filter step | Move up (Mod+]), Move down (Mod+[) | Add note | Delete |
 | A saved view | Rename (needs graphty-element) | Update to current camera | Delete (the element's `removeCameraPreset`, one undoable step) |

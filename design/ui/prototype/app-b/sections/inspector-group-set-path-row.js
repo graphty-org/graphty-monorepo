@@ -3,7 +3,7 @@
    properties the row sets (sections always open, "+" in the header, bind and "-" on hover). Data tab:
    AB.dataTab with Summary (Size first, a link that selects), Members (top 10, names select), Made
    with (settings that differ from the default, then "All options...", a popover) and Notes. No verbs
-   in the body: Keep as set, Select members and the rest are in "...". The color states live in
+   in the body: Create set (Create path on a found path), Select members and the rest are in "...". The color states live in
    style-pickers. Plain ASCII.
 
    One generic group body serves every group and community: the states "group" (Group 2) and
@@ -55,7 +55,7 @@
         { id: "label-empty", label: "Label: a new line, no field yet" },
         { id: "label-two", label: "Label: name above, degree below" },
         { id: "label-all-used", label: "Label: every position used" },
-        { id: "label-by", label: "Label by degree, from its menu" },
+        { id: "label-by", label: "Add label line for degree, from its menu" },
         { id: "invalid-value", label: "Style: an invalid value" },
         { id: "notes", label: "Notes, from a row's note count" },
         { id: "group", label: "Group (Group 2)" },
@@ -65,9 +65,9 @@
         { id: "watchlist", label: "Set (Watchlist)" },
         { id: "rule-set", label: "Rule set" },
         { id: "rule-set-empty", label: "Rule set matching no nodes" },
-        { id: "one-member", label: "Kept set of one node" },
-        { id: "long-name", label: "Long set name and label field (researchers)" },
-        { id: "kept-2", label: "Kept set: Group 2, in a folder" },
+        { id: "one-member", label: "Set of one node" },
+        { id: "long-name", label: "Long set name and label line (researchers)" },
+        { id: "kept-2", label: "Set made from Group 2, in a folder" },
         { id: "path-lesmis", label: "Path: Valjean to Javert" },
         { id: "path", label: "Path from Path between" },
         { id: "path-reversed", label: "Path traced end to start: dates out of order" },
@@ -158,7 +158,7 @@
         };
     }
 
-    // A rule set (Create set where this is...) is a set marked with a small rule glyph: its members
+    // A rule set (Select where ..., then Create set from rule) is a set marked with a small rule glyph: its members
     // follow the rule, and it paints them; it never filters anything out
     const RULE_NOTE = "Its members follow the rule. It paints them and never filters.";
     function ruleGlyph() {
@@ -182,7 +182,7 @@
             dist: R.members, distOf: "degree within the set",
             made: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")]],
             all: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")], ["Members", "Follow the data"], scope(L), version(L)],
-            question: "On a rule set, does Keep as set (in \"...\") freeze today's " + n + " members as a plain set?",
+            question: "On a rule set, does Create set (in \"...\") freeze today's " + n + " members as a plain set?",
         };
     }
 
@@ -252,7 +252,7 @@
             recolor: { key, def },
             styleNote: "Its color is saved for the Louvain value " + c + ", so a rerun that finds " + c + " again keeps it.",
             provenance: ["from Louvain", "inspector-run-row", "data"],
-            renameDisabled: "a label per group that survives a rerun. Keep as set (in the ... menu) to name this group now.",
+            renameDisabled: "a run's groups renumber when it reruns; Create set to name one",
             set: { "node.color": color },
             paints: ["Paints " + size + " nodes", SELECT],
             edgesInside: c === "3" || c === 3 ? 30 : null, // Fantine's circle: the 30 edges among its 10 members (GROUPS[3])
@@ -308,15 +308,15 @@
         const n = route.length;
         const [from, to] = reversed ? [P.to, P.from] : [P.from, P.to];
         const selAll = () => AB.flash("Selects the path's accounts and transfers (not wired in the skeleton)");
-        const size = act(AB.count(n, "account") + ", " + AB.count(r.hops, "transfer"), selAll);
+        const size = AB.count(n, "account") + ", " + AB.count(r.hops, "transfer");
         const late = tr.map((t, k) => k > 0 && t.timestamp < tr[k - 1].timestamp);
-        const flags = tr.map((t, k) => (late[k] ? "hop " + (k + 1) + " (" + day(t.timestamp) + ") is earlier than hop " + k + " (" + day(tr[k - 1].timestamp) + ")" : null)).filter(Boolean);
+        const flags = tr.map((t, k) => (late[k] ? "step " + (k + 1) + " (" + day(t.timestamp) + ") is earlier than hop " + k + " (" + day(tr[k - 1].timestamp) + ")" : null)).filter(Boolean);
         const members = [h("div", { class: "igs-hops", style: COLS + ";font-weight:550" }, h("span", null, "Transfer"), h("span", null, "Date"), h("span", null, "Dates in order"))];
         route.forEach((id, k) => {
             members.push(acctRow(id, k === 0 ? "start" : k === n - 1 ? "end" : "via"));
             const got = k > 0 ? tr[k - 1].amount : 0, sent = k < n - 1 ? tr[k].amount : 0;
-            members.push(h("div", { class: "igs-hops", style: "padding-left:16px" }, "Total amount in " + fmtAmount(got) + " / out " + fmtAmount(sent) + ", this trace"));
-            if (tr[k]) members.push(h("div", { class: "igs-hops", style: COLS + ";margin-bottom:4px" }, h("span", null, "hop " + (k + 1) + ", " + fmtAmount(tr[k].amount)), h("span", null, day(tr[k].timestamp)), h("span", { class: late[k] ? "k-strong" : null }, late[k] ? "No" : "Yes")));
+            members.push(h("div", { class: "igs-hops", style: "padding-left:16px" }, "Total amount " + [got ? "in " + fmtAmount(got) : null, sent ? "out " + fmtAmount(sent) : null].filter(Boolean).join(" / ") + ", this trace"));
+            if (tr[k]) members.push(h("div", { class: "igs-hops", style: COLS + ";margin-bottom:4px" }, h("span", null, "step " + (k + 1) + ", " + fmtAmount(tr[k].amount)), h("span", null, day(tr[k].timestamp)), h("span", { class: late[k] ? "k-strong" : null }, late[k] ? "No" : "Yes")));
         });
         const accounts = T.nodes.toLocaleString("en-US");
         const dir = reversed ? "Either way" : "Follow it";
@@ -326,13 +326,13 @@
             set: { "node.color": "#D55E00", "edge.color": "#1A1A1A" },
             paints: h("div", { class: "ab-paints" }, act("Paints " + AB.count(n, "account") + ", " + AB.count(r.hops, "transfer"), selAll)),
             order: "Wins Color on " + n + " of " + n + ": nothing above it paints these accounts",
-            summary: [["Size", size], ["From", from.id + ", " + from.kind + ", riskScore " + from.riskScore + (from.flagged ? ", flagged" : "")], ["To", to.id + ", " + to.kind + ", riskScore " + to.riskScore + (to.flagged ? ", flagged" : "")], ["Total amount", fmtAmount(r.dollars)]],
+            summary: [["Size", size, selAll], ["From", from.id + ", " + from.kind + ", riskScore " + from.riskScore + (from.flagged ? ", flagged" : "")], ["To", to.id + ", " + to.kind + ", riskScore " + to.riskScore + (to.flagged ? ", flagged" : "")], ["Sum of amount", fmtAmount(r.dollars)]],
             membersSummary: "In path order, " + (flags.length ? AB.count(flags.length, "hop") + " out of time order" : "dates in order"),
             membersNote: AB.needsElement("graphty-element returns each hop's date, whether the dates run in order, and each account's amount in and out along the trace, as part of the path result"),
             membersFlag: flags.length ? AB.problem({ level: "partial", what: "Not in time order: " + flags.join("; ") + ".", todo: "Money cannot be passed on before it arrives, so this trace is not one chain of transfers." }) : null,
             members,
-            made: reversed ? [["Direction", "Either way"]] : [["Weight", "amount, farther"]],
-            all: [["Weight", "amount, farther"], ["Direction", dir], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
+            made: reversed ? [["Direction", "Either way"]] : [],
+            all: [["Weight", "amount (set at load), larger is farther"], ["Direction", dir], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
         };
     }
 
@@ -368,7 +368,7 @@
             set: { "node.color": "#D55E00", "edge.color": "#D55E00" },
             paints: h("div", { class: "ab-paints" }, act("Paints " + size, sel)),
             order: "Wins Color on " + route.length + " of " + route.length + ": nothing above it paints these nodes",
-            summary: [["Size", act(size, sel)], ["From", p.from], ["To", p.to], ["Via", route.slice(1, -1).join(", ") || "one entry edge"]],
+            summary: [["Size", size, sel], ["From", p.from], ["To", p.to], ["Via", route.slice(1, -1).join(", ") || "one entry edge"]],
             membersSummary: "In path order",
             members: route.map((x, k) => AB.row({ label: x, icon: isB(x) ? "building-2" : "user", trail: k === 0 ? "start" : k === edges ? "end" : "hop " + k, onClick: () => AB.flash("Selects " + x + " (not wired in the skeleton)") })),
             made: over ? [["Weight", (p.weight || "None") + " (this run's override)"]] : [],
@@ -501,9 +501,10 @@
             m.question ? h("div", { class: "igs-q" }, AB.openQuestion(m.question)) : null,
         ];
         const parts = AB.dataTab({
-            Summary: { summary: m.summary[0][1] instanceof Node ? m.summary[0][1].textContent : m.summary[0][1], body: m.summary.map(([k, v, go]) => AB.data(k, go ? lnk(v, go) : v)) },
+            Summary: { summary: m.summary[0][1], // a row that selects (no route) keeps the link look a routed row gets from the shell
+            body: m.summary.map(([k, v, go]) => (typeof go === "function" ? AB.data(k, h("span", { class: "ab-link" }, v), { onClick: go }) : AB.data(k, v, go ? { go } : null))) },
             Members: { summary: m.membersSummary, body: [m.dist && m.dist.length > 1 && AB.histogram ? AB.histogram(distModel(m.dist, m.distOf)) : null,
-                m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.dist ? "Top 10" + (m.dist.length > 10 ? "" : ": all " + m.dist.length) + ", by " + m.distOf : m.membersSummary, m.membersNote ? [" ", m.membersNote] : null) : null,
+                m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.membersSummary, m.membersNote ? [" ", m.membersNote] : null) : null,
                 m.membersFlag || null, m.members] },
             "Made with": { summary: m.made.length ? m.made.map((x) => x[0]).join(", ") : "All at their defaults", body: madeBody },
             Notes: { count: m.notes || 0, target: ["notes-place", "about-selection"] },

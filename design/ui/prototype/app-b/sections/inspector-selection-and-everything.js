@@ -33,7 +33,9 @@
     function selectionBody() {
         const num = (name, value, range, suffix) => {
             const inp = h("input", { class: "ab-sin k-num", type: "text", inputmode: "decimal", value: String(value), "aria-label": name, spellcheck: "false" });
-            inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" || e.key === "Escape") inp.blur(); });
+            // the one typed-number rule (lib's styleTab): Enter keeps the value, Esc puts the last one back
+            inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") inp.value = String(value); if (e.key === "Enter" || e.key === "Escape") inp.blur(); });
+            inp.addEventListener("change", () => { value = inp.value.trim(); });
             const label = h("span", null, name);
             A.scrub(label, inp, { range });
             return A.fieldRow(label, [inp, suffix ? h("span", { class: "k-secondary" }, suffix) : null]);

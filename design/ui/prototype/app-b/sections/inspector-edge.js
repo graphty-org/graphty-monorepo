@@ -131,8 +131,8 @@
         const X = AB.fx.datasets, key = "wide-edge:" + e.id;
         X[key] = X[key] || {};
         Object.defineProperty(X[key], "_fields", { value: [{ table: "connections", element: "edge", fields: filled.map((x) => Object.assign({}, x, { fill: null })) }], enumerable: false, configurable: true });
-        const more = AB.section({ title: filled.length + " more attributes", collapsible: true, key: "data.edge.more", summary: emptyN + " empty, not listed" },
-            h("div", { class: "k-secondary inn-empty" }, emptyN + " empty, not listed"),
+        const more = AB.section({ title: filled.length + " more attributes", collapsible: true, key: "data.edge.more", summary: emptyN + " empty, not shown" },
+            h("div", { class: "k-secondary inn-empty" }, emptyN + " empty, not shown"),
             h("div", { class: "inn-more" }, AB.fieldList({ size: "panel", dataset: key, results: false, notes: false, label: "Attributes of this connection", empty: rest.filter((x) => e[x.name] == null).map((x) => x.name), emptyWhere: "on this connection", trail: valueOf, onPick: (name) => AB.openField("wide", name) })));
         const data = () => AB.dataTab({
             Summary: {

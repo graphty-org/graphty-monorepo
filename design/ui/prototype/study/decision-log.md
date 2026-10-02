@@ -607,3 +607,126 @@ Why: the owner decided that the author is recorded as given, blank if none is se
 - Changing tree task 16's answer key. The filter has no neighbors-from-a-node step, so it is a real findability miss.
 - "Sent to / Received from" wording and "Keep as a filter step" on the neighbors result. Deferred so tree task 16 re-tests the Scope line alone.
 - Asking the owner again about hosting, telemetry, the Assistant switch, SVG and PDF, authorship or where Results lives.
+
+## Round 7
+
+Every participant in this round is simulated. It is the first round run on the clickable refined B skeleton (`app-b/`), not on the static mocks. The evidence behind each item is in `study/round-7/insights.md` and `study/round-7/tree-test.md`. Every decision below is a studio decision unless it quotes `owner-feedback.md`; each is reversible unless it says otherwise.
+
+### Targets
+
+Targets NOT MET. The bar: every top task (the twelve ranked tasks and the three bookends of `top-tasks.md`) and each new task (one graph from several tables, weight set at load, labels from a field, notes with no author name, a field found and used among dozens, a graph built from a nested document) reaches at least 80 percent graded success or success-with-difficulty over its sessions; no confirmed severity-4 problem is left unresolved; the mean ease rating (SEQ) over every session is at least 5.5 of 7; every tree-test task reaches at least 70 percent direct success (correct with no backtracking).
+
+Missed:
+
+- Top task 3, detect communities and characterize them: 45% of 11 graded sessions.
+- Top task 4, find a node, inspect it, and explore its neighborhood: 56% of 9.
+- Top task 6, filter to a subgraph, then characterize what is left: 50% of 10.
+- Top task 8, color or size by a value: 60% of 10.
+- Top task 9, create a named set, and combine sets: 0% of 10.
+- Top task 11, find the shortest path: 46% of 13.
+- Top task 12, reuse an analysis (Replace data): 0% of 6.
+- Bookend, start from a recipe: 0% of 9.
+- Bookend, export: 73% of 15.
+- New task, notes on nodes, edges, groups and paths with no author name set (the name in Settings is optional and usually empty): 75% of 16.
+- Tree-test direct success, of 16 each: task 3, 19%; task 4, 13%; task 7, 6%; task 8, 6%; task 11, 6%; task 13, 63%; task 14, 31%.
+- Severity 4, confirmed: Select where cannot be found from any place people look for it, and nothing says where a named list would be kept.
+- Severity 4, confirmed: adding more rows to a loaded table is refused, and the door to it is labeled the opposite way. "Add data to this graph" opens a screen headed "Open as a new graph", and a file matching a loaded table's columns turns Load off.
+- Severity 4, confirmed: an exported picture leaves out the legend shown on the canvas, and nothing in the Export dialog can include it.
+
+Three of the zeros (sets, recipe, Replace) measure the skeleton, not the design: their end states could not be reached by any click. Eighteen tasks had that defect and scored a mean ease of 2.28; tasks with no deciding skeleton defect reached 91% success. The first decision below fixes the skeleton before anything is rescored.
+
+### Decisions
+
+**The owner feedback log (`study/owner-feedback-log.md`).** A "Round 7" section gives one dated, plain-prose entry for every owner item from 2026-09-30 and 2026-10-01: the third review, the Tableau and data notes, the decisions on notes, author and metadata, and the state matrix, wide data and JSON. Each entry names a route. "Line 5" and "Arrow head 4" are answered in words. Double-click rename is logged as untested, not failed. The avatar, "Export files" and the rail redraw stay not done. Nothing is logged as done until `study.mjs --check` passes on its route, and the log asks the owner nothing.
+Why: the log stopped at round 6, so every owner item since had an answer only in pages the owner does not read. The owner's items outrank every simulated finding.
+
+**Make the skeleton honest before rescoring (shell).** (1) Every state carries its dataset, so no action lands on Les Miserables from the transfers data and no filter carries between tasks. (2) One fixture per dataset drives every count, weight, fill and column. (3) All 18 unreachable end states become reachable and pass `--check`. (4) `study.mjs` can type, modifier-click and double-click. (5) The two pictures that disagree with their own legend are fixed: the Everything row's fill reads 6366F1 over gray nodes, and "Color (kind)" sits beside "Nothing is colored".
+Why: 18 unreachable tasks scored a mean ease of 2.28, against 91% success where no skeleton defect decided the task. Sets, recipe and Replace scored 0% because their end states could not be reached.
+
+**One File list, two doors (shell, main menu, project menu).** The File list returns: Save, Export..., Apply recipe or style file..., Version history, and the one file intake. It is defined once through `AB.cmd` and shown from both the main menu and the project-name menu with identical labels; dialogs it opens are titled with the project's name. The intake is labeled "Open project or file...", the label the spec already uses on the start screen. Its hint says what the file decides: "A data, recipe or style file is added to this project; a project file opens in its place." The main menu keeps Select where... and adds no commands of its own. This is a reversible studio decision: one list reached from two places.
+Why: tree task 3 fell from 100% direct with a File menu to 19% without one, and 13 of 16 opened the main menu first. Tree task 4 is at 13%: 10 of 16 rejected "Open..." because they read it as replacing their project. The owner never asked for the File list to be removed. The intake is the one door for every kind of file, so its label must not narrow it to project files, and it claims no second open project or window, which the framework does not have.
+
+**"Select where <attribute> is..." on the attribute menu (shell).** The shared attribute-menu command is renamed and registered once with `AB.cmd`. It opens the one Select where dialog with the condition filled in and a "+ condition" button.
+Why: tree task 11 had 6% direct success. Four participants opened the attribute door and left because its label promised one condition while the job needed two. The helper already routes to Select where, so this is a label fix at the cause, in one shared place.
+
+**Find accepts a typed rule (`commands-and-search.js`).** A typed rule such as "country = UK and amount > 1000" offers "Select where country = UK ..." and hands the rule to the one Select where dialog.
+Why: 16 of 16 tree-test participants looked in a search box first. Find is the most important new door, and it opens an existing dialog.
+
+**Select where keeps both set kinds (`select-where.js`).** It accepts a prefilled condition from any door. After a match it offers "Create set" (fixed members) and "Create set from rule" (keeps the condition and follows the data), and confirms with "Created '<name>' in Sets".
+Why: the severity-4 finding that nothing says where a named list would be kept. The confirmation names the place using the canonical verb, without a new mechanism. Both set kinds stay because the model defines two (fixed and rule), and a query-built result is naturally a rule set.
+
+**One verb for sets everywhere.** "Create set" (Ctrl+G) replaces "Keep as set" and "Save as set" on the selection bar (icons only, tooltip "Create set (Ctrl+G)"), in the context menus (with the rename tooltip "Create set to name one"), on a run's group in the Graph place, and in the group, set and path inspector. "Create path" replaces "Keep as path". Every confirmation reads "Created '<name>' in Sets".
+Why: the glossary (`framework/glossary.md`) names "Create set" as the operation and lists "Save as set" as a word not to use. The skeleton had three spellings for one operation.
+
+**Distance in a neighborhood (`selection-bar.js`).** Distance reads "1 to 3 edges away", with "hops" and "steps" kept as search aliases. The wording is proposed to the glossary in `framework-changes.md`, not only drawn in the skeleton.
+Why: "steps" already means filter steps on this panel ("Add as steps" was misread), and "edges away" is the noun every domain shares.
+
+**List rows and solo (`context-menus.js`, `graph-place.js`).** "Hide in list" becomes "Remove from list view" / "Show in list view", and the row's state word is "not listed". "Hidden" is kept for elements that are not drawn. The row menu gains "Show only this row", the label its tooltip and shortcut already use. A soloed row says so in the list. The row tooltip's second line reads "Double-click to rename". An extreme in a run's summary selects its node. This is a reversible studio decision that departs from the owner's quoted "hide" / "show hidden" wording, and round 8 tests it.
+Why: 4 of 5 participants read a "hidden" row that still paints as a bug. Deleting the command would lose a job a folder cannot do, hiding one row among its siblings.
+
+**Path note chip (`inspector-group-set-path-row.js`).** On a path row, a note's chip shows the path's color swatch and the word "Path".
+Why: 3 of 3 participants missed the path tag on notes because it was an icon only.
+
+**Adding rows to a loaded table (`data-page.js`, `data-place.js`).** The source row's menu gains "Add rows from file...", beside "Replace with file...". It opens the intake page headed "Add to <table>", and every door says exactly what the page header will say; the page never says "Open as a new graph" when opened to add. A file whose columns match a loaded table offers "Add these rows to <table>", and Load is never disabled. The match report gives three counts, each with its noun: "2,410 rows to add - 0 repeated rows - 41 new accounts". Appending is marked as needing graphty-element.
+Why: a confirmed severity-4 finding. The door was labeled the opposite way and Load turned off. Appending acts on a table, so its door belongs with the source.
+
+**Weight, links and types at load (`data-page.js`).** The Weight picker gains "Number of rows per pair"; choosing it switches "One edge per" to Pair and says so in one line. Any mode switch says in one line what it set aside, and nothing is restored silently. Each link line gives its found-keys count ("9,113 of 9,113 from_account found in accounts"). Keys with leading zeros are counted and reported; matching is unchanged. Nested import offers id lists that fully resolve as edges. When more than one node type loads, the report says "2 node types are drawn alike" and offers "Color by type", and on graphs under about 50 nodes it also offers "Show names". Each offer is one click that adds a removable layer; nothing is applied on its own.
+Why: tree task 7 had 1 of 16 direct, because people looked for the weight in the Weight role. The owner decided that weight is set at load and that styling is unopinionated (`owner-feedback.md`, 2026-09-30).
+
+**One legend state (`export-image.js`, `export-dialog.js`, `present-mode.js`).** The canvas, Present and Export all read the one shared legend state through `legendOn()` / `setLegend()`. Its doors stay the toolbar's Legend button and L; Export image adds no separate switch and no export-only setting. graphty-element draws the legend into the image (marked as needing graphty-element). The image preview sits above the fold and shows the legend exactly as it will be drawn, and the "legend not drawn" wording goes. Table export defaults to the visible columns.
+Why: a confirmed severity-4 finding. One participant left the task believing her exported file matched her screen, and 5 of 6 searched Preset, Advanced and View for a legend switch. Present had no legend, which one participant reported. The model holds the legend as one display toggle that a saved view captures, so a second switch would be a second state.
+
+**Layout gets its own group (`inspector-nothing-selected.js`, `toolbar.js`).** Layout moves out of the Style tab into a Layout group on the graph's inspector, keeping the layout-method popover. A slow method says "slow" in words and offers Stop while it runs, with no confirm dialog. The toolbar's layout button opens that same group as a popover, not a second component; the toolbar stays icons only.
+Why: tree task 8 had 6% direct success; 12 of 16 detoured, and one participant said "style means colors". Arrangement is not appearance, so the mislabeled home is removed rather than given extra doors.
+
+**The canvas and the graph's panel (`canvas-and-states.js`).** The canvas chip that names the coloring job but does nothing is removed. The orbit notice adds "Shift+Arrow walks the links". Clicking empty canvas clears the selection, and the inspector shows the graph's own panel, which stays open until something else is selected; Escape and other menus no longer snap it back to the previously selected row.
+Why: the canvas carries no controls, and removing the chip beats wiring it up. The walk key is the owner's (Shift+Arrow); the walk itself is unchanged until the study tool can press keys. A graph is chosen by switching to it, not by selecting it, so the selection stays empty.
+
+**Bind at rest, and complete "Why this look" (`style-tab-same-panel.js`).** The bind icon shows at rest on the Color, Size and Label lines only, named "Color by attribute", "Size by attribute" and "Label by attribute". "Why this look" lists the covered rows under each winning row inside its collapsible block, and its "Covers ..." text comes from the shared legend function, so it names every covered row in every domain. The attribute inspector's "Painted by" line stays read-only links to the rows that paint from the attribute.
+Why: color or size by a value reached 60%; the bind icon showed only under the pointer. "Covers" left out Betweenness, and 3 of 3 took the omission as proof that their correct theory was wrong. Each job keeps one visible door.
+
+**The one attribute menu (shell, `inspector-attribute-and-filter-step.js`, `table-dock.js`).** The change is made once in `AB.attributeMenu`, so its three callers (Data > Attributes, the attribute inspector, the table's column menu) change together: Color by and Size by are dropped, and "Select where <attribute> is..." and "Add label line" appear with their `AB.cmd` labels. Every table column menu, including the custom path and the flash placeholder, opens through it, and its chevron is named "<attribute> column menu". The edge filter's scope reaches every count, written with `AB.count(n, "edge", { of })`, and the table's scope count follows the active filter.
+Why: the bind icon would otherwise be a second door to the same job, and a menu edited per caller forks into versions that disagree. Every count follows its scope.
+
+**One "Add label line" (`style-pickers.js`).** "Add a label field" and both "Label by" items become one "Add label line", which opens the attribute list empty. The Size by picker lists usable numeric attributes first. Pickers wrap long names instead of cutting them and show the full name on hover.
+Why: tree task 14 had 31% direct success, and 11 of 16 feared that a second Label by would replace the first. The owner decided that a label line starts empty (`owner-feedback.md`, 2026-09-30). "Field" was a third term beside attribute and column.
+
+**Shared interaction rules (shell).** Rules 1 and 3 to 9 of the shared pattern list stand as written. Rule 2 reads: "When nothing is selected, the selection is empty and the inspector shows the graph on screen as its subject. Escape closes the innermost open thing first, then clears the selection and leaves the graph's panel open." This matches how adding a note already treats an empty selection.
+Why: each rule fixes a cause seen in several sections: a row's "..." opened Community 3's menu (5 of 5); Escape returned to the PageRank row (6 of 6); a path's coloring switched off when a note box opened (3 of 3); the tab reset on every walk step (3 of 3); a compute link opened Clear graph data. The graph is not made the selection, because commands that act on the selection (Delete, Create set, runs scoped to the selection) would then act on the whole graph.
+
+**Vocabulary lives in the framework glossary (shell).** The spec gets no glossary of its own, only a pointer to `design/ui/framework/glossary.md`. The terms that glossary lacks (hidden, off, covered and not listed; Add label line; the count rule; Open project or file..., New graph, Add to <graph>) go into `framework-changes.md` as proposed additions. "Create set" stays. Every door uses its one `AB.cmd` label word for word.
+Why: most confirmed findings were wording drift across 40 section files. Two places owning vocabulary would be a second way to do one job.
+
+**Path between names its weight (`path-popover.js`).** The default weight option reads "<weight attribute> (set at load)", using the attribute's name from the data, and the second option "None (fewest steps)". The result names the weight attribute and gives the step count. Its summary follows the weight's declared kind: for a distance, "Sum of <attribute> along the path"; for a capacity, "Smallest <attribute> on the path: n"; for a similarity, the weakest step; with no kind declared, the sum, labeled as a sum of that attribute. Tied routes are reported. The selected path is drawn as the selection highlight, without reordering style layers. Every label is checked on the transfers data and on a non-money dataset.
+Why: shortest path reached 46%. The owner decided that weight is set at load and used by default, so the default stays and the label names it. A sum labeled "Total" for a capacity is a number nothing ever carried.
+
+**Count measures say what is counted (`analyze-popover.js`).** "Counts edges: each edge counts 1, whatever its weight", plus the repeat fact from the data ("0 pairs of nodes share more than one edge", or "n pairs repeat"). The edge-type attribute's value is used as the noun only when the data declares an edge type. A distinct-neighbor count is offered where pairs repeat.
+Why: communities reached 45%. A count means something only once it says what it counts, and a noun such as "transfer" exists only when the data declares it.
+
+**Run records and comparison (`inspector-run-row.js`, `inspector-measure-row.js`).** "From Louvain" opens that run's own record, not the catalog. The communities comparison shows both runs' settings, names its measure as "Agreement 0.71 (adjusted Rand index; 1 = the same groups)", and adds one Change column. Measure rows use the shared compute-in-place link with its cost stated, and the "..." button is named "Actions for <measure>".
+Why: a link opens what it names. A comparison that leaves the subtraction to the reader fails at its one job.
+
+**Notes with no author (`notes-place.js`).** Notes show the stored date and time ("Sep 28, 2026, 14:05"), with relative time on hover. With no author set, the writing box says once, quietly: "Notes are saved without a name. Add your name in Settings." It asks for nothing. There is one note count. The subject chip says "Note on: the whole graph" when the graph is the subject. A path note keeps the path's coloring.
+Why: notes with no author name reached 75%. The owner decided that the author name is optional and usually empty, and that time and target are required metadata (`owner-feedback.md`, 2026-10-01).
+
+**Recipe counts (`recipe-apply.js`).** Each slot kind is counted with its own noun through `AB.count`, for example "4 of 4 attributes matched by name and type" and a separate "1 of 1 set bound". The title stays "Apply <kind>: <name> to <project>".
+Why: recipe counts were bare numbers. A recipe's slots bind to attributes, sets and other catalog entries, never to "columns".
+
+**Settings (`settings.js`).** No separate Assistant switch. The app ships with no provider chosen, so the Assistant stays disabled under the existing rule until the user picks one. Settings > Assistant and the data-handling page show the same one sentence about what is sent. The Performance page leads with the device status graphty-element reports and says a GPU run uses the same method as the CPU run; where the catalog declares a tolerance it says the GPU result agrees within it, and otherwise it makes no claim of equality.
+Why: this fixes three confirmed severity-3 findings with wording. A second switch would be a second on/off rule, and a GPU engine may be reproducible only within a stated tolerance.
+
+### Considered and rejected
+
+- Changing Path between's default to "None (fewest steps)". The owner decided that weight is set at load and used by default. The option is named plainly instead, and the result says which weight ran.
+- An import that adds a "Types" layer or names on its own. The owner ruled that styling is unopinionated and left to the user. It is offered as one click instead.
+- Text labels on the selection bar. The owner decided icons only, with tooltips. On a still screen, 16 of 16 found the route icon.
+- Deleting "Hide in list". It hides one row among its siblings, which a folder cannot do. It is renamed instead, and round 8 tests whether the confusion survives.
+- Renaming the inspector's Data tab to "Values". Only 1 of 3 skeptics called it a design problem, and the owner named the Data place. It stays on the round-8 watch list.
+- A Layout flyout that leaves Method under Style, and a canvas-menu entry for Layout. Either would give the method two homes. Quick actions already finds the command.
+- A confirm dialog in front of costly computes or slow layouts. Confirmation is reserved for what cannot be undone; stating the cost, plus Stop and Undo, covers it.
+- An export-only "Include legend" switch. It would be either a third door to the legend or a second legend state.
+- Color by and Size by on the attribute inspector's "Painted by" line. They would be a second visible door to the job the bind icon owns.
+- "Save as set" as the set verb. The glossary lists it as a word not to use; "Create set" is the operation.
+- Making the graph the selection when nothing is selected. Commands that act on the selection would quietly act on the whole graph.
+- Held until participants can type: the distinct-neighbor count, the leading-zero matching rule (only the affected rows are reported this round), the Columns picker, per-row metadata on Recent exports, the list of members who joined or left, a percent column in the comparison, and the walk along links.
+- Saved views that keep the look. They stay out until the owner rules on it. Views hold the camera only; this is a studio decision.

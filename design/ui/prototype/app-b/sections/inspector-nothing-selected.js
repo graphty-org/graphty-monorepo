@@ -1,7 +1,11 @@
 /* Inspector with nothing selected: the graph itself (structure-b-refined.md version 3, section 5.3).
-   Style tab: Canvas (graphty-element configuration, not a layer) and Layout (Method and Seed lines;
-   Method's value opens one popover with the method list, its engine, its options and pacing). A
+   Style tab: Canvas (graphty-element configuration, not a layer). Layout tab, its own group because
+   arrangement is not appearance (tree tests found it under Style 1 time in 16): Method and Seed lines;
+   Method's value opens one popover with the method list, its engine, its options and pacing. A
    layout change acts at once and the notice offers Undo (`session.layout.set` is one undoable step).
+   A method rated below the graph's size says "slow" in words; picking it runs at once (no confirm),
+   and while it runs the state bar names it and offers Stop. AB.layoutGroup() is this group, for the
+   toolbar's Layout popover.
    Data tab, in the shared vocabulary: Summary and Notes. Summary names the weight chosen at load and
    its meaning as one read-only line linking to the Data page, where it is changed (version 4: the
    weight is a field set when the data is loaded). The header's provenance opens that graph's file
@@ -25,7 +29,7 @@
     "use strict";
     const CSS = `
 .ins-root .k-data > .k-name { flex: none; white-space: nowrap; }
-.ins-root .k-data > .k-value { flex: 1 1 auto; min-width: 0; text-align: right; }
+.ins-root .k-data > .k-value { margin-inline-start: auto; min-width: 0; text-align: right; }
 .ins-chk { align-items: center; gap: 8px; }
 .ins-chk > .ins-chk-l { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .ins-chk > .k-check { margin: -6px; }
@@ -57,20 +61,22 @@
 .ins-steps span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ins-steps .ins-side { width: 64px; }
 .ins-steps i { width: 10px; height: 10px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--cm-border); }
-.ins-pop .ins-cols { display: grid; grid-template-columns: 316px 220px; gap: 0 20px; align-items: start; }
+.ins-pop .ins-cols { display: grid; grid-template-columns: 340px 220px; gap: 0 20px; align-items: start; }
 .ins-m .ins-sz, .ins-mh .ins-sz { width: 44px; flex: none; text-align: right; color: var(--cm-text-secondary); }
 .ins-m .ins-wt, .ins-mh .ins-wt { width: 60px; white-space: nowrap; flex: none; text-align: right; color: var(--cm-text-secondary); }
-.ins-m .ins-cost { width: 12px; flex: none; }
+.ins-m .ins-cost { width: 30px; flex: none; text-align: right; }
+.ins-slow { font-size: 10px; color: var(--cm-text); padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cm-border-strong, var(--cm-border)); }
 .ins-mh { display: flex; align-items: center; gap: 6px; height: 18px; font-size: 11px; color: var(--cm-text-secondary); }
-.ins-mh .ins-ck, .ins-mh .ins-cost { width: 12px; flex: none; }
+.ins-mh .ins-ck { width: 12px; flex: none; }
+.ins-mh .ins-cost { width: 30px; flex: none; }
 `;
     if (!document.getElementById("ins-css")) document.head.append(h("style", { id: "ins-css" }, CSS));
 
     const SELF = "inspector-nothing-selected";
     const L = () => AB.fx.datasets.lesmis;
     const T = () => AB.fx.datasets.transactions;
-    const n = (x) => Number(x).toLocaleString("en-US");
-    const isTransfers = (s) => s === "transfers" || s === "transfers-methods" || s === "print-diverging";
+    const n = (x) => AB.num(Number(x));
+    const isTransfers = (s) => s === "transfers" || s === "transfers-methods" || s === "print-diverging" || s === "layout-slow";
 
     // ---------- shared bits ----------
     // A boolean line: the name left, the checkbox right-aligned in the one control column
@@ -201,6 +207,15 @@
     const OPTIONS = [["Spring length", "30"], ["Gravity", "-1.2"], ["Spring coefficient", "0.0008"], ["Theta", "0.8"], ["Drag coefficient", "0.02"], ["Time step", "20"]];
     const PACING = [["Pre-steps", "0"], ["Steps per frame", "1"], ["Stop threshold", "0"], ["Refit interval", "1"], ["Iterations per step", "Engine default", "GPU layouts only"], ["Batches in flight", "2", "GPU layouts only"]];
     let method = "Spread Out", engine = "NGraph Force", seed = "7";
+    // A slow method laying out now: { method, rating, nodes, ds }; the state bar offers Stop until it ends
+    let slow = null;
+    const dsNow = () => (AB.route && AB.route.frame.dataset) || "lesmis";
+    const slowWhy = (r) => "Rated for up to " + n(r.rating) + " nodes; this graph has " + n(r.nodes) + ". The canvas stops responding while it computes.";
+    const slowBar = () => slow && slow.ds === dsNow() && { text: "Slow: " + slow.method + " is laying out", why: slowWhy(slow), actions: [{ label: "Stop", onClick: stopSlow }] };
+    function stopSlow() { const m = slow.method; slow = null; AB.setLayout("paused"); redraw(); AB.announce(m + " stopped; the nodes stay where they are"); }
+    // Redraw the inspector in place (a run started or stopped), on the Layout tab
+    let drawn = null;
+    const redraw = () => drawn && drawn.el.isConnected && (drawn.el.replaceChildren(), drawInspector(drawn.el, drawn.state, "Layout"));
     // Whether the Les Miserables readings were computed when the reader last saw them
     let lastRead = "computed";
 
@@ -234,7 +249,7 @@
                 x.rec ? h("span", { class: "ins-rec" }, "Recommended") : null,
                 h("span", { class: "ins-sz k-num" }, x.rating === "any" ? "Any" : n(x.rating)),
                 h("span", { class: "ins-wt" }, wt),
-                h("span", { class: "ins-cost" }, over ? AB.tip(h("span", { role: "img" }, icon("clock", "sm")), "Cost", { second: "Rated for up to " + n(x.rating) + " nodes; the canvas stops responding while it computes" }) : null));
+                h("span", { class: "ins-cost" }, over ? h("span", { class: "ins-slow" }, "slow") : null));
             AB.tip(r, why, { label: false });
             const pick = () => {
                 if (x.name === method) return;
@@ -242,6 +257,9 @@
                 method = x.name;
                 if (methodField()) methodField().textContent = method;
                 paintList(); paintRight();
+                // A slow method runs at once with no notice; the state bar names it and offers Stop
+                if (over) { slow = { method, rating: x.rating, nodes, ds: dsNow() }; AB.setLayout("running"); redraw(); return; }
+                if (slow) { slow = null; redraw(); }
                 relaid(method, () => { method = was; if (methodField()) methodField().textContent = was; paintList(); paintRight(); });
             };
             r.addEventListener("click", pick);
@@ -281,7 +299,7 @@
         paintList();
         paintRight();
         return AB.popover({
-            anchor: "#ins-method", width: 580, title: "Layout",
+            anchor: "#ins-method", width: 604, title: "Layout",
             body: h("div", { class: "ins-cols" },
                 h("div", null,
                     h("div", { class: "ins-mh", "aria-hidden": "true" }, h("span", { class: "ins-ck" }), h("span", { class: "k-grow" }, "Method"), h("span", { class: "ins-sz" }, "Size"), h("span", { class: "ins-wt" }, "Weights"), h("span", { class: "ins-cost" })),
@@ -341,10 +359,16 @@
         if (m) { r.firstChild.tabIndex = 0; AB.tip(r.firstChild, m, { label: false }); }
         return r;
     }
-    const notComputed = () => h("div", { class: "k-data" }, AB.link("context-menus", "graph", READINGS.length + " more readings not computed", { class: "ab-link" }));
+    // The one "not computed" line: `more` when some readings already show
+    const notComputed = (more) => h("div", { class: "k-data" }, AB.link("context-menus", "graph", (more ? READINGS.length + " more readings" : "Readings") + " not computed", { class: "ab-link" }));
     const ifNot0 = (name, v, dock) => (Number(v) ? rd(name, n(v), dock ? [v, dock] : null) : null);
     // A filter changed the scope under computed readings: the one filtered mark in this inspector
     const staleBar = (k, all, kept, why, go) => ({ text: k + " readings are for all " + AB.count(all, "node"), why, actions: [{ label: "Compute on " + kept, go }] });
+    // The Summary's closed line and its Nodes and Edges rows, from the project's counts as the data is now
+    // (AB.projectCounts). `kept`: the nodes a filter leaves, read from the header chip
+    const keptOf = () => { const m = ((AB.route && AB.route.frame.chip) || "").match(/^([\d,]+) of /); return m ? Number(m[1].replace(/,/g, "")) : null; };
+    const summaryOf = (c, dir, kept) => AB.count(kept != null ? kept : c.nodes, "node", kept != null ? { of: c.nodes } : {}) + ", " + AB.count(c.edges, "edge") + ", " + dir;
+    const countRows = (c, kept) => [rd("Nodes", kept != null ? AB.count(kept, null, { of: c.nodes }) : n(c.nodes)), rd("Edges", n(c.edges))];
     function direction(word, where) {
         const r = AB.data("Direction", word);
         AB.tip(r.lastChild, where, { label: false });
@@ -353,26 +377,25 @@
 
     function view(state) {
         if (state === "registry") {
-            const R = AB.fx.datasets[AB.registryDataset()];
+            const R = AB.fx.datasets[AB.registryDataset()], c = AB.projectCounts(AB.registryDataset());
             return { title: R.frame.graphRow, provenance: ["from " + R.file, "data-page", "edit-registry"], notes: 0,
-                overview: { summary: n(R.nodes) + " nodes, " + n(R.edges) + " edges, directed", body: [
-                    rd("Nodes", n(R.nodes)), rd("Edges", n(R.edges)), direction("Directed", "Each dependency points from a package to the package it needs"),
-                    AB.data("Weight", AB.link("data-page", "edit-registry", "None (each edge counts 1)", { class: "ab-link" })), notComputedAll()] } };
+                overview: { summary: summaryOf(c, "directed"), body: [
+                    ...countRows(c), direction("Directed", "Each dependency points from a package to the package it needs"),
+                    AB.data("Weight", AB.link("data-page", "edit-registry", "None (each edge counts 1)", { class: "ab-link" })), notComputed()] } };
         }
         if (isTransfers(state)) {
-            const D = T(), f = D.frame, s = D.stats;
+            const D = T(), f = D.frame, s = D.stats, c = AB.projectCounts("transactions");
             // With a filter on, the counts agree with the header chip; the readings say what they were computed on
-            const chip = AB.route && AB.route.frame.chip;
-            const kept = chip && (chip.match(/([\d,]+) of /) || [])[1] || null;
-            const readings = [rd("Density", String(s.density)), rd(f.componentsName, String(f.components), [D.nodes, "transfers"]),
+            const kept = keptOf();
+            const readings = [rd("Density", String(s.density)), rd(f.componentsName, String(f.components), [c.nodes, "transfers"]),
                 ifNot0("Isolated nodes", s.isolated, "transfers"), ifNot0("Self-loops", s.selfLoops), ifNot0("Repeated edges", s.parallelEdges),
                 rd("Reciprocity", String(s.reciprocity)), rd("Average total degree", String(s.averageDegree)), rd("Highest total degree", n(s.maxDegree))].filter(Boolean);
             return {
                 title: f.graphRow, provenance: ["from 2 tables", "data-page", "edit-source"] /* accounts and transfers */, notes: 0,
-                stateBar: kept ? staleBar(readings.length, D.nodes, kept, "Computed before the filters, which leave " + kept + ".", ["context-menus", "graph"]) : null,
-                overview: { summary: (kept ? kept + " of " : "") + n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
-                    rd("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), rd("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("amount", "edit-source"),
-                    ...readings, notComputed(), ccdf(ccdfOfLogBars(f.degreeBars, s.maxDegree, D.nodes), s.isolated, "Total degree distribution")] },
+                stateBar: kept != null ? staleBar(readings.length, c.nodes, n(kept), "Computed before the filters, which leave " + AB.count(kept, "node") + ".", ["context-menus", "graph"]) : null,
+                overview: { summary: summaryOf(c, "directed", kept), body: [
+                    ...countRows(c, kept), direction("Directed", "Chosen at load: a CSV does not say"), weight("amount", "edit-source"),
+                    ...readings, notComputed(true), ccdf(ccdfOfLogBars(f.degreeBars, s.maxDegree, c.nodes), s.isolated, "Total degree distribution")] },
             };
         }
         if (state === "door-entries" || state === "door-entries-as-nodes") {
@@ -386,14 +409,14 @@
             if (per === "nodes") AB.tip(edges.lastChild, "Two link edges per entry, to its person and its building; an entry whose person or building is not in the tables has one", { label: false });
             return {
                 title: D.graphName, provenance: ["from " + D.tables.length + " tables", "data-page", loadedOn], notes: 0,
-                overview: { summary: n(nodes) + " nodes, " + n(D.loadedEdges()) + " edges, directed", body: [
+                overview: { summary: summaryOf({ nodes, edges: D.loadedEdges() }, "directed"), body: [
                     rd("Nodes", n(nodes)), AB.data("person", plus("person")), AB.data("building", plus("building")), lt.entry ? AB.data("entry", n(lt.entry)) : null, edges,
                     // one edge table (the entries) gives one Weight line; each entry as a node gives two edge types, its two link columns
                     direction("Directed", "Chosen at load: a CSV does not say"),
                     weightsLine(per === "nodes" ? ["person_id", "building_id"].map((c) => ({ name: c + " links", edit: loadedOn })) : [{ name: "entries", weight: D.loadedWeight(), edit: loadedOn }]),
                     nodeWeight("floors", "building"),
                     rd("Isolated nodes", n(R.people.noEntries), Number(R.people.noEntries) ? [R.people.noEntries, "door-entries-nodes"] : null),
-                    h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }))] },
+                    notComputed()] },
             };
         }
         if (state === "empty-graph") {
@@ -411,23 +434,24 @@
         if (state === "overview" || state === "computed") lastRead = state;
         const fresh = state === "filtered-computed", filtered = state === "filtered" || fresh;
         const computed = state === "computed" || filtered || (state === "components-selected" && lastRead === "computed");
-        const st = FS.statsByState["1"];
+        const st = FS.statsByState["1"], all = AB.projectCounts("lesmis");
         const g = filtered
             ? { nodes: st.nodes, edges: st.edges, density: AB.num(st.density), components: st.components, isolated: st.isolated, averageDegree: st.averageDegree, maxDegree: FS.byStep[0].top[0].degree, degrees: FILTERED_DEGREES }
-            : { nodes: D.nodes, edges: D.edges, density: String(s.density), components: f.components, isolated: s.isolated, averageDegree: s.averageDegree, maxDegree: s.maxDegree, degrees: D.rows.map((r) => r.degree) };
-        const kept = AB.count(g.nodes, "node", { of: D.nodes });
-        const counts = [rd("Nodes", n(g.nodes)), rd("Edges", n(g.edges)), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
+            : { nodes: all.nodes, edges: all.edges, density: String(s.density), components: f.components, isolated: s.isolated, averageDegree: s.averageDegree, maxDegree: s.maxDegree, degrees: D.rows.map((r) => r.degree) };
+        const kept = AB.count(g.nodes, "node", { of: all.nodes });
+        // Filtered, the counts agree with the header chip, as on every project
+        const counts = [...countRows({ nodes: all.nodes, edges: g.edges }, filtered ? g.nodes : null), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
             rd("Density", g.density), rd(f.componentsName, String(g.components), [g.nodes, filtered ? "nodes" : [SELF, "components-selected"]]),
             ifNot0("Isolated nodes", g.isolated, "nodes"), ifNot0("Self-loops", s.selfLoops),
             rd("Average degree", String(g.averageDegree)), rd("Highest degree", String(g.maxDegree))];
         const readings = (fresh ? READINGS_FILTERED : READINGS).map(([k, v]) => rd(k, v));
         const dist = ccdf(ccdfOfDegrees(g.degrees), g.isolated, "Degree distribution");
         // The header's filter chip names the filter; the state bar is this inspector's only filtered mark
-        const body = [...counts, ...(computed ? readings : [notComputed()]), ...dist];
+        const body = [...counts, ...(computed ? readings : [notComputed(true)]), ...dist];
         return {
             title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 1,
-            stateBar: filtered && !fresh ? staleBar(READINGS.length, D.nodes, n(g.nodes), "Computed before the filter: " + FS.steps[0] + " leaves " + kept + ".", [SELF, "filtered-computed"]) : null,
-            overview: { summary: AB.count(g.nodes, "node") + ", " + n(g.edges) + " edges, undirected", body },
+            stateBar: filtered && !fresh ? staleBar(READINGS.length, all.nodes, n(g.nodes), "Computed before the filter: " + FS.steps[0] + " leaves " + kept + ".", [SELF, "filtered-computed"]) : null,
+            overview: { summary: summaryOf({ nodes: all.nodes, edges: g.edges }, "undirected", filtered ? g.nodes : null), body },
         };
     }
 
@@ -463,7 +487,6 @@
     const OTHER = ["wide", "nested", "plainJson"];
     const isOther = (s) => s === "wide" || s === "nested";
     const otherDs = (s) => { const ds = AB.route && AB.route.frame.dataset; return OTHER.includes(ds) ? ds : s; };
-    const notComputedAll = () => h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }));
     function nestedCounts(D) {
         const A = D.recordArrays, NL = AB.nestedLoaded();
         const res = NL.researchers ? A["data.researchers[]"] : 0, inst = NL.institutions ? A["data.institutions[]"] : 0;
@@ -471,35 +494,32 @@
         const EDGES = [["coauthor", NL.researchers && NL.co === "edges" ? (NL.coPer === "item" ? 514 : 510) : 0], ["affiliations", NL.researchers && NL.aff === "rows" && NL.institutions ? 242 : 0], ["address links", addr], ["links", NL.links && NL.researchers ? (NL.institutions ? A["links[]"] : 118) : 0]].concat(NL.researchers ? (NL.idLinks || []).map((x) => [x.name + " links", x.n]) : []).filter(([, k]) => k);
         return { res, inst, addr, EDGES, edges: EDGES.reduce((a, [, k]) => a + k, 0) };
     }
-    // The node and edge counts of a loaded project (wide, nested, plain JSON), for every surface that names them
-    AB.projectCounts = (ds) => {
-        const D = AB.fx.datasets[ds];
-        if (ds === "nested") { const c = nestedCounts(D); return { nodes: c.res + c.inst + c.addr, edges: c.edges }; }
-        return D && typeof D.nodes === "number" ? { nodes: D.nodes, edges: D.edges } : null;
-    };
+    // The nested project's node and edge counts, as the last Load made them, for every surface that names them
+    AB.countSource("nested", (ds) => { const c = nestedCounts(AB.fx.datasets[ds]); return { nodes: c.res + c.inst + c.addr, edges: c.edges }; });
     function otherView(ds) {
         const D = AB.fx.datasets[ds];
         if (ds === "wide") {
             // hosts.csv and connections.csv joined on id; the stats are the fixture's
             // With a filter on, the counts agree with the header chip, as on the transfers
-            const chip = AB.route && AB.route.frame.chip, kept = chip && (chip.match(/([\d,]+) of /) || [])[1] || null;
+            const c = AB.projectCounts(ds), kept = keptOf();
             const readings = [ifNot0("Isolated nodes", D.stats.isolated, "wide"), rd("Average total degree", String(D.stats.averageDegree)), rd("Highest total degree", n(D.stats.maxDegree))].filter(Boolean);
             return {
                 title: D.frame.graphRow, provenance: ["from 2 tables", "data-page", "edit-wide-hosts"], notes: 0,
-                stateBar: kept ? staleBar(readings.length, D.nodes, kept, "Computed before the filters, which leave " + kept + ".", ["context-menus", "graph"]) : null,
-                overview: { summary: (kept ? kept + " of " : "") + n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
-                    rd("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), rd("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("bytes_total_24h", "edit-wide-connections"),
+                stateBar: kept != null ? staleBar(readings.length, c.nodes, n(kept), "Computed before the filters, which leave " + AB.count(kept, "node") + ".", ["context-menus", "graph"]) : null,
+                overview: { summary: summaryOf(c, "directed", kept), body: [
+                    ...countRows(c, kept), direction("Directed", "Chosen at load: a CSV does not say"), weight("bytes_total_24h", "edit-wide-connections"),
                     ...readings,
-                    notComputedAll()] },
+                    notComputed(true)] },
             };
         }
         if (ds === "plainJson") {
+            const c = AB.projectCounts(ds);
             return {
                 title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "edit-plain-nodes"], notes: 0,
-                overview: { summary: n(D.nodes) + " nodes, " + n(D.edges) + " edges, undirected", body: [
-                    rd("Nodes", n(D.nodes)), rd("Edges", n(D.edges)), direction("Undirected", "Read from " + D.file),
+                overview: { summary: summaryOf(c, "undirected"), body: [
+                    ...countRows(c), direction("Undirected", "Read from " + D.file),
                     weight("weight", "edit-plain-links"),
-                    notComputedAll()] },
+                    notComputed()] },
             };
         }
         // The nested document as the last Load left it (AB.nestedLoaded: the reader's choices on the Data
@@ -507,19 +527,19 @@
         // co-authors (514 listed, 4 pairs from both sides), affiliations (Several rows) and links are the
         // edges. ponytail: the edge counts are the preview's figures until the element reports them
         const NL = AB.nestedLoaded(), { res, inst, addr, EDGES, edges } = nestedCounts(D);
-        const e = AB.data("Edges", n(edges));
+        const e = AB.data("Edges", n(AB.projectCounts("nested").edges));
         AB.tip(e.lastChild, EDGES.map(([w, k]) => n(k) + " " + w).join(", ") || "No edges", { label: false });
         const dir = NL.direction === "directed" ? "Directed" : "Undirected";
         return {
             title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "edit-json-researchers"], notes: 0,
-            overview: { summary: n(res + inst + addr) + " nodes, " + n(edges) + " edges, " + dir.toLowerCase(), body: [
-                rd("Nodes", n(res + inst + addr)), res ? AB.data("researcher", n(res)) : null, inst ? AB.data("institution", n(inst)) : null, addr ? AB.data("address", n(addr)) : null, e,
+            overview: { summary: summaryOf(AB.projectCounts("nested"), dir.toLowerCase()), body: [
+                rd("Nodes", n(AB.projectCounts("nested").nodes)), res ? AB.data("researcher", n(res)) : null, inst ? AB.data("institution", n(inst)) : null, addr ? AB.data("address", n(addr)) : null, e,
                 // edges split by edge type, as nodes are by type
                 ...(EDGES.length > 1 ? EDGES.map(([w, k]) => AB.data(w, n(k))) : []),
                 direction(dir, "Chosen at load: a JSON document does not say"),
                 // only links can carry a weight column
                 weightsLine(EDGES.length ? EDGES.map(([w]) => (w === "links" ? { name: w, weight: NL.weight, edit: "edit-json-links", table: "links" } : { name: w, edit: "edit-json-researchers" })) : [{ name: "", edit: "edit-json-researchers" }]),
-                notComputedAll()].filter(Boolean) },
+                notComputed()].filter(Boolean) },
         };
     }
 
@@ -551,14 +571,16 @@
             { id: "components-selected", label: "Summary computed: components clicked, its nodes selected in the table" },
             { id: "filtered", label: "Filtered graph: readings for the whole graph" },
             { id: "filtered-computed", label: "Filtered graph: readings computed again on what the filter leaves" },
-            { id: "canvas", label: "Style tab: Canvas and Layout" },
+            { id: "canvas", label: "Style tab: Canvas" },
+            { id: "layout", label: "Layout tab: Method and Seed" },
             { id: "print", label: "Style tab: Print-safe colors on, its grayscale check" },
             { id: "print-diverging", label: "Style tab: Print-safe colors on a diverging color (transfers' riskScore)" },
-            { id: "pinned", label: "Style tab: two nodes pinned (Pinned nodes line)" },
+            { id: "pinned", label: "Layout tab: two nodes pinned (Pinned nodes line)" },
             { id: "layout-method", label: "Layout popover (method, engine, options, pacing)" },
             { id: "background", label: "Background popover" },
             { id: "transfers", label: "Transfers (directed)" },
-            { id: "transfers-methods", label: "Layout popover, transfers (three methods carry the cost mark)" },
+            { id: "transfers-methods", label: "Layout popover, transfers (three methods say slow)" },
+            { id: "layout-slow", label: "Transfers: a slow method laying out, Stop in the state bar" },
             { id: "reading", label: "While loading: Reading..." },
             { id: "door-entries", label: "Door entries (three tables joined)" },
             { id: "door-entries-as-nodes", label: "Door entries loaded with each entry as a node: two edge types, Loaded weights" },
@@ -584,19 +606,28 @@
                 el.append(p);
                 return;
             }
-            const v = view(state);
-            const styleTab = ["canvas", "print", "print-diverging", "pinned", "layout-method", "background", "transfers-methods"].includes(state);
-            const popState = isTransfers(state) ? "transfers-methods" : "layout-method";
-            const insp = AB.inspector({
-                icon: "network", title: v.title, kind: "Graph", kindKey: "graph", tab: styleTab ? "Style" : "Data",
-                provenance: v.provenance, menu: ["context-menus", "graph"], stateBar: v.stateBar,
-                tabs: {
-                    Style: () => [canvasSection(state), layoutSection(popState, state)],
-                    Data: () => AB.dataTab({ Summary: v.overview, Notes: { count: v.notes, target: ["notes-place", "about-graph"] } }, { kind: "graph" }),
-                },
-            });
-            insp.classList.add("ins-root");
-            el.append(insp);
+            if (state === "layout-slow") { const r = METHODS.find((x) => x.id === "spectral"); method = r.name; slow = { method, rating: r.rating, nodes: T().nodes, ds: "transactions" }; AB.setLayout("running"); }
+            drawInspector(el, state);
         },
     });
+    const popOf = (state) => (isTransfers(state) ? "transfers-methods" : "layout-method");
+    // The Layout group, for the toolbar's Layout popover: the same lines, the same method popover
+    AB.layoutGroup = (state) => layoutSection(popOf(state || "layout"), state);
+    function drawInspector(el, state, tab) {
+        drawn = { el, state };
+        const v = view(state);
+        const styleTab = ["canvas", "print", "print-diverging", "background"].includes(state);
+        const layoutTab = ["layout", "pinned", "layout-method", "transfers-methods", "layout-slow"].includes(state);
+        const insp = AB.inspector({
+            icon: "network", title: v.title, kind: "Graph", kindKey: "graph", tab: tab || (styleTab ? "Style" : layoutTab ? "Layout" : "Data"),
+            provenance: v.provenance, menu: ["context-menus", "graph"], stateBar: slowBar() || v.stateBar,
+            tabs: {
+                Style: () => [canvasSection(state)],
+                Layout: () => [layoutSection(popOf(state), state)],
+                Data: () => AB.dataTab({ Summary: v.overview, Notes: { count: v.notes, target: ["notes-place", "about-graph"] } }, { kind: "graph" }),
+            },
+        });
+        insp.classList.add("ins-root");
+        el.append(insp);
+    }
 })();

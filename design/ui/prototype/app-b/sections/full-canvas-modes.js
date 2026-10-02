@@ -30,10 +30,10 @@
 .fcm-entry:hover { background: var(--cm-bg-hover); }
 .fcm-entry > .k-i { color: var(--cm-text-secondary); }
 .fcm-entry-sub { grid-column: 2; color: var(--cm-text-secondary); }
-.fcm-entry[hidden] { display: none; }
-.fcm-added { grid-column: 2; display: grid; gap: 2px; padding-top: 4px; }
-.fcm-added > div { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.fcm-big { color: var(--cm-text-warning, var(--cm-text)); font-weight: 600; }
+.fcm-li[hidden] { display: none; }
+.fcm-added { display: grid; gap: 2px; padding: 0 12px 6px 40px; }
+.fcm-added > div { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
+.fcm-big { color: var(--cm-text); font-weight: 600; }
 .fcm-changed { grid-column: 2 / -1; display: grid; gap: 2px; padding: 4px 0 2px; color: var(--cm-text-secondary); }
 .fcm-changed > span { display: block; }
 .fcm-changed .k-badge { margin-inline-end: 6px; }
@@ -128,24 +128,30 @@
         let kind = "All";
         const list = h("ul", { class: "fcm-log", "aria-label": "Log, newest first" });
         const emptyLine = h("div", { class: "fcm-logempty", hidden: true });
-        const entry = (k, ic, text, sub, target, extra) => h("li", Object.assign({ class: "fcm-entry", "data-kind": k }, AB.act(target)), icon(ic, "sm"), h("span", null, text), sub ? h("span", { class: "fcm-entry-sub" }, sub) : null, extra || null);
-        const version = (name, current, chosen, target, subs, note, changed) => h("li", Object.assign({ class: "fcm-ver", "aria-current": chosen ? "true" : null, "aria-label": name + (current ? ", current" : "") + (chosen ? ", open" : "") }, chosen ? { tabindex: "0" } : Object.assign({ role: "button" }, AB.act({ go: target }))),
-            icon("history", "sm"), h("span", { class: "fcm-ver-name k-ellipsis" }, name), current ? h("span", { class: "k-badge k-secondary" }, "current") : note || h("span"),
-            subs.map((s) => h("span", { class: "fcm-ver-sub k-num" }, s)), changed || null);
+        // A list item holds the button (a list may only hold list items); the recipe's added rows sit outside it
+        const entry = (k, ic, text, sub, target, extra) => h("li", { class: "fcm-li", "data-kind": k },
+            h("div", Object.assign({ class: "fcm-entry", role: "button" }, AB.act(target)), icon(ic, "sm"), h("span", null, text), sub ? h("span", { class: "fcm-entry-sub" }, sub) : null), extra || null);
+        const version = (name, current, chosen, target, subs, note, changed) => {
+            const kids = [icon("history", "sm"), h("span", { class: "fcm-ver-name k-ellipsis" }, name), current ? h("span", { class: "k-badge k-secondary" }, "current") : note || h("span"),
+                subs.map((s) => h("span", { class: "fcm-ver-sub k-num" }, s)), changed || null];
+            const label = name + (current ? ", current" : "") + (chosen ? ", open" : "");
+            return chosen ? h("li", { class: "fcm-ver", "aria-current": "true", "aria-label": label, tabindex: "0" }, kids)
+                : h("li", { class: "fcm-li" }, h("div", Object.assign({ class: "fcm-ver", role: "button", "aria-label": label }, AB.act({ go: target })), kids));
+        };
 
         // The recipe entry: open in recipe-detail, listing the rows it added
         const added = [
             { ic: "circle-check", name: "Watchlist", sub: W.inCurrentData + " of " + W.members + " accounts", go: ["recipe-apply", "applied"] },
             { ic: "chart-column", name: "Personalized PageRank from Watchlist", sub: "ran on apply", go: ["inspector-measure-row", "style"] },
             { ic: "route", name: "Cycles up to 4 transfers", sub: "arrived not run", go: ["inspector-run-row", "data"] },
-            { ic: "hash", name: "riskScore", sub: "paints node color", go: ["inspector-measure-row", "risk-score"] },
-            { ic: "tag", name: "alertRule", sub: "off: not in April data", go: ["inspector-group-set-path-row", "style"] },
+            { ic: AB.typeGlyph("num"), name: "riskScore", sub: "paints node color", go: ["inspector-measure-row", "risk-score"] },
+            { ic: AB.typeGlyph("cat"), name: "alertRule", sub: "off: not in April data", go: ["inspector-group-set-path-row", "style"] },
         ];
         const recipe = entry("Recipes", "book-open", "Applied recipe Mule ring triage", "Saved by Dana Reyes, Mar 28. Added 5 rows.",
             { go: ["full-canvas-modes", recipeOpen ? "version-history" : "recipe-detail"] },
-            recipeOpen ? h("div", { class: "fcm-added" }, added.map((r) => h("div", null, icon(r.ic, "sm"), AB.link(r.go[0], r.go[1], r.name), h("span", { class: "k-secondary" }, r.sub))),
+            recipeOpen ? h("div", { class: "fcm-added" }, added.map((r) => h("div", null, typeof r.ic === "string" ? icon(r.ic, "sm") : r.ic, AB.link(r.go[0], r.go[1], r.name), h("span", { class: "k-secondary" }, r.sub))),
                 h("div", null, AB.openQuestion("Whether removing a recipe is one step here, or one row at a time in the tree"))) : null);
-        recipe.setAttribute("aria-expanded", String(recipeOpen));
+        recipe.firstChild.setAttribute("aria-expanded", String(recipeOpen));
 
         AB.append(list, [
             version("April data", true, !past, ["full-canvas-modes", "version-history"], [
@@ -174,8 +180,8 @@
 
         const filter = (k) => {
             kind = k;
-            list.querySelectorAll(".fcm-entry").forEach((li) => { li.hidden = k !== "All" && li.dataset.kind !== k; });
-            const none = !list.querySelector(".fcm-entry:not([hidden])");
+            list.querySelectorAll(".fcm-li[data-kind]").forEach((li) => { li.hidden = k !== "All" && li.dataset.kind !== k; });
+            const none = !list.querySelector(".fcm-li[data-kind]:not([hidden])");
             emptyLine.hidden = !none;
             emptyLine.replaceChildren(none ? AB.empty("No " + k.toLowerCase() + " in this project.") : "");
             segBox.replaceChildren(segFor());
@@ -207,7 +213,7 @@
             h("div", { class: "k-stage", role: "img", "aria-label": "The transfers in March, drawn unstyled" }, AB.drawing("transactions-plain", "")),
             h("div", { class: "fcm-banner" }, h("span", { class: "k-grow" }, h("b", null, "March data"), h("span", { class: "k-secondary" }, ", the current and only version."))),
             AB.legendCard([]));
-        const entry = (ic, text, sub, go) => h("li", Object.assign({ class: "fcm-entry" }, AB.act({ go })), icon(ic, "sm"), h("span", null, text), h("span", { class: "fcm-entry-sub" }, sub));
+        const entry = (ic, text, sub, go) => h("li", { class: "fcm-li" }, h("div", Object.assign({ class: "fcm-entry", role: "button" }, AB.act({ go })), icon(ic, "sm"), h("span", null, text), h("span", { class: "fcm-entry-sub" }, sub)));
         const replace = AB.cmd("replace-file");
         const log = h("div", { class: "fcm-col", role: "region", "aria-label": "Log" },
             h("div", { class: "fcm-colhead" }, h("span", { class: "k-grow" }, "Log"),
@@ -335,7 +341,7 @@
             ];
         } else if (state === "rankings") {
             const T = R.scatter.topBoth, off = R.spearmanOffBottom;
-            const tieInfo = AB.tip(h("span", { class: "fcm-info", tabindex: "0" }, icon("info", "sm")), "Tied values share the average of their ranks");
+            const tieInfo = AB.tip(h("span", { class: "fcm-info", role: "img", tabindex: "0" }, icon("info", "sm")), "Tied values share the average of their ranks");
             const biggest = R.rows.slice().sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, 5);
             sections = [
                 AB.section("In both top lists", [10, 50, 100].map((n) => AB.data("Top " + n, T[n] + " of the top " + n + " in both"))),

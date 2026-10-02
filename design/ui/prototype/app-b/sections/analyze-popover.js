@@ -58,8 +58,11 @@
                 { id: "pagerank", name: "PageRank", family: "Centrality", start: true, out: MEASURE, weight: "flow", key: ["Damping", "0.85", ["0.5", "0.85", "0.95"]], aliases: ["influence", "important", "importance", "random walk"], answers: "Which nodes are connected to other well-connected nodes." },
                 // Link counts and weighted degree are named from the data, never from a domain: on a
                 // directed graph each offers in, out and both as its one key option (SIDES below)
-                { id: "degree", name: "Links (count)", rowName: (side) => "Links" + SIDE_WORD[side] + " (count)", family: "Degree", out: MEASURE, weight: null, sides: true, aliases: ["degree", "connections", "hubs", "popular"],
-                    answersBy: { both: "How many edges each node has.", in: "How many edges come into each node.", out: "How many edges go out of each node." } },
+                // It says what it counts (edges, each 1 whatever its weight) and whether pairs repeat; where they do it
+                // offers distinct neighbors instead (COUNTS below)
+                { id: "degree", name: "Links (count)", rowName: (side) => (distinct() ? "Neighbors" : "Links") + SIDE_WORD[side] + " (count)", family: "Degree", out: MEASURE, weight: null, sides: true, counts: true, aliases: ["degree", "connections", "hubs", "popular", "neighbors", "distinct neighbors"],
+                    answersBy: { both: "How many edges each node has.", in: "How many edges come into each node.", out: "How many edges go out of each node." },
+                    answersDistinct: { both: "How many different nodes each node is linked to.", in: "How many different nodes link into each node.", out: "How many different nodes each node links out to." } },
                 { id: "weighted-degree", name: "Weighted degree", rowName: (side, w) => (w ? "Total " + w : "Weighted degree") + SIDE_WORD[side], family: "Degree", out: MEASURE, weight: "flow", needsWeight: true, sides: true, aliases: ["weighted degree", "strength", "sum of weights", "total", "volume"],
                     answersBy: { both: (w) => "The sum of " + w + " over each node's edges.", in: (w) => "The sum of " + w + " over the edges coming into each node.", out: (w) => "The sum of " + w + " over the edges going out of each node." } },
                 { id: "betweenness", name: "Betweenness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, aliases: ["brokers", "bridges", "gatekeepers", "bottlenecks"], answers: "Which nodes sit on the most shortest paths between others." },
@@ -132,9 +135,57 @@
     const nm = (e, side) => (!e.rowName ? e.name : picked(e) ? e.rowName(ui.side, ui.weight) : e.rowName(side || "both", graphOf(ui.ds).weight));
     const answersOf = (e, side) => {
         if (!e.answersBy) return e.answers;
+        if (e.answersDistinct && picked(e) && distinct()) return e.answersDistinct[ui.side];
         const a = e.answersBy[picked(e) ? ui.side : side || "both"];
         return typeof a === "function" ? a((picked(e) ? ui.weight : graphOf(ui.ds).weight) || "a chosen weight") : a;
     };
+    // What a link count counts. A stand-in for graphty-element's data summary (repeated pairs): Les
+    // Miserables has none (checked against miserables.json: 254 edges, 254 pairs), the transfers read the
+    // fixture's parallelEdges, the door entries the last Load's report, and the loaded JSON and hosts
+    // projects their own edge lists. Returns { pairs } (pairs of nodes joined by more than one edge,
+    // same direction on a directed graph) or { edges, pairs } (edges over distinct pairs), or null.
+    function repeatsOf(ds) {
+        const X = AB.fx.datasets, D = X[ds];
+        if (ds === "lesmis") return { pairs: 0 };
+        if (ds === "transactions") return { pairs: D.stats.parallelEdges };
+        if (ds === "doorEntries") {
+            const e = D.report.entries, a = (D.loaded.add && e.added[D.loaded.add]) || e;
+            return D.loaded.per === "row" ? { edges: D.loadedEdges(), pairs: a.pairEdges } : { pairs: 0 };
+        }
+        let list = null;
+        if (ds === "wide") list = D.edgeRows.map((r) => [r.source, r.target]);
+        if (ds === "plainJson") list = D.document.links.map((l) => [l.source, l.target]);
+        if (ds === "nested") {
+            const NL = AB.nestedLoaded(), seen = new Set();
+            list = [];
+            // co-authors per pair drop an id a researcher lists twice (the graph inspector's 510); per item, one edge per listed id
+            if (NL.co === "edges") D.document.data.researchers.forEach((r) => r.relationships.coauthor_ids.forEach((c) => { const k = r.id + " " + c; if (NL.coPer !== "pair" || !seen.has(k)) { seen.add(k); list.push([r.id, c]); } }));
+            if (NL.links) D.document.links.forEach((l) => list.push([l.source, l.target]));
+        }
+        if (!list) return null;
+        const dir = graphOf(ds).directed, n = new Map();
+        list.forEach(([a, b]) => { const k = dir ? a + " " + b : [a, b].sort().join(" "); n.set(k, (n.get(k) || 0) + 1); });
+        return { pairs: [...n.values()].filter((v) => v > 1).length };
+    }
+    const repeats = (r) => !!r && (r.edges != null ? r.edges > r.pairs : r.pairs > 0);
+    // Counts edges, or distinct neighbors (offered only where pairs repeat)
+    const distinct = () => ui && ui.level === "pick" && ui.picked === "degree" && ui.counts === "neighbors";
+    // The noun for an edge: the edge type's value only when the data declares one edge type (the door
+    // entries' edge table, entries); otherwise plain "edge"
+    const edgeNoun = (ds) => (ds === "doorEntries" && AB.fx.datasets.doorEntries.loaded.per !== "nodes" ? AB.fx.datasets.doorEntries.tables[2].name + " edge" : "edge");
+    function countsRow(row) {
+        const R = repeatsOf(ui.ds), one = edgeNoun(ui.ds), dir = graphOf(ui.ds).directed;
+        const fact = !R ? null : R.edges != null
+            ? AB.count(R.edges, one) + " join " + AB.count(R.pairs, "pair") + " of nodes."
+            : R.pairs === 0 ? "No two nodes share more than one edge" + (dir ? " in the same direction." : ".")
+                : AB.count(R.pairs, "pair") + " of nodes " + (R.pairs === 1 ? "shares" : "share") + " more than one edge" + (dir ? " in the same direction." : ".");
+        const what = distinct() ? "Counts distinct neighbors: a node joined by several edges counts once."
+            : "Counts " + one + "s: each " + one + " counts 1, whatever its weight.";
+        row("Counts", h("span", { class: "ap-stack" },
+            repeats(R) ? AB.seg([["edges", "Edges"], ["neighbors", "Distinct neighbors"]], ui.counts, (v) => { ui.counts = v; draw(); }, { label: "Counts" }) : null,
+            h("span", { class: "ap-sub" }, what),
+            fact ? h("span", { class: "ap-sub" }, fact) : AB.needsElement("graphty-element's data summary says how many pairs of nodes share more than one edge")));
+    }
     // The list's rows: [entry, side]; a link count or weighted degree on a directed graph lists all three
     const rowsOf = (e) => (e.sides && graphOf(ui.ds).directed ? SIDES.map((s) => [e, s]) : [[e, null]]);
     // Edge results a run may read as a weight (the tree's Edge betweenness row on Les Miserables)
@@ -155,13 +206,14 @@
     const costly = (e) => { const est = e.cost ? estimateOf(e, ui.weight) : null; return est && !est.exact.withinBudget ? est : null; };
     const about = (sec) => (sec >= 5400 ? Math.round(sec / 3600) + " hours" : sec >= 90 ? Math.round(sec / 60) + " minutes" : Math.round(sec) + " seconds");
     const nodesOf = () => (AB.fx.datasets[ui.ds] && AB.fx.datasets[ui.ds].nodes) || AB.fx.datasets.lesmis.nodes;
-    const DS_OF = { costly: "transactions", declined: "transactions", transfers: "transactions", "transfers-pagerank": "transactions", "weighted-degree": "transactions", "link-counts": "transactions", "node-weight": "doorEntries", "wide-weight": "wide" };
+    const DS_OF = { costly: "transactions", declined: "transactions", transfers: "transactions", "transfers-pagerank": "transactions", "weighted-degree": "transactions", "link-counts": "transactions", "node-weight": "doorEntries", "wide-weight": "wide", "link-counts-repeats": "nested" };
     const ALL = GROUPS.flatMap((g) => g.entries);
     const byId = (id) => ALL.find((e) => e.id === id);
     const RECENT = ["louvain", "pagerank", "shortest-path"];
-    // Rows the paint tree holds at rest: analyzing one of these revises that row
-    const HAS_ROW = { pagerank: "PageRank", louvain: "Louvain" };
-    const hasRow = (e) => (ui.ds === "lesmis" ? HAS_ROW[e.id] : null);
+    // Rows the paint tree holds at rest, per project: analyzing one of these revises that row (matched
+    // by the entry's name as picked, so Links in (count) on the transfers finds its row and Links out does not)
+    const HAS_ROW = { lesmis: ["PageRank", "Louvain"], transactions: ["Louvain", "Links in (count)"] };
+    const hasRow = (e) => (HAS_ROW[ui.ds] || []).find((n) => n === nm(e)) || null;
     // The selection in the scoped state: the five nodes inspector-several-elements shows
     const SELECTED = ["Valjean", "Javert", "Thenardier", "Fantine", "Cosette"];
 
@@ -187,6 +239,7 @@
         if (state === "weight-list") { pick("closeness", true); ui.weight = "Edge betweenness"; ui.meaning = "farther"; }
         if (state === "weighted-degree") { pick("weighted-degree", true); ui.side = "in"; }
         if (state === "link-counts") { pick("degree", true); ui.side = "in"; }
+        if (state === "link-counts-repeats") pick("degree", true);
         if (state === "bridges") pick("bridges", true);
     }
 
@@ -211,7 +264,7 @@
         const G = graphOf(ui.ds);
         // An exact run past the time limit defaults to the largest sample that fits
         const est = e.cost ? estimateOf(e, e.weight ? G.weight : null) : null;
-        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, declined: false, side: side || "both", sampled: est && !est.exact.withinBudget ? "sampled" : "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
+        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, declined: false, side: side || "both", counts: "edges", sampled: est && !est.exact.withinBudget ? "sampled" : "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
         if (!quiet) draw();
     }
     function back() {
@@ -342,6 +395,7 @@
         // In, out or both, named from the data; it takes the place of Direction
         if (e.sides && directed) row("Measure", dropdown(e.rowName(ui.side, ui.weight), SIDES.map((s) => e.rowName(s, ui.weight)), (c) => { ui.side = SIDES.find((s) => e.rowName(s, ui.weight) === c); draw(); }));
         if (directed && !e.sides) row("Direction", AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], ui.dir, (v) => { ui.dir = v; draw(); }, { label: "Direction" }));
+        if (e.counts) countsRow(row);
         if (e.node === "start") row("Start", dropdown(ui.start, NODES(), (c) => { ui.start = c; draw(); }, { placeholder: "Choose a node" }));
         if (e.node === "pair") {
             row("From", dropdown(ui.from, NODES(), (c) => { ui.from = c; draw(); }, { placeholder: "Choose a node" }));
@@ -362,7 +416,7 @@
                 h("span", { class: "ap-sub" }, "Exact: Computed on every node, not estimated. It does not say the ranking is meaningful."),
                 h("span", { class: "ap-sub" }, "Sampled: " + AB.count(est.largestKWithinBudget, "source") + " of " + AB.num(nodesOf()) + ": the largest sample that fits the time limit.")));
         }
-        if (!e.weight && !e.node && !e.key && !est && !e.reads && !(e.sides && directed)) body.append(AB.empty("Nothing to set."));
+        if (!e.weight && !e.node && !e.key && !est && !e.reads && !e.counts && !(e.sides && directed)) body.append(AB.empty("Nothing to set."));
         return body;
     }
 
@@ -372,7 +426,7 @@
         const est = ui.sampled === "exact" ? costly(e) : null;
         if (est) { ui.declined = true; draw(); return AB.announce("Not run: would take about " + about(est.exact.seconds)); }
         if (e.id === "betweenness") return AB.go("analyze-popover", "running");
-        if (hasRow(e) && !asCopy) return AB.go(e.out.section, "data");
+        if (hasRow(e) && !asCopy) return ui.ds === "lesmis" ? AB.go(e.out.section, "data") : AB.flash("Would update the " + hasRow(e) + " row in place (not modeled in the skeleton)");
         AB.flash("Would add " + nm(e) + (asCopy ? " as a copy" : "") + " at the top of the list, running (not modeled in the skeleton)");
     }
 
@@ -456,7 +510,8 @@
             : state === "scoped" ? { left: "graph-place/at-rest", right: "inspector-several-elements/style" }
             : state === "transfers" || state === "transfers-pagerank" || state === "costly" || state === "declined" || state === "search-total" || state === "weighted-degree" || state === "link-counts" ? { dataset: "transactions", left: "graph-place/many-groups", canvas: "canvas-and-states/transfers" }
             : state === "node-weight" ? { dataset: "doorEntries", left: "data-place/door-entries", right: false }
-            : state === "wide-weight" ? { dataset: "wide", left: "graph-place/at-rest" } : {}),
+            : state === "wide-weight" ? { dataset: "wide", left: "graph-place/at-rest" }
+            : state === "link-counts-repeats" ? { dataset: "nested", left: "graph-place/nested" } : {}),
         states: [
             { id: "open", label: "Open: Recent and the catalog" },
             { id: "search", label: "Search: an alias match (brokers)" },
@@ -476,6 +531,7 @@
             { id: "weight-list", label: "Weight list: loaded weight, None for this run, then the rest" },
             { id: "weighted-degree", label: "Transfers: weighted degree, Total amount in" },
             { id: "link-counts", label: "Transfers: link count, Links in (count)" },
+            { id: "link-counts-repeats", label: "Research network: link count where pairs repeat, Edges or Distinct neighbors" },
             { id: "bridges", label: "Bridges: Not on a bridge edge" },
             { id: "node-weight", label: "Door entries: a node-weight line" },
             { id: "revise", label: "Louvain already has a row: Update or Run as copy" },

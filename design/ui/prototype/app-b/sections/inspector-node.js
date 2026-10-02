@@ -160,8 +160,8 @@
     const valueTrail = (v) => AB.tip(h("span", { class: "inn-val k-ellipsis", tabindex: "-1" }, fmt(v)), fmt(v), { label: false });
     // "N more attributes": read-only, so the shared collapsible section, open or closed remembered per kind
     function moreSection(count, empty, list) {
-        return AB.section({ title: count + " more attributes", collapsible: true, key: "data.node.more", summary: empty + " empty, not listed" },
-            h("div", { class: "inn-empty k-secondary" }, empty + " empty, not listed"), h("div", { class: "inn-more" }, list));
+        return AB.section({ title: count + " more attributes", collapsible: true, key: "data.node.more", summary: empty + " empty, not shown" },
+            h("div", { class: "inn-empty k-secondary" }, empty + " empty, not shown"), h("div", { class: "inn-more" }, list));
     }
     // ponytail: the field list takes no subset of a project's fields, so the attributes with a value on
     // this node (the shared field objects from AB.fieldsOf, fill dropped: one node has a value or not)

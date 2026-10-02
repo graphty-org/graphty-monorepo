@@ -1,16 +1,18 @@
 /* Project-name menu: opened from the project name in the header (#ab-project), as in Figma.
-   Items (spec section 10.2): Rename (F2), Save, Save as..., Export..., Apply recipe or style
-   file..., Version history, Close project. This menu is "this project"; the main menu is "the app".
+   Items (spec section 10.2): Rename (F2) | the File list (AB.fileList(), the same five commands and
+   words as the main menu) | Save as..., Close project. This menu is "this project"; the main menu is
+   "the app". The dialog it opens itself (Save as) is titled with the project's name.
    "Show file location" is gone: a browser cannot show where a file lives.
+   The menu opens under the name, so it carries no heading that repeats it (Figma does the same).
    States: closed (the name at rest; a click opens the menu, a double-click or F2 renames -- the
    shell owns both gestures), open, rename (the name is a field in place), long-name (a
-   60-character name, open: the header and the menu's name line take the end ellipsis, the full
-   name in their tooltip). A rename lasts for this page visit only. Plain ASCII. */
+   60-character name, open: the header takes the end ellipsis, the full name in its tooltip),
+   save-as (the Save as dialog, titled with the name; the new name is a field). A rename lasts for
+   this page visit only. Plain ASCII. */
 (function () {
     "use strict";
     if (!document.getElementById("pm-style")) {
-        document.head.append(h("style", { id: "pm-style" }, `#ab-project[aria-expanded="true"] { background: var(--cm-bg-hover); }
-.pm-name.k-menu-label { display: block; max-width: 280px; line-height: 24px; }`));
+        document.head.append(h("style", { id: "pm-style" }, `#ab-project[aria-expanded="true"] { background: var(--cm-bg-hover); }`));
     }
 
     let name = null; // the project's name for this visit; starts from the fixtures
@@ -29,8 +31,6 @@
         });
     }
 
-    const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
-
     registerSection({
         id: "project-menu",
         title: "Project-name menu",
@@ -43,6 +43,7 @@
             { id: "open", label: "Open" },
             { id: "rename", label: "Rename: the name is a field (double-click or F2)" },
             { id: "long-name", label: "Long name: 60 characters, end ellipsis and tooltip" },
+            { id: "save-as", label: "Save as: the dialog, titled with the project's name" },
         ],
         render(el, state) {
             name = names[ds()] || (names[ds()] = AB.fx.datasets[ds()].frame.project);
@@ -60,6 +61,14 @@
             // Closed and rename draw nothing in the overlay, so clicks reach the frame
             if (state === "closed") return;
             if (state === "rename") { setTimeout(renameName, 0); return; }
+            if (state === "save-as") {
+                el.append(AB.modal({
+                    title: "Save " + name + " as",
+                    body: AB.fieldRow("Name", h("input", { class: "k-field", type: "text", value: name + " copy", "aria-label": "Name", spellcheck: "false" }), { popover: true }),
+                    foot: [AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), AB.button("Save", { onClick: () => { AB.flash("Saved a copy (not wired in the skeleton)"); AB.close(); } })],
+                }));
+                return;
+            }
 
             el.append(AB.menu({
                 anchor: "#ab-project",
@@ -67,24 +76,14 @@
                 label: "Project " + name,
                 back: ["project-menu", "closed"],
                 items: [
-                    { heading: name },
                     AB.cmd("rename", { go: ["project-menu", "rename"] }),
                     { sep: true },
-                    { label: "Save", shortcut: "Ctrl+S", onClick: flash("Save") },
-                    { label: "Save as...", shortcut: "Ctrl+Shift+S", onClick: flash("Save as") },
+                    ...AB.fileList(),
                     { sep: true },
-                    AB.cmd("export"),
-                    { label: "Apply recipe or style file...", desc: "Reuse another project's analysis or look on this data", go: ["recipe-apply", "binding"] },
-                    AB.cmd("version-history"),
-                    { sep: true },
+                    { label: "Save as...", shortcut: "Ctrl+Shift+S", go: ["project-menu", "save-as"] },
                     { label: "Close project", desc: "Back to the start screen", go: ["start-screen", "returning"] },
                 ],
             }));
-            const head = el.querySelector(".k-menu-label");
-            if (head) {
-                head.classList.add("pm-name", "k-ellipsis");
-                if (state === "long-name") AB.tip(head, name, { label: false });
-            }
         },
     });
 })();

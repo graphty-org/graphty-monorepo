@@ -12,7 +12,8 @@
    unconnected nodes") with modularity and its one-line plain reading; every reading's name carries
    its meaning as a tooltip (hover and keyboard focus). Sizes lists each community with its hub,
    counted by its degree inside the community, and the overflow "Other" in the light overflow gray
-   with its members. The header's provenance names the run with its date ("from Louvain, Sep 28").
+   with its members. The header's provenance names the run with its date ("from Louvain, Sep 28") and opens
+   that run's own record in place: the Data tab with Made with open and in view, never the Analyze catalog.
    State bars speak in the past tense about what the run used and what changed since (out of date,
    weight meaning changed, a filter changed the scope, failed). Made with names where the weight came from: "loaded weight (value)" when the run used
    the weight chosen on the Data page, or "None, this run's override" (state weight-override); Higher
@@ -32,14 +33,13 @@
 :is(.rr-col, .rr-all) .ab-design-note { white-space: normal; margin-inline-start: 0; flex: 0 1 auto; min-width: 0; }
 .rr-wrap .k-ellipsis { white-space: normal; overflow: visible; }
 .ab-statebar > .k-ellipsis:has(> .rr-bar) { white-space: normal; overflow: visible; text-overflow: clip; }
-.rr-groups { padding: 4px 16px 8px; display: flex; flex-direction: column; gap: 2px; }
+.rr-groups { padding: 4px 16px 8px; display: flex; flex-direction: column; gap: 6px; }
 .rr-group { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 6px; align-items: center; min-height: 20px; }
 .rr-members { grid-column: 2 / -1; white-space: normal; }
 .rr-all { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 16px 8px 112px; }
 `;
     if (!document.getElementById("rr-style")) document.head.append(h("style", { id: "rr-style" }, CSS));
 
-    const fmt = (n) => Number(n).toLocaleString("en-US");
     const RUN_LABEL = "a run's name is its label, which graphty-element keeps read-only";
     const NO_EARLIER = "a rerun replaces the result, and graphty-element keeps no earlier one";
     const MENU = ["context-menus", "run-row"];
@@ -90,11 +90,11 @@
     function world(state) {
         const fx = AB.fx, A = fx.datasets.transactionsApril, M = fx.datasets.transactions;
         if (!TRANSFERS.includes(state))
-            return { lm: true, unit: "nodes", weight: "value", table: "communities", nodes: fx.datasets.lesmis.nodes, communities: LESMIS_RUN.length, modularity: 0.565, seed: 7, isolated: fx.datasets.lesmis.stats.isolated,
+            return { lm: true, unit: "node", weight: "value", table: "communities", nodes: fx.datasets.lesmis.nodes, communities: LESMIS_RUN.length, modularity: 0.565, seed: 7, isolated: fx.datasets.lesmis.stats.isolated,
                 rows: LESMIS_RUN.map(([n, c, col], i) => ({ name: "Community " + n, color: col, count: c, hub: LESMIS_HUBS[i] })), other: null, version: null };
         // the transfers tree and canvas this section is framed by show the March result
         const c = A.louvain.march, lg = A.legends.march;
-        return { lm: false, unit: "accounts", weight: "amount", table: "transfers", nodes: M.nodes, communities: c.communities, modularity: c.modularity, seed: 11, isolated: M.stats.isolated,
+        return { lm: false, unit: "account", weight: "amount", table: "transfers", nodes: M.nodes, communities: c.communities, modularity: c.modularity, seed: 11, isolated: M.stats.isolated,
             rows: lg.rows.map((r) => ({ name: r.name, color: r.color, count: r.count })), other: lg.other,
             // provenance shows only where it differs from the current graph (April)
             version: "March, now April" };
@@ -138,7 +138,7 @@
         const pal = AB.fx.canvas.categorical;
         return AB.styleTab({
             kind: "node", kinds: ["node"],
-            paints: ["Paints " + fmt(W.nodes) + " " + W.unit, ["table-dock", W.table]],
+            paints: ["Paints " + AB.count(W.nodes, W.unit), ["table-dock", W.table]],
             set: {},
             bound: { "node.color": { field: "Louvain communities", palette: "Eight distinct", ramp: [pal[0], pal[pal.length - 1]] } },
         });
@@ -150,10 +150,10 @@
         const OTHER = AB.fx.canvas.otherGray;
         // "Other" holds many communities: its bar is drawn at their average size, its label gives the total
         const all = W.other ? W.rows.concat([{ name: "Other", color: OTHER, count: W.other.count, other: true }]) : W.rows;
-        const bars = all.map((r) => AB.tip(h("span", { tabindex: "-1", role: "img", "aria-label": r.name + ": " + fmt(r.count) + " " + W.unit, style: `height:${Math.max(4, Math.min(100, Math.round(((r.other ? r.count / W.other.communities : r.count) / max) * 100)))}%;background:${r.color}` }), r.name + ": " + fmt(r.count) + " " + W.unit + (r.other ? " in " + AB.count(W.other.communities, "community", { plural: "communities" }) + "; the bar shows their average" : ""), { label: false }));
+        const bars = all.map((r) => AB.tip(h("span", { tabindex: "-1", role: "img", "aria-label": r.name + ": " + AB.count(r.count, W.unit), style: `height:${Math.max(4, Math.min(100, Math.round(((r.other ? r.count / W.other.communities : r.count) / max) * 100)))}%;background:${r.color}` }), r.name + ": " + AB.count(r.count, W.unit) + (r.other ? " in " + AB.count(W.other.communities, "community", { plural: "communities" }) + "; the bar shows their average" : ""), { label: false }));
         const cap = W.other
-            ? fmt(max) + " to " + fmt(min) + " " + W.unit + " in the largest " + W.rows.length + "; " + W.other.communities + " more hold " + fmt(W.other.count)
-            : fmt(max) + " to " + fmt(min) + " " + W.unit + " each, largest first";
+            ? AB.num(max) + " to " + AB.count(min, W.unit) + " in the largest " + W.rows.length + "; " + AB.num(W.other.communities) + " more hold " + AB.count(W.other.count, W.unit)
+            : AB.num(max) + " to " + AB.count(min, W.unit) + " each, largest first";
         return { summary: cap, body: [
             h("div", { class: "rr-sizes", role: "img", "aria-label": "Community sizes, largest first: " + W.rows.map((r) => r.count).join(", ") + (W.other ? ", then Other, " + W.other.communities + " more communities" : "") }, bars),
             h("div", { class: "ab-cap k-secondary" }, cap),
@@ -167,9 +167,8 @@
             let sub = null;
             if (r.hub) sub = h("span", { class: "rr-members k-secondary" }, "Hub " + r.hub[0] + ", " + AB.count(r.hub[1], "link") + " inside");
             if (r.other) {
-                const from = lead(W.other.holds), names = [];
-                for (let i = 0; i < W.other.communities; i++) names.push(from + i);
-                sub = h("span", { class: "rr-members k-secondary" }, AB.count(W.other.communities, "community", { plural: "communities" }) + ": Communities " + names.join(", "));
+                const from = lead(W.other.holds);
+                sub = h("span", { class: "rr-members k-secondary" }, "Communities " + from + " to " + (from + W.other.communities - 1));
             }
             return h("div", { class: "rr-group", role: "listitem" }, AB.chit(r.color, true), h("span", { class: "k-ellipsis" }, r.name), h("span", { class: "k-num k-secondary" }, AB.num(r.count)), sub);
         }), W.lm ? h("div", null, AB.openQuestion(HUB_Q)) : null);
@@ -269,12 +268,35 @@
         }, { kind: "run" });
     }
 
+    // "from Louvain, Sep 28" opens what it names: this run's own record (Made with), in place, in any
+    // state, so a partial or failed run keeps its state bar. The inspector's provenance helper only
+    // navigates, and a route to this same inspector would draw it as plain text, so the link is swapped here.
+    const MADE_WITH = "data.run.made-with";
+    function toRecord(wrap, label) {
+        const old = wrap.querySelector(".ab-prov");
+        if (!old) return wrap;
+        const open = () => {
+            AB.mem.set("sec." + MADE_WITH, "1");
+            const tab = [...wrap.querySelectorAll(".k-tab")].find((t) => t.textContent === "Data");
+            if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
+            const sec = [...wrap.querySelectorAll(".ab-sec-btn")].find((b) => b.textContent === "Made with");
+            if (!sec) return;
+            if (sec.getAttribute("aria-expanded") === "false") sec.click();
+            sec.scrollIntoView({ block: "start" });
+            sec.focus();
+        };
+        const a = h("span", Object.assign({ class: "ab-link ab-prov k-ellipsis", role: "link" }, AB.act({ onClick: open })), label);
+        AB.tip(a, "Run " + label + ": its record, how it was made", { label: false });
+        old.replaceWith(a);
+        return wrap;
+    }
+
     // ---------- the readings-only run: one body, no Style ----------
     function readingsOnly() {
         const LM = AB.fx.datasets.lesmis;
-        return AB.inspector({
+        return toRecord(AB.inspector({
             icon: "gauge", title: "Density", kind: "Run", kindKey: "run-row-readings",
-            provenance: ["from Density, " + RAN, "analyze-popover", "open"], menu: MENU, renameDisabled: RUN_LABEL,
+            provenance: ["from Density, " + RAN, SELF, "readings-only"], menu: MENU, renameDisabled: RUN_LABEL,
             body: AB.dataTab({
                 Summary: { summary: "Density " + AB.num(LM.stats.density), body: [
                     reading("Density", AB.num(LM.stats.density)),
@@ -290,15 +312,15 @@
                 ] },
                 Notes: { count: 0 },
             }, { kind: "run" }),
-        });
+        }), "from Density, " + RAN);
     }
 
     function build(state) {
         if (state === "readings-only") return readingsOnly();
         const W = world(state);
-        return AB.inspector({
+        return toRecord(AB.inspector({
             icon: AB.ICON.run, title: "Louvain", kind: "Run", kindKey: "run-row",
-            provenance: ["from Louvain, " + RAN, "analyze-popover", "open"],
+            provenance: ["from Louvain, " + RAN, SELF, state],
             menu: MENU,
             renameDisabled: RUN_LABEL,
             stateBar: stateBar(state),
@@ -306,7 +328,7 @@
             changed: ["settings-changed", "hierarchy-level", "data-changed", "meaning-changed"].includes(state),
             tabs: { Style: () => styleTab(W), Data: () => dataTab(W, state) },
             tab: TAB[state],
-        });
+        }), "from Louvain, " + RAN);
     }
 
     // The All options popover: every run option, left of the inspector; any edit raises the state bar
@@ -338,7 +360,7 @@
                 { sep: true },
                 { label: "Show members in table", go: ["table-dock", "communities"] },
                 { label: "Lay out by these groups" },
-                { label: "Compare with another run...", needs: "graphty-element cannot compare two runs' results" },
+                { label: "Compare with another run...", desc: "Puts this run's groups beside another run's", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
                 { label: "Add note", shortcut: "N", onClick: () => AB.addNote() },
                 { label: "Lock" },

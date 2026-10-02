@@ -175,7 +175,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | An open question | `openQuestion(text)` | The same chip, worded "Open question" |
 | A menu | `menu({ anchor, place, label, items, back })` | A dark menu. Item: `{ label, shortcut, go or onClick, sub, check, disabled: true or "reason", desc, needs: "reason", toggle: [label when on, label when off], on }`, `{ sep: true }`, `{ heading }`. One line per item: `desc` becomes the item's tooltip; a second line only says why an item is disabled. `needs` draws the item disabled with the chip, and "Hide design notes" hides it. Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes to `back`); Esc closes one level; hover opens a submenu after 200 ms. Disabled items stay focusable |
 | A menu that is not a route | `openMenu(anchor, items)`, `closeMenu()` | A dark menu of 15 items or fewer (it has no find; past 15 it warns). The "+" menu uses this |
-| An attribute's menu | `attributeMenu(anchor, dataset, name, { editOn, table, noTable })` | **The one attribute menu**: Data > Attributes' rows, the attribute inspector's More actions (an inspector `menu` may be a function of its button) and a table column's menu. Color by and Size by call `paintRow`; Filter to... is `AB.filterTo` (a step on the attribute in the project's Data place, opened through `AB.openStep`); Create set where this is... is `AB.whereFrom` (`select-where/attribute`); Read as... is `AB.openField` |
+| An attribute's menu | `attributeMenu(anchor, dataset, name, { editOn, table, noTable })` | **The one attribute menu**: Data > Attributes' rows, the attribute inspector's More actions (an inspector `menu` may be a function of its button) and a table column's menu. Color by and Size by call `paintRow`; Filter to... is `AB.filterTo` (a step on the attribute in the project's Data place, opened through `AB.openStep`); Select where <attribute> is... (`cmd("select-where-attribute", { attribute })`) is `AB.whereFrom`: the one Select where dialog with that attribute's condition filled in (`select-where/attribute`), which keeps both set kinds (a fixed Create set and Create set from rule); Read as... is `AB.openField` |
 | Paint from an attribute | `paintBy(dataset, "Color" or "Size", name, on)`, `paintRow`, `paintOf`, `boundOn(route)`, `painted` | A binding in a loaded project (wide, nested, plain JSON): `on` is `"row"` (a measure row named after the attribute, `graph-place/painted`, `inspector-measure-row/painted-color`) or the inspector route whose line a bind icon bound (Everything's Color). The tree, the canvas and its legend, the field lists' In use and the inspectors read it; a Binding popover that picks a source sets `AB.repaint`, so closing it redraws the panels |
 | Find or pick an attribute | `fieldList(o)`, `openFieldList(anchor, o)`, `fieldsOf(dataset)` | **The field list**, every attribute picker and attribute list (below). `openFieldList` opens it at menu size from a control, as `openMenu` does; a section drawing it in its own overlay places it with `position(fieldList(o), anchor, place)`; at panel size append `fieldList({ size: "panel", ... })` |
 | What went wrong | `problem({ what, todo, action, level })` | **The problem block**: a red "x" (error) or yellow "!" (`level: "partial"`), the line saying what happened, a second line saying what to do, and at most one action (`{ label, go or onClick }`) under them. The Data page's refusals and partial loads, the Binding popover's and Why this look's unknown path |
@@ -183,11 +183,15 @@ uses the helper; a section-local copy of any of them is a defect.
 | Find by word starts | `wordMatch(name, query)` | The one matcher: names split at `_ . - [ ]`, spaces and case changes, and so does what is typed; each typed word starts a word of the name, in order ("vu cr", "cpu p95", "kernel_version", "profile.field"). Returns the matched `[start, end)` ranges for bold, or `null`. Any find over names uses it (the field list, Go to column) |
 | A count or a measure | `count(n, noun, { of, plural, version })`, `num(v, digits = 3)` | **The one number formatter.** `count(L.nodes, "node")` is "77 nodes", `count(60, "node", { of: L.nodes })` "60 of 77 nodes", `version` adds the data version in parentheses when it is not what the screen shows ("before the filter"). `num` writes a whole number with thousands separators and anything else to three significant digits ("0.0868", "0.00101", "0.570", "6.60"). Read the number from `AB.fx` (or `AB.projectCounts`), never type it: `node app-b/study.mjs --counts` fails on a count typed by hand in a section file |
 | A command | `cmd(id, extra?)`, `COMMANDS` | A menu item from the one command table (below) |
+| The File list | `fileList()` | **The one File list**: Open project or file..., Save, Export..., Apply recipe or style file..., Version history, as `cmd()` items. The main menu and the project-name menu both append it where their File group goes, so the two show identical words. Never list these commands one by one |
+| Clear the selection | `clearSelection()` | **The one way to empty the selection**: the empty canvas and Escape call it. The selection becomes empty and the inspector shows the graph on screen as its subject; the left panel stays the place and the project it was. The graph is never put into the selection |
+| What a row menu acts on | `AB.menuTarget` | `{ name, kind }` of the row whose menu is opening: the tree sets it on right-click and Shift+F10, the inspector frame on its "..." (a `menu` given as `[id, state]`). A row-menu section heads its menu with `AB.menuTarget.name` and acts on it, never on a fixed row |
+| Everything's base values | `BASE_STYLE` | **The one base style** (`{ "node.color": "#808080", "edge.width": 8, ... }`): every section that shows Everything or its look reads it. The fill is the gray the drawings paint, so the panel never disagrees with the picture. A local copy is a defect |
 | Several choices | `seg([[value, label, extra]], value, onChange, { label })` | A segmented control for 2 to 4 short options: one Tab stop, arrows move and select |
 | The canvas toolbar | `toolbarButton(icon, name, { key, popup, pressed, open, disabled, go, onClick, tool })`, `toolbarBar(items, label)`, `mainToolbar()` | 32 px icon buttons, no text. `popup: "dialog"` or `"menu"` sets `aria-haspopup` and `aria-expanded`; `pressed` sets `aria-pressed`. **Blue fill means pressed** (a toggle that is on); **gray fill means open** (its flyout or popover shows; by default when the overlay on screen is the button's `go` target). The bar is one Tab stop; arrows move; Alt+Down, Enter or Space opens a flyout. While a state card shows, a canvas section sets `AB.toolbarDisabled = "Nothing is drawn"` and every button but Quick actions is disabled with that reason. `mainToolbar()` is the standard bar: Analyze, then Layout, View and Legend, then Quick actions |
 | A project's counts | `projectCounts(ds)`, `countSource(ds, fn)`, `removeFromData(ds, { nodes, edges })` | **The one reader of a project's node and edge counts**, `{ nodes, edges }` as the data is now: the fixture's counts (or what `countSource` registered for a project a section builds, such as the nested one) minus every Remove from data in this page view. `removeFromData` records what a removal took and returns the Undo that gives it back, so after the table removes Valjean (1 node, 36 edges) the table, Everything and the graph inspector all say 76 nodes. Read counts here, never from `AB.fx` directly where an edit could change them. A section never assigns `AB.projectCounts`: `--counts` fails on it |
 | Legend state | `legendOn()`, `setLegend(bool)`, `legendButton()`, `legendCard(parts)` | On by default, remembered per project. The toolbar's Legend button and L are its only doors: nothing else opens or closes it, and the card has no X. `legendCard([{ title: "Color: group", rows: [{ swatch, label, count }], more: "28 more communities" }])` draws the card top left and returns `null` while the legend is off. The card is read-only (the canvas carries no controls; `go` is ignored); `legendCard([])` draws "Nothing is colored or sized by a row", so a pressed Legend button always shows a card |
-| Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is its state (pause while running, play otherwise); `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
+| Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is its state (pause while running, play otherwise) and a click opens the Layout popover (`toolbar/layout-open`: Pause or Resume, then the graph's Layout group), wherever the bar is drawn; `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
 | One meaning per icon | `ICON` | `view` bookmark, `set` circle-check, `createSet`, `run` layers, `legend` list, `note` message-square, `addNote`, `filter` funnel (data filters only), `options` ellipsis, `swap` arrow-left-right, `mode3d` box, `mode2d` square, `hidden` eye-off, `shown` eye |
 
 ### Frames and building blocks
@@ -216,7 +220,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | `addNote(subject?)`, `noteSubject()` | Add note, the one gesture: every door (N, "+", the selection bar, any menu's Add note, an empty Notes section) calls `addNote()`, which writes about the subject the inspector shows (the graph of the project on screen when nothing is selected) and keeps that inspector, also after Save. Pass `{ targets: [{ label, icon or swatch, go }], right }` only when the subject is not the inspector's (a filter step's row menu). The editor reads `AB.noteDraft` |
 | `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes" as one link to those notes, or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds). Notes saved in this page view live in `AB.sessionNotes` (the Notes place writes them), and the count adds those about the inspector's subject, so a saved note shows the same number everywhere |
 | `tree(rows, { label, onEye, go })`, `treeFooter(text or candidates, link)` | the paint tree (below) and the one line under it |
-| `styleTab(o)` | the one Style tab (below) |
+| `styleTab(o)` | the one Style tab (below). A number whose channel has a `unit` (`edge.width`, the arrow sizes: px) shows it after the value ("Width 8 px"), and so does every other reader of the value |
 | `whyThisLook(lines, opts)` | the node, edge and several-elements Style body (below) |
 | `announce(text)` | a polite screen reader announcement |
 | `renameInPlace(nameEl, { onSave, onTab, focusAfter })` | rename in place: Enter or click away saves, Esc cancels, Tab renames the next |
@@ -230,7 +234,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | `placeHead(title, actions?)` | a left panel's 40 px title row |
 | `graphHead(place, graphName, { notes, trail })` | the Graph and Data places' title row: a quiet place word, then the graphs switcher (and the graph's note count). Every view of the paint tree uses it |
 | `treebar({ placeholder, value, onKey, onInput, menuGo, menuOpen })` | the find line under a list: the shared find field and the list options ellipsis (`#ab-list-btn`) |
-| `typeGlyph(type)` | the one glyph per attribute type: "Abc" category, "#" number, a calendar for time (Data place, table headers) |
+| `typeGlyph(type)` | the one glyph per attribute type: "Abc" category (and id, text), "#" number, a calendar for time, "T\|F" yes or no, "[ ]" a list, "{ }" a sub-object kept whole. Every list, table header, attribute inspector header and tree row named after an attribute (a Size by or Label by row, a recipe's rows) uses it; never a lucide `hash`, `type`, `list` or `circle-check` for a type (those mean other things). In a kind slot it is drawn at 10 px so it fits the 20 px slot and names line up |
 | `renderSection(ref, el)`, `close()` | as on `ctx` |
 | `fx` | `kit/fixtures.json`, loaded before any render (`AB.fx.datasets.lesmis`, `.transactions`, `.scenarios`), plus `AB.fx.datasets.doorEntries`, which the shell adds (below), and `wide`, `nested` and `plainJson` from `kit/wide-nested.json` |
 
@@ -374,8 +378,8 @@ closes one level, starting with the innermost (a handler that closes, cancels or
 calls `preventDefault()`, and the shell then leaves that press alone), and with nothing open while a
 reviewer has hidden design notes it shows them again (never in the participant view study.mjs opens); Ctrl+Z and Ctrl+Shift+Z press the notice's own
 Undo or Redo first, then the header's; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
-key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G (create a
-set from what is selected) belongs to the selection bar. T is not a key: the time slider opens
+key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G groups what
+is selected: with focus in the tree it is New folder, anywhere else the selection bar's Create set. T is not a key: the time slider opens
 from the table's options. Never bind W, A, S, D, Q, E, the arrows, = or -: they are
 graphty-element's canvas keys.
 
@@ -497,7 +501,10 @@ Control", disabledReason, go or onClick, more, toggle, on }`. Every door takes i
 from `cmd(id)`. A two-state command has `toggle: [label when on, label when off]` and `on()`: Pause
 layout / Resume layout, Switch to 2D / Switch to 3D, Hide legend / Show legend, Hide table / Show
 table. A label ends in "..." only when the command asks for more input (`more: true`); `cmd()`
-warns otherwise.
+warns otherwise. A command's `desc` is its tooltip in every menu (Open project or file...: "A data,
+recipe or style file is added to this project; a project file opens in its place."). A label holding
+`<attribute>` is filled by `cmd(id, { attribute: name })`: "Select where amount is...". Every door
+uses its command's label word for word; a door that rewords it is a second pattern.
 
 ## Rules
 
@@ -543,6 +550,27 @@ warns otherwise.
 - Check your section at 1440 x 900, 1366 x 768 and 1024 x 768, light and dark, with no
   horizontal page scroll and no console errors.
 
+## Shared interaction rules
+
+Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every section keeps 3, 5 and 9.
+
+1. A menu acts on what it was opened on. A row's "...", its right-click and Shift+F10 name the row
+   (`AB.menuTarget`); no menu acts on a fixed row.
+2. When nothing is selected, the selection is empty and the inspector shows the graph on screen as
+   its subject. Escape closes the innermost open thing first, then clears the selection
+   (`clearSelection()`) and leaves the graph's panel open.
+3. Moving focus never changes the selection or what is painted: opening a note box, a popover or a
+   menu leaves every row's paint as it was.
+4. An inspector keeps the tab the reader chose while its subject changes to another of the same
+   kind (a Shift+Arrow walk step): `inspector()` remembers it per kind.
+5. A read-only link does one thing: it opens what it names, never a menu or another command.
+6. Every route draws one project (`frame.dataset`), and every door out of it stays in it: an
+   overlay keeps the panels, an inspector keeps the place, and a link to a place's default state
+   opens the project's own state of that place, as the rail does.
+7. Every count is written by `count()`: it names its unit and, as a part, its whole.
+8. Every door to a command uses its one `cmd()` label and key, word for word.
+9. A row click opens that row's own panel.
+
 ## Checking routes (`study.mjs`, run from `design/ui/prototype/`)
 
 - `node app-b/study.mjs --check <route> ...`: each route renders with no stub, no failure, no
@@ -563,6 +591,10 @@ warns otherwise.
   on a blank cell, an `N/A` with no reason, a `BUILD` left in a cell or in the prose's backticks, a
   section of `--list` that no table row names, a route that is unknown or fails `--check`, and a
   route that opens a menu, popover or dialog and leaves focus on the page body.
-- `node app-b/study.mjs --try <out.png> <route> --key Shift+ArrowRight ...`: a click-through.
+- `node app-b/study.mjs --try <out.png> <route> --key Shift+ArrowRight ...`: a click-through. Steps:
+  `--click`, `--rclick`, `--dblclick` (rename), `--shift-click`, `--ctrl-click`, `--alt-click` (add
+  to the selection, solo a row), `--hover` (a name), `--key` (a key), `--type` (text, typed a key at
+  a time into what has focus), `--expect` and `--expect-not` (text on screen). An unknown step is
+  refused before the browser opens.
 - Every run holds one shared browser slot (`../kit/with-browser.sh`), runs one browser, gives every
   25 routes a fresh context and closes it.

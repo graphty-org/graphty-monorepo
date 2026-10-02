@@ -21,7 +21,7 @@
     const CSS = `
 .gp-drop-reason { list-style: none; display: flex; gap: 6px; align-items: flex-start; margin: 0 8px 0 56px; padding: 4px 8px; border-radius: 5px; background: var(--cm-bg-toolbar, #222); color: var(--cm-text-menu, #fff); font-size: 11px; line-height: 16px; color-scheme: dark; }
 .gp-tree .ab-trow[data-drop-bad] { outline: 1px solid var(--cm-border-danger, var(--cm-text-danger)); outline-offset: -1px; }
-.gp-ghost { list-style: none; display: flex; align-items: center; gap: 6px; height: 28px; margin: 0 8px 0 40px; padding: 0 8px; border-radius: 5px; outline: 1px dashed var(--cm-border-strong); background: var(--cm-bg); box-shadow: var(--cm-elevation-200, 0 2px 8px #0003); opacity: .9; }
+.gp-ghost { list-style: none; display: flex; align-items: center; gap: 6px; height: 28px; margin: 0 8px 0 40px; padding: 0 8px; border-radius: 5px; outline: 1px dashed var(--cm-border-strong); background: var(--cm-bg); box-shadow: var(--cm-elevation-200); opacity: .9; }
 body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
 .gp-runfind { cursor: default; display: flex; gap: 4px; align-items: center; padding: 2px 8px 4px 16px; }
 .gp-runfind .ab-find { height: 22px; }
@@ -34,12 +34,13 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
 .gp-notes-go { cursor: pointer; border-radius: 3px; }
 .gp-notes-go:hover { color: var(--cm-text); text-decoration: underline; }
 .gp-inside { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border: 1px dashed var(--cm-border-strong); border-radius: 8px; color: var(--cm-text-secondary); font-size: 11px; line-height: 14px; }
+.gp-unlisted { flex: none; font-size: 11px; font-style: italic; }
 .gp-stack { box-shadow: 3px -3px 0 -1px var(--gp-stack2), 3px -3px 0 0 var(--cm-bg); margin-inline-end: 3px; }
 `;
     if (!document.getElementById("gp-style")) document.head.append(h("style", { id: "gp-style" }, CSS));
 
     const RUN_LABEL = "a run's name is its label, which graphty-element keeps read-only; a run is named by its algorithm, and a second run of the same algorithm is numbered (Louvain 2)";
-    const GROUP_LABEL = "a run's groups renumber when it reruns; Keep as set (in the row's menu) to name one";
+    const GROUP_LABEL = "a run's groups renumber when it reruns; Create set to name one";
     // A run is named by its algorithm; "For the report" already holds a Betweenness, so this one is
     // the second (its options live in its Data tab, never in its name)
     const BT_NEW = "Betweenness 2";
@@ -111,7 +112,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         let rows;
         if (DOOR.includes(state)) rows = [selectionRow(ins && ins.sel), notesRow(true, doorNoted()), everythingRow(true)];
         else if (freshT(state)) rows = [selectionRow(null), notesRow(true, null), everythingRow(true)];
-        else { rows = manyModel(); rows[2].selected = false; }
+        else { rows = manyModel(false); rows[2].selected = false; }
         if (state !== "door-entries" && state !== "transfers-loaded") rows.splice(2, 0, newRow(state));
         const sel = ins ? ins.row : null;
         const mark = (list) => list.forEach((r) => { if (sel) r.selected = r.id === sel; if (r.children) mark(r.children); });
@@ -132,12 +133,12 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     function loadedModel(state) {
         const ins = fromInspector();
         const rows = [selectionRow(ins && ins.sel), notesRow(true, null), everythingRow(true)];
-        if (state === "wide-sized") rows.splice(2, 0, { id: "vuln", name: VULN, kindIcon: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "long-name"], menu: ["context-menus", "measure-row"] });
+        if (state === "wide-sized") rows.splice(2, 0, { id: "vuln", name: VULN, kindIcon: AB.typeGlyph("num"), swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "long-name"], menu: ["context-menus", "measure-row"] });
         // The measure rows Color by and Size by made (AB.painted), named after the attribute, newest on top
         const ds = loadedDs(state);
         (AB.painted[ds] || []).filter((p) => p.on === "row").forEach((p) => {
             const color = p.prop === "Color", num = p.type === "num";
-            rows.splice(2, 0, { id: "paint-" + p.prop.toLowerCase(), name: p.name, kindIcon: num ? "hash" : "type", eye: true,
+            rows.splice(2, 0, { id: "paint-" + p.prop.toLowerCase(), name: p.name, kindIcon: AB.typeGlyph(num ? "num" : "cat"), eye: true,
                 swatch: !color ? null : num ? AB.ramp("#ef7818", "#662506") : stack("#E69F00", "#56B4E9"),
                 go: ["inspector-measure-row", "painted-" + p.prop.toLowerCase()], menu: ["context-menus", "measure-row"] });
         });
@@ -164,7 +165,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         if (state === "empty") return rows.concat(everythingRow(true));
         if (ins && ins.edited) rows.push(builtin({ id: "overrides", name: "Overrides", kindIcon: "pencil", count: 1, go: ["inspector-selection-and-everything", "overrides"], menu: ["context-menus", "row"] }));
         // Label by degree (an attribute's menu) adds its row on top, under the built-in rows
-        if (ins && ins.row === "label-degree") rows.push({ id: "label-degree", name: "degree", kindIcon: "hash", eye: true, go: ["inspector-group-set-path-row", "label-by"], menu: ["context-menus", "measure-row"] });
+        if (ins && ins.row === "label-degree") rows.push({ id: "label-degree", name: "degree", kindIcon: AB.typeGlyph("num"), eye: true, go: ["inspector-group-set-path-row", "label-by"], menu: ["context-menus", "measure-row"] });
         // A new run lands on top, under the built-in rows
         const bt = { id: "betweenness-new", name: BT_NEW, kindIcon: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] };
         if (state === "running" || state === "queued") rows.push(Object.assign(bt, { swatch: null, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"] }));
@@ -193,7 +194,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             ],
         });
         rows.push({ id: "watchlist", name: "Watchlist", kindIcon: AB.ICON.set, swatch: AB.chit("#CC79A7", true), count: 5, eye: true, locked: true, go: ["inspector-group-set-path-row", "watchlist"], menu: ["context-menus", "row"] });
-        // Degree is hidden from the list (still painting): drawn dimmed only while Show hidden rows is on
+        // Degree is not listed (removed from the list view, still painting): drawn dimmed only while Show rows not listed is on
         if (state === "show-hidden") rows.push({ id: "degree", name: "Degree", kindIcon: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, dim: true, go: ["inspector-measure-row", "degree"], menu: ["context-menus", "measure-row"] });
         rows.push({
             id: "folder", name: "For the report", kindIcon: "folder-open", eye: true, open: true, go: ["inspector-folder", "folder"], menu: ["context-menus", "folder"],
@@ -218,8 +219,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         return rows;
     }
     // Many groups: the transfers March Louvain run (fixtures: 35 communities, largest first), past 20
-    // groups, so the run gets its own find line with Sort
-    function manyModel() {
+    // groups, so the run, expanded, gets its own find line with Sort (collapsed under a new row elsewhere)
+    function manyModel(open = true) {
         const T = AB.fx.datasets.transactionsApril;
         const lv = T.louvain.march, colors = T.communityColors;
         const named = lv.largest.map((size, i) => ({ n: i + 1, size, color: colors["Community " + (i + 1)] })).filter((c) => c.color);
@@ -228,9 +229,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         return [
             selectionRow(null), notesRow(true, null),
             {
-                id: "louvain", name: "Louvain", kindIcon: AB.ICON.run, selected: true, swatch: stack(named[0].color, named[1].color), count: groups(lv.communities), eye: true, open: false, renameDisabled: RUN_LABEL, go, menu: ["context-menus", "run-row"],
+                id: "louvain", name: "Louvain", kindIcon: AB.ICON.run, selected: true, swatch: stack(named[0].color, named[1].color), count: groups(lv.communities), eye: true, open, renameDisabled: RUN_LABEL, go, menu: ["context-menus", "run-row"],
                 children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, eye: true, renameDisabled: GROUP_LABEL, go, menu: ["context-menus", "row"] }))
-                    .concat({ id: "more", name: rest + " more communities", kindIcon: "circle-dot", swatch: AB.chit("#BDBDBD", true), eye: true, renameDisabled: GROUP_LABEL, go: ["table-dock", "transfers"], menu: ["context-menus", "row"] }),
+                    .concat({ id: "more", name: rest + " more communities", kindIcon: AB.chit("#BDBDBD", true), eye: true, renameDisabled: GROUP_LABEL, go: ["table-dock", "transfers"], menu: ["context-menus", "row"] }),
             },
             // A link count on a directed graph, named as the catalog names it, so it never reads as an amount
             { id: "links-in", name: "Links in (count)", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, renameDisabled: RUN_LABEL,
@@ -259,8 +260,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         return AB.treeFooter([
             state === "everything-hidden" && ["Everything is hidden. Unpainted nodes still take part in the layout. To leave them out, filter.", L("data-place", "filters", "Filter...")],
             hiddenOnCanvas() && [AB.h("span", null, hiddenOnCanvas() + " hidden on canvas. ", h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => AB.flash("Selects the hidden elements (not wired in the skeleton)") })), "Select"), ", ", L("canvas-and-states", "drawn", "Show")), AB.needsElement("a draw-only hide that also hides incident edges")],
-            state === "show-hidden" && ["1 hidden row still paints; it shows dimmed here.", L("graph-place", "at-rest", "Stop showing hidden rows")],
-            state !== "many-groups" && !DOOR.includes(state) && !TRANSFERS.includes(state) && ["1 hidden row still paints.", L("graph-place", "show-hidden", "Show hidden rows")],
+            state === "show-hidden" && ["1 row not listed still paints; it shows dimmed here.", L("graph-place", "at-rest", "Stop showing it")],
+            state !== "many-groups" && !DOOR.includes(state) && !TRANSFERS.includes(state) && ["1 row not listed still paints.", L("graph-place", "show-hidden", "Show rows not listed")],
         ]);
     }
 
@@ -284,6 +285,15 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (r.inside && !r.open && slot && !li.querySelector(".gp-inside")) {
                 slot.after(AB.tip(h("span", { class: "gp-inside k-num", "aria-hidden": "true" }, String(r.inside)), AB.count(r.inside, "note") + " inside, about its groups; expand to see them", { label: false }));
                 li.setAttribute("aria-description", AB.count(r.inside, "note") + " inside");
+            }
+            // The rename gesture, named on the row's tooltip (a name that cannot change already gives its reason)
+            const nm = li.querySelector(".ab-tname");
+            if (nm && !nm.dataset.tip) AB.tip(nm, r.name, { label: false, second: "Double-click to rename" });
+            // A row hidden from the list says so in words: the eye is paint, the list is only the list
+            if (r.dim && nm && !li.querySelector(".gp-unlisted")) {
+                nm.after(h("span", { class: "gp-unlisted k-secondary" }, "not listed"));
+                li.setAttribute("aria-label", (li.getAttribute("aria-label") || r.name) + ", not listed");
+                AB.tip(nm, "Not listed: removed from this list view, it still paints. Show in list view is in its menu", { label: false, second: "Double-click to rename" });
             }
             const fs = li.querySelector('.ab-status[data-status="filtered"]');
             if (fs) fs.replaceChildren(icon(AB.ICON.filter));
@@ -332,13 +342,13 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const btn = document.getElementById("ab-list-btn");
         if (!btn) return;
         if (here) return AB.openMenu(btn, [
-            { label: "New folder", shortcut: "Ctrl+G", onClick: () => AB.flash("New folder (not wired in the skeleton)") },
-            { label: "Show hidden rows", check: false, onClick: () => AB.flash("Shows hidden rows (not wired in the skeleton)") },
+            AB.cmd("new-folder", { go: null, onClick: () => AB.flash("New folder (not wired in the skeleton)") }),
+            { label: "Show rows not listed", check: false, onClick: () => AB.flash("Shows rows not listed (not wired in the skeleton)") },
             { label: "Collapse all", onClick: () => AB.flash("Collapses every row (not wired in the skeleton)") },
         ]);
         AB.openMenu(btn, [
-            { label: "New folder", shortcut: "Ctrl+G", onClick: () => AB.flash("New folder (not wired in the skeleton)") },
-            { label: "Show hidden rows", check: state === "show-hidden", onClick: () => AB.go("graph-place", state === "show-hidden" ? "at-rest" : "show-hidden") },
+            AB.cmd("new-folder"),
+            { label: "Show rows not listed", check: state === "show-hidden", onClick: () => AB.go("graph-place", state === "show-hidden" ? "at-rest" : "show-hidden") },
             { label: "Collapse all", onClick: () => AB.go("graph-place", "at-rest") },
         ]);
     }
@@ -404,20 +414,36 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const tree = AB.tree(many ? manyModel() : model(state), { label: "Paint order, top wins" });
         const manyRun = many || (TRANSFERS.includes(state) && !freshT(state));
         tree.classList.add("gp-tree");
-        AB.append(scroll, [tree, footer(state)]);
+        let foot = footer(state);
+        AB.append(scroll, [tree, foot]);
+        // While a row is soloed the list says so, with the way back (the footer's most specific line)
+        const soloFoot = () => {
+            const li = scroll.querySelector(".ab-trow[data-solo]");
+            const name = li && li._entry && li._entry.r.name;
+            const showAll = () => { const eye = li.querySelector(".ab-eye"); if (eye) eye.dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true, detail: 1 })); };
+            const nf = li ? AB.treeFooter([["Showing only " + name + ".", h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: showAll })), "Show all")]]) : footer(state);
+            if (foot) foot.replaceWith(nf || ""); else if (nf) scroll.append(nf);
+            foot = nf;
+            AB.announce(li ? "Showing only " + name : "Showing all rows");
+        };
+        scroll.addEventListener("click", (e) => { if (e.altKey && e.target.closest && e.target.closest(".ab-eye")) setTimeout(soloFoot); }, true); // captured: the eye stops its click
         decorate(tree);
         scroll.addEventListener("click", onNoteCount, true);
         // the tree redraws itself on expand, collapse, delete and move: decorate the new one
-        new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.classList && n.classList.contains("ab-tree")) { n.classList.add("gp-tree"); decorate(n); } }))).observe(scroll, { childList: true });
+        // The run's find line shows only while the run is expanded past 20 groups (spec 3.8)
+        let runFind = null;
+        const syncRunFind = () => { if (runFind) { const lv = scroll.querySelector('.ab-trow[data-row="louvain"]'); runFind.hidden = !lv || lv.getAttribute("aria-expanded") !== "true"; } };
+        new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.classList && n.classList.contains("ab-tree")) { n.classList.add("gp-tree"); decorate(n); syncRunFind(); } }))).observe(scroll, { childList: true });
         const row = (id) => tree.querySelector(`[data-row="${id}"]`);
         // The Notes row counts the elements notes are about
         const nc = row("notes") && row("notes").querySelector(".ab-tcount");
         if (nc) AB.tip(nc, DOOR.includes(state) ? (doorNoted() === 3 ? "2 nodes and 1 edge notes are about" : "2 nodes notes are about") : "3 nodes and 1 edge notes are about", { label: false });
         if (manyRun) {
             // Above the tree, not inside it: a tree owns only its rows
-            if (row("louvain")) tree.before(h("div", { class: "gp-runfind" },
+            if (row("louvain")) tree.before(runFind = h("div", { class: "gp-runfind" },
                 h("label", { class: "ab-find" }, icon("search", "sm"), h("input", { type: "search", placeholder: "Find in Louvain", "aria-label": "Find groups in Louvain by name or member" })),
                 AB.iconButton("arrow-up-down", "Sort: size", { onClick: () => AB.flash("Sort by paint order, size, name or date (not wired in the skeleton)") })));
+            syncRunFind();
         }
         if (state === "solo") { const eye = row("pagerank") && row("pagerank").querySelector(".ab-eye"); if (eye) eye.dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true, detail: 1 })); }
         if (state === "invalid-drop") {
@@ -439,8 +465,6 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             Object.keys(LONG).forEach((id) => { const n = row(id) && row(id).querySelector(".ab-tname"); if (n) AB.tip(n, LONG[id], { label: false }); });
             hover("watchlist");
         }
-        // A row hidden from the list says so on its name: the eye is paint, the list is only the list
-        tree.querySelectorAll(".ab-trow[data-dim]").forEach((li) => { const n = li.querySelector(".ab-tname"); if (n) AB.tip(n, "Hidden from this list; it still paints. Show in list is in its menu", { label: false }); });
         if (state === "one-group") AB.announce("Connected components found 1 group");
         // A run paints as soon as it finishes: it lands on top, so it wins Color
         if (state === "finished") AB.announce(BT_NEW + " finished and now paints Color");
@@ -509,7 +533,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "failed", label: "Run failed" },
             { id: "solo", label: "Solo on one eye" },
             { id: "everything-hidden", label: "Everything hidden" },
-            { id: "show-hidden", label: "Show hidden rows on" },
+            { id: "show-hidden", label: "Show rows not listed on" },
             { id: "scope-mark", label: "After a filter step" },
             { id: "out-of-date", label: "After a data change" },
             { id: "invalid-drop", label: "Invalid drop" },

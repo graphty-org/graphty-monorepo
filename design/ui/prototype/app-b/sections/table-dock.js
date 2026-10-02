@@ -71,7 +71,6 @@
 
     const fmt = (n) => Number(n).toLocaleString("en-US");
     const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
-    const plural = (n, one, many) => fmt(n) + " " + (n === 1 ? one : many || one + "s");
     // Sort arrows (lucide arrow-up and arrow-down, ISC): the kit sprite has neither
     const ARROW = { up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>', down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>' };
     const arrow = (d) => { const s = h("svg", { class: "k-i k-i-sm", "aria-hidden": "true", viewBox: "0 0 24 24" }); s.innerHTML = ARROW[d]; return s; };
@@ -109,13 +108,12 @@
         // A pointer shortcut inside a focusable row: the row is the Tab stop (its notes are in the inspector)
         const b = h("span", Object.assign({ class: "ab-tnotes k-num", role: "link" }, AB.act({ go: ["notes-place", "all"] })), icon(AB.ICON.note, "sm"), String(n));
         b.tabIndex = -1;
-        return AB.tip(b, plural(n, "note"));
+        return AB.tip(b, AB.count(n, "note"));
     }
     const notesCol = { key: "notes", label: "Notes", n: true, cell: (r) => notesCell(r.notes) };
     const current = () => /^#\/table-dock(\/|$)/.test(location.hash);
 
-    /* A sortable table. cols: [{ key, label, type, n (numeric), profile, menu (true: the caret opens
-       the column menu state), cell(row), val(row) (the value sorted on, default row[key]), field (the
+    /* A sortable table. cols: [{ key, label, type, n (numeric), profile, cell(row), val(row) (the value sorted on, default row[key]), field (the
        attribute the column shows, default key), edit (true: double-click edits the value in place),
        int (whole numbers only: graphty-element refuses anything else), asc (a rank: the first click
        sorts ascending) }]. No two columns share a display name.
@@ -141,6 +139,7 @@
         };
         wrap.foot = foot;
         const cv = o.columns ? columnsView(allCols, o.columns) : null;
+        const tds = (o.columns && o.columns.ds) || o.ds || "lesmis"; // the project whose attributes the columns show
         const valOf = (c, r) => (c.val ? c.val(r) : r[c.key]);
         const cellOf = (c, r) => (c.cell ? c.cell(r) : String(r[c.key]));
         const build = () => {
@@ -238,14 +237,11 @@
                     th.setAttribute("aria-sort", sortKey === c.key ? (dir < 0 ? "descending" : "ascending") : "none");
                 });
             };
-            // An attribute column of the wide and nested projects: the attribute's menu, as Data > Attributes opens it
-            const gds = o.columns && ["wide", "nested"].includes(o.columns.ds) ? o.columns.ds : null;
-            // The column menu is the attribute's own menu, minus Show in table (spec 11, Column menu)
-            const fieldMenu = (c) => AB.attributeMenu(heads[c.key], gds, c.field, { noTable: true, editOn: ["data-page", gds === "wide" ? "edit-wide-hosts" : "edit-json-researchers"] });
-            const openMenu = (c) => (c.menu ? AB.go("table-dock", "column-menu") : gds && c.generic ? fieldMenu(c) : flash("The " + c.label + " column menu")());
+            // Every column's menu is the attribute's own menu (AB.attributeMenu), minus Show in table (spec 11, Column menu)
+            const openMenu = (c) => columnMenu(heads[c.key], tds, c);
             const thead = h("tr", null, cols.map((c, i) => {
                 // One Tab stop per header: the caret is for the pointer; the keyboard opens the menu from the header (Alt+Down, Shift+F10)
-                const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), "Column menu", { key: "Alt+Down" });
+                const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), columnName(tds, c) + " column menu", { key: "Alt+Down" });
                 const th = h("th", { id: "td-col-" + c.key.replace(/[^A-Za-z0-9_-]/g, "_"), class: c.n ? "k-n" : null, scope: "col", tabindex: "0", "data-open": o.openMenu === c.key ? "" : null, "data-frozen": i === 0 && c.id ? "" : null },
                     h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type" }, AB.typeGlyph(c.type)) : null, c.generic ? AB.truncMiddle(c.label, 28) : h("span", null, c.label), h("span", { class: "td-sort" }), caret));
                 AB.tip(th, [c.type ? typeTitle[c.type] || null : null, c.profile].filter(Boolean).join(", ") || c.label, { label: false });
@@ -268,6 +264,27 @@
         build();
         if (cv) { cv.onChange = build; wrap.colsButton = cv.button; }
         return wrap;
+    }
+
+    // A column's menu: the one attribute menu, named for the attribute the column shows (its label when
+    // the column is a computed result the project has no attribute for)
+    function columnName(ds, c) {
+        const f = c.field || c.key;
+        return AB.fieldsOf(ds).some((g) => g.fields.some((x) => x.name === f)) ? f : c.label;
+    }
+    function columnMenu(anchor, ds, c) {
+        const name = columnName(ds, c);
+        const editOn = ds === "wide" ? ["data-page", "edit-wide-hosts"] : ds === "nested" ? ["data-page", "edit-json-researchers"] : null;
+        return AB.attributeMenu(anchor, ds, name, { noTable: true, editOn });
+    }
+
+    // The scope line's count, written by AB.count: while a filter step leaves part of this element
+    // (the header's filter chip, "60 of 77 nodes"), the part of the whole, as the chip reads it
+    function scopeCount(shown, noun, o) {
+        o = o || {};
+        const m = String((AB.route && AB.route.frame && AB.route.frame.chip) || "").match(/^([\d,]+) of ([\d,]+) (\w+?)s?$/);
+        const n = (s) => Number(s.replace(/,/g, ""));
+        return m && m[3] === noun ? AB.count(n(m[1]), noun, { of: n(m[2]), plural: o.plural }) : AB.count(shown, noun, { of: o.of, plural: o.plural });
     }
 
     // A row's name for Find when the table has no `who`: its first cell's text
@@ -510,7 +527,7 @@
         const cols = [
             { key: "label", label: "label", type: "text", id: true, edit: true, profile: AB.num(Lx.nodes) + " values" },
             { key: "group", label: "group", type: "cat", edit: true, profile: Object.keys(Lx.groupColors).length + " values", cell: (r) => [AB.chit(groupColor(r.group)), String(r.group)] },
-            Object.assign(score("degree", "Degree (full graph)", "Links per node, on all " + total + ", 1 to " + Lx.stats.maxDegree), { menu: true }),
+            score("degree", "Degree (full graph)", "Links per node, on all " + total + ", 1 to " + Lx.stats.maxDegree),
             score("pagerank", "PageRank (full graph)", "Damping 0.85, exact, on all " + total),
             rank(ms[1], "Rank by PageRank", "1 is highest; equal at 3 significant digits shares a rank, marked ="),
             o.sampled ? score("betweenness", "Betweenness (estimate, 20 sources)", "Estimated from 20 source nodes, seed 7; each value may move between runs")
@@ -592,7 +609,7 @@
     }
     // Rows a to b of n, and the page arrows: graphty-element pages and sorts the whole table, the skeleton holds one page
     function pager(from, to, total) {
-        const say = () => AB.flash("Shows the next rows (the skeleton holds one page)");
+        const say = flash("Showing the next rows");
         return h("span", { class: "td-pager" }, h("span", { class: "k-num" }, "Rows " + AB.num(from) + " to " + AB.num(to) + " of " + AB.num(total)),
             AB.iconButton("chevron-left", "Previous rows", { onClick: say }), AB.iconButton("chevron-right", "Next rows", { onClick: say }),
             AB.needsElement("graphty-element pages the rows and sorts every row by any column, results included, so a large graph never blocks the table"));
@@ -797,15 +814,15 @@
                 // Sorted by one measure, the other measures beside it: the ranking view (no separate top-N table)
                 const sampled = state === "sampled";
                 t = nodesTable(null, state === "column-menu" ? "degree" : null, sampled ? { sampled, sort: "betweennessRank", dir: 1 } : null);
-                root.replaceChildren(strip(t), scope(plural(liveCounts().nodes, "node"), ROW_HINT), t.agree, t);
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT), t.agree, t);
                 if (state === "find") setTimeout(() => openFind(root, FIND), 0);
             } else if (active === "edges") {
                 t = edgesTable(quiet ? null : state === "edit-refused" ? { refuse: REFUSE } : state === "edited" ? { edited: true } : null);
-                root.replaceChildren(strip(t), scope(plural(liveCounts().edges, "edge"), ROW_HINT), t);
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().edges, "edge"), ROW_HINT), t);
             } else if (active === "communities") {
-                root.replaceChildren(strip(null), scope(plural(COMMUNITIES.length, "community", "communities")), communitiesTable());
+                root.replaceChildren(strip(null), scope(AB.count(COMMUNITIES.length, "community", { plural: "communities" })), communitiesTable());
             } else if (active === "pairs") {
-                root.replaceChildren(strip(null), scope(plural(PAIRS.length, "pair"), "Selecting a pair selects its two nodes",
+                root.replaceChildren(strip(null), scope(AB.count(PAIRS.length, "pair"), "Selecting a pair selects its two nodes",
                     AB.openQuestion("How many pairs a run keeps, and whether pairs can be shown as dashed edges")), pairsTable());
             }
         };
@@ -845,7 +862,7 @@
         // A node row selects that node, as the canvas walk does (the inspector reads the walked row)
         const walkAt = (r) => (ds === "wide" ? AB.fx.datasets.wide.nodeRows.indexOf(r) : AB.fx.datasets.nested.document.data.researchers.indexOf(r));
         const open = ds === "plainJson" ? (r) => AB.flash("Selects " + who(r) + " (not wired in the skeleton)")
-            : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : AB.flash("Selects " + who(r) + " (an institution has no inspector state in the skeleton)"))
+            : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : flash("Selects " + who(r))())
                 : ds === "wide" ? () => AB.go("inspector-edge", "wide-data") : (r) => AB.flash("Selects the edge " + who(r) + " (not wired in the skeleton)");
         const typeCol = ds === "nested" && element === "edge" ? [{ key: "edgeType", label: "edge type", type: "cat", val: (r) => r.edgeType, cell: (r) => r.edgeType }] : [];
         // A Name built from several fields is one column, the Name; its parts stay in Columns, unchecked
@@ -878,7 +895,7 @@
             if (ok === "nested" && element === "edge") rs.forEach((r) => { byType[r.edgeType] = (byType[r.edgeType] || 0) + 1; });
             const from = (ok === "wide" ? (element === "node" ? D.file : D.edgesFile) : D.file) + (Object.keys(byType).length > 1 ? ": " + Object.entries(byType).map(([k, v]) => fmt(v) + " " + k).join(", ") : "");
             root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = x.id; draw(); }, wideOptions, t.colsButton),
-                scope(plural(n, element), ROW_HINT, h("span", { class: "k-secondary" }, "from " + from)), t);
+                scope(scopeCount(n, element), ROW_HINT, h("span", { class: "k-secondary" }, "from " + from)), t);
         };
         draw();
     }
@@ -997,8 +1014,8 @@
             at(active, "doorEntries");
             const t = active === "edges" ? doorEdges() : doorNodes();
             root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (x) => { active = x.id; draw(); }, "door-entries-options", t.colsButton));
-            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), t);
-            else root.append(scope(plural(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), t);
+            if (active === "edges") root.append(scope(scopeCount(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), t);
+            else root.append(scope(scopeCount(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), t);
         };
         draw();
     }
@@ -1048,26 +1065,8 @@
         if (state === "columns" || state === "wide-columns") return columnsPopover(el, state);
         if (state === "row-menu") return rowMenu(el);
         if (state === "column-menu") {
-            el.append(AB.menu({
-                anchor: "#td-col-degree", place: "above-start",
-                items: [
-                    // The attribute's menu, word for word (context-menus "attribute"); only the last "Show in" differs
-                    // Color by, Size by and Label by each add a paint row (a style layer) for degree and open it
-                    { heading: "Degree (full graph)" },
-                    { label: "Color by", go: ["inspector-measure-row", "degree"] },
-                    { label: "Size by", go: ["inspector-measure-row", "degree"] },
-                    { label: "Label by", go: ["inspector-group-set-path-row", "label-by"] },
-                    { label: "Show as groups", disabled: "For a category or text column" },
-                    { label: "Place by", needs: "graphty-element places nodes only by position attributes; an attribute as an axis needs a layout that reads any attribute" },
-                    { sep: true },
-                    { label: "Filter to...", go: ["data-place", "filters"] },
-                    { label: "Create set where this is...", go: ["select-where", "where"] },
-                    { sep: true },
-                    { label: "Read as...", go: ["inspector-attribute-and-filter-step", "attribute"] },
-                    { sep: true },
-                    { label: "Show in Data", go: ["data-place", "attributes"] },
-                ],
-            }));
+            // Degree's menu, as its column's chevron opens it; the dock draws before the overlay, so wait a frame
+            requestAnimationFrame(() => { const th = document.getElementById("td-col-degree"); if (th) columnMenu(th.querySelector(".td-caret") || th, "lesmis", { key: "degree", label: "Degree (full graph)" }); });
         } else if (state === "table-options") optionsMenu(el, null);
         else if (state === "transfers-options") optionsMenu(el, "off");
         else if (state === "slider-options") optionsMenu(el, "on");

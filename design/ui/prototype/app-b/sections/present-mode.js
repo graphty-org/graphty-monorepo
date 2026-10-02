@@ -6,6 +6,8 @@
    locked or not; Esc leaves. The view's name appears once, in the caption
    at the foot, with the step counter and previous / next. Lock the canvas is graphty-element's
    setInputEnabled(false): off by default, remembered per project, no notice.
+   The legend card is the shared one (AB.legendCard), shown or hidden by the same per-project legend
+   state the toolbar's Legend button and L set; Present adds no control of its own for it.
    With no saved views Present is disabled in the Views place ("Save a view first"), so this
    section has no empty state; on the last view Next is disabled. Plain ASCII. */
 (function () {
@@ -24,6 +26,7 @@
 .pm-cap { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
 .pm-cap b { font-weight: 600; }
 .pm-cap span { color: var(--cm-text-secondary); }
+.pm .ab-legend { top: 56px; bottom: auto; z-index: 1; max-height: calc(100% - 140px); overflow: auto; }
 .pm-step { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pm-count { min-width: 44px; text-align: center; color: var(--cm-text-secondary); }
 @media (prefers-reduced-motion: reduce) { .pm-head { transition: none; } }
@@ -58,7 +61,6 @@
         // ---- the header: back arrow, the mode's name, the Esc hint, Lock the canvas ----
         const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": "false", "aria-label": "Lock the canvas" });
         const lock = h("span", { class: "pm-lock" }, box, h("span", { "aria-hidden": "true" }, "Lock the canvas"));
-        AB.tip(box, "Lock the canvas", { second: "Turns off the mouse, touch and keys on the graph" });
         const flip = () => { locked = !locked; AB.mem.set(LOCK_KEY, locked ? "on" : "off"); paint(); };
         lock.addEventListener("click", flip);
         box.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); e.stopPropagation(); flip(); } });
@@ -87,8 +89,8 @@
             h("div", { class: "pm-cap" }, name, cap),
             h("span", { class: "pm-step" }, prev, count, next));
 
+        // iconButton is a span: aria-disabled draws it disabled and keeps it focusable; step() ignores it
         function setDisabled(btn, off) {
-            btn.disabled = off;
             if (off) btn.setAttribute("aria-disabled", "true"); else btn.removeAttribute("aria-disabled");
         }
 
@@ -111,7 +113,16 @@
             paint();
         }
 
+        // Every view in the tour is colored by group and sized by degree, so one legend serves them all.
+        const lg = AB.fx.datasets.lesmis.frame.legend;
+        const legend = AB.legendCard([
+            { title: "Color: group", rows: lg.rows.map((r) => ({ swatch: r.color, label: "Group " + r.label, count: r.count }))
+                .concat([{ swatch: lg.other.color, label: "Other", count: lg.other.count }]) },
+            { title: "Size: Degree" },
+        ]);
+
         root.append(canvas, hot, head, foot);
+        if (legend) root.append(legend);
         paint();
 
         // Right / Page Down / Space next, Left / Page Up / Shift+Space previous, locked or not.

@@ -6,13 +6,20 @@
    section 10.3): heading (the target's name only) | Rename | select and explore | Analyze... |
    organize | Frame selection | visibility and data | Add note, Show in table | Delete.
    Labels and keys come from AB.cmd where a command has more than one door. Two-state commands
-   swap their label (Pin / Unpin, Lock / Unlock, Hide in list / Show in list); a mixed selection
-   shows both. Delete acts at once and shows the Undo notice. Plain ASCII. */
+   swap their label (Pin / Unpin, Lock / Unlock, Remove from list view / Show in list view); a mixed
+   selection shows both. A row taken out of the list view still paints ("not listed"); "hidden" is
+   kept for elements that are not drawn. Every list row's menu has "Show only this row", the
+   command the eye's Alt-click and Alt+Space are accelerators for. Delete acts at once and shows the Undo notice. Plain ASCII. */
 (function () {
     "use strict";
     const SUB = "cm-sub";
     const C = AB.cmd;
     const L = () => AB.fx.datasets.lesmis;
+    // A menu acts on what it was opened on: the row or inspector that opened it names its target in
+    // AB.menuTarget (shared rule 1). The name is kept for that state's redraws; a direct link to a
+    // state names the state's own sample target (its `who`).
+    let target = null; // { state, name }
+    const who = (state) => (target && (target.state === state || (state === "top-n" && target.state === "measure-row")) ? target.name : STATES[state].who);
     // A command the skeleton does not model: close the menu, then the notice
     const done = (text, action) => ({ onClick: () => { AB.close(); setTimeout(() => AB.notice(text, action), 0); } });
     const flash = (label) => done(label + " (not wired in the skeleton)");
@@ -27,7 +34,14 @@
         : [{ toggle: [on, off], on: isOn, desc, ...flash(isOn ? on : off) }]);
     const pin = (isOn) => twoState("Unpin", "Pin", isOn, "Pinned nodes stay put when the layout runs");
     const lock = (isOn) => twoState("Unlock", "Lock", isOn);
-    const listVis = (hidden) => twoState("Show in list", "Hide in list", hidden, "Keeps painting the graph");
+    // Studio decision, reversible, for round 8 to test: "Remove from list view" replaces "Hide in list",
+    // because a "hidden" row that still paints read as a bug (4 of 5)
+    const listVis = (notListed) => twoState("Show in list view", "Remove from list view", notListed, "The row still paints the graph; it shows as not listed");
+    // Show only this row: the eye's Alt-click on the row in the left panel, so the menu and the
+    // accelerator are one command with one effect
+    const showOnly = (rowId) => ({ label: "Show only this row", shortcut: "Alt+Space", desc: "Only this row paints; run it again to restore the other eyes",
+        onClick: () => { AB.close(); setTimeout(() => { const eye = document.querySelector(`#ab-left [data-row="${rowId}"] .ab-eye`); if (eye) eye.dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true, detail: 1 })); }, 0); } });
+    const listItems = (rowId) => [...listVis(false), showOnly(rowId)];
 
     // A point marker in the overlay, at a percent of the canvas stage or of an element's box.
     function mark(el, target, fx, fy, ring) {
@@ -59,8 +73,8 @@
         { label: "Subtract", go: ["inspector-several-rows", "result-subtract"] },
         { label: "Exclude", go: ["inspector-several-rows", "result-exclude"] },
     ]) });
-    const moveTo = (el) => ({ label: "Move to folder", sub: true, onClick: sub(el, [
-        { label: "For the report", ...done("Moved Community 3 to For the report") },
+    const moveTo = (el, n) => ({ label: "Move to folder", sub: true, onClick: sub(el, [
+        { label: "For the report", ...done("Moved " + n + " to For the report") },
         { sep: true },
         { label: "New folder", ...flash("New folder") },
     ]) });
@@ -70,7 +84,7 @@
 
     // One node: the canvas right-click, the inspector's "...", and the table's row menu, word for word
     const nodeItems = (o) => [
-        { heading: "Valjean" },
+        { heading: o.name },
         C("neighborhood"),
         // always listed; it needs a second node to run, so with one node it is disabled with that reason
         o.second ? C("find-paths") : C("find-paths", { disabled: "Select a second node first" }),
@@ -79,13 +93,14 @@
         { sep: true },
         C("create-set"),
         { label: "Add to set...", ...flash("Add to set") },
-        { label: "Remove from Watchlist", ...done("Removed Valjean from Watchlist", { label: "Undo", onClick: () => AB.announce("Valjean is back in Watchlist") }) },
+        // only a node that is in a set gets its Remove from; in the fixtures that is Valjean in Watchlist
+        o.name === "Valjean" ? { label: "Remove from Watchlist", ...done("Removed Valjean from Watchlist", { label: "Undo", onClick: () => AB.announce("Valjean is back in Watchlist") }) } : null,
         { sep: true },
         frameSel(),
         { sep: true },
         ...pin(o.pinned),
         C("hide-on-canvas"),
-        removeData("Valjean and his edges"),
+        removeData(o.name + " and its edges"),
         { sep: true },
         C("add-note"),
         showInTable(),
@@ -111,23 +126,28 @@
         C("clear-graph-data", { onClick: () => { AB.close(); setTimeout(() => AB.COMMANDS["clear-graph-data"].onClick(), 0); } }),
     ];
 
+    // The same words as the Data place's own source-row menu (data-place.js), the one a reader opens
     const sourceItems = (url) => [
         { heading: url ? "The alert feed address" : AB.fx.datasets.transactions.file },
         C("rename", flash("Rename")),
         { sep: true },
         C("replace-file", { desc: "Opens the file picker, then the Data page with every role carried over; the graph is untouched if it fails" }),
+        { label: "Add rows from file...", desc: "More rows of the same table, kept with the rows already loaded", ...(url ? flash("Add rows from file") : { go: ["data-page", "add-matching"] }) },
         C("edit-source", { desc: "The Data page at this table" }),
-        url ? { label: "Refresh", desc: "Reads the address again on the Data page; the graph is untouched if it fails", go: ["data-page", "url"] } : null,
+        url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", go: ["data-place", "refreshing"] }
+            : { label: "Refresh", desc: "Reads the file again from where it was opened; the graph is untouched if it fails", ...flash("Refresh") },
         { sep: true },
-        { label: "Remove", desc: "Removes this table and what it added", needs: "graphty-element does not record which table each node and edge came from, so it cannot remove one table's records" },
-    ].filter(Boolean);
+        { label: "Remove", shortcut: "Del", needs: "graphty-element does not record which table each node and edge came from, so one table cannot be removed on its own; Clear graph data is in the graph's menu" },
+    ];
 
     const onStage = () => ["#ab-canvas .k-stage", L().anchors.selected.x, L().anchors.selected.y, true];
     const byText = (sel, re) => [...document.querySelectorAll(sel)].find((r) => re.test(r.textContent));
+    // The tree row the menu was opened on (by its name), else the state's sample row
+    const rowAt = (state, id) => { const n = who(state); const r = [...document.querySelectorAll("#ab-left [data-row]")].find((x) => { const t = x.querySelector(".ab-tname"); return !!t && t.textContent.trim() === n; }); return [r || `#ab-left [data-row=${id}]`, 55, 50, false]; };
     const RUN = "Louvain"; // run rows are named by their algorithm
     // The delete notice names the style layers that go with the run (the element's runs.bindings;
     // Louvain's suggested look is one layer, Fill color by community)
-    const RUN_DELETED = () => RUN + ", its 6 communities and " + AB.count(1, "style layer");
+    const RUN_DELETED = (n) => (n || RUN) + ", its 6 communities and " + AB.count(1, "style layer");
 
     // A hosts number attribute with its own inspector state (inspector-attribute-and-filter-step/long-name)
     const HOST_NUMBER = "vuln_count_critical_unremediated_over_30_days";
@@ -151,31 +171,35 @@
             label: "A node (Valjean)",
             frame: { right: "inspector-node/why-this-look" },
             at: onStage,
-            items: () => nodeItems({ pinned: false }),
+            who: "Valjean",
+            items: (el, n) => nodeItems({ name: n, pinned: false }),
         },
         "node-pinned": {
             label: "A pinned node, with a second node selected",
             frame: { right: "inspector-several-elements/two-nodes" },
             at: onStage,
-            items: () => nodeItems({ pinned: true, second: true }),
+            who: "Valjean",
+            items: (el, n) => nodeItems({ name: n, pinned: true, second: true }),
         },
         "table-row": {
             label: "A node's row in the table (same as the node)",
             frame: { right: "inspector-node/why-this-look", dock: "table-dock/nodes" },
             at: () => [document.querySelector("#td-row-Valjean") || byText("#ab-dock tbody tr", /Valjean/) || "#ab-dock tbody tr", 30, 50, false],
             place: "above-start",
-            items: () => nodeItems({ pinned: false }),
+            who: "Valjean",
+            items: (el, n) => nodeItems({ name: n, pinned: false }),
         },
         edge: {
             label: "An edge (Javert -- Valjean)",
             frame: { right: "inspector-edge/style", dock: "table-dock/edges" },
             at: () => [byText("#ab-dock tbody tr", /^\s*Javert\s*Valjean/) || "#ab-dock tbody tr", 30, 50, false],
-            items: () => [
-                { heading: "Javert -- Valjean" },
+            who: "Javert -- Valjean",
+            items: (el, n) => [
+                { heading: n },
                 { label: "Select endpoints", go: ["inspector-several-elements", "two-nodes"] },
                 { sep: true },
                 C("hide-on-canvas"),
-                removeData("the edge Javert -- Valjean"),
+                removeData("the edge " + n),
                 { sep: true },
                 C("add-note"),
                 showInTable("edges"),
@@ -208,7 +232,7 @@
             ],
         },
         "several-path": {
-            label: "Nodes and an edge (Keep as path shows)",
+            label: "Nodes and an edge (Create path shows)",
             frame: { right: "inspector-several-elements/two-nodes" },
             at: onStage,
             items: () => [
@@ -218,7 +242,7 @@
                 C("analyze"),
                 { sep: true },
                 C("create-set"),
-                { label: "Keep as path", go: ["inspector-group-set-path-row", "path-lesmis"] },
+                { label: "Create path", go: ["inspector-group-set-path-row", "path-lesmis"] },
                 { label: "Lay out members...", ...flash("Lay out members") },
                 { label: "Extract as graph", needs: "graphty-element cannot copy a subgraph into a new graph yet" },
                 { sep: true },
@@ -248,38 +272,39 @@
         row: {
             label: "A group, set or path row (Community 3)",
             frame: { left: "graph-place/louvain-open", right: "inspector-group-set-path-row/community-3" },
-            at: () => ["#ab-left [data-row=c3]", 55, 50, false],
-            items: (el) => [
-                { heading: "Community 3" },
+            at: () => rowAt("row", "c3"),
+            who: "Community 3",
+            items: (el, n) => [
+                { heading: n },
                 // a run's group renumbers on rerun: the same refusal the tree's name gives
-                C("rename", { disabled: "A run's groups renumber when it reruns; Keep as set to name one" }),
+                C("rename", { disabled: "A run's groups renumber when it reruns; Create set to name one" }),
                 { sep: true },
                 { label: "Select members", go: ["inspector-several-elements", "style"] },
                 { label: "Show members in table", go: ["table-dock", "members-of-row"] },
                 { sep: true },
                 C("analyze"),
                 { sep: true },
-                { label: "Keep as set", desc: "A set on top of the tree that survives a rerun", ...done("Kept Community 3 as a set") },
+                C("create-set", { desc: "A set on top of the tree that survives a rerun", go: null, ...done("Created '" + n + "' in Sets") }),
                 combine(el),
-                moveTo(el),
+                moveTo(el, n),
                 { label: "Collapse on canvas", needs: "graphty-element cannot draw a group as one node yet" },
                 { sep: true },
                 C("frame-members", { go: ["canvas-and-states", "drawn"] }),
                 { sep: true },
                 ...lock(false),
-                ...listVis(false),
+                ...listItems("c3"),
                 { sep: true },
                 C("add-note"),
                 { label: "Open notes", go: ["inspector-group-set-path-row", "notes"] },
                 // one Compare command; its target is another row or the rest of the graph
                 { label: "Compare with", sub: true, onClick: sub(el, [
                     { label: "Another row...", go: ["full-canvas-modes", "comparison"] },
-                    { label: "The rest of the graph", ...flash("Compare Community 3 with the rest of the graph") },
+                    { label: "The rest of the graph", ...flash("Compare " + n + " with the rest of the graph") },
                 ]) },
                 // a door into the one Export dialog with this row as the target (a door only fills a field)
                 C("export", { shortcut: null, go: ["export-dialog", "from-row"] }),
                 { sep: true },
-                del("Delete", "Community 3"),
+                del("Delete", n),
             ],
         },
         "notes-row": {
@@ -290,7 +315,7 @@
                 { heading: "Notes" },
                 { label: "Select what notes are about", go: ["notes-place", "about-selection"] },
                 { sep: true },
-                ...listVis(false),
+                ...listItems("notes"),
                 { sep: true },
                 C("add-note"),
             ],
@@ -298,9 +323,10 @@
         "measure-row": {
             label: "A measure row (PageRank)",
             frame: { left: "graph-place/at-rest", right: "inspector-measure-row/style" },
-            at: () => ["#ab-left [data-row=pagerank]", 55, 50, false],
-            items: () => [
-                { heading: "PageRank" },
+            at: () => rowAt("measure-row", "pagerank"),
+            who: "PageRank",
+            items: (el, n) => [
+                { heading: n },
                 rename(),
                 { sep: true },
                 { label: "Select top N...", go: ["context-menus", "top-n"] },
@@ -309,21 +335,22 @@
                 { label: "Filter to...", go: ["data-place", "filters"] },
                 { sep: true },
                 ...lock(false),
-                ...listVis(false),
+                ...listItems("pagerank"),
                 { sep: true },
                 C("add-note"),
                 { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
-                del("Delete", "PageRank"),
+                del("Delete", n),
             ],
         },
         "run-row": {
             label: "A run row (Louvain)",
             frame: { left: "graph-place/at-rest", right: "inspector-run-row/style" },
-            at: () => ["#ab-left [data-row=louvain]", 55, 50, false],
-            items: () => [
-                { heading: RUN },
-                { label: "Rename", shortcut: "F2", needs: "graphty-element names a run after its algorithm and settings; a run cannot be renamed yet" },
+            at: () => rowAt("run-row", "louvain"),
+            who: RUN,
+            items: (el, n) => [
+                { heading: n },
+                C("rename", { needs: "graphty-element names a run after its algorithm and settings; a run cannot be renamed yet" }),
                 { sep: true },
                 { label: "Rerun", go: ["graph-place", "running"] },
                 C("run-as-copy", { desc: "Keeps this run; the copy lands on top", go: ["graph-place", "finished"] }),
@@ -336,27 +363,28 @@
                 { label: "Compare with another run...", desc: "Puts this run's groups beside another run's", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
                 ...lock(false),
-                ...listVis(false),
+                ...listItems("louvain"),
                 { sep: true },
                 C("add-note"),
                 { sep: true },
-                del("Delete", RUN_DELETED()),
+                del("Delete", RUN_DELETED(n)),
             ],
         },
         folder: {
             label: "A folder (For the report)",
             frame: { left: "graph-place/at-rest", right: "inspector-folder/style" },
-            at: () => ["#ab-left [data-row=folder]", 55, 50, false],
-            items: () => [
-                { heading: "For the report" },
+            at: () => rowAt("folder", "folder"),
+            who: "For the report",
+            items: (el, n) => [
+                { heading: n },
                 rename(),
                 { sep: true },
-                { label: "Ungroup", shortcut: "Ctrl+Shift+G", desc: "Its rows stay where they are, out of the folder", ...done("Ungrouped For the report", { label: "Undo", onClick: () => AB.announce("Folder restored") }) },
+                { label: "Ungroup", shortcut: "Ctrl+Shift+G", desc: "Its rows stay where they are, out of the folder", ...done("Ungrouped " + n, { label: "Undo", onClick: () => AB.announce("Folder restored") }) },
                 { sep: true },
                 ...lock(false),
-                ...listVis(false),
+                ...listItems("folder"),
                 { sep: true },
-                del("Delete", "For the report and its 3 rows"),
+                del("Delete", n + " and its rows"),
             ],
         },
         // An attribute's menu is the one attribute menu (AB.attributeMenu), the same list Data >
@@ -379,34 +407,37 @@
             label: "Select top N... on a measure row (PageRank)",
             frame: { left: "graph-place/at-rest", right: "inspector-measure-row/style" },
             at: () => ["#ab-left [data-row=pagerank]", 100, 50, false],
-            open: (anchor, el) => el.append(topN(anchor, "PageRank", false)),
+            who: "PageRank",
+            open: (anchor, el, n) => el.append(topN(anchor, n, false)),
         },
         "filter-step": {
             label: "A filter step (amount >= 1,000)",
             frame: { left: "data-place/filters", right: "inspector-attribute-and-filter-step/filter-step" },
             at: () => [document.querySelector("#ab-right [aria-label^='More actions']") || "#ab-right", 0, 100, false],
             place: "below-end",
-            items: () => [
-                { heading: "amount >= 1,000" },
+            who: "amount >= 1,000",
+            items: (el, n) => [
+                { heading: n },
                 { label: "Move up", shortcut: "Ctrl+]", disabled: "Already first" },
                 { label: "Move down", shortcut: "Ctrl+[", ...flash("Move down") },
                 { sep: true },
                 C("add-note"),
                 { sep: true },
-                del("Delete", "the step amount >= 1,000"),
+                del("Delete", "the step " + n),
             ],
         },
         "saved-view": {
             label: "A saved view (Whole cast)",
             frame: { left: "views-place/one-selected", right: "inspector-saved-view/view" },
             at: () => [byText("#ab-left .vp-row", /Whole cast/) || "#ab-left .vp-row", 55, 50, false],
-            items: () => [
-                { heading: "Whole cast" },
-                { label: "Rename", shortcut: "F2", needs: "graphty-element cannot rename a saved camera view yet" },
+            who: "Whole cast",
+            items: (el, n) => [
+                { heading: n },
+                C("rename", { needs: "graphty-element cannot rename a saved camera view yet" }),
                 { sep: true },
-                { label: "Update to current camera", ...done("Whole cast now shows the current camera", { label: "Undo", onClick: () => AB.announce("Whole cast restored") }) },
+                { label: "Update to current camera", ...done(n + " now shows the current camera", { label: "Undo", onClick: () => AB.announce(n + " restored") }) },
                 { sep: true },
-                del("Delete", "Whole cast"),
+                del("Delete", n),
             ],
         },
         source: {
@@ -453,12 +484,15 @@
                 return;
             }
             const s = STATES[state] || STATES.node;
+            if (AB.menuTarget && typeof AB.menuTarget.name === "string") { target = { state, name: AB.menuTarget.name }; AB.menuTarget = null; }
+            else if (target && target.state !== state && !(state === "top-n" && target.state === "measure-row")) target = null;
+            const n = STATES[state] ? who(state) : STATES.node.who;
             // the frame's regions render before the overlay; wait a frame so their boxes exist
             requestAnimationFrame(() => {
                 const [target, fx, fy, ring] = s.at();
                 const p = mark(el, target, fx, fy, ring);
-                if (s.open) return s.open(p, el);
-                const m = AB.menu({ anchor: p, place: s.place || "right-start", items: s.items(el) });
+                if (s.open) return s.open(p, el, n);
+                const m = AB.menu({ anchor: p, place: s.place || "right-start", items: s.items(el, n) });
                 m.setAttribute("aria-label", "Context menu");
                 el.append(m);
                 const first = m.querySelector(".k-menu-item:not([aria-disabled=true])");

@@ -1,5 +1,7 @@
 /* Bottom toolbar, version 3: five 32 px icon buttons, no text -- Analyze | Layout, View, Legend |
-   Quick actions. Every name and key is in the one tooltip (AB.tip, via AB.toolbarButton). Select
+   Quick actions. Layout opens the graph's Layout group (AB.layoutGroup, the inspector's own
+   component) as a popover above the bar, under one line that pauses or resumes; its icon still
+   shows whether the layout is moving. Every name and key is in the one tooltip (AB.tip, via AB.toolbarButton). Select
    and the View mode button are gone: View opens view-flyout (camera, views, 2D/3D, VR, AR). In a
    headset the toolbar becomes the hand menu, which keeps text labels. Plain ASCII. */
 (function () {
@@ -7,24 +9,25 @@
         ".tb-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}" +
         ".tb-annot{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}" +
         ".tb-annot a{color:inherit}" +
-        ".tb-hand{width:320px;max-height:calc(100vh - 140px);overflow:auto;padding:12px;border-radius:13px;background:#1e1e1e;color:#fff;color-scheme:dark;box-shadow:var(--cm-elevation-400)}" +
+        ".tb-hand{width:320px;max-height:calc(100vh - 140px);overflow:auto;padding:12px;border-radius:13px;background:var(--cm-bg-menu);color:var(--cm-text-menu);color-scheme:dark;box-shadow:var(--cm-elevation-400)}" +
         ".tb-hand-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:600}" +
-        ".tb-hand-needs{margin:0 0 8px;padding:6px 8px;border:1px dashed #ffffff4d;border-radius:8px;font-size:11px;color:#ffffffb2}" +
-        ".tb-hand-needs .ab-needs{color:#ffffffcc}" +
-        ".tb-hand .k-tab{color:#ffffffb2}.tb-hand .k-tab[aria-selected=true]{color:#fff}" +
+        ".tb-hand-needs{margin:0 0 8px;padding:6px 8px;border:1px dashed var(--k-menu-ink3);border-radius:8px;font-size:11px;color:var(--cm-text-menu-secondary)}" +
+        ".tb-hand-needs .ab-needs{color:var(--cm-text-menu)}" +
+        ".tb-hand .k-tab{color:var(--cm-text-menu-secondary)}.tb-hand .k-tab[aria-selected=true]{color:var(--cm-text-menu)}" +
         ".tb-hand-tools{display:grid;grid-template-columns:1fr;gap:4px}" +
-        ".tb-hand-btn{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:8px;background:#2c2c2c}" +
+        ".tb-hand-btn{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:8px;background:var(--cm-border-menu)}" +
         ".tb-hand-btn:hover,.tb-hand-btn:focus-visible{background:var(--cm-bg-brand)}" +
-        ".tb-hand-btn .tb-sub{margin-inline-start:auto;color:#ffffff99;font-size:11px}" +
+        ".tb-hand-btn .tb-sub{margin-inline-start:auto;color:var(--cm-text-menu-secondary);font-size:11px}" +
         ".tb-hand-row{display:flex;align-items:center;gap:10px;height:44px;padding:0 4px 0 10px;border-radius:8px}" +
-        ".tb-hand-row + .tb-hand-row{border-top:1px solid #383838}" +
-        ".tb-hand-row[data-dim] .tb-name{color:#ffffff66}" +
+        ".tb-hand-row + .tb-hand-row{border-top:1px solid var(--cm-border-menu)}" +
+        ".tb-hand-row[data-dim] .tb-name{color:var(--cm-text-menu-disabled)}" +
         ".tb-hand-row .tb-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-        ".tb-hand-row .tb-count{color:#ffffff99;font-size:11px}" +
-        ".tb-hand-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;color:#fff}" +
-        ".tb-hand-icon:hover,.tb-hand-icon:focus-visible{background:#383838}" +
+        ".tb-hand-row .tb-count{color:var(--cm-text-menu-secondary);font-size:11px}" +
+        ".tb-hand-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;color:var(--cm-text-menu)}" +
+        ".tb-hand-icon:hover,.tb-hand-icon:focus-visible{background:var(--cm-border-menu)}" +
         ".tb-hand-icon[aria-pressed=true]{background:var(--cm-bg-brand)}" +
-        ".tb-hand .k-secondary{color:#ffffff99}"));
+        ".tb-hand .k-secondary{color:var(--cm-text-menu-secondary)}" +
+        ".tb-lay .k-section-head{display:none}.tb-lay-run{display:flex;align-items:center;gap:8px}"));
 
     const TB = AB.toolbarButton;
     const LAYOUT = { "layout-paused": "paused", "layout-settled": "settled" }; // every other state: running
@@ -32,12 +35,30 @@
     let entered = null; // the state last entered, so a toggle's redraw does not reset it
     let rowsPage = true; // the hand menu's page
 
+    // The popover: one line that pauses or resumes, then the inspector's Layout group itself
+    function layoutPopover() {
+        const ds = AB.route && AB.route.frame.dataset;
+        const run = h("span", { class: "tb-lay-run" });
+        const paint = (refocus) => {
+            const c = AB.cmd("layout");
+            const btn = AB.button(c.label, { kind: "secondary", icon: AB.layoutState === "running" ? "pause" : "play", onClick: () => { AB.setLayout(AB.layoutState === "running" ? "paused" : "running"); paint(true); } });
+            run.replaceChildren(h("span", { class: "k-grow" }, { running: "Running", paused: "Paused", settled: "Settled" }[AB.layoutState]), btn);
+            if (refocus) btn.focus(); // focus stays in the popover, so Esc still closes it
+        };
+        paint();
+        const p = AB.popover({ anchor: "#ab-toolbar [data-tool='Layout']", width: 300, title: "Layout",
+            body: h("div", { class: "tb-lay" }, AB.fieldRow("Motion", run, { popover: true }), AB.layoutGroup(ds === "transactions" ? "transfers" : "layout")) });
+        // Esc closes it: the shell's Esc skips a route whose closeTo is the same section
+        p.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); AB.close(); } });
+        return p;
+    }
+
     // The bar, from the shared helpers. Same as AB.mainToolbar() except where a state changes one
     // button: the View tooltip names the view the camera sits exactly on; an export disables Layout.
     function toolbar(state) {
         const mode = (AB.route && AB.route.frame.mode) || "3d";
         const layout = state === "export-waiting"
-            ? TB("pause", "Pause layout", { tool: "Layout", disabled: "Waiting to capture the image" })
+            ? TB("pause", "Layout", { tool: "Layout", disabled: "Waiting to capture the image" })
             : AB.layoutButton();
         return AB.toolbarBar([
             TB("flask-conical", "Analyze", { key: "Shift+A", popup: "dialog", go: ["analyze-popover", "open"] }),
@@ -61,7 +82,8 @@
 
     // The states that show a tooltip raise the shared one at once: on a button as if hovered, or by
     // keyboard focus on View.
-    const TIP_ON = { "tooltip-hover": "Analyze", "nothing-drawn": "Analyze", "export-waiting": "Layout" };
+    // (Export waiting raises none: its notice already says why, and a raised tooltip would cover it.)
+    const TIP_ON = { "tooltip-hover": "Analyze", "nothing-drawn": "Analyze" };
     function raiseTip(state) {
         setTimeout(() => {
             const b = document.querySelector("#ab-toolbar [data-tool='" + (TIP_ON[state] || "View") + "']");
@@ -82,19 +104,19 @@
     function handMenu() {
         const L = AB.fx.datasets.lesmis;
         const multi = (cs) => h("span", { class: "ab-multi" }, cs.map((c) => AB.chit(c, true)));
-        // The graph tree's top-level rows that have an eye, in paint order, Notes included
+        // The graph tree's top-level rows that have an eye, in paint order, Notes included; counts as the tree shows them
         const rows = [
-            { name: "Notes", swatch: icon(AB.ICON.note), count: "2 nodes", eye: true },
+            { name: "Notes", swatch: icon(AB.ICON.note), count: "4", eye: true },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), eye: true },
-            { name: "Louvain", swatch: multi(["#E69F00", "#56B4E9", "#009E73"]), count: "77", eye: true },
-            { name: "Shortest paths", swatch: AB.chit("#D55E00"), count: "2 paths", eye: true },
+            { name: "Louvain", swatch: multi(["#E69F00", "#56B4E9", "#009E73"]), count: AB.count(6, "group"), eye: true },
+            { name: "Shortest paths", swatch: AB.chit("#D55E00"), eye: true },
             { name: "Watchlist", swatch: AB.chit("#CC79A7", true), count: "5", eye: true },
-            { name: "For the report", swatch: icon("folder-open"), count: "3 rows", eye: true },
+            { name: "For the report", swatch: icon("folder-open"), eye: true },
             { name: "Everything", swatch: icon("base-layer"), eye: true },
         ];
         let solo = null;
-        const box = h("div", { class: "tb-hand", role: "menu", "aria-label": "Hand menu" });
-        const hb = (ic, label, sub, o) => h("div", Object.assign({ class: "tb-hand-btn", role: "menuitem" }, AB.act(o)), icon(ic, "lg"), h("span", null, label), sub ? h("span", { class: "tb-sub" }, sub) : null);
+        const box = h("div", { class: "tb-hand", role: "dialog", "aria-label": "Hand menu" });
+        const hb = (ic, label, sub, o) => h("div", Object.assign({ class: "tb-hand-btn", role: "button" }, AB.act(o)), icon(ic, "lg"), h("span", null, label), sub ? h("span", { class: "tb-sub" }, sub) : null);
         const body = h("div");
 
         function tools() {
@@ -124,7 +146,7 @@
         function page(rp) { rowsPage = rp; body.replaceChildren(...[].concat(rp ? rowsList() : tools())); }
         box.append(
             h("div", { class: "tb-hand-head" }, icon("hand"), h("span", { class: "k-grow" }, "Hand menu"), h("span", { class: "k-secondary" }, L.frame.project)),
-            h("div", { class: "tb-hand-needs" }, "Design target, not buildable yet: ", AB.needsElement("in-headset menu: page panels are not visible inside a headset, and graphty-element has no in-headset menu API; filed")),
+            h("div", { class: "tb-hand-needs ab-review-only" }, "Design target, not buildable yet: ", AB.needsElement("in-headset menu: page panels are not visible inside a headset, and graphty-element has no in-headset menu API; filed")),
             AB.tabs(["Tools", "Rows"], rowsPage ? "Rows" : "Tools", (n) => page(n === "Rows")),
             body);
         page(rowsPage);
@@ -148,6 +170,7 @@
             { id: "legend-off", label: "Legend off" },
             { id: "2d", label: "2D" },
             { id: "analyze-open", label: "Analyze open" },
+            { id: "layout-open", label: "Layout open: the graph's Layout group as a popover" },
             { id: "nothing-drawn", label: "Nothing is drawn" },
             { id: "export-waiting", label: "Export waiting for the layout" },
             { id: "xr-hand-menu", label: "XR hand menu, Rows page" },
@@ -157,12 +180,14 @@
             if (state === "xr-hand-menu") return { top: false, rail: false, left: false, right: false, dock: false };
             if (state === "2d") return { mode: "2d" };
             if (state === "analyze-open") return { overlay: "analyze-popover/open" };
+            if (state === "layout-open") return { overlay: "toolbar/layout-open" };
             if (state === "nothing-drawn") return { canvas: "canvas-and-states/empty", left: "graph-place/empty", right: false, dock: false };
             if (state === "export-waiting") return { canvas: "canvas-and-states/waiting-to-settle" };
             return {};
         },
-        render(el, state) {
+        render(el, state, ctx) {
             state = OLD[state] || state;
+            if (ctx.region === "overlay") return el.append(layoutPopover());
             if (!AB.route || AB.route.id !== "toolbar") entered = null;
             if (AB.route && AB.route.id === "toolbar" && entered !== state) {
                 // Entering a state sets the layout and the legend it shows; toggles after that stick

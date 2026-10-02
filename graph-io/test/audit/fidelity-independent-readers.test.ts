@@ -28,6 +28,7 @@ import { graphmlImporter } from "../../src/formats/graphml/importer.js";
 import { jsonImporter } from "../../src/formats/json/importer.js";
 import { neo4jExporter } from "../../src/formats/neo4j/exporter.js";
 import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
+import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { type CommonImportOptions, type GraphImporter } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
@@ -44,6 +45,7 @@ const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>>
     json: jsonImporter as GraphImporter<AnyImportOptions>,
     neo4j: neo4jImporter as GraphImporter<AnyImportOptions>,
     pajek: pajekImporter as GraphImporter<AnyImportOptions>,
+    obo: oboImporter as GraphImporter<AnyImportOptions>,
 };
 
 const NOT_A_GRAPH: ReadonlySet<string> = new Set(["graphml/got-social-network.graphml"]);

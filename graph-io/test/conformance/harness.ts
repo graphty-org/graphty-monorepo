@@ -208,8 +208,9 @@ function plain(value: unknown): unknown {
 }
 
 /**
- * Loose equality for spot checks: numbers within a relative 1e-6, arrays element-wise, anything
- * else by its string form (so 1 and "1" of an inferred column agree).
+ * Loose equality for spot checks: numbers within a relative 1e-6, arrays element-wise, records
+ * key by key (a json cell; its string form would make any two records agree), anything else by
+ * its string form (so 1 and "1" of an inferred column agree).
  * @param expected - the oracle's value
  * @param actual - graph-io's value
  * @returns true when they agree
@@ -218,6 +219,15 @@ function agrees(expected: unknown, actual: unknown): boolean {
     const a = plain(actual);
     if (Array.isArray(expected)) {
         return Array.isArray(a) && a.length === expected.length && expected.every((e, i) => agrees(e, a[i]));
+    }
+    if (expected !== null && typeof expected === "object") {
+        if (a === null || typeof a !== "object" || Array.isArray(a)) {
+            return false;
+        }
+        const e = expected as Record<string, unknown>;
+        const r = a as Record<string, unknown>;
+        const keys = Object.keys(e);
+        return keys.length === Object.keys(r).length && keys.every((k) => k in r && agrees(e[k], r[k]));
     }
     if (typeof expected === "number" && typeof a === "number") {
         if (Number.isNaN(expected)) {

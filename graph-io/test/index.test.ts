@@ -68,6 +68,8 @@ const VALUE_EXPORTS = [
     "TYPE_COLUMN",
     "neo4jExporter",
     "neo4jImporter",
+    "OBO_ISSUE",
+    "oboImporter",
     "PAJEK_ISSUE",
     "PAJEK_LOSS",
     "pajekExporter",
@@ -226,7 +228,11 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set(pairs.map(([format]) => format)));
+        // OBO is read-only: an importer, no exporter
+        expect(graphIo.oboImporter.format).toBe("obo");
+        expect(graphIo.registry.importer("obo")).toBe(graphIo.oboImporter);
+        expect(graphIo.registry.hasExporter("obo")).toBe(false);
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo"]));
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -246,6 +252,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             JSON_LOSS: graphIo.JSON_LOSS,
             NEO4J_ISSUE: graphIo.NEO4J_ISSUE,
             NEO4J_LOSS: graphIo.NEO4J_LOSS,
+            OBO_ISSUE: graphIo.OBO_ISSUE,
             PAJEK_ISSUE: graphIo.PAJEK_ISSUE,
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
         };

@@ -103,8 +103,10 @@ for (const manifest of loadManifests()) {
             }
         });
     }
-    describe(`round trip: ${format}`, () => {
-        for (const fixture of manifest.fixtures.filter((f) => roundTrips(format, f))) {
+    // a read-only format (OBO, CX1, .cys) has no exporter, so nothing round-trips
+    const tripped = manifest.fixtures.filter((f) => roundTrips(format, f));
+    describe.runIf(tripped.length > 0)(`round trip: ${format}`, () => {
+        for (const fixture of tripped) {
             const test = fixture.roundTripFailure === undefined ? it : it.fails;
             test(fixture.file, async () => {
                 const problems = await checkRoundTrip(format, fixture);

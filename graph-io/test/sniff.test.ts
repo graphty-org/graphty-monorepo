@@ -68,7 +68,7 @@ describe("extensionOf / normalizeMimeType / headBytes", () => {
 describe("rankFormats / sniffFormat (design 8.2)", () => {
     it("lists the eight built-in formats in the default registry's order", () => {
         expect(IMPORTERS.map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        expect(GRAPH_FORMATS).toEqual(["json", "graphml", "gexf", "csv", "gml", "dot", "pajek", "neo4j"]);
+        expect(GRAPH_FORMATS).toEqual(["json", "graphml", "gexf", "csv", "gml", "dot", "pajek", "neo4j", "obo"]);
     });
 
     it("recognises every corpus file from its content alone and from its name alone", () => {

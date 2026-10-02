@@ -16,8 +16,9 @@ the expectation today; the reference points into
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 98 | 11 | 88 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
-| json | 411 | 381 | 30 | 63 | 0 |
+| json | 427 | 397 | 30 | 79 | 0 |
 | neo4j | 45 | 25 | 20 | 24 | 0 |
+| obo | 102 | 102 | 0 | 0 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 
 ## networkx differential
@@ -40,6 +41,52 @@ Where networkx is overruled:
 
 - graphml: networkx writes multigraph edge keys as GraphML edge ids, which repeat across node pairs; GraphML requires edge ids unique within the document, so networkx's read-back (every edge kept) is not the expectation: graph-io reports E_DUPLICATE_EDGE_ID for each repeat (8 files)
 - json: networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted (30 files)
+
+## Where the oracle is overruled
+
+These expectations follow the format's specification where the oracle that produced the
+rest of the format's expectations does something else.
+
+- json (python-json-obographs): fastobo.load_graph reads the untyped nodes as Typedefs (11 Terms); the schema makes type optional and says nothing of untyped nodes being properties, so they are nodes (design 4.6: every node is a node) (1 file)
+- obo (spec): fastobo keeps the backslash and reads the next line as a separate clause; the 1.2 guide defines the backslash at a line end as a continuation (1 file)
+- obo (spec): fastobo and ROBOT reject the whole file; graph-io skips the one clause (design 4.3) (1 file)
+- obo (spec): fastobo and ROBOT reject a header date not of the form dd:MM:yyyy HH:mm; graph-io keeps it in meta.extra.obo.header and leaves meta.created unset (1 file)
+- obo (spec): fastobo rejects the file; ROBOT reads it; graph-io keeps the synonym with scope null and the word as its type (1 file)
+- obo (spec): fastobo 0.14.1 panics (Rust unreachable!) on this file; ROBOT 1.9.11 (owlapi) reads it (3 files)
+- obo (spec): fastobo rejects a document with no header clause; the BNF's header is a list of zero or more clauses (1 file)
+- obo (spec): fastobo reads a file with lone CR line ends as zero frames; the 1.4 BNF lists CR as a line end (1 file)
+- obo (spec): fastobo requires the xref list (1.4 BNF); ROBOT and owlapi read the definition without it (1 file)
+- obo (spec): fastobo reads an empty file as a document with no frames; graph-io refuses an empty input with E_EMPTY_INPUT, the rule every graph-io importer follows (design 4.3) (1 file)
+- obo (spec): fastobo reads \W as the letter W, as the 1.4 BNF does; the 1.0 to 1.4 guides define \W as a space, and the files' writers followed the guides (design 4.1) (1 file)
+- obo (spec): fastobo does not treat form feed as a line end although the 1.4 BNF lists it (1 file)
+- obo (spec): fastobo rejects the file (expected TermClause); ROBOT reads it; it is an unknown tag of the frame it stands in (1 file)
+- obo (spec): fastobo raises NotImplementedError on the merged entity (1 file)
+- obo (spec): fastobo and ROBOT reject a frame whose id is not first; the BNF's order is a writing rule, and the id is unambiguous, so graph-io reads it and reports the order (1 file)
+- obo (spec): fastobo reads only OBO 1.4; graph-io reads the 1.0 tags as their 1.4 meaning, as the 1.2 guide lists them (1 file)
+- obo (spec): fastobo rejects the whole file (expected Comment); the 1.4 guide's parser requirements make a bad frame an error for that frame, not for the file (1 file)
+- obo (spec): fastobo rejects two blocks in a row and a missing space after the comma, which the 1.2 examples and owlapi's writer produce (1 file)
+- obo (spec): fastobo rejects the file; ROBOT rejects owlapi's fbbt_comment_test.obo for the same brace (1 file)
+- obo (spec): every reader rejects the whole file; graph-io skips the clause (design 4.3) (1 file)
+- obo (spec): fastobo rejects a second id clause; the first is unambiguous (1 file)
+- obo (spec): fastobo requires a synonym scope (1.4 BNF); the scope is optional in 1.2 and the file is read with RELATED and a warning in a 1.4 file (1 file)
+- obo (spec): fastobo requires a scope on every synonym (1.4 BNF); 1.2 makes it optional and this file says 1.2 (1 file)
+- obo (spec): fastobo rejects the file (2 files)
+- obo (spec): fastobo rejects a file whose last line has no line end (1 file)
+- obo (spec): fastobo, ROBOT, pronto and obonet reject the file; the guides say unrecognized frames must survive, so the frame is kept as metadata with a warning rather than the file refused (1 file)
+- obo (spec): fastobo rejects an unknown tag; the 1.2 and 1.4 guides say an unknown tag is never fatal (RECORD / WARN_AND_RECORD), and ROBOT and obonet read it (1 file)
+- obo (spec): fastobo requires quoted qualifier values (1.4 BNF); the 1.2 guide's own examples are unquoted, and ROBOT reads them (1 file)
+- obo (spec): fastobo rejects the file; ROBOT reads it (1 file)
+- obo (spec): fastobo reads UTF-8 only (3 files)
+- obo (fastobo-0.14.1): ROBOT and OBO Graphs make no ordinary edge of an all_only relationship (ro.json puts the 12 self-loops in allValuesFromEdges); fastobo and the design keep the clause as an edge between the two terms, with its qualifier (1 file)
+- obo (obonet-1.3.0): fastobo and pronto reject the whole file over the escaped colon in an xref URL; owlapi unescapes and reads it, and so does graph-io; obonet gives the counts (1 file)
+- obo (obonet-1.3.0): fastobo rejects a 1.2 synonym without a scope (line 22); obonet gives the counts (1 file)
+- obo (obonet-1.3.0): fastobo rejects the unknown tag customTag; the guides keep it, ROBOT reads it (1 file)
+- obo (spec): fastobo panics on the comment line, obonet fails on it; ROBOT reads the file: 3 Terms, 6 is_a / part_of targets outside the file (placeholders) (1 file)
+- obo (obonet-1.3.0): fastobo and ROBOT reject the brace; obonet gives the counts (1 file)
+- obo (obonet-1.3.0): fastobo rejects an xref id with spaces; owlapi reads it (1 file)
+- obo (obonet-1.3.0): fastobo and ROBOT reject the unquoted literal; graph-io reads it as the value (1 file)
+- obo (spec): fastobo rejects the Typedef tag after its frame's clauses; obonet keeps the spaces before a ! comment in an id and makes FBbt:00005106 and 'FBbt:00005106 ' two nodes (16); the hidden comment and its whitespace are not part of the value (1 file)
+- obo (spec): fastobo and obonet reject the escaped colon; the guides' \: is a literal colon (1 file)
 
 ## csv
 
@@ -317,6 +364,10 @@ Where networkx is overruled:
 
 - `admin/manual-vector.csv`: node "a" vector1: expected [0.5,1.5,2.5], got "0.5;1.5;2.5"
 
+
+## obo
+
+No known failures.
 
 ## pajek
 

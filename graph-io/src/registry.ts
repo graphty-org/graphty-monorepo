@@ -25,6 +25,7 @@ import { gmlExporter, gmlImporter } from "./formats/gml/index.js";
 import { graphmlExporter, graphmlImporter } from "./formats/graphml/index.js";
 import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
+import { oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import {
@@ -372,7 +373,8 @@ export function createRegistry(): FormatRegistry {
         .registerImporter(pajekImporter)
         .registerExporter(pajekExporter)
         .registerImporter(neo4jImporter)
-        .registerExporter(neo4jExporter);
+        .registerExporter(neo4jExporter)
+        .registerImporter(oboImporter);
 }
 
 /** The default registry: every built-in format. */

@@ -7,8 +7,9 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data are read
-only) and Neo4j (`neo4j-admin import` CSV).
+JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
+Graphs are read only), Neo4j (`neo4j-admin import` CSV) and OBO, the ontology format of the Gene
+Ontology (read only).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -145,6 +146,7 @@ reports every column or feature outside it):
 | CSV     | `@graphty/graph-io/csv`     | `.csv` `.tsv` `.edges` `.edgelist` | yes         | yes         | optional    | any           | bool i32 f64 string dict               | no    | no   | no       | no        | none           | no          | no        | no  |
 | JSON    | `@graphty/graph-io/json`    | `.json`                            | per dialect | yes         | per dialect | any           | f64 i32 bool string (no declarations)  | no    | yes  | no       | Cytoscape | none           | per dialect | Cytoscape | no  |
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
+| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -259,7 +261,31 @@ losses and format rules, in addition to the table:
   and `edgesPath` point at node and edge arrays nested anywhere in the document as dotted key paths
   (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`) for the node-link, d3, vis and
   graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
-  nothing is an `E_MISSING_SECTION` issue, not an abort.
+  nothing is an `E_MISSING_SECTION` issue, not an abort. OBO Graphs (`dialect: "obographs"`, the
+  JSON the Gene Ontology and the OBO Foundry publish: `graphs[]` of `sub` / `pred` / `obj` edges) is
+  read only, into the same columns as the OBO importer: IRIs become the ids the `.obo` file writes
+  (`GO:0008150`; `oboIds: "iri"` keeps them), a relation is named by its shorthand (`part_of`),
+  PROPERTY nodes and the axiom arrays go to `meta.extra.obographs` (`typedefs: "nodes"` makes the
+  properties nodes), and an edge endpoint missing from `nodes` becomes a placeholder node
+  (`W_DANGLING_REFERENCE`). For a JGF or OBO Graphs `graphs` array, `graphIndex` / `graphName` (a
+  graph's `id`, else its label) choose the graph and `listGraphs()` lists them. A document longer
+  than one JavaScript string (about 512 MB, such as ncbitaxon.json) fails with `E_TOO_LARGE`.
+- **OBO** (read only): OBO 1.0, 1.2 and 1.4 read as their union, streamed line by line. `[Term]`
+  and `[Instance]` frames are nodes; `is_a`, `relationship` and `instance_of` clauses are directed
+  edges, child to parent, with the relation in a `relation` column (role `kind`) and a trailing
+  `{...}` qualifier block in `qualifiers`. `[Typedef]` frames go to `meta.extra.obo.typedefs`
+  (`typedefs: "nodes"` makes them nodes with their `is_a` edges); the header goes to
+  `meta.extra.obo.header`. Every other tag fills the column of its name (`name` with the label
+  role, `namespace`, `def` and `def.xrefs`, `synonym` as `{ text, scope, type, xrefs }` records,
+  `xref`, `alt_id`, `subset`, `is_obsolete`, `property_value`, `intersection_of`, ...); an unknown
+  tag is kept in `obo.unrecognized`, qualifiers with no other home in `obo.qualifiers` (those of
+  one xref of a `def` or `synonym` list under `def.xrefs` / `synonym.xrefs`), a frame of
+  an unknown type in `meta.extra.obo.unknownFrames`. Frames that share an id are merged (lists
+  take the union, a single value keeps the first). A target no frame declares becomes a placeholder node (`graphty.placeholder`; `addMissingNodes: false` drops
+  the edge instead). Obsolete terms are kept (`obsolete: "drop"` leaves them and their edges out).
+  Imports and the treat-xrefs macros are kept but not applied (`W_OBO_HEADER_NOT_APPLIED`). The
+  `\W` escape is a space, as the OBO guides define it. There is no OBO exporter: write GraphML or
+  the graph-format container instead.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored

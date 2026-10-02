@@ -101,7 +101,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge). Numbers come before text, text sorts in natural order ("2" before "10"), and a record
+     * edge). Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"), and a record
      * without the key comes last in either direction.
      */
     readonly key: string;

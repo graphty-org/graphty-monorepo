@@ -94,6 +94,7 @@ const NATURAL = new Intl.Collator("en", { numeric: true });
 function kindRank(value: unknown): number {
     switch (typeof value) {
         case "number":
+        case "bigint":
             return 0;
         case "string":
             return 1;
@@ -116,8 +117,11 @@ function compareSortValues(a: unknown, b: unknown): number {
         return rank;
     }
 
-    if (typeof a === "number" && typeof b === "number") {
-        return a - b;
+    if (rank === 0 && kindRank(a) === 0) {
+        // `<` compares a number with a bigint exactly, where `-` would throw.
+        const x = a as number | bigint;
+        const y = b as number | bigint;
+        return Number(x > y) - Number(x < y);
     }
 
     if (typeof a === "string" && typeof b === "string") {
@@ -128,7 +132,20 @@ function compareSortValues(a: unknown, b: unknown): number {
         return Number(a) - Number(b);
     }
 
-    return NATURAL.compare(JSON.stringify(a) ?? "", JSON.stringify(b) ?? "");
+    return NATURAL.compare(textOf(a), textOf(b));
+}
+
+/**
+ * A value of no simpler kind as text to sort by.
+ * @param value - an object, an array, or anything else
+ * @returns its JSON, or its string form when JSON cannot write it (a bigint inside it)
+ */
+function textOf(value: unknown): string {
+    try {
+        return JSON.stringify(value) ?? String(value);
+    } catch {
+        return String(value);
+    }
 }
 
 /**

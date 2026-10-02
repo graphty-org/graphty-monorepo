@@ -163,18 +163,20 @@ page.total; // how many there are in all, for the scrollbar
 page.revision; // changes whenever any record, the selection or a set changes
 
 // Sorted by an attribute, over any scope:
-session.data.nodePage({ offset: 30, limit: 30, sort: { key: "degree", descending: true } });
+session.data.nodePage({ offset: 30, limit: 30, sort: { key: "weight", descending: true } });
 session.data.nodePage({ scope: "selection" });
 
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
-// Read the page again when the graph changes:
-session.on("project:changed", () => {
+// Read the page again when the graph changes (and, for a "selection" scope, the selection):
+const reread = () => {
     if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
-        // redraw
+        // read the page again and redraw
     }
-});
+};
+session.on("project:changed", reread);
+session.on("selection:changed", reread);
 ```
 
 Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),

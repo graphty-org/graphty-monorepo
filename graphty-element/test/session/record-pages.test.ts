@@ -118,6 +118,24 @@ describe("reading records a page at a time", () => {
         session.dispose();
     });
 
+    it("sorts a bigint among the numbers and an object holding one without throwing", async () => {
+        const harness = makeSession();
+        const { session } = harness;
+        await session.data.addNodes([
+            { id: "a", v: 10n },
+            { id: "b", v: 3 },
+            { id: "c", v: 2n },
+            { id: "d", v: { big: 1n } },
+            { id: "e", v: "text" },
+        ]);
+
+        assert.deepStrictEqual(
+            session.data.nodePage({ sort: { key: "v" } }).records.map((record) => record.id),
+            ["c", "b", "a", "e", "d"],
+        );
+        session.dispose();
+    });
+
     it("pages a scope, and the edges at one node", async () => {
         const harness = makeSession();
         harness.add(

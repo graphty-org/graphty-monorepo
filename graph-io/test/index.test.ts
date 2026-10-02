@@ -100,6 +100,7 @@ const VALUE_EXPORTS = [
     "INVALID_UTF8_CODE",
     "LineReader",
     "inputLength",
+    "decodeEntryName",
     "isImportInput",
     "readText",
     "textChunks",

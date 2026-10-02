@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ENCODING_FALLBACK_CODE, INVALID_ENCODING_CODE, UNKNOWN_ENCODING_CODE } from "../../src/common/codes.js";
 import {
     canonicalEncoding,
+    decodeEntryName,
     inputLength,
     INVALID_UTF8_CODE,
     isImportInput,
@@ -430,5 +431,19 @@ describe("byte decoding: BOM, declaration, option, windows-1252 fallback", () =>
         expect(xmlDeclaredEncoding(` <?xml version="1.0" encoding="latin1"?>`)).toBeNull();
         expect(canonicalEncoding(" Latin1 ")).toBe("windows-1252");
         expect(canonicalEncoding("klingon")).toBeNull();
+    });
+});
+
+describe("decodeEntryName (zip entry names)", () => {
+    it("reads UTF-8 names, and names that are not UTF-8 as windows-1252", () => {
+        expect(decodeEntryName(encoder.encode("CytoscapeSession/networks/a.xgmml"))).toBe(
+            "CytoscapeSession/networks/a.xgmml",
+        );
+        expect(decodeEntryName(encoder.encode(`tables/${MULTIBYTE}.cytable`))).toBe(`tables/${MULTIBYTE}.cytable`);
+        // 0xe9 alone is not UTF-8: the windows-1252 e-acute
+        expect(decodeEntryName(new Uint8Array([0x63, 0x61, 0x66, 0xe9]))).toBe(`caf${String.fromCharCode(0xe9)}`);
+        // 0x80 is the euro sign in windows-1252, not a C1 control
+        expect(decodeEntryName(new Uint8Array([0x80]))).toBe(String.fromCharCode(0x20ac));
+        expect(decodeEntryName(new Uint8Array(0))).toBe("");
     });
 });

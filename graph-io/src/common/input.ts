@@ -263,6 +263,22 @@ function startsWithUtf8(bytes: Uint8Array): boolean {
 }
 
 /**
+ * A zip entry name as text (APPNOTE 4.4.17): UTF-8 when the bytes are valid UTF-8, whether or not
+ * the entry sets the language-encoding flag (bit 11), else windows-1252 (WHATWG has no CP437, and
+ * session entry names are ASCII in practice). Never throws: a name is a matching key, never a path,
+ * so an undecodable one still has to name its entry.
+ * @param bytes - the name bytes from the central directory or a local header
+ * @returns the name
+ */
+export function decodeEntryName(bytes: Uint8Array): string {
+    try {
+        return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch {
+        return new TextDecoder("windows-1252").decode(bytes);
+    }
+}
+
+/**
  * Join byte chunks.
  * @param chunks - the chunks
  * @returns one array holding them in order

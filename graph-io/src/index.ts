@@ -192,6 +192,7 @@ export {
     isCanonicalIntegerText,
 } from "./common/ids.js";
 export {
+    decodeEntryName,
     inputLength,
     INVALID_UTF8_CODE,
     isImportInput,

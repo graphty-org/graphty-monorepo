@@ -454,6 +454,28 @@ describe("runs against fake-claude", () => {
         expect(env.state.escalations).toEqual({});
     });
 
+    it("records shutdown at once, charged once, without waiting for a run that ignores SIGTERM", async () => {
+        let servherdCalls = 0;
+        const env = setup(
+            { hang: true, ignoreTerm: true },
+            { servherd: async () => (servherdCalls++, { servers: [] }), killGraceMs: 300 },
+        );
+        const res = start(env.runner, {});
+        const record = env.state.runs[res.id];
+        groups.push(record.process.pid);
+        // fake-claude ignores SIGTERM from before it writes its init line.
+        for (let i = 0; i < 250 && !record.sessionId; i++) await new Promise((r) => setTimeout(r, 20));
+        expect(record.sessionId).toBe("sess-1");
+        await env.runner.shutdown();
+        expect(record).toMatchObject({ status: "interrupted", outcome: "interrupted", costUsd: 1.5 });
+        expect(groupAlive(record.process.pid)).toBe(true);
+        expect(env.runner.inFlight()).toEqual([]);
+        await res.done;
+        expect(env.state.spend[record.startedAt.slice(0, 10)]).toBe(1.5);
+        expect(record.status).toBe("interrupted");
+        expect(servherdCalls).toBe(0);
+    });
+
     it("removes servherd servers a run left inside its working directory", async () => {
         const calls = [];
         let runId = "";

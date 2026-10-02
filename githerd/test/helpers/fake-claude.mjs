@@ -10,6 +10,7 @@
  * - `result`: the `result` line (omitted when null).
  * - `stderr`: text written to stderr after the stream lines.
  * - `hang`: true keeps running (and starts a grandchild in the same process group) until killed.
+ * - `ignoreTerm`: true ignores SIGTERM, so only SIGKILL stops it.
  * - `exitCode`: the exit code (default 0).
  */
 import { spawn } from "node:child_process";
@@ -24,6 +25,7 @@ writeFileSync(
     JSON.stringify({ argv, env: process.env, cwd: process.cwd(), pid: process.pid }),
 );
 
+if (scenario.ignoreTerm) process.on("SIGTERM", () => {});
 const out = (/** @type {any} */ line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const tools = argv[argv.indexOf("--tools") + 1].split(" ").filter((t) => t !== "mcp__githerd");
 const init = scenario.init === undefined ? "auto" : scenario.init;

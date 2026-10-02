@@ -497,7 +497,7 @@ export function createRunner({
     killGraceMs = KILL_GRACE_MS,
     sandboxMissing: missingSandbox = () => sandboxMissing(env.PATH),
 }) {
-    /** @type {Map<string, {kill: (why: string) => void, done: Promise<any>}>} */
+    /** @type {Map<string, {kill: (why: string) => void, interrupt: () => void, done: Promise<any>}>} */
     const live = new Map();
     const npmrc = join(stateDir, "run-npmrc");
     mkdirSync(stateDir, { recursive: true });
@@ -675,11 +675,32 @@ export function createRunner({
         }).then(() => finish());
 
         /**
+         * The shutdown path: kills the run and records it `interrupted` at once, charged its full
+         * budget, without waiting for the process to close. `finish` then leaves the record alone.
+         */
+        function interrupt() {
+            kill("interrupted");
+            clearTimeout(timer);
+            const end = now();
+            Object.assign(record, {
+                status: "interrupted",
+                outcome: "interrupted",
+                endedAt: end.toISOString(),
+                costUsd: caps.budgetUsd,
+            });
+            charge(state, req.kind, end.toISOString().slice(0, 10), record.costUsd);
+            releaseRun(state, id);
+            live.delete(id);
+            void ledger({ kind: "run-end", run: id, outcome: "interrupted", status: "interrupted", cost: record.costUsd });
+        }
+
+        /**
          * Records the run's end: outcome, spend, denials, escalations, result.json and the ledger.
          * @returns {Promise<any>} the record
          */
         async function finish() {
             clearTimeout(timer);
+            if (record.status !== "running") return record;
             if (pending.trim()) onLine(pending);
             const end = now();
             const { status, outcome } = classify({ killed, result });
@@ -745,7 +766,7 @@ export function createRunner({
             return record;
         }
 
-        live.set(id, { kill, done });
+        live.set(id, { kill, interrupt, done });
         void save();
         return { ok: true, id, done };
     }
@@ -774,13 +795,14 @@ export function createRunner({
     }
 
     /**
-     * Kills every run in flight and marks it `interrupted` (it consumes no attempt).
+     * Sends SIGTERM to every run in flight and records it `interrupted` (it consumes no attempt),
+     * without waiting for the processes to close: the daemon must save and exit within 1.5 s
+     * (design section 3.2). A process that outlives the daemon is killed by the next one's
+     * `recoverRuns`.
      * @returns {Promise<void>} resolves once every run is recorded
      */
     async function shutdown() {
-        const all = [...live.values()];
-        for (const r of all) r.kill("interrupted");
-        await Promise.all(all.map((r) => r.done));
+        for (const r of [...live.values()]) r.interrupt();
     }
 
     return { start, shutdown, inFlight: () => [...live.keys()] };

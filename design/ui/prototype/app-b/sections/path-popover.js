@@ -36,6 +36,19 @@
                 weights: w ? [w] : [], direction: "either", names, pickFrom: names[0], pickTo: names.includes("Priya Nair") ? "Priya Nair" : names[1],
             };
         }
+        if (ds === "wide" || ds === "nested" || ds === "plainJson") {
+            // a loaded project: From is the node the inspector shows, To waits for a pick; the weight is the one set at load
+            const D = AB.fx.datasets[ds], names = AB.walkList(ds).map((x) => x.name);
+            const head = document.querySelector("#ab-right .ab-insp-head .k-name");
+            const from = (AB.walked && AB.walked.dataset === ds && AB.walked.name) || (head && names.includes(head.textContent.trim()) ? head.textContent.trim() : null);
+            const w = ds === "wide" ? "bytes_total_24h" : ds === "plainJson" ? "weight" : AB.nestedLoaded().weight;
+            const directed = ds === "nested" ? AB.nestedLoaded().direction === "directed" : !!D.directed;
+            return {
+                directed, unit: "nodes", count: names.length, from, to: null, fromIcon: "circle-dot", toIcon: "circle-dot",
+                loaded: w ? { weight: w, meaning: "stronger", desc: "Chosen when the data was loaded" } : { weight: null, meaning: "stronger", desc: "No weight was chosen when the data was loaded" },
+                weights: w ? [w] : [], direction: directed ? "follow" : "either", names, pickFrom: names[0], pickTo: names[1],
+            };
+        }
         if (state === "transfers-directed" || ds === "transactions") {
             const P = T.setsAndPaths.path;
             return {
@@ -69,7 +82,7 @@
             // The selected path row and its inspector confirm the result; the notice offers only Undo,
             // which goes back to the project's tree as it was before the path
             const ds = AB.route && AB.route.frame.dataset;
-            const undo = ds === "doorEntries" ? ["graph-place", "door-entries"] : ds === "transactions" ? ["graph-place", AB.fx.datasets.transactions.fresh ? "transfers-loaded" : "many-groups"] : ["path-popover", "from-selection"];
+            const undo = ds && ds !== "lesmis" ? ["graph-place", AB.placeOf(ds, "graph") || "at-rest"] : ["path-popover", "from-selection"];
             el.append(AB.notice("Path added", { label: "Undo", go: undo }));
             return;
         }
@@ -78,7 +91,7 @@
         // pick overrides this path run only and is recorded in its Made with, never in the data.
         s.weight = s.loaded.weight; s.meaning = s.loaded.meaning;
         if (state === "weight-overridden") { s.weight = null; }
-        let active = state === "picking-to" ? "to" : state === "from-analyze" || !s.from ? "from" : null;
+        let active = state === "picking-to" ? "to" : state === "from-analyze" || !s.from ? "from" : !s.to ? "to" : null;
         const host = h("div");
         el.append(host);
 
@@ -218,12 +231,14 @@
         frame(state) {
             if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
-            if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes + " of " + AB.fx.datasets.lesmis.nodes + " nodes" };
+            if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes + " of " + AB.fx.datasets.lesmis.nodes + " nodes", filterOn: ["group"] };
             if (state === "found") {
                 // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
                 const ds = AB.route && AB.route.frame.dataset;
                 if (ds === "doorEntries") return { own: true, dataset: ds, left: "graph-place/door-entries-path", right: "inspector-group-set-path-row/path-door-entries", dock: false };
                 if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
+                // a loaded project has no path fixture: its own tree, beside the graph's inspector
+                if (ds && ds !== "lesmis") return { own: true, dataset: ds, left: "graph-place/" + (AB.placeOf(ds, "graph") || "at-rest"), dock: false };
                 return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/path-lesmis", dock: false };
             }
             return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", dock: false };

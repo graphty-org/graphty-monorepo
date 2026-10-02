@@ -79,7 +79,8 @@
         C("add-data", "Data", "file-plus", { aka: ["join", "import", "source", "paste data", "table", "link tables"] }),
         C("edit-source", "Data", "pencil", { aka: ["field", "fields", "columns", "roles", "key", "weight", "remap", "source"] }),
         C("replace-file", "Data", "file-plus", { aka: ["replace", "refresh", "update data", "new version"] }),
-        L("Data", "plus", "New attribute...", "Data > Attributes +", { run: () => AB.flash("New attribute..."), aka: ["calculated field", "field", "expression", "formula", "computed column"] }),
+        // Drawn as Data > Attributes "+" is: disabled with its reason, and like that "+" left out of the study build
+        L("Data", "plus", "New attribute...", "Data > Attributes +", { needs: true, off: "A computed attribute needs graphty-element", aka: ["calculated field", "field", "expression", "formula", "computed column"] }),
         C("label-by", "Data", "tag", { aka: ["label", "caption", "field"] }),
         L("Data", "clock", "Time slider", "Table > Options > Time slider", { go: ["table-dock", "time-slider"], aka: ["time", "timeline", "date"] }),
         // View
@@ -126,13 +127,15 @@
         C("shortcuts", "Settings and help", "keyboard", { aka: ["keys", "hotkeys"] }),
         L("Settings and help", "menu", "Main menu", "Header > Main menu", { go: ["main-menu", "open"], aka: ["menu", "file", "help"] }),
     ];
+    // A command marked needs (a control the study build hides) is left out of the study build here too
+    const shown = () => (document.documentElement.hasAttribute("data-design-notes-hidden") ? COMMANDS.filter((c) => !c.needs) : COMMANDS);
     const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
 
     function matches(q) {
         const s = q.trim().toLowerCase();
         if (!s) return null;
         const out = [];
-        COMMANDS.forEach((c) => {
+        shown().forEach((c) => {
             const byName = c.name.toLowerCase().includes(s);
             const alias = !byName && (c.aka || []).some((a) => a.includes(s) || (s.includes(a) && a.length > 3));
             if (byName || alias) out.push({ c, rank: c.name.toLowerCase().startsWith(s) ? 0 : byName ? 1 : 2 });
@@ -179,7 +182,7 @@
             if (!hits) {
                 list.append(h("div", { class: "qs-head" }, "Recent"));
                 RECENT.forEach((n) => list.append(resultRow(COMMANDS.find((c) => c.name === n), "")));
-                groups(COMMANDS, "");
+                groups(shown(), "");
             } else {
                 if (!hits.length) list.append(h("div", { class: "qs-none" }, 'No match for "' + q.trim() + '"'));
                 groups(hits.map((x) => x.c), q);

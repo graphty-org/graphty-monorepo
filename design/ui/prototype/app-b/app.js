@@ -16,6 +16,7 @@
         wide: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
         nested: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
         plainJson: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
+        registry: { canvas: "canvas-and-states/registry", right: "inspector-nothing-selected/registry", dock: false },
     };
     // A just-loaded project has no saved views; the door entries have their own notes
     const RAIL_STATE = {
@@ -25,6 +26,7 @@
         wide: { graph: "wide", data: "attributes-wide", views: "empty", notes: "empty" },
         nested: { graph: "nested", data: "attributes-nested", views: "empty", notes: "empty" },
         plainJson: { graph: "plain-json", data: "plain-json", views: "empty", notes: "empty" },
+        registry: { graph: "registry", data: "registry", views: "empty", notes: "empty" },
     };
     // The selection bar is raised in one place: a frame whose inspector shows elements gets the bar
     // for them unless the route names its own toolbar (section frames never set it themselves)
@@ -115,7 +117,9 @@
     // that opened it and a popover's live changes stay on screen
     AB.close = function () {
         if (!route) return;
-        if (route.frame.overlay) AB.keepLeft = AB.keepRight = true;
+        // a popover that changed what the panels show (a binding just made: AB.repaint) redraws them instead
+        if (route.frame.overlay && !AB.repaint) AB.keepLeft = AB.keepRight = true;
+        AB.repaint = false;
         go(route.closeTo.id, route.closeTo.state);
     };
     AB.toggleDock = function () {
@@ -262,12 +266,17 @@
     // ---------- the page ----------
     const $ = (id) => document.getElementById(id);
 
+    // A place's state for a project (the tree, Data, Views, Notes it opens on); null is the place's own default
+    function placeOf(ds, key) {
+        const fresh = ds === "transactions" && AB.fx.datasets.transactions.fresh;
+        return ((fresh ? { graph: "transfers-loaded", data: "empty-filters", views: "empty" } : RAIL_STATE[ds]) || {})[key] || null;
+    }
+    AB.placeOf = placeOf;
     function railButton(key) {
         const [label, ic, target] = PLACES[key];
         // The rail stays in the project on screen: the door entries' Graph and Data places, the transfers' Graph place
         // A just-loaded transfers project has no runs and no filter steps yet
-        const fresh = route.frame.dataset === "transactions" && AB.fx.datasets.transactions.fresh;
-        const st = ((fresh ? { graph: "transfers-loaded", data: "empty-filters", views: "empty" } : RAIL_STATE[route.frame.dataset]) || {})[key];
+        const st = placeOf(route.frame.dataset, key);
         const a = act({ go: st ? [target, st] : [target] });
         // A place with no state of its own for this project (Assistant) opens over the project on screen
         if (route.frame.dataset !== "lesmis") {
@@ -362,7 +371,8 @@
         let carried = null;
         if (was && (!extra.dataset || extra.dataset === was.frame.dataset)) {
             // an overlay whose frame names its own panels (a result just added) draws them instead
-            if (sec.region === "overlay" && !extra.own) carried = "panels";
+            // (the table dock's Columns popover and Table options are dock states that name an overlay: the same rule)
+            if ((sec.region === "overlay" || (sec.region === "dock" && extra.overlay)) && !extra.own) carried = "panels";
             // an inspector that names no left panel, or the same place (the tree's built-in rows name graph-place)
             else if (railCarry || (sec.region === "right" && (!extra.left || (refOf(extra.left).id === (refOf(was.frame.left) || {}).id)))) carried = "dataset";
         }
@@ -370,6 +380,8 @@
         const frame = Object.assign({}, DEFAULT_FRAME, extra);
         if (carried === "panels") ["left", "right", "canvas", "dock", "toolbar", "mode"].forEach((r) => { frame[r] = was.frame[r]; });
         if (carried === "dataset" && sec.region === "right") frame.left = was.frame.left;
+        // an inspector opened straight on a loaded project (a direct link) gets that project's own tree, not Les Miserables'
+        else if (!carried && sec.region === "right" && extra.dataset && !extra.left && RAIL_STATE[extra.dataset] && RAIL_STATE[extra.dataset].graph) frame.left = "graph-place/" + RAIL_STATE[extra.dataset].graph;
         frame[sec.region] = sec.id + "/" + state;
         const leftRef = refOf(frame.left);
         const leftSec = leftRef && AB.sections[leftRef.id];
@@ -378,7 +390,11 @@
         const leftExtra = leftSec && leftSec !== sec ? frameOf(leftSec, leftRef.state || leftSec.states[0].id) : {};
         frame.dataset = extra.dataset || leftExtra.dataset || (carried ? was.frame.dataset : "lesmis");
         frame.chip = extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph");
+        // The attributes the project's filter steps read (on or off): the field lists' "Filter step" tag
+        frame.filterOn = extra.filterOn || leftExtra.filterOn || (carried ? was.frame.filterOn : null) || null;
         if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
+        // the canvas stays as it was drawn (communities, a legend) when an inspector opens beside the same project
+        if (carried === "dataset" && sec.region === "right" && !("canvas" in extra)) frame.canvas = was.frame.canvas;
         if (carried !== "panels" && sec.region !== "toolbar" && !("toolbar" in extra)) frame.toolbar = selectionBarFor(frame.right) || frame.toolbar;
         // frame.walk: n puts the canvas walk n steps along this project's nodes (a route drawn after Shift+Arrow)
         if (typeof extra.walk === "number") walkTo(frame.dataset, extra.walk - 1);
@@ -390,7 +406,7 @@
         let closeTo = carried === "panels" ? (was.frame.overlay ? was.closeTo : { id: was.id, state: was.state }) : extra.own && leftRef ? leftRef : sec.closeTo ? refOf(sec.closeTo) : frame.full && sec.region !== "full" ? refOf(frame.full) : leftRef && leftRef.id !== sec.id ? leftRef : { id: PLACES[railKey][2], state: null };
         // In a loaded project (wide, nested, plain JSON) a place's at-rest names Les Miserables: close to the project's own state
         const placeKey = closeTo && Object.keys(PLACES).find((k) => PLACES[k][2] === closeTo.id);
-        if (placeKey && ["wide", "nested", "plainJson"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
+        if (placeKey && ["wide", "nested", "plainJson", "registry"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
         const hadOverlay = !!(route && route.frame.overlay);
         const hadFocus = describe(document.activeElement);
         const prevId = route && route.id;
@@ -511,11 +527,13 @@
     function walkNodes(ds) {
         const X = AB.fx.datasets, D = X[ds];
         if (!D) return [];
-        if (D._walk) return D._walk;
+        // the walk names nodes by the Name role and counts the edges Load made, so a new Name or Load redraws it
+        const nk = JSON.stringify([AB.nameCols(ds), ds === "nested" ? [AB.nestedLoaded().co, AB.nestedLoaded().links] : null]);
+        if (D._walk && D._walk.nk === nk) return D._walk;
         const count = (pairs) => { const n = {}; pairs.forEach(([a, b]) => { (n[a] = n[a] || new Set()).add(b); (n[b] = n[b] || new Set()).add(a); }); return (id) => (n[id] ? n[id].size : 0); };
         let out = [];
         if (ds === "lesmis") out = D.rows.map((r) => ({ name: r.label, neighbors: r.degree, at: "inspector-node/why-this-look" }));
-        else if (ds === "transactions") out = D.rows.map((r) => ({ name: r.id, neighbors: r.degree, at: "inspector-node/why-this-look" }));
+        else if (ds === "transactions") out = D.rows.map((r) => ({ name: r.id, neighbors: r.degree, at: "inspector-node/transfers-node" }));
         else if (ds === "doorEntries") {
             const [people, buildings, entries] = D.tables;
             const n = count(entries.sample.map((e) => [String(+e.person_id), e.building_id]));
@@ -524,15 +542,20 @@
             buildings.sample.forEach((b) => out.push({ name: b.bldg, neighbors: n(b.bldg), at: "inspector-node/door-b1" }));
         } else if (ds === "wide") {
             const n = count(D.edgeRows.map((e) => [e.source, e.target]));
-            out = D.nodeRows.map((r) => ({ name: r.hostname, neighbors: n(r.id), at: "inspector-node/wide-data" }));
+            out = D.nodeRows.map((r) => ({ name: AB.nameOf("wide", r), neighbors: n(r.id), at: "inspector-node/wide-data" }));
         } else if (ds === "nested") {
-            const R = D.document.data.researchers;
-            out = R.map((r) => ({ name: r.attributes.name.given + " " + r.attributes.name.family, neighbors: r.relationships.coauthor_ids.length, at: "inspector-node/nested-data" }));
+            // the edges Load made: co-author items (when they became edges) and the links rows
+            const R = D.document.data.researchers, NL = AB.nestedLoaded(), pairs = [];
+            if (NL.co === "edges") R.forEach((r) => r.relationships.coauthor_ids.forEach((c) => pairs.push([r.id, c])));
+            if (NL.links) D.document.links.forEach((l) => pairs.push([l.source, l.target]));
+            const n = count(pairs);
+            out = R.map((r) => ({ name: AB.nameOf("nested", r), neighbors: n(r.id), at: "inspector-node/nested-data" }));
         } else if (ds === "plainJson") {
             const n = count(D.document.links.map((l) => [l.source, l.target]));
-            out = D.document.nodes.map((r) => ({ name: r.name, neighbors: n(r.id), at: "inspector-node/plain-data" }));
+            out = D.document.nodes.map((r) => ({ name: AB.nameOf("plainJson", r), neighbors: n(r.id), at: "inspector-node/plain-data" }));
         }
-        Object.defineProperty(D, "_walk", { value: out, enumerable: false });
+        out.nk = nk;
+        Object.defineProperty(D, "_walk", { value: out, enumerable: false, configurable: true });
         return out;
     }
     function walkTo(ds, i) {
@@ -554,6 +577,8 @@
         walking = true;
         if (location.hash === href(id, state)) render();
         else go(id, state);
+        // the canvas keeps focus, not the hot spot: its focus ring would read as a second selection
+        setTimeout(() => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); }, 100);
     };
     // A canvas hot spot that selects its node: a button, Enter or Space too
     AB.selectHot = (el, ds, i) => {

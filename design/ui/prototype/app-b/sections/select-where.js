@@ -41,19 +41,34 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         const [, a, op, raw] = m;
         const v = raw === "" || isNaN(raw) ? raw : Number(raw);
         const ops = { "==": (x) => x === v, "!=": (x) => x !== v, ">": (x) => x > v, ">=": (x) => x >= v, "<": (x) => x < v, "<=": (x) => x <= v };
-        return rows.filter((r) => r[a] != null && ops[op](r[a])).length;
+        return rows.filter((r) => AB.valueAt(r, a) != null && ops[op](AB.valueAt(r, a))).length;
     }
+    // Create set where this is... from an attribute's menu: Select over that attribute's project, the
+    // attribute already in the query. `from` is { ds, name, rows, on, q }; the transfers keep their own state.
+    let from = null;
+    AB.whereFrom = (ds, name) => {
+        if (ds === "transactions") return AB.go("select-where", "where");
+        const [x, g] = AB.fieldIn(ds, name);
+        const rows = !g ? [] : ds === "lesmis" ? (g.element === "edge" ? [] : AB.fx.datasets.lesmis.rows) : ["wide", "nested", "plainJson"].includes(ds) ? AB.recordsOf(ds, g) : [];
+        const path = name.includes(".") ? '"' + name + '"' : name;
+        const first = rows.map((r) => AB.valueAt(r, name)).find((v) => v != null && v !== "" && !Array.isArray(v) && typeof v !== "object");
+        const q = !x ? "" : x.type === "num" ? path + " > 0" : first != null ? path + " == '" + first + "'" : path + " ";
+        from = { ds, name, rows, on: g && g.element === "edge" ? "edges" : "nodes", q };
+        AB.go("select-where", "attribute");
+    };
 
     function render(el, state) {
         const t = T();
-        const wide = state === "wide" || state === "wide-inserted";
+        const fromAttr = state === "attribute" ? from || { ds: "wide", name: LONG, rows: AB.fx.datasets.wide.nodeRows, on: "nodes", q: LONG + " > 0" } : null;
+        const wide = state === "wide" || state === "wide-inserted" || !!fromAttr;
         const W = AB.fx.datasets.wide;
+        const P = fromAttr ? AB.fx.datasets[fromAttr.ds] : W; // the project the query runs over
         const ids = t.flaggedAccounts.map((a) => a.id);
         const MISS = ["ACC-36538", "Structuring alert"];
         const s = {
             tab: state === "by-ids" ? "ids" : "where",
-            on: state === "where-error" ? "edges" : "nodes",
-            q: { "where-error": "amout > 0", "no-match": "riskScore > 98", wide: "", "wide-inserted": LONG + " > 0" }[state] ?? "kind == 'personal'",
+            on: fromAttr ? fromAttr.on : state === "where-error" ? "edges" : "nodes",
+            q: fromAttr ? fromAttr.q : { "where-error": "amout > 0", "no-match": "riskScore > 98", wide: "", "wide-inserted": LONG + " > 0" }[state] ?? "kind == 'personal'",
             ids: ids.slice(0, 7).concat(MISS[0], ids.slice(7), MISS[1]).join("\n"),
             mode: "replace",
         };
@@ -64,8 +79,10 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             const noun = edges ? "edges" : "nodes";
             if (!s.q.trim() && s.tab === "where") return { n: 0, of: 0, noun, hint: "Type a query, or insert an attribute" };
             if (wide) {
-                const k = countRows(edges ? W.edgeRows : W.nodeRows, s.q);
-                return k === null ? { n: 0, of: 0, noun, hint: "Finish the query with a comparison, such as > 0" } : { n: k, of: edges ? W.edges : W.nodes, noun };
+                const rows = fromAttr ? (s.on === fromAttr.on ? fromAttr.rows : []) : edges ? W.edgeRows : W.nodeRows;
+                if (fromAttr && !rows.length) return { n: 0, of: 0, noun, hint: "The sample holds no " + noun + " to count; graphty-element counts them" };
+                const k = countRows(rows, s.q);
+                return k === null ? { n: 0, of: 0, noun, hint: "Finish the query with a comparison, such as > 0" } : { n: k, of: fromAttr ? rows.length : edges ? W.edges : W.nodes, noun };
             }
             if (s.tab === "ids") {
                 if (edges) return { n: 0, of: 0, noun, hint: "No transfer ids pasted" };
@@ -135,7 +152,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             insert = h("a", { role: "button", tabindex: "0", "aria-haspopup": "listbox", "aria-expanded": "false", on: { click: openList, keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openList(); } } } }, "Insert attribute...");
             const hint = s.tab === "where"
                 ? h("span", null, "The same expressions as filters. ", insert)
-                : (wide ? "One id per line, or comma separated. Matched against the hosts' " + W.nodeKey + " column." : "One id per line, or comma separated. Matched against the id column of accounts-2026-03.csv.");
+                : (wide ? "One id per line, or comma separated. Matched against the " + (fromAttr ? "nodes'" : "hosts'") + " " + (P.nodeKey || "id") + " column." : "One id per line, or comma separated. Matched against the id column of accounts-2026-03.csv.");
             const pick = (k, v) => { s[k] = v; if (k === "on" && !wide) s.q = v === "edges" ? "amount > 0" : "kind == 'personal'"; draw(); };
             const body = h("div", { class: "sw-body" },
                 h("div", { class: "sw-pad" }, AB.seg([["where", "Query"], ["ids", "Ids"]], s.tab, (v) => AB.go("select-where", v === "ids" ? "by-ids" : "where"), { label: "Select by" })),
@@ -144,7 +161,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 AB.fieldRow("Selection", AB.seg([["replace", "Replace"], ["add", "Add"], ["remove", "Remove"], ["within", "Within"]], s.mode, (v) => pick("mode", v), { label: "Selection" }), { popover: true }),
                 statusSlot);
             const verb = s.mode === "remove" ? "Remove " : "Select ";
-            const go = () => (r.n > CAP && s.mode !== "remove" ? AB.go("select-where", "selection-full") : AB.go("graph-place", wide ? "wide" : "many-groups"));
+            const go = () => (r.n > CAP && s.mode !== "remove" ? AB.go("select-where", "selection-full") : AB.go("graph-place", fromAttr ? AB.placeOf(fromAttr.ds, "graph") || "at-rest" : wide ? "wide" : "many-groups"));
             const foot = AB.button(bad ? "Select" : verb + n(r.n), { disabled: bad ? "Fix the query first" : !r.n ? "Nothing matches" : false, onClick: go });
             const pop = AB.popover({ anchor: "#ab-toolbar", place: "above-toolbar", title: "Select", body, foot, width: 440 });
             pop.addEventListener("pointerdown", (e) => { if (!insert.contains(e.target)) shut(); });
@@ -161,7 +178,9 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         title: "Select where or by ids",
         region: "overlay",
         rail: "graph",
-        frame: (state) => (state === "wide" || state === "wide-inserted"
+        frame: (state) => (state === "attribute"
+            ? { left: "graph-place/" + (AB.placeOf((from || { ds: "wide" }).ds, "graph") || "at-rest"), dataset: (from || { ds: "wide" }).ds, right: false }
+            : state === "wide" || state === "wide-inserted"
             ? { left: "graph-place/wide", dataset: "wide", right: false, canvas: "canvas-and-states/hosts" }
             : { left: "graph-place/many-groups", dataset: "transactions", right: false, canvas: "canvas-and-states/transfers" }),
         // Closes to the frame's left place: many-groups on the transfers, the hosts' graph place on the wide sample
@@ -173,6 +192,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             { id: "no-match", label: "Query: nothing matches (0 nodes)" },
             { id: "wide", label: "Query on the hosts: Insert attribute... open (69 attributes)" },
             { id: "wide-inserted", label: "Query on the hosts holding the 46-character attribute" },
+            { id: "attribute", label: "Create set where this is... from an attribute (directly: the hosts' 46-character attribute)" },
         ],
         render(el, state) {
             if (state !== "selection-full") return render(el, state);

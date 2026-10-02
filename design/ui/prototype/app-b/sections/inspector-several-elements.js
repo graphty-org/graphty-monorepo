@@ -154,7 +154,7 @@
             return plural(new Set(vals).size, "value");
         };
         const size = h("span", null, "5 nodes, " + plural(among, "edge"));
-        AB.tip(size, hosts.map((x) => x.hostname).join(", "), { label: false });
+        AB.tip(size, hosts.map((x) => AB.nameOf("wide", x)).join(", "), { label: false });
         const all = "5 of 5";
         const style = () => [AB.whyThisLook([
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },

@@ -96,7 +96,7 @@
     }
     function wideEdge(el) {
         const D = AB.fx.datasets.wide, e = D.edgeRows.find((r) => r.id === WIDE_ID);
-        const hostOf = (id) => (D.nodeRows.find((n) => n.id === id) || {}).hostname || id;
+        const hostOf = (id) => { const n = D.nodeRows.find((x) => x.id === id); return n ? AB.nameOf("wide", n) : id; };
         const fields = AB.fieldsOf("wide").find((g) => g.element === "edge").fields;
         const inUse = fields.filter((x) => x.usedBy && x.name !== "source" && x.name !== "target");
         const rest = fields.filter((x) => !x.usedBy);

@@ -206,7 +206,7 @@
         const N = AB.fx.datasets.nested, R = N.document.data.researchers;
         const cites = (r) => r.attributes.profile.metrics.citations.last_5_years;
         const mem = R.filter((r) => r.attributes.profile.field === "machine learning" && cites(r) > 500).sort((a, b) => cites(b) - cites(a));
-        const n = mem.length, nm = (r) => r.attributes.name.given + " " + r.attributes.name.family;
+        const n = mem.length, nm = (r) => AB.nameOf("nested", r);
         return {
             title: "Machine learning researchers, more than 500 cites in 5 years", color: "#009E73", icon: "circle-check", kind: "Set",
             provenance: ["from the attribute profile.field", "inspector-attribute-and-filter-step", "attribute"],

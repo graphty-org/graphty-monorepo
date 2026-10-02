@@ -127,8 +127,14 @@
         const one = (k) => k.split("+").map((p) => ARIA_KEY[p] || p).join("+");
         return String(key).split(/\s+/).flatMap((k) => (/(^|\+)Mod(\+|$)/.test(k) ? [k.replace(/Mod/, "Control"), k.replace(/Mod/, "Meta")] : [k])).map(one).join(" ");
     }
+    // The participant view (design notes hidden, as study.mjs opens it)
+    const studyView = () => document.documentElement.hasAttribute("data-design-notes-hidden");
+    // a tooltip that names an element gap is review text: the study build says only that it is not available
+    const forStudy = (t) => (typeof t === "string" && studyView() && /needs graphty-element/i.test(t) ? "Not available yet" : t);
     function tip(el, name, o) {
         o = o || {};
+        name = forStudy(name);
+        if (o.second) o = Object.assign({}, o, { second: forStudy(o.second) });
         let key = o.key;
         // "Undo (Ctrl+Z)" -> name "Undo", key "Ctrl+Z"
         const m = !key && typeof name === "string" && name.match(/^(.*\S) \(([^()]+)\)$/);
@@ -528,7 +534,11 @@
     // is; a lowercase fragment is an element gap and gets the "needs graphty-element" lead.
     function renameRefusal(r) {
         if (r.builtin) return "Built-in rows keep their names";
-        if (r.renameDisabled) return /^[A-Z]/.test(r.renameDisabled) ? r.renameDisabled : "Rename needs graphty-element: " + r.renameDisabled;
+        if (!r.renameDisabled) return null;
+        if (/^[A-Z]/.test(r.renameDisabled)) return r.renameDisabled;
+        // the study build says what a participant can do instead, never which library lacks what
+        if (studyView()) { const next = r.renameDisabled.split(/; |\. /).slice(1).join(". "); return "This name cannot be changed" + (next && !/graphty-element/.test(next) ? ". " + next.replace(/^\w/, (c) => c.toUpperCase()) : ""); }
+        return "Rename needs graphty-element: " + r.renameDisabled;
         return null;
     }
 
@@ -575,7 +585,8 @@
         const prov = !o.provenance ? null : here ? h("span", { class: "ab-prov k-ellipsis k-secondary", tabindex: "0" }, o.provenance[0]) : link(o.provenance[1], o.provenance[2], o.provenance[0], { class: "ab-link ab-prov k-ellipsis" });
         if (prov) tip(prov, o.kind ? o.kind + " " + o.provenance[0] : o.provenance[0], { label: false }); // a long source name is never lost to the ellipsis
         wrap.append(h("div", { class: "ab-insp-sub" }, o.kind ? h("span", { class: "k-secondary" }, o.kind) : null, prov, h("span", { class: "k-grow" }),
-            o.menu ? iconButton("ellipsis", "More actions", { key: "Shift+F10", go: o.menu }) : null));
+            // menu: [id, state] (a context-menus state), or a function of the button that opens a menu in place
+            o.menu ? iconButton("ellipsis", "More actions", typeof o.menu === "function" ? { key: "Shift+F10", onClick: (e) => o.menu(e.currentTarget) } : { key: "Shift+F10", go: o.menu }) : null));
         if (o.stateBar) {
             const txt = h("span", { class: "k-grow k-ellipsis" }, o.stateBar.text);
             if (o.stateBar.why || typeof o.stateBar.text === "string") tip(txt, o.stateBar.why || o.stateBar.text, { label: false });
@@ -626,7 +637,7 @@
     // ---------- the paint tree (spec 3.3, 3.10) ----------
     // tree(rows, { label, onEye, go }) ; row = { id, kindIcon, swatch, name, count, notes, notesInside, eye: true|false|null,
     //   locked, pinned, builtin, renameDisabled: "reason", onRename(name), onDelete(), children, open, selected, dim,
-    //   go: [id, state], menu: [id, state], status: "running"|"queued"|"partial"|"stale"|"error"|"filtered", statusText,
+    //   go: [id, state] (or onOpen(), a screen computed when the row opens), menu: [id, state], status: "running"|"queued"|"partial"|"stale"|"error"|"filtered", statusText,
     //   progress: 0..1 (the running bar under the row) }
     // Fixed trailing slots: count, note count, one slot shared by lock and eye. Status replaces the kind icon.
     // Keyboard (one Tab stop): arrows, Home, End, Left/Right collapse and expand, Enter opens, Space the eye,
@@ -732,6 +743,15 @@
                     if (r.waitDouble && e.detail === 1) li._wait = setTimeout(open, 350);
                     else open();
                 });
+            } else if (r.onOpen) {
+                // a row whose screen is computed when it opens (a filter step hands its rule over); the left panel stays
+                li.dataset.opens = "";
+                li.addEventListener("click", (e) => {
+                    if (e.detail > 1) return;
+                    all.forEach((x) => { x.li.setAttribute("aria-selected", String(x.li === li)); x.li.tabIndex = x.li === li ? 0 : -1; });
+                    AB.keepLeft = true;
+                    r.onOpen();
+                });
             }
             if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); go(r.menu[0], r.menu[1]); });
             if (hasKids && r.open) r.children.forEach((c) => build(c, level + 1, r.children, r));
@@ -755,7 +775,7 @@
             else if (k === "End") move(items[items.length - 1]);
             else if (k === "ArrowRight" && r.children && r.children.length) { if (!r.open) { r.open = true; rebuild(rowId(r)); } else move(items[i + 1]); }
             else if (k === "ArrowLeft") { if (r.open && r.children && r.children.length) { r.open = false; rebuild(rowId(r)); } else if (entry.parent) move(ul.querySelector(`[data-row="${CSS.escape(rowId(entry.parent))}"]`)); }
-            else if (k === "Enter") { if (li.dataset.nav) li.click(); }
+            else if (k === "Enter") { if (li.dataset.nav || "opens" in li.dataset) li.click(); }
             // Space flips the eye; Alt+Space is "Show only this row" (the row menu's command; Alt-click is its accelerator)
             else if (k === " ") { const eye = li.querySelector(".ab-eye"); if (eye) { e.preventDefault(); eye.dispatchEvent(new MouseEvent("click", { altKey: e.altKey, bubbles: true, detail: 1 })); } }
             else if (k === "F2") startRename(entry);
@@ -795,7 +815,7 @@
 
     // ---------- overlays ----------
     // Position `el` (already in the overlay layer) next to `anchor` (element or selector).
-    // place: "below-start" | "below-end" | "above" | "above-start" | "right-start" | "center"  (menus, modals)
+    // place: "below-start" | "below-end" | "above" | "above-start" | "above-end" | "right-start" | "center"  (menus, modals)
     //        "auto" (popovers): above the toolbar for an anchor in the toolbar or selection bar; left of the
     //        inspector, level with the anchor, for an anchor in the inspector; below-start elsewhere.
     function position(el, anchor, place) {
@@ -824,8 +844,25 @@
                 } else if (p === "below-end") { x = ax + A.width - E.width; y = ay + A.height + 4; }
                 else if (p === "above") { x = ax + A.width / 2 - E.width / 2; y = ay - E.height - 8; }
                 else if (p === "above-start") { x = ax; y = ay - E.height - 8; }
-                else if (p === "right-start") { x = ax + A.width + 4; y = ay; }
+                else if (p === "above-end") { x = ax + A.width - E.width; y = ay - E.height - 8; }
+                else if (p === "right-start") {
+                    // a submenu opens beside the whole menu it came from, never over it: to the right, or to the
+                    // left when the right has no room or its parent menu already opened to the left
+                    const pm = a.closest(".k-menu, [role=menu], [role=listbox]"), M = (pm || a).getBoundingClientRect();
+                    const right = ax + A.width + 4, left = M.left - L.left - E.width - 4;
+                    const goLeft = (right + E.width > L.width - 8 || (pm && pm.closest("[data-side=left]"))) && left >= 8;
+                    x = goLeft ? left : right; y = ay;
+                    el.dataset.side = goLeft ? "left" : "right";
+                }
                 else { x = ax; y = ay + A.height + 4; }
+                // a popover opening up from the table dock stays clear of the canvas toolbar above the dock
+                const tb = /^above/.test(p) && a.closest("#ab-dock") && document.getElementById("ab-toolbar");
+                const T = tb && tb.getBoundingClientRect();
+                if (T && T.height && x < T.right - L.left && x + E.width > T.left - L.left && y + E.height > T.top - L.top - 8) {
+                    const room = T.top - L.top - 16;
+                    if (E.height > room) el.style.maxHeight = room + "px";
+                    y = T.top - L.top - Math.min(E.height, room) - 8;
+                }
             }
             x = Math.max(8, Math.min(x, L.width - E.width - 8));
             y = Math.max(8, Math.min(y, L.height - E.height - 8));
@@ -1010,7 +1047,10 @@
         slot.style.left = Math.max(8, (T ? T.left + T.width / 2 : app.left + app.width / 2) - N.width / 2) + "px";
         slot.style.top = (T ? T.top - N.height - 8 : app.bottom - N.height - 24) + "px";
     }
+    // A reviewer's aside in a notice ("(not wired in the skeleton)") is for the review only: the study build drops it
+    const SKELETON_ASIDE = /;\s*not (?:wired|modeled) in the skeleton(?=\))|\s*\([^()]*\bin the skeleton\)/g;
     function notice(text, action) {
+        if (typeof text === "string" && studyView()) text = /needs graphty-element/i.test(text) ? (/^Rename/.test(text) ? "This name cannot be changed" : "Not available yet") : text.replace(SKELETON_ASIDE, "");
         const slot = document.getElementById("ab-notice");
         const n = h("div", { class: "k-toast ab-notice", role: "status" }, text);
         if (action) {
@@ -1418,8 +1458,11 @@
             return li;
         };
         // bind opens a popover (the Label popover for a label, else Binding); it is never a pressed toggle
+        // A bound line's bind icon opens its own binding (as its value does); an unbound one opens Binding
+        // for that property with no source yet, over the inspector and project on screen (bind-prop)
         const bindButton = (c) => {
-            const b = iconButton("database", "Use a field or result for " + c.name, { go: ["style-pickers", c.style ? "label-style" : "binding"] });
+            const b0 = c.id in bound && typeof bound[c.id] === "object" ? bound[c.id] : {};
+            const b = iconButton("database", "Use a field or result for " + c.name, { go: ["style-pickers", c.style ? "label-style" : c.id in bound ? b0.go || "binding" : "bind-prop"] });
             b.setAttribute("aria-haspopup", "dialog");
             b.setAttribute("aria-expanded", "false");
             return b;
@@ -1604,7 +1647,7 @@
         return h("div", { class: "ab-place-head ab-graph-head" }, h("h2", { class: "ab-place-title ab-switch-pre", tabindex: "-1" }, place), btn, h("span", { class: "k-grow" }), o.trail || null);
     }
     // The tree's find line: the search field and the list options (an ellipsis). Every left-panel list uses it.
-    // treebar({ placeholder, value, onKey(e, input), menuGo: [id, state], menuOpen })
+    // treebar({ placeholder, value, onKey(e, input), menuGo: [id, state], menuClick (opens the menu in place), menuOpen })
     function treebar(o) {
         o = o || {};
         const ph = o.placeholder || "Find rows and notes";
@@ -1613,7 +1656,7 @@
         if (o.onInput) input.addEventListener("input", () => o.onInput(input));
         let more = null;
         if (o.menuGo) {
-            more = iconButton(ICON.options, "List options", { go: o.menuGo });
+            more = iconButton(ICON.options, "List options", o.menuClick ? { onClick: () => o.menuClick() } : { go: o.menuGo });
             more.id = "ab-list-btn";
             more.setAttribute("aria-haspopup", "menu");
             more.setAttribute("aria-expanded", String(!!o.menuOpen));
@@ -1661,11 +1704,14 @@
         const t = String(text);
         if (t.length <= max) return null;
         // A dotted path keeps its last two segments, or its last one, whole: they tell siblings apart
-        // ("...profile.contact", not "attribute....contact")
+        // ("attr...profile.contact", not "attribute....contact"); it also keeps some of its start, so
+        // every path is cut in the middle, never at its start
         const segs = t.split(".");
         for (const k of [2, 1]) {
             const tail = segs.slice(-k).join(".");
-            if (segs.length > k && tail.length + 3 <= max && tail.length >= max / 2) return [0, t.length - tail.length];
+            let head = max - 3 - tail.length;
+            if (head > 1 && t[head - 1] === ".") head--;
+            if (segs.length > k && head >= 1 && tail.length >= max / 2) return [head, t.length - tail.length];
         }
         const keep = max - 3;
         let head = Math.ceil(keep / 2), from = t.length - (keep - head);
@@ -1717,10 +1763,11 @@
     // "cat" | "num" | "time" | "bool" | "id" | "text" | "list" | "whole", fill (0 to 1), usedBy, computed }.
     // ponytail: usedBy is typed here per sample (USED_BY) until the element's usedBy reaches the app.
     // It names only what the project on screen really uses: the roles set at load, plus the row a
-    // later state adds (STYLED, keyed by the tree's state) -- never a binding the tree does not hold.
+    // later state adds (STYLED, keyed by the tree's state) and the filter steps the route's frame
+    // names (frame.filterOn) -- never a binding the tree does not hold.
     const USED_BY = {
         lesmis: { label: "Name, Label", group: "Color (group)", degree: "Size (Degree)" },
-        transactions: { "id (account)": "Key", kind: "Color (kind)", riskScore: "Filter step", "amount (edge)": "Weight" },
+        transactions: { "id (account)": "Key", kind: "Color (kind)", "amount (edge)": "Weight" },
         doorEntries: { id: "Key", name: "Name, Label", bldg: "Key", person_id: "Link to person", building_id: "Link to building", time: "Time", count: "Weight" },
         wide: { id: "Key", hostname: "Name", source: "From", target: "To", bytes_total_24h: "Weight" },
         nested: { id: "Key", source: "From", target: "To", weight: "Weight", institution_id: "To" },
@@ -1733,8 +1780,22 @@
     // The nested project as the last Load left it (data-page's nestedChoices); before any Load, the
     // Data page's own proposal: coauthor_ids as Several edges (one edge per pair), the other arrays kept
     // as one value, links' weight column as the weight
-    const NESTED_LOADED = { researchers: true, institutions: true, links: true, co: "edges", coPer: "pair", aff: "one", addr: "one", keep: [], direction: "undirected", linkTo: ["researcher", "institution"], weight: "weight", idLinks: [] };
+    const NESTED_LOADED = { researchers: true, institutions: true, links: true, name: { researcher: ["attributes.name.given", "attributes.name.family"], institution: ["attributes.name"] }, co: "edges", coPer: "pair", aff: "one", addr: "one", keep: [], direction: "undirected", linkTo: ["researcher", "institution"], weight: "weight", idLinks: [] };
     const nestedLoaded = () => (AB.fx && AB.fx.datasets.nested && AB.fx.datasets.nested.loaded) || NESTED_LOADED;
+    // ---------- the Name role: one or more columns, joined by a space ----------
+    // nameCols(ds, type): the columns holding a node type's Name role, in column order (the nested
+    // project's are the last Load's choice, per type); nameOf(ds, record): that one Name, empty parts
+    // skipped, else the key. ponytail: a stand-in for graphty-element's node name (displayName:
+    // string | string[], element-requirements-5.md); every surface reads a node's name through it.
+    const NAME_COLS = { wide: ["hostname"], plainJson: ["name"] };
+    const nameCols = (ds, type) => (ds === "nested" ? (nestedLoaded().name || {})[type || "researcher"] || [] : NAME_COLS[ds] || []);
+    const pathAt = (r, p) => p.split(".").reduce((o, k) => (o == null ? o : o[k]), r);
+    function nameOf(ds, rec) {
+        const parts = nameCols(ds, rec.type).map((c) => pathAt(rec, c)).filter((v) => v != null && v !== "");
+        return parts.length ? parts.join(" ") : String(rec.id);
+    }
+    // The role chip's words: "Name" for one column, "Name: given + family" for several
+    const nameWord = (cols) => (cols.length > 1 ? "Name: " + cols.map((c) => c.split(".").pop()).join(" + ") : "Name");
     const fieldCache = new Map();
     const KIND_TYPE = { id: "id", text: "text", category: "cat", boolean: "bool", integer: "num", number: "num", datetime: "time", date: "time" };
     const typeOfKind = (k) => KIND_TYPE[k] || (/currency|number|integer/.test(k) ? "num" : /date|time/.test(k) ? "time" : "text");
@@ -1745,9 +1806,13 @@
         if (D._fields) return D._fields; // a list handed its own fields (the node inspector's "N more")
         const left = (AB.route && AB.route.frame && AB.route.frame.left) || "";
         const NL = ds === "nested" ? nestedLoaded() : null;
-        const ck = ds + "|" + (STYLED[left] ? left : "") + "|" + (NL ? JSON.stringify(NL) : "");
+        const steps = (AB.route && AB.route.frame && AB.route.frame.filterOn) || [];
+        const ck = ds + "|" + (STYLED[left] ? left : "") + "|" + steps.join(",") + "|" + (NL ? JSON.stringify(NL) : "") + "|" + JSON.stringify(painted[ds] || []);
         if (fieldCache.has(ck)) return fieldCache.get(ck);
         const used = Object.assign({}, USED_BY[ds] || {}, STYLED[left] || {});
+        // what the reader painted from an attribute (Color by, Size by, a bound line) is in use too
+        (painted[ds] || []).forEach((p) => { const w = p.element === "edge" && p.prop === "Size" ? "Width" : p.prop; used[p.name] = (used[p.name] ? used[p.name] + ", " : "") + w + (p.on === "row" ? "" : " (Everything)"); });
+        if (NL) Object.values(NL.name || {}).forEach((cols) => cols.forEach((c) => { used[c] = nameWord(cols); })); // the Name the last Load chose, per type
         const f = (name, type, o) => Object.assign({ name, label: name, parent: null, type, fill: null, usedBy: used[name] || null, computed: false }, o || {});
         let out = [];
         if (ds === "wide") {
@@ -1801,6 +1866,9 @@
             const ty = (rows, k) => (rows.every((r) => r[k] == null || typeof r[k] === "number") ? "num" : "text");
             out = [{ table: "nodes", element: "node", fields: keys(doc.nodes).map((k) => f(k, ty(doc.nodes, k), { fill: fill(doc.nodes, k) })) },
                 { table: "links", element: "edge", fields: keys(doc.links).map((k) => f(k, ty(doc.links, k), { fill: fill(doc.links, k) })) }];
+        } else if (ds === "registry") {
+            // the package registry's columns (data-page/json-keyed): every record carries each one
+            out = [{ table: "packages", element: "node", fields: [f("key", "id", { usedBy: "Key" }), f("latest", "text"), f("license", "text"), f("description", "text"), f("repository.type", "text", { label: "type", parent: "repository" }), f("repository.url", "text", { label: "url", parent: "repository" }), f("maintainers", "whole")] }];
         } else if (ds === "doorEntries") {
             const [p, b] = D.tables;
             out = [{ table: "people", element: "node", fields: p.columns.map((c) => f(c, c === "id" || c === "badge" ? "id" : "cat")) },
@@ -1816,9 +1884,99 @@
                 { table: ds === "transactions" ? "transfers" : "edges", element: "edge", fields: attrs.filter(([e]) => e).map(([, x]) => x) }];
         }
         out = out.filter((g) => g.fields.length);
+        // A field a filter step reads (frame.filterOn, from the Filters the route's Data place lists) is in use
+        if (steps.length) out = out.map((g) => Object.assign({}, g, { fields: g.fields.map((x) => (steps.includes(x.name) ? Object.assign({}, x, { usedBy: (x.usedBy ? x.usedBy + ", " : "") + "Filter step" }) : x)) }));
         fieldCache.set(ck, out);
         return out;
     }
+    // ---------- painting an attribute in a loaded project (wide, nested, plain JSON) ----------
+    // AB.painted[ds]: the bindings the reader made, newest last: { prop: "Color" | "Size", name, type,
+    // element, table, on }. on is "row" (Color by, Size by: a measure row named after the attribute,
+    // spec 3.2) or the inspector route whose line was bound (Everything's Color line). One per prop and
+    // on: a new pick replaces the old. The tree, the canvas, the legend and the inspectors read it.
+    // ponytail: a stand-in for graphty-element's style layers, kept for the session only.
+    const painted = {};
+    // The records a field's table holds, in the canvas's node and edge order (AB.walkList's for nodes)
+    function recordsOf(ds, g) {
+        const D = AB.fx.datasets[ds];
+        if (ds === "wide") return g.element === "edge" ? D.edgeRows : D.nodeRows;
+        if (ds === "plainJson") return g.element === "edge" ? D.document.links : D.document.nodes;
+        const doc = D.document;
+        return g.table === "researchers" ? doc.data.researchers : g.table === "institutions" ? doc.data.institutions : g.table === "links" ? doc.links : [];
+    }
+    const valueAt = (r, name) => (r == null ? undefined : name in r ? r[name] : pathAt(r, name));
+    function fieldIn(ds, name) {
+        for (const g of fieldsOf(ds)) { const x = g.fields.find((f) => f.name === name); if (x) return [x, g]; }
+        return [null, null];
+    }
+    // paintBy(ds, "Color" | "Size", name, on): records the binding and returns it; a field the property
+    // cannot take raises its reason as a notice and returns null
+    function paintBy(ds, prop, name, on) {
+        const [x, g] = fieldIn(ds, name);
+        if (!x) return null;
+        const why = unsuitable(prop === "Color" ? "color" : "number", x);
+        if (why) { notice(why); return null; }
+        on = on || "row";
+        painted[ds] = (painted[ds] || []).filter((p) => !(p.prop === prop && p.on === on));
+        const p = { prop, name, type: x.type, element: g.element, table: g.table, on };
+        painted[ds].push(p);
+        AB.paintedLast = { ds, prop };
+        return p;
+    }
+    // The binding on screen for a prop and element: a row's wins over Everything's line (rows paint above it)
+    const paintOf = (ds, prop, element) => {
+        const l = (painted[ds] || []).filter((p) => p.prop === prop && (!element || p.element === element));
+        return l.filter((p) => p.on === "row").pop() || l.pop() || null;
+    };
+    // The lines a bind icon bound on one inspector (on === that route), as styleTab's `bound`; a click
+    // on one opens its Binding popover (style-pickers/bound)
+    function boundOn(route) {
+        const ds = AB.route && AB.route.frame.dataset, out = {};
+        (painted[ds] || []).filter((p) => p.on === route).forEach((p) => {
+            const ch = p.element + "." + (p.prop === "Color" ? "color" : p.element === "edge" ? "width" : "size");
+            out[ch] = p.prop === "Color" ? { field: p.name, palette: p.type === "num" ? "Orange to brown" : "Eight distinct", ramp: p.type === "num" ? ["#ef7818", "#662506"] : ["#E69F00", "#0072B2"], go: "bound" }
+                : { field: p.name, type: p.type, range: p.element === "edge" ? "0.5 to 4" : "0.5 to 3", go: "bound" };
+        });
+        return out;
+    }
+    // Color by and Size by from an attribute's menu: the measure row, its inspector and the colored canvas
+    function paintRow(ds, prop, name) {
+        if (paintBy(ds, prop, name, "row")) go("graph-place", "painted");
+    }
+
+    // ---------- an attribute's menu (spec 10.3): Data > Attributes, the attribute inspector's "...", a table column ----------
+    // attributeMenu(anchor, ds, name, { noTable, editOn, table }): one menu for every project. In a loaded
+    // project (wide, nested, plain JSON) Color by and Size by add the measure row (paintRow), Filter to...
+    // adds a step on the attribute (AB.filterTo), Create set where this is... opens Select with the
+    // attribute in its query (AB.whereFrom) and Read as... opens the attribute's inspector (AB.openField).
+    // A command the skeleton does not model says so and gives focus back to the row it was opened on.
+    function attributeMenu(anchor, ds, name, o) {
+        o = o || {};
+        const [x, g] = fieldIn(ds, name);
+        const edge = g ? g.element === "edge" : !!o.edge;
+        const loaded = ["wide", "nested", "plainJson"].includes(ds);
+        const back = () => requestAnimationFrame(() => { if (anchor && anchor.isConnected) anchor.focus(); });
+        const say = (text) => () => { notice(text + " (not wired in the skeleton)"); back(); };
+        const paint = (prop) => (loaded ? () => paintRow(ds, prop, name) : say((prop === "Color" ? "Color by " : edge ? "Width by " : "Size by ") + name));
+        const no = (kind) => (loaded && x ? unsuitable(kind, x) : null) || false;
+        openMenu(anchor, [
+            { heading: name },
+            { label: "Color by", disabled: no("color"), onClick: paint("Color") },
+            { label: edge ? "Width by" : "Size by", disabled: no("number"), onClick: paint("Size") },
+            cmd("label-by", { go: null, onClick: say("Label by " + name) }),
+            { label: "Show as groups", onClick: say("Show as groups by " + name) },
+            { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + name + " as an axis needs a layout that reads any attribute" },
+            { sep: true },
+            { label: "Filter to...", onClick: () => AB.filterTo(ds, name) },
+            { label: "Create set where this is...", onClick: () => AB.whereFrom(ds, name) },
+            { sep: true },
+            { label: "Read as...", onClick: () => AB.openField(ds, name) },
+            o.editOn ? { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: o.editOn } : null,
+            o.noTable || !o.table ? null : { sep: true },
+            o.noTable || !o.table ? null : { label: "Show in table", go: ["table-dock", o.table[edge ? 1 : 0]] },
+        ].filter(Boolean));
+    }
+
     // Why a typed picker cannot take a field (null: it can). Suitability stands in for the element's
     // AttributeDescriptor.domainKind.
     function unsuitable(kind, x) {
@@ -1841,8 +1999,8 @@
     //   row tagged with what uses it, then computed, then by name; folders only from the data's nesting,
     //   collapsed unless something inside is in use. Then Results and, at menu size, Notes.
     // - kind: "number" (Size by, Width by, Weight), "color" (Color by), "text" (Label), or none. A typed
-    //   picker lists unsuitable fields last, disabled, the reason on a second line ("Not a number" ones
-    //   under one folder, "Not a number (45)").
+    //   picker lists unsuitable fields last, disabled, in one closed folder ("Not a number (45)", or "Not
+    //   usable here (3)" for other kinds), each with its reason on a second line.
     // - Find past 15 rows, matching word starts; matches in bold; the count announced; focus stays in
     //   Find over the listbox (arrows move, Enter picks, Esc clears then closes). No match: the empty
     //   line `No match for "x"` with Clear.
@@ -1877,7 +2035,7 @@
         const box = h("div", { class: "ab-fl " + (menuSize ? "k-menu ab-menu ab-fl-menu" : "ab-fl-panel") });
         const list = h("div", { id, class: "ab-fl-list", role: "listbox", "aria-label": o.label || (o.items ? "Choices" : "Attributes"), "aria-multiselectable": checks ? "true" : null });
         let input = null;
-        const say = h("span", { class: "ab-fl-count" });
+        const say = h("span", { class: "ab-fl-count", role: "status" }); // the match count is announced as Find narrows
         if (findOn) {
             input = h("input", { type: "search", placeholder: o.items ? "Find" : "Find attribute", "aria-label": o.items ? "Find" : "Find attribute", role: "combobox", "aria-controls": id, "aria-expanded": "true", "aria-autocomplete": "list", value: query || null });
             box.append(h("div", { class: "ab-fl-find" }, h("label", { class: "ab-find" }, icon("search", "sm"), input), say));
@@ -1885,6 +2043,9 @@
             input.addEventListener("focus", () => { const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) { /* type=search may refuse */ } });
         } else list.tabIndex = 0; // no find: the listbox holds focus and the active row
         box.append(list);
+        // The no-match line and its Clear sit beside the listbox, not in it: a listbox holds only options
+        const none = h("div", { class: "ab-fl-noneslot" });
+        box.append(none);
 
         let active = null;
         const opts = () => [...list.querySelectorAll("[data-fl-row]")];
@@ -1901,6 +2062,21 @@
         const fillText = (x) => (x.fill != null && x.fill < 1 ? (x.fill > 0 && x.fill < 0.01 ? "<1%" : Math.round(x.fill * 100) + "%") : null);
         // a character budget for the middle ellipsis: the menu is 320 px, the panel the left panel's width
         const maxFor = (trail) => (menuSize ? (trail || o.trail ? 30 : 36) : trail || o.trail ? 20 : 26) - (checks ? 2 : 0); // o.trail: a value at the row's end (the inspector)
+        // The name cut at the width the row really has (spec 2.5: truncate to the available width, the
+        // same way in every list): drawn whole, then cut in the middle only if it overflows once laid out.
+        // Not laid out (a list built off screen): the fixed length is the fallback.
+        function fitName(text, max, ranges, desc) {
+            const box = h("span", { class: "ab-fl-name" }, truncMiddle(text, Infinity, ranges), desc);
+            requestAnimationFrame(() => {
+                const inner = box.firstChild;
+                if (!box.isConnected || !box.clientWidth) { box.replaceChild(truncMiddle(text, max, ranges), inner); return; }
+                const need = inner.getBoundingClientRect().width, have = box.clientWidth;
+                if (need <= have + 0.5) return;
+                const fit = Math.max(8, Math.floor(String(text).length * have / need) - 1);
+                box.replaceChild(truncMiddle(text, fit, ranges), inner);
+            });
+            return box;
+        }
         // one row: glyph, name (middle ellipsis, matches bold), then what uses it or its fill
         function fieldRow(x, ranges, full) {
             const why = unsuitable(o.kind, x);
@@ -1913,8 +2089,8 @@
             const el = h("div", { id: id + "-" + ++seq, class: (menuSize ? "k-menu-item " : "k-row ") + "ab-fl-opt", role: "option", "data-fl-row": "", "aria-selected": String(!!checked), "aria-disabled": dis ? "true" : null, "data-described": why && why !== "Not a number" ? "" : null },
                 h("span", { class: "k-check-col" }, checks ? h("span", { class: "ab-fl-box", "data-on": checked ? "" : null }, checked ? icon("check", "sm") : null) : checked ? icon("check", "sm") : null),
                 h("span", { class: "ab-fl-glyph" }, glyph(x)),
-                h("span", { class: "ab-fl-name" }, truncMiddle(shownName, maxFor(usedText || fill), ranges), why && why !== "Not a number" ? h("span", { class: "k-menu-desc", "aria-hidden": "true" }, x.type === "whole" ? "kept as one value" : x.type === "list" ? "several values" : why) : null),
-                usedText || fill ? h("span", { class: "ab-fl-trail" }, usedText || fill) : null,
+                fitName(shownName, maxFor(usedText || fill), ranges, why && why !== "Not a number" ? h("span", { class: "k-menu-desc", "aria-hidden": "true" }, x.type === "whole" ? "kept as one value" : x.type === "list" ? "several values" : why) : null),
+                usedText ? h("span", { class: "ab-fl-trail" }, usedText) : fill ? tip(h("span", { class: "ab-fl-trail" }, fill), "Filled on " + fill + " of the rows; the rest have no value", { label: false }) : null,
                 trailEl);
             // the trail (a value, a role tag) is part of what the row says, so a screen reader hears it too
             const trailText = trailEl ? trailEl.textContent.trim() : "";
@@ -1922,6 +2098,7 @@
             if (why) el.setAttribute("aria-description", why);
             if (why && why !== "Not a number" && !locked) tip(el, why, { label: false }); // the full reason; the row says it in two words
             if (locked) tip(el, "The key column always shows", { label: false });
+            else if (!why && !full && x.parent) tip(el, x.parent + "." + x.label, { label: false }); // a nested field shows its own name; the tooltip gives the path
             el.addEventListener("click", () => {
                 if (dis) return;
                 if (checks) { const on = !checks.has(x.name); if (on) checks.add(x.name); else checks.delete(x.name); if (o.onToggle) o.onToggle(x.name, on); draw(); return; }
@@ -1947,16 +2124,20 @@
         function folder(key, title, rows, startOpen) {
             const isOpen = key in open ? open[key] : startOpen;
             const head = h("div", { id: id + "-" + ++seq, class: (menuSize ? "k-menu-item " : "k-row ") + "ab-fl-folder", role: "option", "data-fl-row": "", "aria-selected": "false", "data-open": String(isOpen) }, // an option may not carry aria-expanded: the label says it
-                h("span", { class: "k-check-col" }, icon(isOpen ? "chevron-down" : "chevron-right", "sm")),
-                h("span", { class: "ab-fl-name" }, truncMiddle(title, maxFor(true))), h("span", { class: "ab-fl-trail" }, String(rows.length)));
+                // a nested folder shows its last segment, indented one step per level; the full path is its tooltip and name
+                h("span", { class: "k-check-col", style: title.includes(".") ? "margin-inline-start:" + 12 * (title.split(".").length - 1) + "px" : null }, icon(isOpen ? "chevron-down" : "chevron-right", "sm")),
+                h("span", { class: "ab-fl-name" }, title.includes(".") ? tip(h("span", { class: "k-ellipsis" }, title.split(".").pop()), title, { label: false }) : truncMiddle(title, maxFor(true))), h("span", { class: "ab-fl-trail" }, String(rows.length)));
             head.setAttribute("aria-label", title + ", " + rows.length + (rows.length === 1 ? " attribute" : " attributes") + (isOpen ? "" : ", collapsed"));
             head.addEventListener("click", () => { open[key] = !isOpen; draw(head.id); });
             head.addEventListener("pointerenter", () => setActive(head));
             return [head].concat(isOpen ? rows.map((x) => { const r = fieldRow(x); r.classList.add("ab-fl-in"); return r; }) : []);
         }
 
+        // With more than one table, an option says its table, so a name two tables share is not ambiguous
+        const tables = groups.filter((g) => g.head && g.fields).length;
         function draw(keepActive) {
             list.replaceChildren();
+            none.replaceChildren();
             seq = 0;
             let hits = 0;
             groups.forEach((g, gi) => {
@@ -1975,17 +2156,17 @@
                     const ok = g.fields.filter((x) => !unsuitable(o.kind, x)), bad = g.fields.filter((x) => unsuitable(o.kind, x));
                     const inUse = ok.filter((x) => x.usedBy);
                     const rest = ok.filter((x) => !x.usedBy).sort((a, b) => (b.computed - a.computed) || a.name.localeCompare(b.name));
-                    if (inUse.length) out.push(sub("In use (" + inUse.length + ")"), ...inUse.map((x) => fieldRow(x, null, true)));
+                    if (inUse.length) out.push(sub("In use (" + inUse.length + ")"), ...inUse.map((x) => fieldRow(x)));
                     if (inUse.length && rest.length) out.push(sub("Other attributes"));
                     rest.filter((x) => !x.parent).forEach((x) => out.push(fieldRow(x)));
                     const folders = [...new Set(rest.filter((x) => x.parent).map((x) => x.parent))].sort();
                     folders.forEach((p) => out.push(...folder(gi + ":" + p, p, rest.filter((x) => x.parent === p), g.fields.some((x) => x.parent === p && x.usedBy))));
-                    const generic = bad.filter((x) => unsuitable(o.kind, x) === "Not a number");
-                    bad.filter((x) => !generic.includes(x)).forEach((x) => out.push(fieldRow(x, null, true)));
-                    if (generic.length) out.push(...folder(gi + ":nan", "Not a number (" + generic.length + ")", generic, false));
+                    // every unsuitable field sits in one closed folder; each row keeps its reason
+                    if (bad.length) out.push(...folder(gi + ":nan", (o.kind === "number" ? "Not a number" : "Not usable here") + " (" + bad.length + ")", bad, false));
                     hits += g.fields.length;
                 }
                 if (!out.length) return;
+                if (tables > 1 && typeof g.head === "string") out.forEach((el) => { if (el.matches && el.matches("[data-fl-row]")) el.setAttribute("aria-label", el.getAttribute("aria-label") + ", " + g.head); });
                 if (g.head) list.append(h("div", { class: (menuSize ? "k-menu-label " : "") + "ab-fl-table", role: "presentation" }, g.head));
                 list.append(...out);
             });
@@ -1993,13 +2174,14 @@
             const emptyHits = query && o.empty ? o.empty.filter((nm) => wordMatch(nm, query)) : [];
             if (query && !hits && !emptyHits.length) {
                 const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, act({ onClick: () => { query = ""; input.value = ""; draw(); input.focus(); } })), "Clear");
-                list.append(h("div", { class: "ab-fl-none" }, noMatch(query), " ", clear));
+                none.append(h("div", { class: "ab-fl-none" }, noMatch(query), " ", clear));
             }
-            if (emptyHits.length) list.append(h("div", { class: "ab-fl-none k-secondary" }, emptyHits.join(", ") + (emptyHits.length === 1 ? " is" : " are") + " empty " + (o.emptyWhere || "here")));
+            if (emptyHits.length) none.append(h("div", { class: "ab-fl-none k-secondary" }, emptyHits.join(", ") + (emptyHits.length === 1 ? " is" : " are") + " empty " + (o.emptyWhere || "here")));
             emptyAt = emptyHits.length;
             say.textContent = query && hits ? (hits === 1 ? "1 match" : hits + " matches") : "";
             const rows = opts();
-            setActive((keepActive && document.getElementById(keepActive)) || (query ? rows.find((x) => x.getAttribute("aria-disabled") !== "true") : null) || null);
+            // a menu opens on its checked row, so Enter keeps the current choice and the arrows move from it
+            setActive((keepActive && document.getElementById(keepActive)) || (query ? rows.find((x) => x.getAttribute("aria-disabled") !== "true") : null) || (menuSize ? rows.find((x) => x.getAttribute("aria-selected") === "true") : null) || null);
             return hits;
         }
         draw();
@@ -2037,7 +2219,7 @@
 
     Object.assign(AB, {
         graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
-        fieldList, openFieldList, fieldsOf, nestedLoaded, problem, truncMiddle, wordMatch,
+        fieldList, openFieldList, fieldsOf, nestedLoaded, painted, paintBy, paintOf, paintRow, recordsOf, valueAt, fieldIn, attributeMenu, boundOn, nameCols, nameOf, nameWord, problem, truncMiddle, wordMatch,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
         tip, tipSweep, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
         empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,

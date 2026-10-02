@@ -130,9 +130,9 @@ the shelves and the calculation editor). Seven local fixes would be seven patter
 - **Field pickers** are the list, menu size, in every place an attribute is picked (the list
   above). The Label list keeps Typed text first and the Notes group last. A link's "by" column lists the type's Key first, then its other unique columns
   (version 4's rule); ranking by how many values two tables share is deferred (section 6).
-- **Node and edge inspectors, Data tab**: the in-use attributes, then one disclosure, "61 more
+- **Node and edge inspectors, Data tab**: the in-use attributes, then one disclosure, "67 more
   attributes", that opens the list in place with its search. Attributes with no value on this
-  element are counted inside it ("12 empty"), not listed. Reason: a host is often missing
+  element are counted inside it ("10 empty"), not listed. Reason: a host is often missing
   `legacy_asset_tag` or `decommission_requested_on`; 40 rows reading "empty" is noise.
 - **Table dock**: the key column is frozen on the left; by default the table shows the key and
   the in-use attributes; one button in the dock's tab strip, "Columns: 8 of 69", opens the panel
@@ -267,6 +267,22 @@ Neo4j's UNWIND (an array is often edges, not extra rows).
     (One value only, counted in the report). A second domain, a package registry, shows them on
     `data-page/json-keyed`. Reason: a design checked against one document is tuned to it;
     these are the shapes graph-io's own JSON dialects and common API exports already use.
+12. **A Name may be built from several columns.** The researchers' names are two fields,
+    `attributes.name.given` and `attributes.name.family`. Choosing Name in a second column's role
+    menu adds it to the Name rather than moving it: the columns join with a space, in column
+    order, and each shows the one role chip "Name: given + family" (the menu item says "Adds
+    family to the Name: given + family"; Attribute takes a column out). The page proposes the
+    Name, marked as suggested, when a node table has name-like columns: `attributes.name` for
+    institutions, `given` + `family` for researchers. Every surface that names a node shows that
+    one Name: the inspector title and its Summary (one Name row, "given + family" in its tag), the
+    canvas walk and its announcement, the table's one Name column (its parts stay in Columns,
+    unchecked), a set's member list, search and a note's target chip. Reason: a person is not
+    "Diallo" in one place and "Wei Diallo" in another; before this, the inspector joined the two
+    fields while the table showed only the family name, and the load description could name only
+    one. Rejected: a computed attribute or label template to join them, which waits on label
+    templates (low priority) and would make a name a styling choice, when the owner decided the
+    Name is a role and the drawn label is picked in styling. The element API name is listed in
+    `element-requirements-5.md` section 8, to confirm on its pull request.
 
 ## 4. Where paths are read, and in what syntax (studio)
 
@@ -280,10 +296,11 @@ Neo4j's UNWIND (an array is often edges, not extra rows).
   paints nothing and says nothing; the element raises a typed error instead, and the Binding
   popover and Why this look show it.
 - **Stored paths use names, `.`, `[*]`, `.*` (the values of an object keyed by id) and quoted names** (`"address.city"` for a key that really
-  contains a dot). That set reads the same in JMESPath, which the element already publishes for
-  `node.path`, and in RFC 9535 JSONPath. Indexes, filters, recursive descent and functions are
-  refused with a typed error. Reason: no route needs more, and publishing only the common subset
-  keeps both standards open. Readers never type a path in this round.
+  contains a dot). This is graphty-element's own grammar and matches neither JMESPath nor RFC 9535
+  JSONPath: every `[*]` flattens (`a[*].b[*]` is one row per inner item, where JMESPath gives a
+  list of lists) and a quoted name may follow a `.`. Indexes, filters, recursive descent and
+  functions are refused with a typed error. Reason: no route needs more, and a small grammar of
+  its own says exactly what a table path does. Readers never type a path in this round.
 
 ## 5. The state matrix (studio)
 
@@ -325,11 +342,11 @@ In full in `element-requirements-5.md`, sections 7 and 8. In short:
 
 - graph-io: describe a JSON document's structure; paths that step through arrays; flatten
   sub-objects at load; what an array becomes; child tables that carry their parent's key; new
-  issue codes. graph-format: inferring a `list` column (the `list` data type itself already exists).
+  issue codes. graph-io: writing a `list` column for an array of scalars (the `list` data type already exists; graph-format's inference is unchanged).
 - graphty-element: the JSON source reads every dialect graph-io knows; the table description
   gains `at`, `keep` and `arrays`; the preview returns the structure, suggested tables and a count
   per choice; links to several types; reciprocal pairs on list links; list attributes and a
-  `contains` test; attribute descriptors gain `parent`, `usedBy` and a short `plainName`; one path
+  `contains` test; attribute descriptors gain `parent` and a short `plainName`, and a separate usage map, `attributeUsage()`, says what uses each attribute (the design documents call it `usedBy`); one path
   reader with an error for a path that reads nothing.
 - **Kept in the app** because it is presentation: searching and ordering a list on screen,
   truncation, which columns a table view shows. (The accessibility specialist asked for search in
@@ -378,9 +395,9 @@ Nothing here needs the owner before the study.
 
 - **Names that become permanent when graph-io, graph-format and graphty-element ship them**: the
   table fields `at`, `keep` and `arrays` and their values, the descriptor fields `parent`,
-  `usedBy`, `elementType`, `domainKind` and `plainName`, the new `AttributeType` values `"list"`
-  and `"json"` (an exported type, so a consumer's exhaustive switch needs a case), the stored path
-  syntax, and the issue codes. Each is reversible with an edit until its release; the studio
+  `elementType`, `domainKind` and `plainName`, the usage map `attributeUsage()`, the generated child-table columns `parentAs` and `keyAs`, the new `AttributeType` values `"list"`
+  and `"json"` (an exported type, so a consumer's exhaustive switch needs a case), `displayName` as
+  a list of columns (it widens `nodeLabelPath`'s type), the stored path syntax, and the issue codes. Each is reversible with an edit until its release; the studio
   recommends the owner confirm them on the pull request that adds them, as with version 4's
   names.
 - **Role slots above the grid** stay a candidate if the study shows testers hunting through

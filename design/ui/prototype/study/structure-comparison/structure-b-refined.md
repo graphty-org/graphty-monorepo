@@ -502,7 +502,12 @@ are later (issue #643).
 - **Roles** -- which rows are nodes and which are edges, the key, the links (From, To, Links to),
   the type, Name, Time, Weight, the edge id and the positions -- are chosen on the Data page,
   under each column's header. A change that alters the graph's structure reloads; Name, Time and
-  Weight apply without a reload where graphty-element allows.
+  Weight apply without a reload where graphty-element allows. **Name may be one or more columns**
+  (studio, `owner-questions-5.md` section 3, item 12): each column given Name joins it, in column
+  order, with a space, and every such column shows one role chip, "Name: given + family". The
+  page proposes it when it finds name-like columns (`attributes.name`, or its `given` and `family`
+  parts). Every surface that names a node -- the inspector title, the canvas walk, the table's
+  Name column, a set's members, search and note targets -- shows that one Name, never one part.
 - **Read as** -- an attribute's data type (Category, Number, Time) -- belongs to the attribute and
   is changed in its inspector, with no reload. The Data page shows the type glyph under each
   header, read-only. While a loaded source is edited it links to the attribute; before Load it
@@ -953,7 +958,7 @@ in table and every other verb live in the thing's "..." menu, which is its conte
 | Selection | Tabs | Style | Data sections |
 |---|---|---|---|
 | **Nothing** (the graph) | Style, Data | Canvas, Layout (5.3) | Overview, Notes |
-| **One node** | Style, Data | **Why this look** (5.4) | Summary (the attributes in use, then results with rank; Degree is the link that selects the neighbors; then one disclosure, "61 more attributes", that opens the field list in place, with attributes that have no value on this node counted, "12 empty", not listed; a value kept whole shows as a collapsed tree), Memberships, Notes |
+| **One node** | Style, Data | **Why this look** (5.4) | Summary (the attributes in use, then results with rank; Degree is the link that selects the neighbors; then one disclosure, "67 more attributes", that opens the field list in place, with attributes that have no value on this node counted, "10 empty", not listed; a value kept whole shows as a collapsed tree), Memberships, Notes |
 | **One edge** (from the table, a row, or a node's inspector; edges cannot be picked on the canvas) | Style, Data | Why this look | Summary (Direction, the attributes in use with the weight marked by a small icon, results once there are any, then "N more attributes" as on a node), Memberships, Notes |
 | **Several elements** | Style, Data | Why this look with coverage | Summary (the names list as the Size row's tooltip, induced and cut edges, the same rows in the same order as a node's), Memberships ("3 of 5"), Notes |
 | **Group, set, path row** | Style, Data | fixed values | Summary, Members (top 10 by the run's ranking or by degree), Made with, Notes |

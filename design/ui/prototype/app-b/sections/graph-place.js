@@ -55,13 +55,14 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const r = AB.route;
         if (!r || r.id === "graph-place" || !r.frame.right) return null;
         const [id, st = ""] = String(r.frame.right).split("/");
-        const row = {
+        let row = {
             "inspector-measure-row": st === "edge-measure" || st === "edge-measure-data" ? null : st === "degree" ? "degree" : "pagerank",
             "inspector-run-row": st === "readings-only" ? null : "louvain",
             "inspector-folder": "folder",
             "inspector-selection-and-everything": { selection: "selection", "notes-row": "notes", "notes-row-outlined": "notes", "notes-data": "notes", overrides: "overrides" }[st] || "everything",
             "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", path: "tp1", "path-door-entries": "dp1", "path-lesmis-2": "p2", "kept-2": "g2", "kept-8": "g8", notes: "c3", "label-by": "label-degree" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : null),
         }[id] || null;
+        if (id === "inspector-measure-row" && /^painted-/.test(st)) row = "paint-" + st.slice(8);
         const sel = { "inspector-node": "1", "inspector-edge": "1", "inspector-several-elements": st === "two-nodes" ? "2" : "5" }[id] || null;
         return { row, sel, edited: id === "inspector-node" && st === "edited" };
     }
@@ -111,17 +112,27 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     }
 
     // The wide, nested and plain JSON projects: just loaded, unstyled, so only the built-in rows
-    const LOADED = ["wide", "nested", "plainJson"];
+    const LOADED = ["wide", "nested", "plainJson", "registry"];
     // Each loaded project's place has a state of its own (the rail and a canvas click open it), and one
     // with the first row a reader adds: the hosts sized by the 46-character attribute (wide-sized), the
     // researchers' kept set (nested-set). What the field lists call "in use" follows these rows.
-    const LOADED_STATE = { wide: "wide", "wide-sized": "wide", nested: "nested", "nested-set": "nested", "plain-json": "plainJson" };
-    const loadedDs = (state) => LOADED_STATE[state] || (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset) ? AB.route.frame.dataset : null);
+    const LOADED_STATE = { wide: "wide", "wide-sized": "wide", nested: "nested", "nested-set": "nested", "plain-json": "plainJson", registry: "registry" };
+    // painted: the tree after Color by or Size by on an attribute (AB.paintRow), in the project it was made in
+    const paintedDs = () => (AB.paintedLast && AB.paintedLast.ds) || "wide";
+    const loadedDs = (state) => LOADED_STATE[state] || (state === "painted" ? paintedDs() : null) || (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset) ? AB.route.frame.dataset : null);
     const VULN = "vuln_count_critical_unremediated_over_30_days";
     function loadedModel(state) {
         const ins = fromInspector();
         const rows = [selectionRow(ins && ins.sel), notesRow(true, null), everythingRow(true)];
         if (state === "wide-sized") rows.splice(2, 0, { id: "vuln", name: VULN, kindIcon: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "long-name"], menu: ["context-menus", "measure-row"] });
+        // The measure rows Color by and Size by made (AB.painted), named after the attribute, newest on top
+        const ds = loadedDs(state);
+        (AB.painted[ds] || []).filter((p) => p.on === "row").forEach((p) => {
+            const color = p.prop === "Color", num = p.type === "num";
+            rows.splice(2, 0, { id: "paint-" + p.prop.toLowerCase(), name: p.name, kindIcon: num ? "hash" : "type", eye: true,
+                swatch: !color ? null : num ? AB.ramp("#ef7818", "#662506") : stack("#E69F00", "#56B4E9"),
+                go: ["inspector-measure-row", "painted-" + p.prop.toLowerCase()], menu: ["context-menus", "measure-row"] });
+        });
         if (state === "nested-set") rows.splice(2, 0, { id: "ml-set", name: "Machine learning researchers, more than 500 cites in 5 years", kindIcon: AB.ICON.set, swatch: AB.chit("#009E73", true), count: 23, eye: true, go: ["inspector-group-set-path-row", "long-name"], menu: ["context-menus", "row"] });
         if (ins && ins.row) rows.forEach((r) => { r.selected = r.id === ins.row; });
         return rows;
@@ -251,9 +262,15 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         hit(AB.ICON.note, null, hi("Valjean and Javert land in the same community..."), "about Louvain", ["inspector-run-row", "data"]);
     }
 
-    function listMenu(state) {
+    // `here`: another project than Les Miserables, whose list-menu states are not drawn: the menu opens in place
+    function listMenu(state, here) {
         const btn = document.getElementById("ab-list-btn");
         if (!btn) return;
+        if (here) return AB.openMenu(btn, [
+            { label: "New folder", shortcut: "Ctrl+G", onClick: () => AB.flash("New folder (not wired in the skeleton)") },
+            { label: "Show hidden rows", check: false, onClick: () => AB.flash("Shows hidden rows (not wired in the skeleton)") },
+            { label: "Collapse all", onClick: () => AB.flash("Collapses every row (not wired in the skeleton)") },
+        ]);
         AB.openMenu(btn, [
             { label: "New folder", shortcut: "Ctrl+G", onClick: () => AB.flash("New folder (not wired in the skeleton)") },
             { label: "Show hidden rows", check: state === "show-hidden", onClick: () => AB.go("graph-place", state === "show-hidden" ? "at-rest" : "show-hidden") },
@@ -261,9 +278,27 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         ]);
     }
 
+    // Find in another project's tree: rows whose name holds the term stay, the rest hide; no row
+    // matching is the field list's no-match line, with Clear
+    function findHere(scroll, input) {
+        const q = input.value.trim().toLowerCase();
+        const rows = [...scroll.querySelectorAll(".ab-trow")];
+        rows.forEach((li) => { const n = li.querySelector(".ab-tname"); li.hidden = !!q && !(n && n.textContent.toLowerCase().includes(q)); });
+        const old = scroll.querySelector(".ab-fl-none");
+        if (old) old.remove();
+        if (!q) return;
+        const hits = rows.filter((li) => !li.hidden).length;
+        if (hits) return AB.announce(hits + (hits === 1 ? " row matches" : " rows match"));
+        const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { input.value = ""; findHere(scroll, input); input.focus(); } })), "Clear");
+        scroll.prepend(h("div", { class: "ab-fl-none" }, AB.noMatch(input.value.trim()), " ", clear));
+        AB.announce('No match for "' + input.value.trim() + '"');
+    }
+
     // ---------- the place ----------
     function render(el, state) {
         if (state === "rows-with-notes") state = "find"; // version 2 id: Find covers it
+        // A direct visit to painted, before any Color by: the hosts colored by cpu_util_p95_pct
+        if (state === "painted" && !AB.paintOf(paintedDs(), "Color") && !AB.paintOf(paintedDs(), "Size")) AB.paintBy("wide", "Color", "cpu_util_p95_pct", "row");
         const L = AB.fx.datasets.lesmis;
         // A tree drawn with results from the start: the transfers project is no longer just loaded
         if (state === "many-groups") T().fresh = false;
@@ -274,15 +309,20 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const ds = loadedDs(state);
         const head = AB.graphHead("Graph", ds ? AB.fx.datasets[ds].frame.graphRow : tGraph ? AB.fx.datasets.transactions.graphName : doorGraph ? AB.fx.datasets.doorEntries.graphName : L.frame.graphRow, { notes: state === "empty" || tGraph || doorGraph || ds ? 0 : 1 });
         const finding = state === "find" || state === "find-no-match";
+        const other = !!(ds || tGraph || doorGraph);
         const bar = AB.treebar({
             value: state === "find" ? "Jav" : state === "find-no-match" ? "xyz" : null,
             onKey: (e, input) => {
+                // Another project finds in its own tree, in place: the find states are Les Miserables'
+                if (other && e.key === "Enter") return findHere(scroll, input);
+                if (other && e.key === "Escape" && input.value) { input.value = ""; return findHere(scroll, input); }
                 // the skeleton's one search with results is "Jav"; anything else finds nothing
                 if (e.key === "Enter" && input.value) AB.go("graph-place", /^jav/i.test(input.value) ? "find" : "find-no-match");
                 if (e.key === "Escape" && finding) AB.go("graph-place", "at-rest");
             },
-            onInput: (input) => { if (!input.value && finding) AB.go("graph-place", "at-rest"); },
+            onInput: (input) => { if (other && !input.value) return findHere(scroll, input); if (!input.value && finding) AB.go("graph-place", "at-rest"); },
             menuGo: ["graph-place", state === "list-menu" ? "at-rest" : "list-menu"],
+            menuClick: ds || tGraph || doorGraph ? () => listMenu(state, true) : null,
             menuOpen: state === "list-menu",
         });
         const scroll = h("div", { class: "k-scroll" });
@@ -350,8 +390,10 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (state === "wide") return { dataset: "wide" };
             if (state === "nested") return { dataset: "nested" };
             if (state === "plain-json") return { dataset: "plainJson" };
+            if (state === "registry") return { dataset: AB.registryDataset() };
             if (state === "wide-sized") return { dataset: "wide", canvas: "canvas-and-states/hosts-legend", right: "inspector-measure-row/long-name" };
             if (state === "nested-set") return { dataset: "nested", canvas: "canvas-and-states/nested-set", right: "inspector-group-set-path-row/long-name" };
+            if (state === "painted") return { dataset: paintedDs(), right: "inspector-measure-row/painted-" + ((AB.paintedLast && AB.paintedLast.prop) || "Color").toLowerCase() };
             if (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset)) return {};
             if (state === "find-no-match" || state === "one-group") return { right: "inspector-nothing-selected/overview" };
             if (state === "long-names") return { right: "inspector-measure-row/style" };
@@ -363,7 +405,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (state === "path-found" || state === "transfers-running") return Object.assign({ dataset: "transactions", canvas: freshT(state) ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" });
             if (state === "louvain-open") return { right: "inspector-run-row/style" };
             if (state === "many-groups") return { dataset: "transactions", canvas: "canvas-and-states/transfers-communities", right: "inspector-run-row/many-groups" };
-            if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", chip: "Filtered: 60 of 77 nodes" };
+            if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", chip: "Filtered: 60 of 77 nodes", filterOn: ["degree"] };
             if (state === "queued" || state === "partial") return { right: "inspector-run-row/" + state };
             if (state === "running" || state === "failed") return { right: "inspector-nothing-selected/overview" };
             if (state === "everything-hidden") return { right: "inspector-selection-and-everything/everything", canvas: "canvas-and-states/everything-hidden" };
@@ -414,6 +456,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "nested", label: "Research network (nested JSON), just loaded" },
             { id: "nested-set", label: "Research network with a kept set of 23 researchers" },
             { id: "plain-json", label: "Coauthors (plain JSON graph), just loaded" },
+            { id: "registry", label: "Package registry (keyed JSON), just loaded" },
+            { id: "painted", label: "After Color by or Size by on an attribute (directly: the hosts, nothing painted yet)" },
         ],
         render,
     });

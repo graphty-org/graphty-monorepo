@@ -67,7 +67,19 @@
         const after = li.nextElementSibling && li.nextElementSibling.classList.contains("dp-quiet") ? li.nextElementSibling : li;
         after.after(h("li", { class: "dp-prob", role: "none", style: li.getAttribute("style") }, AB.problem(p)));
     }
-    const goItem = (label, to, extra) => Object.assign({ label, onClick: () => AB.go(to[0], to[1]) }, extra || {});
+
+    // The transfers' second step, off: the skeleton does not count what it would leave
+    // Filter to... from any attribute menu: a step on that attribute in the project's Data place, opened
+    let pendingFilter = null;
+    AB.filterTo = (ds, name) => {
+        const left = String((AB.route && AB.route.frame.left) || "");
+        if (left.startsWith("data-place/") && AB.filterToHere && AB.filterToHere(ds, name)) return;
+        pendingFilter = { ds, name };
+        AB.go("data-place", AB.placeOf(ds, "data") || "at-rest");
+    };
+    const KIND_RULE = () => ({ attr: "kind", type: "cat", cond: "is not", value: "merchant", before: 812, after: 812 });
+    // A step's data place keeps the steps the reader added, by state, for the session
+    const kept = {};
 
     // ---------- the lists for one render ----------
     function initialSteps(cfg) {
@@ -77,19 +89,19 @@
             const rows = W().nodeRows, prod = rows.filter((r) => r.environment === "prod");
             const hit = prod.filter((r) => r[VULN] >= 1).length;
             return [
-                { id: "w1", name: "environment is prod", outcome: `${n(rows.length)} to ${n(prod.length)} nodes`, on: true },
-                { id: "w2", name: VULN + " is at least 1", attr: VULN, rest: " is at least 1", outcome: `${n(prod.length)} to ${n(hit)} nodes`, on: true },
+                { id: "w1", name: "environment is prod", outcome: `${n(rows.length)} to ${n(prod.length)} nodes`, on: true, rule: { attr: "environment", type: "cat", cond: "is", value: "prod", before: rows.length, after: prod.length } },
+                { id: "w2", name: VULN + " is at least 1", attr: VULN, rest: " is at least 1", outcome: `${n(prod.length)} to ${n(hit)} nodes`, on: true, go: ["inspector-attribute-and-filter-step", "wide-filter"] },
             ];
         }
-        if (cfg.steps === "one") return [{ id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: true, notes: 1 }];
+        if (cfg.steps === "one") return [{ id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: true, notes: 1, go: ["inspector-attribute-and-filter-step", "filter-step"] }];
         if (cfg.steps === "gone") return [
             // The step was made on the old file's amount_usd; the replacing file names that column amount
-            { id: "s1", name: "amount_usd is at least 1,000", outcome: null, on: true, notes: 1, gone: "amount_usd" },
-            { id: "s2", name: "kind is not merchant", outcome: null, on: false },
+            { id: "s1", name: "amount_usd is at least 1,000", outcome: null, on: true, notes: 1, gone: "amount_usd", go: ["inspector-attribute-and-filter-step", "step-attribute-gone"] },
+            { id: "s2", name: "kind is not merchant", outcome: null, on: false, rule: KIND_RULE() },
         ];
         const steps = [
-            { id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: cfg.steps !== "undone", notes: 1 },
-            { id: "s2", name: "kind is not merchant", outcome: null, on: false },
+            { id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: cfg.steps !== "undone", notes: 1, go: ["inspector-attribute-and-filter-step", "filter-step"] },
+            { id: "s2", name: "kind is not merchant", outcome: null, on: false, rule: KIND_RULE() },
         ];
         if (cfg.steps === "new") steps.push({ id: "s3", name: "New step", outcome: null, on: true, isNew: true });
         return steps;
@@ -101,33 +113,40 @@
         if (cfg.ds === "wide") {
             const w = W();
             return [
-                { id: "hosts", kind: "node", name: w.file, quiet: `host . ${n(w.nodes)} nodes`, go: ["data-page", "wide-hosts"], edit: ["data-page", "wide-hosts"] },
-                { id: "connections", kind: "edge", name: w.edgesFile, quiet: `connections . ${n(w.edges)} rows, ${n(w.edges)} edges`, go: ["data-page", "wide-hosts"], edit: ["data-page", "wide-hosts"] },
+                { id: "hosts", kind: "node", name: w.file, quiet: `host . ${n(w.nodes)} nodes`, go: ["data-page", "edit-wide-hosts"], edit: ["data-page", "edit-wide-hosts"] },
+                { id: "connections", kind: "edge", name: w.edgesFile, quiet: `connections . ${n(w.edges)} rows, ${n(w.edges)} edges`, go: ["data-page", "edit-wide-connections"], edit: ["data-page", "edit-wide-connections"] },
             ];
         }
         if (cfg.ds === "nested") {
             // The tables the last Load made (AB.nestedLoaded: the reader's choices on the Data page)
-            const d = N(), ra = d.recordArrays, go = ["data-page", "json-researchers"], NL = AB.nestedLoaded();
+            const d = N(), ra = d.recordArrays, NL = AB.nestedLoaded(), ed = (id) => ["data-page", "edit-json-" + id], go = ed("researchers");
             const cnt = (p) => (d.paths.find((q) => q.path === p) || {}).count || 0;
             const addr = NL.researchers && NL.addr === "rows" ? cnt("data.researchers[].attributes.profile.contact.addresses[]") : 0;
             const nodes = (NL.researchers ? ra["data.researchers[]"] : 0) + (NL.institutions ? ra["data.institutions[]"] : 0) + addr;
             const co = NL.coPer === "item" ? 514 : 510;
-            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(nodes)} nodes from ${n(d.records)} records`, go, edit: go, open: true,
+            // links' targets are researchers (118) and institutions (42): with institutions not loaded, only the first make edges
+            const linkEdges = NL.institutions === false ? 118 : ra["links[]"];
+            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(nodes)} nodes, ${n((AB.projectCounts("nested") || { edges: 0 }).edges)} edges from ${n([NL.researchers, NL.researchers && NL.aff === "rows", addr, NL.institutions, NL.links].filter(Boolean).length)} tables`, go, edit: go, open: true,
                 children: [
-                    NL.researchers && { id: "json-researchers", kind: "node", name: "researchers", quiet: `researcher . ${n(ra["data.researchers[]"])} nodes` + (NL.co === "edges" ? `; coauthor_ids . ${n(co)} edges` : "") + (NL.idLinks || []).map((x) => `; ${x.col.split(".").pop()} . ${n(x.n)} edges`).join(""), go, noMenu: true },
-                    NL.researchers && NL.aff === "rows" && { id: "json-affiliations", kind: "edge", name: "affiliations", quiet: `affiliation . ${n(242)} rows, ${n(242)} edges`, go: ["data-page", "json-affiliations"], noMenu: true },
-                    addr && { id: "json-addresses", kind: "node", name: "addresses", quiet: `address . ${n(addr)} nodes`, go, noMenu: true },
-                    NL.institutions && { id: "json-institutions", kind: "node", name: "institutions", quiet: `institution . ${n(ra["data.institutions[]"])} nodes`, go, noMenu: true },
-                    NL.links && { id: "json-links", kind: "edge", name: "links", quiet: `link . ${n(ra["links[]"])} rows, ${n(ra["links[]"])} edges`, go, noMenu: true },
+                    NL.researchers && { id: "json-researchers", kind: "node", name: "researchers", quiet: `researcher . ${n(ra["data.researchers[]"])} nodes` + (NL.co === "edges" ? `; coauthor . ${n(co)} edges` : "") + (NL.idLinks || []).map((x) => `; ${x.name} . ${n(x.n)} edges`).join(""), go, edit: go, drop: { researchers: false } },
+                    NL.researchers && NL.aff === "rows" && { id: "json-affiliations", kind: "edge", name: "affiliations", quiet: `affiliations . ${n(242)} rows, ${NL.institutions ? n(242) : 0} edges`, go: ed("affiliations"), edit: ed("affiliations"), drop: { aff: "one" } },
+                    addr && { id: "json-addresses", kind: "node", name: "addresses", quiet: `address . ${n(addr)} nodes`, go: ed("addresses"), edit: ed("addresses"), drop: { addr: "one" } },
+                    NL.institutions && { id: "json-institutions", kind: "node", name: "institutions", quiet: `institution . ${n(ra["data.institutions[]"])} nodes`, go: ed("institutions"), edit: ed("institutions"), drop: { institutions: false } },
+                    NL.links && { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(ra["links[]"])} rows, ${n(linkEdges)} edges`, go: ed("links"), edit: ed("links"), drop: { links: false } },
                 ].filter(Boolean) }];
         }
         if (cfg.ds === "plainJson") {
-            const d = P(), go = ["data-page", "json-plain"];
+            const d = P(), go = ["data-page", "edit-plain-nodes"];
             return [{ id: "json", kind: "file", name: d.file, quiet: `${n(d.nodes)} nodes, ${n(d.edges)} edges`, go, edit: go, open: true,
                 children: [
                     { id: "json-nodes", kind: "node", name: "nodes", quiet: `node . ${n(d.nodes)} nodes`, go, noMenu: true },
-                    { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(d.edges)} rows, ${n(d.edges)} edges`, go, noMenu: true },
+                    { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(d.edges)} rows, ${n(d.edges)} edges`, go: ["data-page", "edit-plain-links"], noMenu: true },
                 ] }];
+        }
+        if (cfg.ds === "registry") {
+            const R = AB.fx.datasets.registry, go = ["data-page", "edit-registry"];
+            return [{ id: "json", kind: "file", name: R.file, quiet: `${n(R.nodes)} nodes, ${n(R.edges)} edges`, go, edit: go, open: true,
+                children: [{ id: "json-packages", kind: "node", name: "packages", quiet: `package . ${n(R.nodes)} nodes` + (R.edges ? `; dependencies . ${n(R.edges)} edges` : ""), go, noMenu: true }] }];
         }
         if (cfg.ds === "door") {
             const d = D(), r = d.report, tbl = (name) => d.tables.find((x) => x.name === name);
@@ -167,6 +186,15 @@
         return rows;
     }
 
+    // A table the reader built from a document (the nested project) is removed by loading the document
+    // again without it: the last Load's choices (AB.nestedLoaded) lose that table, and Undo puts them back
+    function removeBuilt(s) {
+        const D = N(), was = AB.nestedLoaded();
+        D.loaded = Object.assign({}, was, s.drop);
+        AB.render();
+        AB.deleted(s.name, () => { D.loaded = was; AB.render(); });
+    }
+
     // ---------- Sources ----------
     function sources(cfg) {
         const t = T();
@@ -190,7 +218,7 @@
         const ul = AB.tree(src.map(treeRow), { label: "Sources, one row per table" });
         const all = src.flatMap((s) => [s].concat(s.children || []));
         const menuFor = (s, li) => {
-            if (s.noMenu) return AB.announce(s.name + " belongs to " + GEXF + "; its menu is on the file's row");
+            if (s.noMenu) return AB.announce(s.name + " belongs to " + ((src.find((x) => (x.children || []).includes(s)) || {}).name || GEXF) + "; its menu is on the file's row");
             AB.openMenu(li, [
                 { heading: s.name },
                 { label: "Rename", shortcut: "F2", onClick: () => AB.createThenRename(li, { onSave: (v) => AB.announce("Renamed to " + v) }) },
@@ -199,7 +227,8 @@
                 AB.cmd("edit-source", { go: s.edit || (s.go[1] === "url" ? ["data-page", "url"] : AB.cmd("edit-source").go) }),
                 s.url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", onClick: () => AB.go("data-place", "refreshing") } : null,
                 { sep: true },
-                { label: "Remove", shortcut: "Del", needs: "graphty-element does not record which table each node and edge came from, so one table cannot be removed on its own; Clear graph data is in the graph's menu" },
+                s.drop ? { label: "Remove", shortcut: "Del", desc: "Stops loading this table from the file; Edit source can bring it back", onClick: () => removeBuilt(s) }
+                    : { label: "Remove", shortcut: "Del", needs: "graphty-element does not record which table each node and edge came from, so one table cannot be removed on its own; Clear graph data is in the graph's menu" },
             ].filter(Boolean));
         };
         all.forEach((s) => {
@@ -213,7 +242,7 @@
         });
         const by = (li) => all.find((s) => s.id === li.dataset.row);
         guardKeys(ul, {
-            Delete: () => AB.announce("A table cannot be removed on its own yet; Clear graph data is in the graph's menu"),
+            Delete: (li) => { const s = li && by(li); if (s && s.drop) removeBuilt(s); else AB.announce("A table cannot be removed on its own yet; Clear graph data is in the graph's menu"); },
             Backspace: () => {},
             "Shift+F10": (li) => menuFor(by(li), li),
             ContextMenu: (li) => menuFor(by(li), li),
@@ -237,20 +266,46 @@
     function filters(cfg, model, redraw) {
         const steps = model.steps;
         // "+" adds a step at the end, named "New step", selected (create first, then edit its rule)
-        const addStep = () => { const id = "s" + (steps.length + 1) + "-" + Date.now(); steps.push({ id, name: "New step", outcome: null, on: true, isNew: true }); model.selected = id; redraw(id); AB.announce("Added New step"); };
-        const plus = AB.plus({ label: "Add filter step", items: [{ label: "filter step" }], onAdd: addStep });
+        // "+" adds "New step" at the end and opens it, its field list open (create first, then edit its rule)
+        // Filter to... hands the attribute: the step starts on it, named by its rule
+        const addStep = (attr) => {
+            const id = "s" + (steps.length + 1) + "-" + Date.now();
+            const s = { id, name: "New step", outcome: null, on: true, isNew: true };
+            if (attr) {
+                const type = (AB.fieldIn(DATASET[cfg.ds] || "transactions", attr)[0] || {}).type, cond = { num: "is at least", list: "contains" }[type] || "is";
+                s.rule = { attr, type, cond, value: "", before: nodeCount(), after: nodeCount() };
+                s.name = attr + " " + cond;
+            }
+            steps.push(s);
+            model.selected = id;
+            kept[cfg.state] = model;
+            redraw(id);
+            AB.announce("Added " + s.name);
+            open(s);
+        };
+        AB.filterToHere = (ds, attr) => { if ((DATASET[cfg.ds] || "transactions") !== ds) return false; addStep(attr); return true; };
+        const nodeCount = () => { const c = AB.projectCounts && AB.projectCounts(DATASET[cfg.ds] || "transactions"); return c ? c.nodes : T().nodes; };
+        // A step's inspector: its own state where the skeleton draws one, else the rule handed over (AB.openStep)
+        const open = (s) => {
+            if (s.go) { AB.keepLeft = true; return AB.go(s.go[0], s.go[1]); }
+            const ds = DATASET[cfg.ds] || "transactions";
+            const r = s.rule || { attr: null, before: nodeCount(), after: nodeCount() };
+            AB.keepLeft = true;
+            AB.openStep(Object.assign({ ds, left: "data-place/" + cfg.state, step: s, on: s.on, unit: ["nodes", ds === "wide" ? "wide" : "nodes"], menu: (b) => menuFor(s, b) }, r));
+        };
+        const plus = AB.plus({ label: "Add filter step", items: [{ label: "filter step" }], onAdd: () => addStep() });
         const on = steps.filter((s) => s.on).length;
         const count = steps.length ? h("span", { class: "dp-count" }, `${steps.length} ${steps.length === 1 ? "step" : "steps"}, ${on} on`) : null;
         const sec = AB.section({ title: "Filters", editable: true, actions: h("span", { style: "display:flex;align-items:center" }, count, plus) });
         if (!steps.length) {
-            sec.append(AB.empty("No filters. " + FILTERS_TIP, { verb: "Add filter step", onClick: addStep }));
+            sec.append(AB.empty("No filters. " + FILTERS_TIP, { verb: "Add filter step", onClick: () => addStep() }));
             return sec;
         }
         // Once a step exists, the empty line becomes the header's tooltip
         AB.tip(sec.querySelector(".ab-sec-h"), FILTERS_TIP, { label: false });
 
         const rows = steps.map((s) => ({ id: s.id, kindIcon: AB.ICON.filter, name: s.name, notes: s.notes || null,
-            status: s.gone ? "error" : undefined, statusText: s.gone ? "Skipped: " + s.gone + " is not in the data any more" : undefined, selected: model.selected === s.id, go: ["inspector-attribute-and-filter-step", "filter-step"], renameDisabled: "a step is named by its rule; Enter edits the rule" }));
+            status: s.gone ? "error" : undefined, statusText: s.gone ? "Skipped: " + s.gone + " is not in the data any more" : undefined, selected: model.selected === s.id, onOpen: () => open(s), renameDisabled: "a step is named by its rule; Enter edits the rule" }));
         const ul = AB.tree(rows, { label: "Filter steps, in the order they apply" });
         const move = (s, d) => {
             const i = steps.indexOf(s), j = i + d;
@@ -269,14 +324,13 @@
         const flip = (s) => {
             s.on = !s.on;
             AB.announce(s.name + (s.on ? " applied" : " not applied"));
-            if (s.on && !s.outcome && !s.isNew) AB.flash("The count for this step is not modeled in the skeleton");
             redraw(s.id);
         };
         const menuFor = (s, anchor) => AB.openMenu(anchor, [
             { label: "Move up", shortcut: "Ctrl+]", disabled: steps.indexOf(s) === 0 ? "Already first" : false, onClick: () => move(s, -1) },
             { label: "Move down", shortcut: "Ctrl+[", disabled: steps.indexOf(s) === steps.length - 1 ? "Already last" : false, onClick: () => move(s, 1) },
             { sep: true },
-            AB.cmd("add-note", { onClick: () => AB.addNote({ targets: [{ label: s.name, icon: AB.ICON.filter, go: ["inspector-attribute-and-filter-step", "filter-step"] }], right: "inspector-attribute-and-filter-step/filter-step" }) }),
+            AB.cmd("add-note", { onClick: () => AB.addNote({ targets: [{ label: s.name, icon: AB.ICON.filter, go: s.go || ["inspector-attribute-and-filter-step", "step"] }], right: s.go ? s.go.join("/") : "inspector-attribute-and-filter-step/step" }) }),
             { sep: true },
             { label: "Delete", shortcut: "Del", onClick: () => del(s) },
         ]);
@@ -290,7 +344,7 @@
             // An attribute name in a rule keeps its start and its end (the middle ellipsis); the row's name is the full rule
             if (s.attr) li.querySelector(".ab-tname").replaceChildren(AB.truncMiddle(s.attr, 14), s.rest);
             if (s.on && s.outcome) quiet(li, s.outcome);
-            if (s.gone) problemUnder(li, { what: `${s.gone} is not in ${T().file} any more, so this step is skipped.`, todo: "Pick another attribute in the step's rule, or delete the step.", action: { label: "Edit rule", go: ["inspector-attribute-and-filter-step", "filter-step"] } });
+            if (s.gone) problemUnder(li, { what: `${s.gone} is not in ${T().file} any more, so this step is skipped.`, todo: "Pick another attribute in the step's rule, or delete the step.", action: { label: "Edit rule", onClick: () => open(s) } });
             li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
             // Drag the row to reorder (no grip)
             li.draggable = true;
@@ -340,35 +394,14 @@
     // The list is the field list at panel size (spec 2.5), over the project on screen: one group per
     // table, "In use (n)" first with what uses each, fill figures, folders only from the data's nesting,
     // Find past 15. Its rows are fieldsOf()'s, the stand-in for graphty-element's session.data.attributes().
-    // The attributes that have an inspector in the skeleton; the rest say so
-    const INSPECTOR = {
-        transactions: () => "attribute",
-        lesmis: (f) => (f.name === "label" ? "attribute-name-role" : "attribute"),
-        doorEntries: (f) => ({ floors: "node-weight", count: "edge-weight" })[f.name] || null,
-    };
-    const EDIT_ON = { doorEntries: ["data-page", "edit-entries"], lesmis: ["data-page", "edit-graph-file"], wide: ["data-page", "wide-hosts"], nested: ["data-page", "json-researchers"], plainJson: ["data-page", "json-plain"] };
+    const EDIT_ON = { doorEntries: ["data-page", "edit-entries"], lesmis: ["data-page", "edit-graph-file"], wide: ["data-page", "edit-wide-hosts"], nested: ["data-page", "edit-json-researchers"], plainJson: ["data-page", "edit-plain-nodes"], registry: ["data-page", "edit-registry"] };
     const TABLE = { doorEntries: ["door-entries-nodes", "door-entries"], wide: ["wide", "wide"], nested: ["wide", "wide"], plainJson: ["wide", "wide"] };
     function attributes(cfg) {
         const ds = DATASET[cfg.ds] || "transactions";
         const editOn = EDIT_ON[ds] || ["data-page", "edit-source"];
         const groups = AB.fieldsOf(ds);
-        const fieldOf = (name) => { for (const g of groups) { const f = g.fields.find((x) => x.name === name); if (f) return [f, g.element === "edge"]; } return [null, false]; };
-        const menuFor = (a, edge, anchor) => AB.openMenu(anchor, [
-            { heading: a.name },
-            { label: "Color by", onClick: () => AB.flash("Color by " + a.name) },
-            { label: edge ? "Width by" : "Size by", onClick: () => AB.flash((edge ? "Width by " : "Size by ") + a.name) },
-            AB.cmd("label-by", { go: null, onClick: () => AB.flash("Label by " + a.name) }),
-            { label: "Show as groups", onClick: () => AB.flash("Show as groups by " + a.name) },
-            { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + a.name + " as an axis needs a layout that reads any attribute" },
-            { sep: true },
-            goItem("Filter to...", ["data-place", "filters"]),
-            goItem("Create set where this is...", ["select-where", "where"]),
-            { sep: true },
-            goItem("Read as...", ["inspector-attribute-and-filter-step", "attribute"]),
-            goItem("Edit on the Data page", editOn),
-            { sep: true },
-            goItem("Show in table", ["table-dock", (TABLE[ds] || ["nodes", "edges"])[edge ? 1 : 0]]),
-        ]);
+        // The row's menu is the attribute's one menu (AB.attributeMenu), as its inspector's "..." opens it
+        const menuFor = (name, anchor) => AB.attributeMenu(anchor, ds, name, { editOn, table: TABLE[ds] || ["nodes", "edges"] });
         // "+" is grayed and focusable with its reason (it needs graphty-element, so the user-test build hides it)
         const plus = AB.iconButton("plus", "New attribute", { disabled: "A computed attribute needs graphty-element (filed). To add columns from a file, open the Data page" });
         plus.classList.add("ab-plus");
@@ -380,16 +413,11 @@
         }
         const list = AB.fieldList({
             size: "panel", dataset: ds, label: "Attributes", current: cfg.select || null, query: cfg.query || undefined,
-            onPick(name, type, f) {
-                if (ds === "wide" || ds === "nested" || ds === "plainJson") return AB.openField(ds, f.name);
-                const st = INSPECTOR[ds] && INSPECTOR[ds](f);
-                if (st) AB.go("inspector-attribute-and-filter-step", st);
-                else AB.flash("Opens " + name + "'s inspector (not wired in the skeleton)");
-            },
+            onPick(name, type, f) { AB.openField(ds, f.name); },
         });
         // The row menu: right-click, Shift+F10 or the Menu key on the active row
         const nameOf = (row) => row && row.matches(".ab-fl-opt") ? (row.getAttribute("aria-label") || "").split(",")[0] : null;
-        const openFor = (row) => { const [f, edge] = fieldOf(nameOf(row)); if (f) menuFor(f, edge, row); };
+        const openFor = (row) => { const name = nameOf(row); if (name && AB.fieldIn(ds, name)[0]) menuFor(name, row); };
         list.addEventListener("contextmenu", (e) => { const row = e.target.closest(".ab-fl-opt"); if (row) { e.preventDefault(); openFor(row); } });
         list.addEventListener("keydown", (e) => { if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") { e.preventDefault(); e.stopPropagation(); openFor(list.querySelector("[data-fl-row][data-hover]")); } }, true);
         const sec = AB.section({ title: "Attributes", editable: true, actions: plus }, list);
@@ -402,7 +430,7 @@
         const el = h("div", { class: "dp" });
         region.replaceChildren(el);
         const name = cfg.ds === "door" ? D().graphName : cfg.ds === "lesmis" ? L().title : cfg.ds === "none" ? L().frame.graphRow
-            : cfg.ds === "wide" ? W().graphName : cfg.ds === "nested" ? N().graphName : cfg.ds === "plainJson" ? P().graphName
+            : cfg.ds === "wide" ? W().graphName : cfg.ds === "nested" ? N().graphName : cfg.ds === "plainJson" ? P().graphName : cfg.ds === "registry" ? AB.fx.datasets.registry.graphName
                 : cfg.derived ? T().graphName + " without merchants" : T().graphName;
         el.append(AB.graphHead("Data", name));
         const scroll = h("div", { class: "dp-scroll" });
@@ -417,7 +445,9 @@
         const asec = attributes(cfg);
         scroll.append(sources(cfg), fsec, asec);
         requestAnimationFrame(() => {
-            if (cfg.scrollTo) { const s = el.querySelector("#" + cfg.scrollTo); if (s) scroll.scrollTop = s.offsetTop - scroll.offsetTop; }
+            // a step just added keeps Filters in view; else the state's own section
+            const to = model.steps.some((x) => x.isNew && x.id === model.selected) ? "dp-filters" : cfg.scrollTo;
+            if (to) { const s = el.querySelector("#" + to); if (s) scroll.scrollTop = s.offsetTop - scroll.offsetTop; }
         });
     }
 
@@ -441,21 +471,26 @@
         "step-attribute-gone": { steps: "gone", afterReplace: true },
         "one-step": { steps: "one" },
         "wide-filters": { ds: "wide", steps: "wide" },
-        "attributes-wide": { ds: "wide", steps: "none", scrollTo: "dp-attributes" },
+        "attributes-wide": { ds: "wide", steps: "none" },
         "attributes-wide-search": { ds: "wide", steps: "none", scrollTo: "dp-attributes", query: "vu cr" },
         "attributes-no-match": { ds: "wide", steps: "none", scrollTo: "dp-attributes", query: "xyz" },
-        "attributes-nested": { ds: "nested", steps: "none", scrollTo: "dp-attributes" },
+        "attributes-nested": { ds: "nested", steps: "none" },
         "plain-json": { ds: "plainJson", steps: "none" },
+        registry: { ds: "registry", steps: "none" },
     };
     const RIGHT = {
         filters: "inspector-attribute-and-filter-step/filter-step",
         attributes: "inspector-attribute-and-filter-step/attribute",
-        "new-step": "inspector-attribute-and-filter-step/filter-step",
+        "new-step": "inspector-attribute-and-filter-step/step",
     };
-    const DATASET = { door: "doorEntries", lesmis: "lesmis", none: "lesmis", wide: "wide", nested: "nested", plainJson: "plainJson" };
+    const DATASET = { door: "doorEntries", lesmis: "lesmis", none: "lesmis", wide: "wide", nested: "nested", plainJson: "plainJson", registry: "registry" };
     // What the steps that apply leave, for the header's filter chip
     const CHIP = { two: () => "812 of " + n(T().nodes) + " nodes", new: () => "812 of " + n(T().nodes) + " nodes", one: () => "812 of " + n(T().nodes) + " nodes",
         wide: () => { const s = initialSteps({ steps: "wide" }); return s[s.length - 1].outcome.split(" to ")[1].replace(" nodes", "") + " of " + n(W().nodes) + " nodes"; } };
+
+    // The attributes each step list reads, on or off (initialSteps); the field list tags them "Filter step".
+    // amount_usd is gone after Replace, so only kind remains.
+    const STEP_ATTRS = { two: ["amount", "kind"], undone: ["amount", "kind"], new: ["amount", "kind"], one: ["amount"], gone: ["kind"], wide: ["environment", VULN] };
 
     registerSection({
         id: "data-place",
@@ -465,7 +500,8 @@
         // The header's filter chip says what the steps that apply leave
         frame(state) {
             const c = CFG[state] || CFG["at-rest"];
-            const f = { dataset: DATASET[c.ds] || "transactions", chip: CHIP[c.steps] ? CHIP[c.steps]() : "Full graph" };
+            if (c.ds === "registry") AB.registryDataset();
+            const f = { dataset: DATASET[c.ds] || "transactions", chip: CHIP[c.steps] ? CHIP[c.steps]() : "Full graph", filterOn: STEP_ATTRS[c.steps] || null };
             if (RIGHT[state]) f.right = RIGHT[state];
             // A new project: nothing loaded, nothing drawn
             if (c.ds === "none") Object.assign(f, { right: "inspector-nothing-selected", canvas: "canvas-and-states/empty", dock: false });
@@ -496,11 +532,13 @@
             { id: "attributes-no-match", label: "Hosts: Find with no match" },
             { id: "attributes-nested", label: "Research network: nested attributes" },
             { id: "plain-json", label: "Coauthors: a plain JSON graph" },
+            { id: "registry", label: "Package registry: records keyed by name" },
         ],
         render(el, state) {
-            const cfg = CFG[state] || CFG["at-rest"];
-            const model = { steps: initialSteps(cfg), selected: cfg.selectStep || null };
+            const cfg = Object.assign({ state: CFG[state] ? state : "at-rest" }, CFG[state] || CFG["at-rest"]);
+            const model = kept[cfg.state] || { steps: initialSteps(cfg), selected: cfg.selectStep || null };
             build(el, cfg, model);
+            if (pendingFilter) { const p = pendingFilter; pendingFilter = null; setTimeout(() => AB.filterToHere && AB.filterToHere(p.ds, p.name), 0); }
             // A search on screen says its count, as typing it would
             if (cfg.query) setTimeout(() => { const c = el.querySelector(".ab-fl-count"); AB.announce(c && c.textContent ? c.textContent : 'No match for "' + cfg.query + '"'); }, 0);
             if (cfg.undoNotice) setTimeout(() => AB.notice("Undone: amount is at least 1,000", { label: "Redo", go: ["data-place", "at-rest"] }), 0);

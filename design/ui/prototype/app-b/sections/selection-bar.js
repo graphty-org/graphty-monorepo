@@ -112,7 +112,7 @@
         const s = subject("one-edge");
         const here = [AB.route.id, AB.route.state];
         const ds = AB.route.frame.dataset;
-        const tree = ["graph-place", ds === "doorEntries" ? "door-entries" : ds === "transactions" ? "many-groups" : "at-rest"];
+        const tree = ["graph-place", AB.placeOf(ds, "graph") || "at-rest"];
         return AB.toolbarBar([
             AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", disabled: "Select two nodes, or a node and a set; an edge has no path to find" }),
             "sep",
@@ -123,18 +123,24 @@
         ], "Selection: " + s.names);
     }
 
+    // Another project than Les Miserables (the door entries, the hosts, the researchers, ...): the bar's
+    // verbs act on it and land in its own places; the transfers' Neighborhood keeps its directed state
+    const other = () => { const ds = AB.route && AB.route.frame.dataset; return ds && ds !== "lesmis" ? ds : null; };
     function bar(state) {
         if (state === "one-edge") return edgeBar();
         const s = subject(state);
         const hidden = state === "hidden";
-        const back = state === "neighborhood-directed" ? ["selection-bar", "neighborhood-directed"] : ["selection-bar", state === "two-nodes" ? "two-nodes" : isLong(state) ? "long-name" : "one-node"];
+        const ds = other();
+        const here = [AB.route.id, AB.route.state];
+        const back = ds ? here : state === "neighborhood-directed" ? ["selection-bar", "neighborhood-directed"] : ["selection-bar", state === "two-nodes" ? "two-nodes" : isLong(state) ? "long-name" : "one-node"];
+        const tree = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
         const setText = "Created set of " + s.n + (s.n === 1 ? " node" : " nodes");
         // The node menu's order (explore, then organize, then visibility, then notes), one command record per verb
         return AB.toolbarBar([
-            AB.toolbarButton("target", C("neighborhood").label, { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed ? "neighborhood-directed" : "neighborhood"] }),
+            AB.toolbarButton("target", C("neighborhood").label, { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
             AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", open: state === "long-name-path", go: isLong(state) ? ["selection-bar", "long-name-path"] : C("find-paths").go }),
             "sep",
-            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(["graph-place", "at-rest"], setText, back) }),
+            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, setText, back) }),
             hidden
                 ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "one-node"] })
                 : AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "hidden"] }),
@@ -145,7 +151,10 @@
 
     // ---------- Neighborhood: G selects one hop; the popover grows it in place ----------
     function neighborhoodPopover(anchor, directed) {
-        const who = directed ? T().merchant.id : "Valjean";
+        const ds = !directed && other();
+        // another project: the node the inspector shows, its own direction, and no counts the fixtures do not hold
+        if (ds) directed = !!(AB.fx.datasets[ds] || {}).directed;
+        const who = ds ? subject("one-node").names : directed ? T().merchant.id : "Valjean";
         let hops = 1, dir = "both";
         const said = h("div", { role: "status", style: "color:var(--cm-text-secondary);padding:0 16px 8px" });
         const hopsBox = h("span"), dirBox = h("span");
@@ -156,12 +165,15 @@
             hopsBox.replaceChildren(AB.seg([1, 2, 3].map((n) => [n, String(n)]), hops, (n) => { hops = n; again(hopsBox); }, { label: "Hops" }));
             if (directed) dirBox.replaceChildren(AB.seg([["out", "Out"], ["in", "In"], ["both", "Both"]], dir, (d) => { dir = d; again(dirBox); }, { label: "Direction" }));
             // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
-            if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: everyone within " + hops + " hops of Valjean.";
+            if (ds) said.textContent = "Selected: " + who + " and every node within " + (hops === 1 ? "1 hop" : hops + " hops") + (directed && dir === "out" ? " it points to." : directed && dir === "in" ? " that points to it." : ".");
+            else if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: everyone within " + hops + " hops of Valjean.";
             else if (hops === 1 && dir === "in") said.textContent = "Selected: " + who + " and the " + T().payers.count + " accounts that paid it.";
             else said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + (dir === "out" ? " it pays." : dir === "in" ? " that pays it." : ", either way.");
         }
         paint();
-        const back = ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
+        const back = ds ? ["selection-bar", "one-node"] : ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
+        const steps = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
+        const filters = ds === "wide" ? ["data-place", "wide-filters"] : ds ? ["data-place", AB.placeOf(ds, "data") || "at-rest"] : ["data-place", "filters"];
         const p = AB.popover({
             anchor,
             title: "Neighborhood of " + who,
@@ -172,14 +184,14 @@
                 said,
             ],
             foot: [
-                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(["graph-place", "at-rest"], "Added " + stepName() + ": one group per hop", back) }),
-                AB.button("Filter to neighbors", { onClick: () => commit(["data-place", "filters"], "Added filter step: " + stepName(), back) }),
+                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(steps, "Added " + stepName() + ": one group per hop", back) }),
+                AB.button("Filter to neighbors", { onClick: () => commit(filters, "Added filter step: " + stepName(), back) }),
             ],
         });
         // Closing keeps the selection (Esc never clears it). The shell's Esc does nothing here, because
         // closeTo is this same section, and its X and outside click go to the Les Miserables bar; so
         // Esc and the X are routed here, and the transfers popover closes to its own graph place.
-        const out = directed ? ["graph-place", "many-groups"] : ["selection-bar", "one-node"];
+        const out = ds ? ["selection-bar", "one-node"] : directed ? ["graph-place", "many-groups"] : ["selection-bar", "one-node"];
         const shut = (e) => { e.preventDefault(); e.stopImmediatePropagation(); AB.go(out[0], out[1]); };
         p.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(e); });
         const x = p.querySelector(".k-popover-head [aria-label='Close']");
@@ -187,6 +199,15 @@
         return p;
     }
 
+    // On another project the one-node states keep its panels: the bar, its Neighborhood popover and Hide
+    // act on the node the inspector shows, beside the same tree and canvas
+    function keepProject(state) {
+        const f = AB.route && AB.route.frame, ds = f && f.dataset;
+        if (!ds || ds === "lesmis" || !["one-node", "neighborhood", "hidden"].includes(state)) return null;
+        if (AB.route.id !== "selection-bar" && !(f.toolbar || "").startsWith("selection-bar/")) return null;
+        const w = AB.walked && AB.walked.dataset === ds ? { walk: AB.walked.index + 1 } : {};
+        return Object.assign({ dataset: ds, left: f.left, right: f.right, canvas: f.canvas }, w, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : { dock: f.dock });
+    }
     registerSection({
         id: "selection-bar",
         title: "Selection bar",
@@ -205,13 +226,13 @@
             { id: "long-name-path", label: "Path between from the 60-character name" },
         ],
         // The Neighborhood popover is this section's own overlay, so Esc, the X and a click outside close it
-        frame: (state) => state === "neighborhood-directed"
+        frame: (state) => keepProject(state) || (state === "neighborhood-directed"
             ? { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: false, overlay: "selection-bar/neighborhood-directed" }
             : state === "one-edge" ? { left: "graph-place/at-rest", right: "inspector-edge/style", dock: "table-dock/edges" }
             : Object.assign({
                 left: "graph-place/at-rest",
                 right: state === "two-nodes" ? "inspector-several-elements/two-nodes" : state === "five-nodes" ? "inspector-several-elements/style" : "inspector-node/why-this-look",
-            }, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : state === "long-name-path" ? { dock: false, overlay: "selection-bar/long-name-path" } : {}),
+            }, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : state === "long-name-path" ? { dock: false, overlay: "selection-bar/long-name-path" } : {})),
         render(el, state, ctx) {
             if (ctx.region === "overlay") {
                 if (state === "long-name-path") return longPathPopover(el, ctx);
@@ -223,7 +244,7 @@
             const b = bar(state);
             const wrap = h("div", { style: "display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%" });
             if (state === "hidden") {
-                AB.notice("Valjean hidden on canvas", { label: "Undo", go: ["selection-bar", "one-node"] });
+                AB.notice(subject("one-node").names + " hidden on canvas", { label: "Undo", go: ["selection-bar", "one-node"] });
                 wrap.append(AB.openQuestion("Does a hidden node stay selected, keeping this bar?"));
             }
             // Notes are graphty-element API, except a note on an edge picked on the canvas

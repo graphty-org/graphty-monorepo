@@ -298,6 +298,7 @@
             return { title: "Reading " + D.tables.length + " tables", text: D.tables.map((t) => t.file).join(", ") + ": " + n(D.loadedTypes().total) + " nodes, " + n(D.loadedEdges()) + " edges..." };
         }
         if (ds === "transactions") { const T = AB.fx.datasets.transactions; return { title: "Reading " + T.frame.file, text: n(T.nodes) + " nodes, " + n(T.edges) + " edges..." }; }
+        if (ds === "registry") { const R = AB.fx.datasets[AB.registryDataset()]; return { title: "Reading " + R.file, text: n(R.nodes) + " nodes, " + n(R.edges) + " edges..." }; }
         return { title: "Reading miserables.gexf", text: L().nodes + " nodes, " + L().edges + " edges..." };
     }
 
@@ -364,29 +365,36 @@
         const D = AB.fx.datasets[ds];
         const NL = ds === "nested" ? AB.nestedLoaded() : null, ck = ds + (NL ? JSON.stringify(NL) : "");
         if (graphs.has(ck)) return graphs.get(ck);
-        let ids, keys, pairs;
+        // nrec, ntab: each node's record and table; a pair's third item is its edge record and table
+        let ids, keys, pairs, nrec, ntab;
         if (ds === "wide") {
             ids = D.nodeRows.map((r) => r.id);
             keys = D.nodeRows.map((r) => r.role);
-            pairs = D.edgeRows.map((e) => [e.source, e.target]);
+            nrec = D.nodeRows;
+            ntab = ids.map(() => "hosts");
+            pairs = D.edgeRows.map((e) => [e.source, e.target, e, "connections"]);
         } else if (ds === "nested") {
             const R = D.document.data.researchers, I = D.document.data.institutions;
             ids = R.map((r) => r.id).concat(I.map((i) => i.id));
             keys = R.map((r) => (r.attributes.affiliations[0] || {}).institution_id || "none").concat(I.map((i) => i.id));
+            nrec = R.concat(I);
+            ntab = R.map(() => "researchers").concat(I.map(() => "institutions"));
             pairs = [];
             // the edges the last Load made: co-authors (Several edges), affiliations (Several rows), links
             R.forEach((r) => {
                 if (NL.co === "edges") r.relationships.coauthor_ids.forEach((c) => { if (r.id < c) pairs.push([r.id, c]); });
                 if (NL.aff === "rows") r.attributes.affiliations.forEach((a) => pairs.push([r.id, a.institution_id]));
             });
-            if (NL.links) D.document.links.forEach((l) => pairs.push([l.source, l.target]));
+            if (NL.links) D.document.links.forEach((l) => pairs.push([l.source, l.target, l, "links"]));
         } else {
             ids = D.document.nodes.map((r) => r.id);
             keys = ids.map(() => "all");
-            pairs = D.document.links.map((l) => [l.source, l.target]);
+            nrec = D.document.nodes;
+            ntab = ids.map(() => "nodes");
+            pairs = D.document.links.map((l) => [l.source, l.target, l, "links"]);
         }
         const at = new Map(ids.map((id, i) => [id, i]));
-        const edges = pairs.map(([a, b]) => [at.get(a), at.get(b)]).filter(([a, b]) => a != null && b != null);
+        const edges = pairs.map(([a, b, rec, tab]) => [at.get(a), at.get(b), rec || null, tab || null]).filter(([a, b]) => a != null && b != null);
         const deg = ids.map(() => 0);
         edges.forEach(([a, b]) => { deg[a]++; deg[b]++; });
         // clusters in first-seen order; a nested institution leads its own cluster (the spiral's center)
@@ -406,14 +414,56 @@
         });
         const iso = ids.map((_, i) => i).filter((i) => !pos[i]);
         iso.forEach((i, k) => { const a = (k / iso.length) * 2 * Math.PI - Math.PI / 4; pos[i] = [600 + 560 * Math.cos(a), 400 + 370 * Math.sin(a)]; });
-        const g = { pos, edges, size: ds === "wide" ? D.nodeRows.map((r) => r[LONG]) : null };
+        const g = { pos, edges, nrec, ntab, size: ds === "wide" ? D.nodeRows.map((r) => r[LONG]) : null };
         graphs.set(ck, g);
         return g;
     }
-    function otherSvg(ds, theme, sized, walked, fill) {
+    // What Color by and Size by paint (AB.painted; a row wins over Everything's line): per node a fill
+    // and a radius, per edge a stroke and a width, and the legend's parts. Numbers run on the measure
+    // ramp, fit to the data; categories take Okabe-Ito by count, the eighth and later "other".
+    const CATS = ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442"], OTHER = "#B0B0B0";
+    function paintOf(ds) {
+        const g = otherGraph(ds), out = { fill: null, rad: null, stroke: null, width: null, parts: [], words: [] };
+        const scalar = (v) => (v == null || v === "" || typeof v === "object" ? null : v);
+        const read = (p, recs, tabs) => recs.map((r, i) => (tabs[i] === p.table ? scalar(AB.valueAt(r, p.name)) : null));
+        const go = (p) => (p.on === "row" ? ["inspector-measure-row", "painted-" + p.prop.toLowerCase()] : p.on.split("/"));
+        const fmt = (v) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
+        const spec = (p, vals) => {
+            const nums = vals.filter((v) => typeof v === "number");
+            const title = p.prop === "Color" ? "Color: " : p.element === "edge" ? "Width: " : "Size: ";
+            if (p.type === "num" && nums.length) {
+                const lo = Math.min(...nums), hi = Math.max(...nums), t = (v) => (hi > lo ? (v - lo) / (hi - lo) : 0.5);
+                return { t: (v) => (typeof v === "number" ? t(v) : null), part: { title: title + p.name, go: go(p), rows: [{ swatch: p.prop === "Color" ? AB.ramp(PR_STOPS[0], PR_STOPS[4]) : null, label: fmt(lo) + " to " + fmt(hi), go: go(p) }] } };
+            }
+            const c = {};
+            vals.forEach((v) => { if (v != null) c[v] = (c[v] || 0) + 1; });
+            const top = Object.entries(c).sort((a, b) => b[1] - a[1]), col = Object.fromEntries(top.map(([v], i) => [v, CATS[i] || OTHER]));
+            return { col: (v) => (v == null ? null : col[v]), part: { title: title + p.name, go: go(p), rows: top.slice(0, 7).map(([v, k]) => ({ swatch: col[v], label: AB.truncMiddle(String(v), 24), count: k.toLocaleString("en-US"), go: go(p) })), more: top.length > 7 ? top.length - 7 + " more values" : null } };
+        };
+        const color = (p, vals) => { const sp = spec(p, vals); out.parts.push(sp.part); return vals.map((v) => (sp.col ? sp.col(v) : sp.t(v) == null ? null : rampAt(sp.t(v)))); };
+        const size = (p, vals, from, to) => { const sp = spec(p, vals); out.parts.push(sp.part); return vals.map((v) => (sp.t && sp.t(v) != null ? from + sp.t(v) * (to - from) : null)); };
+        const nc = AB.paintOf(ds, "Color", "node"), ns = AB.paintOf(ds, "Size", "node"), ec = AB.paintOf(ds, "Color", "edge"), es = AB.paintOf(ds, "Size", "edge");
+        if (nc) { out.fill = color(nc, read(nc, g.nrec, g.ntab)); out.words.push("nodes colored by " + nc.name); }
+        if (ns && ns.type === "num") { out.rad = size(ns, read(ns, g.nrec, g.ntab), 4 * VULN_RANGE[0], 4 * VULN_RANGE[1]); out.words.push("nodes sized by " + ns.name); }
+        if (ec) { out.stroke = color(ec, read(ec, g.edges.map((e) => e[2]), g.edges.map((e) => e[3]))); out.words.push("edges colored by " + ec.name); }
+        if (es && es.type === "num") { out.width = size(es, read(es, g.edges.map((e) => e[2]), g.edges.map((e) => e[3])), 0.5, 4); out.words.push("edges sized by " + es.name); }
+        return out;
+    }
+    function rampAt(t) {
+        const x = t * (PR_STOPS.length - 1), i = Math.min(PR_STOPS.length - 2, Math.floor(x)), f = x - i;
+        const a = PR_STOPS[i].match(/\w\w/g).map((y) => parseInt(y, 16)), b = PR_STOPS[i + 1].match(/\w\w/g).map((y) => parseInt(y, 16));
+        return "#" + a.map((y, k) => Math.round(y + (b[k] - y) * f).toString(16).padStart(2, "0")).join("");
+    }
+    function otherSvg(ds, theme, sized, walked, fill, paint) {
         const g = otherGraph(ds), bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5", f = (x) => x.toFixed(1);
-        const rad = (i) => (sized ? 4 * (VULN_RANGE[0] + (g.size[i] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
-        const lines = g.edges.map(([a, b]) => `<line x1="${f(g.pos[a][0])}" y1="${f(g.pos[a][1])}" x2="${f(g.pos[b][0])}" y2="${f(g.pos[b][1])}"/>`).join("");
+        const P = paint || {};
+        const rad = (i) => (P.rad && P.rad[i] != null ? P.rad[i] : sized ? 4 * (VULN_RANGE[0] + (g.size[i] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
+        if (P.fill) fill = Object.assign({}, fill || {}, Object.fromEntries(P.fill.map((c, i) => [i, c]).filter(([, c]) => c)));
+        // a painted edge draws in its own color at full opacity; the rest stay the quiet gray
+        const lines = g.edges.map(([a, b], k) => {
+            const c = P.stroke && P.stroke[k], w = P.width && P.width[k];
+            return `<line x1="${f(g.pos[a][0])}" y1="${f(g.pos[a][1])}" x2="${f(g.pos[b][0])}" y2="${f(g.pos[b][1])}"${c ? ` stroke="${c}" stroke-opacity="0.9"` : ""}${w != null ? ` stroke-width="${f(w)}"` : ""}/>`;
+        }).join("");
         // the largest last, so a small node is never hidden under a large one
         const order = g.pos.map((_, i) => i).sort((a, b) => rad(b) - rad(a));
         const dots = order.map((i) => `<circle cx="${f(g.pos[i][0])}" cy="${f(g.pos[i][1])}" r="${rad(i)}" fill="${(fill && fill[i]) || "#808080"}" stroke="${bg}" stroke-width="1.5"/>`).join("");
@@ -439,7 +489,11 @@
     function hosts(el, state) {
         const ds = state === "nested-set" ? "nested" : ["nested", "plainJson"].includes(AB.route && AB.route.frame.dataset) ? AB.route.frame.dataset : "wide";
         const D = AB.fx.datasets[ds], sized = state === "hosts-legend" && ds === "wide";
-        const walked = AB.walked && AB.walked.dataset === ds ? AB.walked.index : -1;
+        // the ring marks the node the inspector shows: the walked one, else its state's own node (the hosts'
+        // monitor-prod-iad-03, the first researcher or coauthor)
+        const inNode = AB.route && String(AB.route.frame.right || "").startsWith("inspector-node/") && ds === AB.route.frame.dataset;
+        const walked = AB.walked && AB.walked.dataset === ds ? AB.walked.index : !inNode ? -1 : ds === "wide" ? D.nodeRows.findIndex((r) => r.hostname === "monitor-prod-iad-03") : 0;
+        const walkedName = walked >= 0 ? (AB.walkList(ds)[walked] || {}).name : null;
         const NL = AB.nestedLoaded();
         const how = [NL.co === "edges" && "co-authorship", NL.aff === "rows" && "affiliation", NL.links && "links"].filter(Boolean);
         const what = ds === "wide" ? n(D.nodes) + " hosts and " + n(D.edges) + " connections"
@@ -447,24 +501,48 @@
             : n(D.nodes) + " nodes and " + n(D.edges) + " edges";
         const set = state === "nested-set" ? setMembers(D) : null;
         const fill = set ? Object.fromEntries(set.map((i) => [i, SET.color])) : null;
-        const alt = D.frame.project + ": " + what + (sized ? ", sized by " + LONG : set ? ", " + set.length + " researchers in the set colored green" : ", unstyled") + (walked >= 0 ? "; " + AB.walked.name + " selected" : "");
+        const paint = paintOf(ds);
+        const alt = D.frame.project + ": " + what + (sized ? ", sized by " + LONG : set ? ", " + set.length + " researchers in the set colored green" : paint.words.length ? "" : ", unstyled") + (paint.words.length ? ", " + paint.words.join(", ") : "") + (walked >= 0 ? "; " + walkedName + " selected" : "");
         const imgs = ["light", "dark"].map((t) => {
-            const k = [ds, JSON.stringify(ds === "nested" ? NL : ""), t, sized, walked, !!set].join("-");
-            return h("img", { class: "k-" + t + "-only", alt, src: otherUrl[k] || (otherUrl[k] = URL.createObjectURL(new Blob([otherSvg(ds, t, sized, walked, fill)], { type: "image/svg+xml" }))) });
+            const k = [ds, JSON.stringify(ds === "nested" ? NL : ""), t, sized, walked, !!set, JSON.stringify(AB.painted[ds] || [])].join("-");
+            return h("img", { class: "k-" + t + "-only", alt, src: otherUrl[k] || (otherUrl[k] = URL.createObjectURL(new Blob([otherSvg(ds, t, sized, walked, fill, paint)], { type: "image/svg+xml" }))) });
         });
         const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs);
         const g0 = otherGraph(ds), hotI = HOT[ds] ? HOT[ds](D) : -1;
-        const hot = hotNode(ds, g0.pos[hotI], sized ? 4 * (VULN_RANGE[0] + (g0.size[hotI] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
+        const hot = hotNode(ds, g0.pos[hotI], paint.rad && paint.rad[hotI] != null ? paint.rad[hotI] : sized ? 4 * (VULN_RANGE[0] + (g0.size[hotI] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
+        // once the walk moved on, the hot spot's hover ring would read as a second selection: it stays quiet
+        if (hot && walked >= 0 && walked !== hotI) hot.setAttribute("data-quiet", "");
         if (hot) stage.append(hot);
-        if (set) { AB.append(el, [stage, AB.legendCard([{ title: "Color: sets", go: SET.go, rows: [{ swatch: SET.color, label: SET.name, count: n(set.length), go: SET.go }] }])]); return; }
-        if (!sized) { AB.append(el, [stage, AB.legendCard([])]); return; }
+        if (set) { AB.append(el, [stage, AB.legendCard([{ title: "Color: sets", go: SET.go, rows: [{ swatch: SET.color, label: SET.name, count: n(set.length), go: SET.go }] }].concat(paint.parts))]); return; }
+        if (!sized) { AB.append(el, [stage, AB.legendCard(paint.parts)]); return; }
         // The legend's title is the row's name, the attribute: middle ellipsis, the full name in its tooltip and accessible name
         const go = ["inspector-measure-row", "long-name"], g = otherGraph(ds);
         const dot = (v) => { const px = 4 * (VULN_RANGE[0] + (v / 6) * (VULN_RANGE[1] - VULN_RANGE[0])); return h("span", { class: "ab-dot", style: `width:${px}px;height:${px}px` }); };
         const lo = Math.min(...g.size), hi = Math.max(...g.size);
-        const card = AB.legendCard([{ title: "Size: " + LONG, go, rows: [{ swatch: h("span", { class: "cs-dots" }, [lo, Math.round((lo + hi) / 2), hi].map(dot)), label: lo + " to " + hi, go }] }]);
+        const card = AB.legendCard([{ title: "Size: " + LONG, go, rows: [{ swatch: h("span", { class: "cs-dots" }, [lo, Math.round((lo + hi) / 2), hi].map(dot)), label: lo + " to " + hi, go }] }].concat(paint.parts));
         if (card) card.querySelector(".k-lg-title").replaceChildren("Size: ", AB.truncMiddle(LONG, 30));
         AB.append(el, [stage, card]);
+    }
+
+    // The package registry Load makes (data-page/json-keyed): 1,204 packages, each depending on a few
+    // popular ones, drawn on a sunflower with the most depended-on at the center.
+    // ponytail: the dependencies are made up from a seeded generator; the fixture holds only 8 packages
+    const registryUrl = {};
+    function registrySvg(theme, edges) {
+        const N = AB.fx.datasets[AB.registryDataset()].nodes, bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5", f = (x) => x.toFixed(1);
+        let seed = 7;
+        const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+        const pos = Array.from({ length: N }, (_, i) => { const r = 11 * Math.sqrt(i), t = i * 2.39996; return [600 + r * Math.cos(t), 400 + r * Math.sin(t) * 0.92]; });
+        const lines = [];
+        for (let k = 0; k < edges; k++) { const a = 1 + Math.floor(rnd() * (N - 1)), b = Math.floor(Math.pow(rnd(), 3) * a); lines.push(`<line x1="${f(pos[a][0])}" y1="${f(pos[a][1])}" x2="${f(pos[b][0])}" y2="${f(pos[b][1])}"/>`); }
+        const dots = pos.map(([x, y]) => `<circle cx="${f(x)}" cy="${f(y)}" r="3" fill="#808080" stroke="${bg}" stroke-width="1"/>`).join("");
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/><g stroke="#808080" stroke-width="0.5" stroke-opacity="0.12">${lines.join("")}</g>${dots}</svg>`;
+    }
+    function registry(el) {
+        const R = AB.fx.datasets[AB.registryDataset()];
+        const alt = R.frame.project + ": " + n(R.nodes) + " packages" + (R.edges ? " and " + n(R.edges) + " dependencies" : ", no dependency edges") + ", unstyled";
+        const imgs = ["light", "dark"].map((t) => h("img", { class: "k-" + t + "-only", alt, src: registryUrl[t + R.edges] || (registryUrl[t + R.edges] = URL.createObjectURL(new Blob([registrySvg(t, R.edges)], { type: "image/svg+xml" }))) }));
+        el.append(h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs));
     }
 
     const OLD = { "too-large": "refused-too-large", "layout-running": "drawn", "layout-paused": "drawn", "layout-settled": "drawn", "legend-open": "drawn", "camera-moved": "drawn" };
@@ -482,6 +560,8 @@
             if (state === "loading") return { left: "graph-place/empty", right: "inspector-nothing-selected/reading", dock: false };
             if (state === "door-entries-loading") return { dataset: "doorEntries", left: "graph-place/empty", right: false, dock: false };
             if (state === "transfers-loading") return { dataset: "transactions", left: "graph-place/empty", right: false, dock: false };
+            if (state === "registry-loading") return { dataset: AB.registryDataset(), left: "graph-place/empty", right: false, dock: false };
+            if (state === "registry") return { dataset: AB.registryDataset(), left: "graph-place/registry" };
             if (state === "door-entries") return { dataset: "doorEntries", left: "graph-place/door-entries" };
             if (state === "gpu-lost") return { left: "graph-place/failed", right: "inspector-nothing-selected/overview" };
             if (state === "headset-ended") return { left: "graph-place/at-rest", toolbar: "toolbar/session-ended" };
@@ -512,6 +592,8 @@
             { id: "door-entries", label: "Door entries, as loaded (unstyled)" },
             { id: "door-entries-loading", label: "Loading the door-entries tables" },
             { id: "transfers-loading", label: "Loading the transfers" },
+            { id: "registry-loading", label: "Loading the package registry" },
+            { id: "registry", label: "The package registry, as loaded (unstyled)" },
             { id: "hosts", label: "Hosts (wide project), unstyled; the nested project's canvas too" },
             { id: "hosts-legend", label: "Hosts sized by a 46-character attribute, its legend" },
             { id: "nested-set", label: "Research network: a kept set of 23 researchers colored green" },
@@ -530,6 +612,12 @@
                 loading(el, state === "door-entries-loading" ? "doorEntries" : "transactions");
                 setTimeout(() => { if (location.hash === here) AB.go(to[0], to[1]); }, 1500);
             }
+            else if (state === "registry-loading") {
+                const here = location.hash;
+                loading(el, "registry");
+                setTimeout(() => { if (location.hash === here) AB.go("graph-place", "registry"); }, 1500);
+            }
+            else if (state === "registry") registry(el);
             else if (state === "door-entries") door(el);
             else if (state === "hosts" || state === "hosts-legend" || state === "nested-set") hosts(el, state);
             else if (state === "empty") empty(el);

@@ -194,14 +194,8 @@
             };
             // An attribute column of the wide and nested projects: the attribute's menu, as Data > Attributes opens it
             const gds = o.columns && ["wide", "nested"].includes(o.columns.ds) ? o.columns.ds : null;
-            const fieldMenu = (c) => AB.openMenu(heads[c.key], [
-                { heading: c.label },
-                { label: "Color by", go: ["style-pickers", gds === "wide" ? "wide-color-by" : "nested-color-by"] },
-                { label: (o.columns.element === "edge" ? "Width by" : "Size by"), go: ["style-pickers", gds === "wide" ? "wide-size-by" : "binding-long"] },
-                { sep: true },
-                { label: "Read as...", onClick: () => AB.openField(gds, c.field) },
-                { label: "Show in Data", go: ["data-place", gds === "wide" ? "attributes-wide" : "attributes-nested"] },
-            ]);
+            // The column menu is the attribute's own menu, minus Show in table (spec 11, Column menu)
+            const fieldMenu = (c) => AB.attributeMenu(heads[c.key], gds, c.field, { noTable: true, editOn: ["data-page", gds === "wide" ? "edit-wide-hosts" : "edit-json-researchers"] });
             const openMenu = (c) => (c.menu ? AB.go("table-dock", "column-menu") : gds && c.generic ? fieldMenu(c) : flash("The " + c.label + " column menu")());
             const thead = h("tr", null, cols.map((c, i) => {
                 // One Tab stop per header: the caret is for the pointer; the keyboard opens the menu from the header (Alt+Down, Shift+F10)
@@ -221,7 +215,8 @@
                 return th;
             }));
             fill();
-            wrap.replaceChildren(h("table", { class: "k-table" }, h("thead", null, thead), tbody), rows.length ? null : o.empty || null);
+            // named for its element, and when Columns hides some, how many of the table's columns show
+            wrap.replaceChildren(h("table", { class: "k-table", "aria-label": (o.label || "Table") + (cv && cv.visible().length < cv.total ? ", " + cv.visible().length + " of " + cv.total + " columns shown" : "") }, h("thead", null, thead), tbody), rows.length ? null : o.empty || null);
         };
         build();
         if (cv) { cv.onChange = build; wrap.colsButton = cv.button; }
@@ -329,7 +324,7 @@
             ? AB.iconButton(closed ? "chevron-up" : "chevron-down", closed ? "Show table (Shift+T)" : "Hide table (Shift+T)", { go: ["table-dock", closed ? "nodes" : "closed"] })
             : AB.dockToggle();
         return h("div", { class: "k-dock-tabs td-tabs" }, list, h("span", { class: "k-grow" }), colsBtn || null,
-            AB.iconButton(AB.ICON.options, "Table options", { go: ["table-dock", optionsState || "table-options"] }),
+            AB.iconButton(AB.ICON.options, "Table options", typeof optionsState === "function" ? { onClick: optionsState } : { go: ["table-dock", optionsState || "table-options"] }),
             toggle);
     }
 
@@ -575,15 +570,19 @@
     }
     function wideTable(ds, element) {
         const rows = recordsOf(ds, element);
-        const who = (r) => (element === "node" ? r.hostname || pathGet(r, "attributes.name.family") || r.name || r.id : r.source + " - " + r.target);
+        const who = (r) => (element === "node" ? AB.nameOf(ds, r) : r.source + " - " + r.target);
         // A node row selects that node, as the canvas walk does (the inspector reads the walked row)
         const walkAt = (r) => (ds === "wide" ? AB.fx.datasets.wide.nodeRows.indexOf(r) : AB.fx.datasets.nested.document.data.researchers.indexOf(r));
         const open = ds === "plainJson" ? (r) => AB.flash("Selects " + who(r) + " (not wired in the skeleton)")
             : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : AB.flash("Selects " + who(r) + " (an institution has no inspector state in the skeleton)"))
                 : ds === "wide" ? () => AB.go("inspector-edge", "wide-data") : (r) => AB.flash("Selects the edge " + who(r) + " (not wired in the skeleton)");
         const typeCol = ds === "nested" && element === "edge" ? [{ key: "edgeType", label: "edge type", type: "cat", val: (r) => r.edgeType, cell: (r) => r.edgeType }] : [];
-        return table(typeCol, rows, { raw: true, label: element === "node" ? "Nodes" : "Edges", who, onRow: open,
-            columns: { ds, element, byDefault: (fields) => fields.filter((f) => f.usedBy).map((f) => f.name) } });
+        // A Name built from several fields is one column, the Name; its parts stay in Columns, unchecked
+        const parts = ds === "nested" && element === "node" ? Object.values(AB.nestedLoaded().name || {}) : [];
+        const joined = parts.some((p) => p.length > 1), nameParts = parts.flat();
+        const nameCol = joined ? [{ key: "Name", label: "Name", type: "cat", val: who, cell: who }] : [];
+        return table(typeCol.concat(nameCol), rows, { raw: true, label: element === "node" ? "Nodes" : "Edges", who, onRow: open,
+            columns: { ds, element, byDefault: (fields) => fields.filter((f) => f.usedBy && !(joined && nameParts.includes(f.name))).map((f) => f.name) } });
     }
     function wideDock(root, active0, at) {
         const ds = (AB.route && AB.route.frame.dataset) || "wide";
@@ -601,7 +600,7 @@
             const rs = recordsOf(ok, element), byType = {};
             if (ok === "nested" && element === "edge") rs.forEach((r) => { byType[r.edgeType] = (byType[r.edgeType] || 0) + 1; });
             const from = (ok === "wide" ? (element === "node" ? D.file : D.edgesFile) : D.file) + (Object.keys(byType).length > 1 ? ": " + Object.entries(byType).map(([k, v]) => fmt(v) + " " + k).join(", ") : "");
-            root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = x.id; draw(); }, "table-options", t.colsButton),
+            root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = x.id; draw(); }, wideOptions, t.colsButton),
                 scope(plural(n, element), ROW_HINT, h("span", { class: "k-secondary" }, "from " + from)), t);
         };
         draw();
@@ -709,6 +708,15 @@
         draw();
     }
 
+    // The loaded projects' Table options open in place, over the project's own table (its route draws Les Miserables)
+    function wideOptions(e) {
+        const btn = e && e.currentTarget && e.currentTarget.closest ? e.currentTarget : document.querySelector("#ab-dock [aria-label='Table options']");
+        AB.openMenu(btn, [
+            { label: "Time slider", disabled: "This data has no time attribute" },
+            { sep: true },
+            { label: "Export table as CSV...", onClick: () => AB.go("export-dialog", "table") },
+        ]);
+    }
     // ---------- menus drawn in the overlay region ----------
     function optionsMenu(el, time) {
         // time: null (no time attribute), "off" or "on"
@@ -732,7 +740,8 @@
         if (!cv) return;
         // Esc closes it once Find is empty (the shell's Esc stays put: the popover's closeTo is this section too)
         const pop = AB.popover({
-            anchor: "#ab-dock .td-cols", place: "above", title: "Columns", width: 340,
+            // opens up and to the left, inside the canvas, never over the inspector beside it
+            anchor: "#ab-dock .td-cols", place: "above-end", title: "Columns", width: 340,
             body: AB.fieldList({ size: "panel", dataset: c.ds, element, results: false, notes: false, label: "Columns", checkboxes: [...cv.shown()], locked: cv.locked,
                 query: state === "wide-columns" ? "vuln" : "",
                 onToggle(name, on) { const sh = cv.shown(); if (on) sh.add(name); else sh.delete(name); cv.refresh(); } }),
@@ -768,10 +777,12 @@
         else if (state === "door-entries-options") optionsMenu(el, "door");
     }
 
+    // The wide table draws whichever loaded project is on screen (hosts, research network, coauthors)
+    const loadedDs = () => { const d = AB.route && AB.route.frame.dataset; return ["wide", "nested", "plainJson"].includes(d) ? d : "wide"; };
     function frame(state) {
         if (state === "columns") return Object.assign(frame((colsAt && colsAt.state) || "nodes"), colsAt && colsAt.state === "wide" ? { dataset: colsAt.ds } : {}, { overlay: "table-dock/columns" });
-        if (state === "wide") return { dataset: "wide", left: "graph-place/at-rest" };
-        if (state === "wide-columns") return { dataset: "wide", left: "graph-place/at-rest", overlay: "table-dock/wide-columns" };
+        if (state === "wide") return { dataset: loadedDs(), left: "graph-place/at-rest" };
+        if (state === "wide-columns") return { dataset: loadedDs(), left: "graph-place/at-rest", overlay: "table-dock/wide-columns" };
         if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
         if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
         if (state === "door-entries-options") return { dataset: "doorEntries", left: "graph-place/door-entries", overlay: "table-dock/" + state };

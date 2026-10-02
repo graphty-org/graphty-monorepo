@@ -214,6 +214,26 @@
             labelOpener = { pos: posId(t.dataset.label), lines, right: r && typeof r.frame.right === "string" ? r.frame.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null };
         }
     }, true);
+    // The bind icon on an unbound line: its property, and the panels it was clicked in (bind-prop draws over them)
+    let bindOpener = null;
+    document.addEventListener("click", (e) => {
+        const b = e.target.closest && e.target.closest('#ab-right .ab-sline [aria-label^="Use a field or result for "]');
+        const ln = b && b.closest(".ab-sline");
+        if (!ln || ln.hasAttribute("data-bound")) return;
+        const r = AB.route, f = r && r.frame;
+        bindOpener = { prop: b.getAttribute("aria-label").replace("Use a field or result for ", ""), ch: ln.dataset.ch, left: f && f.left, canvas: f && f.canvas, dataset: f && f.dataset,
+            right: f && typeof f.right === "string" ? f.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null };
+    }, true);
+    // A bound line's value clicked (style-pickers/bound): its channel and the inspector it is on
+    let lastLine = null, boundOpener = null;
+    document.addEventListener("click", (e) => {
+        // the bound value, or the bind icon on a bound line
+        const b = e.target.closest && (e.target.closest("#ab-right .ab-sline .ab-bound") || e.target.closest('#ab-right .ab-sline[data-bound] [aria-label^="Use a field or result for "]'));
+        if (!b) return;
+        const r = AB.route, f = r && r.frame;
+        lastLine = b.closest(".ab-sline").dataset.ch;
+        boundOpener = f && typeof f.right === "string" ? f.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null;
+    }, true);
     const takeOpener = () => { const o = opener; opener = { line: null, token: null }; return o; };
 
     // ---------- anchors ----------
@@ -362,7 +382,15 @@
         const num = type === "num";
         return { prop, source: name, type: num ? "number" : "category", pal: num ? "ylorbr" : "okabe-ito", from: "fit", range: num ? rangeOf(name) : null, out: ["0.5", "3"], total: u[0], unit: u[1] };
     }
-    // binding(el, preset or spec, { anchor, open }): open = true opens Source's field list at once
+    // A pick in a loaded project (wide, nested, plain JSON) is a binding the panels then show: on is
+    // "row" (a measure row's own line) or the inspector route whose line the bind icon was on
+    // (AB.paintBy). Only Color and Size are modeled; other properties stay a picture.
+    function commitTo(prop, on) {
+        const ds = AB.route && AB.route.frame.dataset;
+        if (!["wide", "nested", "plainJson"].includes(ds) || !/^(Color|Size)$/.test(prop)) return null;
+        return (name) => { if (AB.paintBy(ds, prop, name, on)) AB.repaint = true; };
+    }
+    // binding(el, preset or spec, { anchor, open, commit }): open = true opens Source's field list at once
     function binding(el, spec, o) {
         o = o || {};
         const B = typeof spec === "string" ? BINDINGS[spec] : spec;
@@ -376,10 +404,12 @@
         // A pick on a binding with no source, or with an error, draws the whole popover for the field
         // picked; otherwise Source changes in place and the rest stays
         const repick = (name, type) => {
+            // In a loaded project the pick is made at once: the line stays bound when the popover closes
+            if (o.commit) o.commit(name, type);
             if (!B.source || B.error) {
                 const anchor = o.anchor;
                 pop1.remove();
-                binding(el, boundFrom(B.prop, name, type), { anchor });
+                binding(el, boundFrom(B.prop, name, type), { anchor, commit: o.commit });
                 el.querySelectorAll(":scope > .k-popover").forEach((p) => p.classList.add("sp-pop"));
                 requestAnimationFrame(() => { const f = el.querySelector(".k-popover [data-autofocus]"); if (f) f.focus(); });
             } else {
@@ -813,7 +843,8 @@
     // row Fill's real "+" adds the Color line first (Fill has one property, so "+" adds it at once).
     function colorBy(el, o) {
         o = o || {};
-        const open = () => { el.hidden = false; binding(el, { prop: "Color", source: null, type: "number" }, { anchor: find(lineAt("node.color"), headSel("Fill")), open: true, query: o.query, reveal: o.reveal }); settle(el); };
+        const commit = commitTo("Color", rightOf(stateNow()));
+        const open = () => { el.hidden = false; binding(el, { prop: "Color", source: null, type: "number" }, { anchor: find(lineAt("node.color"), headSel("Fill")), open: true, query: o.query, reveal: o.reveal, commit }); settle(el); };
         requestAnimationFrame(() => {
             const b = o.add && headOf("Fill") && headOf("Fill").querySelector(".ab-plus");
             if (b) b.click();
@@ -832,6 +863,7 @@
         "token-color": "inspector-node/why-this-look",
         "wide-no-match": HOSTS, "wide-size-by": HOSTS, "wide-color-by": HOSTS, "wide-search": HOSTS, "wide-bind": HOSTS, "wide-label": HOSTS,
         "nested-color-by": RESEARCHERS, "binding-long": RESEARCHERS, "binding-unknown-path": "inspector-measure-row/style",
+        "painted-color": "inspector-measure-row/painted-color", "painted-size": "inspector-measure-row/painted-size",
     };
     // the project each state shows (the Les Miserables states name none)
     const DATASET = { "wide-no-match": "wide", "wide-size-by": "wide", "wide-color-by": "wide", "wide-search": "wide", "wide-bind": "wide", "wide-label": "wide", "nested-color-by": "nested", "binding-long": "nested" };
@@ -844,6 +876,12 @@
         "label-show": () => pressPlus("Label"),
         bind: (el) => labelStyle(el, { openSource: true }),
         binding: (el) => binding(el, "color"),
+        // bind on an unbound line: Binding for that property, Source alone with its field list open
+        "bind-prop": (el) => {
+            const B = bindOpener || { prop: "Color", ch: "node.color" };
+            const commit = commitTo(B.prop, rightOf("bind-prop"));
+            requestAnimationFrame(() => { el.hidden = false; binding(el, { prop: B.prop, source: null, type: "number" }, { anchor: find(lineAt(B.ch)), open: true, commit }); settle(el); });
+        },
         "binding-diverging": (el) => binding(el, "diverging"),
         "bind-number": (el) => binding(el, "size"),
         // on Group 2's two lines (Above: label, Below: Note count) "+" adds a Right draft and opens the From data list on it
@@ -863,7 +901,7 @@
         "wide-color-by": (el) => colorBy(el, { add: true }),
         "wide-search": (el) => colorBy(el, { add: true, query: "cpu p95" }),
         "wide-no-match": (el) => colorBy(el, { add: true, query: "xyz" }),
-        "nested-color-by": (el) => colorBy(el, { reveal: "tags" }),
+        "nested-color-by": (el) => colorBy(el, { reveal: "Not usable here" }),
         // Size by on the hosts: the bound Size line's Binding, its Source list open on the number fields
         "wide-size-by": (el) => binding(el, boundFrom("Size", VULN, "num"), { open: true, reveal: "Not a number" }),
         // bind on a label line: the real "+" adds Above: hostname, then its Label popover opens its Text list
@@ -872,10 +910,28 @@
         "wide-label": () => requestAnimationFrame(() => pressLabelPlus(() => leaveWithMenu())),
         "binding-unknown-path": (el) => binding(el, "unknown"),
         "binding-long": (el) => binding(el, boundFrom("Size", LAST5, "num"), { anchor: find(headSel("Shape")) }),
+        // a Color by or Size by row's bound line: its Binding, Source the attribute; a new pick repaints the row
+        "painted-color": (el) => paintedBinding(el, "Color"),
+        "painted-size": (el) => paintedBinding(el, "Size"),
+        // a line bound with its bind icon (Everything's Color): its Binding, over the inspector it is on
+        bound: (el) => {
+            const ch = (lastLine || "node.color"), prop = /color$/.test(ch) ? "Color" : "Size", on = rightOf("bound");
+            const ds = AB.route && AB.route.frame.dataset, p = (AB.painted[ds] || []).find((x) => x.on === on && x.prop === prop);
+            if (!p) return binding(el, { prop, source: null, type: "number" }, { anchor: find(lineAt(ch)), open: true, commit: commitTo(prop, on) });
+            binding(el, boundFrom(prop, p.name, p.type), { anchor: find(lineAt(ch)), commit: commitTo(prop, on) });
+        },
     };
+    function paintedBinding(el, prop) {
+        const ds = AB.route && AB.route.frame.dataset, p = (AB.painted[ds] || []).filter((x) => x.on === "row" && x.prop === prop).pop();
+        if (!p) return binding(el, "color");
+        const ch = p.element + "." + (prop === "Color" ? "color" : p.element === "edge" ? "width" : "size");
+        binding(el, boundFrom(prop, p.name, p.type), { anchor: find(lineAt(ch)), commit: commitTo(prop, "row") });
+    }
     // The Label popover keeps the inspector it was opened from (a label line knows it); else the state's fixture
     window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) setTimeout(() => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) labelOpener = null; }, 0); });
-    const rightOf = (s) => ((s === "label-style" || s === "bind") && labelOpener && labelOpener.right ? labelOpener.right : RIGHT[s] || RIGHT["plus-menu"]);
+    const rightOf = (s) => (s === "bind-prop" ? (bindOpener && bindOpener.right) || "inspector-selection-and-everything/everything"
+        : s === "bound" ? (boundOpener || "inspector-selection-and-everything/everything")
+        : (s === "label-style" || s === "bind") && labelOpener && labelOpener.right ? labelOpener.right : RIGHT[s] || RIGHT["plus-menu"]);
     const stateNow = () => stateOf(decodeURIComponent((location.hash.split("/")[2] || "plus-menu")));
 
     registerSection({
@@ -885,6 +941,16 @@
         rail: "graph",
         frame: (state) => {
             const right = rightOf(stateOf(state));
+            // bind-prop keeps the panels and the project it was opened from
+            if (stateOf(state) === "bind-prop") return Object.assign({ left: "graph-place/at-rest", right }, bindOpener ? { left: bindOpener.left, canvas: bindOpener.canvas, dataset: bindOpener.dataset } : {});
+            // a bound line and a painted row keep the panels they were opened over (the shell carries the project)
+            if (stateOf(state) === "bound") return { right };
+            if (/^painted-/.test(stateOf(state))) {
+                // a direct visit, before any Color by or Size by: the hosts painted by cpu_util_p95_pct
+                const prop = /size$/.test(state) ? "Size" : "Color", ds0 = (AB.paintedLast || { ds: "wide" }).ds;
+                if (!(AB.painted[ds0] || []).some((x) => x.on === "row" && x.prop === prop)) AB.paintBy("wide", prop, "cpu_util_p95_pct", "row");
+                return { left: "graph-place/painted", right, dataset: AB.paintedLast.ds };
+            }
             const ds = DATASET[stateOf(state)];
             // the hosts' and the researchers' pickers open on the row each project's tree holds
             const own = ds === "wide" ? { left: "graph-place/wide-sized", canvas: "canvas-and-states/hosts-legend" } : ds === "nested" ? { left: "graph-place/nested-set", canvas: "canvas-and-states/nested-set" } : {};
@@ -900,6 +966,7 @@
             { id: "bind", label: "Label: its Text menu (fields, results, notes)" },
             { id: "binding", label: "Binding" },
             { id: "binding-diverging", label: "Binding, diverging" },
+            { id: "bind-prop", label: "Binding for an unbound line (its bind icon), no source yet" },
             { id: "bind-number", label: "Binding: Size from Note count" },
             { id: "palette", label: "Palette" },
             { id: "palette-custom", label: "Custom palette" },
@@ -921,6 +988,9 @@
             { id: "nested-color-by", label: "Color by on the researchers (nested JSON)" },
             { id: "binding-unknown-path", label: "Binding: a source that reads nothing" },
             { id: "binding-long", label: "Binding: Size from a seven-segment path" },
+            { id: "painted-color", label: "Binding of a Color by row (directly: the hosts by cpu_util_p95_pct)" },
+            { id: "painted-size", label: "Binding of a Size by row (directly: the hosts by cpu_util_p95_pct)" },
+            { id: "bound", label: "Binding of a line bound with its bind icon (directly: Everything's Color, no source yet)" },
         ],
         render(el, state) {
             const s = stateOf(state);

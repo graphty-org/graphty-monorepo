@@ -197,6 +197,13 @@
     }
 
     function view(state) {
+        if (state === "registry") {
+            const R = AB.fx.datasets[AB.registryDataset()];
+            return { title: R.frame.graphRow, provenance: ["from " + R.file, "data-page", "edit-registry"], notes: 0,
+                overview: { summary: n(R.nodes) + " nodes, " + n(R.edges) + " edges, directed", body: [
+                    AB.data("Nodes", n(R.nodes)), AB.data("Edges", n(R.edges)), direction("Directed", "Each dependency points from a package to the package it needs"),
+                    AB.data("Weight", AB.link("data-page", "edit-registry", "None (each edge counts 1)", { class: "ab-link" })), notComputedAll()] } };
+        }
         if (isTransfers(state)) {
             const D = T(), f = D.frame, s = D.stats;
             // With a filter on, the counts agree with the header chip; the readings say what they were computed on
@@ -278,14 +285,30 @@
     const isOther = (s) => s === "wide" || s === "nested";
     const otherDs = (s) => { const ds = AB.route && AB.route.frame.dataset; return OTHER.includes(ds) ? ds : s; };
     const notComputedAll = () => h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }));
+    function nestedCounts(D) {
+        const A = D.recordArrays, NL = AB.nestedLoaded();
+        const res = NL.researchers ? A["data.researchers[]"] : 0, inst = NL.institutions ? A["data.institutions[]"] : 0;
+        const addr = NL.researchers && NL.addr === "rows" ? (D.paths.find((p) => p.path === "data.researchers[].attributes.profile.contact.addresses[]") || {}).count || 0 : 0;
+        const EDGES = [["coauthor", NL.researchers && NL.co === "edges" ? (NL.coPer === "item" ? 514 : 510) : 0], ["affiliations", NL.researchers && NL.aff === "rows" && NL.institutions ? 242 : 0], ["address links", addr], ["links", NL.links && NL.researchers ? (NL.institutions ? A["links[]"] : 118) : 0]].concat(NL.researchers ? (NL.idLinks || []).map((x) => [x.name + " links", x.n]) : []).filter(([, k]) => k);
+        return { res, inst, addr, EDGES, edges: EDGES.reduce((a, [, k]) => a + k, 0) };
+    }
+    // The node and edge counts of a loaded project (wide, nested, plain JSON), for every surface that names them
+    AB.projectCounts = (ds) => {
+        const D = AB.fx.datasets[ds];
+        if (ds === "nested") { const c = nestedCounts(D); return { nodes: c.res + c.inst + c.addr, edges: c.edges }; }
+        return D && typeof D.nodes === "number" ? { nodes: D.nodes, edges: D.edges } : null;
+    };
     function otherView(ds) {
         const D = AB.fx.datasets[ds];
         if (ds === "wide") {
             // hosts.csv and connections.csv joined on id; the stats are the fixture's
+            // With a filter on, the counts agree with the header chip, as on the transfers
+            const chip = AB.route && AB.route.frame.chip, kept = chip && / of /.test(chip) ? chip.split(" of ")[0] : null;
             return {
-                title: D.frame.graphRow, provenance: ["from 2 tables", "data-page", "wide-hosts"], notes: 0,
-                overview: { summary: n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
-                    AB.data("Nodes", n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("bytes_total_24h", "wide-hosts"),
+                title: D.frame.graphRow, provenance: ["from 2 tables", "data-page", "edit-wide-hosts"], notes: 0,
+                stateBar: kept ? { text: "Readings are for all " + n(D.nodes) + " nodes", why: "Computed before the filters, which leave " + kept + ". Compute the overview again from the graph's menu." } : null,
+                overview: { summary: (kept ? kept + " of " : "") + n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
+                    AB.data("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("bytes_total_24h", "edit-wide-connections"),
                     ifNot0("Isolated nodes", D.stats.isolated),
                     AB.data("Average total degree", String(D.stats.averageDegree)), AB.data("Highest total degree", n(D.stats.maxDegree)),
                     notComputedAll()] },
@@ -293,10 +316,10 @@
         }
         if (ds === "plainJson") {
             return {
-                title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "json-plain"], notes: 0,
+                title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "edit-plain-nodes"], notes: 0,
                 overview: { summary: n(D.nodes) + " nodes, " + n(D.edges) + " edges, undirected", body: [
                     AB.data("Nodes", n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Undirected", "Read from " + D.file),
-                    weight("weight", "json-plain"),
+                    weight("weight", "edit-plain-links"),
                     notComputedAll()] },
             };
         }
@@ -304,19 +327,22 @@
         // page): researchers and institutions are the node tables, addresses too when made Several rows;
         // co-authors (514 listed, 4 pairs from both sides), affiliations (Several rows) and links are the
         // edges. ponytail: the edge counts are the preview's figures until the element reports them
-        const A = D.recordArrays, NL = AB.nestedLoaded();
-        const res = NL.researchers ? A["data.researchers[]"] : 0, inst = NL.institutions ? A["data.institutions[]"] : 0;
-        const addr = NL.researchers && NL.addr === "rows" ? (D.paths.find((p) => p.path === "data.researchers[].attributes.profile.contact.addresses[]") || {}).count || 0 : 0;
-        const EDGES = [["co-author " + (NL.coPer === "item" ? "items" : "pairs"), NL.researchers && NL.co === "edges" ? (NL.coPer === "item" ? 514 : 510) : 0], ["affiliations", NL.researchers && NL.aff === "rows" ? 242 : 0], ["address links", addr], ["links", NL.links ? A["links[]"] : 0]].concat(NL.researchers ? (NL.idLinks || []).map((x) => [x.name + " links", x.n]) : []).filter(([, k]) => k);
-        const edges = EDGES.reduce((a, [, k]) => a + k, 0);
+        const NL = AB.nestedLoaded(), { res, inst, addr, EDGES, edges } = nestedCounts(D);
         const e = AB.data("Edges", n(edges));
         AB.tip(e.lastChild, EDGES.map(([w, k]) => n(k) + " " + w).join(", ") || "No edges", { label: false });
         const dir = NL.direction === "directed" ? "Directed" : "Undirected";
         return {
-            title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "json-tree"], notes: 0,
+            title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "edit-json-researchers"], notes: 0,
             overview: { summary: n(res + inst + addr) + " nodes, " + n(edges) + " edges, " + dir.toLowerCase(), body: [
                 AB.data("Nodes", n(res + inst + addr)), res ? AB.data("researcher", n(res)) : null, inst ? AB.data("institution", n(inst)) : null, addr ? AB.data("address", n(addr)) : null, e,
-                direction(dir, "Chosen at load: a JSON document does not say"), NL.links && NL.weight ? weight(NL.weight, "json-tree", "links") : AB.data("Weight", AB.link("data-page", "json-tree", "None (each edge counts 1)", { class: "ab-link" })),
+                // edges split by edge type, as nodes are by type
+                ...(EDGES.length > 1 ? EDGES.map(([w, k]) => AB.data(w, n(k))) : []),
+                direction(dir, "Chosen at load: a JSON document does not say"),
+                // one Weight line per edge type present: only links can carry a weight column
+                ...(() => { const typed = EDGES.filter(([, k]) => k); const one = typed.length < 2;
+                    if (!typed.length) return [AB.data("Weight", AB.link("data-page", "edit-json-researchers", "None (each edge counts 1)", { class: "ab-link" }))];
+                    return typed.map(([w]) => { const r = w === "links" && NL.weight ? weight(NL.weight, "edit-json-links", one ? "links" : null) : AB.data("Weight", AB.link("data-page", w === "links" ? "edit-json-links" : "edit-json-researchers", "None (each edge counts 1)", { class: "ab-link" }));
+                        if (!one) r.firstChild.textContent = "Weight, " + w; return r; }); })(),
                 notComputedAll()].filter(Boolean) },
         };
     }
@@ -329,10 +355,10 @@
         region: "right",
         rail: "graph",
         frame: (state) => {
-            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : state === "door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "filtered" ? { chip: "Filtered: 60 of 77 nodes" }
+            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : state === "door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "filtered" ? { chip: "Filtered: 60 of 77 nodes", filterOn: ["degree"] }
                 : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" }
                 : state === "empty-graph" ? { left: "graph-place/empty", canvas: "canvas-and-states/empty", dock: false }
-                : isOther(state) ? { dataset: state } : {};
+                : isOther(state) ? { dataset: state } : state === "registry" ? { dataset: AB.registryDataset(), left: "graph-place/registry" } : {};
             if (POP[state]) fr.overlay = SELF + "/" + state;
             return fr;
         },
@@ -350,6 +376,7 @@
             { id: "empty-graph", label: "Empty graph: no data" },
             { id: "wide", label: "Hosts (wide: 69 and 26 attributes), weight bytes_total_24h" },
             { id: "nested", label: "Research network (nested JSON), weight on links" },
+            { id: "registry", label: "Package registry (keyed JSON), as loaded" },
         ],
         render(el, state, ctx) {
             if (ctx.region === "overlay") {

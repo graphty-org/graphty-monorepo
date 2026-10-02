@@ -175,7 +175,7 @@
                 : AB.tip(h("span", { class: "np-x", role: "button", tabindex: "0", "aria-disabled": "true" }, icon("x", "sm")), "Remove " + t.label, { second: "Select something to change what this note is about" });
             const name = h("span", { class: "np-label k-ellipsis" }, t.label);
             if (t.label.length > 30) AB.tip(name, t.label, { label: false }); // a long subject keeps its full name in the tooltip
-            return h("span", { class: "np-chip" }, look(t), name, x);
+            return h("span", { class: "np-chip" + (o.cite ? " np-cite" : "") }, look(t), name, x);
         }
         const cls = "np-chip" + (o.cite ? " np-cite" : "");
         if (t.gone) {
@@ -203,13 +203,17 @@
         const chips = h("div", { class: "np-chips", "aria-label": "About" });
         const drawChips = () => {
             chips.replaceChildren(...(targets.length
-                ? targets.map((t, i) => chip(t, { onRemove: () => { targets.splice(i, 1); drawChips(); ta.focus(); if (!targets.length) AB.announce("Now about the whole graph"); } }))
+                ? targets.map((t, i) => chip(t, { onRemove: () => { targets.splice(i, 1); drawChips(); ta.focus(); AB.announce("Removed " + t.label + (targets.length ? "" : "; now about the whole graph")); } }))
                 : [chip(o.graph || T.graph, { onRemove: null })]));
         };
+        // The runs the note cites, removable here as its subjects are (a note that cites nothing shows no line)
+        const cites = (o.cites || []).slice();
+        const citeRow = h("div", { class: "np-cites", "aria-label": "Cites" });
+        const drawCites = () => { citeRow.hidden = !cites.length; citeRow.replaceChildren("Cites", ...cites.map((t, i) => chip(t, { cite: true, onRemove: () => { cites.splice(i, 1); drawCites(); ta.focus(); } }))); };
         const ta = h("textarea", { "aria-label": "Note text", placeholder: "Write a note" });
         ta.value = o.text || o.draftText || "";
         const empty = () => !ta.value.trim();
-        const save = () => { if (empty()) return; AB.announce("Note saved"); o.done(true, { text: ta.value.trim(), about: targets.length ? targets : [o.graph || T.graph] }); };
+        const save = () => { if (empty()) return; AB.announce("Note saved"); o.done(true, { text: ta.value.trim(), about: targets.length ? targets : [o.graph || T.graph], cites }); };
         // Esc cancels. A new note with no text is dropped silently; one with text is discarded with Undo
         // (the writing state's done shows the notice), so typed words are never lost to one key
         const cancel = () => { const typed = !o.text && !empty(); if (!o.text && !typed) AB.announce("Empty note discarded"); o.done(false, typed ? { text: ta.value, about: targets } : null); };
@@ -226,11 +230,13 @@
             else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); }
         });
         drawChips();
+        drawCites();
         sync();
         requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
         return h("div", { class: "np-editor", role: "group", "aria-label": o.text ? "Edit note" : "New note" },
             chips,
             ta,
+            citeRow,
             h("div", { class: "np-editor-foot" },
                 saveBtn,
                 AB.button("Cancel", { kind: "ghost", key: "Esc", onClick: cancel })));
@@ -246,10 +252,12 @@
             clearTimeout(pending);
             // The editor stays a list item, so the list keeps its structure
             const wrap = h("li", { class: "np-edit-li" });
-            const ed = editor({ targets: n.about, text: n.text, done: (ok, v) => {
+            const ed = editor({ targets: n.about, cites: n.cites, text: n.text, done: (ok, v) => {
                 // A change to the text or to what the note is about (a subject removed) is saved, and marks it edited
                 const moved = ok && (v.about.length !== n.about.length || v.about.some((t, i) => t !== n.about[i]));
-                if (ok && (v.text !== n.text || moved)) {
+                const uncited = ok && (v.cites.length !== (n.cites || []).length);
+                if (ok && (v.text !== n.text || moved || uncited)) {
+                    if (uncited) { n.cites = v.cites.length ? v.cites.slice() : null; const c = citesLine(); citesEl.replaceWith(c); citesEl = c; }
                     n.text = v.text; text.textContent = v.text;
                     if (moved) { n.about = v.about.slice(); about.replaceChildren(...n.about.map((t) => chip(t, { note: n.id }))); }
                     if (!n.edited) { n.edited = true; meta.append(", edited"); }
@@ -309,6 +317,8 @@
         const text = h("div", { class: "np-text" }, n.text);
         text.addEventListener("dblclick", (e) => { e.stopPropagation(); edit(); });
         const about = h("div", { class: "np-chips", "aria-label": "About" }, n.about.map((t) => chip(t, { note: n.id })));
+        const citesLine = () => h("div", { class: "np-cites", "aria-label": "Cites", hidden: n.cites ? null : "" }, "Cites", (n.cites || []).map((t) => chip(t, { cite: true, note: n.id })));
+        let citesEl = citesLine();
         const meta = h("span", null, AB.tip(h("span", { class: "k-num" }, n.at), n.full, { label: false }), n.edited ? ", edited" : null);
         // A second click on "..." closes the menu it opened
         const more = AB.iconButton(AB.ICON.options, "Note options", { onClick: () => (document.querySelector(".k-menu") ? AB.closeMenu() : options(more)) });
@@ -317,7 +327,7 @@
         AB.append(li, [
             text,
             about,
-            n.cites ? h("div", { class: "np-cites", "aria-label": "Cites" }, "Cites", n.cites.map((t) => chip(t, { cite: true, note: n.id }))) : null,
+            citesEl,
             h("div", { class: "np-meta k-secondary" },
                 by ? h("span", { class: "k-ellipsis" }, by + ",") : null,
                 meta,
@@ -411,6 +421,7 @@
             if (state === "one-note") return { right: "inspector-nothing-selected/overview" };
             if (state === "many") return { dataset: "transactions" };
             if (state === "edge-note") return { right: "inspector-edge/data" };
+            if (state === "filter-step-on") return { chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.after.step1 + " of " + AB.fx.datasets.lesmis.nodes + " nodes", filterOn: ["degree"] };
             return {};
         },
         render(el, state) {

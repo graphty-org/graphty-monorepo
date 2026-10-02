@@ -42,12 +42,13 @@
     // A Recent row. The end ellipsis keeps a long name or path on one line; the full text is its
     // tooltip, given only to text that is cut. A missing file reads "Not found" and opens its menu.
     function recentRow(r, missing, redraw) {
-        const more = AB.iconButton(AB.ICON.options, "More for " + r.name, { onClick: () => openRecentMenu(more, r, missing, redraw) });
+        const more = AB.iconButton(AB.ICON.options, "More for " + r.name + (missing ? ", not found" : ""), { onClick: () => openRecentMenu(more, r, missing, redraw) });
         more.classList.add("ss-more-btn");
         const name = h("span", { class: "k-ellipsis" + (missing ? " k-secondary" : "") }, r.name);
         const path = h("span", { class: "k-ellipsis ss-path" }, r.path);
-        const row = h("div", Object.assign({ class: "k-row ss-recent" + (missing ? " ss-missing" : ""), role: missing ? "button" : "link", "aria-haspopup": missing ? "menu" : null, "aria-label": r.name + (missing ? ", not found" : "") + ", " + r.path + ", " + r.when },
-            AB.act(missing ? { onClick: () => { if (menuWasOpen) menuWasOpen = false; else openRecentMenu(more, r, missing, redraw); } } : { go: r.go || ["graph-place", "at-rest"] })),
+        // A missing file's row is a plain container: its "..." is its one control (a click on the row opens the same menu)
+        const row = h("div", Object.assign({ class: "k-row ss-recent" + (missing ? " ss-missing" : "") }, missing ? { on: { click: (e) => { if (e.target.closest(".ss-more-btn")) return; if (menuWasOpen) menuWasOpen = false; else openRecentMenu(more, r, missing, redraw); } } }
+            : Object.assign({ role: "link", "aria-label": r.name + ", " + r.path + ", " + r.when }, AB.act({ go: r.go || ["graph-place", "at-rest"] }))),
             icon(missing ? "triangle-alert" : "file"),
             h("span", { class: "k-grow ss-two" },
                 name,

@@ -19,6 +19,8 @@
         const ds = A.route && A.route.frame.dataset, X = A.fx.datasets, f = (v) => Number(v).toLocaleString("en-US");
         if (ds === "doorEntries") return { nodes: f(X.doorEntries.loadedTypes().total), edges: f(X.doorEntries.loadedEdges()), dockN: "door-entries-nodes", dockE: "door-entries" };
         if (ds === "transactions") return { nodes: f(X.transactions.nodes), edges: f(X.transactions.edges), dockN: "transfers", dockE: "transfers" };
+        const pc = ds && ds !== "lesmis" && A.projectCounts && A.projectCounts(ds);
+        if (pc) return { nodes: f(pc.nodes), edges: f(pc.edges), dockN: "wide", dockE: "wide" };
         return { nodes: L().nodes, edges: L().edges, dockN: "nodes", dockE: "edges" };
     };
     const MENU = ["context-menus", "row"];
@@ -44,10 +46,11 @@
     // the line width is EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, darkgrey is #A9A9A9).
     const BASE = { "node.shape": "icosphere", "node.size": 1, "node.color": "#6366F1", "edge.style": "solid", "edge.width": 8, "edge.color": "#A9A9A9", "edge.arrowHead": "normal" };
     function everythingStyle(state) {
-        const edited = state === "everything-edited";
+        const mine = A.boundOn(ID + "/" + state);
+        const edited = state === "everything-edited" || Object.keys(mine).length > 0;
         return A.styleTab({
             kinds: ["node", "edge"], kind: state === "everything-edges" ? "edge" : "node",
-            base: BASE, set: edited ? { "node.size": 1.5 } : {}, changed: edited ? ["node.size"] : [],
+            base: BASE, set: state === "everything-edited" ? { "node.size": 1.5 } : {}, changed: state === "everything-edited" ? ["node.size"] : [], bound: mine,
             paints: "Paints " + C().nodes + " nodes, " + C().edges + " edges",
             order: edited ? "Your change is in the Everything layer, under every other row" : "Default look, under every other row",
         });

@@ -118,11 +118,12 @@
     const ROLE_WORD = { key: "Key", from: "From", to: "To", links: "Links to", type: "Subtype", name: "Name", time: "Time", weight: "Weight", edgeId: "Edge id", x: "Position x", y: "Position y", z: "Position z", attr: "Attribute" };
     const ROLE_TIP = {
         key: "names each node; links match on it", from: "each row's edge starts at the node this value names", to: "each row's edge ends at the node this value names",
-        links: "this row's node has an edge to the node this value names", type: "a subtype of this table's nodes, for the legend and groups; never part of a node's identity", name: "the readable name of each row",
+        links: "this row's node has an edge to the node this value names", type: "a subtype of this table's nodes, for the legend and groups; never part of a node's identity", name: "the readable name of each row; several Name columns join with a space, in column order",
         time: "when each row happened", weight: "set when loaded -- every run uses it unless the run picks another", edgeId: "names each edge",
         x: "places each node", y: "places each node", z: "places each node", attr: "kept as data, with no role",
     };
-    const UNIQUE = new Set(["key", "from", "to", "type", "name", "time", "edgeId", "x", "y", "z"]);
+    // Name is not unique: each column given Name joins it (given + family), in column order
+    const UNIQUE = new Set(["key", "from", "to", "type", "time", "edgeId", "x", "y", "z"]);
     const COMBINE = {
         num: [["Sum", "The default"], ["Mean"], ["Min"], ["Max"], ["Leave out", "The column is not kept on the edge"]],
         time: [["Earliest and latest", "Two columns, the default"], ["Earliest"], ["Latest"], ["Leave out", "The column is not kept on the edge"]],
@@ -192,18 +193,30 @@
         return [mk({ id: "lm", group: true, name: "miserables.gexf", file: "miserables.gexf", kind: "file", format: "GEXF", rows: null, open: true }), nodes, edges];
     }
     // Plain node-link JSON: a graph file graph-io recognizes, read in one step like the GEXF
-    function plainJsonFile() {
-        const P = AB.fx.datasets.plainJson, d = P.document;
+    // The same coauthors graph in the three graph dialects graph-io reads in one step: node-link (nodes
+    // and links), Graphology's export (key and attributes) and JGF (nodes keyed by id, metadata)
+    const DIALECTS = {
+        "node-link": { file: null, key: "id", name: "name", w: "weight", edgesName: "links", node: (r) => r, edge: (l) => l, how: "Node-link JSON: graph-io recognized its nodes and links" },
+        graphology: { file: "coauthors.graphology.json", key: "key", name: "attributes.name", w: "attributes.weight", edgesName: "edges",
+            node: (r) => ({ key: r.id, "attributes.name": r.name, "attributes.field": r.field, "attributes.h_index": r.h_index }), edge: (l) => ({ source: l.source, target: l.target, "attributes.weight": l.weight }),
+            how: "Graphology JSON: graph-io recognized its nodes, edges and options.type" },
+        jgf: { file: "coauthors.jgf.json", key: "id", name: "label", w: "metadata.weight", edgesName: "edges",
+            node: (r) => ({ id: r.id, label: r.name, "metadata.field": r.field, "metadata.h_index": r.h_index }), edge: (l) => ({ source: l.source, target: l.target, "metadata.weight": l.weight }),
+            how: "JSON Graph Format (JGF): graph-io recognized graph.nodes, keyed by id, and graph.edges" },
+    };
+    function plainJsonFile(dialect) {
+        const P = AB.fx.datasets.plainJson, X = DIALECTS[dialect || "node-link"], dl = { graphology: "Graphology", jgf: "JGF" }[dialect] || "node-link", file = X.file || P.baseFile || P.file;
         const keys = (rows) => [...new Set(rows.flatMap((r) => Object.keys(r)))];
         const ty = (rows, k) => (rows.every((r) => r[k] == null || typeof r[k] === "number") ? "num" : "cat");
         const flat = (rows, cols) => rows.slice(0, 8).map((r) => Object.fromEntries(cols.map((c) => [c, r[c] == null ? "" : String(r[c])])));
-        const nc = keys(d.nodes), ec = keys(d.links);
-        const nodes = mk({ id: "pj-nodes", parent: "pj", name: "nodes", file: P.file, rows: P.nodes, cols: nc, format: "JSON", locked: true, sample: flat(d.nodes, nc), type: "node",
-            types: Object.fromEntries(nc.map((c) => [c, ty(d.nodes, c)])), unique: ["id"], roles: { id: role("key", null, null, { locked: true }), name: role("name", null, null, { auto: true }) } });
-        const edges = mk({ id: "pj-edges", parent: "pj", name: "links", file: P.file, rows: P.edges, cols: ec, kind: "edge", format: "JSON", locked: true, sample: flat(d.links, ec),
-            types: Object.fromEntries(ec.map((c) => [c, ty(d.links, c)])), roles: { source: role("from", "node", "id", { locked: true }), target: role("to", "node", "id", { locked: true }), weight: role("weight", null, null, { auto: "graph-io proposes a numeric column named weight as the load-time weight" }) } });
-        return [mk({ id: "pj", group: true, name: P.file, file: P.file, kind: "file", format: "JSON", rows: null, open: true, summary: P.graphName + ": " + P.nodes + " nodes, " + P.edges + " edges",
-            auto: { format: "Node-link JSON: graph-io recognized its nodes and links" } }), nodes, edges];
+        const dn = P.document.nodes.map(X.node), de = P.document.links.map(X.edge);
+        const nc = keys(dn), ec = keys(de);
+        const nodes = mk({ id: "pj-nodes", parent: "pj", name: "nodes", file, rows: P.nodes, cols: nc, format: "JSON", dialect: dl, locked: true, sample: flat(dn, nc), type: "node",
+            types: Object.fromEntries(nc.map((c) => [c, ty(dn, c)])), unique: [X.key], roles: { [X.key]: role("key", null, null, { locked: true }), [X.name]: role("name", null, null, { auto: true }) } });
+        const edges = mk({ id: "pj-edges", parent: "pj", name: X.edgesName, file, rows: P.edges, cols: ec, kind: "edge", format: "JSON", dialect: dl, locked: true, sample: flat(de, ec),
+            types: Object.fromEntries(ec.map((c) => [c, ty(de, c)])), roles: { source: role("from", "node", X.key, { locked: true }), target: role("to", "node", X.key, { locked: true }), [X.w]: role("weight", null, null, { auto: "graph-io proposes a numeric column named weight as the load-time weight" }) } });
+        return [mk({ id: "pj", group: true, name: file, file, kind: "file", format: "JSON", dialect: dl, rows: null, open: true, summary: P.graphName + ": " + P.nodes + " nodes, " + P.edges + " edges",
+            auto: { format: X.how } }), nodes, edges];
     }
 
     // ---------- wide data: the IT estate (hosts 69 columns, connections 26) ----------
@@ -275,7 +288,12 @@
                 const c = recCols(p.path);
                 const base = { id: T0.id, parent, path, json: true, tick: true, name: segs[segs.length - 1], file, format: "JSON", rows: RA[p.path + "[]"], cols: c.cols, types: c.types, arrs: c.arrs, sample: T0.recs.slice(0, 8), unique: ["id"], keep: [] };
                 if (T0.kind === "edge") out.push(mk(Object.assign(base, { kind: "edge", typeName: T0.typeName, roles: { id: role("edgeId"), source: role("from", "researcher", "id"), target: role("to", null, "id", { any: ["researcher", "institution"] }), weight: role("weight", null, null, { auto: true }) } })));
-                else out.push(mk(Object.assign(base, { type: T0.type, roles: { id: role("key", null, null, { auto: true }) } })));
+                // graphty-element proposes the Name from name-like columns (attributes.name, or its given and family parts)
+                else {
+                    out.push(mk(Object.assign(base, { type: T0.type, open: true, roles: Object.assign({ id: role("key", null, null, { auto: true }) }, Object.fromEntries(c.cols.filter((x) => /(^|\.)name(\.(given|family))?$/.test(x) && c.types[x] === "cat").map((x) => [x, role("name", null, null, { auto: true })]))) })));
+                    // the arrays of records inside each record show in the tree, with no tick: what they become is chosen in their column's role menu
+                    Object.keys(c.arrs).filter((x) => c.arrs[x].items === "records").forEach((x) => out.push(mk({ id: "s:" + T0.id + "." + x, parent: T0.id, struct: "array", inRec: x, path: p.path + "[]." + x, name: x.split(".").pop(), count: c.arrs[x].n })));
+                }
                 return;
             }
             const values = k === "array" ? (D.paths.find((q) => q.path === p.path + "[]") || {}).count : null;
@@ -288,11 +306,11 @@
     // affiliations as Several rows: a child table under researchers, its first column the parent, locked
     function affiliationsTable() {
         const R = NX().document.data.researchers;
-        const sample = R.flatMap((r) => r.attributes.affiliations.map((a) => ({ "researcher (parent)": r.id, institution_id: a.institution_id, role: a.role, since: a.since, current: String(a.current) }))).slice(0, 8);
+        const sample = R.flatMap((r) => r.attributes.affiliations.map((a) => ({ "parent": r.id, institution_id: a.institution_id, role: a.role, since: a.since, current: String(a.current) }))).slice(0, 8);
         return mk({ id: "affiliations", parent: "researchers", childOf: "researchers", childCol: "attributes.affiliations", path: "data.researchers[].attributes.affiliations", name: "affiliations", kind: "edge", typeName: "affiliation",
-            file: NX().file, format: "JSON", rows: NREP.affiliations, cols: ["researcher (parent)", "institution_id", "role", "since", "current"], sample,
-            types: { "researcher (parent)": "cat", institution_id: "cat", role: "cat", since: "cat", current: "bool" },
-            roles: { "researcher (parent)": role("from", "researcher", "id", { locked: true, parentCol: true }), institution_id: role("to", "institution", "id") } });
+            file: NX().file, format: "JSON", rows: NREP.affiliations, cols: ["parent", "institution_id", "role", "since", "current"], sample,
+            types: { "parent": "cat", institution_id: "cat", role: "cat", since: "cat", current: "bool" },
+            roles: { "parent": role("from", "researcher", "id", { locked: true, parentCol: true }), institution_id: role("to", "institution", "id") } });
     }
     // Any other array of records as Several rows (addresses): a child node table, one row per item, its
     // first column the parent researcher (locked, Links to), its columns the items' leaves
@@ -300,10 +318,10 @@
         if (c === "attributes.affiliations") return affiliationsTable();
         const pre = "data.researchers[]." + c + "[].", name = c.split(".").pop();
         const cols = NX().paths.filter((p) => p.path.startsWith(pre) && !p.path.slice(pre.length).includes("[") && !p.kinds.object && !p.kinds.array).map((p) => p.path.slice(pre.length));
-        const recs = NX().document.data.researchers.flatMap((r) => (get(r, c) || []).map((it) => Object.assign({ "researcher (parent)": r.id }, Object.fromEntries(cols.map((k) => [k, get(it, k)])))));
+        const recs = NX().document.data.researchers.flatMap((r) => (get(r, c) || []).map((it) => Object.assign({ "parent": r.id }, Object.fromEntries(cols.map((k) => [k, get(it, k)])))));
         return mk({ id: name, parent: t.id, childOf: t.id, childCol: c, path: "data.researchers[]." + c, name, type: /sses$/.test(name) ? name.slice(0, -2) : name.replace(/s$/, ""), file: NX().file, format: "JSON", rows: recs.length,
-            cols: ["researcher (parent)"].concat(cols), sample: recs.slice(0, 8), types: Object.fromEntries([["researcher (parent)", "cat"]].concat(cols.map((k) => [k, typeof recs[0][k] === "number" ? "num" : "cat"]))),
-            roles: { "researcher (parent)": role("links", "researcher", "id", { locked: true, parentCol: true }) } });
+            cols: ["parent"].concat(cols), sample: recs.slice(0, 8), types: Object.fromEntries([["parent", "cat"]].concat(cols.map((k) => [k, typeof recs[0][k] === "number" ? "num" : "cat"]))),
+            roles: { "parent": role("links", "researcher", "id", { locked: true, parentCol: true }) } });
     }
     function nested(o) {
         const m = base(Object.assign({ door: { title: "Open as a new graph", done: ["graph-place", "nested"] }, tables: nestedTables(), sel: "doc", direction: "undirected", json: "nested", coPer: "pair" }, o));
@@ -330,12 +348,14 @@
     function nestedChoices(m) {
         const r = R0(m), on = (id) => { const x = table(m, id); return !!x && x.tick !== false && !x.gone; };
         const pick = (c) => (r.arrs[c] || {}).pick;
-        return { researchers: on("researchers"), institutions: on("institutions"), links: on("links"), co: pick("relationships.coauthor_ids"), coPer: m.coPer,
+        return { researchers: on("researchers"), institutions: on("institutions"), links: on("links"), name: { researcher: nameColsOf(r), institution: nameColsOf(table(m, "institutions")) }, co: pick("relationships.coauthor_ids"), coPer: m.coPer,
             aff: pick("attributes.affiliations"), addr: pick("attributes.profile.contact.addresses"), keep: (r.keep || []).slice(), direction: m.direction,
-            linkTo: ((table(m, "links") || { roles: {} }).roles.target || {}).any || [], idLinks: idLinks(m).map(({ col, name, target, n }) => ({ col, name, target, n })), weight: colWith(table(m, "links") || { roles: {} }, "weight") || null };
+            linkTo: (((table(m, "links") || { roles: {} }).roles.target || {}).any || []).filter((x) => x !== "institution" || on("institutions")), idLinks: idLinks(m).map(({ col, name, target, n }) => ({ col, name, target, n })), weight: colWith(table(m, "links") || { roles: {} }, "weight") || null };
     }
     function coauthorEdges(m) { const r = R0(m); r.arrs["relationships.coauthor_ids"].pick = "edges"; r.roles["relationships.coauthor_ids"] = role("links", "researcher", "id", { each: true }); return m; }
-    function affiliationRows(m) { const r = R0(m); r.arrs["attributes.affiliations"].pick = "rows"; r.open = true; m.tables.splice(m.tables.indexOf(r) + 1, 0, affiliationsTable()); return m; }
+    // A child table takes the tree place of its array's own row (hidden once it has one), so the tree keeps document order
+    function insertChild(m, t, child) { const at = m.tables.findIndex((x) => x.id === "s:" + t.id + "." + child.childCol); m.tables.splice(at >= 0 ? at : m.tables.indexOf(t) + 1, 0, child); }
+    function affiliationRows(m) { const r = R0(m); r.arrs["attributes.affiliations"].pick = "rows"; r.open = true; insertChild(m, r, affiliationsTable()); return m; }
 
     // ---------- a second domain: a package registry (built here; spec 11.4, other shapes) ----------
     // Records keyed by package name (the JGF way), dependencies as an object keyed by package name,
@@ -353,12 +373,13 @@
             chalk: { latest: "5.3.0", license: "MIT", description: "Terminal string styling done right.", repository: { type: "git", url: "github.com/chalk/chalk" }, dependencies: {}, maintainers: [{ name: "sindresorhus", role: "owner" }, { name: "qix", role: "publisher" }] },
         },
     };
-    // A dataset entry for the header only (the registry is never loaded in the skeleton)
+    // The registry's dataset entry: the header, and the project Load makes (canvas, Graph and Data places)
     function registryDataset() {
         const X = AB.fx.datasets;
-        if (!X.registry) X.registry = { title: "Package registry, March 2026", graphName: "Packages", file: REGISTRY.file, nodes: REGISTRY.packages, frame: { project: "Package registry, March 2026", graphRow: "Packages" } };
+        if (!X.registry) X.registry = { title: "Package registry, March 2026", graphName: "Packages", file: REGISTRY.file, nodes: REGISTRY.packages, edges: REGISTRY.dependencyKeys, directed: true, frame: { project: "Package registry, March 2026", graphRow: "Packages" } };
         return "registry";
     }
+    AB.registryDataset = registryDataset;
     function registryTables() {
         const R = REGISTRY;
         const recs = Object.entries(R.sample).map(([k, v]) => Object.assign({ key: k }, v));
@@ -453,7 +474,19 @@
         "wide-find-column": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
         "wide-link-menu": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "connections", menu: { col: "source", sub: "from" } }),
         // ----- nested JSON -----
-        "json-plain": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: plainJsonFile(), sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-plain": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: plainJsonFile(), pj: "node-link", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-graphology": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: plainJsonFile("graphology"), pj: "graphology", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-jgf": () => base({ door: { title: "Open as a new graph", done: ["graph-place", "plain-json"] }, tables: plainJsonFile("jgf"), pj: "jgf", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        // Edit source from the loaded projects' Sources rows: the clicked table selected, Apply back to the Data place
+        "edit-wide-hosts": () => base({ door: { title: "Edit: " + W().file, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "hosts" }),
+        "edit-wide-connections": () => base({ door: { title: "Edit: " + W().edgesFile, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "connections" }),
+        "edit-plain-nodes": () => base({ door: { title: "Edit: " + AB.fx.datasets.plainJson.file, verb: "Apply", done: ["data-place", "plain-json"], edit: true }, tables: plainJsonFile(AB.fx.datasets.plainJson.dialect), sel: "pj-nodes", direction: "file" }),
+        "edit-plain-links": () => base({ door: { title: "Edit: " + AB.fx.datasets.plainJson.file, verb: "Apply", done: ["data-place", "plain-json"], edit: true }, tables: plainJsonFile(AB.fx.datasets.plainJson.dialect), sel: "pj-edges", direction: "file" }),
+        "edit-json-researchers": () => editNested("researchers"),
+        "edit-json-affiliations": () => editNested("affiliations"),
+        "edit-json-addresses": () => editNested("addresses"),
+        "edit-json-institutions": () => editNested("institutions"),
+        "edit-json-links": () => editNested("links"),
         "json-tree": () => nested(),
         "json-researchers": () => nested({ sel: "researchers" }),
         "json-keep-value": () => { const m = nested({ sel: "researchers", focusGroup: "attributes.profile.contact" }); R0(m).keep.push("attributes.profile.contact"); return m; },
@@ -466,8 +499,26 @@
                 refusal: { terminal: true, text: NX().file + " is not valid JSON: line 1,214, column 9 expects a comma or a closing brace.", todo: "Fix the file at that place, or choose another file.", stand: true } })] }),
         "json-no-records": () => { const m = nested({ tables: nestedTables({ only: "meta", file: "network-export-meta.json", preview: NX().document.meta }) }); const d = m.tables[0]; d.refusal = { terminal: true, text: "network-export-meta.json holds no array of records, so it makes no nodes and no edges.", todo: "Its objects and arrays are listed in Tables. Choose another file, one that holds the records." }; m.tables.forEach((t) => { if (t.struct) t.open = true; }); return m; },
         "json-path-gone": () => { const m = nested({ sel: "links", door: { title: "Edit: " + NX().file, verb: "Apply", done: ["data-place", "attributes-nested"], edit: true } }); table(m, "links").gone = true; return m; },
-        "json-keyed": () => base({ door: { title: "Open as a new graph", done: null }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
+        "json-keyed": () => base({ door: { title: "Open as a new graph", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
+        "edit-registry": () => base({ door: { title: "Edit: " + REGISTRY.file, verb: "Apply", done: ["data-place", "registry"], edit: true }, tables: registryTables(), sel: "packages", json: "registry" }),
     };
+    // Edit source on the nested project opens on the load as it was (AB.nestedLoaded: the last Load's choices)
+    function editNested(sel) {
+        const NL = AB.nestedLoaded(), co = "relationships.coauthor_ids", ad = "attributes.profile.contact.addresses";
+        const m = nested({ door: { title: "Edit: " + NX().file, verb: "Apply", done: ["data-place", "attributes-nested"], edit: true } });
+        const r = R0(m);
+        ["researchers", "institutions", "links"].forEach((id) => { if (NL[id] === false) table(m, id).tick = false; });
+        r.arrs[co].pick = NL.co;
+        if (NL.co !== "edges") delete r.roles[co];
+        m.coPer = NL.coPer || m.coPer;
+        m.direction = NL.direction || m.direction;
+        r.keep = (NL.keep || []).slice();
+        if (NL.aff === "rows") affiliationRows(m);
+        if (NL.addr === "rows") { r.arrs[ad].pick = "rows"; r.open = true; insertChild(m, r, childRows(r, ad)); }
+        (NL.idLinks || []).forEach((x) => { r.roles[x.col] = role("links", x.target, "id"); });
+        m.sel = table(m, sel) ? sel : "researchers";
+        return m;
+    }
     // Edit opens on the load as it was: One edge per Row or Pair, or each entry as a node, and the Add choices
     function editDoor(sel) {
         const m = door({ sel, door: { title: "Edit: " + sel, verb: "Apply", done: ["data-place", "door-entries"], edit: true } });
@@ -494,6 +545,11 @@
     // ---------- reading a table ----------
     const roleOf = (t, c) => (t.roles[c] && t.roles[c].r) || "attr";
     const colWith = (t, r) => Object.keys(t.roles).find((c) => t.roles[c] && t.roles[c].r === r);
+    // The Name's columns, in column order (one or more, joined by a space)
+    // a column inside a sub-object kept as one value is not a column any more, so it names nothing
+    const keptAway = (t, c) => ((t && t.keep) || []).some((k) => c.startsWith(k + "."));
+    const nameColsOf = (t) => ((t && t.cols) || []).filter((c) => roleOf(t, c) === "name" && !keptAway(t, c));
+    const nameLost = (t) => ((t && t.cols) || []).filter((c) => roleOf(t, c) === "name" && keptAway(t, c));
     const linkCols = (t) => Object.keys(t.roles).filter((c) => t.roles[c] && ["from", "to", "links"].includes(t.roles[c].r));
     // Under Pair a Time column combined to "Earliest and latest" makes two columns: the first keeps the
     // column (and its Time role) as "(earliest)", the second is derived. The derived count comes last.
@@ -564,6 +620,8 @@
         const known = types(m).map((x) => x.name);
         const lost = linkCols(t).find((c) => t.roles[c].target && t.roles[c].target !== "node" && !t.roles[c].fresh && !known.includes(t.roles[c].target));
         if (lost) return { level: "warn", text: c2(lost, t) };
+        const offAny = linkCols(t).map((c) => [c, ((t.roles[c].any) || []).find((y) => !known.includes(y) || (types(m).find((z) => z.name === y) || {}).table.tick === false)]).find((x) => x[1]);
+        if (offAny) return { level: "warn", text: offAny[0] + " links to " + offAny[1] + ", and no table here makes " + offAny[1] + " nodes: those rows are left out" };
         const ok = offKey(m, t);
         if (ok) return { level: "err", text: "no " + ok.col + " value is a " + ok.by + " in " + ok.table + "; choose " + ok.target + " by its Key under " + ok.col };
         if (t.kind === "node" && !colWith(t, "key") && !linkCols(t).length) return { level: "warn", text: "choose the Key column" };
@@ -645,18 +703,22 @@
             : { text: "researcher (" + n(r.rows) + ")", tip: "key: researchers.id" });
         if (r.tick !== false) idLinks(m).forEach((x) => lines.push({ text: "researcher --" + x.name + " (" + n(x.n) + ")--> " + x.target, tip: "researchers." + x.col + " = " + x.target + "s.id; one edge per value that matches" }));
         // a child node table (Several rows on an array of records with no id of its own): each row links to its parent
-        m.tables.filter((x) => x.childOf === r.id && x.kind === "node").forEach((x) => lines.push({ text: x.type + " (" + n(x.rows) + ") --" + x.name + "--> researcher", tip: x.name + ".researcher (parent) = researchers.id; one " + x.type + " node per item of " + x.childCol }));
-        if (af) lines.push({ text: "researcher --affiliations (" + n(af.rows) + ")--> institution (" + n(inst.rows) + ")", tip: "affiliations.researcher (parent) = researchers.id; affiliations.institution_id = institutions.id; role and since are edge attributes" });
+        m.tables.filter((x) => x.childOf === r.id && x.kind === "node").forEach((x) => lines.push({ text: x.type + " (" + n(x.rows) + ") --" + x.name + "--> researcher", tip: x.name + ".parent = researchers.id; one " + x.type + " node per item of " + x.childCol }));
+        const instOn = inst && inst.tick !== false;
+        if (af && !instOn) lines.push({ text: "affiliations (" + n(af.rows) + "): no edges, no institution nodes", tip: "affiliations.institution_id = institutions.id, and data.institutions is not used" });
+        else if (af) lines.push({ text: "researcher --affiliations (" + n(af.rows) + ")--> institution (" + n(inst.rows) + ")", tip: "affiliations.parent = researchers.id; affiliations.institution_id = institutions.id; role and since are edge attributes" });
         else if (inst && inst.tick !== false) lines.push({ text: "institution (" + n(inst.rows) + ")", tip: "key: institutions.id" });
-        if (lk && lk.tick !== false && !lk.gone) {
-            const any = (lk.roles.target || {}).any || [];
+        if (lk && lk.tick !== false && !lk.gone && r.tick === false) lines.push({ text: "links (" + n(lk.rows) + "): no edges, no researcher nodes", tip: "links.source = researchers.id, and data.researchers is not used" });
+        else if (lk && lk.tick !== false && !lk.gone) {
+            const any = ((lk.roles.target || {}).any || []).filter((x) => x !== "institution" || instOn);
             const ends = any.length === 2 ? "researcher | institution" : any[0] || "a target type";
-            lines.push({ text: "researcher --links (" + n(lk.rows) + ")--> " + ends, tip: "links.source = researchers.id; links.target = " + (any.length ? any.map((x) => x + "s.id").join(" or ").replace("researchers.id or institutions.id", "researchers.id (" + NREP.linksToResearcher + ") or institutions.id (" + NREP.linksToInstitution + ")") : "a target type") });
+            lines.push({ text: "researcher --links (" + n(any.includes("institution") ? lk.rows : NREP.linksToResearcher) + ")--> " + ends, tip: "links.source = researchers.id; links.target = " + (any.length ? any.map((x) => x + "s.id").join(" or ").replace("researchers.id or institutions.id", "researchers.id (" + NREP.linksToResearcher + ") or institutions.id (" + NREP.linksToInstitution + ")") : "a target type") });
         }
         return lines;
     }
     function registryStrip(m) {
         const p = table(m, "packages");
+        if (!p || p.tick === false) return [];
         const dep = p.arrs.dependencies.pick === "edges";
         return [dep ? { text: "package (" + n(p.rows) + ") --dependencies (" + n(REGISTRY.dependencyKeys) + ")--> package", tip: "packages.key = the object key of each package; packages.dependencies.* (each key) = packages.key; the version range is each edge's value" }
             : { text: "package (" + n(p.rows) + ")", tip: "packages.key = the object key of each package" }];
@@ -768,12 +830,19 @@
                 out.push(L1(null, n(NREP.coauthorItems) + " relationships.coauthor_ids items; each is a researcher's id."));
                 out.push(L1(null, NREP.coauthorBoth + " co-author pairs are listed by both researchers.", h("span", { class: "dpg-lab" }, " One edge per"),
                     pick([["item", "Item"], ["pair", "Pair"]], m.coPer, (v) => { m.coPer = v; }, "One edge per", "co-per", ["Every item its own edge: a pair listed by both researchers makes two", "One edge per pair of researchers, so degree is not counted twice"])));
-            } else out.push(L1(null, "relationships.coauthor_ids: " + n(NREP.coauthorItems) + " items, each a researcher's id, kept as Several values."));
+            } else out.push(L1(null, "relationships.coauthor_ids: " + n(NREP.coauthorItems) + " items, each a researcher's id, " + (r.arrs["relationships.coauthor_ids"].pick === "one" ? "kept as one value per researcher." : "kept as Several values.")));
+            if (nameLost(r).length && !nameColsOf(r).length) out.push(L1("warn", nameLost(r).join(" and ") + " held the Name and are now kept whole inside " + r.keep.filter((k) => nameLost(r).some((c) => c.startsWith(k + "."))).join(", ") + ": researchers will be named by their id. Choose One column per field there, or give another column the Name."));
             if ((r.keep || []).includes("attributes.profile.contact")) out.push(L1(null, "attributes.profile.contact is kept as one value: each researcher's email and addresses in one sub-object."));
             else if ((r.arrs["attributes.profile.contact.addresses"] || {}).pick === "rows") out.push(L1("res", "attributes.profile.contact.addresses made a child table under researchers: " + n(table(m, "addresses").rows) + " rows, one address node per item, each linked to its researcher."));
             else out.push(L1(null, "attributes.profile.contact.addresses: " + NREP.addrTwoPlus + " researchers hold two or more; each list is kept as one value."));
             out.push(rows ? L1("res", "attributes.affiliations made a child table under researchers: " + n(NREP.affiliations) + " rows, one per item.") : L1(null, "attributes.affiliations: " + NREP.affTwoPlus + " researchers hold two or more; each list is kept as one value."));
             const il = idLinks(m);
+            // a one-value id column whose values all name researchers is offered, not proposed (element-requirements-5.md section 8, Suggested tables)
+            const doc = NX().document, rid = new Set(doc.data.researchers.map((x) => x.id));
+            r.cols.filter((c) => /_id$/.test(c) && !r.arrs[c] && ((r.roles[c] || {}).r || "attr") === "attr").forEach((c) => {
+                const vals = doc.data.researchers.map((x) => get(x, c)).filter((v) => v != null);
+                if (vals.length && vals.every((v) => rid.has(v))) out.push(L1(null, c + ": all " + n(vals.length) + " values are researcher ids, kept as an Attribute. Set Links to -> researcher on it to make " + c.split(".").pop().replace(/_id$/, "") + " edges."));
+            });
             il.forEach((x) => out.push(L1(x.n < x.of ? "warn" : null, x.col + ": " + n(x.of) + " values" + (x.n === x.of ? ", each a " + x.target + "'s id." : "; " + n(x.n) + " are " + x.target + " ids, the other " + n(x.of - x.n) + " match nothing and make no edge."))));
             const made = (co ? [n(m.coPer === "item" ? NREP.coauthorItems : NREP.coauthorPairs) + " coauthor edges"] : []).concat(il.map((x) => n(x.n) + " " + x.name + " edges"));
             out.push(L1("res", n(r.rows) + " records became " + n(r.rows) + " researcher nodes" + (made.length ? " and " + made.join(" and ") + "." : ".")));
@@ -781,10 +850,17 @@
         };
         const institutions = (x) => [L1(null, count(n(x.rows) + " rows", "all"), "; every id is unique."), L1("res", n(x.rows) + " records became " + n(x.rows) + " institution nodes.")];
         const links = (x) => {
-            const any = (x.roles.target || {}).any || [];
+            const inst = table(m, "institutions"), instOff = !inst || inst.tick === false;
+            const any = ((x.roles.target || {}).any || []).filter((y) => y !== "institution" || !instOff);
+            // source names researchers: with data.researchers unticked, no row has a source to link from
+            if (r.tick === false) return [L1(null, count(n(x.rows) + " rows", "all"), "; every id is unique."), L1("warn", "source links to researcher, and no table here makes researcher nodes: tick data.researchers, or no row makes an edge."), L1("res", n(x.rows) + " rows became 0 edges.")];
             const out = [L1(null, count(n(x.rows) + " rows", "all"), "; every id is unique. source links to a researcher in all " + n(x.rows) + ".")];
-            if (any.includes("researcher") && any.includes("institution")) out.push(L1(null, "target links to a researcher in " + NREP.linksToResearcher + " rows and to an institution in " + NREP.linksToInstitution + "; no value matches both."));
+            if (instOff && ((x.roles.target || {}).any || []).includes("institution")) out.push(L1("warn", NREP.linksToInstitution + " target values are institutions, and no table here makes institution nodes: tick data.institutions, or those rows are left out."));
+            else if (any.includes("researcher") && any.includes("institution")) out.push(L1(null, "target links to a researcher in " + NREP.linksToResearcher + " rows and to an institution in " + NREP.linksToInstitution + "; no value matches both."));
             else out.push(L1("warn", (any.includes("researcher") ? NREP.linksToInstitution + " target values are institutions" : NREP.linksToResearcher + " target values are researchers") + ", a type this link does not take: those rows are left out."));
+            // one graph, weighted and unweighted edge types: say what an unweighted edge reads
+            const wc = colWith(x, "weight"), unweighted = (r.arrs["relationships.coauthor_ids"].pick === "edges" ? ["coauthor"] : []).concat(table(m, "affiliations") ? ["affiliations"] : []).concat(idLinks(m).map((y) => y.name));
+            if (wc && unweighted.length) out.push(L1(null, unweighted.join(" and ") + (unweighted.length > 1 ? " have" : " has") + " no weight: each of " + (unweighted.length > 1 ? "their" : "its") + " edges reads 1, while links reads " + wc + ", 0 to 1. A run that reads the loaded weight treats " + (unweighted.length > 1 ? "them" : "it") + " as strong as the strongest link."));
             out.push(L1("res", n(x.rows) + " rows became " + n(any.length === 2 ? x.rows : any.includes("researcher") ? NREP.linksToResearcher : NREP.linksToInstitution) + " edges."));
             return out;
         };
@@ -794,6 +870,8 @@
             const out = [sub("The document"), meta()];
             const each = [["researchers", researchers], ["affiliations", aff], ["institutions", institutions], ["links", links]];
             each.forEach(([id, f]) => { const x = table(m, id); if (x && x.tick !== false && !x.gone) out.push(sub(x.path), ...(id === "researchers" ? f() : f(x))); });
+            // an array the reader unticked is not read, said the way meta is
+            each.forEach(([id]) => { const x = table(m, id); if (x && x.tick === false) out.splice(2, 0, L1(null, x.path + " is not read: it is not ticked in Tables.")); });
             m.tables.filter((x) => x.childOf && x.id !== "affiliations").forEach((x) => out.push(sub(x.path), L1("res", n(x.rows) + " rows became " + n(x.rows) + " " + x.type + " nodes, each with an edge to its researcher.")));
             return out;
         }
@@ -913,11 +991,14 @@
             const reopen = m.pop;
             closePop();
             // A choice re-reads the report: say the new result line, since nothing else announces it
+            // ...and when Load turns off or back on, say that too: the reason line is not a live region
             const res = () => [...el.querySelectorAll(".dpg-rl-res")].map((x) => x.textContent).join(" ");
-            const before = res();
+            const why = () => { const r = el.querySelector(".dpg-reason"); if (!r) return ""; const c = r.cloneNode(true); c.querySelectorAll("[aria-hidden=true]").forEach((x) => x.remove()); return c.textContent.trim(); };
+            const before = res(), whyBefore = why();
             el.replaceChildren();
             build();
-            if (res() && res() !== before) AB.announce(res());
+            const said = [res() && res() !== before ? res() : "", why() !== whyBefore ? why() || (m.door.verb || "Load") + " is on" : ""].filter(Boolean).join(". ");
+            if (said) AB.announce(said);
             if (reopen) openSettings();
             if (fk) { const x = el.querySelector(`[data-k="${CSS.escape(fk)}"]`); const f = x && (x.matches(".k-seg") ? x.querySelector("[tabindex='0']") : x); if (f) f.focus(); }
         };
@@ -949,7 +1030,8 @@
             // One tree: tables, a graph file's two tables, and a JSON document's objects and arrays
             const ul = h("ul", { class: "dpg-list", role: "tree", "aria-label": "Tables" });
             const up = (t) => table(m, t.parent);
-            const isShown = (t) => !t.parent || (up(t) && up(t).open && isShown(up(t)));
+            // an array of records in a record hides once Several rows makes it a child table, which then shows in its place
+            const isShown = (t) => !(t.inRec && m.tables.some((x) => x.childCol === t.inRec)) && (!t.parent || (up(t) && up(t).open && isShown(up(t))));
             const depth = (t) => (t.parent && up(t) ? depth(up(t)) + 1 : 0);
             const hasKids = (t) => m.tables.some((x) => x.parent === t.id);
             const shown = m.tables.filter(isShown);
@@ -999,14 +1081,18 @@
                 const glyphOf = t.struct ? AB.tip(h("span", { class: "ab-abc", role: "img", "aria-label": t.struct === "array" ? "array" : "object" }, t.struct === "array" ? "[ ]" : "{ }"), t.struct === "array" ? "An array" + (t.unread ? "; not read" : "") : "An object" + (t.unread ? "; not read" : ""), { label: false })
                     : t.group ? AB.tip(h("span", { role: "img", "aria-label": KIND_WORD[t.kind] }, icon(KIND_ICON[t.kind], "sm")), KIND_WORD[t.kind], { label: false })
                     : AB.tip(h("span", { role: "img", "aria-label": KIND_WORD[t.kind] }, icon(KIND_ICON[t.kind], "sm")), KIND_WORD[t.kind], { label: false });
-                const label = jsonRow ? AB.truncMiddle(t.path, Math.max(16, 28 - depth(t) * 2)) : h("span", { class: "k-ellipsis" }, t.name);
+                // A JSON row shows its last segment under its parent (the indent shows where it sits); the full path is in its tooltip and name
+                const label = jsonRow ? AB.tip(h("span", { class: "k-ellipsis" }, t.name), t.path, { label: false }) : h("span", { class: "k-ellipsis" }, t.name);
                 const li = h("li", { class: "dpg-t", role: "treeitem", "data-k": "t:" + t.id, tabindex: selected ? "0" : "-1", "aria-selected": selectable(t) ? String(!!selected) : null, "aria-level": String(depth(t) + 1),
                     "aria-expanded": kidsHere ? String(!!t.open) : null, "aria-checked": ticks ? String(t.tick !== false) : null, "aria-label": (jsonRow ? t.path : t.name) + (countText ? ", " + countText : "") + (t.unread ? ", not read" : "") + (t.gone ? ", no longer in the file" : ""),
                     "aria-keyshortcuts": kid || t.struct ? null : "Delete Shift+F10", "data-unread": t.unread ? "" : null, "data-gone": t.gone ? "" : null, style: "--dpg-d:" + depth(t) },
                     disc, glyphOf, h("span", { class: "dpg-name" }, box, label), h("span", { class: "dpg-n" }, countText), status(t), rm);
                 if (!jsonRow) AB.tip(li.querySelector(".dpg-name"), (fileOf(m, t) || t.name) + (rows != null ? ", " + n(rows) + " rows" : ""), { label: false });
                 else if (t.unread) AB.tip(li.querySelector(".dpg-name"), t.path + ": not read; it holds no array of records", { label: false });
+                else if (t.inRec) AB.tip(li.querySelector(".dpg-name"), t.path + ": an array of records in each " + up(t).type + ", now " + ARR_WORD[(up(t).arrs[t.inRec] || {}).pick] + ". Choose what it becomes in the " + t.inRec + " column's role menu", { label: false });
                 li.addEventListener("click", () => {
+                    // an array of records in a record: its home is its column, so the row goes there
+                    if (t.inRec) { m.sel = t.parent; m.filter = null; redraw(); goTo(t.inRec); return; }
                     if (t.struct) { t.open = !t.open; redraw("t:" + t.id); return; }
                     if (t.group && t.kind !== "json") { t.open = true; m.sel = m.tables.find((x) => x.parent === t.id).id; } else m.sel = t.id;
                     m.filter = null;
@@ -1064,7 +1150,7 @@
                 inp.addEventListener("change", () => { t.url = inp.value.trim(); AB.flash("Fetches the address, with 3 tries"); });
                 kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Address"), inp));
             }
-            const fmtText = t.kind === "text" && !t.format ? (t.candidates && t.candidates.length ? "Choose: " + t.candidates.join(" or ") : "Choose a format") : t.format + (t.format === "CSV" ? ", " + t.sep.toLowerCase() : "");
+            const fmtText = t.kind === "text" && !t.format ? (t.candidates && t.candidates.length ? "Choose: " + t.candidates.join(" or ") : "Choose a format") : t.format + (t.format === "CSV" ? ", " + t.sep.toLowerCase() : t.dialect ? ", " + t.dialect : ""); // the JSON dialect graph-io detected says why roles are locked
             const fmt = AB.field(fmtText, { icon: t.pasted ? "type" : t.url ? "link" : "file", caret: true, onClick: (e) => (m.pop ? (m.pop = false, closePop(true)) : openSettings(e.currentTarget)) });
             fmt.dataset.k = "fmt";
             fmt.dataset.fmt = "";
@@ -1072,7 +1158,8 @@
             fmt.setAttribute("aria-label", "File settings: " + fmtText);
             if (t.kind === "text" || t.refusal) fmt.classList.add("dpg-miss");
             kids.push(h("span", { class: "dpg-ctl" }, t.url ? null : h("span", { class: "dpg-lab" }, t.pasted ? "Pasted, " + t.pasted.split("\n").length + " lines" : t.path ? AB.truncMiddle(t.path, 32) : fileOf(m, t)), fmt, auto(t.auto.format && t.format && (t.auto.format === true ? "Worked out from the file's name and first line" : t.auto.format))));
-            if (t.kind === "text" || t.kind === "json" || t.gone || (t.refusal && (t.refusal.terminal || !t.cols.length))) return h("div", { class: "dpg-head" }, kids);
+            // an array that is not used has no row controls until it is (its grid says "Use as table")
+            if (t.kind === "text" || t.kind === "json" || t.gone || (t.json && t.tick === false) || (t.refusal && (t.refusal.terminal || !t.cols.length))) return h("div", { class: "dpg-head" }, kids);
             // Each row is
             if (t.locked) kids.push(h("span", { class: "dpg-locked" }, icon("lock", "sm"), "Each row is " + (t.kind === "edge" ? "an edge" : "a node") + ": set by the file"));
             else {
@@ -1083,7 +1170,7 @@
                     if (v === "node") { toNodes(t, t.typeName || t.name); t.per = "row"; delete t.roles.count; }
                     else { t.kind = "edge"; const [a, b] = linkCols(t); t.roles[a].r = "from"; t.roles[b].r = "to"; delete t.type; if (colWith(t, "key")) delete t.roles[colWith(t, "key")]; }
                     changed();
-                }, "Each row is", "kind", ["Each row of " + t.name + " becomes a node", "Each row of " + t.name + " becomes an edge between the two nodes it names"], off), off && lk ? h("span", { class: "k-secondary" }, off.edge) : null, endsOf(t)));
+                }, "Each row is", "kind", ["Each row of " + t.name + " becomes a node", "Each row of " + t.name + " becomes an edge between the two nodes it names"], off), off ? h("span", { class: "k-secondary" }, off.edge) : null, endsOf(t)));
             }
             // Type, or One edge per
             if (t.kind === "node" && !t.locked) {
@@ -1232,7 +1319,7 @@
             const set = (pick) => () => {
                 a.pick = pick;
                 if (pick === "edges") t.roles[c] = role("links", target, obj ? "key" : "id", { each: true }); else delete t.roles[c];
-                if (pick === "rows" && !m.tables.some((x) => x.childOf === t.id && x.childCol === c)) { t.open = true; m.tables.splice(m.tables.indexOf(t) + 1, 0, childRows(t, c)); }
+                if (pick === "rows" && !m.tables.some((x) => x.childOf === t.id && x.childCol === c)) { t.open = true; insertChild(m, t, childRows(t, c)); }
                 if (pick !== "rows") { const ch = m.tables.find((x) => x.childOf === t.id && x.childCol === c); if (ch) { m.tables = m.tables.filter((x) => x !== ch); if (m.sel === ch.id) m.sel = t.id; } }
                 changed();
                 redraw("r:" + c);
@@ -1242,8 +1329,9 @@
             const edgesN = c === "relationships.coauthor_ids" && m.coPer === "pair" ? n(NREP.coauthorPairs) : itemsN;
             return [
                 { label: "One value (" + rowsN + " values)", check: a.pick === "one", desc: "Each record keeps its " + (obj ? "object" : "array") + " whole as one value", onClick: set("one") },
-                { label: "Several values (" + itemsN + " values)", check: a.pick === "values", desc: "A list attribute: a filter step matches when any item does", disabled: recs ? "Several values needs single values; these items are records" : null, onClick: set("values") },
-                { label: "Several edges: Links to " + (target || "a new type") + ", each " + (obj ? "key" : "item") + " (" + edgesN + " edges)", check: a.pick === "edges", desc: obj ? "Each key becomes an edge to that " + target + "; its version range becomes the edge's value" : "Each item becomes an edge to the " + (target || "node") + " it names",
+                // an object keyed by names lists its keys, as Several edges reads them; its values are dropped
+                { label: "Several values" + (obj ? ": the " + target + " names" : "") + (recs ? "" : " (" + itemsN + " values)"), check: a.pick === "values", desc: obj ? "A list of its keys; the " + c.split(".").pop() + " values (version ranges) are dropped. A filter step matches when any item does" : "A list attribute: a filter step matches when any item does", disabled: recs ? "Several values needs single values; these items are records" : null, onClick: set("values") },
+                { label: "Several edges: Links to " + (target || "a new type") + ", each " + (obj ? "key" : "item") + (recs ? "" : " (" + edgesN + " edges)"), check: a.pick === "edges", desc: obj ? "Each key becomes an edge to that " + target + "; its version range becomes the edge's value" : "Each item becomes an edge to the " + (target || "node") + " it names",
                     disabled: recs ? "Several edges needs ids; these items are records" : null, onClick: target ? set("edges") : () => nameType(el.querySelector(`[data-k="r:${CSS.escape(c)}"]`), "New type from " + c, c.split(".").pop().replace(/s$/, ""), (v) => { a.pick = "edges"; t.roles[c] = role("links", v, null, { each: true, fresh: true }); }) },
                 { label: "Several rows" + (recs ? " (" + itemsN + " rows)" : ""), check: a.pick === "rows", desc: "A child table under " + t.name + ", one row per item, its first column the parent", disabled: recs ? null : "Several rows needs records; these items are single values", onClick: set("rows") },
             ];
@@ -1289,18 +1377,20 @@
             } });
             const tw = (t.roles[c] || {}).any ? t.roles[c].any.join(" or ") : (t.roles[c] || {}).target;
             const linkWord = { key: "names each node", from: "links each row to " + tw, to: "links each row to " + tw, links: "links each row to " + tw }[cur];
-            const needNum = linkWord ? c + " " + linkWord + "; a weight needs a column of its own" : ty === "num" ? null : c + " reads as " + TYPE_WORD[ty] + "; a weight needs a Number";
-            const needTime = ty === "time" || ty === "num" ? null : c + " reads as " + TYPE_WORD[ty] + "; Time needs a Time column, or a Number of seconds or milliseconds since 1970";
+            // short reasons, naming the type as the column's glyph tooltip does
+            const needNum = linkWord ? "Already " + (cur === "key" ? "the Key" : "a link") + "; a weight needs its own column" : ty === "num" ? null : "Reads as " + TYPE_WORD[ty] + "; needs a Number";
+            const needTime = ty === "time" || ty === "num" ? null : "Reads as " + TYPE_WORD[ty] + "; needs Time, or a Number of seconds since 1970";
             // A Number column becomes Time here, with its unit, before the load (no detour through the attribute)
             const timeNum = ty === "num" ? { sub: true, desc: "A Number of seconds or milliseconds since 1970 becomes Time when loaded", onClick: (e) => { while (stack.length > 1) closeSub(); pickMenu(e.currentTarget, [["s", "Seconds since 1970"], ["ms", "Milliseconds since 1970"]].map(([u, label]) => ({ label, check: cur === "time" && (t.roles[c] || {}).unit === u, onClick: () => { set("time")(); t.roles[c].unit = u; } })), { sub: true, label: "Time unit" }); } } : null;
-            const needPos = ty === "num" ? null : c + " reads as " + TYPE_WORD[ty] + "; a position needs a Number";
+            const needPos = ty === "num" ? null : "Reads as " + TYPE_WORD[ty] + "; needs a Number";
             const it = (r, extra) => Object.assign({ label: ROLE_WORD[r], check: cur === r, desc: ROLE_TIP[r], onClick: set(r) }, extra || {});
             const items = [];
             if (t.kind === "node") items.push(it("key", { desc: "Names each node; suggested from a column with \"id\" in its name and unique values" }), link("links"));
             // The count One edge per Pair derives cannot name an end: the pair's ends are its From and To
             else if (pairEdge(t) && c === "count") items.push(Object.assign(link("from"), { sub: false, onClick: null, disabled: "count is derived from the pair; the pair's ends are " + colWith(t, "from") + " and " + colWith(t, "to") }), Object.assign(link("to"), { sub: false, onClick: null, disabled: "count is derived from the pair; the pair's ends are " + colWith(t, "from") + " and " + colWith(t, "to") }));
             else items.push(link("from"), link("to"));
-            items.push({ sep: true }, it("type"), it("name"), it("time", needTime ? { disabled: needTime } : timeNum), it("weight", needNum ? { disabled: needNum } : { desc: "One weight per table; choosing it here moves it from another column" }));
+            const nm = nameColsOf(t).filter((x) => x !== c);
+            items.push({ sep: true }, it("type"), it("name", nm.length ? { desc: cur === "name" ? "Part of " + AB.nameWord(nameColsOf(t)) + "; choose Attribute to take it out" : "Adds " + c + " to the Name: " + nm.concat(c).filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => t.cols.indexOf(a) - t.cols.indexOf(b)).map((x) => x.split(".").pop()).join(" + ") } : null), it("time", needTime ? { disabled: needTime } : timeNum), it("weight", needNum ? { disabled: needNum } : { desc: "One weight per table; choosing it here moves it from another column" }));
             if (t.kind === "edge") items.push(it("edgeId"));
             items.push({ label: "Position", sub: true, check: ["x", "y", "z"].includes(cur), disabled: needPos || null, onClick: (e) => { while (stack.length > 1) closeSub(); pickMenu(e.currentTarget, ["x", "y", "z"].map((a) => ({ label: a, check: cur === a, onClick: set(a) })), { sub: true, label: "Position axis" }); } });
             items.push({ sep: true }, it("attr", { desc: "The default: kept as data, with no role" }));
@@ -1320,6 +1410,9 @@
         // ----- sample grid -----
         function grid(t) {
             const wrap = h("div", { class: "dpg-grid", tabindex: "-1" });
+            // A preview with nothing focusable inside (the raw document, preview rows) is itself a tab stop,
+            // so a keyboard user can scroll it; a grid with focusable headers is reached through them
+            requestAnimationFrame(() => { if (wrap.isConnected && !wrap.querySelector("[tabindex='0'], button, a[href], input")) { wrap.tabIndex = 0; wrap.setAttribute("role", "region"); wrap.setAttribute("aria-label", "Preview of " + (t.file || t.path || t.name)); } });
             if (t.pasted) { wrap.append(h("pre", { class: "dpg-pre", "aria-label": "Pasted text" }, t.pasted)); return [wrap]; }
             if (t.reading) {
                 const pct = t.readRows ? Math.round((t.readRows / t.rows) * 100) : 40;
@@ -1350,8 +1443,8 @@
                 const ty = typeOfCol(t, c);
                 const keyOfT = rr.target && (types(m).find((x) => x.name === rr.target) || {}).unique;
                 const target = rr.any ? rr.any.join(" or ") : rr.target;
-                const word = a && r !== "links" ? ARR_WORD[a.pick] : rr.each ? "Links to -> " + target + ", each " + (a && a.items === "object" ? "key" : "item")
-                    : ["from", "to", "links"].includes(r) ? ROLE_WORD[r] + " -> " + target + (rr.by && keyOfT && rr.by !== keyOfT[0] ? " by " + rr.by : "") : ROLE_WORD[r];
+                const word = a && r !== "links" ? ARR_WORD[a.pick] : rr.each ? "Links to " + target + ", each " + (a && a.items === "object" ? "key" : "item") + (a ? " (" + n(c === "relationships.coauthor_ids" && m.coPer === "pair" ? NREP.coauthorPairs : a.n) + " edges)" : "") /* the role menu's count */
+                    : ["from", "to", "links"].includes(r) ? ROLE_WORD[r] + " -> " + target + (rr.by && keyOfT && rr.by !== keyOfT[0] ? " by " + rr.by : "") : r === "name" ? AB.nameWord(nameColsOf(t)) : ROLE_WORD[r];
                 const locked = rr.locked;
                 const quiet = !hasRole(t, c) && !locked;
                 // The default role reads as quiet text, not a dropdown; it is the same control
@@ -1437,7 +1530,7 @@
                         AB.truncMiddle(run.g, Math.max(14, run.n * 26)), icon("chevron-down", "sm"));
                     b.addEventListener("click", () => pickMenu(b, [
                         { label: "One column per field", check: !kept, desc: "Each field of " + run.g + " is its own column, named by its full path", onClick: () => { t.keep = t.keep.filter((k) => k !== run.g); changed(); redraw("g:" + run.g); } },
-                        { label: "Keep as one value", check: kept, desc: "Stores " + run.g + " whole: a cell shows its field count, the inspector a collapsed tree", onClick: () => { t.keep = t.keep.filter((k) => !k.startsWith(run.g + ".")).concat([run.g]); changed(); redraw("g:" + run.g); } },
+                        { label: "Keep as one value", check: kept, desc: "Stores " + run.g + " whole: a cell shows its field count, the inspector a collapsed tree" + (nameColsOf(t).some((c) => c.startsWith(run.g + ".")) ? ". The Name reads its fields, so it would name nothing" : ""), onClick: () => { t.keep = t.keep.filter((k) => !k.startsWith(run.g + ".")).concat([run.g]); changed(); redraw("g:" + run.g); } },
                     ], { label: run.g }));
                     groupBtns.push(b);
                     return h("th", { class: "dpg-gh", colspan: String(run.n) }, b);
@@ -1455,18 +1548,24 @@
                 const live = btns.find((b) => b.dataset.k === keyOf()) || btns.find((b) => !b.getAttribute("aria-disabled")) || btns[0];
                 if (live) live.tabIndex = 0;
                 btns.forEach((b, i) => b.addEventListener("keydown", (e) => {
-                    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-                    if (d) { e.preventDefault(); const nx = btns[(i + d + btns.length) % btns.length]; btns.forEach((x) => (x.tabIndex = -1)); nx.tabIndex = 0; remember(nx.dataset.k); nx.focus(); nx.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+                    // Home and End jump to the first and last role (69 columns is a long walk by arrow)
+                    const to = e.key === "Home" ? 0 : e.key === "End" ? btns.length - 1 : null;
+                    const d = to != null ? to - i : { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+                    if (d || to != null) { e.preventDefault(); const nx = btns[(i + d + btns.length) % btns.length]; btns.forEach((x) => (x.tabIndex = -1)); nx.tabIndex = 0; remember(nx.dataset.k); nx.focus(); nx.scrollIntoView({ block: "nearest", inline: "nearest" }); }
                     else if ((e.key === "Enter" || e.key === " " || (e.altKey && e.key === "ArrowDown")) && !b.getAttribute("aria-disabled")) { e.preventDefault(); b.click(); }
                 }));
             };
             roving(roleBtns, () => "r:" + (m.lastCol || ""), (k) => { m.lastCol = k.slice(2); });
             roving(groupBtns, () => "g:" + (m.lastGroup || ""), (k) => { m.lastGroup = k.slice(2); });
             wrap.append(tableEl);
+            // the grid is a preview: say so when the table holds more rows than it shows
+            if (!f && sample.length && typeof t.rows === "number" && t.rows > sample.length) wrap.append(h("div", { class: "k-secondary", role: "note", style: "padding:6px 12px;position:sticky;left:0;width:max-content" }, "Showing the first " + sample.length + " of " + n(t.rows) + " rows."));
             const bar = f ? h("div", { class: "dpg-filter", role: "status" }, h("span", null, "Showing " + f.text + ": " + (rows.length ? rows.length + " of the " + sample.length + " sample rows" : "none of the " + sample.length + " sample rows") + "."), h("span", Object.assign({ class: "ab-link", role: "button", "data-k": "showall" }, AB.act({ onClick: () => { m.filter = null; redraw(); } })), "Show all rows")) : null;
             if (!sample.length) wrap.append(AB.empty(t.id === "april" ? "No sample: the file is read once Load into is chosen." : "No rows to show."));
             const grain = pairEdge(t) && !f ? h("div", { class: "dpg-filter", role: "note" }, h("span", null, "One row per pair: each is one edge, its count the rows it merged.")) : null;
-            return [bar || grain, cols.length > 15 ? goBar(t, cols) : null, wrap];
+            // once shown for a table it stays, so a choice that drops it to 15 columns never takes the find away mid-task
+            if (cols.length > 15) t.goShown = true;
+            return [bar || grain, t.goShown ? goBar(t, cols) : null, wrap];
         }
         // Go to column (past 15 columns): the field list at menu size, the columns with a role first;
         // a pick scrolls the grid to that header and focuses its role
@@ -1524,13 +1623,16 @@
             const declares = vis.some((t) => t.format && t.format !== "CSV" && !t.json && !t.childOf);
             const dirOff = !declares ? { file: m.json ? "This JSON document is not a graph file, so it does not say which way an edge points" : "A CSV file does not say which way an edge points" } : null;
             if (m.direction === "file" && dirOff) m.direction = "directed";
-            kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Direction"), segOf([["file", "As the file says"], ["directed", "Directed"], ["undirected", "Undirected"]], m.direction, (v) => { m.direction = v; changed(); }, "Direction", "dir", ["As the file says; a file with both kinds of edge reads as mixed", "Every edge points from its From to its To", "An edge is the same both ways"], anyCsv ? dirOff : null)));
+            // Nothing read (every table refused for good): no Direction to choose
+            const nothingRead = m.tables.length && m.tables.every((t) => t.refusal && t.refusal.terminal);
+            if (!nothingRead) kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Direction"), segOf([["file", "As the file says"], ["directed", "Directed"], ["undirected", "Undirected"]], m.direction, (v) => { m.direction = v; changed(); }, "Direction", "dir", ["As the file says; a file with both kinds of edge reads as mixed", "Every edge points from its From to its To", "An edge is the same both ways"], anyCsv ? dirOff : null)));
             if (m.door.into) kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Load into"), segOf([["this", "This graph"], ["new", "New graph"]], m.into, (v) => { m.into = v; }, "Load into", "into", ["Adds its rows to " + T().graphName + ", as another table", "Opens it as its own graph, in this project"])));
             // what blocks the primary button, or what it will lose
             const blockT = vis.concat(m.tables.filter((t) => t.group && t.refusal)).map((t) => [t, problem(m, t)]).find(([, p]) => p);
             const terminal = (sl && sl.refusal && sl.refusal.terminal) || (m.tables[0] && m.tables[0].group && m.tables[0].refusal && m.tables[0].refusal.terminal);
             let reason = null;
-            if (blockT) reason = [blockT[1].level, (blockT[0].path || blockT[0].name) + ": " + blockT[1].text];
+            if (!m.tables.length) reason = ["need", "Add a file: there is nothing to load"];
+            else if (blockT) reason = [blockT[1].level, (blockT[0].path || blockT[0].name) + ": " + blockT[1].text];
             else if (m.door.into && !m.into) reason = ["need", "Choose where it loads, under Load into"];
             else if (vis.some((t) => t.reading)) reason = ["need", "Wait until " + vis.find((t) => t.reading).file + " is read"];
             else if (m.door.edit && !m.dirty) reason = ["need", "Nothing has changed yet"];
@@ -1553,7 +1655,7 @@
                 // Row or Pair, or each entry as a node, and the Add choices
                 const entries = m.tables.find((t) => t.id === "entries");
                 const records = entries && to && (to[1] === "door-entries-loading" || (m.door.edit && to[1] === "door-entries"));
-                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (records) { DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; } AB.go(to[0], to[1]); } });
+                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); AB.fx.datasets[registryDataset()].edges = pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0; } if (records) { DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; } AB.go(to[0], to[1]); } });
             }
             primary.dataset.k = "primary";
             const cancel = AB.button("Cancel", { kind: "secondary", key: "Esc", onClick: () => AB.onPageCancel && AB.onPageCancel() });
@@ -1563,7 +1665,13 @@
 
         function build() {
             const t = sel();
-            const head = AB.pageHead(m.door.title, { backTip: "Cancel" });
+            // Cancel (or one Esc too many) leaves with a way back: Undo reopens this page as it was left
+            const leave = () => {
+                const back = m.state;
+                if (AB.pageOpener) location.assign(AB.pageOpener); else AB.close();
+                setTimeout(() => AB.notice(m.door.edit ? "Edit cancelled: nothing changed" : "Load cancelled: nothing was loaded", { label: "Undo", onClick: () => AB.go("data-page", back) }), 0);
+            };
+            const head = AB.pageHead(m.door.title, { backTip: "Cancel", onCancel: leave });
             const main = h("div", { class: "dpg-main" }, modelStrip());
             if (t) main.append(headStrip(t), ...grid(t).filter(Boolean), matchReport(t));
             else main.append(h("div", { class: "dpg-grid" }, AB.empty("No tables. Add one with + above the list.")));
@@ -1571,6 +1679,13 @@
             // a JSON document's tree needs room for its paths
             const page = h("div", { class: "dpg", "data-json": m.tables.some((x) => x.kind === "json") ? "" : null }, tablesList(), main, f.el);
             el.append(head, page);
+            // a path too long for the tree column at this width: a shorter middle ellipsis, never the end one
+            el.querySelectorAll(".dpg-name > .ab-mid[data-full]").forEach((x) => {
+                const full = x.dataset.full;
+                for (let max = x.textContent.length - 2; x.scrollWidth > x.clientWidth + 1 && max >= 8; max -= 2) { const y = AB.truncMiddle(full, max); y.dataset.full = full; x.replaceWith(y); x = y; }
+            });
+            // Load takes focus as soon as the page is drawn (the frames below may come late on a cold load)
+            if (m.first && m.focusLoad) f.primary.focus({ preventScroll: true });
             if (m.first) {
                 m.first = false;
                 requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1597,7 +1712,7 @@
         build();
     }
 
-    const WIDE = ["wide-hosts", "wide-find-column", "wide-link-menu"];
+    const WIDE = ["wide-hosts", "wide-find-column", "wide-link-menu", "edit-wide-hosts", "edit-wide-connections"];
     const TRANSFERS = ["reading", "transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
     registerSection({
         id: "data-page",
@@ -1605,7 +1720,7 @@
         region: "workspace",
         rail: "data",
         // The package registry is a new project of its own: the header names it, not the research network
-        frame: (state) => (state === "json-keyed" ? { dataset: registryDataset() } : { dataset: TRANSFERS.includes(state) ? "transactions" : WIDE.includes(state) ? "wide" : state === "json-plain" ? "plainJson" : (state || "").startsWith("json-") ? "nested"
+        frame: (state) => (state === "json-keyed" || state === "edit-registry" ? { dataset: registryDataset() } : { dataset: TRANSFERS.includes(state) ? "transactions" : WIDE.includes(state) ? "wide" : ["json-plain", "json-graphology", "json-jgf", "edit-plain-nodes", "edit-plain-links"].includes(state) ? "plainJson" : (state || "").startsWith("edit-json-") ? "nested" : (state || "").startsWith("json-") ? "nested"
             : state === "graph-file" || state === "edit-graph-file" || (state || "").startsWith("detect") ? "lesmis" : "doorEntries" }),
         states: [
             { id: "entries", label: "Door entries: three tables, entries selected" },
@@ -1649,6 +1764,17 @@
             { id: "wide-find-column", label: "Wide data: Go to column, \"vu cr\" typed" },
             { id: "wide-link-menu", label: "Wide data: a link's \"by\" list (host by its unique columns)" },
             { id: "json-plain", label: "JSON: a node-link graph file, one step" },
+            { id: "json-graphology", label: "JSON: a Graphology export, one step" },
+            { id: "json-jgf", label: "JSON: a JSON Graph Format (JGF) file, one step" },
+            { id: "edit-wide-hosts", label: "Edit: hosts (wide project)" },
+            { id: "edit-wide-connections", label: "Edit: connections (wide project)" },
+            { id: "edit-plain-nodes", label: "Edit: coauthors.json, nodes" },
+            { id: "edit-plain-links", label: "Edit: coauthors.json, links" },
+            { id: "edit-json-researchers", label: "Edit: the research network, researchers" },
+            { id: "edit-json-affiliations", label: "Edit: the research network, affiliations" },
+            { id: "edit-json-addresses", label: "Edit: the research network, addresses" },
+            { id: "edit-json-institutions", label: "Edit: the research network, institutions" },
+            { id: "edit-json-links", label: "Edit: the research network, links" },
             { id: "json-tree", label: "JSON: the document's tree, tables proposed" },
             { id: "json-researchers", label: "JSON: the researchers table, flattened columns" },
             { id: "json-keep-value", label: "JSON: attributes.profile.contact kept as one value" },
@@ -1660,6 +1786,7 @@
             { id: "json-no-records", label: "JSON: refused, no array of records" },
             { id: "json-path-gone", label: "JSON: Edit source, a ticked array is gone" },
             { id: "json-keyed", label: "JSON: a package registry, records keyed by name" },
+            { id: "edit-registry", label: "Edit: the package registry (loaded)" },
         ],
         render,
     });

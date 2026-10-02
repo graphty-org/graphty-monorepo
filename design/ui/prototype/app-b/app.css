@@ -140,6 +140,7 @@ body[data-page="map"] .ab-app { display: none; }
 /* ---------- canvas ---------- */
 .ab-hot { position: absolute; width: 22px; height: 22px; border-radius: 50%; transform: translate(-50%, -50%); }
 .ab-hot:hover, .ab-hot:focus-visible { box-shadow: 0 0 0 2px var(--k-mark-out), 0 0 0 4px var(--k-mark-in); }
+.ab-hot[data-quiet]:hover { box-shadow: none; }
 .ab-legend .k-lg-row[data-nav]:hover, .ab-lg-size:hover { background: var(--cm-bg-hover); border-radius: 4px; }
 .ab-lg-size { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .ab-dot { display: inline-block; border-radius: 50%; background: var(--cm-icon-secondary); }
@@ -468,6 +469,7 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .ab-fl { display: flex; flex-direction: column; min-width: 0; }
 .ab-fl-menu { width: 320px; max-height: 420px; padding: 4px 0 8px; }
 .ab-fl-list { overflow-y: auto; min-height: 0; flex: 1 1 auto; outline: none; }
+.ab-fl-list:empty { flex: 0 0 auto; } /* no match: the line beside it shows at the top */
 .ab-fl-list:focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); border-radius: 8px; }
 .ab-fl-find { display: flex; align-items: center; gap: 8px; padding: 4px 8px 6px; flex: none; }
 .ab-fl-count { flex: none; font-size: 11px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
@@ -490,7 +492,7 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .ab-fl-menu .ab-fl-glyph { color: var(--k-menu-ink2); }
 .ab-fl-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
 .ab-fl-name .k-menu-desc { white-space: normal; }
-.ab-fl-trail { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--cm-text-secondary); }
+.ab-fl-trail { flex: 0 1000 auto; min-width: 5ch; max-width: 40%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--cm-text-secondary); }
 .ab-fl-menu .ab-fl-trail { color: var(--k-menu-ink2); }
 .ab-fl-box { display: inline-grid; place-items: center; width: 14px; height: 14px; border: 1px solid var(--cm-border-strong); border-radius: 3px; }
 .ab-fl-box[data-on] { background: var(--cm-bg-brand); border-color: var(--cm-bg-brand); color: #fff; }

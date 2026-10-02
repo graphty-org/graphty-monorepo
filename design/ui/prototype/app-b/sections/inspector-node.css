@@ -12,3 +12,8 @@
 .inn-more .ab-fl-trail { flex: 0 1 auto; min-width: 0; }
 .inn-more .inn-val { flex: 1 1 0; min-width: 0; text-align: right; }
 .inn-more .ab-fl-trail { min-width: 7em; } /* a date or a category stays readable beside a long name */
+/* A row whose name carries a role tag: the name and tag keep their width, the value takes the end ellipsis */
+.k-data .k-name:has(> .inn-role) { flex: 0 0 auto; max-width: 64%; overflow: visible; }
+.k-data:has(.inn-role) .k-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the kept-whole expander: a 24 px target */
+.inn-whole { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; padding: 0 4px; }

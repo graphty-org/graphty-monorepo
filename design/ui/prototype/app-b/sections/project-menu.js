@@ -54,7 +54,7 @@
                 p.setAttribute("aria-expanded", String(state === "open" || state === "long-name"));
                 p.setAttribute("aria-label", name + ", project menu");
                 // The header shows about 30 characters; a name that does not fit keeps its full text in the tooltip
-                if (state === "long-name") AB.tip(p, name, { label: false }); else delete p.dataset.tip;
+                if (state === "long-name") AB.tip(p, name, { label: false }); else AB.tip(p, "Project menu", { key: "F2", second: "Double-click or F2: rename", label: false });
             }
 
             // Closed and rename draw nothing in the overlay, so clicks reach the frame

@@ -199,17 +199,31 @@
     // An attribute name in a step takes the middle ellipsis (spec 2.5)
     const attrName = (name) => AB.truncMiddle(name, 24);
 
-    // o: { attr, type, cond, value, before, after, unit: [label, state], cap, noted, gone, open }
-    // gone: the problem block for an attribute the data no longer has; open: the picker opens on arrival
+    // o: { attr, type, cond, value, before, after, unit: [label, state], cap, noted, gone, open, on, step }
+    // gone: the problem block for an attribute the data no longer has; open: the picker opens on arrival.
+    // attr null: a new step, which reads nothing until a field is picked (its Condition waits for it).
+    // step: the Data place's step object, renamed by its rule as the rule changes.
     function filterBody(o) {
-        let on = !o.gone;
-        const aText = h("span", { class: o.gone ? "ia-gone" : null }, attrName(o.attr));
+        let on = o.on != null ? o.on : !o.gone;
+        const aText = h("span", { class: o.gone ? "ia-gone" : null }, o.attr ? attrName(o.attr) : h("span", { class: "k-secondary" }, "Pick a field"));
         const a = AB.field(aText, { caret: true });
         a.setAttribute("aria-haspopup", "listbox");
         let cur = o.attr, type = o.type;
-        const cText = h("span", null, o.cond);
+        const cText = h("span", null, o.cond || "");
         const c = AB.field(cText, { caret: true });
+        c.hidden = !o.attr;
         const v = h("input", { class: "k-field ia-num", value: o.value || "", "aria-label": "Value", inputmode: type === "num" ? "decimal" : null, hidden: o.value == null });
+        // The rule is the step's name: the inspector header and the Data place's row follow it
+        const rename = () => {
+            const rule = cur + " " + cText.textContent + (v.hidden || !v.value ? "" : " " + v.value);
+            if (o.step) {
+                o.step.name = rule;
+                const row = document.querySelector(`#ab-left [data-row="${window.CSS.escape(o.step.id)}"] .ab-tname`);
+                if (row) row.textContent = rule;
+            }
+            const head = document.querySelector("#ab-right .ab-insp-head .k-name");
+            if (head) head.replaceChildren(attrName(cur), " " + cText.textContent + (v.hidden || !v.value ? "" : " " + v.value));
+        };
         // The attribute picker is the field list at menu size, over the project on screen
         const openPicker = () => AB.openFieldList(a, {
             current: o.gone ? null : cur, label: "Attribute",
@@ -217,20 +231,25 @@
                 cur = name; type = t;
                 aText.className = "";
                 aText.replaceChildren(attrName(name));
-                if (!condsOf(t).includes(cText.textContent)) { cText.textContent = condsOf(t)[0]; v.hidden = false; v.value = ""; }
+                c.hidden = false;
+                // A new condition starts with no value, so the step keeps every node until one is typed
+                if (!condsOf(t).includes(cText.textContent)) { cText.textContent = condsOf(t)[0]; v.hidden = false; v.value = ""; after.textContent = fmt(o.before); }
+                rename();
                 AB.announce("Attribute: " + name + ", " + cText.textContent);
+                requestAnimationFrame(() => (v.hidden ? c : v).focus());
             },
         });
+        v.addEventListener("change", rename);
         a.addEventListener("click", openPicker);
         c.addEventListener("click", () => AB.openMenu(c, condsOf(type).map((x) => ({
             label: x, check: x === cText.textContent,
-            onClick: () => { cText.textContent = x; v.hidden = /empty$/.test(x); AB.announce("Condition: " + x); },
+            onClick: () => { cText.textContent = x; v.hidden = /empty$/.test(x); rename(); AB.announce("Condition: " + x); },
         }))));
         AB.tip(a, "Attribute", { label: false });
         AB.tip(c, "Condition", { label: false });
         if (o.open) requestAnimationFrame(openPicker);
 
-        const after = h("b", null, fmt(on ? o.after : o.before));
+        var after = h("b", null, fmt(on ? o.after : o.before)); // var: the picker above sets it
         const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(on), "aria-labelledby": "ia-apply-l", "aria-label": "Apply this step" });
         const toggle = () => {
             if (o.gone) return AB.flash("This step reads nothing until it has an attribute");
@@ -337,9 +356,10 @@
         const tags = tally(rs.flatMap((r) => r.tags));
         return [
             AB.section({ title: "Summary", editable: true },
-                roles([["Several values", "a list attribute: a filter step matches when any item does. Choose another outcome on the Data page"]], "json-researchers"),
+                // how the array was loaded is the value's form, not a role (roles: Key, Name, Time, Weight, Subtype, Links to)
+                AB.fieldRow("Holds", AB.roleTag("Several values", { second: "a list attribute: a filter step matches when any item does. Choose another outcome on the Data page", go: ["data-page", "edit-json-researchers"] })),
                 dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
-                AB.data("Path", h("span", { class: "k-id ia-break" }, "data.researchers[].tags")),
+                AB.data("Path", h("span", { class: "k-id ia-break" }, "tags")), AB.data("From", h("span", { class: "k-id ia-break" }, "data.researchers[]")),
                 AB.data("On", fmt(rs.length) + " nodes (researchers)", { go: ["table-dock", "wide"] }),
                 AB.data("Items", fmt(items) + " in " + rs.length + " lists; " + several + " hold two or more"),
                 AB.data("Empty", emptyLists + " researchers have an empty list"),
@@ -358,11 +378,35 @@
     // project's first number field. Every figure is read from kit/wide-nested.json and AB.fieldsOf.
     let picked = null;
     const OWN = { wide: { legacy_asset_tag: "sparse", [LONG]: "long-name" }, nested: { tags: "list-attribute" } };
+    // The transfers and the door entries keep their own attribute states; Les Miserables opens lesmis-field
+    const KEPT = {
+        transactions: (name) => (/^id\b/.test(name) ? "attribute-name-role" : "attribute"),
+        doorEntries: (name) => ({ floors: "node-weight", count: "edge-weight", person_id: "link-key" })[name] || null,
+    };
     AB.openField = (ds, name) => {
         const own = (OWN[ds] || {})[name];
         if (own) return AB.go(ID, own);
+        if (KEPT[ds]) {
+            const st = KEPT[ds](name);
+            return st ? AB.go(ID, st) : AB.flash("Opens " + name + "'s inspector (not wired in the skeleton)");
+        }
         picked = { ds, name };
-        AB.go(ID, ds === "nested" ? "nested-field" : ds === "plainJson" ? "plain-field" : "wide-field");
+        AB.go(ID, { nested: "nested-field", plainJson: "plain-field", lesmis: "lesmis-field" }[ds] || "wide-field");
+    };
+
+    // ---------- any filter step of any project (AB.openStep) ----------
+    // The Data place hands over the step and the place it is listed in: { ds, left, step, attr, type,
+    // cond, value, before, after, unit }. A new step has no attr: its field list opens on arrival, empty
+    // (owner rule: a new line binds nothing until the reader picks a field). A direct visit shows a new
+    // step on the transfers.
+    let curStep = null;
+    AB.openStep = (o) => { curStep = o; AB.go(ID, "step"); };
+    const stepOf = () => curStep || { ds: "transactions", left: "data-place/new-step", attr: null, before: T().nodes, after: T().nodes, unit: ["nodes", "nodes"] };
+    const stepView = () => {
+        const o = stepOf();
+        // its "..." is the step row's own menu in the Data place (o.menu), else the transfers step's
+        return { icon: "funnel", title: o.attr ? h("span", null, attrName(o.attr), " " + o.cond + (o.value ? " " + o.value : "")) : "New step", kind: "Filter step", menu: o.menu || ["context-menus", "filter-step"],
+            prov: ["in Filters", o.left.split("/")[0], o.left.split("/")[1]], body: () => filterBody(Object.assign({ open: !o.attr }, o)) };
     };
     const at = (rec, rel) => rel.split(".").reduce((o, k) => (o == null ? o : o[k]), rec);
     function fieldOf(ds) {
@@ -375,17 +419,22 @@
     function rowsFor(ds, g) {
         if (ds === "wide") return g.element === "edge" ? W().edgeRows : W().nodeRows;
         if (ds === "plainJson") return g.element === "edge" ? P().document.links : P().document.nodes;
+        if (ds === "lesmis") return g.element === "edge" ? [] : AB.fx.datasets.lesmis.rows; // the kit has no edge rows
         const doc = N().document;
         return g.table === "researchers" ? doc.data.researchers : g.table === "institutions" ? doc.data.institutions : g.table === "links" ? doc.links : [];
     }
-    const UNIT = { hosts: "hosts", connections: "connections", researchers: "researchers", institutions: "institutions", links: "links" };
+    const UNIT = { hosts: "hosts", connections: "connections", researchers: "researchers", institutions: "institutions", links: "links", nodes: "nodes", edges: "edges" };
     function fieldBody(ds) {
         const [x, g] = fieldOf(ds), rows = rowsFor(ds, g), unit = UNIT[g.table] || g.table;
-        const vals = rows.map((r) => (ds === "wide" ? r[x.name] : at(r, x.name))).filter((v) => v != null && v !== "" && !(Array.isArray(v) && !v.length));
+        const vals = rows.map((r) => (ds === "wide" || ds === "lesmis" ? r[x.name] : at(r, x.name))).filter((v) => v != null && v !== "" && !(Array.isArray(v) && !v.length));
         const word = { num: "Number", time: "Time", bool: "Category (true or false)", list: "A list", whole: "One value (kept whole)" }[x.type] || "Category";
         const values = [];
         let summary;
-        if (x.type === "num") {
+        if (!rows.length) {
+            // Les Miserables' edge attribute: the kit counts its edges but holds none of its values
+            summary = "no values in the sample";
+            values.push(AB.data("Values", "The sample holds no edge rows; the Data page reads them from " + AB.fx.datasets.lesmis.file));
+        } else if (x.type === "num") {
             const s2 = vals.slice().sort((a, b) => a - b), med = s2[Math.floor(s2.length / 2)];
             summary = s2.length ? s2[0] + " to " + s2[s2.length - 1] : "no values";
             values.push(AB.data("Range", summary), AB.data("Median", s2.length ? String(med) : "none"));
@@ -401,8 +450,8 @@
             AB.section({ title: "Summary", editable: true },
                 fullName(x.name),
                 x.type === "whole" || x.type === "list" ? AB.data("Read as", word) : dropdown("Read as", READ_AS(), word === "Number" || word === "Time" ? word : "Category", { needs: OVERRIDE }),
-                AB.data("On", fmt(rows.length) + " " + (g.element === "edge" ? "edges" : "nodes") + " (" + unit + ")", { go: ["table-dock", "wide"] }),
-                AB.data("Fill", pct(vals.length, rows.length || 1) + ": " + fmt(vals.length) + " of " + fmt(rows.length) + " " + unit + " have a value"),
+                AB.data("On", fmt(rows.length || AB.fx.datasets[ds].edges) + " " + (g.element === "edge" ? "edges" : "nodes") + " (" + unit + ")", { go: ["table-dock", ds === "lesmis" ? (g.element === "edge" ? "edges" : "nodes") : "wide"] }),
+                rows.length ? AB.data("Fill", pct(vals.length, rows.length) + ": " + fmt(vals.length) + " of " + fmt(rows.length) + " " + unit + " have a value") : null,
                 AB.data("In use", x.usedBy || "Nothing uses it")),
             AB.dataTab({
                 Values: { summary, body: values },
@@ -411,10 +460,14 @@
         ] };
     }
     const fieldView = (ds) => ({
-        icon: "hash", kind: "Attribute", menu: ["context-menus", "attribute"], dyn: () => {
+        icon: "hash", kind: "Attribute", dyn: () => {
             const r = fieldBody(ds);
+            const edit = { wide: ["data-page", r.g.element === "edge" ? "edit-wide-connections" : "edit-wide-hosts"], plainJson: ["data-page", r.g.element === "edge" ? "edit-plain-links" : "edit-plain-nodes"], lesmis: ["data-page", "edit-graph-file"] }[ds] || ["data-page", "edit-json-researchers"];
+            const file = ds === "wide" ? (r.g.element === "edge" ? W().edgesFile : W().file) : ds === "lesmis" ? AB.fx.datasets.lesmis.file : (ds === "plainJson" ? P() : N()).file;
+            // The attribute's own menu, the one Data > Attributes opens on its row
             return { icon: r.x.type === "num" ? "hash" : r.x.type === "list" ? "list" : "type", title: AB.truncMiddle(r.x.name, 28), kind: (r.g.element === "edge" ? "Edge" : "Node") + " attribute",
-                prov: ds === "wide" ? ["from " + (r.g.element === "edge" ? W().edgesFile : W().file), "data-page", "wide-hosts"] : ds === "plainJson" ? ["from " + P().file, "data-page", "json-plain"] : ["from " + N().file, "data-page", "json-researchers"], body: () => r.body };
+                menu: (b) => AB.attributeMenu(b, ds, r.x.name, { editOn: edit, table: ds === "lesmis" ? ["nodes", "edges"] : ["wide", "wide"] }),
+                prov: ["from " + file, edit[0], edit[1]], body: () => r.body };
         },
     });
 
@@ -430,14 +483,16 @@
         "filter-step-noted": Object.assign({ body: () => filterBody(TRANSFER_STEP(true)) }, STEP),
         "step-attribute-gone": Object.assign({}, STEP, { title: "amount_usd >= 1,000", prov: ["step 1 in Filters", "data-place", "step-attribute-gone"], body: () => filterBody(goneStep()) }),
         "wide-filter": Object.assign({}, STEP, { title: () => h("span", null, attrName(LONG), " >= 1"), prov: ["step 2 in Filters", "data-place", "wide-filters"], body: () => filterBody(wideStep()) }),
-        sparse: ATTR("type", "legacy_asset_tag", "Node attribute", ["from hosts-2026-03.csv", "data-page", "wide-hosts"], sparseBody),
-        "long-name": ATTR("hash", () => attrName(LONG), "Node attribute", ["from hosts-2026-03.csv", "data-page", "wide-hosts"], longBody),
-        "list-attribute": ATTR("list", "tags", "Node attribute", ["from network-export-2026-03.json", "data-page", "json-researchers"], listBody),
+        sparse: ATTR("type", "legacy_asset_tag", "Node attribute", ["from hosts-2026-03.csv", "data-page", "edit-wide-hosts"], sparseBody),
+        "long-name": ATTR("hash", () => attrName(LONG), "Node attribute", ["from hosts-2026-03.csv", "data-page", "edit-wide-hosts"], longBody),
+        "list-attribute": ATTR("list", "tags", "Node attribute", ["from network-export-2026-03.json", "data-page", "edit-json-researchers"], listBody),
         "wide-field": fieldView("wide"),
         "nested-field": fieldView("nested"),
         "plain-field": fieldView("plainJson"),
+        "lesmis-field": fieldView("lesmis"),
+        step: { dyn: stepView },
     };
-    const isStep = (state) => ["filter-step", "filter-step-noted", "step-attribute-gone", "wide-filter"].includes(state);
+    const isStep = (state) => ["filter-step", "filter-step-noted", "step-attribute-gone", "wide-filter", "step"].includes(state);
     const isDoor = (state) => state === "node-weight" || state === "link-key" || state === "edge-weight";
     // The wide and nested routes: the project and its Data place
     const DS_FRAME = {
@@ -449,6 +504,7 @@
         "wide-field": { left: "data-place/attributes-wide", dataset: "wide" },
         "nested-field": { left: "data-place/attributes-nested", dataset: "nested" },
         "plain-field": { left: "data-place/plain-json", dataset: "plainJson" },
+        "lesmis-field": { left: "data-place/graph-file", dataset: "lesmis" },
     };
 
     registerSection({
@@ -457,7 +513,7 @@
         region: "right",
         rail: "data",
         // The Data place draws only transfers, so a door-entries attribute shows no left panel rather than the wrong table
-        frame: (state) => DS_FRAME[state] || (isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" }),
+        frame: (state) => (state === "step" ? { left: stepOf().left, dataset: stepOf().ds } : null) || DS_FRAME[state] || (isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" }),
         closeTo: "data-place",
         states: [
             { id: "attribute", label: "amount, Weight" },
@@ -475,6 +531,8 @@
             { id: "wide-field", label: "Any other host or connection attribute (the first number one when opened directly)" },
             { id: "nested-field", label: "Any other researcher attribute (nested JSON)" },
             { id: "plain-field", label: "Any attribute of the plain JSON graph (Coauthors)" },
+            { id: "lesmis-field", label: "Any Les Miserables attribute (the first number one when opened directly)" },
+            { id: "step", label: "Any project's filter step; directly, a new step on the transfers, its field list open" },
         ],
         render(el, state) {
             // A run's result attribute has one inspector, its measure row's

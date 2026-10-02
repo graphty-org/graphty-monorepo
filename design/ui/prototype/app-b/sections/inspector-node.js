@@ -91,7 +91,10 @@
         const data = () => AB.dataTab({
             Summary: {
                 summary: d.type + ", " + tbl.columns.filter((c) => c !== d.key).map((c) => c + " " + (r[c] || "none")).join(", "),
-                body: [AB.data("type", d.type)].concat(tbl.columns.map((c) => AB.data(c, c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none"))),
+                body: [AB.data("type", d.type)].concat(tbl.columns.map((c) => {
+                    const used = ((AB.fieldsOf("doorEntries")[d.t] || { fields: [] }).fields.find((x) => x.name === c) || {}).usedBy;
+                    return AB.data(used ? withRole(c, used) : c, c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none");
+                })),
             },
             Notes: { count: r[d.key] === d.id && AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
         }, { kind: "node" });
@@ -139,9 +142,12 @@
         return key;
     }
     // What uses a field, after its value: the field list's In use tag
-    const usedTag = (x) => h("span", { class: "k-secondary", style: "white-space:nowrap" }, " . " + x.usedBy); // the tag stays one unit
+    // What uses a field: the boxed role tag after the name, as the edge inspector and the field lists' grid draw it, on one line
+    // The name is already cut in the middle by its caller, so it never takes a second, end ellipsis (inspector-node.css)
+    const withRole = (label, word) => h("span", { class: "inn-role", style: "display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle" },
+        h("span", { style: "flex:none;white-space:nowrap" }, label), h("span", { style: "flex:none" }, AB.roleTag(word, { second: "what uses this attribute" })));
     // A flat record's Data tab (a host, a plain JSON node): in use, then "N more attributes"
-    function wideData(state, src = "wide", r = wideRow(), name = r.hostname) {
+    function wideData(state, src = "wide", r = wideRow(), name = AB.nameOf(src, r)) {
         const g0 = AB.fieldsOf(src).find((g) => g.element === "node"), fields = g0.fields;
         const inUse = fields.filter((x) => x.usedBy), rest = fields.filter((x) => !x.usedBy);
         const empty = rest.filter((x) => isEmpty(r[x.name])), shown = rest.filter((x) => !isEmpty(r[x.name]));
@@ -150,7 +156,7 @@
         return AB.dataTab({
             Summary: {
                 summary: inUse.filter((x) => x.name !== "id").map((x) => fmt(r[x.name])).join(", "),
-                body: inUse.map((x) => AB.data(AB.truncMiddle(x.name, 24), [x.name === "id" ? h("span", { class: "k-mono" }, r.id) : h("span", { style: "white-space:nowrap" }, fmt(r[x.name])), usedTag(x)]))
+                body: inUse.map((x) => AB.data(withRole(AB.truncMiddle(x.name, 24), x.usedBy), x.name === "id" ? h("span", { class: "k-mono" }, r.id) : h("span", { style: "white-space:nowrap" }, fmt(r[x.name]))))
                     .concat(moreSection(rest.length, empty.length, list)),
             },
             Notes: { count: 0, target: ["notes-place", "empty"] },
@@ -160,9 +166,10 @@
         const sized = AB.route && AB.route.frame.left === "graph-place/wide-sized";
         const why = AB.whyThisLook([
             sized && { name: VULN, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "long-name"], wins: ["size"], values: { size: "Size by " + VULN + ": " + r[VULN] } },
-            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["opacity"], values: { opacity: "40%" } },
-            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: sized ? ["shape"] : ["shape", "color", "size"], values: { shape: "Faceted sphere, the default look", color: "Gray, the default", size: "1, the default" } },
-        ].filter(Boolean), { kind: "node", element: r.hostname });
+            // the one Selection look every project uses (Les Miserables' why-this-look)
+            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: sized ? ["color"] : ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look", color: "Gray, the default", size: "1, the default" } },
+        ].filter(Boolean), { kind: "node", element: AB.nameOf("wide", r) });
         // An attribute name takes the middle ellipsis (spec 5.4): the row named for its attribute
         why.querySelectorAll(".ab-why-name").forEach((n) => { if (n.textContent === VULN) n.replaceChildren(AB.truncMiddle(VULN, 22)); });
         return why;
@@ -172,7 +179,7 @@
         else { AB.mem.set("sec.data.node.summary", "1"); AB.mem.set("sec.data.node.more", state === "wide-more" ? "1" : "0"); }
         const r = wideRow();
         el.append(AB.inspector({
-            icon: "cpu", title: r.hostname, kind: "Node, host", kindKey: "node",
+            icon: "cpu", title: AB.nameOf("wide", r), kind: "Node, host", kindKey: "node",
             menu: ["context-menus", "node"],
             onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
             tab: state === "wide-why" ? "Style" : "Data",
@@ -202,7 +209,7 @@
             const v = at(rec, x.name);
             if (x.type === "list") return AB.tip(h("span", { class: "inn-val k-ellipsis" }, v.join(", ")), v.join(", "), { label: false });
             if (x.type !== "whole") return valueTrail(v);
-            const btn = h("span", { class: "inn-val inn-whole ab-link", role: "button", tabindex: "0", "aria-expanded": "false" }, sizeOf(v));
+            const btn = h("span", { class: "inn-val inn-whole ab-link", role: "button", tabindex: "0", "aria-expanded": "false", "aria-label": "Expand " + x.name + ", " + sizeOf(v) }, sizeOf(v));
             AB.tip(btn, x.name + ", kept as one value", { label: false });
             const flip = (e) => {
                 e.stopPropagation();
@@ -219,19 +226,23 @@
     function nestedData() {
         const rec = nestedRow();
         const fields = AB.fieldsOf("nested").find((g) => g.table === "researchers").fields;
-        const inUse = fields.filter((x) => x.usedBy);
+        // A Name built from several fields is one row, the Name, its parts in the tag
+        const parts = AB.nameCols("nested", rec.type), joined = parts.length > 1;
+        const inUse = fields.filter((x) => x.usedBy && !(joined && parts.includes(x.name)));
         const others = fields.filter((x) => !x.usedBy);
         const empty = others.filter((x) => isEmpty(at(rec, x.name)));
+        const nameRow = joined ? [AB.data(withRole("Name", parts.map((c) => c.split(".").pop()).join(" + ")), AB.nameOf("nested", rec))] : [];
         const ds = ownDataset("nested:" + rec.id, "researchers", others.filter((x) => !isEmpty(at(rec, x.name))));
         const dotted = (x) => (x.parent ? x.parent + "." + x.label : x.label);
-        const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + rec.id, empty: empty.map(dotted), emptyWhere: "on " + rec.id, trail: nestedTrail(rec), onPick: (name) => AB.openField("nested", name) });
+        const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + AB.nameOf("nested", rec), empty: empty.map(dotted), emptyWhere: "on " + AB.nameOf("nested", rec), trail: nestedTrail(rec), onPick: (name) => AB.openField("nested", name) });
         // This state shows every folder open: open each in turn (a folder redraws the list when it opens)
         for (let i = 0, f; i < 20 && (f = list.querySelector(".ab-fl-folder[data-open=false]")); i++) f.click();
+        const rows = inUse.map((x) => AB.data(withRole(AB.truncMiddle(dotted(x), 26), x.usedBy), x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name))));
+        rows.splice(inUse.length && inUse[0].name === "id" ? 1 : 0, 0, ...nameRow); // the Name after the key
         return AB.dataTab({
             Summary: {
-                summary: inUse.filter((x) => x.name !== "id").map((x) => fmt(at(rec, x.name))).join(", "),
-                body: inUse.map((x) => AB.data(AB.truncMiddle(dotted(x), 26), [x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name)), usedTag(x)]))
-                    .concat(moreSection(others.length, empty.length, list)),
+                summary: (joined ? [AB.nameOf("nested", rec)] : []).concat(inUse.filter((x) => x.name !== "id").map((x) => fmt(at(rec, x.name)))).join(", "),
+                body: rows.concat(moreSection(others.length, empty.length, list)),
             },
             Notes: { count: 0, target: ["notes-place", "empty"] },
         }, { kind: "node" });
@@ -239,7 +250,7 @@
     function nestedNode(el) {
         AB.mem.set("sec.data.node.summary", "1");
         AB.mem.set("sec.data.node.more", "1");
-        const rec = nestedRow(), name = rec.attributes.name.given + " " + rec.attributes.name.family;
+        const rec = nestedRow(), name = AB.nameOf("nested", rec);
         el.append(AB.inspector({
             icon: "user", title: name, kind: "Node, researcher", kindKey: "node",
             menu: ["context-menus", "node"],
@@ -261,7 +272,7 @@
         const nodes = AB.fx.datasets.plainJson.document.nodes, i = walkedOn("plainJson");
         const r = nodes[i != null ? i : 0];
         el.append(AB.inspector({
-            icon: "circle-dot", title: r.name, kind: "Node", kindKey: "node",
+            icon: "circle-dot", title: AB.nameOf("plainJson", r), kind: "Node", kindKey: "node",
             menu: ["context-menus", "node"],
             onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
             tab: "Data",
@@ -269,8 +280,35 @@
                 Style: () => AB.whyThisLook([
                     { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
                     { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
-                ], { kind: "node", element: r.name }),
-                Data: () => wideData("plain-data", "plainJson", r, r.name),
+                ], { kind: "node", element: AB.nameOf("plainJson", r) }),
+                Data: () => wideData("plain-data", "plainJson", r),
+            },
+        }));
+    }
+
+    // ---------- the transfers: one account, the walk's or the first row ----------
+    function transfersNode(el) {
+        AB.mem.set("sec.data.node.summary", "1");
+        const rows = AB.fx.datasets.transactions.rows, i = walkedOn("transactions");
+        const r = rows[i != null ? i : 0];
+        const shown = ["kind", "country", "riskScore", "flagged", "degree", "pagerank"];
+        el.append(AB.inspector({
+            icon: "circle-dot", title: r.id, kind: "Node, account", kindKey: "node",
+            menu: ["context-menus", "node"],
+            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            tab: "Data",
+            tabs: {
+                Style: () => AB.whyThisLook([
+                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                ], { kind: "node", element: r.id }),
+                Data: () => AB.dataTab({
+                    Summary: {
+                        summary: r.kind + ", " + r.country + ", degree " + r.degree,
+                        body: [AB.data("id", h("span", { class: "k-mono" }, r.id))].concat(shown.map((c) => AB.data(c, fmt(r[c])))),
+                    },
+                    Notes: { count: 0, target: ["notes-place", "many"] },
+                }, { kind: "node" }),
             },
         }));
     }
@@ -310,6 +348,8 @@
             : WIDE[state] ? { dataset: "wide", left: "graph-place/at-rest" }
                 : state === "nested-data" ? { dataset: "nested", left: "graph-place/at-rest" }
                     : state === "plain-data" ? { dataset: "plainJson", left: "graph-place/at-rest" }
+                    // no left panel: the account opens beside the transfers place the reader was in
+                    : state === "transfers-node" ? { dataset: "transactions" }
                     : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
@@ -324,6 +364,7 @@
             { id: "wide-why", label: "Hosts: Why this look with a long attribute name" },
             { id: "nested-data", label: "Nested JSON: a researcher's Data tab" },
             { id: "plain-data", label: "Plain JSON (Coauthors): a node's Data tab" },
+            { id: "transfers-node", label: "Transfers: an account's Data tab" },
             { id: "why-unknown-path", label: "Why this look: a row whose path reads nothing" },
         ],
         render(el, state) {
@@ -332,6 +373,7 @@
             if (WIDE[state]) return wideNode(el, state);
             if (state === "nested-data") return nestedNode(el);
             if (state === "plain-data") return plainNode(el);
+            if (state === "transfers-node") return transfersNode(el);
             // The review states pin the remembered open or closed choice so each one is reachable
             if (state === "why-closed") AB.mem.set("sec.why.node", "0");
             else if (state !== "data") AB.mem.set("sec.why.node", "1");

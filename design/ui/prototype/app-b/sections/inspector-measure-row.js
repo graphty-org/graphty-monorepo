@@ -108,27 +108,77 @@
             writes: "vuln_count_critical_unremediated_over_30_days",
         },
     };
-    const tableOf = (m) => (m.over === "edge" ? "edges" : m.unit === "accounts" ? "transfers" : m.unit === "hosts" ? "wide" : "nodes");
+    // ---------- a row Color by or Size by made from an attribute (AB.paintRow), read from its records ----------
+    function painted(prop) {
+        const r = A.route, ds = r && ["wide", "nested", "plainJson"].includes(r.frame.dataset) ? r.frame.dataset : (A.paintedLast || { ds: "wide" }).ds;
+        const p = (A.painted[ds] || []).filter((x) => x.prop === prop && x.on === "row").pop();
+        const [x, g] = p ? A.fieldIn(ds, p.name) : [null, null];
+        if (!x) return null;
+        const D = A.fx.datasets[ds], recs = A.recordsOf(ds, g), edge = g.element === "edge";
+        const file = ds === "wide" ? (edge ? D.edgesFile : D.file) : D.file;
+        const nameOfRec = (rec) => (edge ? rec.source + " - " + rec.target : A.nameOf(ds, rec));
+        const vals = recs.map((rec) => A.valueAt(rec, p.name)).map((v) => (v == null || v === "" || typeof v === "object" ? null : v));
+        const has = vals.filter((v) => v != null), num = x.type === "num";
+        const fmt = (v) => (typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : String(v));
+        const m = {
+            title: p.name, long: p.name.length > 24, over: g.element, unit: g.table, total: recs.length, run: false, icon: num ? "hash" : "type", fmt, table: "wide",
+            provenance: ["from " + file, "data-place", A.placeOf(ds, "data") || "attributes-wide"], writes: p.name, writesGo: ["data-place", A.placeOf(ds, "data") || "attributes-wide"],
+            made: [["Source", file], ["Type", num ? "Number" : "Category"]], bindingState: "painted-" + prop.toLowerCase(),
+            bound: prop === "Color" ? { [g.element + ".color"]: num ? { field: p.name, palette: "Orange to brown", ramp: RAMP } : { field: p.name, palette: "Eight distinct" } } : { [g.element + (edge ? ".width" : ".size")]: { field: p.name, range: edge ? "0.5 to 4" : "0.5 to 3" } },
+        };
+        if (!num) {
+            const c = {};
+            has.forEach((v) => { c[v] = (c[v] || 0) + 1; });
+            const top = Object.entries(c).sort((a, b) => b[1] - a[1]);
+            m.cats = top.slice(0, 15).concat(top.length > 15 ? [["other", top.slice(15).reduce((a, [, k]) => a + k, 0)]] : []);
+            m.hist = { from: 0, width: 1, bins: m.cats.map(([, k]) => k) };
+            m.caption = has.length + " of " + recs.length + " have a value, " + top.length + " distinct";
+            m.top = top.slice(0, 5).map(([v, k]) => [v, k]);
+            m.fmt = (v) => String(v);
+            m.swatch = A.chit("#E69F00");
+            return m;
+        }
+        const lo = Math.min(...has), hi = Math.max(...has), w = hi > lo ? (hi - lo) / 16 : 1;
+        const bin = (v) => Math.min(15, Math.floor((v - lo) / w));
+        const bins = Array.from({ length: 16 }, () => 0), names = {};
+        recs.forEach((rec, i) => { if (vals[i] == null) return; const b = bin(vals[i]); bins[b]++; (names[b] = names[b] || []).push(nameOfRec(rec)); });
+        m.binNames = Object.fromEntries(Object.entries(names).filter(([, l]) => l.length <= 6));
+        const sorted = has.slice().sort((a, b) => a - b);
+        m.hist = { from: lo, width: w, bins };
+        m.caption = has.length + " of " + recs.length + " have a value, " + fmt(lo) + " to " + fmt(hi) + ", median " + fmt(sorted[Math.floor(sorted.length / 2)]);
+        m.top = recs.map((rec, i) => [nameOfRec(rec), vals[i]]).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        return m;
+    }
+
+    // A direct visit, before any Color by or Size by: the hosts painted by cpu_util_p95_pct (the frame runs before any region draws)
+    function seed(state) {
+        const prop = state === "painted-size" ? "Size" : "Color", ds = (A.paintedLast || { ds: "wide" }).ds;
+        if (!(A.painted[ds] || []).some((x) => x.prop === prop && x.on === "row")) A.paintBy("wide", prop, "cpu_util_p95_pct", "row");
+        return { dataset: A.paintedLast.ds, left: "graph-place/painted" };
+    }
+    const tableOf = (m) => m.table || (m.over === "edge" ? "edges" : m.unit === "accounts" ? "transfers" : m.unit === "hosts" ? "wide" : "nodes");
     // An attribute name takes the middle ellipsis (spec 2.5); prose keeps the end ellipsis
     const nameOf = (m, max) => (m.long ? A.truncMiddle(m.title, max) : m.title);
 
     // ---------- Style tab ----------
     function styleTab(m, st) {
-        const tab = A.styleTab({ kinds: [m.over], kind: m.over, set: {}, bound: m.bound });
+        // a line bound with its bind icon on this row (A.boundOn) joins the row's own binding
+        const mine = A.boundOn("inspector-measure-row/" + st.id);
+        const tab = A.styleTab({ kinds: [m.over], kind: m.over, set: {}, bound: Object.assign({}, m.bound, mine) });
         // A bound value opens the one Binding popover, in this row's form (diverging or not). A label
         // line is not a binding: it keeps its own Label popover, so only channel lines are redirected.
-        const target = ["style-pickers", st.diverging ? "binding-diverging" : "binding"];
+        const target = ["style-pickers", m.bindingState || (st.diverging ? "binding-diverging" : "binding")];
         const BOUND = ".ab-sline:not([data-label]) .ab-bound";
         const open = (e) => {
             const b = e.target.closest && e.target.closest(BOUND);
             if (!b || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
             e.stopPropagation();
             e.preventDefault();
-            A.go(target[0], target[1]);
+            A.go(target[0], b.closest(".ab-sline").dataset.ch in mine ? "bound" : target[1]);
         };
         tab.addEventListener("click", open, true);
         tab.addEventListener("keydown", open, true);
-        const mark = () => tab.querySelectorAll(BOUND).forEach((b) => { b.dataset.nav = A.href(target[0], target[1]); b.setAttribute("aria-haspopup", "dialog"); });
+        const mark = () => tab.querySelectorAll(BOUND).forEach((b) => { b.dataset.nav = A.href(target[0], b.closest(".ab-sline").dataset.ch in mine ? "bound" : target[1]); b.setAttribute("aria-haspopup", "dialog"); });
         new MutationObserver(mark).observe(tab, { childList: true, subtree: true });
         mark();
         return h("div", null,
@@ -151,12 +201,13 @@
         } else {
             const H = m.hist, top = Math.max(...H.bins);
             bars = h("div", { class: "imr-hist", role: "img", "aria-label": "Distribution of " + m.title }, H.bins.map((c) => h("i", { style: `height:${c ? Math.max(3, (c / top) * 100) : 0}%`, "data-zero": c ? null : "" })));
-            axis = h("div", { class: "imr-axis" }, h("span", null, "0"), h("span", null, m.fmt(H.from + H.bins.length * H.width)));
+            axis = m.cats ? h("div", { class: "imr-axis" }, h("span", null, A.truncMiddle(String(m.cats[0][0]), 18)), h("span", null, A.truncMiddle(String(m.cats[m.cats.length - 1][0]), 18)))
+                : h("div", { class: "imr-axis" }, h("span", null, H.from ? m.fmt(H.from) : "0"), h("span", null, m.fmt(H.from + H.bins.length * H.width)));
         }
         A.tip(bars, "Drag across bars to select those " + m.unit, { label: false });
         const counts = m.bands ? m.bands.map((b) => b.count) : m.hist.bins;
-        const lo = (i) => (m.bands ? String(m.bands[i].from) : m.fmt(m.hist.from + i * m.hist.width));
-        const hi = (i) => (m.bands ? String(m.bands[i].to) : m.fmt(m.hist.from + (i + 1) * m.hist.width));
+        const lo = (i) => (m.cats ? String(m.cats[i][0]) : m.bands ? String(m.bands[i].from) : m.fmt(m.hist.from + i * m.hist.width));
+        const hi = (i) => (m.cats ? String(m.cats[i][0]) : m.bands ? String(m.bands[i].to) : m.fmt(m.hist.from + (i + 1) * m.hist.width));
         const clear = () => { [...bars.children].forEach((x) => x.removeAttribute("data-on")); summary.replaceChildren(); A.announce("Selection cleared"); };
         const setRange = (a, b) => {
             const [s, e] = a <= b ? [a, b] : [b, a];
@@ -200,7 +251,7 @@
         (m.made || []).forEach(([k, v]) => made.push(A.data(k, v)));
         if (st.scope) made.push(A.data("Scope", "77 nodes; the filter now leaves 60"));
         if (m.ran) made.push(A.data("Ran", m.ran));
-        made.push(A.data("Writes", m.long ? A.truncMiddle(m.writes, 20) : m.writes, { go: m.long ? ["data-place", "attributes-wide"] : ["data-place", "attributes"] }));
+        made.push(A.data("Writes", m.long ? A.truncMiddle(m.writes, 20) : m.writes, { go: m.writesGo || (m.long ? ["data-place", "attributes-wide"] : ["data-place", "attributes"]) }));
         // Spec order: Values, Top 10, Made with, Notes (AB.dataTab would sort Top 10 after Made with)
         const sec = (title, summary, body) => A.section({ title, collapsible: true, key: "data.measure." + title.toLowerCase().replace(/\s+/g, "-"), summary }, body);
         return h("div", null,
@@ -224,6 +275,8 @@
         "edge-measure-data": { m: "edge", tab: "Data" },
         "long-name": { m: "vuln", tab: "Style" },
         "long-name-data": { m: "vuln", tab: "Data" },
+        "painted-color": { painted: "Color" },
+        "painted-size": { painted: "Size" },
     };
 
     registerSection({
@@ -234,7 +287,8 @@
         frame: (state) =>
             state === "risk-score" || state === "risk-score-data" ? { left: "data-place/attributes" }
                 : state === "long-name" || state === "long-name-data" ? { dataset: "wide", left: "graph-place/wide-sized", canvas: "canvas-and-states/hosts-legend" }
-                : state === "scope-mark" ? { left: "graph-place/scope-mark", chip: "Filtered: 60 of 77 nodes" }
+                : /^painted-/.test(state) ? seed(state)
+                : state === "scope-mark" ? { left: "graph-place/scope-mark", chip: "Filtered: 60 of 77 nodes", filterOn: ["degree"] }
                     : state === "degree" ? { left: "graph-place/show-hidden" }
                         : { left: "graph-place/at-rest" },
         closeTo: "graph-place",
@@ -251,16 +305,18 @@
             { id: "edge-measure-data", label: "Edge measure, Data tab" },
             { id: "long-name", label: "Long attribute name (hosts)" },
             { id: "long-name-data", label: "Long attribute name, Data tab" },
+            { id: "painted-color", label: "Color by an attribute (directly: the hosts by cpu_util_p95_pct)" },
+            { id: "painted-size", label: "Size by an attribute (directly: the hosts by cpu_util_p95_pct)" },
         ],
         render(el, state) {
-            const st = STATES[state] || STATES.style;
-            const m = MEASURES[st.m];
+            const st = Object.assign({ id: STATES[state] ? state : "style" }, STATES[state] || STATES.style);
+            const m = st.painted ? painted(st.painted) : MEASURES[st.m];
             let stateBar = null;
             if (st.edited) stateBar = { text: "Settings changed", why: "Settings changed since the run: Damping 0.85 to 0.90", actions: [{ label: "Rerun", go: ["graph-place", "running"] }, { label: "Revert", go: ["inspector-measure-row", "data"] }] };
             if (st.scope) stateBar = { text: "Ran on 77; now 60", why: "Ran on 77 nodes; a filter step now leaves 60", actions: [{ label: "Rerun on 60", onClick: () => A.flash("Reruns PageRank on the 60 nodes the filter keeps") }] };
             el.append(A.inspector({
                 icon: m.icon,
-                swatch: m.bound["node.color"] || m.bound["edge.color"] ? A.ramp(RAMP[0], RAMP[1]) : null,
+                swatch: m.swatch || (m.bound["node.color"] || m.bound["edge.color"] ? A.ramp(RAMP[0], RAMP[1]) : null),
                 title: nameOf(m, 24),
                 kind: "Measure",
                 provenance: m.provenance,

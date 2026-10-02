@@ -154,6 +154,8 @@
     };
     // What the format cannot hold, worded from the element's lossNotes (graph-io's writers)
     function lossNotes() {
+        // a project loaded from nested JSON: graph-io writes its flattened columns back as dotted keys (element-requirements-5.md, Deferred)
+        if (AB.route && AB.route.frame.dataset === "nested") return ["Nested fields are written as flat dotted keys (\"attributes.profile.h_index\": 24), not in the nesting of " + AB.fx.datasets.nested.file + "."];
         const nodeCols = "label, group, degree, betweenness, PageRank, the Louvain community, the position and the drawn color and size";
         if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them.`];
         if (S.format === "CSV" && S.table === "Nodes") return [`The node table holds nodes only: the ${n(L().edges)} edges and their value are not written. Choose Table: Edges to keep them.`];

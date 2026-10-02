@@ -32,13 +32,19 @@
 
     function items(state) {
         const is2d = state === "2d";
-        const selected = state === "3d-selected";
+        const f = AB.route && AB.route.frame;
+        // a node selected on the project on screen (the flyout opens over its panels)
+        const head = document.querySelector("#ab-right .ab-insp-head .k-name");
+        const selected = state === "3d-selected" || !!(f && String(f.toolbar || "").startsWith("selection-bar/") && head);
+        const who = state === "3d-selected" ? "Valjean" : head ? head.textContent.trim() : "the selection";
         const headset = state === "headset";
-        const views = state === "no-saved-views" ? [] : state === "many-views" ? MANY : AB.SAVED_VIEWS;
+        // the saved views are Les Miserables'; a loaded project has none yet (its Views place is empty)
+        const own = !f || !f.dataset || f.dataset === "lesmis";
+        const views = state === "no-saved-views" || !own ? [] : state === "many-views" ? MANY : AB.SAVED_VIEWS;
         const list = [
             AB.cmd("fit", { onClick: done("Camera fits the whole graph"), go: undefined }),
             AB.cmd("frame-selection", selected
-                ? { onClick: done("Camera frames Valjean"), go: undefined }
+                ? { onClick: done("Camera frames " + who), go: undefined }
                 : { disabled: "Nothing is selected", go: undefined }),
             { sep: true },
         ];

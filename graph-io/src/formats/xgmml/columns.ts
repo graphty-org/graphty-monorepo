@@ -16,7 +16,7 @@ import { type AttRec, isListLike } from "./document.js";
 import { attType, elementKind, parseScalar, type ScalarKind, widenScalar } from "./values.js";
 
 /** A table of the snapshot. */
-export type Domain = "node" | "edge" | "graph";
+type Domain = "node" | "edge" | "graph";
 
 /** One item of a list cell. */
 interface Item {
@@ -56,7 +56,7 @@ interface Plan {
 }
 
 /** Options of a column set. */
-export interface ColumnSetOptions {
+interface ColumnSetOptions {
     /** Decode Cytoscape's `\n` / `\t` escapes in string values. */
     readonly unescape: boolean;
     /** The importer's `long` option. */

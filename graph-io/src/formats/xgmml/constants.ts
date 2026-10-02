@@ -75,9 +75,6 @@ export const META_KEY = "xgmml";
 /** The label column (role label) of node and edge `label` attributes. */
 export const LABEL_COLUMN = "label";
 
-/** The node / edge column of a `name` XML attribute written beside a label. */
-export const NAME_COLUMN = "name";
-
 /** The edge `id` column (role id, unique). */
 export const EDGE_ID_COLUMN = "id";
 

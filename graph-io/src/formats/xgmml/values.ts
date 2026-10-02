@@ -11,10 +11,10 @@ import { type AttRec } from "./document.js";
 export type ScalarKind = "bool" | "int" | "long" | "real" | "string";
 
 /** What one att declares. */
-export type DeclaredKind = ScalarKind | "list" | "map";
+type DeclaredKind = ScalarKind | "list" | "map";
 
 /** The declared kind of an att and the type text to keep in `origin.type`. */
-export interface AttType {
+interface AttType {
     /** The kind. */
     readonly kind: DeclaredKind;
     /** The type as declared (`cy:type` when given, else `type`), or null for an untyped att. */
@@ -113,7 +113,7 @@ const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 
 /** A parsed scalar and what parsing it found. */
-export interface ParsedScalar {
+interface ParsedScalar {
     /** The value. */
     readonly value: boolean | number | string;
     /** An integer beyond i32 (the column widens), or a long / real beyond what a double holds exactly. */
@@ -176,6 +176,6 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
  * @param text - the text
  * @returns the text with `\n` and `\t` decoded
  */
-export function unescapeCytoscape(text: string): string {
+function unescapeCytoscape(text: string): string {
     return text.includes("\\") ? text.replace(/\\t/g, "\t").replace(/\\n/g, "\n") : text;
 }

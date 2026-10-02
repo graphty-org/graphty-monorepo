@@ -462,7 +462,7 @@ async function* streamIterable(stream: ReadableStream<Uint8Array>): AsyncGenerat
  * @param head - the first bytes
  * @returns the confidence
  */
-export function sniffXgmml(head: Uint8Array): number {
+function sniffXgmml(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;

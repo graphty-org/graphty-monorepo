@@ -165,7 +165,7 @@ export function graphsOf(doc: XgmmlDocument, dialect: Dialect): GraphRec[] {
  * @param href - the xlink:href text
  * @returns the id
  */
-export function localRef(href: string): string | null {
+function localRef(href: string): string | null {
     return href.startsWith("#") ? href.slice(1) : null;
 }
 

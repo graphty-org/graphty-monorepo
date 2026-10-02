@@ -149,6 +149,7 @@ reports every column or feature outside it):
 | OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
 | CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 | XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
+| Session | `@graphty/graph-io/cys`     | `.cys`                             | read only   | read only   | read only   | read only     | read only                              | -     | -    | -        | -         | -              | -           | -         | -   |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -313,6 +314,22 @@ losses and format rules, in addition to the table:
   endpoints are `E_UNKNOWN_NODE` unless `addMissingNodes: true`. The exporter writes the Cytoscape
   3 dialect (`type` plus `cy:type` on every att): f32, u8, u32 and dict are written as wider
   Cytoscape types, json as text, and graphty's visual roles are not translated into graphics.
+- **Cytoscape sessions (`.cys`)**: read only (Cytoscape opens the XGMML graph-io writes). A
+  session is a zip of every network of a Cytoscape desktop, read with no dependency (the central
+  directory, zip64, data descriptors, stored and deflate entries inflated through
+  `DecompressionStream`; encryption and other methods are refused by name). One snapshot per
+  registered network: `import()` reads the first (`graphIndex` / `graphName` choose another,
+  `listGraphs()` lists them with their counts), `importAll()` every one. 3.x: the network file's
+  topology, the network's CyCSV tables as columns (shared columns joined in by `cytables.xml`,
+  HIDDEN and app tables as hidden columns under their namespace), positions from its first view
+  (y-up; further views as `position@2`, ...) and the view's per-element values as the `graphics`
+  column; 2.x: one XGMML per network, with `cysession.xml`'s selection and hidden state as
+  `cytoscape.selected` / `cytoscape.hidden`. Expanded groups become `parent` / `parents`, a
+  collapsed group's members are listed in `meta.extra.cytoscape.groups`, nested-network pointers
+  name their network in `cytoscape.nestedNetwork`. Styles are not applied (`W_STYLES_NOT_IMPORTED`,
+  issue #706); apps, properties and images are skipped with `W_CYS_ENTRY_SKIPPED`. Text input is
+  refused (`E_CYS_NOT_ZIP`: pass the bytes). `maxUncompressedBytes` (default 2 GiB) and a 1000:1
+  ratio limit stop zip bombs (`E_TOO_LARGE`).
 
 - **CX2**: the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web, read element by
   element so a document longer than one JavaScript string still loads. Every edge is directed;

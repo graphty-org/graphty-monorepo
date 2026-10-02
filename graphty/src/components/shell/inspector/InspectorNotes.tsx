@@ -48,7 +48,7 @@ function relativeTimeOf(iso: string): string {
 }
 
 /** Props of {@link InspectorNotes}. */
-export interface InspectorNotesProps {
+interface InspectorNotesProps {
     /** The section's persisted open/closed id. */
     readonly sectionId: string;
     /** Whether the section starts open. */

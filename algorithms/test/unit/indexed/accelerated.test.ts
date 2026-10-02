@@ -13,6 +13,7 @@ import {
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
+    PathCountOverflowError,
     type ScoresResultLike,
     type SsspResultLike,
 } from "../../../src/index.js";
@@ -761,6 +762,29 @@ describe("accelerated(acc)", () => {
             const boom = new Error("E_DEVICE_LOST");
             const fake: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.reject(boom) };
             await expect(accelerated(fake).betweennessCentrality(sixNodes())).rejects.toBe(boom);
+        });
+
+        it("rejects with PathCountOverflowError when the accelerator reports overflowed path counts", async () => {
+            const s = sixNodes();
+            const wrong = {
+                scores: new Float64Array(s.nodeCount),
+                iterations: 1,
+                converged: true,
+                sigmaOverflow: true,
+            };
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                betweennessCentrality: () => Promise.resolve(wrong),
+                edgeBetweennessCentrality: () =>
+                    Promise.resolve({ scores: new Float64Array(s.edgeCount), sigmaOverflow: true }),
+            };
+            await expect(accelerated(fake).betweennessCentrality(s)).rejects.toBeInstanceOf(PathCountOverflowError);
+            await expect(accelerated(fake).edgeBetweennessCentrality(s)).rejects.toThrow(
+                /edgeBetweennessCentrality.*shortest-path counts/,
+            );
+            const right = { ...wrong, sigmaOverflow: false };
+            const fine: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.resolve(right) };
+            await expect(accelerated(fine).betweennessCentrality(s)).resolves.toBe(right);
         });
     });
 

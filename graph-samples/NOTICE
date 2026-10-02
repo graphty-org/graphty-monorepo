@@ -99,6 +99,38 @@ Cite:     OpenFlights.org, Airport, airline and route databases (routes as of Ju
 License:  Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.
 
 ----------------------------------------------------------------------------------------------------
+Yeast galactose perturbation network (galFiltered) (datasets/yeast-perturbation)
+
+Source:   https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/galFiltered.cys
+Also:     https://github.com/cytoscape/cytoscape-tutorials (LICENSE: CC0-1.0)
+Cite:     T. Ideker, V. Thorsson, J. A. Ranish, R. Christmas, J. Buhler, J. K. Eng, R. Bumgarner, D. R. Goodlett, R. Aebersold and L. Hood, Integrated genomic and proteomic analyses of a systematically perturbed metabolic network, Science 292(5518), 929-934 (2001). doi:10.1126/science.292.5518.929
+License:  CC0-1.0 (cytoscape-tutorials LICENSE).
+
+----------------------------------------------------------------------------------------------------
+Human protein interaction network (Stelzl 2005) (datasets/stelzl-interactome)
+
+Source:   https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/STELZ.cys
+Also:     https://github.com/cytoscape/cytoscape-tutorials (LICENSE: CC0-1.0)
+Cite:     U. Stelzl et al., A human protein-protein interaction network: a resource for annotating the proteome, Cell 122(6), 957-968 (2005). doi:10.1016/j.cell.2005.08.029
+License:  CC0-1.0 (cytoscape-tutorials LICENSE).
+
+----------------------------------------------------------------------------------------------------
+Senescence and autophagy in cancer (WikiPathways WP615) (datasets/wikipathways-senescence-autophagy)
+
+Source:   https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf
+Also:     https://www.ndexbio.org/viewer/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf
+Cite:     WikiPathways WP615, Senescence and autophagy in cancer (Homo sapiens), https://www.wikipathways.org/pathways/WP615; NDEx network 72288e93-5c67-11ec-b3be-0ac135e8bacf. M. Agrawal et al., WikiPathways 2024: next generation pathway database, Nucleic Acids Research 52(D1), D679-D689 (2024). doi:10.1093/nar/gkad960
+License:  CC0 1.0 (the network's rights: Waiver-No Rights Reserved (CC0), holder WikiPathways).
+
+----------------------------------------------------------------------------------------------------
+Generic GO slim (Gene Ontology) (datasets/go-slim-generic)
+
+Source:   https://release.geneontology.org/2026-08-05/ontology/subsets/goslim_generic.obo
+Also:     https://geneontology.org/docs/go-citation-policy/
+Cite:     The Gene Ontology Consortium, The Gene Ontology knowledgebase in 2023, Genetics 224(1), iyad031 (2023). doi:10.1093/genetics/iyad031; GO release 2026-07-26 (release.geneontology.org/2026-08-05)
+License:  CC BY 4.0 (Gene Ontology Consortium; https://geneontology.org/docs/go-citation-policy/).
+
+----------------------------------------------------------------------------------------------------
 New York City road network (DIMACS) (hosted: road-ny)
 
 Source:   http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz

@@ -303,6 +303,10 @@ describe("sonar-gate: the verdict", () => {
 describe("sonar-gate: helpers", () => {
     it("computes SonarQube's line hash (whitespace removed)", () => {
         assert.equal(lineHash("  a = 1;"), lineHash("a=1;"));
+        // Two lines of graph-io/src/formats/json/importer.ts at 5ba15bb7 and the `hash` the server's
+        // issues API reported for the issues on them (2026-10-02).
+        assert.equal(lineHash('    dialect?: JsonDialect | "auto" | undefined;'), "bf1b1a81ef5c7f073873f55859d87e84");
+        assert.equal(lineHash("    nodeIdKey?: string | undefined;"), "b0094507ee76d5b801cdb2ef3b7d4c54");
     });
 
     it("parses -U0 hunks, renames included", () => {

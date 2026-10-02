@@ -11,6 +11,7 @@ export default {
                 "webgpu-graph-algorithms",
                 "algorithms",
                 "layout",
+                "cytoscape",
                 "graphty-element",
                 "compact-mantine",
                 "remote-logger",

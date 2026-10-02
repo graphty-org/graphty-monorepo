@@ -5,6 +5,7 @@ packages:
     - "graph-samples"
     - "algorithms"
     - "layout"
+    - "cytoscape-adapter"
     - "graphty-element"
     - "graphty"
     - "remote-logger"

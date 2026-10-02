@@ -385,6 +385,39 @@ importers:
         specifier: 'catalog:'
         version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@20.19.27)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(happy-dom@20.14.3)(jsdom@26.1.0)(vite@6.4.3(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))
 
+  cytoscape-adapter:
+    devDependencies:
+      '@graphty/algorithms':
+        specifier: workspace:^
+        version: link:../algorithms
+      '@graphty/graph-format':
+        specifier: workspace:^
+        version: link:../graph-format
+      '@graphty/layout':
+        specifier: workspace:^
+        version: link:../layout
+      '@graphty/webgpu-graph-algorithms':
+        specifier: workspace:^
+        version: link:../webgpu-graph-algorithms
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11)
+      '@vitest/ui':
+        specifier: 'catalog:'
+        version: 4.1.11(vitest@4.1.11)
+      cytoscape:
+        specifier: ^3.34.3
+        version: 3.34.3
+      eslint:
+        specifier: ^9.29.0
+        version: 9.39.2(jiti@2.7.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@20.19.27)(@vitest/browser-playwright@4.1.11)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(happy-dom@20.14.3)(jsdom@26.1.0)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))
+
   graph-format:
     devDependencies:
       '@vitest/coverage-v8':
@@ -5665,6 +5698,10 @@ packages:
 
   custom-elements-manifest@1.0.0:
     resolution: {integrity: sha512-j59k0ExGCKA8T6Mzaq+7axc+KVHwpEphEERU7VZ99260npu/p/9kd+Db+I3cGKxHkM5y6q5gnlXn00mzRQkX2A==}
+
+  cytoscape@3.34.3:
+    resolution: {integrity: sha512-yfYGhRcGAntq6YBD583j4n0Eg3jIxvWmZtz/5uz9UYkeIStSlMxuUja+ec5j3iBD8nv1rwaOAYMW09tBdkSeaQ==}
+    engines: {node: '>=0.10'}
 
   cz-conventional-changelog@3.3.0:
     resolution: {integrity: sha512-U466fIzU5U22eES5lTNiNbZ+d8dfcHcssH4o7QsdWaCcRs/feIPCxKYSWkYBNs5mny7MvEfwpTLWjvbm94hecw==}
@@ -16017,6 +16054,8 @@ snapshots:
 
   custom-elements-manifest@1.0.0: {}
 
+  cytoscape@3.34.3: {}
+
   cz-conventional-changelog@3.3.0(@types/node@20.19.27)(typescript@5.9.3):
     dependencies:
       chalk: 2.4.2
@@ -18210,7 +18249,7 @@ snapshots:
 
   magicast@0.5.5:
     dependencies:
-      '@babel/parser': 7.29.8
+      '@babel/parser': 7.29.9
       '@babel/types': 7.29.8
       source-map-js: 1.2.1
 

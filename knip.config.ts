@@ -66,6 +66,16 @@ const config: KnipConfig = {
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
+        // cytoscape-adapter package (@graphty/cytoscape): Cytoscape.js extensions over the graphty packages
+        "cytoscape-adapter": {
+            entry: ["src/index.ts!", "test/**/*.test.ts"],
+            project: ["src/**/*.ts!", "test/**/*.ts"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+            // A declared optional peer, linked from the workspace so pnpm does not auto-install a registry
+            // copy; nothing imports it yet (a caller passes its accelerator in).
+            ignoreDependencies: ["@graphty/webgpu-graph-algorithms"],
+        },
+
         // graph-samples package: the root, generators and every dataset subpath are entries
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)

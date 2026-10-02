@@ -49,6 +49,32 @@ calls to it. Its errors go to `.githerd/launcher.log`.
 at once in a scratch repository, under the name `githerd-smoke`, must share one daemon; it removes
 its entry at the end.
 
+## Prerequisites
+
+The owner does these once, before the first soak (design section 17):
+
+1. **Supervision: nothing to install.** The launcher turns on pm2's autorestart for the daemon
+   after every start, so pm2 brings back a crashed daemon. The container has no cron and no
+   systemd, so neither `pm2 startup` nor a crontab line is available: after a container restart
+   the daemon comes back when the first session opens, or when the owner runs
+   `node githerd/bin/githerd.mjs ensure`.
+2. **Notify credentials.** The notify command loads its own credentials (the Pushover keys from a
+   file), so paging works whatever environment pm2 started the daemon in. Check it with
+   `githerd doctor --send-test`.
+3. **MCP approval.** The server is registered in the repository's `.mcp.json`. Claude Code may ask
+   to approve it once in each new worktree. Either approve it per worktree, or register it once at
+   user scope with a relative path, which starts it in every project:
+
+    ```bash
+    claude mcp add -s user githerd -- node githerd/bin/githerd-mcp.mjs
+    ```
+
+    Outside a git repository the launcher exits quietly, and in a repository without githerd
+    `githerd_status` answers that githerd is not configured, with the reason.
+
+4. **Admin pull-request bypass.** Decide whether to keep the Admin bypass on ruleset 23973898
+   (design section 14) and record the answer here. Not decided yet.
+
 ## Development
 
 ```bash

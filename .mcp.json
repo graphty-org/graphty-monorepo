@@ -1,0 +1,5 @@
+{
+    "mcpServers": {
+        "githerd": { "command": "node", "args": ["githerd/bin/githerd-mcp.mjs"] }
+    }
+}

@@ -799,6 +799,22 @@ Several agents often work in this repository at once. They share one disk and on
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
 
+**githerd.** Before starting a piece of work, call `githerd_status` and claim the work with
+`githerd_claim` (a PR, an issue, `master`, a branch or a path). If someone else holds it, do
+something else or message the holder. Before any push or merge, call `githerd_status` again: if
+master is red, do not push or merge anything except the fix for master, and claim `master` with
+the fix PR's number (`fixPr`) if you are the one fixing it. Release your claim when you finish.
+Record owner questions with `githerd_escalate` so other sessions see them, and still end your
+reply with ACTION NEEDED as usual.
+
+### githerd
+
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, pages
+the owner when master is red, and gives every Claude session the `githerd_*` MCP tools
+(`githerd_status`, `githerd_claim`, `githerd_release`, `githerd_report`, `githerd_escalate`,
+`githerd_resolve`) through the server in `.mcp.json`. Commands, the MCP server and the owner's
+one-time prerequisites are in `githerd/README.md`.
+
 ## Claude Session History
 
 - Past Claude Code sessions for this project (transcripts, subagent logs, workflows, memory) are archived in ./.claudehistory/. Look there for context from earlier work. Synced by claude-history-sync.sh.

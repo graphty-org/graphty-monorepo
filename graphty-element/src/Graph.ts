@@ -1239,6 +1239,33 @@ export class Graph implements GraphContext {
             return;
         }
 
+        // NO NODE OR EDGE IS BUILT UNTIL THE RENDERER IS KNOWN. Opening WebGPU takes hundreds of
+        // milliseconds (an adapter, a device, and the shader compiler fetched from Babylon's CDN),
+        // and data assigned before the element was attached arrives in that window. Built then,
+        // every mesh went onto the WebGL scene, was disposed with it, and was built again on the
+        // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
+        // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
+        // instead, and take their turn once the scene they will be drawn on exists.
+        const queue = this.operationQueue;
+        const holdQueue = !queue.getStats().isPaused;
+        if (holdQueue) {
+            queue.pause();
+        }
+
+        try {
+            await this.openWebGPU(requested);
+        } finally {
+            if (holdQueue) {
+                queue.resume();
+            }
+        }
+    }
+
+    /**
+     * Opens a WebGPU engine and moves the graph onto it, or records why WebGL stays.
+     * @param requested - What was asked for: `"webgpu"` or `"auto"`.
+     */
+    private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
         const opened = await openWebGPUEngine(canvas);
         // Shut down while the engine was opening: nothing will ever dispose it but this.

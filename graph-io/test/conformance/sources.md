@@ -1138,3 +1138,98 @@ Items that are a public-API decision, not a bug:
 - whether a multi-graph DOT, `.paj` or JGF file returns a list;
 - whether an importer may fall back from UTF-8 to Latin-1 with a warning, versus requiring an
   explicit `encoding` option.
+
+---
+
+## 15. OBO (`fixtures/obo/`)
+
+Research: `design/graph-io/cytoscape-and-obo/research-obo.md` (the feature inventory, the reader
+behavior table of section 5 and the error cases of section 6); design section 4. Specifications:
+the OBO 1.4 syntax and semantics (https://owlcollab.github.io/oboformat/doc/obo-syntax.html), the
+1.4, 1.2 and 1.0 guides (https://owlcollab.github.io/oboformat/doc/GO.format.obo-1_4.html,
+`-1_2.html`, `-1_0.html`). The 1.4 BNF is normative; where it and the guides disagree (`\W`, the
+synonym scope, unquoted qualifiers, unknown tags) graph-io reads the union, as the files' writers
+did, and the fixture says so in `oracleDisagrees`.
+
+Oracles: fastobo-py 0.14.1 (MIT) through `tools/oracle_obo.py`; obonet 1.3.0
+(BSD-2-Clause-Patent) for the real files fastobo rejects; the specification for the cases both
+reject or misread. ROBOT 1.9.11 (owlapi's parser) was run on every file during the research as the
+acceptance check (`tmp/samples-obo/robot-out/`); its OWL-mediated graph is not used as an
+expectation (section 9 of the research says why).
+
+Every file was retrieved on 2026-10-02. SHA-256 of the bytes committed:
+
+| Fixture                               | Origin                                                                                                                              | License (where stated)                                                                                             | SHA-256                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `go/goslim_generic.obo`               | https://purl.obolibrary.org/obo/go/subsets/goslim_generic.obo (go/releases/2026-07-26)                                              | CC-BY-4.0 (GO citation policy, https://geneontology.org/docs/go-citation-policy/; in-file `terms:license`)         | `a28d9dd0364e39a6dc926599bd628c524d3c389017b5398642c8cf2484d9f111` |
+| `foundry/taxrank.obo`                 | https://purl.obolibrary.org/obo/taxrank.obo (releases/2025-09-24)                                                                   | CC0-1.0 (in-file remark)                                                                                           | `8cf42bd61ac683366ddde5018a7900804b8c942636e61f0793de4a289788e7c0` |
+| `foundry/ro.obo`                      | https://purl.obolibrary.org/obo/ro.obo                                                                                              | CC0-1.0 (in-file license)                                                                                          | `f2145eaecd649b395f5a908906f429fd6ac6dca2bc6816045b5c8a80da9a6b10` |
+| `foundry/so.obo`                      | https://purl.obolibrary.org/obo/so.obo                                                                                              | CC-BY-4.0 (OBO Foundry registry)                                                                                   | `22a8f3ec2b49125dbb6cee8456f0bca86dd8c98f433165ffa4b554da4f155204` |
+| `foundry/eco.obo`                     | https://purl.obolibrary.org/obo/eco.obo                                                                                             | CC0-1.0 (in-file remark)                                                                                           | `c8b52a2da2b0f92224b50a1d8773fd7e3bca0977d920d4e31ef9fde960c84fd4` |
+| `foundry/mi.obo`                      | https://purl.obolibrary.org/obo/mi.obo                                                                                              | CC-BY-4.0 (OBO Foundry registry)                                                                                   | `b1315efd86a13988df97d2daefed025dbd26b98d66104da76ea3e85706534d2f` |
+| `foundry/fao.obo`                     | https://purl.obolibrary.org/obo/fao.obo                                                                                             | CC0-1.0 (OBO Foundry registry)                                                                                     | `dcacb2306cc33c5ee288bf32a3701acf804dd345a232c64b0a41cf52d53ec217` |
+| `foundry/pato.obo`                    | https://purl.obolibrary.org/obo/pato.obo                                                                                            | CC-BY-3.0 (in-file license)                                                                                        | `951ca3dc2f0821ab56f46c240836cab1719c789dc79508cbec32e6f99cb8174e` |
+| `foundry/ms.obo`                      | https://purl.obolibrary.org/obo/ms.obo                                                                                              | CC-BY-4.0 (in-file remark; the registry says 3.0)                                                                  | `84c79d3a8325de0a9bd25eb64aec74b6e01656cd83e28ef368a8dfcc867752bf` |
+| `owlapi/escape_chars_test.obo`        | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/contract/src/test/resources/obo/escape_chars_test.obo | Apache-2.0 (owlapi README: LGPL-3.0 or Apache-2.0, the developer's choice)                                         | `9bc539e0ca48220b3962bfda1ff17e52d6a3aa79ec10256e3441f5e99e0a5b17` |
+| `owlapi/trailing_qualifier.obo`       | same tree, `trailing_qualifier.obo`                                                                                                 | Apache-2.0 (as above)                                                                                              | `fd1ac150b274c8c51bfb76979903a35fbcb1911705b4d827f786efbfcbcc4e6c` |
+| `owlapi/example1.obo`                 | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/oboformat/src/test/resources/example1.obo             | Apache-2.0 (as above)                                                                                              | `7221f7017063b1eae1d3810700373f7dc9b1badb0d9b5a80aa78d73538f582d9` |
+| `owlapi/simplego.obo`                 | contract tree, `simplego.obo`                                                                                                       | Apache-2.0 (as above)                                                                                              | `ecfa8c1fb1d441dd9090e51201e54a84ab6ba2dec1dbe36bc17879aae019351a` |
+| `owlapi/fbbt_comment_test.obo`        | contract tree, `fbbt_comment_test.obo`                                                                                              | Apache-2.0 (as above)                                                                                              | `29f8b4092f65d338064cc3f74be0a83522073b4efe3aba90cf41a7cc998e9402` |
+| `owlapi/chebi_problematic_xref.obo`   | contract tree, `chebi_problematic_xref.obo`                                                                                         | Apache-2.0 (as above)                                                                                              | `c8ade1994cdc7cc9ffb394e7be65628d62fbe81479e4fbba26d38cbfc5562f8c` |
+| `owlapi/behavior.obo`                 | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/osgidistribution/src/test/resources/behavior.obo      | Apache-2.0 (as above)                                                                                              | `27e94a5e9ba9e64da0ae9271520db94b79b036719ba5e6a4b7125aa11b899959` |
+| `owlapi/synapsed_to.obo`              | contract tree, `synapsed_to.obo`                                                                                                    | Apache-2.0 (as above)                                                                                              | `00f0b4436333c94dfd85ed3e4f21b9322ec9a47879580745fa38e3b8f2bc5858` |
+| `owlapi/xref_escapecolon.obo`         | contract tree, `xref_escapecolon.obo`                                                                                               | Apache-2.0 (as above)                                                                                              | `db8e5e640295652f8a208571175f412f5c63bb0b6b6145fc5896f5c0bb6431d3` |
+| `owlapi/gci_qualifier_test.obo`       | contract tree, `gci_qualifier_test.obo`                                                                                             | Apache-2.0 (as above)                                                                                              | `df5d2c0ffc8aebcb61cd743eefba03fc5520af1177c8b8516758d8ad289dd599` |
+| `owlapi/treat_xrefs_test.obo`         | contract tree, `treat_xrefs_test.obo`                                                                                               | Apache-2.0 (as above)                                                                                              | `f25d961800472745bc687af06b72d988536663a2265035d02d9c92d1e1e6e1b7` |
+| `owlapi/cardinality.obo`              | contract tree, `cardinality.obo`                                                                                                    | Apache-2.0 (as above)                                                                                              | `087c4a9dc97538f8fd61a89fd51b820f65ee5393527d64b9dbe010271056b0d5` |
+| `obographs/basic.obo`                 | https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/basic.obo                          | BSD-3-Clause (obographs pom.xml `<licenses>`; the repository has no LICENSE file)                                  | `5e0d6ea453f97bfd129348e348d33a32112689b54eda1ab75686c9d31e261609` |
+| `obographs/nucleus.obo`               | same tree, `nucleus.obo`                                                                                                            | BSD-3-Clause (as above)                                                                                            | `0a142682420fc0b20878b6315934f2a27e8f0ea38831d5240f333a34db694613` |
+| `obographs/equivNodeSetTest.obo`      | same tree, `equivNodeSetTest.obo`                                                                                                   | BSD-3-Clause (as above)                                                                                            | `9ceb1033bc079c7a953afba8bb827d2526469d3726f3fb244f8632adc9c09529` |
+| `obographs/logicalDefinitionTest.obo` | same tree, `logicalDefinitionTest.obo`                                                                                              | BSD-3-Clause (as above)                                                                                            | `b927edc6e2d31fee45b93a481651c6be8b976bc9913bfa00a5c6682416a93760` |
+| `obographs/obsoletion_example.obo`    | same tree, `obsoletion_example.obo`                                                                                                 | BSD-3-Clause (as above)                                                                                            | `0be0cabdf48fe1c7a41de103ff6bb84aefe53ef3541118f98455c4bd8d58ed18` |
+| `pronto/uo.obo`                       | https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/uo.obo                                  | MIT (pronto repository); the content is the Units Ontology, CC-BY-3.0                                              | `6f8cae2f473ee92ad43a2df4ccc5340053b2d0a93f8e6d78da392c593b104885` |
+| `obonet/brenda-subset.obo`            | https://github.com/dhimmel/obonet/blob/f47d326ae44c324cce44eec39937b69c657083c3/tests/data/brenda-subset.obo                        | BSD-2-Clause-Patent (obonet repository); BRENDA content of unstated terms, so test-only (`test/` is not published) | `5394757642d4f37f008bd0f9feed69ef48caceecc2b76c8d5e04134d1041bbf4` |
+| `fastobo/creation_dates.obo`          | https://github.com/fastobo/fastobo/blob/88f652c8ff8cd91f36375f06439ded5292078591/tests/data/creation_dates.obo                      | MIT (fastobo repository)                                                                                           | `cd9c18ac50b4e653af4709b8ffde175f5b22523a0ce213de1a23172dc598acce` |
+| `fastobo/header.input.obo`            | same tree, `header.input.obo`                                                                                                       | MIT (fastobo repository)                                                                                           | `42146612485a8628194e9d489176d7e594151fbe8d9f41b22745f3be76813045` |
+| `fastobo/mslite.obo`                  | same tree, `mslite.obo`                                                                                                             | MIT (fastobo repository); PSI-MS content, CC-BY-4.0                                                                | `6285737c87ad55b39da8215d8d5ed4e4eb2296a40e71d5add9ff2bf9b3c88e0c` |
+
+`authored/*.obo` (71 files) are written by `tools/make_obo_fixtures.py` (MIT, authored): the 44
+reader probes of research section 5, the Instance example of the 1.4 guide, OBO 1.0 legacy tags,
+UTF-16 and windows-1252 encodings, truncated files, form feed and lone CR line ends, and the
+section 6 error cases no real file shows. Rerun the script after changing it.
+
+The unit-test corpus `test/corpus/obo/` holds copies of `taxrank.obo`, `basic.obo` and
+`nucleus.obo` (above); `test/corpus/malformed/obo/` is authored.
+
+Too large to commit, checked by `test/formats/obo/large-files.test.ts` under
+`GRAPH_IO_LARGE_FIXTURES=1` (downloaded once into `tmp/graph-io-large/`, pinned by SHA-256):
+go-basic.obo and go-basic.json of the 2026-07-26 GO release. chebi.obo (271 MB) and
+ncbitaxon.json (2.36 GB, beyond one JavaScript string) are not pinned: they were never measured.
+
+## 16. OBO Graphs JSON (`fixtures/json/obographs/`, the `obographs` dialect)
+
+Specification: the OBO Graphs JSON Schema
+(https://github.com/geneontology/obographs/blob/master/schema/obographs-schema.json) and README
+(`sub`, not the README's outdated `subj`); design sections 1.6 and 4.6. Oracle
+`"python-json-obographs"`: the schema's mapping restated over Python's json module in
+`tools/oracle_obo.py` (`obographs()`), called by `oracle_json.py`. fastobo's `load_graph()` is the
+cross-check: it agrees on every file but `nucleus.json`, whose untyped nodes it reads as Typedefs.
+
+| Fixture                          | Origin                                                                                                          | License (where stated)                                           | SHA-256                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `goslim_generic.json`            | https://purl.obolibrary.org/obo/go/subsets/goslim_generic.json (go/releases/2026-07-26)                         | CC-BY-4.0 (GO citation policy)                                   | `4010f4394c3fa7531fe4e7f0f83b1541b4f95c409d6aaab484d826c06fe7cd3b` |
+| `ro.json`                        | https://purl.obolibrary.org/obo/ro.json                                                                         | CC0-1.0 (in-file license)                                        | `17eab8be4f47c73d2905ba45752154ae8e2e7b0bf03ba3cc62a326b42a38e5a5` |
+| `abox.json`                      | https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/abox.json      | BSD-3-Clause (obographs pom.xml)                                 | `e8b8219c3de6c11260716d8f996c0e8d21cc46db2e60d01f1a4d8d1dcb23efe6` |
+| `basic.json`                     | same tree, `basic.json`                                                                                         | BSD-3-Clause (as above)                                          | `5e432309ff9b0e2de61a983e2f025e1344723fbddab8c27e6ded7dbd90216926` |
+| `equivNodeSetTest.json`          | same tree, `equivNodeSetTest.json`                                                                              | BSD-3-Clause (as above)                                          | `e4c84cc71f6cbd15e9722cd961d703b9d701d931798ff74adb629d034824260d` |
+| `logicalDefinitionTest.json`     | same tree, `logicalDefinitionTest.json`                                                                         | BSD-3-Clause (as above)                                          | `333dd583827629c4d5e4dea298a0067c4d0e564b2feab0349b256f1333b51cf5` |
+| `nucleus.json`                   | same tree, `nucleus.json`                                                                                       | BSD-3-Clause (as above)                                          | `d303e887907633bdde8d297af820307a4814b6ed600872612f7b23d5e5a95188` |
+| `obsoletion_example.json`        | same tree, `obsoletion_example.json`                                                                            | BSD-3-Clause (as above)                                          | `294da3ae1abca4daafd6f9ce9fe65ab9bac5b5329a64e3d13e8ebf0914be0803` |
+| `pronto/abox.json`               | https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/abox.json | MIT (pronto repository); obographs example content, BSD-3-Clause | `0dd504b4991bd90a5370a1399d433cef5981adfee79f94da1060cd21391167f6` |
+| `pronto/basic.json`              | same tree, `basic.json`                                                                                         | as above                                                         | `a91fb6d0fdf7fcdd8c9e6c68981ab807c2c3ddb7cd620af4cc48fd4d6f21a7db` |
+| `pronto/equivNodeSetTest.json`   | same tree, `equivNodeSetTest.json`                                                                              | as above                                                         | `63adcbb51d0b466bf900f9af3b84f609b4dd94921aac6d74765680f6ed5da673` |
+| `pronto/nucleus.json`            | same tree, `nucleus.json`                                                                                       | as above                                                         | `253b046a16902f595acc42844ee849f39324e586445e74b6a5faf16d7d80d711` |
+| `pronto/obsoletion_example.json` | same tree, `obsoletion_example.json`                                                                            | as above                                                         | `e841c8b0d900e9c11c82fefcd0613b9a22f573ce82869da89846bdb558392357` |
+
+`authored/*.json` (3 files: the README's `subj` key, two graphs, an endpoint missing from
+`nodes`) are written by `tools/make_obo_fixtures.py` (MIT, authored).

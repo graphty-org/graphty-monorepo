@@ -1,0 +1,9 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+synonym: "s1" EXACT []
+synonym: "s2" BROAD UK_SPELLING [A:1, B:2 "desc"]
+synonym: "s3" []
+exact_synonym: "s4" []

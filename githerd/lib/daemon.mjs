@@ -44,6 +44,7 @@ import { pagesFor } from "./paging.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
+import { createRetriage } from "./retriage.mjs";
 import { authenticate, runTools } from "./run-tools.mjs";
 import { admit, createRunner, ownerIdentity, recoverRuns, writeRunGitconfig } from "./runner.mjs";
 import { appendLedger, loadState, readLedger, saveState } from "./store.mjs";
@@ -864,7 +865,8 @@ export async function startDaemon({
     }
 
     /**
-     * Starts the judgment runs the state calls for.
+     * Starts the judgment runs the state calls for, then lets the weekly re-triage take what room
+     * is left: it is last in the run queue.
      * @param {Date} t the poll's time
      */
     async function runs(t) {
@@ -883,6 +885,7 @@ export async function startDaemon({
         for (const incident of result.masterRedUnhandled) {
             page({ type: "master-red-confirmed", incident, runStarting: false });
         }
+        if (!result.slotsFull && !(holdUntil && t < holdUntil)) await retriage?.tick();
     }
 
     /**
@@ -1194,6 +1197,20 @@ export async function startDaemon({
     } catch (err) {
         say("error", `judgment runs are off: ${/** @type {Error} */ (err).message}`);
     }
+    const retriage =
+        runner &&
+        createRetriage({
+            stateDir,
+            state,
+            config: () => config,
+            github: { graphql: (query, variables) => github().graphql(query, variables) },
+            runner,
+            prompt: (kind) => buildPrompt({ root, sha: state.master.greenSha, kind, rulesFile: config.runRulesFile }),
+            ledger,
+            save,
+            log: say,
+            now,
+        });
 
     const notifyProblem = notifyCommandProblem(config?.notify?.command ?? null, env);
     if (notifyProblem) {

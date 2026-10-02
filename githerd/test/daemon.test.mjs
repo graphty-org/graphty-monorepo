@@ -808,7 +808,7 @@ describe("judgment runs", () => {
 });
 
 describe("dispatching", () => {
-    it("starts the run the state calls for with its prompt", async () => {
+    it("starts the run the state calls for with its prompt, then lets the weekly re-triage run", async () => {
         gitSync(dir, "init", "-q");
         gitSync(dir, "config", "user.name", "Owner");
         gitSync(dir, "config", "user.email", "o@example.com");
@@ -832,6 +832,9 @@ describe("dispatching", () => {
         const prompt = readFileSync(join(dir, ".githerd", "runs", runs[0].id, "prompt.md"), "utf8");
         expect(prompt).toContain('"target": "issue:7"');
         expect(daemon.state.issues.byNumber[7].lastTriagedAt).toBe(clock.toISOString());
+        const events = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "event");
+        expect(events.map((e) => e.event)).toContain("retriage-done");
+        expect(daemon.state.retriage).toMatchObject({ status: "done", report: { issues: 0 } });
 
         const pgid = runs[0].process.pid;
         await daemon.shutdown();

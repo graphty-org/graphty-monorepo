@@ -166,6 +166,7 @@ const xgmmlOptions: readonly OptionDescriptor[] = [
         default: false,
         description: "Read an & that starts no entity as text, as Cytoscape does for files its older versions wrote.",
     },
+    networkOption,
     zAsOption,
 ];
 

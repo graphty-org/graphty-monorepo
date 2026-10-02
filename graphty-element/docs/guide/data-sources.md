@@ -96,8 +96,9 @@ await element.session.data.import({ config: { file, graphIndex: 1 } });
 
 `listGraphs` takes the same source `session.data.import` does -- an optional `type` and a `config`
 with `data`, a `file` or a `url` -- and detects the format the same way. It answers `null` for a
-format whose file holds one graph, which is every format in the table below today; a format
-registered with `DataSource.fromImporter` answers it when its importer has `listGraphs`.
+format whose file holds one graph. Cytoscape sessions, CX files, XGMML files (which can nest networks)
+and JSON documents with a `graphs` array (JGF, OBO Graphs) list their graphs; a format registered with
+`DataSource.fromImporter` answers it when its importer has `listGraphs`.
 
 Without a choice the first graph is loaded. A `graphIndex` that is not a non-negative integer, a
 `graphName` that is not a string, both at once, or a choice other than `graphIndex: 0` for a
@@ -202,7 +203,27 @@ recognised by its content and read with the `json` format.
 ### Cytoscape and ontology files
 
 XGMML, CX, CX2, Cytoscape sessions and OBO are read by `@graphty/graph-io` with nothing to wire
-up: hand the element the file and it loads. Every column of the file arrives on the node and edge
+up: hand the element the file and it loads. The format is recognised from the file name or, failing
+that, from the bytes:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+// A Cytoscape session, drawn where Cytoscape saved it. Cytoscape's coordinates are pixels, so
+// positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
+element.layout = "fixed";
+element.positionScale = 0.02;
+await element.loadFromUrl("https://example.org/sessions/galFiltered.cys");
+
+// The Gene Ontology: about 48,000 terms and 71,000 is_a and part_of relations. The file has no
+// saved drawing, so pick a layout that computes one.
+element.layout = "ngraph";
+await element.loadFromUrl("https://release.geneontology.org/2026-08-05/ontology/go-basic.obo", {
+    replace: true,
+});
+```
+
+`loadFromFile(file)` and `dataSourceConfig = { data: bytes }` load the same files the same way. Every column of the file arrives on the node and edge
 records under the name the file gave it (`name`, `shared name`, `interaction`, an OBO term's
 `name`, `namespace`, `def`, `is_obsolete`, ...).
 
@@ -222,7 +243,7 @@ records under the name the file gave it (`name`, `shared name`, `interaction`, a
 
 | Format  | Options                                                                                      |
 | ------- | -------------------------------------------------------------------------------------------- |
-| XGMML   | `labelAliases`, `repairBareAmpersands`, `zAs`                                                |
+| XGMML   | `labelAliases`, `repairBareAmpersands`, `graphName`, `zAs`                                   |
 | CX2     | `zAs`                                                                                        |
 | CX      | `graphName`, `zAs`                                                                           |
 | Session | `graphName`, `zAs`                                                                           |

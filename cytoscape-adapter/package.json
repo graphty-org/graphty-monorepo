@@ -2,7 +2,7 @@
     "name": "@graphty/cytoscape",
     "version": "0.0.0",
     "private": true,
-    "description": "Graphty layouts as Cytoscape.js extensions, over the @graphty/graph-format snapshot",
+    "description": "Graphty layouts and algorithms as Cytoscape.js extensions, over the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/index.js",

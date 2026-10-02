@@ -46,10 +46,7 @@ import type {
     Position,
 } from "cytoscape";
 
-import { type CytoscapeSnapshot, toSnapshot } from "./snapshot.js";
-
-/** A node set given the Cytoscape way: a selector over the layout's nodes, or a collection. */
-export type NodeSelection = string | Collection;
+import { type CytoscapeSnapshot, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
 /** Options of every "graphty-*" layout. Options not listed here go to the @graphty/layout function unchanged. */
 export interface GraphtyLayoutOptions {
@@ -123,35 +120,6 @@ const DEFAULTS = {
 } as const;
 
 /**
- * Indices of the layout's nodes in a selection.
- * @param cs - the layout's snapshot
- * @param sel - a selector or a collection
- * @returns the node indices, in collection order
- */
-function indicesOf(cs: CytoscapeSnapshot, sel: NodeSelection): number[] {
-    const picked = typeof sel === "string" ? cs.nodes.filter(sel) : cs.nodes.intersection(sel);
-    return picked.map((n) => cs.snapshot.ids.requireIndex(n.id()));
-}
-
-/**
- * The index of the first node of a selection.
- * @param cs - the layout's snapshot
- * @param sel - a selector or a collection, or undefined
- * @param what - the option name, for the error
- * @returns the index, or undefined when no selection was given
- */
-function indexOf(cs: CytoscapeSnapshot, sel: NodeSelection | undefined, what: string): number | undefined {
-    if (sel === undefined) {
-        return undefined;
-    }
-    const [i] = indicesOf(cs, sel);
-    if (i === undefined) {
-        throw new Error(`graphty layout: ${what} matches no node of the layout`);
-    }
-    return i;
-}
-
-/**
  * Groups the nodes by the value of a data field, in ascending value order; nodes without the field are left out.
  * @param cs - the layout's snapshot
  * @param field - the node data field
@@ -206,8 +174,10 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         }
         return bipartite(s, { ...o, top: mask });
     },
-    bfs: (s, o, cs) => bfs(s, { ...o, start: indexOf(cs, o.start as NodeSelection | undefined, "start") }),
-    radial: (s, o, cs) => radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "root") }),
+    bfs: (s, o, cs) =>
+        bfs(s, { ...o, start: indexOf(cs, o.start as NodeSelection | undefined, "graphty layout: start") }),
+    radial: (s, o, cs) =>
+        radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
 };
 
 /** Registered name suffix -> @graphty/layout simulation type. */

@@ -6,15 +6,21 @@
  */
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-import type { Collection, Core, EdgeCollection, NodeCollection } from "cytoscape";
+import type { Collection, Core, EdgeCollection, EdgeSingular, NodeCollection } from "cytoscape";
 
 /** How to read a Cytoscape collection as a graph. */
 export interface SnapshotOptions {
     /** Build a directed snapshot. Default false. */
     readonly directed?: boolean | undefined;
-    /** Edge data field holding the weight; a missing or non-numeric value counts as 1. Default: unweighted. */
-    readonly weight?: string | undefined;
+    /**
+     * The edge weight: an edge data field (a missing or non-numeric value counts as 1), or a function of the edge
+     * as Cytoscape's built-in algorithms take it. Default: unweighted. A function result is not cached.
+     */
+    readonly weight?: string | ((edge: EdgeSingular) => number) | undefined;
 }
+
+/** A node set given the Cytoscape way: a selector over the collection's nodes, or a collection. */
+export type NodeSelection = string | Collection | NodeCollection;
 
 /** A snapshot of a Cytoscape collection plus the element arrays its indices refer to. */
 export interface CytoscapeSnapshot {
@@ -45,7 +51,7 @@ const state = new WeakMap<Core, CoreState>();
  * @param eles - the collection
  * @returns its core
  */
-function coreOf(eles: Collection | NodeCollection | EdgeCollection): Core {
+export function coreOf(eles: Collection | NodeCollection | EdgeCollection): Core {
     return (eles as unknown as { cy(): Core }).cy();
 }
 
@@ -79,6 +85,9 @@ function coreState(cy: Core): CoreState {
  */
 export function toSnapshot(eles: Collection, options: SnapshotOptions = {}): CytoscapeSnapshot {
     const directed = options.directed ?? false;
+    if (typeof options.weight === "function") {
+        return build(eles, directed, options.weight);
+    }
     const key = `${String(directed)}|${options.weight ?? ""}`;
     const cs = coreState(coreOf(eles));
     const hit = cs.entries.find((e) => e.key === key && e.version === cs.version && e.eles.same(eles));
@@ -94,10 +103,10 @@ export function toSnapshot(eles: Collection, options: SnapshotOptions = {}): Cyt
  * Builds a snapshot without the cache.
  * @param eles - the collection
  * @param directed - whether the snapshot is directed
- * @param weight - edge data field of the weight, or undefined for none
+ * @param weight - edge data field or function of the weight, or undefined for none
  * @returns the snapshot and element arrays
  */
-function build(eles: Collection, directed: boolean, weight: string | undefined): CytoscapeSnapshot {
+function build(eles: Collection, directed: boolean, weight: SnapshotOptions["weight"]): CytoscapeSnapshot {
     const nodes = eles.nodes();
     const ids: string[] = [];
     const index = new Map<string, number>();
@@ -113,7 +122,7 @@ function build(eles: Collection, directed: boolean, weight: string | undefined):
         src[k] = index.get(e.source().id()) ?? 0;
         dst[k] = index.get(e.target().id()) ?? 0;
         if (weights !== undefined && weight !== undefined) {
-            const w: unknown = e.data(weight);
+            const w: unknown = typeof weight === "function" ? weight(e) : e.data(weight);
             weights[k] = typeof w === "number" && Number.isFinite(w) ? w : 1;
         }
     });
@@ -133,4 +142,34 @@ export function writeData(elements: NodeCollection | EdgeCollection, values: Arr
             ele.data(field, values[i]);
         });
     });
+}
+
+/**
+ * Indices of the snapshot's nodes in a selection.
+ * @param cs - the snapshot
+ * @param sel - a selector or a collection
+ * @returns the node indices, in collection order
+ */
+export function indicesOf(cs: CytoscapeSnapshot, sel: NodeSelection): number[] {
+    const picked = typeof sel === "string" ? cs.nodes.filter(sel) : cs.nodes.intersection(sel as Collection);
+    return picked.map((n) => cs.snapshot.ids.requireIndex(n.id()));
+}
+
+/**
+ * The index of the first node of a selection.
+ * @param cs - the snapshot
+ * @param sel - a selector or a collection, or undefined
+ * @param what - the option name, for the error
+ * @returns the index, or undefined when no selection was given
+ * @throws Error when the selection matches no node of the snapshot
+ */
+export function indexOf(cs: CytoscapeSnapshot, sel: NodeSelection | undefined, what: string): number | undefined {
+    if (sel === undefined) {
+        return undefined;
+    }
+    const [i] = indicesOf(cs, sel);
+    if (i === undefined) {
+        throw new Error(`${what} matches no node of the collection`);
+    }
+    return i;
 }

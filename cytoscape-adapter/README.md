@@ -1,8 +1,9 @@
 # @graphty/cytoscape
 
 Every layout in [@graphty/layout](https://graphty.app/docs/layout/api/generated/) as a
-[Cytoscape.js](https://js.cytoscape.org/) 3.x layout extension: thirteen static layouts and the
-ForceAtlas2, Fruchterman-Reingold and spring-electrical force simulations.
+[Cytoscape.js](https://js.cytoscape.org/) 3.x layout extension (thirteen static layouts and the
+ForceAtlas2, Fruchterman-Reingold and spring-electrical force simulations), and every algorithm in
+@graphty/algorithms as a Cytoscape collection and core method.
 
 Not published yet (the package is private while its API settles).
 
@@ -26,6 +27,11 @@ const cy = cytoscape({
 });
 
 cy.layout({ name: "graphty-forceatlas2", animate: true, weight: "w" }).run();
+
+const pr = cy.elements().graphtyPageRank({ field: "rank" }); // also writes data("rank") for styles
+pr.rank("#a");
+cy.elements().graphtyDijkstra({ root: "#a", weight: "w" }).pathTo("#c"); // node, edge, node, ...
+cy.graphtyLouvain(); // the core method runs over cy.elements(): an array of node collections
 ```
 
 ## Layouts
@@ -82,6 +88,81 @@ asynchronous run (a simulation with an `accelerator`) that fails emits `layouter
 handler receives the error as its second argument, followed by `layoutstop`. A synchronous
 failure (a non-planar graph for `graphty-planar`, a selector that matches nothing) throws from
 `run()`.
+
+## Algorithms
+
+`cytoscape.use(graphtyCytoscape)` adds 63 methods, each named `graphty` plus the @graphty/algorithms
+function name (`graphtyPageRank`, `graphtyLouvain`, ...), to every collection and to the core. The
+prefix keeps them apart from Cytoscape's built-ins of the same name. `ALGORITHM_NAMES` lists them,
+and importing the package adds their types to Cytoscape's `Collection` and `Core`.
+
+They follow Cytoscape's built-in algorithms:
+
+- **Scope** is the calling collection: its nodes, and its edges whose two ends are in it.
+  `cy.graphtyX(o)` is `cy.elements().graphtyX(o)`.
+- **Synchronous**, one options object, the result returned.
+- **`directed`** (default `false`) reads edges as source to target. Algorithms defined only for
+  directed graphs (`graphtyTopologicalSort`, `graphtyStronglyConnectedComponents`,
+  `graphtyCondensation`, `graphtyDeltaPageRank`) default to `true`.
+- **`weight`** is an edge data field or a function of the edge (`edge => number`), as the
+  built-ins take it; a missing or non-numeric value counts as 1. Without it every edge weighs 1.
+  An algorithm that reads no weights throws when given one, rather than ignoring it.
+- **Nodes** are named by a selector or a collection: `root`, `goal`, `source`, `sink`, `target`,
+  `left`, `right`, `candidates`, `sources`. Sets of nodes (`personalization`) take a selection or
+  a function of the node; clusters (`clusters`, `seeds`) take a list of selections, a partition
+  result, or a node data field.
+- **Results are keyed by element**: accessors that take a node (or edge) or a selector, and
+  collections. Nothing comes back as an index array.
+- **`field`** writes each element's value (what `score` or `cluster` returns) into
+  `data(field)`, in one batch, so a stylesheet can map it: `width: "mapData(rank, 0, 1, 10, 60)"`.
+- **Other options** go to the @graphty/algorithms function unchanged (`dampingFactor`, `resolution`,
+  `maxIterations`, `randomSeed`, ...).
+- **Errors throw**: a required node option missing or matching nothing, a weight given to an
+  algorithm that ignores weights, and the algorithm's own errors (an undirected-only algorithm on
+  `directed: true`, a negative cycle).
+
+### Result shapes
+
+| Shape             | Methods                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | What it holds                                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scores            | `graphtyPageRank`, `graphtyPersonalizedPageRank`, `graphtyDeltaPageRank` (`rank`), `graphtyDegreeCentrality` (`degree`), `graphtyEigenvectorCentrality`, `graphtyKatzCentrality`, `graphtyHits` (`hub`, `authority`), `graphtyClosenessCentrality` (`closeness`), `graphtyBetweennessCentrality` (`betweenness`, `betweennessNormalized`), `graphtyEdgeBetweennessCentrality` (per edge), `graphtyKCoreDecomposition` (`core(k)`), `graphtyTriangleCount` (`coefficient`)                                       | `score(ele)`, the Cytoscape-named accessor in brackets, and the run's `iterations` / `converged` where it has them                                                                       |
+| Partition         | `graphtyConnectedComponents`, `graphtyWeaklyConnectedComponents`, `graphtyStronglyConnectedComponents`, `graphtyCondensation`, `graphtyLouvain`, `graphtyLeiden`, `graphtyLabelPropagation`, `graphtyLabelPropagationSynchronous`, `graphtyLabelPropagationSemiSupervised`, `graphtyGirvanNewman`, `graphtyMarkovClustering`, `graphtySpectralClustering`, `graphtyTeraHAC`, `graphtyGrsbm`, `graphtySyncClustering`                                                                                            | An array of node collections, one per cluster, as Cytoscape's `components()` and `markovClustering()` return, plus `cluster(node)` and the run's `modularity`, `iterations`, `converged` |
+| Paths from a root | `graphtyDijkstra`, `graphtyBellmanFord`                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `distanceTo(node)`, `pathTo(node)` (node, edge, node, ...), as Cytoscape's `dijkstra`                                                                                                    |
+| One path          | `graphtyAStar`, `graphtyBidirectionalDijkstra`                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `{ found, distance, path }`, as Cytoscape's `aStar`                                                                                                                                      |
+| All pairs         | `graphtyAllPairsShortestPath`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `distance(from, to)`, `path(from, to)`, as Cytoscape's `floydWarshall`                                                                                                                   |
+| Walk              | `graphtyBreadthFirstSearch`, `graphtyDepthFirstSearch`, `graphtyDirectionOptimizedBfs`                                                                                                                                                                                                                                                                                                                                                                                                                          | `{ path, found }` as Cytoscape's `bfs` / `dfs`, plus `depth(node)` and `parent(node)`                                                                                                    |
+| Tree              | `graphtyKruskalMST`, `graphtyPrimMST`                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | The tree's nodes and edges as one collection, as Cytoscape's `kruskal`, with `totalWeight`                                                                                               |
+| Cut               | `graphtyMaxFlow` (`flow(edge)`), `graphtyMinSTCut`, `graphtyStoerWagner`, `graphtyKargerMinCut`                                                                                                                                                                                                                                                                                                                                                                                                                 | `{ value, cut, partitionFirst, partitionSecond }`, as Cytoscape's `kargerStein`                                                                                                          |
+| Other             | `graphtyHasCycle` (boolean), `graphtyTopologicalSort` (node collection, or null when cyclic), `graphtyIsBipartite`, `graphtyIsGraphIsomorphic` / `graphtyFindAllIsomorphisms` (`other`: the collection to compare with; `mapping(node)`), `graphtyModularity` (number), `graphtyHierarchicalClustering` (`cut(height)`), `graphtyMaximumBipartiteMatching` / `graphtyGreedyBipartiteMatching` (`mate(node)`, `size`), `graphtyDegrees` (`indegree`, `outdegree`), `graphtyNodeClosenessCentrality` (number)     |                                                                                                                                                                                          |
+| Link prediction   | `graphtyCommonNeighborsScore`, `graphtyAdamicAdarScore` (`source`, `target`: a number), `graphtyCommonNeighborsPrediction`, `graphtyAdamicAdarPrediction`, `graphtyTopCandidatesForNode`, `graphtyTopAdamicAdarCandidatesForNode` (`[{ source, target, score }]`), `graphtyCommonNeighborsForPairs`, `graphtyAdamicAdarForPairs` (`pairs: [[a, b], ...]`: numbers), `graphtyEvaluateCommonNeighbors`, `graphtyEvaluateAdamicAdar`, `graphtyCompareAdamicAdarWithCommonNeighbors` (`edges`, `nonEdges`: metrics) |                                                                                                                                                                                          |
+
+### Where the numbers differ from Cytoscape's built-ins
+
+- **PageRank:** Cytoscape's `pageRank` adds the teleport `(1 - d) / n` without scaling the links
+  by `d`, so its `dampingFactor: d` is the standard damping `1 / (2 - d)`; `graphtyPageRank` uses
+  the standard one (default 0.85, Cytoscape's default is 0.8). Pass `directed: true` to rank along
+  edge direction as Cytoscape does; the default reads every edge both ways.
+- **Betweenness:** `betweenness(node)` and `betweennessNormalized(node)` equal Cytoscape's
+  (ordered pairs; normalized by the maximum). `score(node)` is the NetworkX convention, half of
+  that on an undirected graph, and honours `normalized`.
+- **Closeness** is `1 / sum(distance)`; `normalized: true` scales by the fraction of other nodes
+  reached, not NetworkX's `(n - 1) / sum`. Cytoscape's `closenessCentralityNormalized` divides by
+  the maximum.
+- **Degree** is the plain degree unless `normalized: true` (divide by `n - 1`).
+- **Depth-first order** tries neighbours in edge order; Cytoscape's tries the last one first, so
+  the two visit orders differ when a node has more than one unvisited neighbour.
+- **`graphtyDeltaPageRank({ priority: true })`** adds the teleport share once more after it has
+  already propagated it, so its ranks are PageRank mixed with a small uniform share (a known
+  defect in @graphty/algorithms' `PriorityDeltaPageRank`); without `priority` the ranks are
+  PageRank's.
+- **Link prediction** on an undirected graph lists each candidate pair twice, once per
+  orientation (`topK` counts both).
+
+Not exposed: `bipartiteFlowNetwork` (it builds a graph from id lists, not from a collection),
+`walkPredArcs` / `walkPredEdges` (helpers over an index result; `pathTo` covers them), and the
+`update()` of the incremental `DeltaPageRank` engines (a changed Cytoscape graph is a new
+snapshot, so only the one-shot run is offered, as `graphtyDeltaPageRank`, with `priority: true`
+for `PriorityDeltaPageRank`).
 
 ## Using the graph-format snapshot directly
 

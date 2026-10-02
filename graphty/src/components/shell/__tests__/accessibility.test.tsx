@@ -31,8 +31,6 @@ const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: strin
     { rule: "color-contrast", target: "or paste data", issue: 508 },
     // The Coming tag's chrome ink on the raised fill measures 4.42:1 at 10px.
     { rule: "color-contrast", target: 'span[title="Coming"]', issue: 509 },
-    // A filled button's white label on the dark Figma primary blue (#0c8ce9) measures 3.53:1.
-    { rule: "color-contrast", target: "mantine-Button-label", issue: 579 },
 ];
 
 /**

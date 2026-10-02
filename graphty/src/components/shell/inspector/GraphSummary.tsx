@@ -172,7 +172,7 @@ export interface GraphSummaryProps {
     readonly schema: GraphSummarySchema;
     /** The Attributes section's content. */
     readonly attributes: GraphSummaryAttributes;
-    /** How many case notes the graph carries. */
+    /** How many case notes the graph carries: graphty-element's notes about the whole graph. */
     readonly caseNoteCount: number;
     /** Opens the Data table drawer on the ranked list. */
     readonly onShowInTable: () => void;
@@ -385,7 +385,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
     const caseNoteWords =
         caseNoteCount === 0
             ? GRAPH_SUMMARY_LABELS.addCaseNote
-            : `${formatter.format(caseNoteCount)} case notes`;
+            : `${formatter.format(caseNoteCount)} ${caseNoteCount === 1 ? "case note" : "case notes"}`;
     const addNoteChip = keyChipFor("addNote");
     const caseNoteTitle =
         caseNoteCount === 0 && addNoteChip !== null

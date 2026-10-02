@@ -91,7 +91,7 @@ export const TextInputSizeComparison: Story = {
             <Group gap="md" align="flex-end">
                 <Box w={100}>
                     <Text size="xs" c="dimmed">
-                        xs (28px)
+                        xs (20px)
                     </Text>
                 </Box>
                 <TextInput size="xs" placeholder="Size xs" style={{ flex: 1 }} />
@@ -107,7 +107,7 @@ export const TextInputSizeComparison: Story = {
             <Group gap="md" align="flex-end">
                 <Box w={100}>
                     <Text size="xs" c="dimmed">
-                        sm (32px)
+                        sm (24px)
                     </Text>
                 </Box>
                 <TextInput size="sm" placeholder="Size sm" style={{ flex: 1 }} />
@@ -115,7 +115,7 @@ export const TextInputSizeComparison: Story = {
             <Group gap="md" align="flex-end">
                 <Box w={100}>
                     <Text size="xs" c="dimmed">
-                        md (36px)
+                        md (30px)
                     </Text>
                 </Box>
                 <TextInput size="md" placeholder="Size md" style={{ flex: 1 }} />

@@ -180,6 +180,11 @@ oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json a
   `knownFailure` (or `roundTripFailure`): the cause and its section in the research notes. The
   test then runs as an expected failure, so a fix turns it red until the marker is removed. Remove
   the marker in the same change as the fix; never weaken an expectation to make it pass.
+- An expectation's `graphNames` is checked through `listGraphs()`. A fixture whose oracle departs
+  from the specification carries `oracleDisagrees` (what the oracle does and why the spec wins;
+  `networkxDisagrees` is the older networkx-only form). Every passing fixture of xgmml, cx, cx2,
+  cys and obo is sniffed with no format given, by its file name and by content alone, and must
+  rank as its own format; `sniffAs` asks the same of any other fixture (null: no format).
 - `CONFORMANCE_REPORT=1 pnpm exec vitest run test/conformance` regenerates `test/conformance/REPORT.md`
   (the known failures grouped by cause: the work list).
 - Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licences are test-only: `test/` is not in the

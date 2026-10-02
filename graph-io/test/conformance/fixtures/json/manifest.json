@@ -4768,6 +4768,7 @@
     },
     {
       "file": "cytoscape/desktop-export.cyjs",
+      "sniffAs": "json",
       "origin": "authored from the Cytoscape manual's .cyjs description (tmp/format-conformance/cyjs.txt)",
       "license": "MIT (authored)",
       "version": "Cytoscape 3.10 .cyjs shape",
@@ -4818,6 +4819,7 @@
     },
     {
       "file": "cytoscape/flat-array.json",
+      "sniffAs": "json",
       "origin": "authored from the Cytoscape.js elements documentation (https://js.cytoscape.org/)",
       "license": "MIT (authored)",
       "version": "cytoscape.js 3.x docs",

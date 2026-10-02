@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
-import { importAllGraphs, importGraph, type ImportGraphResult, registry } from "../../src/registry.js";
+import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
+import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
 import { ImportError, type ImportReport } from "../../src/types.js";
 import { compareSnapshots } from "../helpers/roundtrip.js";
 
@@ -72,6 +73,8 @@ interface Expected {
     readonly directed?: boolean;
     /** How many graphs importAllGraphs() returns. */
     readonly graphs?: number;
+    /** The names listGraphs() gives the graphs, in order (null for an unnamed graph). */
+    readonly graphNames?: readonly (string | null)[];
     /** Node ids that must exist. */
     readonly nodeIds?: readonly NodeId[];
     /** Values the label-role column must hold (on some node). */
@@ -110,7 +113,22 @@ export interface Fixture {
     readonly roundTripFailure?: string;
     /** networkx-differential only: where networkx's own read-back departs from the spec, and why the expectation does not follow it. */
     readonly networkxDisagrees?: string;
+    /** Where the oracle departs from the specification: what it does instead, and why the expectation follows the spec. */
+    readonly oracleDisagrees?: string;
+    /**
+     * The format sniffing must rank first for this file with no format given (null: no format at
+     * all). Every passing fixture of a SNIFF_CHECKED_FORMATS format is checked as its own format
+     * without this field; set it to check a fixture of another format, or a different answer.
+     */
+    readonly sniffAs?: string | null;
 }
+
+/**
+ * The formats whose every passing fixture must sniff as its own format, by its file name and by
+ * its content alone: the formats added after importOptions() started naming the format, so their
+ * sniffers are not exercised by the rest of the suite.
+ */
+const SNIFF_CHECKED_FORMATS: ReadonlySet<string> = new Set(["xgmml", "cx", "cx2", "cys", "obo"]);
 
 /** A format's manifest.json. */
 interface Manifest {
@@ -419,6 +437,15 @@ export async function checkFixture(format: string, fixture: Fixture): Promise<st
             problems.push(`issue ${code} present`);
         }
     }
+    if (expected.graphNames !== undefined && result !== null) {
+        const listed = await listGraphs(fixtureBytes(format, fixture), importOptions(format, fixture));
+        const names = listed?.map((g) => g.name) ?? null;
+        if (JSON.stringify(names) !== JSON.stringify(expected.graphNames)) {
+            problems.push(
+                `graphNames: expected ${JSON.stringify(expected.graphNames)}, listGraphs gave ${JSON.stringify(names)}`,
+            );
+        }
+    }
     if (expected.graphs !== undefined && result !== null) {
         const all = await importAllGraphs(fixtureBytes(format, fixture), importOptions(format, fixture));
         if (all.length !== expected.graphs) {
@@ -467,4 +494,39 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
         const name = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         return [`threw: ${name.slice(0, 300)}`];
     }
+}
+
+/**
+ * The format sniffing must rank first for a fixture, or undefined when the fixture is not
+ * sniff-checked.
+ * @param format - the format name
+ * @param fixture - the fixture
+ * @returns the expected format (null: none), or undefined
+ */
+export function expectedSniff(format: string, fixture: Fixture): string | null | undefined {
+    if (fixture.sniffAs !== undefined) {
+        return fixture.sniffAs;
+    }
+    return SNIFF_CHECKED_FORMATS.has(format) && fixture.expected.outcome === "pass" ? format : undefined;
+}
+
+/**
+ * Sniff a fixture with no format given, once with its file name and once by content alone, and
+ * compare the top answer with the expected one.
+ * @param format - the format directory
+ * @param fixture - the fixture, sniff-checked (expectedSniff() is not undefined)
+ * @returns the problems found, empty when both answers are right
+ */
+export function checkSniff(format: string, fixture: Fixture): string[] {
+    const expected = expectedSniff(format, fixture);
+    const head = fixtureBytes(format, fixture).subarray(0, SNIFF_HEAD_BYTES);
+    const problems: string[] = [];
+    for (const filename of [basename(fixture.file), null]) {
+        const found = registry.sniff({ filename, head })?.format ?? null;
+        if (found !== expected) {
+            const how = filename === null ? "by content" : `as ${filename}`;
+            problems.push(`sniffed ${how}: expected ${String(expected)}, got ${String(found)}`);
+        }
+    }
+    return problems;
 }

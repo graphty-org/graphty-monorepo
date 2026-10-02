@@ -45,7 +45,15 @@ import {
     targetNamed,
     TARGETS,
 } from "./generative.js";
-import { checkFixture, checkRoundTrip, type Fixture, loadManifests, roundTrips } from "./harness.js";
+import {
+    checkFixture,
+    checkRoundTrip,
+    checkSniff,
+    expectedSniff,
+    type Fixture,
+    loadManifests,
+    roundTrips,
+} from "./harness.js";
 import {
     classifyDocument,
     SCHEMA_DEVIATIONS,
@@ -85,6 +93,16 @@ for (const manifest of loadManifests()) {
             });
         }
     });
+    const sniffed = manifest.fixtures.filter((f) => expectedSniff(format, f) !== undefined);
+    if (sniffed.length > 0) {
+        describe(`sniffing: ${format}`, () => {
+            for (const fixture of sniffed) {
+                it(fixture.file, () => {
+                    expect(checkSniff(format, fixture)).toEqual([]);
+                });
+            }
+        });
+    }
     describe(`round trip: ${format}`, () => {
         for (const fixture of manifest.fixtures.filter((f) => roundTrips(format, f))) {
             const test = fixture.roundTripFailure === undefined ? it : it.fails;
@@ -238,6 +256,7 @@ function renderReport(
         out.push(`| ${format} | ${mine.length} | ${mine.length - known} | ${known} | ${trips.length} | ${tripFails} |`);
     }
     renderDifferential(all, out);
+    renderOracleDisagreements(all, out);
     for (const format of formats) {
         renderFormat(
             all.filter((r) => r.format === format),
@@ -287,6 +306,37 @@ function renderDifferential(all: readonly Row[], out: string[]): void {
         for (const [reason, count] of reasons) {
             out.push(`- ${reason} (${count} files)`);
         }
+    }
+}
+
+/**
+ * The fixtures whose expectation follows the specification where their oracle does not
+ * (`oracleDisagrees`), per format and reason; nothing when there are none.
+ * @param all - every recorded fixture row
+ * @param out - the lines
+ */
+function renderOracleDisagreements(all: readonly Row[], out: string[]): void {
+    const reasons = new Map<string, number>();
+    for (const row of all) {
+        const reason = row.fixture.oracleDisagrees;
+        if (reason !== undefined) {
+            const key = `${row.format} (${row.fixture.oracle}): ${reason}`;
+            reasons.set(key, (reasons.get(key) ?? 0) + 1);
+        }
+    }
+    if (reasons.size === 0) {
+        return;
+    }
+    out.push(
+        "",
+        "## Where the oracle is overruled",
+        "",
+        "These expectations follow the format's specification where the oracle that produced the",
+        "rest of the format's expectations does something else.",
+        "",
+    );
+    for (const [reason, count] of reasons) {
+        out.push(`- ${reason} (${count} ${count === 1 ? "file" : "files"})`);
     }
 }
 

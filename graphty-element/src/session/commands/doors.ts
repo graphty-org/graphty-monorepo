@@ -582,6 +582,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
@@ -844,6 +845,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(

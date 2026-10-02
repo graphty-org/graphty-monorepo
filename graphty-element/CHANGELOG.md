@@ -1,3 +1,37 @@
+## 3.3.0 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** choose the renderer, webgl or webgpu ([#464](https://github.com/graphty-org/graphty-monorepo/issues/464))
+- **graphty-element:** park a moving edge at the start of its gradient when the scene stops animating ([57ecd41b](https://github.com/graphty-org/graphty-monorepo/commit/57ecd41b))
+
+### 🩹 Fixes
+
+- **graphty-element:** time the degree cost row at sizes it can measure ([8a4bb182](https://github.com/graphty-org/graphty-monorepo/commit/8a4bb182))
+- **graphty-element:** count a video's duration from the recorder's first data ([cd9754a6](https://github.com/graphty-org/graphty-monorepo/commit/cd9754a6))
+- **deps:** patch the open uuid, vitest mocker, ip-address and low-severity advisories ([a5a5109c](https://github.com/graphty-org/graphty-monorepo/commit/a5a5109c))
+- **graphty-element:** paint runs beneath a partial user layer instead of suppressing them ([#551](https://github.com/graphty-org/graphty-monorepo/issues/551))
+- **graphty-element:** stop a renderer open that outlives shutdown, and refuse changes during it ([1951634d](https://github.com/graphty-org/graphty-monorepo/commit/1951634d))
+- **graphty-element:** give each animated line its own empty colours texture ([0a897fc9](https://github.com/graphty-org/graphty-monorepo/commit/0a897fc9))
+- **graphty-element:** draw animated edges under webgpu ([9d688714](https://github.com/graphty-org/graphty-monorepo/commit/9d688714))
+- **graphty-element:** draw an animated edge at the width the style asked for ([3cc18575](https://github.com/graphty-org/graphty-monorepo/commit/3cc18575))
+- **graphty-element:** make an edge's animation speed set its speed ([#459](https://github.com/graphty-org/graphty-monorepo/issues/459))
+- **compact-mantine:** inputs follow the size scale and the password toggle has a name ([#7](https://github.com/graphty-org/graphty-monorepo/issues/7), [#137](https://github.com/graphty-org/graphty-monorepo/issues/137), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.19
+- Updated @graphty/remote-logger to 2.0.0
+- Updated graph-samples to 0.1.13
+- Updated graph-format to 1.2.5
+- Updated algorithms to 3.1.3
+- Updated graph-io to 0.3.15
+- Updated layout to 2.0.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.2.0 (2026-10-01)
 
 ### 🚀 Features

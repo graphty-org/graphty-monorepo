@@ -202,8 +202,8 @@ graphs named:
   graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
   throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels.
   `labelPropagationSynchronous` adds a swap guard, so a single edge settles in two passes. In every release after
-  3.1.3 it breaks a tie by a fixed scramble of each label rather than by the lowest label, so its partitions differ
-  from 3.0.0 through 3.1.3 on any graph with tied votes: a path or a cycle now settles in a few passes into short runs
+  3.1.4 it breaks a tie by a fixed scramble of each label rather than by the lowest label, so its partitions differ
+  from 3.0.0 through 3.1.4 on any graph with tied votes: a path or a cycle now settles in a few passes into short runs
   of nodes, where it used to need about two passes per node (949 communities and `converged: false` at the default cap
   on a 1,000-node path) and then end as one community.
 - **All-pairs shortest paths** (`floydWarshall`, `floydWarshallPath`, `transitiveClosure`): the cheapest of parallel

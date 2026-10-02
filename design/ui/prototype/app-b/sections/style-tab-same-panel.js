@@ -70,7 +70,7 @@
             const kind = state === "edges" ? "edge" : "node";
             const col = (cap, ...kids) => h("div", { class: "stsp-col" }, h("div", { class: "stsp-cap k-secondary" }, cap), ...kids);
             el.append(h("div", { class: "stsp" },
-                h("div", { class: "stsp-intro ab-cap k-secondary" },
+                h("div", { class: "stsp-intro ab-cap k-secondary ab-review-only" },
                     "Review view: the same Style tab on two rows. Everything lists graphty-element's defaults as lines; Group 2 lists only what it sets, and \"+\" adds the rest. ",
                     AB.link("style-tab-same-panel", kind === "node" ? "edges" : "nodes", kind === "node" ? "Show the Edges side" : "Show the Nodes side", { class: "ab-link" })),
                 h("div", { class: "stsp-cols" },

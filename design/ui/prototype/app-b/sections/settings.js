@@ -104,9 +104,12 @@
     const anyKey = () => ["openai", "anthropic", "google"].some((p) => S["key_" + p]);
     // The one sentence about what the Assistant sends, word for word on Assistant and on Privacy.
     // It ships with no provider, so it is off by the Assistant's one rule: off until a provider is chosen.
-    const assistantSends = () => !S.provider ? "Off until you choose a provider. Nothing is sent."
+    // After a send it reads in the past tense, with what went and a way to see it (S.sent, set by the
+    // provider-set state; it stands for the last send to that provider and lapses when the provider changes).
+    const assistantSends = () => !S.provider ? "Sends node names and statistics to the provider you choose, when you ask. Off until you choose one; nothing is sent."
         : S.provider === "browser" ? "Runs in this browser. Nothing is sent."
-            : "Only when you ask it something, it sends your question, node names and statistics to " + provName() + ". Never the file.";
+            : S.sent && S.sent.host === provName() ? ["Sent to " + S.sent.host + " at " + S.sent.at + ": " + S.sent.what + ". ", goLink("See what was sent", "assistant-place", "conversation")]
+                : "Sends node names and statistics to " + provName() + " when you ask. Never the file.";
 
     // ---------- the sections ----------
     // Each setting: { label, words (extra search terms), help, ctl, stack (control under the label), extra (full width) }
@@ -138,16 +141,18 @@
                                 h("li", null, "Errors and performance"),
                                 h("li", null, "A feedback widget")),
                             help("No file contents ever leave your computer."))) },
-                { label: "Where your data goes", words: "data files saved sent keys privacy exports assistant provider data source password promise", wide: true, ctl: null,
+                { label: "Where your data goes", words: "data files saved sent keys privacy exports assistant provider data source password promise hosting country server", wide: true, ctl: null,
                     help: help("A plain statement you can forward to whoever asks."),
                     extra: h("div", { class: "st-limits st-wide" },
                         AB.data("Files you open", "Read on this computer. Never uploaded."),
                         AB.data("Your project", "Saved where you save it."),
                         AB.data("The Assistant", assistantSends()),
                         AB.data("Data sources", "A source you connect (a URL, a database) receives only the request for its data, from this computer. Nothing from your graph is sent to it."),
+                        AB.data("Data-source password", "Kept in memory until you close the tab. Never kept in this browser's storage."),
                         AB.data("Assistant keys", S.remember ? "Kept in this browser until you forget them, while Remember keys is on." : "Kept until you close the tab, then forgotten."),
                         AB.data("Passwords and keys", "Never written into a project file or anything you export."),
                         AB.data("Usage data", S.usage ? "Sent, with graph content masked." : "Off. Nothing is sent."),
+                        AB.data("Hosting", "Not decided yet"),
                         h("div", { class: "st-help" }, "To forget your keys now: ", goLink("Forget all keys", "settings", "forget-keys-confirm"), "."),
                         h("div", { class: "st-help" }, goLink("Files you exported", "export-dialog", "recent-exports"), " -- exports are saved where you choose, never sent."),
                         h("div", { class: "st-help" }, h("b", null, "What this does not promise. "), "Once the Assistant's provider or a data source has what was sent, its own terms apply, not graphty's. A browser extension or anyone with this computer can read what is in this browser, keys included.")) },
@@ -328,6 +333,7 @@
             if (state === "general-name-set") S.name = "Maya Chen";
             S.usage = !!AB.usageData; // the shell's one answer (the header chip, the start screen)
             if (state === "assistant-provider-set" || (confirming && !anyKey())) { S.provider = "anthropic"; S.key_anthropic = "sk-ant-...4f2a"; }
+            if (state === "assistant-provider-set") S.sent = { host: "Anthropic", at: "14:02", what: "40 node names, 3 statistics" };
             query = state === "search" ? "gpu" : "";
             if (state === "search") current = "performance";
             const q = h("input", { id: "st-q", type: "search", "aria-label": "Search settings", "aria-describedby": "st-count", placeholder: "Search settings", value: query, autocomplete: "off",

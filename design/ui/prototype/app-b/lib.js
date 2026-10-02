@@ -129,8 +129,18 @@
     }
     // The participant view (design notes hidden, as study.mjs opens it)
     const studyView = () => document.documentElement.hasAttribute("data-design-notes-hidden");
-    // a tooltip that names an element gap is review text: the study build says only that it is not available
-    const forStudy = (t) => (typeof t === "string" && studyView() && /needs graphty-element/i.test(t) ? "Not available yet" : t);
+    // An element gap ("needs graphty-element: ...") is review wording. The participant view keeps the
+    // reason and drops the library's name: "Not available yet: this version cannot copy a subgraph ...",
+    // "This name cannot be changed: ...". Only text that says "needs graphty-element" is rewritten, so
+    // product text that names the element on purpose ("graphty-element's default") is left alone.
+    const plainReason = (t) => t.replace(/\s*\(filed\)/g, "")
+        .replace(/^Rename needs graphty-element:\s*/, "This name cannot be changed: ")
+        .replace(/^Needs graphty-element:\s*/i, "Not available yet: ")
+        .replace(/\(needs graphty-element\)/g, "(not available yet)")
+        .replace(/\bneeds graphty-element\b/g, "is not available in this version")
+        .replace(/graphty-element's/g, "this version's").replace(/graphty-element/g, "this version")
+        .replace(/^\w/, (c) => c.toUpperCase());
+    const forStudy = (t) => (typeof t === "string" && studyView() && /needs graphty-element/i.test(t) ? plainReason(t) : t);
     function tip(el, name, o) {
         o = o || {};
         name = forStudy(name);
@@ -378,7 +388,7 @@
 
     // ---------- notes ----------
     // The Notes section every inspector ends with (read-only, so collapsible): "2 notes -- Open in
-    // Notes", or "No notes. Add note (N)". Folders, attributes, sources and saved views have none.
+    // Notes" (N still adds one), or "No notes. Add note (N)". Folders, attributes, sources and saved views have none.
     const NO_NOTES = ["folder", "attribute", "source", "saved-view", "view"];
     // Notes saved in this page view, newest first (the Notes place writes them): every count reads
     // the fixture's count plus these, so a saved note shows the same number in every place
@@ -389,11 +399,9 @@
         const t = target || ["notes-place", "about-selection"];
         const build = (c) => {
             const n = c ? c + (c === 1 ? " note" : " notes") : null;
-            // The count names what it opens: one link, the notes about this thing (no second "Open in" link)
+            // "2 notes -- Open in Notes": the link opens the notes about this thing
             return section({ title: "Notes", collapsible: true, key: "notes." + (kind || "any"), summary: n || "No notes" },
-                // Add note stays offered beside a count, so the thing shown can always get another note
-                n ? h("div", { class: "k-data" }, link(n && c > count ? "notes-place" : t[0], n && c > count ? "all" : t[1], n, { class: "ab-link" }),
-                    h("span", { class: "k-secondary" }, " . "), h("span", Object.assign({ class: "ab-link", role: "button" }, act({ onClick: () => addNote() })), "Add note"), h("span", { class: "k-secondary" }, " (N)"))
+                n ? h("div", { class: "k-data" }, h("span", null, n), h("span", { class: "k-secondary" }, " -- "), link(c > count ? "notes-place" : t[0], c > count ? "all" : t[1], "Open in Notes", { class: "ab-link" }))
                     : empty(kind === "graph" ? "No notes about the graph itself." : "No notes.", { verb: "Add note", key: "N", onClick: () => addNote() }));
         };
         const sec = build(count);
@@ -451,22 +459,52 @@
         if (o.title) tip(el, o.title, { label: false });
         return el;
     }
-    // One line, one grammar: "Covered for Color by PageRank". The long form (how many, what scope) is its tooltip.
+    // The paint order of a project's rows, top of the tree first, and what each one paints: the one
+    // source for every "Covers ..." and "Covered by ..." line (stands in for graphty-element's layer
+    // list, whose layers report the properties they write). Hidden rows paint nothing.
+    const PAINT_ORDER = {
+        lesmis: [
+            { name: "PageRank", props: ["Color"], go: ["inspector-measure-row", "style"] },
+            { name: "Louvain", props: ["Color"], go: ["inspector-run-row", "style"] },
+            { name: "Shortest paths", props: ["Color"], go: ["inspector-run-row", "style"] },
+            { name: "Top 9 by degree", props: ["Color"], go: ["inspector-group-set-path-row", "top-degree"] },
+            { name: "Watchlist", props: ["Color"], go: ["inspector-group-set-path-row", "watchlist"] },
+            { name: "Group 2", props: ["Color"], go: ["inspector-group-set-path-row", "kept-2"] },
+            { name: "Group 8", props: ["Color"], go: ["inspector-group-set-path-row", "kept-8"] },
+        ],
+    };
+    // covers("PageRank", "Color") -> the rows under PageRank that also paint Color (the ones it covers)
+    function covers(name, prop, ds) {
+        const list = PAINT_ORDER[ds || projectKey()] || [];
+        const i = list.findIndex((r) => r.name === name);
+        return i < 0 ? [] : list.slice(i + 1).filter((r) => r.props.includes(prop));
+    }
+    // One line, one grammar, drawn as given: "Covered by PageRank for Color on 10 of 10" (a string, or
+    // ["Covered by ", link, " for Color on 10 of 10"]). paintOrderLine({ row: "PageRank", prop: "Color" })
+    // writes "Covers Louvain and 5 more for Color" from the paint order: the first covered row is a
+    // link, "and 5 more" opens a popover listing the rest.
     function paintOrderLine(text) {
         if (!text) return null;
-        // The same rule for a line built with a link: ["Covered by ", link, " for Color on 10 of 10"]
-        if (Array.isArray(text) && text[0] === "Covered by " && typeof text[2] === "string") {
-            const m2 = text[2].match(/^ for ([A-Za-z ]+?)(?: on .*)?$/);
-            if (m2) {
-                const el = h("div", { class: "ab-paint-order k-secondary k-ellipsis" }, "Covered for " + m2[1] + " by ", text[1], text.slice(3));
-                return tip(el, "Covered by " + text[1].textContent + text[2] + text.slice(3).map((x) => (x && x.textContent) || x || "").join(""), { label: false });
-            }
+        if (text.constructor === Object) {
+            const rows = text.rows || covers(text.row, text.prop, text.dataset);
+            if (!rows.length) return null;
+            const lnk = (r) => (r.go ? link(r.go[0], r.go[1], r.name, { class: "ab-link" }) : r.name);
+            const rest = rows.slice(1);
+            const more = rest.length ? h("span", Object.assign({ class: "ab-link", role: "button", "aria-haspopup": "dialog" }, act({ onClick: (e) => {
+                const anchor = e.currentTarget, layer = document.getElementById("ab-overlay");
+                const shut = (refocus) => { p.remove(); document.removeEventListener("pointerdown", off, true); if (!layer.childElementCount) layer.hidden = true; if (refocus) anchor.focus(); };
+                const p = popover({ anchor, title: "Also covered for " + text.prop, onClose: () => shut(true), body: h("div", null, rest.map((r) => h("div", { class: "k-data" }, lnk(r)))) });
+                const off = (ev) => { if (!p.contains(ev.target) && ev.target !== anchor) shut(false); };
+                layer.hidden = false;
+                layer.append(p);
+                document.addEventListener("pointerdown", off, true);
+                p.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); shut(true); } });
+                requestAnimationFrame(() => requestAnimationFrame(() => { const f = p.querySelector(".k-popover-body a, .k-popover-body [tabindex='0']"); if (f) f.focus(); }));
+            } })), "and " + rest.length + " more") : null;
+            return h("div", { class: "ab-paint-order k-secondary" }, "Covers ", lnk(rows[0]), more ? [" ", more] : null, " for " + text.prop);
         }
-        const m = typeof text === "string" && text.match(/^Covered by (.+?) for ([A-Za-z ,]+?)(?: on [^.]*)?\.?(?:\s.*)?$/);
-        const short = m ? "Covered for " + m[2] + " by " + m[1] : text;
-        const el = h("div", { class: "ab-paint-order k-secondary k-ellipsis" }, short);
-        if (typeof text === "string") tip(el, text, { label: false });
-        return el;
+        // never cut: the grammar and its count are the line's point, so a long line wraps
+        return h("div", { class: "ab-paint-order k-secondary" }, text);
     }
 
     // tabs(["Style", "Data"], "Style", onChange) -> tablist; switches in place
@@ -559,14 +597,22 @@
         if (!r.renameDisabled) return null;
         if (/^[A-Z]/.test(r.renameDisabled)) return r.renameDisabled;
         // the study build says what a participant can do instead, never which library lacks what
-        if (studyView()) { const next = r.renameDisabled.split(/; |\. /).slice(1).join(". "); return "This name cannot be changed" + (next && !/graphty-element/.test(next) ? ". " + next.replace(/^\w/, (c) => c.toUpperCase()) : ""); }
+        // (a first clause that blames graphty-element keeps its reason: "a run's name is its label")
+        if (studyView()) {
+            const parts = r.renameDisabled.split(/; |\. /);
+            const next = parts.slice(1).filter((x) => !/graphty-element/.test(x)).join(". ");
+            const first = /graphty-element/.test(parts[0]) ? parts[0].replace(/,?\s*(?:which|because|as|since)?\s*graphty-element\b.*$/, "").trim() : "";
+            const why = next || first;
+            return "This name cannot be changed" + (why ? ": " + why.replace(/^\w/, (c) => c.toLowerCase()) : "");
+        }
         return "Rename needs graphty-element: " + r.renameDisabled;
         return null;
     }
 
     // ---------- design notes: one chip for "needs graphty-element" and "Open question" ----------
     // Placed after the control it qualifies; its text is the tooltip. "Hide design notes" in the review
-    // bar hides every chip, every menu item marked `needs` and every control marked data-needs.
+    // bar hides every chip and every design-note-only control marked data-needs; a menu item marked
+    // `needs` stays listed (disabled, "Not available yet: <reason>"), so hiding notes never hides product text.
     function designNote(word, text) {
         const c = h("span", { class: "ab-design-note", tabindex: "0", role: "note", "aria-label": word + ": " + text }, word);
         return tip(c, text, { label: false });
@@ -591,7 +637,7 @@
         if (W && (o.kindKey || o.kind) === "node" && AB.route && AB.route.frame.right === W.right) o = Object.assign({}, o, { title: W.name, swatch: null });
         const no = renameRefusal(o);
         // The name is text, not a button: rename is double-click or F2, as on every name (spec 3.6)
-        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", "aria-keyshortcuts": no ? null : "F2", "aria-description": no ? null : "Double-click or F2 renames" }, o.title);
+        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", "data-norename": no ? "" : null, "aria-keyshortcuts": no ? null : "F2", "aria-description": no ? null : "Double-click or F2 renames" }, o.title);
         if (no) tip(name, no, { label: false });
         const startRename = () => (no ? announce(no) : renameInPlace(name, { onSave: o.onRename, focusAfter: name }));
         name.addEventListener("dblclick", (e) => { e.stopPropagation(); startRename(); });
@@ -640,6 +686,7 @@
         return wrap;
     }
     // Every Data tab uses these section names, in this order, any empty one left out (spec 5.1 item 5)
+    const PROVENANCE = ["Created from", "Scope", "Data version", "Ran"];
     const dataVocab = ["Summary", "Members", "Values", "Sizes", "Memberships", "Painted by", "Made with", "Notes"];
     // dataTab({ Summary: [nodes] | { summary, body }, "Made with": ..., Notes: { count, target } }, { kind })
     // Sections are read-only, so collapsible, remembered per kind ("data.run.made-with").
@@ -652,7 +699,10 @@
         return names.map((n) => {
             const v = parts[n];
             if (n === "Notes") return notesSection(v.count || 0, v.target, kind);
-            const body = Array.isArray(v) || v instanceof Node ? v : v.body;
+            let body = Array.isArray(v) || v instanceof Node ? v : v.body;
+            // Made with: { body, provenance: { "Created from", Scope, "Data version", Ran } } -- the
+            // provenance rows follow the settings, read-only, always in this order, any missing one left out
+            if (v.provenance) body = [].concat(body || [], PROVENANCE.filter((k) => v.provenance[k] != null).map((k) => data(k, v.provenance[k])));
             return section({ title: n, collapsible: true, key: "data." + kind + "." + n.toLowerCase().replace(/\s+/g, "-"), summary: v.summary || null }, body);
         });
     }
@@ -675,6 +725,7 @@
     }
     function tree(rows, opts) {
         opts = opts || {};
+        AB.soloRow = null; // a tree drawn again shows every row (no row keeps its solo)
         opts.rootRows = opts.rootRows || rows;
         const ul = h("ul", { class: "ab-tree", role: "tree", "aria-label": opts.label || "Paint order" });
         const all = [];
@@ -688,6 +739,32 @@
             return fresh;
         };
         const rowId = (r) => String(r.id || r.name);
+        // Several rows: Ctrl/Meta-click toggles a row into the selection, Shift-click extends it from the
+        // last plain click. Two or more rows open the several-rows inspector, the names in AB.treeSelection.
+        const multi = (e, li) => {
+            if (!(e.ctrlKey || e.metaKey || e.shiftKey)) { AB.treeAnchor = li.dataset.row; AB.treeSelection = null; return false; }
+            const lis = all.map((x) => x.li).filter((x) => x.isConnected);
+            let sel = lis.filter((x) => x.getAttribute("aria-selected") === "true");
+            if (e.shiftKey) {
+                const a = lis.find((x) => x.dataset.row === AB.treeAnchor) || sel[0] || li;
+                const [i, j] = [lis.indexOf(a), lis.indexOf(li)].sort((p, q) => p - q);
+                sel = lis.slice(i, j + 1);
+            } else sel = sel.includes(li) ? sel.filter((x) => x !== li) : sel.concat(li);
+            lis.forEach((x) => { x.setAttribute("aria-selected", String(sel.includes(x))); x.tabIndex = x === li ? 0 : -1; });
+            if (sel.length >= 2) {
+                AB.treeSelection = sel.map((x) => x._entry.r.name);
+                announce(sel.length + " rows selected");
+                if (!/^#\/inspector-several-rows\/(style|data)$/.test(location.hash)) go("inspector-several-rows", "style");
+            } else if (sel.length === 1) { AB.treeSelection = null; AB.treeAnchor = sel[0].dataset.row; sel[0].click(); }
+            else { AB.treeSelection = null; AB.clearSelection(); }
+            return true;
+        };
+        // The several-rows inspector's tree marks the rows the reader picked (when it holds them)
+        if (AB.treeSelection && AB.route && AB.route.id === "inspector-several-rows" && /^(style|data)$/.test(AB.route.state)) {
+            const flat = (rs) => rs.flatMap((r) => [r].concat(r.children ? flat(r.children) : []));
+            const mine = flat(rows);
+            if (mine.some((r) => AB.treeSelection.includes(r.name))) mine.forEach((r) => { r.selected = AB.treeSelection.includes(r.name); });
+        }
         const startRename = (entry) => {
             const no = renameRefusal(entry.r);
             if (no) return announce(no);
@@ -714,9 +791,11 @@
             const nameEl = h("span", { class: "ab-tname k-ellipsis" }, r.name);
             const no = renameRefusal(r);
             if (no) tip(nameEl, no, { label: false });
-            const noteN = r.notes || (!r.open && r.notesInside) || null;
+            // notes saved in this page view about the row count too, as every inspector's Notes section counts them
+            const own = (r.notes || 0) + sessionCount([{ label: r.name, go: r.go }]);
+            const noteN = own || (!r.open && r.notesInside) || null;
             const notes = h("span", { class: "ab-tnotes k-num" }, noteN ? [icon(ICON.note, "sm"), noteN] : null);
-            if (noteN) tip(notes, r.notes ? noteN + (noteN === 1 ? " note" : " notes") : noteN + " notes inside", { label: false });
+            if (noteN) tip(notes, own ? noteN + (noteN === 1 ? " note" : " notes") : noteN + " notes inside", { label: false });
             const eye = r.eye == null ? null : h("span", { class: "ab-eye", role: "button", tabindex: "-1", "aria-pressed": String(!!r.eye) }, icon(r.eye ? "eye" : "eye-off"));
             if (eye) tip(eye, (r.eye ? "Hide " : "Show ") + r.name, { second: "Alt-click or Alt+Space: show only this row" });
             const le = h("span", { class: "ab-le" }, r.locked ? tip(h("span", { class: "ab-lock" }, icon("lock", "sm")), "Locked", { label: false }) : null, eye);
@@ -738,6 +817,8 @@
                         const solo = !li.hasAttribute("data-solo");
                         all.forEach(({ li: x }) => x.removeAttribute("data-solo") || x.toggleAttribute("data-struck", solo && x !== li));
                         if (solo) li.setAttribute("data-solo", "");
+                        // the row shown alone, for the canvas and its legend (canvas-and-states repaints from it)
+                        AB.soloRow = solo ? r.name : null;
                         return;
                     }
                     r.eye = !r.eye;
@@ -760,6 +841,7 @@
                 li.dataset.nav = href(target[0], target[1]);
                 li.addEventListener("click", (e) => {
                     if (e.detail > 1) { clearTimeout(li._wait); return; }
+                    if (multi(e, li)) return;
                     all.forEach((x) => { x.li.setAttribute("aria-selected", String(x.li === li)); x.li.tabIndex = x.li === li ? 0 : -1; });
                     const open = () => { if (location.hash !== li.dataset.nav) { AB.keepLeft = true; go(target[0], target[1]); } };
                     // A row whose target replaces the left panel (waitDouble) waits out the double-click
@@ -772,6 +854,7 @@
                 li.dataset.opens = "";
                 li.addEventListener("click", (e) => {
                     if (e.detail > 1) return;
+                    if (multi(e, li)) return;
                     all.forEach((x) => { x.li.setAttribute("aria-selected", String(x.li === li)); x.li.tabIndex = x.li === li ? 0 : -1; });
                     AB.keepLeft = true;
                     r.onOpen();
@@ -901,10 +984,11 @@
     // The one light popover for editing a value: popover({ anchor, title, body, foot, width, place })
     // A title and an X; each change applies live; Esc or a click outside closes it; focus starts on the
     // first field and returns to the anchor on close (the shell keeps the panels). `foot` only when the
-    // popover creates something. Placement is "auto" unless `place` names a fixed one.
+    // popover creates something. Placement is "auto" unless `place` names a fixed one. `onClose` (a
+    // popover opened in place, not as a route) is what the X does instead of the shell's close.
     function popover(o) {
         const p = h("div", { class: "k-popover ab-pop", role: "dialog", "aria-label": o.title || "", style: o.width ? `width:${o.width}px` : null });
-        if (o.title) p.append(h("div", { class: "k-popover-head" }, h("span", { class: "k-grow k-ellipsis" }, o.title), iconButton("x", "Close", { key: "Esc", onClick: () => AB.close() })));
+        if (o.title) p.append(h("div", { class: "k-popover-head" }, h("span", { class: "k-grow k-ellipsis" }, o.title), iconButton("x", "Close", { key: "Esc", onClick: () => (o.onClose ? o.onClose() : AB.close()) })));
         const body = append(h("div", { class: "k-popover-body" }), [o.body]);
         p.append(body);
         if (o.foot) p.append(append(h("div", { class: "ab-pop-foot" }), [o.foot]));
@@ -927,8 +1011,10 @@
             if (it.heading) return m.append(h("div", { class: "k-menu-label" }, it.heading));
             const label = it.toggle ? (it.on ? it.toggle[0] : it.toggle[1]) : it.label;
             const dis = !!(it.disabled || it.needs);
-            const reason = it.needs ? null : typeof it.disabled === "string" ? it.disabled : it.disabled && it.desc ? it.desc : null;
-            const target = it.go || it.onClick ? it : { onClick: () => AB.flash(label + " (not wired in the skeleton)") };
+            // an item that needs graphty-element stays listed when design notes are hidden (only the chip
+            // goes), disabled, its reason on the second line in participant words ("Not available yet: ...")
+            const reason = it.needs ? (studyView() ? plainReason("Needs graphty-element: " + it.needs) : null) : typeof it.disabled === "string" ? it.disabled : it.disabled && it.desc ? it.desc : null;
+            const target = it.go || it.onClick ? it : { onClick: () => AB.flash(label + " (not available yet)") };
             const el = h("div", Object.assign({ class: "k-menu-item", role: it.check != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.check != null ? String(!!it.check) : null, "aria-disabled": dis ? "true" : null, "data-described": reason ? "" : null, "data-needs": it.needs ? "" : null, "aria-haspopup": it.sub ? "menu" : null, "aria-keyshortcuts": it.shortcut ? ariaKeys(it.shortcut) : null }, dis ? {} : act(target)),
                 h("span", { class: "k-check-col" }, it.check ? icon("check", "sm") : null),
                 reason ? h("span", null, label, h("span", { class: "k-menu-desc", "aria-hidden": "true" }, reason)) : h("span", null, label),
@@ -1074,7 +1160,7 @@
     // A reviewer's aside in a notice ("(not wired in the skeleton)") is for the review only: the study build drops it
     const SKELETON_ASIDE = /;\s*not (?:wired|modeled) in the skeleton(?=\))|\s*\([^()]*\bin the skeleton\)/g;
     function notice(text, action) {
-        if (typeof text === "string" && studyView()) text = /needs graphty-element/i.test(text) ? (/^Rename/.test(text) ? "This name cannot be changed" : "Not available yet") : text.replace(SKELETON_ASIDE, "");
+        if (typeof text === "string" && studyView()) text = forStudy(text).replace(SKELETON_ASIDE, "");
         const slot = document.getElementById("ab-notice");
         const n = h("div", { class: "k-toast ab-notice", role: "status" }, text);
         if (action) {
@@ -1107,6 +1193,16 @@
     // The canvas drawing, both themes: drawing("lesmis-groups-rest", "alt text")
     function drawing(name, alt) {
         return [h("img", { class: "k-light-only", src: `kit/canvas/${name}-light.svg`, alt }), h("img", { class: "k-dark-only", src: `kit/canvas/${name}-dark.svg`, alt })];
+    }
+    // The drawing on the canvas now, copied (an export's preview shows the project on screen):
+    // canvasCopy("Preview: ") -> [img, img] named "<prefix><project> as the canvas draws it", or null
+    function canvasCopy(prefix) {
+        const stage = document.querySelector("#ab-canvas .k-stage");
+        const art = stage && [...stage.querySelectorAll(":scope > img, :scope > svg")];
+        if (!art || !art.length) return null;
+        const D = (AB.fx.datasets[(AB.route && AB.route.frame.dataset) || "lesmis"] || AB.fx.datasets.lesmis).frame;
+        const alt = (prefix || "") + D.project + " as the canvas draws it";
+        return art.map((x) => { const c = x.cloneNode(true); c.removeAttribute("id"); if (c.tagName === "IMG") c.alt = alt; else c.setAttribute("aria-label", alt); return c; });
     }
 
     // ---------- the toolbar (spec 2.3): five 32 px icon buttons, no text ----------
@@ -1175,6 +1271,18 @@
         });
         announce(state === "paused" ? "Layout paused" : state === "running" ? "Layout running" : "Layout settled");
     }
+    // Re-run layout: closes the menu or dialog it came from, runs the layout in place, settles
+    let rerunTimer = 0;
+    function rerunLayout() {
+        AB.layoutState = "running";
+        if (AB.route && AB.route.frame.overlay) AB.close();
+        setTimeout(() => {
+            setLayout("running");
+            notice("Layout re-run", { label: "Undo", onClick: () => announce("Earlier positions restored") });
+            clearTimeout(rerunTimer);
+            rerunTimer = setTimeout(() => setLayout("settled"), 2000);
+        }, 0);
+    }
     const legendButton = () => toolbarButton(ICON.legend, "Legend", { key: "L", pressed: legendOn(), onClick: () => setLegend(!legendOn()) });
     // The standard bar: Analyze | Layout, View, Legend | Quick actions
     function mainToolbar() {
@@ -1194,7 +1302,12 @@
     function legendCard(parts) {
         if (!legendOn()) return null;
         // A pressed Legend button always draws a card: with nothing bound, it says so in one line
-        if (!parts.length) parts = [{ title: "Nothing is colored or sized by a row" }];
+        // ...unless a field paints: the field list's In use (fieldsOf usedBy) is the one source for both
+        if (!parts.length) {
+            const P = /\b(Color|Size|Width)\b/;
+            const uses = fieldsOf(projectKey()).flatMap((g) => g.fields).filter((f) => P.test(f.usedBy || "")).map((f) => ({ title: f.usedBy.match(P)[1] + ": " + f.label }));
+            parts = uses.length ? uses : [{ title: "Nothing is colored or sized by a row" }];
+        }
         // Read-only: the canvas carries no controls, and the tree row is the one door to a row's inspector
         const card = h("div", { class: "k-legend-card ab-legend", role: "img", "aria-label": "Legend: " + parts.map((p) => p.title).join("; ") });
         parts.forEach((p) => {
@@ -1497,6 +1610,8 @@
             const b = iconButton("database", c.name + " by attribute", { go: ["style-pickers", c.style ? "label-style" : c.id in bound ? b0.go || "binding" : "bind-prop"] });
             b.setAttribute("aria-haspopup", "dialog");
             b.setAttribute("aria-expanded", "false");
+            // Enter and Space are a click, so the listeners that note which property it binds (style-pickers) see it
+            b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopImmediatePropagation(); b.click(); } }, true);
             return b;
         };
         const body = h("div", { class: "ab-style-body" });
@@ -1618,7 +1733,8 @@
         analyze: { label: "Analyze...", shortcut: "Shift+A", home: "Toolbar > Analyze", more: true, go: ["analyze-popover", "open"] },
         "quick-actions": { label: "Quick actions", shortcut: "Ctrl+K", home: "Toolbar > Quick actions", go: ["commands-and-search", "quick-actions"] },
         layout: { toggle: ["Pause layout", "Resume layout"], on: () => AB.layoutState === "running", home: "Toolbar > Layout", onClick: () => setLayout(AB.layoutState === "running" ? "paused" : "running") },
-        "rerun-layout": { label: "Re-run layout", home: "Canvas menu > Re-run layout", go: ["context-menus", "canvas"] },
+        // runs in place: the graph on screen stays, the Layout button runs, then settles
+        "rerun-layout": { label: "Re-run layout", home: "Canvas menu > Re-run layout", onClick: () => rerunLayout() },
         "view-mode": { toggle: ["Switch to 2D", "Switch to 3D"], on: () => ((AB.route && AB.route.frame.mode) || "3d") === "3d", shortcut: "5", home: "Toolbar > View", go: ["view-flyout", "3d"] },
         "enter-vr": { label: "Enter VR", home: "Toolbar > View", disabledReason: "No headset connected", go: ["view-flyout", "3d"] },
         "enter-ar": { label: "Enter AR", home: "Toolbar > View", disabledReason: "No AR device connected", go: ["view-flyout", "3d"] },
@@ -1650,7 +1766,13 @@
         "select-where": { label: "Select where...", home: "Main menu > Select where", more: true, go: ["select-where", "where"] },
         // <attribute> is filled by cmd(id, { attribute }); the one Select where dialog, the condition filled in
         "select-where-attribute": { label: "Select where <attribute> is...", home: "Attribute menu > Select where", more: true, onClick: () => flash("Select where (no attribute given)") },
-        "add-data": { label: "Add data...", home: "Data > Sources +", more: true, go: ["data-page", "entries"] },
+        // asks for the file first (the file picker); the chosen file opens on the Data page
+        // The project's own Data place, its file chooser open (data-place's "<state>/choose"): adding data never leaves the project
+        "add-data": { label: "Add data...", home: "Data > Sources +", more: true, get go() {
+            const r = AB.route, ds = (r && r.frame.dataset) || "lesmis";
+            const none = r && ["canvas-and-states/empty", "canvas-and-states/refused-project"].includes(r.frame.canvas);
+            return ["data-place", (none ? "no-sources" : AB.placeOf(ds, "data") || "at-rest") + "/choose"];
+        } },
         "edit-source": { label: "Edit source...", home: "Source row menu > Edit source", more: true, go: ["data-page", "edit-source"] },
         "replace-file": { label: "Replace with file...", home: "Source row menu > Replace with file", more: true, go: ["data-page", "replace"] },
         "version-history": { label: "Version history", home: "Project menu > Version history", go: ["full-canvas-modes", "version-history"] },
@@ -1815,7 +1937,8 @@
     // later state adds (STYLED, keyed by the tree's state) and the filter steps the route's frame
     // names (frame.filterOn) -- never a binding the tree does not hold.
     const USED_BY = {
-        lesmis: { label: "Name, Label", group: "Color (group)", degree: "Size (Degree)" },
+        // degree is in use only where the hidden Degree row is listed (STYLED below): the drawings size every node alike
+        lesmis: { label: "Name, Label", group: "Color (group)" },
         transactions: { "id (account)": "Key", "amount (edge)": "Weight" },
         doorEntries: { id: "Key", name: "Name, Label", bldg: "Key", person_id: "Link to person", building_id: "Link to building", time: "Time", count: "Weight" },
         wide: { id: "Key", hostname: "Name", source: "From", target: "To", bytes_total_24h: "Weight" },
@@ -1825,6 +1948,7 @@
     const STYLED = {
         "graph-place/wide-sized": { vuln_count_critical_unremediated_over_30_days: "Size" },
         "graph-place/nested-set": { "attributes.profile.metrics.citations.last_5_years": "Label (set)" },
+        "graph-place/show-hidden": { degree: "Size (Degree)" },
     };
     // The nested project as the last Load left it (data-page's nestedChoices); before any Load, the
     // Data page's own proposal: coauthor_ids as Several edges (one edge per pair), the other arrays kept
@@ -1995,23 +2119,19 @@
 
     // ---------- an attribute's menu (spec 10.3): Data > Attributes, the attribute inspector's "...", a table column ----------
     // attributeMenu(anchor, ds, name, { noTable, editOn, table }): one menu for every project. In a loaded
-    // project (wide, nested, plain JSON) Color by and Size by add the measure row (paintRow), Filter to...
+    // project (wide, nested, plain JSON) Filter to...
     // adds a step on the attribute (AB.filterTo), Select where <attribute> is... opens Select with the
     // attribute in its query (AB.whereFrom) and Read as... opens the attribute's inspector (AB.openField).
     // A command the skeleton does not model says so and gives focus back to the row it was opened on.
     function attributeMenu(anchor, ds, name, o) {
         o = o || {};
-        const [x, g] = fieldIn(ds, name);
+        const g = fieldIn(ds, name)[1];
         const edge = g ? g.element === "edge" : !!o.edge;
-        const loaded = ["wide", "nested", "plainJson"].includes(ds);
         const back = () => requestAnimationFrame(() => { if (anchor && anchor.isConnected) anchor.focus(); });
-        const say = (text) => () => { notice(text + " (not wired in the skeleton)"); back(); };
-        const paint = (prop) => (loaded ? () => paintRow(ds, prop, name) : say((prop === "Color" ? "Color by " : edge ? "Width by " : "Size by ") + name));
-        const no = (kind) => (loaded && x ? unsuitable(kind, x) : null) || false;
+        const say = (text) => () => { notice(text + " (not available yet)"); back(); };
+        // No Color by or Size by here: painting from an attribute is a row's bind in its Style tab
         openMenu(anchor, [
             { heading: name },
-            { label: "Color by", disabled: no("color"), onClick: paint("Color") },
-            { label: edge ? "Width by" : "Size by", disabled: no("number"), onClick: paint("Size") },
             cmd("label-by", { go: null, onClick: say("Add label line: " + name) }),
             { label: "Show as groups", onClick: say("Show as groups by " + name) },
             { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + name + " as an axis needs a layout that reads any attribute" },
@@ -2072,6 +2192,10 @@
         else {
             if (o.typed) groups.push({ head: null, rows: [{ typed: true, name: "Typed text", label: "Typed text" }] });
             fieldsOf(ds).filter((g) => !o.element || g.element === o.element).forEach((g) => groups.push({ head: g.table, fields: g.fields }));
+            // o.computed: values the caller computes itself (a filter step's degree), listed unless the data already has them
+            const have = new Set(groups.flatMap((g) => (g.fields || []).map((x) => x.name)));
+            const own = (o.computed || []).filter(([n]) => !have.has(n));
+            if (own.length) groups.push({ head: "Computed values", fields: own.map(([n, t, desc]) => ({ name: n, label: n, type: t, parent: null, fill: null, usedBy: desc || null, computed: true })) });
             const res = o.results !== false && RESULTS[ds];
             if (res) groups.push({ head: "Results", fields: res.map(([n, t]) => ({ name: n, label: n, type: t, parent: null, fill: null, usedBy: null, computed: true })) });
             if (o.notes != null ? o.notes : menuSize) groups.push({ head: "Notes", fields: [{ name: "Note count", label: "Note count", type: "num", parent: null, fill: null, usedBy: null, computed: true }].concat(o.kind === "text" ? [{ name: "Latest note", label: "Latest note", type: "text", parent: null, fill: null, usedBy: null, computed: true }] : []) });
@@ -2277,11 +2401,44 @@
         return x.toPrecision(digits);
     }
     // count(77, "node") "77 nodes"; count(60, "node", { of: 77 }) "60 of 77 nodes";
-    // { version: "before the filter" } adds the data version when it is not what the screen shows
+    // { version: "before the filter" } adds the data version when it is not what the screen shows.
+    // THE SET RULE, written only here: a count, range or statistic names the set it was computed
+    // over ({ on: n, onOf: whole }) only when that set is not the graph on screen (the filter chip's
+    // count), or when the same measure appears elsewhere over another set ({ also: true }):
+    // count(0.0754, null, { on: 77 }) is "0.0754, on all 77" while the chip reads "60 of 77 nodes",
+    // and "0.0754" on the full graph; count(0.419, null, { on: 60, also: true }) "0.419, on 60 of 77".
+    const shownNodes = () => (AB.route && AB.route.frame && AB.route.frame.shown != null ? AB.route.frame.shown : (projectCounts(projectKey()) || {}).nodes);
+    function setNote(o) {
+        if (o.on == null) return "";
+        const on = Number(o.on), whole = o.onOf != null ? Number(o.onOf) : (projectCounts(projectKey()) || {}).nodes;
+        if (!o.also && on === shownNodes()) return "";
+        return ", on " + (whole == null || on === whole ? "all " + num(on) : num(on) + " of " + num(whole));
+    }
     function count(n, noun, o = {}) {
         const many = o.of != null ? Number(o.of) : Number(n);
         const word = noun ? " " + (many === 1 ? noun : o.plural || noun + "s") : "";
-        return num(n) + (o.of != null ? " of " + num(o.of) : "") + word + (o.version ? " (" + o.version + ")" : "");
+        return num(n) + (o.of != null ? " of " + num(o.of) : "") + word + (o.version ? " (" + o.version + ")" : "") + setNote(o);
+    }
+    // A range always names its column: range(0.0033, 0.0754, "PageRank") "PageRank 0.00330 to 0.0754",
+    // and names its set by the same rule as count ({ on, onOf, also })
+    function range(lo, hi, column, o = {}) {
+        if (!column) console.error("AB.range: a range always names its column");
+        return (column ? column + " " : "") + num(lo) + " to " + num(hi) + setNote(o);
+    }
+    // Two columns never share one display name: every list of column headers passes through this
+    // (the table, the field list's panel size, an export's columns). A clash is an error in the console.
+    function distinctNames(names, where) {
+        const seen = new Set();
+        names.forEach((n) => { if (seen.has(n)) console.error((where || "columns") + ": two columns are named \"" + n + "\""); seen.add(n); });
+        return names;
+    }
+    // Top 10 with ties kept whole: every item whose value reaches the nth highest, so a tie at the
+    // cut is never split. topN(rows, (r) => r.degree) ; topN(rows, fn, 5)
+    function topN(items, valueOf, n = 10) {
+        const sorted = [...items].sort((a, b) => valueOf(b) - valueOf(a));
+        if (sorted.length <= n) return sorted;
+        const cut = valueOf(sorted[n - 1]);
+        return sorted.filter((x) => valueOf(x) >= cut);
     }
 
     // ---------- the data as it is now: one source for a project's node and edge counts ----------
@@ -2305,15 +2462,15 @@
     }
 
     Object.assign(AB, {
-        num, count, projectCounts, countSource, removeFromData,
+        num, count, range, distinctNames, topN, projectCounts, countSource, removeFromData,
         graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
         fieldList, openFieldList, fieldsOf, nestedLoaded, painted, paintBy, paintOf, paintRow, recordsOf, valueAt, fieldIn, attributeMenu, boundOn, nameCols, nameOf, nameWord, problem, truncMiddle, wordMatch,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
         tip, tipSweep, scrollStops, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
-        empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,
+        empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine, PAINT_ORDER, covers,
         announce, renameInPlace, needsElement, openQuestion,
         inspector, dataVocab, dataTab, tree, treeFooter, footer: treeFooter,
-        position, popover, menu, openMenu, closeMenu, modal, confirm, notice, placeNotice, flash, deleted, dockToggle, drawing,
+        position, popover, menu, openMenu, closeMenu, modal, confirm, notice, placeNotice, flash, deleted, dockToggle, drawing, canvasCopy,
         toolbarButton, toolbarBar, mainToolbar, layoutButton, legendButton, setLayout, legendOn, setLegend, legendCard,
         CHANNELS, SECTIONS, BASE_STYLE, styleTab, whyThisLook, COMMANDS, SAVED_VIEWS, cmd, fileList, plain, colorField, scrub,
     });

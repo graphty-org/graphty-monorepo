@@ -10,15 +10,24 @@
    canvas menu; Copy ids lives in the several-elements menu; Select by ids is a tab of Select where.
    Only the overlay region is drawn; the frame underneath is the app at rest. Plain ASCII. */
 (function () {
-    const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
+    const flash = (what) => () => AB.flash(what + " (not available yet)");
     const cmd = AB.cmd;
 
+    // The start screen's recent projects, opening where its rows open
     const RECENTS = [
-        { name: "Mule ring review", when: "Today 09:14" },
+        { name: "Mule ring review", when: "Today 09:14", dataset: "transactions" },
         { name: "Knockdown screen, September", when: "Yesterday" },
-        { name: "March transfers", when: "Sep 24" },
-        { name: "Patent citations 1999-2001", when: "Sep 19" },
+        { name: "March transfers", when: "Sep 24", dataset: "transactions" },
+        { name: "Patent citations 1999-2001", when: "Sep 19", go: ["canvas-and-states", "refused-project"] },
     ];
+
+    function showHidden() {
+        const names = [...AB.hiddenOnCanvas];
+        AB.hiddenOnCanvas.clear();
+        const to = cmd("show-hidden").go;
+        AB.go(to[0], to[1]);
+        AB.announce(names.join(", ") + " shown on canvas");
+    }
 
     function topItems(state) {
         return [
@@ -31,7 +40,11 @@
             state === "two-selected"
                 ? { label: "Select edges between", onClick: () => AB.flash("Selected 1 edge between Valjean and Javert") }
                 : { label: "Select edges between", disabled: "Needs two or more nodes selected" },
-            cmd("show-hidden", state === "after-hide" ? undefined : { disabled: "Nothing is hidden on the canvas" }),
+            // Show hidden elements empties the hidden set (selection-bar's AB.hiddenOnCanvas) before it
+            // lands, so the tree footer and the canvas draw everything again
+            AB.hiddenOnCanvas && AB.hiddenOnCanvas.size
+                ? cmd("show-hidden", { go: undefined, onClick: showHidden })
+                : cmd("show-hidden", { disabled: "Nothing is hidden on the canvas" }),
             { sep: true },
             cmd("settings"),
             cmd("shortcuts"),
@@ -43,17 +56,20 @@
         // Stand-in for the system file picker: the file's kind decides where it goes
         "open-file": {
             label: "Choose a file",
+            // the recipe and style files are the ones handed for the project on screen (the Data place's Sources + lists the same)
             items: () => [
                 { heading: "Choose a file" },
                 { label: "transfers-2026-04.csv", desc: "Data file: opens on the Data page", go: ["data-page", "edge-list"] },
-                { label: "mule-ring-triage.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "binding"] },
-                { label: "risk-review-look.json", desc: "Style file: opens the Apply file dialog over this project", go: ["recipe-apply", "style-unbound"] },
+                ...((AB.route && AB.route.frame.dataset) === "wide"
+                    ? [{ label: "estate-exposure-review.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "wide-mismatch"] }]
+                    : [{ label: "mule-ring-triage.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "binding"] },
+                        { label: "risk-review-look.json", desc: "Style file: opens the Apply file dialog over this project", go: ["recipe-apply", "style-unbound"] }]),
                 { label: "March transfers.graphty", desc: "Project file: opens in place of this project", onClick: flash("Open March transfers") },
             ],
         },
         "open-recent": {
             label: "Open recent",
-            items: () => RECENTS.map((r) => ({ label: r.name, desc: r.when, onClick: flash("Open " + r.name) })),
+            items: () => RECENTS.map((r) => ({ label: r.name, desc: r.when, ...(r.go ? { go: r.go } : r.dataset ? { go: ["graph-place", AB.placeOf(r.dataset, "graph")] } : { onClick: flash("Open " + r.name) }) })),
         },
         help: {
             label: "Help",
@@ -95,7 +111,8 @@
         frame: (state) => (state === "two-selected"
             ? { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes" }
             : state === "after-hide"
-                ? { left: "graph-place/at-rest", toolbar: "selection-bar/hidden" }
+                // Valjean was selected and hidden: the bar and the inspector keep him, and the hidden set names him
+                ? { left: "graph-place/at-rest", right: "inspector-node/why-this-look", toolbar: "selection-bar/hidden" }
                 : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [

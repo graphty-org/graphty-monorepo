@@ -38,12 +38,21 @@
     const NOTED = ["Valjean", "Javert"]; // the lesmis nodes with notes (inspector-selection-and-everything)
     const GROUP_2 = ["Valjean"];
 
+    // The picks: the node table's (AB.tablePicks, two or more rows) on two-nodes, else the fixed pairs above.
+    // Edges among them come from the drawing's lines (AB.lesmisAdj) when the picks are the table's.
     function pick(L, two) {
-        const p = two ? PICKS.two : PICKS.several;
-        const nodes = p.names.map((n) => L.rows.find((r) => r.label === n));
+        const p0 = two ? PICKS.two : PICKS.several;
+        const own = two && AB.tablePicks && AB.tablePicks.length >= 2 ? AB.tablePicks : null;
+        const names = own || p0.names;
+        const nodes = names.map((n) => L.rows.find((r) => r.label === n));
+        let among = p0.among;
+        const adj = own && AB.lesmisAdj && AB.lesmisAdj();
+        if (adj) { const at = new Set(nodes.map((n) => L.rows.indexOf(n))); among = [...at].reduce((s, i) => s + adj[i].filter((j) => at.has(j)).length, 0) / 2; }
+        else if (own && own.join() !== p0.names.join()) among = null;
         const degSum = nodes.reduce((s, n) => s + n.degree, 0);
-        return { nodes, names: p.names, n: nodes.length, among: p.among, leaving: degSum - 2 * p.among };
+        return { nodes, names, n: nodes.length, among, leaving: among == null ? null : degSum - 2 * among };
     }
+    const prOf = (L, n) => (n in PR ? PR[n] : AB.lesmisPR ? AB.lesmisPR[L.rows.findIndex((r) => r.label === n)] : 0);
     const count = (S, list) => S.nodes.filter((x) => list.includes(x.label)).length;
     const of = (S, k) => k + " of " + S.n;
     const range = (vals) => {
@@ -57,7 +66,7 @@
         const all = of(S, S.n);
         const lines = [
             { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), wins: ["label below"], coverage: of(S, count(S, NOTED)), go: ["inspector-selection-and-everything", "notes-row"], values: { "label below": "Note count, on " + S.names.filter((n) => NOTED.includes(n)).join(" and ") } },
-            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), wins: ["color"], coverage: all, go: ["inspector-measure-row", "style"], values: { color: "PageRank ramp, " + range(S.names.map((n) => PR[n])) } },
+            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), wins: ["color"], coverage: all, go: ["inspector-measure-row", "style"], values: { color: "PageRank ramp, " + range(S.names.map((n) => prOf(AB.fx.datasets.lesmis, n))) } },
             { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), hiddenRow: true, wins: ["size"], coverage: all, go: ["inspector-measure-row", "style"], values: { size: "degree " + range(S.nodes.map((x) => x.degree)) } },
             { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), wins: ["label above"], coverage: of(S, count(S, GROUP_2)), go: ["inspector-group-set-path-row", "label-two"], values: { "label above": "label, on " + S.names.filter((n) => GROUP_2.includes(n)).join(" and ") } },
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
@@ -75,7 +84,7 @@
         const groups = [...new Set(S.nodes.map((x) => x.group))].sort((a, b) => a - b);
         const toAttr = { go: ["inspector-attribute-and-filter-step", "attribute"] };
         const toMeasure = { go: ["inspector-measure-row", "data"] };
-        const size = AB.link("table-dock", "nodes", S.n + " nodes, " + plural(S.among, "edge"));
+        const size = AB.link("table-dock", "nodes", S.n + " nodes" + (S.among == null ? "" : ", " + plural(S.among, "edge")));
         AB.tip(size, S.names.join(", "), { label: false });
         const member = (ic, swatch, label, k, go) => (k ? AB.row({ icon: ic, swatch, label, trail: of(S, k), go }) : null);
         const g2 = S.nodes.filter((x) => x.group === 2).length;
@@ -87,14 +96,14 @@
         ].filter(Boolean);
         return AB.dataTab({
             Summary: {
-                summary: S.n + " nodes, " + plural(S.among, "edge") + " among them, " + S.leaving + " leaving",
+                summary: S.n + " nodes" + (S.among == null ? "" : ", " + plural(S.among, "edge") + " among them, " + S.leaving + " leaving"),
                 body: [
                     AB.data("Size", size),
-                    AB.data("Edges leaving", String(S.leaving), { go: ["table-dock", "edges"] }),
+                    S.leaving == null ? null : AB.data("Edges leaving", String(S.leaving), { go: ["table-dock", "edges"] }),
                     AB.data("id", plural(S.n, "value")),
                     AB.data("label", plural(S.n, "value")),
                     AB.data("group", groups.length === 1 ? String(groups[0]) : groups.join(", "), toAttr),
-                    AB.data("PageRank", range(S.names.map((n) => PR[n])), toMeasure),
+                    AB.data("PageRank", range(S.names.map((n) => prOf(L, n))), toMeasure),
                     AB.data("Betweenness", range(S.nodes.map((x) => x.betweenness)), toMeasure),
                     AB.data("Degree", range(S.nodes.map((x) => x.degree)), { go: ["selection-bar", "neighborhood"] }),
                 ],

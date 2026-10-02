@@ -156,6 +156,36 @@
         }));
     }
 
+    // ---------- the transfers: the transfer a table row opened (AB.pickedTransfer; else the file's first) ----------
+    function transfer(el) {
+        const Tx = AB.fx.datasets.transactions, f = Tx.firstRows[0];
+        const t = AB.pickedTransfer || { from: f.from_account, to: f.to_account, amount: Number(f.amount), timestamp: f.timestamp };
+        AB.pickedTransfer = t;
+        const at = (id) => Tx.rows.findIndex((r) => r.id === id);
+        const end = (id) => (at(id) >= 0 ? h("span", Object.assign({ class: "k-mono", role: "link", style: "cursor:pointer" }, AB.act({ onClick: () => AB.selectNode("transactions", at(id)) })), id) : h("span", { class: "k-mono" }, id));
+        const when = new Date(t.timestamp).toISOString().slice(0, 16).replace("T", " ");
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: "directed, amount " + AB.num(t.amount),
+                body: [
+                    AB.data("Direction", "Directed", { go: ["inspector-nothing-selected", "transfers"] }),
+                    AB.data("Ends", h("span", null, end(t.from), " -> ", end(t.to))),
+                    AB.data("timestamp", when),
+                    AB.data(nameWithWeight("amount", ["data-page", "edit-graph-file"]), h("span", { class: "k-num" }, AB.num(t.amount))),
+                ],
+            },
+            Notes: { count: 0, target: ["notes-place", "many"] },
+        }, { kind: "edge" });
+        const style = () => AB.whyThisLook([
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: EVERY, wins: ["width", "pattern"], values: { width: "1", pattern: "Solid" } },
+        ], { kind: "edge", element: "this transfer" });
+        el.append(AB.inspector({
+            icon: "spline", title: t.from + " -> " + t.to, kind: "Edge, transfer", kindKey: "edge", menu: ["context-menus", "edge"],
+            renameDisabled: "An edge has no name field to store one in; the title is its two ends",
+            tabs: { Style: style, Data: data }, tab: "Data",
+        }));
+    }
+
     registerSection({
         id: "inspector-edge",
         title: "Inspector: one edge",
@@ -163,6 +193,7 @@
         rail: "graph",
         frame: (state) => (state === "door-pair" ? { dataset: "doorEntries", left: "graph-place/door-entries", dock: "table-dock/door-entries" }
             : state === "wide-data" ? { dataset: "wide", left: "graph-place/at-rest", dock: "table-dock/wide" }
+            : state === "transfer" ? { dataset: "transactions" }
             : { left: "graph-place/at-rest", dock: "table-dock/edges" }),
         closeTo: "graph-place",
         states: [
@@ -171,10 +202,12 @@
             { id: "no-notes", label: "Data tab, no notes" },
             { id: "door-pair", label: "Door entries: the pair Ana Ruiz -> B1" },
             { id: "wide-data", label: "IT estate: a connection with 26 attributes" },
+            { id: "transfer", label: "Transfers: the transfer a table row opened" },
         ],
         render(el, state) {
             if (state === "door-pair") return doorPair(el);
             if (state === "wide-data") return wideEdge(el);
+            if (state === "transfer") return transfer(el);
             const E = edge();
             el.append(AB.inspector({
                 icon: "spline",

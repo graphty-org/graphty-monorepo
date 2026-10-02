@@ -74,6 +74,7 @@
             ".sp-preview b{padding:1px 6px;border-radius:4px;font-family:Verdana,sans-serif;font-weight:400;font-size:13px}" +
             ".sp-ml{display:inline-flex;align-items:center;gap:8px}" +
             ".sp-detach{padding:4px 16px 0}" +
+            ".sp-vals .k-row{min-height:24px;height:24px}" +
             ".sp-pop .ab-frow .k-field{flex:1;min-width:0}" +
             // the label popover's "-": the panel's rule, one 24 px slot at the row's end, shown on hover or focus
             ".sp-lsrow .ab-fctl{display:flex;align-items:center;gap:4px}" +
@@ -85,6 +86,8 @@
             ".k-field.sp-wrapf{height:auto;min-height:24px;padding-top:3px;padding-bottom:3px;white-space:normal}" +
             ".sp-wrapf .k-ellipsis,.sp-wrapf .sp-ml{white-space:normal;overflow:visible;text-overflow:clip;align-items:flex-start}" +
             ".sp-wrap{min-width:0;overflow-wrap:anywhere;white-space:normal}" +
+            ".sp-wrapl .ab-fl-opt{height:auto;min-height:24px;padding-top:3px;padding-bottom:3px;align-items:flex-start}" +
+            ".sp-wrapl .ab-fl-name{white-space:normal;overflow-wrap:anywhere}" +
             ".sp-pop .k-popover-head{height:auto;min-height:40px;padding-top:8px;padding-bottom:8px}" +
             ".sp-pop .k-popover-head .k-grow{min-width:0;overflow-wrap:anywhere;white-space:normal}"));
     }
@@ -269,7 +272,7 @@
         if (o.focus) hex.setAttribute("data-autofocus", "");
         const pct = o.noOpacity ? null : input({ label: (o.name || "Color") + ", opacity percent", num: true, value: o.pct == null ? null : o.pct + "%", eff: o.pct == null ? "100%" : null, cls: "sp-pct", onInput: (v) => o.onChange && o.onChange() });
         if (o.chitGo) Object.assign(chit, { tabIndex: 0 }), chit.setAttribute("role", "button"), AB.tip(chit, "Open the color picker"), AB.nav(chit, o.chitGo[0], o.chitGo[1]);
-        const set = (c) => { hex.value = c.slice(1).toUpperCase(); chit.style.background = c; chit.style.opacity = ""; o.onChange && o.onChange(c); AB.announce((o.name || "Color") + " " + c); };
+        const set = (c, group, old) => { hex.value = c.slice(1).toUpperCase(); chit.style.background = c; chit.style.opacity = ""; o.onChange && o.onChange(c); if (group) AB.notice(nowWas(group, c, old), { label: "Undo", onClick: () => set(old) }); AB.announce(group ? nowWas(group, c, old) : (o.name || "Color") + " " + cap1(colorName(c)) + ", " + c.toUpperCase()); };
         return { el: h("span", { class: "sp-color" }, chit, hex, pct), set };
     }
     // A color's spoken name: graphty-element's names for its palette colors, else a plain hue word.
@@ -325,7 +328,8 @@
         let cur = current;
         const draw = (q) => {
             grid.replaceChildren();
-            const hits = choices.filter((c) => !q || nm(c).toLowerCase().includes(q));
+            // word-start matching, the one matcher: "pyr" finds Square pyramid, not Triangular dipyramid
+            const hits = choices.filter((c) => !q || AB.wordMatch(nm(c), q));
             if (!hits.length) return grid.append(h("div", { style: "grid-column:1/-1" }, AB.noMatch(q)));
             hits.forEach((c) => {
                 const cell = h("div", { class: "sp-cell", role: "option", tabindex: c === cur || (!hits.includes(cur) && c === hits[0]) ? "0" : "-1", "aria-selected": String(c === cur), "data-v": c }, glyph(c), h("span", null, nm(c)));
@@ -348,6 +352,10 @@
     // (it breaks after a "." or "_" first, so a path wraps at its segments)
     const wrapName = (name) => AB.tip(h("span", { class: "sp-wrap" }, String(name).split(/(?<=[._])/).flatMap((p) => [p, h("wbr")]).slice(0, -1)), name, { label: false });
     const wrapField = (f) => (f.classList.add("sp-wrapf"), f);
+    // The shared field list, opened from a picker here, wraps its names instead of cutting them in the
+    // middle (.sp-wrapl below): laid out whole, a wrapped name fits, so the list never cuts it.
+    // Belongs in the shell's fieldList as an option; kept here until the shell takes it.
+    const pickList = (anchor, o) => { const m = AB.openFieldList(anchor, o); if (m) m.classList.add("sp-wrapl"); return m; };
     const pop = (anchor, title, body, o) => AB.popover(Object.assign({ anchor, title, body, width: 280 }, o || {}));
 
     // ---------- "+": the shared menu on the real button (no local copy) ----------
@@ -414,6 +422,33 @@
         if (!["wide", "nested", "plainJson"].includes(ds) || !/^(Color|Size)$/.test(prop)) return null;
         return (name) => { if (AB.paintBy(ds, prop, name, on)) AB.repaint = true; };
     }
+    // Suggested layers for a color scale: offered, never applied. The reader adds one with "+"; each
+    // is a new row above this one. Shape by kind takes the project's category with the fewest values
+    // (5 shapes at most, the rest Other); Mute categories under this scale fades the category colors
+    // beneath, so the scale reads first. Only where the project has such a category.
+    const KIND_OF = { lesmis: "group", transactions: "kind" };
+    function suggested(B) {
+        const D = AB.fx.datasets[B.ds], name = KIND_OF[B.ds], a = D && (D.attributes || []).find((x) => x.name === name);
+        if (!a || !a.values) return null;
+        const vals = Object.keys(a.values).sort((x, y) => a.values[y] - a.values[x]).map((v) => (/^\d+$/.test(v) ? name + " " + v : v)), shapes = vals.length > 5 ? "5 shapes and Other" : AB.count(vals.length, "shape");
+        const offers = [
+            { label: "Shape by " + name, desc: shapes + ": " + vals.slice(0, 5).join(", ") + (vals.length > 5 ? ", then Other" : "") },
+            { label: "Mute categories under this scale", desc: "Fades the category colors of the rows beneath, so " + B.source + " reads first" },
+        ];
+        const body = h("div");
+        const draw = () => {
+            body.replaceChildren(...offers.map((x) => h("div", { class: "k-secondary", style: "padding:2px 16px;font-size:11px" }, h("span", { style: "color:var(--cm-text)" }, x.label), " -- " + x.desc)));
+            if (!offers.length) body.append(AB.empty("Every suggestion is added."));
+            const old = sec.querySelector(".ab-plus"), p = AB.plus({ label: "Add a suggested layer", items: offers, onAdd: (it) => {
+                offers.splice(offers.indexOf(it), 1); draw();
+                AB.notice("Added the layer " + it.label + " above this row", { label: "Undo", onClick: () => AB.announce("Removed the layer " + it.label) });
+            } });
+            if (old) old.replaceWith(p || h("span")); else if (p) sec.querySelector(".k-section-head").append(p);
+        };
+        const sec = AB.section({ title: "Suggested layers", editable: true }, body);
+        draw();
+        return sec;
+    }
     // binding(el, preset or spec, { anchor, open, commit }): open = true opens Source's field list at once
     function binding(el, spec, o) {
         o = o || {};
@@ -443,7 +478,7 @@
             AB.announce(B.prop + " from " + name);
         };
         let current = B.source;
-        const src = wrapField(AB.field(srcText, { caret: true, onClick: () => AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", onPick: (n, t) => { current = n; repick(n, t); } }) }));
+        const src = wrapField(AB.field(srcText, { caret: true, onClick: () => pickList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", onPick: (n, t) => { current = n; repick(n, t); } }) }));
         src.setAttribute("aria-label", "Source" + (B.source ? ": " + B.source : ", none picked"));
         src.setAttribute("aria-haspopup", "listbox");
         src.setAttribute("data-autofocus", "");
@@ -471,14 +506,17 @@
             const num = B.type === "number";
             // the one number formatter, so the range reads as the legend does ("0.00330 to 0.0754")
             const R = B.range ? B.range.map((x) => AB.num(x)) : ["", ""];
-            const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, value: R[0] }), "to", input({ label: "To", num: true, value: R[1] }));
+            // the range is typed only under Typed; until then it shows the fitted values in gray
+            const fitSrc = "the lowest and highest value of " + B.source;
+            const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, eff: R[0] || null, src: fitSrc }), "to", input({ label: "To", num: true, eff: R[1] || null, src: fitSrc }));
             const typedRow = row("Range", typed);
-            const fitText = B.range ? R[0] + " to " + R[1] : "No values to fit";
-            const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range ? fitText + ", the lowest and highest value" : "The source reads no values" }, fitText));
-            typedRow.hidden = true;
+            typedRow.hidden = B.from !== "typed";
             let noValue = null;
             if (isColor) {
-                noValue = AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] });
+                // a color field: an empty swatch and "Nothing" in gray until a color is picked
+                const sw = AB.chit("transparent");
+                sw.style.opacity = ".5";
+                noValue = AB.field(h("span", { class: "sp-ml" }, sw, h("span", { class: "sp-eff" }, "Nothing")), { go: ["style-pickers", "color"] });
                 AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
                 noValue.setAttribute("aria-label", "No value: Nothing");
             }
@@ -490,8 +528,8 @@
                 row("Scale", dropdown("Scale", num ? "linear" : "ordinal", Object.fromEntries(SCALES_FOR[B.type].map((k) => [k, SCALES[k]])), { unset: true, src: DEF + " for a " + (num ? "number" : "category") })),
                 palRow,
                 // a category maps each value to its own color: no range to fit
-                num ? row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : fitText; }, "Values from")) : null,
-                num ? fitted : null, num ? typedRow : null,
+                num ? row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; AB.announce(v === "pct" ? "Values from the 5th to the 95th percentile" : v === "fit" ? "Values from " + (B.range ? R[0] + " to " + R[1] : "the data") : "Type the range"); }, "Values from")) : null,
+                num ? typedRow : null,
                 num ? row("Clamp", check("Clamp values outside the range", true)) : null,
                 // a size never goes negative: a signed source sizes by absolute value, and the
                 // smallest value still draws a mark of at least the minimum size, on screen and in print
@@ -502,6 +540,7 @@
                 B.mid ? h("div", { class: "k-secondary", style: "padding:0 16px 8px;font-size:11px" }, "A column with values below and above 0 centers on 0 by itself. " + B.source + " has none below 0, so its midpoint is set here.") : null,
                 // Note count is 0 on an element with no note, so a count binding never meets "no value"
                 noValue ? row("No value", noValue) : null,
+                isColor && num ? suggested(B) : null,
                 h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, disabled: B.error ? "Nothing is painted to keep" : null, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { const said = "Detached: " + AB.count(detached(B.ds), NOUN[B.ds] || "node") + " keep their " + (isColor ? "colors" : "sizes"); AB.close(); setTimeout(() => AB.notice(said, { label: "Undo", onClick: () => AB.announce("Binding restored") }), 0); } })),
             ];
         }
@@ -517,7 +556,7 @@
         el.append(pop1);
         // the list opens on arrival (a route showing the picker); o.query is the find's starting text
         if (o.open) requestAnimationFrame(() => requestAnimationFrame(() => {
-            AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", query: o.query, onPick: (n, t) => { current = n; repick(n, t); } });
+            pickList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", query: o.query, onPick: (n, t) => { current = n; repick(n, t); } });
             // o.reveal scrolls a row into view by the start of its name (the disabled rows at a list's end)
             // a closed folder (Not usable here) is opened, so its disabled rows and their reasons show
             const rowOf = () => [...document.querySelectorAll("#ab-overlay .ab-fl [data-fl-row]")].find((x) => (x.getAttribute("aria-label") || "").startsWith(o.reveal));
@@ -536,6 +575,8 @@
     // (kept until the route leaves the palette, so Esc returns to the inspector it was opened from).
     // A direct visit is the groups' palette: Louvain's Fill, Eight distinct.
     let palFor = null;
+    // a category palette is judged by the pair check itself; a ramp by the element's own flag
+    const safeOf = (p) => (p.kind === "categorical" ? !closePairs(p.colors).length : p.safe);
     function palettePicker(el, kind) {
         const f = palFor || { kind: kind || "category", id: kind === "number" ? "ylorbr" : "okabe-ito" };
         let cur = f.id;
@@ -550,7 +591,7 @@
                         h("span", { class: "sp-ck" }, p.id === cur ? icon("check", "sm") : null),
                         h("span", { class: "sp-strip", "aria-hidden": "true" }, p.colors.map((c) => h("span", { style: "background:" + c }))),
                         h("span", { class: "k-grow k-ellipsis" }, p.name),
-                        p.safe ? null : AB.tip(h("span", { class: "sp-mark", tabindex: "-1" }, icon("triangle-alert", "sm")), "Not color-blind safe"));
+                        safeOf(p) ? null : AB.tip(h("span", { class: "sp-mark", tabindex: "-1" }, icon("triangle-alert", "sm")), "Not color-blind safe"));
                     const pick = () => { cur = p.id; draw(); list.querySelector("[aria-selected=true]").focus(); AB.announce("Palette: " + p.name); };
                     it.addEventListener("click", pick);
                     it.addEventListener("keydown", (e) => {
@@ -570,16 +611,40 @@
         const inUse = () => f.kind === "category" && cur === f.id && (!ds || ds === "lesmis");
         const verdict = h("div", { role: "status", style: "padding-top:8px" });
         const line = (t) => h("div", { class: "k-secondary", style: "padding:0 16px;font-size:11px" }, t);
-        const except = (c, group) => AB.notice(cap1(group) + " now uses " + colorName(c) + ", an exception to " + pal(cur).name, { label: "Undo", onClick: () => AB.announce(cap1(group) + " back to " + pal(cur).name) });
+        // an exception recolors that group here (its value row and the check follow); Undo puts it back
+        const swap = {}, now = (c) => swap[UP(c)] || c;
+        const except = (c, group, old) => {
+            const said = nowWas(group, c, old) + ", an exception to " + pal(cur).name;
+            swap[UP(old)] = c; say();
+            AB.notice(said, { label: "Undo", onClick: () => { delete swap[UP(old)]; say(); AB.announce(nowWas(group, old, c)); } });
+            AB.announce(said);
+        };
+        // A category binding's values (Louvain's groups on Les Miserables): each group's color, and
+        // Other, the light gray every group past the palette shares, naming its members
+        const values = h("div", { class: "sp-vals", role: "list", "aria-label": "Values" });
+        const drawValues = () => {
+            const lg = f.kind === "category" && (!ds || ds === "lesmis") ? L().frame.legend : null;
+            if (!lg) return values.replaceChildren();
+            const cs = pal(cur).colors, item = (color, label, n) => {
+                const r = AB.row({ swatch: AB.chit(color), label, trail: AB.count(n, "node") });
+                r.setAttribute("role", "listitem");
+                AB.tip(r.querySelector(".k-chit"), cap1(colorName(color)), { second: color.toUpperCase() });
+                return r;
+            };
+            values.replaceChildren(h("div", { class: "sp-head" }, "Values"),
+                ...lg.rows.map((r, i) => item(inUse() ? now(r.color) : cs[i % cs.length], "Group " + r.label, r.count)),
+                lg.other ? item(lg.other.color, "Other: " + lg.other.title.toLowerCase(), lg.other.count) : null);
+        };
         const say = () => {
-            const p = pal(cur), hit = closePairs(p.colors)[0], flag = inUse() ? tooClose(Object.values(L().groupColors), except) : null;
-            verdict.replaceChildren(flag || line(hit ? closeText(hit) : p.safe ? "Every pair of colors in " + p.name + " can be told apart, also with red-green or blue-yellow color blindness." : "Some colors in " + p.name + " are too close for red-green color blindness."));
+            const p = pal(cur), hit = p.kind === "categorical" && closePairs(p.colors)[0], flag = inUse() ? tooClose(Object.values(L().groupColors).map(now), except) : null;
+            verdict.replaceChildren(flag || line(hit ? closeText(hit) : safeOf(p) ? "Every pair of colors in " + p.name + " can be told apart, also with red-green color blindness." : "Some colors in " + p.name + " are too close for red-green color blindness."));
+            drawValues();
         };
         list.addEventListener("click", say);
         list.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && say());
         say();
         const foot = [AB.button("Custom palette", { kind: "secondary", icon: "plus", go: ["style-pickers", "palette-custom"] })];
-        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Palette", [list, verdict], { foot, width: 300 }));
+        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Palette", [list, verdict, values], { foot, width: 300 }));
     }
     function customPalette(el) {
         const src = pal("ylorbr");
@@ -607,38 +672,74 @@
         return Math.round((x * 60 + 360) % 360);
     };
     // The too-close check over every pair of colors in the row, the default palette's own included:
-    // graphty-element's behavior (a stand-in table here). It names the pair and the color vision it
-    // models, and, once the palette has no unused color left, suggests colors clear of every neighbor.
-    // The table is the element's verdict per pair (a stand-in); closePairs walks every pair against it.
-    const CLOSE = [["#E69F00", "#D55E00", "red-green color blindness (deuteranopia)"], ["#E69F00", "#F0E442", "red-green color blindness (deuteranopia)"]];
+    // graphty-element's behavior. It names the pair and the color vision it models, and, once the
+    // palette has no unused color left, suggests colors clear of every neighbor.
+    // One distance for both checks: CIE L*a*b* from sRGB. "gray" is the lightness difference alone,
+    // the Print look's grayscale check (two grays under 5 apart print as one); "deutan" simulates
+    // red-green color blindness (Machado 2009, deuteranopia) first and takes the whole difference.
+    // The one function is published as AB.colorCheck ({ distance, lightness, close }) so the Print
+    // look's grayscale check (inspector-nothing-selected) calls it instead of its own grayOf and
+    // CLOSE: lightness(hex) is that grayOf, close.gray (5) that CLOSE.
+    // ponytail: the thresholds (16, 5) are judgments; graphty-element should own the function and the numbers.
+    const LIN = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    const DEUTAN = [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.01182, 0.04294, 0.968881]];
+    function labOf(hex, vision) {
+        let c = [1, 3, 5].map((i) => LIN(parseInt(hex.slice(i, i + 2), 16) / 255));
+        if (vision === "deutan") c = DEUTAN.map((r) => Math.max(0, Math.min(1, r[0] * c[0] + r[1] * c[1] + r[2] * c[2])));
+        const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+        const X = f((0.4124 * c[0] + 0.3576 * c[1] + 0.1805 * c[2]) / 0.95047), Y = f(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]), Z = f((0.0193 * c[0] + 0.1192 * c[1] + 0.9505 * c[2]) / 1.08883);
+        return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+    }
+    function colorDistance(a, b, vision) {
+        const p = labOf(a, vision), q = labOf(b, vision);
+        return vision === "gray" ? Math.abs(p[0] - q[0]) : Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    }
+    const TOO_CLOSE = { deutan: [16, "red-green color blindness (deuteranopia)"], gray: [5, "printing in gray"] };
+    AB.colorCheck = { distance: colorDistance, lightness: (hex) => labOf(hex)[0], close: { deutan: TOO_CLOSE.deutan[0], gray: TOO_CLOSE.gray[0] } };
     const CLEAR = ["#332288", "#882255"]; // from Nine soft, clear of every color in the graph
     const UP = (c) => c.toUpperCase();
+    // every pair closer than its threshold, the closest first: [a, b, the vision it fails]
     function closePairs(colors) {
         const cs = [...new Set(colors.map(UP))], out = [];
-        cs.forEach((a, i) => cs.slice(i + 1).forEach((b) => { const t = CLOSE.find(([x, y]) => (x === a && y === b) || (x === b && y === a)); if (t) out.push([a, b, t[2]]); }));
-        return out;
+        cs.forEach((a, i) => cs.slice(i + 1).forEach((b) => {
+            const d = colorDistance(a, b, "deutan");
+            if (d < TOO_CLOSE.deutan[0]) out.push([a, b, TOO_CLOSE.deutan[1], d]);
+        }));
+        return out.sort((x, y) => x[3] - y[3]);
     }
     const closeText = (hit) => cap1(colorName(hit[0])) + " and " + colorName(hit[1]) + " are too close for " + hit[2] + ".";
+    // Other: the light gray every group past the legend's own shares, with its members named
+    const OTHER = () => L().frame.legend.other;
+    // what a color paints in Les Miserables: "group 3", or "Other (groups 6, 7 and 10)"
+    function groupOf(c) {
+        const o = OTHER(), fx = L().groupColors;
+        if (o && UP(o.color) === UP(c)) return "Other (" + o.title.toLowerCase() + ")";
+        return Object.keys(fx).filter((k) => UP(fx[k]) === UP(c)).map((k) => "group " + k).join(" and ");
+    }
+    // the announcement and notice of a color change: "Group 3 is now Orange, was Vermilion"
+    const nowWas = (group, c, old) => cap1(group) + (/ and /.test(group) ? " are" : " is") + " now " + cap1(colorName(c)) + (old ? ", was " + cap1(colorName(old)) : "");
     function tooClose(colors, setColor) {
         const has = (c) => colors.some((x) => UP(x) === c);
         const hits = closePairs(colors), hit = hits[0];
         if (!hit) return null;
-        const fx = L().groupColors, groupOf = (c) => Object.keys(fx).filter((k) => UP(fx[k]) === c).map((k) => "group " + k).join(" and ");
         const what = closeText(hit);
+        // Other stays light gray, so the fix recolors the group on the other side of the pair
+        const other = OTHER() && UP(OTHER().color);
+        const fixC = hit[1] === other ? hit[0] : hit[1], keep = fixC === hit[0] ? hit[1] : hit[0];
         // the palette's unused colors first, each only if it clears every neighbor; once none does, colors from another palette
         const left = pal("okabe-ito").colors.filter((c) => !has(c));
-        const clashOf = (c) => closePairs(colors.concat(c)).find((p) => p.includes(c) && p[0] !== hit[1] && p[1] !== hit[1]);
+        const clashOf = (c) => closePairs(colors.filter((x) => UP(x) !== fixC).concat(c)).find((p) => p.includes(c));
         const clear = left.filter((c) => !clashOf(c));
         const fix = { label: "Fix...", onClick: (e) => AB.openMenu(e.currentTarget, [
-            ...left.map((c) => { const k = clashOf(c); return { label: "Use " + colorName(c) + " for " + groupOf(hit[1]), desc: "Unused in " + pal("okabe-ito").name, disabled: k ? cap1(colorName(c)) + " is too close to " + colorName(k[0] === c ? k[1] : k[0]) + " for " + k[2] : null, onClick: () => setColor(c, groupOf(hit[1])) }; }),
+            ...left.map((c) => { const k = clashOf(c); return { label: "Use " + colorName(c) + " for " + groupOf(fixC), desc: "Unused in " + pal("okabe-ito").name, disabled: k ? cap1(colorName(c)) + " is too close to " + colorName(k[0] === c ? k[1] : k[0]) + " for " + k[2] : null, onClick: () => setColor(c, groupOf(fixC), fixC) }; }),
             ...(clear.length ? [] : [{ heading: pal("okabe-ito").name + " has run out: clear of every neighbor" },
-                ...CLEAR.map((c) => ({ label: "Use " + colorName(c) + " for " + groupOf(hit[1]), desc: c + ", from " + pal("tol-muted").name, onClick: () => setColor(c, groupOf(hit[1])) }))]),
+                ...CLEAR.map((c) => ({ label: "Use " + colorName(c) + " for " + groupOf(fixC), desc: c + ", from " + pal("tol-muted").name, onClick: () => setColor(c, groupOf(fixC), fixC) }))]),
         ]) };
         const more = hits.length > 1 ? " " + AB.count(hits.length - 1, "more pair") + " too close." : "";
-        const p = AB.problem({ what, todo: cap1(groupOf(hit[0])) + " and " + groupOf(hit[1]) + " use them." + more, action: fix, level: "partial" });
+        const p = AB.problem({ what, todo: cap1(groupOf(keep)) + " and " + groupOf(fixC) + " use them." + more, action: fix, level: "partial" });
         p.style.margin = "0 16px 8px";
         requestAnimationFrame(() => AB.announce(what));
-        return h("div", null, p, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary", style: "padding:0 16px 8px" }, "The check:", AB.needsElement("graphty-element checks every pair of colors in the row, its default palette's included, names the pair and the color vision it models, and suggests colors that clear every neighbor when the palette runs out.")));
+        return h("div", null, p, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary", style: "padding:0 16px 8px" }, "The check:", AB.needsElement("graphty-element checks every pair of colors in the row, its default palette's included, with the same color distance as the Print look's grayscale check, names the pair and the color vision it models, and suggests colors that clear every neighbor when the palette runs out.")));
     }
     function colorBody(o) {
         const fx = L().groupColors;
@@ -742,13 +843,16 @@
         ["Effects", [["animation", ["none", "pulse", "bounce", "shake", "glow", "fill"], "Animation", "none"], ["animationSpeed", "number", "Speed"]]],
         ["Badge", [["badge", ["notification", "label", "label-success", "label-warning", "label-danger", "count", "icon", "progress", "dot"], "Badge"], ["icon", "text", "Icon"], ["iconPosition", ["left", "right"], "Icon side", "left"], ["progress", "number", "Progress, 0 to 1"]]],
     ];
+    // where an unset label field's effective value comes from: RichTextLabel's default, or nothing drawn
+    const lsSrc = (f) => (f[3] == null ? "graphty-element draws none until it is set" : "graphty-element's label default");
+    const lsEff = (f) => (f[3] == null ? "Not set" : f[1] === "bool" ? (f[3] ? "On" : "Off") : f[1] === "number" || f[1] === "text" || f[1] === "color" ? String(f[3]) : AB.plain(f[0] === "weight" ? "weight" : "", f[3]));
     function lsControl(f, value, onChange) {
         const [key, kind, name, eff] = f;
-        const effText = eff == null ? "Not set" : String(eff);
+        const effText = lsEff(f);
         if (kind === "bool") return check(name, value == null ? eff : value, onChange);
-        if (kind === "number" || kind === "text") return input({ label: name, num: kind === "number", value, eff: effText, onInput: onChange });
+        if (kind === "number" || kind === "text") return input({ label: name, num: kind === "number", value, eff: effText, src: lsSrc(f), onInput: onChange });
         if (kind === "color") return AB.colorField({ name, hex: value, eff: eff || null, pct: value ? 100 : null });
-        return dropdown(name, value || eff || "", Object.fromEntries(kind.map((k) => [k, key === "weight" ? AB.plain("weight", k) : AB.plain("", k)])), { unset: value == null, onChange });
+        return dropdown(name, value || eff || "", Object.fromEntries(kind.map((k) => [k, key === "weight" ? AB.plain("weight", k) : AB.plain("", k)])), { unset: value == null, src: lsSrc(f), onChange });
     }
 
     // ---------- this row's label lines (Group 2's label-two inspector: Above label, Below Note count) ----------
@@ -861,8 +965,8 @@
         srcField.setAttribute("aria-haspopup", "listbox");
         srcField.setAttribute("data-autofocus", "");
         // The one From data list (Typed text first), the same one the Label "+" opens
-        const openSrc = () => AB.openFieldList(srcField, { kind: "text", typed: true, element: "node", current: ed.type ? ed.field : null, label: "Label text", onPick: (name, type) => {
-            if (name === null) { Object.assign(ed, { type: null, field: null, text: "" }); drawSrc(); AB.flash("Type the label in the field (not wired in the skeleton)"); return; }
+        const openSrc = () => pickList(srcField, { kind: "text", typed: true, element: "node", current: ed.type ? ed.field : null, label: "Label text", onPick: (name, type) => {
+            if (name === null) { Object.assign(ed, { type: null, field: null, text: "" }); drawSrc(); AB.flash("Type the label in the field (not available yet)"); return; }
             Object.assign(ed, { field: name, type }); drawSrc(); AB.announce("Label, " + posWord(ed.pos) + ": " + name);
         } });
         // the style fields this row sets, "+" for the rest
@@ -872,7 +976,7 @@
         const draw = (focusKey) => {
             const items = [];
             // each unset field says its effective value and where it comes from
-            GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], desc: (f[3] == null ? "Not set" : String(f[3])) + ", " + DEF, f }))); });
+            GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], desc: lsEff(f) + ", " + lsSrc(f), f }))); });
             const plus = AB.plus({ label: "Add to Style", items, onAdd: (it) => { set[it.f[0]] = it.f[3] == null || it.f[1] === "color" ? (it.f[1] === "color" ? "#FFFFFF" : null) : it.f[3]; draw(it.f[0]); paint(); } });
             fields.replaceChildren(...all.filter((f) => f[0] in set).map((f) => {
                 const minus = AB.iconButton("minus", "Remove " + f[2], { onClick: () => { delete set[f[0]]; draw(); paint(); AB.notice("Removed " + f[2], { label: "Undo", onClick: () => { set[f[0]] = f[3]; draw(); } }); } });
@@ -894,10 +998,19 @@
         let topBy = "PageRank";
         const topN = input({ label: "How many", num: true, value: "10" });
         topN.style.cssText = "flex:0 0 44px;width:44px";
-        const byField = wrapField(AB.field(h("span", { class: "sp-ml" }, AB.typeGlyph("num"), wrapName(topBy)), { caret: true, onClick: () => AB.openFieldList(byField, { kind: "number", element: "node", current: topBy, label: "Top by", onPick: (n) => { topBy = n; byField.querySelector(".sp-ml").replaceChildren(AB.typeGlyph("num"), wrapName(n)); AB.announce("Label the top " + topN.value + " by " + n); } }) }));
+        const byField = wrapField(AB.field(h("span", { class: "sp-ml" }, AB.typeGlyph("num"), wrapName(topBy)), { caret: true, onClick: () => pickList(byField, { kind: "number", element: "node", current: topBy, label: "Top by", onPick: (n) => { topBy = n; drawDir(); byField.querySelector(".sp-ml").replaceChildren(AB.typeGlyph("num"), wrapName(n)); AB.announce("Label the top " + topN.value + " by " + n); } }) }));
         byField.setAttribute("aria-label", "By");
         byField.setAttribute("aria-haspopup", "listbox");
-        const topRow = row("Top", h("span", { class: "sp-pair" }, topN, "by", byField));
+        // one direction: highest or lowest, or, on a signed value, largest increase or decrease
+        const dirBox = h("span", { style: "display:flex" });
+        let dir = "high";
+        const drawDir = () => {
+            const r = rangeOf(topBy), signed = !!r && r[0] < 0;
+            const opts = signed ? [["high", "Largest increase"], ["low", "Largest decrease"]] : [["high", "Highest"], ["low", "Lowest"]];
+            dirBox.replaceChildren(segLive(opts, dir, (v) => { dir = v; AB.announce("Label the top " + topN.value + " by " + topBy + ", " + opts.find((x) => x[0] === v)[1].toLowerCase()); }, "Which end"));
+        };
+        drawDir();
+        const topRow = h("div", null, row("Top", h("span", { class: "sp-pair" }, topN, "by", byField)), row("Which end", dirBox));
         topRow.hidden = !o.top;
         const which = row("Nodes", segLive([["all", "Every node"], ["top", "Top N by a value"]], o.top ? "top" : "all", (v) => { topRow.hidden = v !== "top"; AB.announce(v === "top" ? "Label the top " + topN.value + " by " + topBy : "Label every node"); }, "Which nodes are labeled"),
             AB.needsElement("A top-N selector: graphty-element's selectors match by value; ranking by a value is filed"));

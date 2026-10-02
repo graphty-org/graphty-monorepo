@@ -74,7 +74,7 @@
     if (!document.getElementById("fcm-style")) document.head.append(h("style", { id: "fcm-style" }, CSS));
 
     const fmt = (n) => Number(n).toLocaleString("en-US");
-    const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
+    const flash = (what) => () => AB.flash(what + " (not available yet)");
 
     // The one workspace-page header (AB.pageHead): back arrow, the mode's name, the Esc hint
     const head = (title, backTip) => AB.pageHead(title, { backTip: backTip || "Back to the graph" });
@@ -87,6 +87,9 @@
 
     // Community numbers carry over between data versions (graphty-element matches them by members)
     const MATCHED = "Community numbers carried over from March: a community keeps its number when most of its members stay";
+    const MATCHED_BY = "graphty-element matches them by members";
+    // The structuring-alerts source the transfers project queries (the same URL as data-page's ALERTS_URL)
+    const ALERTS = { host: "alerts.bank.example", path: "/structuring/2026-03.json" };
 
     // A data version's "What changed": count splits graphty-element reports, never a motive.
     // lines: [[text, split, large, chip]]; large adds the "large change" mark.
@@ -101,7 +104,13 @@
     // Version history: the drawing, and one log whose data versions are heading rows
     // =====================================================================
     function versionHistory(state, fx) {
-        const A = fx.datasets.transactionsApril, M = fx.datasets.transactions, D = A.versionDiff, L = A.louvain, W = A.watchlist;
+        const A = fx.datasets.transactionsApril, X = fx.datasets.transactions, D = A.versionDiff, L = A.louvain, W = A.watchlist;
+        // March as it was read (a Replace rewrites the project's fixture); April as the reader loaded it:
+        // the transfers alone keep March's accounts, else both April files
+        const M = Object.assign({}, X, X.march || {});
+        const onlyTransfers = !!X.march && X.accountsFile === M.accountsFile;
+        const now = onlyTransfers ? { from: X.file, nodes: X.nodes, edges: X.edges, diff: "Same accounts; " + fmt(D.transfersAdded) + " transfers new, " + fmt(D.transfersRemoved) + " not in April" }
+            : { from: A.files.accounts.file + " and " + A.file, nodes: A.nodes, edges: A.edges, diff: AB.count(D.accountsAdded, "account") + " new, " + D.accountsRemoved + " not in April" };
         if (state === "no-versions") return firstLoadOnly(fx);
         const past = state === "past-version", recipeOpen = state === "recipe-detail";
         const Z = A.dormant;
@@ -155,23 +164,30 @@
 
         AB.append(list, [
             version("April data", true, !past, ["full-canvas-modes", "version-history"], [
-                "Replaced from " + A.files.accounts.file + " and " + A.file + ", Sep 30",
-                h("span", null, h("b", null, fmt(A.nodes)), " accounts (was " + fmt(M.nodes) + "), ", h("b", null, fmt(A.edges)), " transfers (was " + fmt(M.edges) + ")"),
-                h("span", null, AB.count(D.accountsAdded, "account") + " new, " + D.accountsRemoved + " gone"),
+                "Replaced from " + now.from + ", Sep 30",
+                h("span", null, h("b", null, fmt(now.nodes)), " accounts (was " + fmt(M.nodes) + "), ", h("b", null, fmt(now.edges)), " transfers (was " + fmt(M.edges) + ")"),
+                h("span", null, now.diff),
             ], null, whatChanged([
                 [A.stats.components + " components (was " + M.stats.components + ")", AB.count(Z.count, "account") + " have no transfers in this version, each a component of its own", true],
                 [L.april.communities + " communities (was " + L.march.communities + ")", Z.singletonCommunities + " of them are those single accounts; " + Z.communitiesWithTransfers + " hold accounts with transfers", true],
+                [AB.count(D.accountsRemoved, "account") + " not in April", null, false],
                 [MATCHED, null, false, AB.needsElement("Matching community numbers across data versions is graphty-element's: a community keeps its number when most of its members persist")],
             ])),
-            entry("Assistant", "sparkles", "Asked the assistant", "Sent to api.anthropic.com, Oct 1: your question, " + AB.count(M.flaggedAccounts.length, "account id") + ", 3 statistics. Nothing else left this computer.", { onClick: () => AB.flash("Open this conversation (not wired in the skeleton)") }),
+            entry("Sent", "sparkles", "Asked the assistant", "Sent to api.anthropic.com, Oct 1: your question, " + AB.count(M.flaggedAccounts.length, "account id") + ", 3 statistics. Nothing else left this computer.", { onClick: () => AB.flash("Open this conversation (not available yet)") }),
             recipe,
-            entry("Runs", "layers", "Louvain communities, rerun", L.april.communities + " communities, modularity " + L.april.modularity + ". The March result is kept as an earlier result.", { go: ["inspector-run-row", "earlier-results"] }),
+            // the run's story (inspector-run-row): a failed rerun wrote nothing, so the log says so
+            AB.transfersRun === "failed" ? entry("Runs", "layers", "Louvain communities, rerun on April data failed", "Wrote nothing. The March result is still shown.", { go: ["inspector-run-row", "failed"] })
+                : AB.transfersRun === "data-changed" ? entry("Runs", "layers", "Louvain communities, not rerun yet", "Out of date: it shows the March result until you rerun it.", { go: ["inspector-run-row", "data-changed"] })
+                    : AB.transfersRun === "running" ? entry("Runs", "layers", "Louvain communities, rerunning on April data", "The March result is shown until it finishes.", { go: ["inspector-run-row", "running"] })
+                        : entry("Runs", "layers", "Louvain communities, rerun", L.april.communities + " communities, modularity " + L.april.modularity + ". The March result is kept as an earlier result.", { go: ["inspector-run-row", "earlier-results"] }),
             entry("Runs", "chart-column", "PageRank", "Directed, damping 0.85, 100 iterations.", { go: ["inspector-measure-row", "style"] }),
             entry("Data", "upload", "Replaced the data with April", "Runs on March data were marked out of date.", { go: ["data-place", "after-replace"] }),
             version("March data", false, past, ["full-canvas-modes", "past-version"], [
                 "Read " + M.file + ", joined " + M.accountsFile + ", Sep 28",
                 fmt(M.nodes) + " accounts, " + fmt(M.edges) + " transfers",
             ], AB.openQuestion("Whether a join makes its own version, or belongs to the read before it"), whatChanged([["The first version: nothing before it"]])),
+            // a data source's query is logged like an assistant send: the host, the date, what left
+            entry("Sent", "database", "Queried a data source", "Sent to " + ALERTS.host + ", Sep 28: 1 query (" + ALERTS.path + "). Nothing else left this computer.", { onClick: () => AB.flash("Open this source's queries (not available yet)") }),
             entry("Exports", "download", "Exported case-acc-233575_ring-pagerank_2026-03.csv", "Table of 14 accounts and its methods file. Nothing masked.", { go: ["export-dialog", "recent-exports"] }),
             entry("Runs", "layers", "Louvain communities", L.march.communities + " communities, modularity " + L.march.modularity + ". Seed 11.", { go: ["inspector-run-row", "out-of-date"] }),
             entry("Data", "table", "Joined " + M.accountsFile, fmt(M.nodes) + " of " + fmt(M.nodes) + " accounts matched.", { go: ["data-place", "at-rest"] }),
@@ -188,8 +204,8 @@
             const on = segBox.querySelector('[aria-checked="true"]');
             if (on) on.focus();
         };
-        // The log filter: one segmented control (the assistant's sends show under All)
-        const segFor = () => AB.seg(["All", "Data", "Runs", "Recipes", "Exports"].map((x) => [x, x]), kind, filter, { label: "Show in the log" });
+        // The log filter: one segmented control; Sent holds what left this computer (the assistant, data sources)
+        const segFor = () => AB.seg(["All", "Data", "Runs", "Recipes", "Exports", "Sent"].map((x) => [x, x]), kind, filter, { label: "Show in the log" });
         const segBox = h("span", null, segFor());
         log.append(
             h("div", { class: "fcm-colhead" }, h("span", { class: "k-grow" }, "Log"),
@@ -206,7 +222,7 @@
     // Version history right after the first load: the March data is the one version, nothing
     // is run yet, and the log says what would add a second version
     function firstLoadOnly(fx) {
-        const M = fx.datasets.transactions;
+        const M = Object.assign({}, fx.datasets.transactions, fx.datasets.transactions.march || {}); // March as it was read
         const wrap = h("div", { class: "fcm" }, head("Version history"));
         const body = h("div", { class: "fcm-body fcm-vh" });
         const cv = h("div", { class: "k-canvas fcm-stagewrap", role: "region", "aria-label": "March data" },
@@ -241,24 +257,39 @@
     const times = (r) => AB.num(r, 2) + " times the rest";
 
     function comparison(state, fx) {
-        const A = fx.datasets.transactionsApril, M = fx.datasets.transactions, L = A.louvain, G = A.agreement, Z = A.dormant;
+        const A = fx.datasets.transactionsApril, M = Object.assign({}, fx.datasets.transactions, fx.datasets.transactions.march || {}), L = A.louvain, G = A.agreement, Z = A.dormant;
         const R = fx.scenarios.comparison.metrics, GC = R.groupCompare, S = A.compareSelection, SEL = L.selected;
         const kept = state === "kept", partitions = ["comparison", "kept", "group"].includes(state);
+        // Each side's run record: method, settings, weight and the data it ran on (Louvain: L.note; the
+        // measures: scenarios.comparison.method)
+        const louvain = (data, ran, modularity) => ({ Method: "Louvain", Settings: "seed 11, direction ignored", Weight: "amount", Data: data, ran, quality: "modularity " + modularity });
         const SIDES = {
-            march: { name: "Louvain communities, March data", short: "March data", sub: fmt(M.nodes) + " accounts, " + L.march.communities + " communities", drawing: state === "group" ? "transactions-compare-march-sel" : "transactions-compare-march", run: "out-of-date", legend: A.legends.march },
-            april: { name: "Louvain communities, April data", short: "April data", sub: fmt(A.nodes) + " accounts, " + L.april.communities + " communities", drawing: state === "group" ? "transactions-compare-april-sel" : "transactions-compare-april", run: "earlier-results", legend: A.legends.april },
-            pagerank: { name: "PageRank", short: "PageRank", sub: "April data" },
-            betweenness: { name: "Betweenness", short: "Betweenness", sub: "April data" },
+            march: { name: "Louvain communities, March data", short: "March data", sub: fmt(M.nodes) + " accounts, " + L.march.communities + " communities", drawing: state === "group" ? "transactions-compare-march-sel" : "transactions-compare-march", run: "out-of-date", legend: A.legends.march,
+                record: louvain("March data", "Sep 28", L.march.modularity) },
+            april: { name: "Louvain communities, April data", short: "April data", sub: fmt(A.nodes) + " accounts, " + L.april.communities + " communities", drawing: state === "group" ? "transactions-compare-april-sel" : "transactions-compare-april", run: "earlier-results", legend: A.legends.april,
+                record: louvain("April data", "Sep 30", L.april.modularity) },
+            pagerank: { name: "PageRank", short: "PageRank", sub: "April data", record: { Method: "PageRank", Settings: "directed, damping 0.85, 100 iterations", Weight: "none", Data: "April data", quality: "tied values share the average of their ranks" } },
+            betweenness: { name: "Betweenness", short: "Betweenness", sub: "April data", record: { Method: "Betweenness", Settings: "directed, normalized", Weight: "none", Data: "April data", quality: "tied values share the average of their ranks" } },
             group: { name: GC.group.name + ", April data", short: GC.group.name },
             rest: { name: "The rest of the graph", short: "The rest of the graph" },
         };
+        // The group's statistic in one wording, so the row that opens the comparison (the picker's
+        // Groups item) and the comparison itself name the same statistic with the same direction
+        const medianLine = "Median PageRank " + AB.num(GC.group.median) + ", " + times(GC.medianRatio);
         const pair = partitions ? ["march", "april"] : state === "rankings" ? ["pagerank", "betweenness"] : ["group", "rest"];
         let swapped = false;
-        // Keep as row saves the row the moment it lands, so every way out (the back arrow, Esc, the
-        // rail) finds it on top of the transfers' Graph tree (showKeptRow below); Undo takes it back.
-        // The back arrow and Esc also select it.
-        const fresh = kept && !AB.keptComparison;
-        if (kept) AB.keptComparison = { id: "compare-kept", name: "Louvain: March vs April", kindIcon: AB.ICON.run, eye: true, go: ["full-canvas-modes", "kept"], menu: ["context-menus", "run-row"] };
+        // Keep as row saves the comparison as a run row (one undo step) and returns to the graph with
+        // the kept row selected on top of the transfers' Graph tree (showKeptRow below). The kept
+        // state is that row opened again: the same comparison, already kept.
+        const KEPT = { id: "compare-kept", name: "Louvain: March vs April", kindIcon: AB.ICON.run, eye: true, go: ["full-canvas-modes", "kept"], menu: ["context-menus", "run-row"] };
+        if (kept) AB.keptComparison = KEPT;
+        const keep = () => {
+            AB.keptComparison = KEPT;
+            selectKept = true;
+            // raised once the graph is drawn (showKeptRow), so the route change does not clear it
+            keptNotice = () => AB.notice("Added " + KEPT.name + " to the Graph tree", { label: "Undo", onClick: () => { dropKeptRow(); AB.render(); AB.announce(KEPT.name + " removed"); } });
+            AB.go("graph-place", "many-groups");
+        };
         const wrap = h("div", { class: "fcm" }, kept
             ? AB.pageHead("Compare", { backTip: "Back to the graph, with the kept row selected",
                 onCancel: () => { selectKept = true; AB.go("graph-place", "many-groups"); } })
@@ -273,7 +304,7 @@
             { label: "PageRank", check: cur === "pagerank", desc: "A measure: compared by rank", go: ["full-canvas-modes", "rankings"] },
             { label: "Betweenness", check: cur === "betweenness", desc: "A measure: compared by rank", go: ["full-canvas-modes", "rankings"] },
             { heading: "Groups" },
-            { label: GC.group.name, check: cur === "group", desc: "Louvain, April data", go: ["full-canvas-modes", "rest"] },
+            { label: GC.group.name, check: cur === "group", desc: medianLine, go: ["full-canvas-modes", "rest"] },
             { label: "The rest of the graph", check: cur === "rest", desc: "Every account not in the other side", go: ["full-canvas-modes", "rest"] },
             { heading: "Rows" },
             { label: "Watchlist", desc: A.watchlist.members + " accounts", onClick: flash("Compare Watchlist") },
@@ -285,7 +316,7 @@
             h("div", { class: "fcm-cvhead" }, AB.link("inspector-run-row", s.run, s.short), h("span", { class: "k-secondary k-num" }, s.sub)),
             h("div", { class: "k-canvas fcm-stagewrap" },
                 h("div", { class: "k-stage", role: "img", "aria-label": s.short + ", colored by community" + (state === "group" ? ", " + SEL.name + " selected" : "") }, AB.drawing(s.drawing, "")),
-                legendFor(s.legend, second ? "Colors matched by overlap with the left" : null))); };
+                legendFor(s.legend, second ? "Numbers carried over from the left: a community keeps its number when most of its members stay" : null))); };
 
         const pickBar = h("div", { class: "fcm-pick", role: "group", "aria-label": "What is compared" });
         const main = h("div", { class: "fcm-main" });
@@ -296,66 +327,108 @@
             if (partitions) main.replaceChildren(side(a, false), side(b, true));
             else if (state === "rankings") main.replaceChildren(scatter(R, SIDES[a].name, SIDES[b].name, a !== "pagerank"));
             else main.replaceChildren(h("div", { class: "fcm-cmpcanvas", role: "region", "aria-label": GC.group.name + " and the rest of the graph" },
-                h("div", { class: "fcm-cvhead" }, h("b", null, GC.group.name), h("span", { class: "k-secondary k-num" }, "against " + AB.count(GC.rest.n, "account") + " in the rest of the graph")),
+                h("div", { class: "fcm-cvhead" }, h("b", null, GC.group.name), h("span", { class: "k-secondary k-num" }, medianLine + ", against " + AB.count(GC.rest.n, "account") + " in the rest of the graph")),
                 h("div", { class: "k-canvas fcm-stagewrap" },
                     h("div", { class: "k-stage", role: "img", "aria-label": "April data, colored by community" }, AB.drawing("transactions-april-communities", "")),
                     legendFor(A.legends.april, null))));
+            if (records) records.replaceChildren(...runRecords(a, b));
         };
+
+        // Both sides' run records: method, settings, weight and data, one Change column; Details holds
+        // the rest of each record (when it ran, its quality line)
+        const runRecords = (a, b) => {
+            const ra = SIDES[a].record, rb = SIDES[b].record;
+            const rows = ["Method", "Settings", "Weight", "Data"].map((n) => h("tr", null, h("th", { scope: "row" }, n), h("td", null, ra[n]), h("td", null, rb[n]), h("td", null, ra[n] === rb[n] ? "same" : "changed")));
+            const one = (k) => { const r = SIDES[k].record; return [h("div", { class: "fcm-cap", style: "padding:4px 16px 0" }, h("b", null, SIDES[k].name)),
+                r.ran ? AB.data("Ran", r.ran + ", on " + r.Data) : AB.data("Ran on", r.Data), AB.data(r.ran ? "Quality" : "Ranks", r.quality)]; };
+            return [
+                AB.section("Run settings",
+                    h("table", { class: "fcm-tbl" },
+                        h("thead", null, h("tr", null, h("th", null, ""), h("th", null, SIDES[a].short), h("th", null, SIDES[b].short), h("th", null, "Change"))),
+                        h("tbody", null, rows))),
+                AB.section({ title: "Details", collapsible: true, collapsed: true, key: "compare.details", summary: "Each side's run record" }, one(a), one(b)),
+            ];
+        };
+        const records = (partitions || state === "rankings") ? h("div") : null;
         draw();
 
         // ----- the panel -----
-        const descriptive = h("div", { class: "fcm-cap", style: "padding-top:10px" }, "Descriptive only; no statistical test. Enrichment analysis is not part of graphty.");
-        const bar = (range, mark) => h("div", { class: "fcm-bar", "aria-hidden": "true" },
-            h("i", { class: "fcm-bar-range", style: `left:${range[0] * 100}%;width:${(range[1] - range[0]) * 100}%` }),
+        const descriptive = h("div", { class: "fcm-cap", style: "padding-top:10px" }, "Descriptive only; no statistical test." + (state === "rest" ? " Enrichment analysis isn't part of graphty." : ""));
+        const bar = (mark) => h("div", { class: "fcm-bar", "aria-hidden": "true" },
             h("i", { class: "fcm-bar-mark", style: `left:calc(${mark * 100}% - 1px)` }));
+        // Stability across reruns (several seeds) is graphty-element's to compute; until it is, it is never drawn as a result
+        const noStability = (what) => AB.data(what, h("span", { class: "k-secondary" }, "not available yet; it needs graphty-element"));
         let sections;
+        // ponytail: the decided figure, typed here because the kit holds only the adjusted mutual
+        // information (0.449); read it from the fixture once the kit carries the adjusted Rand index
+        const ARI = 0.71;
         if (partitions) {
-            const sizeRows = L.grew.slice(0, L.ringRankInGrew).map((c) => AB.row({ label: c.name, selected: state === "group" && c.name === SEL.name, trail: c.marchSize + " to " + c.aprilSize,
+            const grew = L.grew.slice(0, L.ringRankInGrew).map((c) => AB.row({ label: c.name, selected: state === "group" && c.name === SEL.name, trail: fmt(c.marchSize) + " to " + fmt(c.aprilSize) + " (+" + fmt(c.change) + ")",
                 go: c.name === SEL.name ? ["full-canvas-modes", "group"] : null, onClick: c.name === SEL.name ? null : flash("Select " + c.name + " on both sides") }));
             sections = [
                 AB.section("Agreement",
-                    h("div", { class: "fcm-metric" }, h("span", { class: "fcm-num k-num" }, String(G.monthsOnAccountsInBoth)), h("span", { class: "k-secondary" }, "over " + fmt(G.accountsInBoth) + " accounts in both")),
-                    bar(G.marchRerunRange, G.monthsOnAccountsInBoth),
+                    h("div", { class: "fcm-cap", style: "padding-top:4px;color:var(--cm-text)" }, "Agreement ", h("b", { class: "k-num" }, AB.num(ARI, 2)), " (adjusted Rand index; 1 = the same groups)"),
+                    bar(ARI),
                     h("div", { class: "fcm-barlab" }, h("span", null, "0, unrelated"), h("span", null, "1, the same")),
-                    h("div", { class: "fcm-cap" }, "Agreement is 1 when both runs put the accounts in the same groups and 0 when they match no better than chance; reruns of March on the same data score " + G.marchRerunRange.join(" to ") + " (the gray band)."),
-                    AB.needsElement("Agreement between partitions and rerun ranges need graphty-element")),
+                    h("div", { class: "fcm-cap" }, "Over the " + fmt(G.accountsInBoth) + " accounts in both: 1 when both runs put them in the same groups, 0 when they match no better than chance."),
+                    AB.needsElement("Agreement between partitions, and how much reruns with other seeds vary, need graphty-element")),
+                records,
                 AB.section("Communities",
                     AB.data("March", String(L.march.communities)),
                     AB.data("April", String(L.april.communities)),
                     AB.data("Matched", L.matchedPairs + " pairs"),
+                    AB.data("Numbers", "kept from March when most members stay; " + MATCHED_BY),
                     AB.data("New in April", (L.unmatchedApril - Z.singletonCommunities) + " (" + AB.count(L.unmatchedAprilAccounts - Z.count, "account") + ")"),
                     AB.data("Singles", Z.singletonCommunities + " new groups of one account, no transfers in April"),
-                    AB.data("Gone after March", String(L.unmatchedMarch.length)),
-                    AB.needsElement("Matching, and the split of single-account groups, come from graphty-element's partition comparison")),
+                    AB.data("Not in April", String(L.unmatchedMarch.length)),
+                    AB.needsElement("Matching community numbers across data versions, and the split of single-account groups, come from graphty-element's partition comparison")),
                 state === "group"
                     ? AB.section(SEL.name + ", March to April",
                         AB.data("Stayed", AB.count(S.marchMembersStillInIt, "account")),
                         AB.data("Left", AB.count(S.marchMembersLeftIt, "account")),
                         AB.data("Joined", AB.count(S.joinedFromOtherGroups + S.joinedNew, "account") + " (" + S.joinedNew + " new)"),
                         AB.data("Silent", AB.count(S.marchMembersSilent, "account") + ", no transfers in April"),
-                        AB.data("Stability, March", pct(S.holdsInMarchReruns) + " of reruns keep it together"),
-                        AB.data("Stability, April", pct(S.holdsInAprilReruns) + " of reruns keep it together"),
+                        AB.data("Number", "kept from March: most members stayed; " + MATCHED_BY),
+                        noStability("Stability"),
                         h("div", { class: "fcm-cap", style: "padding-top:6px" }, AB.link("full-canvas-modes", "comparison", "All communities")),
-                        AB.needsElement("Member movement and stability across reruns come from graphty-element"))
-                    : AB.section("Size change, March to April", sizeRows),
+                        AB.needsElement("Member movement, and stability across reruns, come from graphty-element"))
+                    : AB.section("Grew the most", grew),
             ];
         } else if (state === "rankings") {
             const T = R.scatter.topBoth, off = R.spearmanOffBottom;
             const tieInfo = AB.tip(h("span", { class: "fcm-info", role: "img", tabindex: "0" }, icon("info", "sm")), "Tied values share the average of their ranks");
             const biggest = R.rows.slice().sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, 5);
+            // The top-N overlap has its own k: the sizes graphty-element reports the overlap for
+            let k = 50;
+            const overlap = h("div", { class: "fcm-cap", style: "padding-top:4px" });
+            const kBox = h("span");
+            const setK = (n) => {
+                k = n;
+                overlap.textContent = T[k] + " of the top " + k + " in both";
+                kBox.replaceChildren(AB.seg(Object.keys(T).map(Number).map((x) => [x, String(x)]), k, (x) => { setK(x); kBox.querySelector('[aria-checked="true"]').focus(); }, { label: "Top" }));
+            };
+            setK(k);
+            // grouped by the measure that ranks the account higher
+            const byHigher = ["PageRank", "Betweenness"].map((m) => [m, biggest.filter((r) => (r.rankPR < r.rankBC) === (m === "PageRank"))]).filter(([, rs]) => rs.length);
             sections = [
-                AB.section("In both top lists", [10, 50, 100].map((n) => AB.data("Top " + n, T[n] + " of the top " + n + " in both"))),
+                AB.section("In both top lists", h("div", { style: "padding:0 16px 4px" }, h("span", { class: "k-secondary" }, "Top "), kBox), overlap,
+                    AB.needsElement("The top-N overlap comes from graphty-element")),
                 AB.section({ title: "Rank agreement", actions: tieInfo },
-                    h("div", { class: "fcm-cap", style: "padding-top:4px" }, "Spearman " + AB.num(off.rho) + " over " + AB.count(off.n, "account") + "; it leaves out the " + fmt(off.left) + " tied at the lowest PageRank."),
-                    AB.needsElement("Rank comparison, ties and the top-N overlap come from graphty-element")),
-                AB.section("Largest rank differences", biggest.map((r) => AB.row({ label: r.id, trail: "#" + r.rankPR + " and #" + r.rankBC, onClick: flash("Select " + r.id) }))),
+                    h("div", { class: "fcm-cap", style: "padding-top:4px" }, "Spearman " + AB.num(off.rho) + ", leaving out the " + fmt(off.left) + " accounts at the bottom of both (" + AB.num(R.spearman) + " with them)."),
+                    AB.needsElement("Rank comparison and ties come from graphty-element")),
+                AB.section("Largest rank differences",
+                    h("div", { class: "fcm-cap", style: "padding-top:4px" }, "Rank 1 is the top. PageRank rank, then Betweenness rank."),
+                    byHigher.map(([m, rs]) => [h("div", { class: "fcm-cap", style: "padding:4px 16px 0;color:var(--cm-text)" }, "Ranked higher by " + m),
+                        rs.map((r) => AB.row({ label: r.id, trail: "#" + fmt(r.rankPR) + " and #" + fmt(r.rankBC), onClick: flash("Select " + r.id) }))])),
+                records,
             ];
         } else {
             const st = GC.structure, rows = [
                 ["Accounts", fmt(st.group.accounts), fmt(st.rest.accounts), times(st.ratio.accounts)],
                 ["Transfers inside", fmt(st.group.edgesInside), fmt(st.rest.edgesInside), times(st.ratio.edgesInside)],
+                ["Transfers out", fmt(st.group.edgesOut), fmt(st.rest.edgesOut), "transfers out " + times(st.group.edgesOut / st.rest.edgesOut) + ": the same transfers cross between them"],
                 ["Density", st.group.densityShown, st.rest.densityShown, "density " + times(st.ratio.density)],
-                ["PageRank, median", AB.num(GC.group.median), AB.num(GC.rest.median), "median " + times(GC.medianRatio)],
+                ["Median PageRank", AB.num(GC.group.median), AB.num(GC.rest.median), medianLine],
             ];
             sections = [
                 AB.section(GC.group.name + " and the rest",
@@ -370,13 +443,15 @@
         const panel = h("div", { class: "fcm-col fcm-side", role: "region", "aria-label": "The difference" },
             descriptive, sections,
             h("div", { class: "fcm-foot" }, kept
-                ? AB.button("Kept as row", { kind: "secondary", icon: "check", block: true, disabled: "Louvain: March vs April is already kept as a row in the Graph tree" })
-                : partitions ? AB.button("Keep as row", { icon: AB.ICON.run, block: true, go: ["full-canvas-modes", "kept"] })
-                    : AB.button("Keep as row", { icon: AB.ICON.run, block: true, onClick: flash("Keep this comparison as a row") })));
+                ? AB.button("Kept as row", { kind: "secondary", icon: "check", block: true, disabled: KEPT.name + " is already kept as a row in the Graph tree" })
+                : partitions ? AB.button("Keep as row", { icon: AB.ICON.run, block: true, onClick: keep })
+                    : state === "rest" ? h("div", { style: "display:grid;gap:8px" },
+                        AB.button("Copy members", { kind: "secondary", icon: "copy", block: true, onClick: () => AB.notice("Copied " + AB.count(GC.group.n, "account id") + " of " + GC.group.name) }),
+                        AB.button("Keep as row", { icon: AB.ICON.run, block: true, onClick: flash("Keep this comparison as a row") }))
+                        : AB.button("Keep as row", { icon: AB.ICON.run, block: true, onClick: flash("Keep this comparison as a row") })));
 
         body.append(pickBar, main, panel);
         wrap.append(body);
-        if (fresh) AB.notice("Added Louvain: March vs April to the Graph tree", { label: "Undo", onClick: () => { AB.keptComparison = null; AB.go("full-canvas-modes", "comparison"); } });
         return wrap;
     }
 
@@ -404,10 +479,11 @@
     // place's to draw, so this adds the row to the rows that tree was drawn from and redraws it with
     // the shared AB.tree; the tree's own redraws (expand, delete, move) keep it.
     // ponytail: belongs in graph-place.js as a state of its own; move it there when that file is next edited.
-    let selectKept = false;
+    let selectKept = false, keptNotice = null;
     function showKeptRow() {
-        const want = selectKept;
+        const want = selectKept, say = keptNotice;
         selectKept = false;
+        keptNotice = null;
         if (!AB.keptComparison || location.hash !== AB.href("graph-place", "many-groups")) return;
         requestAnimationFrame(() => {
             const louvain = document.querySelector('.gp-tree [data-row="louvain"]');
@@ -419,7 +495,14 @@
             const old = louvain.closest(".ab-tree");
             old.replaceWith(AB.tree(rows, { label: old.getAttribute("aria-label") }));
             if (want) AB.announce(k.name + " selected");
+            if (say) say();
         });
+    }
+    // Undo of Keep as row: the row leaves the tree's rows it was added to
+    function dropKeptRow() {
+        const li = document.querySelector('.gp-tree [data-row="compare-kept"]'), k = AB.keptComparison;
+        AB.keptComparison = null;
+        if (li && li._entry) { const rows = li._entry.siblings; if (rows.includes(k)) rows.splice(rows.indexOf(k), 1); }
     }
     window.addEventListener("hashchange", showKeptRow);
 

@@ -22,19 +22,36 @@
 
     // ---------- the two rows, from the fixtures ----------
     const SET_COLOR = "#F0E442";
-    function model() {
+    // The sets in the tree whose members the fixture holds, by the row's name
+    const WATCH = ["Thenardier", "Mme.Thenardier", "Valjean", "Javert", "Eponine"];
+    function topSet() {
         const L = AB.fx.datasets.lesmis;
-        const g8 = L.rows.filter((r) => String(r.group) === "8");
         const byDeg = [...L.rows].sort((a, b) => b.degree - a.degree);
         const cut = byDeg[8].degree; // 10th place ties with 11th, so the kept set is the top 9
-        const top = byDeg.filter((r) => r.degree >= cut);
-        const A = { name: "Group 8", short: "Gr 8", color: L.groupColors["8"], members: g8, go: ["inspector-group-set-path-row", "kept-8"] };
-        const B = { name: "Top " + top.length + " by degree", short: "Top " + top.length, color: SET_COLOR, members: top, go: ["inspector-group-set-path-row", "style"] };
+        return byDeg.filter((r) => r.degree >= cut);
+    }
+    function setOf(name) {
+        const L = AB.fx.datasets.lesmis, top = topSet();
+        const g = /^Group (\d+)$/.exec(name);
+        if (g && L.groupColors[g[1]]) return { name, short: "Gr " + g[1], color: L.groupColors[g[1]], members: L.rows.filter((r) => String(r.group) === g[1]), go: ["inspector-group-set-path-row", "kept-" + g[1]] };
+        if (name === "Top " + top.length + " by degree") return { name, short: "Top " + top.length, color: SET_COLOR, members: top, go: ["inspector-group-set-path-row", "top-degree"] };
+        if (name === "Watchlist") return { name, short: "Watch", color: "#CC79A7", members: L.rows.filter((r) => WATCH.includes(r.label)), go: ["inspector-group-set-path-row", "watchlist"] };
+        return null;
+    }
+    // The two rows the reader picked (AB.treeSelection, from Shift- or Ctrl-click in the tree); kept for
+    // the Combine result. Rows with no members in the fixture (a run, a measure) leave the pair as it was.
+    let pair = ["Group 8", null];
+    function model() {
+        const L = AB.fx.datasets.lesmis;
+        const picked = (AB.treeSelection || []).map(setOf).filter(Boolean);
+        if (picked.length >= 2) pair = [picked[0].name, picked[1].name];
+        const A = setOf(pair[0]) || setOf("Group 8");
+        const B = (pair[1] && setOf(pair[1])) || setOf("Top " + topSet().length + " by degree");
         const inA = new Set(A.members.map((r) => r.id)), inB = new Set(B.members.map((r) => r.id));
         const both = L.rows.filter((r) => inA.has(r.id) && inB.has(r.id));
         const onlyA = A.members.filter((r) => !inB.has(r.id));
         const onlyB = B.members.filter((r) => !inA.has(r.id));
-        return { L, A, B, both, onlyA, onlyB, cut };
+        return { L, A, B, both, onlyA, onlyB };
     }
 
     // Combine: the four operations, their result names and members (Subtract takes the second from the first)
@@ -106,41 +123,21 @@
         }, { kind: "set" });
     }
 
-    // ---------- the left panel: the shared tree, the Graph place's rows, these two selected ----------
-    function drawTree(el, m, state) {
-        const L = m.L;
-        const resultId = state.startsWith("result-") ? state.slice(7) : null;
-        const g2 = L.frame.legend.rows.find((r) => r.label === "2");
-        const rowMenu = ["context-menus", "row"];
-        const rows = [
-            { id: "selection", name: "Selection", kindIcon: "scan", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: rowMenu },
-            { id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, count: "2", eye: true, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] },
-        ];
-        if (resultId) {
-            const op = ops(m)[resultId];
-            rows.push({ id: "result", name: op.name, kindIcon: AB.ICON.set, count: op.members.length, eye: true, selected: true, go: ["inspector-several-rows", state], menu: rowMenu });
-        }
-        rows.push(
-            { id: "pagerank", name: "PageRank", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
-            { id: "louvain", name: "Louvain", kindIcon: "layers", swatch: AB.chit("#E69F00", true), notesInside: 2, eye: true, renameDisabled: "a run's name is its label, which graphty-element keeps read-only", go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"],
-                children: [{ id: "c1", name: "Community 1", kindIcon: "circle-dot", swatch: AB.chit("#E69F00", true), count: 25, eye: true, go: ["inspector-group-set-path-row", "community-1"], menu: rowMenu }] },
-            { id: "top", name: m.B.name, kindIcon: AB.ICON.set, swatch: AB.chit(m.B.color, true), count: m.B.members.length, eye: true, selected: !resultId, go: m.B.go, menu: rowMenu },
-            { id: "watchlist", name: "Watchlist", kindIcon: AB.ICON.set, swatch: AB.chit("#CC79A7", true), count: 5, eye: true, locked: true, go: ["inspector-group-set-path-row", "watchlist"], menu: rowMenu },
-            { id: "folder", name: "For the report", kindIcon: "folder-open", eye: true, open: true, go: ["inspector-folder", "folder"], menu: ["context-menus", "folder"],
-                children: [
-                    { id: "g2", name: "Group 2", kindIcon: AB.ICON.set, swatch: AB.chit(g2.color, true), count: g2.count, eye: true, go: ["inspector-group-set-path-row", "kept-2"], menu: rowMenu },
-                    { id: "g8", name: m.A.name, kindIcon: AB.ICON.set, swatch: AB.chit(m.A.color, true), count: m.A.members.length, eye: true, selected: !resultId, go: m.A.go, menu: rowMenu },
-                ] },
-            { id: "everything", name: "Everything", kindIcon: "base-layer", swatch: AB.chit("#6366F1"), pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "everything"], menu: rowMenu },
-        );
-        el.append(
-            AB.graphHead("Graph", AB.fx.datasets.lesmis.frame.graphRow, { notes: 1 }),
-            AB.treebar({ menuGo: ["graph-place", "list-menu"] }),
-            h("div", { class: "k-scroll" },
-                AB.tree(rows, { label: "Paint order, top wins" }),
-                resultId ? null : AB.treeFooter("2 rows selected. Shift-click or Ctrl-click adds a row; Esc clears.")),
-        );
-        if (resultId) el.append(AB.notice("Added on top of the tree. Its two inputs are unchanged.", { label: "Undo", go: ["inspector-several-rows", "style"] }));
+    // ---------- the left panel is the Graph place's own tree (graph-place/at-rest) ----------
+    // A Combine result is added to that tree's rows (AB.combinedRows, drawn on top) and stays when the reader goes on
+    // (added while the frame is computed, so the tree, drawn before the inspector, already holds it)
+    let justAdded = null;
+    function addResult(m, state) {
+        const op = ops(m)[state.slice(7)], c = { id: "combined-" + state.slice(7), name: op.name, count: op.members.length, go: ["inspector-several-rows", state] };
+        if ((AB.combinedRows || []).some((x) => x.name === c.name)) return;
+        AB.combinedRows = (AB.combinedRows || []).concat(c);
+        justAdded = c;
+    }
+    function announceResult() {
+        const c = justAdded;
+        if (!c) return;
+        justAdded = null;
+        AB.notice("Added on top of the tree. Its two inputs are unchanged.", { label: "Undo", onClick: () => { AB.combinedRows = AB.combinedRows.filter((x) => x !== c); AB.go("inspector-several-rows", "style"); } });
     }
 
     const RESULTS = [
@@ -157,17 +154,22 @@
         rail: "graph",
         closeTo: "graph-place",
         states: [{ id: "style", label: "Style tab: shared properties" }, { id: "data", label: "Data tab: Summary side by side" }, ...RESULTS],
-        frame: (state) => ({ left: "inspector-several-rows/" + state }),
+        frame: (state) => {
+            // reached without a Shift- or Ctrl-click (a link, the site map): the default pair is the selection
+            if (/^result-/.test(state)) addResult(model(), state);
+            else if (!(AB.treeSelection && AB.treeSelection.length >= 2)) { const m = model(); AB.treeSelection = [m.A.name, m.B.name]; }
+            return { left: "graph-place/at-rest" };
+        },
         render(el, state, ctx) {
             const m = model();
-            if (ctx.region === "left") return drawTree(el, m, state);
             if (state.startsWith("result-")) {
+                announceResult();
                 const op = ops(m)[state.slice(7)];
                 el.append(AB.inspector({
                     icon: AB.ICON.set, title: op.name, kind: "Set",
                     provenance: ["from " + op.label, "inspector-several-rows", "style"],
                     menu: ["context-menus", "row"],
-                    onRename: (name) => AB.flash("Renamed to " + name + " (not wired in the skeleton)"),
+                    onRename: (name) => AB.flash("Renamed to " + name + ""),
                     kindKey: "isr-result",
                     tab: "Data",
                     tabs: {

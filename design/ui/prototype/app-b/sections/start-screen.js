@@ -13,7 +13,7 @@
 
     // Samples: the fixtures' datasets, each with one line on what it is good for.
     const SAMPLES = [
-        { key: "lesmis", name: "Les Miserables", size: (d) => d.nodes + " characters", pic: "lesmis-plain", good: "Characters who share a chapter of the novel. Good for a first look at communities and who holds the story together." },
+        { key: "lesmis", name: "Les Miserables", size: (d) => d.nodes + " characters", pic: "lesmis-plain", good: "Characters who share a chapter of the novel. Good for a first look at communities and who holds the story together. Opens with worked examples: measures, groups, paths and notes already added." },
         { key: "karate", name: "Zachary's karate club", size: (d) => d.nodes + " members", pic: "karate-plain", good: "A club that split in two, with the split recorded. Good for checking whether a community measure finds it." },
         { key: "ppi", name: "Protein interactions", size: (d) => d.nodes + " proteins", pic: "ppi-plain", good: "Human proteins and the interactions between them. Good for hubs and the paths that link two proteins." },
         { key: "transactions", name: "Card and transfer transactions", size: (d) => d.nodes.toLocaleString("en-US") + " accounts", pic: "transactions-plain", good: "A month of money moving between accounts. Good for following money, finding rings and comparing months." },
@@ -25,13 +25,23 @@
     // Recent projects, newest first (sizes from the fixtures' datasets). `path` is where the project
     // file was saved; Recent remembers it in this browser.
     const RECENTS = [
-        // Saved with the mule ring's accounts selected. Studio decision (reversible): reopening a project
-        // resumes where it stopped, so its saved selection is selected again and a notice says so.
-        { name: "Mule ring review", size: (fx) => AB.count(fx.transactionsApril.nodes, "account"), path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14", dataset: "transactions", restore: (fx) => fx.transactions.inspector.twoHop.ring },
+        // Saved with one account selected. Studio decision (reversible): reopening a project resumes where
+        // it stopped, so its saved selection is selected again (the account's inspector and the selection
+        // bar show it) and a notice says so. `restore` is how many elements the saved selection holds.
+        // A saved selection of the whole ring needs a several-accounts state of the transfers to land on.
+        { name: "Mule ring review", size: (fx) => AB.count(fx.transactions.nodes, "account"), path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14", dataset: "transactions", go: ["inspector-node", "transfers-node"], restore: 1 },
         { name: "Knockdown screen, September", size: (fx) => AB.count(fx.ppi.nodes, "protein"), path: "~/Lab/screens/Knockdown screen, September.graphty", when: "Yesterday" },
-        { name: "March transfers", size: (fx) => AB.count(fx.transactions.nodes, "account"), path: "~/Documents/graphty/March transfers.graphty", when: "Sep 24" },
-        { name: "Patent citations 1999-2001", size: (fx) => AB.count(fx.citations.nodes, "patent"), path: "~/Downloads/Patent citations 1999-2001.graphty", when: "Sep 19" },
+        { name: "March transfers", size: (fx) => AB.count(fx.transactions.nodes, "account"), path: "~/Documents/graphty/March transfers.graphty", when: "Sep 24", dataset: "transactions" },
+        // Too large to draw: opening it raises the canvas's refusal notice
+        { name: "Patent citations 1999-2001", size: (fx) => AB.count(fx.citations.nodes, "patent"), path: "~/Downloads/Patent citations 1999-2001.graphty", when: "Sep 19", go: ["canvas-and-states", "refused-project"] },
     ];
+    // Behind "3 more": older projects, each opening its own graph
+    const OLDER = [
+        { name: "IT estate, March", size: (fx) => AB.count(fx.wide.nodes, "host"), path: "~/Documents/graphty/IT estate, March.graphty", when: "Sep 02", go: ["graph-place", "wide"] },
+        { name: "Research network", size: (fx) => AB.count(fx.nested.recordArrays["data.researchers[]"], "researcher"), path: "~/Documents/graphty/Research network.graphty", when: "Aug 21", go: ["graph-place", "nested"] },
+        { name: "Les Miserables chapters", size: (fx) => AB.count(fx.lesmis.nodes, "character"), path: "~/Documents/graphty/Les Miserables chapters.graphty", when: "Aug 07", go: ["graph-place", "at-rest"] },
+    ];
+    let showOlder = false;
     // start-screen/long-name: a 60-character name saved seven folders deep
     const LONG = { name: "Cross-border card transfers, flagged accounts, Q3 2026 audit", size: (fx) => AB.count(fx.transactionsApril.nodes, "account"), path: "~/Documents/Investigations/2026/Q3/Cross-border/Card transfers/Flagged accounts/working copies/Cross-border card transfers, flagged accounts, Q3 2026 audit.graphty", when: "Today 11:02" };
     // start-screen/recent-missing: the patent project's file was moved since it was last opened
@@ -64,16 +74,16 @@
 
     // Open a recent project: its own project, and the selection it was saved with
     function openRecent(r) {
-        const st = r.dataset ? ["graph-place", AB.placeOf(r.dataset, "graph")] : ["graph-place", "at-rest"];
+        const st = r.go || (r.dataset ? ["graph-place", AB.placeOf(r.dataset, "graph")] : ["graph-place", "at-rest"]);
         // the notice belongs to the screen that opens, so it is raised once that screen has drawn
-        if (r.restore) window.addEventListener("hashchange", () => setTimeout(() => AB.notice("Selection restored: " + AB.count(r.restore(AB.fx.datasets), "node")), 0), { once: true });
+        if (r.restore) window.addEventListener("hashchange", () => setTimeout(() => AB.notice("Selection restored: " + AB.count(r.restore, "node")), 0), { once: true });
         AB.go(st[0], st[1]);
     }
 
     function openRecentMenu(anchor, r, missing, redraw) {
         const remove = { label: "Remove from list", onClick: () => { removed = true; redraw(); toast("Removed " + r.name + " from Recent", () => { removed = false; redraw(); }); } };
         AB.openMenu(anchor, missing
-            ? [{ label: "Locate...", desc: "Find the moved file; Recent remembers its new place", onClick: () => AB.go("graph-place", "at-rest") }, remove]
+            ? [{ label: "Locate...", desc: "Find the moved file; Recent remembers its new place", onClick: () => openRecent(r) }, remove]
             : [{ label: "Open", onClick: () => openRecent(r) }, remove]);
     }
 
@@ -91,17 +101,26 @@
             { name: "api-reference.pdf", size: "620 KB", when: "Feb 02", off: true },
         ] },
     };
+    // Open project or file... on a start screen with no first-use file: the files a returning reader
+    // has been handed. Each opens where its kind goes.
+    const OPEN = { folder: "Downloads", files: () => [
+        { name: "miserables-edited.graphml", size: "18 KB", when: "Sep 29", go: ["data-page", "refused-ids"] },
+        { name: "miserables.gexf", size: "22 KB", when: "Sep 27", go: ["data-page", "graph-file"] },
+        { name: "Patent citations 1999-2001.graphty", size: "41 MB", when: "Sep 19", go: ["canvas-and-states", "refused-project"] },
+        { name: "chapter-notes.docx", size: "96 KB", when: "Sep 12", off: true },
+    ] };
     const firstUse = (state) => (/^(wide|nested)-/.exec(state || "") || [])[1];
 
     // The picker: tick one or more files, then Open. Files graphty cannot open are dimmed, as a system
     // picker dims the types it was not asked for. Cancel, the close button and Esc go back to the start screen.
     function picker(ds, back) {
-        const F = FIRST_USE[ds], chosen = new Set();
+        const F = FIRST_USE[ds] || OPEN, chosen = new Set();
         const foot = h("div", { class: "k-modal-foot" });
         const drawFoot = () => foot.replaceChildren(
             AB.button("Cancel", { kind: "secondary", go: back }),
-            chosen.size ? AB.button("Open", { onClick: () => AB.go(F.go[0], F.go[1]) }) : AB.button("Open", { disabled: "Choose a file first" }));
-        const rows = F.files(AB.fx.datasets[ds]).map((f) => {
+            chosen.size ? AB.button("Open", { onClick: () => { const to = (files.find((f) => chosen.has(f.name)) || {}).go || F.go; AB.go(to[0], to[1]); } }) : AB.button("Open", { disabled: "Choose a file first" }));
+        const files = F.files(AB.fx.datasets[ds]);
+        const rows = files.map((f) => {
             const box = h("span", { class: "k-check", "aria-hidden": "true", "aria-checked": "false" });
             const flip = () => { if (f.off) return; chosen.has(f.name) ? chosen.delete(f.name) : chosen.add(f.name); const on = chosen.has(f.name); row.setAttribute("aria-checked", String(on)); box.setAttribute("aria-checked", String(on)); drawFoot(); };
             const row = h("div", { class: "k-row ss-file" + (f.off ? " ss-file-off" : ""), role: "checkbox", tabindex: f.off ? "-1" : "0", "aria-checked": "false", "aria-disabled": f.off ? "true" : null, "aria-label": f.name,
@@ -187,6 +206,10 @@
             { id: "recent-missing", label: "A recent project's file was moved" },
             { id: "recent-missing-menu", label: "A moved file's menu: Locate... or Remove" },
             { id: "long-name", label: "A long project name and a deep folder" },
+            { id: "open-choose", label: "Open project or file...: the file picker" },
+            { id: "first-run-choose", label: "First launch: the file picker, usage data still unanswered" },
+            { id: "answered-choose", label: "First launch, usage data on: the file picker" },
+            { id: "declined-choose", label: "First launch, usage data off: the file picker" },
             { id: "wide-first-use", label: "First use: the IT estate's hosts and connections CSVs, not opened yet" },
             { id: "wide-choose", label: "First use: the file picker on the IT estate's CSVs" },
             { id: "nested-first-use", label: "First use: the research network's nested JSON, not opened yet" },
@@ -194,17 +217,27 @@
         ],
         render(el, state) {
             const fx = AB.fx.datasets;
-            const firstLaunch = state === "first-run" || state === "disclosure";
-            const ds = firstUse(state), choose = ds ? ["start-screen", ds + "-choose"] : null;
-            const hasRecents = !firstLaunch && !ds && state !== "answered" && state !== "declined";
+            // A first-launch picker draws the screen it was opened on behind it, and Cancel goes back there
+            const base = /^(first-run|answered|declined)-choose$/.test(state) ? state.replace(/-choose$/, "") : null;
+            const shownState = base || state;
+            const firstLaunch = shownState === "first-run" || shownState === "disclosure";
+            if (firstLaunch || shownState === "answered" || shownState === "declined") AB.visit.fresh = true;
+            const ds = firstUse(state), choose = ds ? ["start-screen", ds + "-choose"]
+                : ["first-run", "disclosure"].includes(shownState) ? ["start-screen", "first-run-choose"]
+                : ["answered", "declined"].includes(shownState) ? ["start-screen", shownState + "-choose"] : null;
+            // A reader who started on the first-launch screen in this page view sees only what they opened or saved since
+            const visitRecents = AB.visit.recents.map((r) => Object.assign({ size: (fx) => AB.count(AB.projectCounts(r.dataset).nodes, "node") }, r));
+            const recentsList = AB.visit.fresh ? visitRecents : visitRecents.concat(RECENTS);
+            const hasRecents = !firstLaunch && !ds && shownState !== "answered" && shownState !== "declined" && recentsList.length > 0;
             const missingState = state === "recent-missing" || state === "recent-missing-menu";
             if (state !== "recent-missing") removed = false;
-            const privacy = state === "answered" ? "Usage data on, content masked" : "Local only";
+            showOlder = false;
+            const privacy = shownState === "answered" ? "Usage data on, content masked" : "Local only";
 
             // A project file opens the project. New from data... opens the Data page (File, URL and
             // Paste are its "+" choices); a dropped data file opens the same page with that one table.
             const doors = column("Start",
-                door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: choose || ["graph-place", "at-rest"] }),
+                door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: choose || ["start-screen", "open-choose"] }),
                 door({ icon: "file-plus", label: "New from data...", go: choose || ["data-page", "entries"] }),
                 h("p", Object.assign({ class: "k-secondary ss-line ss-drop-hint" }, AB.act({ go: choose || ["start-screen", "drop-target"] })), icon("upload", "sm"), "or drop a file anywhere in this window"),
                 h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "Files are read on this computer and never uploaded."),
@@ -212,10 +245,12 @@
 
             const list = h("div", { class: "ss-list" });
             const drawRecents = () => {
-                const rows = (state === "long-name" ? [LONG].concat(RECENTS.slice(0, 3)) : RECENTS)
+                const shown = state === "long-name" ? [LONG].concat(RECENTS.slice(0, 3)) : recentsList.slice(0, Math.max(4, visitRecents.length));
+                const more = AB.visit.fresh ? [] : recentsList.filter((r) => !shown.includes(r)).concat(OLDER);
+                const rows = shown.concat(showOlder ? more : [])
                     .filter((r) => !(missingState && removed && r.name === MISSING));
                 list.replaceChildren(...rows.map((r) => recentRow(r, missingState && r.name === MISSING, drawRecents)),
-                    h("div", Object.assign({ class: "k-row ss-more", role: "button" }, AB.act({ onClick: () => AB.flash("3 more recent projects (not wired in the skeleton)") })), icon("chevron-down", "sm"), h("span", { class: "k-secondary" }, "3 more")));
+                    ...(showOlder || !more.length ? [] : [h("div", Object.assign({ class: "k-row ss-more", role: "button" }, AB.act({ onClick: () => { showOlder = true; drawRecents(); } })), icon("chevron-down", "sm"), h("span", { class: "k-secondary" }, more.length + " more"))]));
             };
             if (hasRecents) drawRecents();
             const recents = column("Recent projects",
@@ -226,7 +261,10 @@
             const samples = column("Samples",
                 SAMPLES.map((s) => {
                     const d = fx[s.key];
-                    return h("div", Object.assign({ class: "ss-sample", role: "link", "aria-label": "Open the " + s.name + " sample" }, AB.act({ go: s.go || ["graph-place", "at-rest"] })),
+                    // Opening a project sample adds it to this page view's Recent projects
+                    // (every graph sample opens the Les Miserables project today, so that is what Recent names)
+                    const open = () => { if (!s.go) AB.visit.recents = [{ name: AB.projectNames.lesmis || fx.lesmis.frame.project, dataset: "lesmis", go: ["graph-place", "at-rest"], when: "Today", path: s.name + " sample" }].concat(AB.visit.recents.filter((r) => r.dataset !== "lesmis")); const to = s.go || ["graph-place", "at-rest"]; AB.go(to[0], to[1]); };
+                    return h("div", Object.assign({ class: "ss-sample", role: "link", "aria-label": "Open the " + s.name + " sample" }, AB.act({ onClick: open })),
                         h("div", { class: "ss-pic" + (s.pic ? "" : " ss-pic-icon") }, s.pic ? pic(s.pic, "") : icon(s.key === "nested" ? "file" : "table")),
                         h("div", { class: "ss-sample-text" },
                             h("div", { class: "ss-sample-name" }, h("span", { class: "k-ellipsis" }, s.name), h("span", { class: "k-secondary k-num" }, s.size(d))),
@@ -239,7 +277,7 @@
                 header(privacy),
                 h("div", { class: "ss-cols" }, doors, recents, samples),
                 firstLaunch ? card(state === "disclosure") : null,
-                state === "answered" || state === "declined"
+                !base && (state === "answered" || state === "declined")
                     ? h("div", { class: "ss-toast" }, AB.notice(state === "answered" ? "Thank you. Usage data is on, with content masked." : "Usage data stays off.", { label: "Settings", go: ["settings", "privacy"] }))
                     : null,
                 state === "drop-target"
@@ -251,8 +289,8 @@
                         ))
                     : null,
             );
-            if (state === "wide-choose" || state === "nested-choose") {
-                const back = ["start-screen", ds + "-first-use"];
+            if (state === "wide-choose" || state === "nested-choose" || state === "open-choose" || base) {
+                const back = ds ? ["start-screen", ds + "-first-use"] : base ? ["start-screen", base] : ["start-screen", "returning"];
                 screen.append(picker(ds, back));
                 requestAnimationFrame(() => { const f = screen.querySelector(".ss-file:not(.ss-file-off)"); if (f) f.focus(); });
                 // Esc cancels the picker (capture, before the shell's Esc, which would leave the start screen)

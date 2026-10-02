@@ -94,7 +94,7 @@
                 h("span", { class: "xv-sub" }, "Which views and their order: ", AB.link("views-place", "at-rest", "Views"), " ",
                     AB.needsElement("graphty-element's tour stop is a position, a target and the time to reach it: it takes no saved view and has no hold time"))), { popover: true }) : null,
             !isTour() ? AB.fieldRow("Length", h("span", { class: "ex-ctl" }, num(s.length, "Length, seconds", (x) => { s.length = x; }, "length"), h("span", { class: "xv-sub" }, "seconds")), { popover: true }) : null,
-            AB.fieldRow("Size", h("span", { class: "ex-ctl" }, dropdown(s.size, "Size", "size", (a) => pick(a, [...SIZES, { sep: true }, { label: "Custom...", onClick: () => AB.flash("Custom size (not wired in the skeleton)") }], s.size, (v) => { s.size = v; }))), { popover: true }),
+            AB.fieldRow("Size", h("span", { class: "ex-ctl" }, dropdown(s.size, "Size", "size", (a) => pick(a, [...SIZES, { sep: true }, { label: "Custom...", onClick: () => AB.flash("Custom size (not available yet)") }], s.size, (v) => { s.size = v; }))), { popover: true }),
             AB.fieldRow("Frame rate", h("span", { class: "ex-ctl", "data-f": "fps" }, AB.seg([[24, "24"], [30, "30"], [60, "60"]], s.fps, (v) => { s.fps = v; redraw(); }, { label: "Frame rate, frames per second" }), h("span", { class: "xv-sub" }, "fps")), { popover: true }),
             AB.fieldRow("", h("span", { class: "ex-ctl" }, AB.button("Advanced", { kind: "secondary", icon: "sliders-horizontal", onClick: () => { adv = !adv; redraw(); } })), { popover: true }));
         const advBtn = set.querySelector(".k-btn");
@@ -126,7 +126,7 @@
             AB.exportHead(["Video ", h("span", { class: "k-secondary", style: "font-weight:400" }, ext())], summary),
             set, call,
             h("div", { class: "ex-h" }, "Preview"),
-            h("div", { class: "xv-prev" }, AB.drawing("lesmis-groups-rest",
+            h("div", { class: "xv-prev" }, AB.canvasCopy("First frame: ") || AB.drawing("lesmis-groups-rest",
                 "First frame: Les Miserables from " + (isTour() ? IN_TOUR[0] : s.view.toLowerCase()))));
     }
 

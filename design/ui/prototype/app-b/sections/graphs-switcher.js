@@ -1,5 +1,6 @@
 /* Graphs switcher, version 3: the dark menu under the Graph and Data places' title line. One line
-   per graph (name and node count; how it was made is its tooltip): a click switches at once, a
+   per graph (name, node count and the graph's note count, as the tree's note slot draws it; how it
+   was made is its tooltip): a click switches at once, a
    double-click (or F2) renames in place. Then Compare graphs... and New graph from... (one item;
    derived graphs need graphty-element's transform API, so it is drawn disabled with the mark and
    hidden in the user-test build). Loading a file as a new graph is the load dialog's "Load into:
@@ -9,6 +10,7 @@
     const CSS = `
 .gs-menu { width: 320px; }
 .gs-graph .gs-name { flex: 1; min-width: 0; }
+.gs-graph .gs-notes { flex: none; min-width: 24px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; color: var(--k-menu-ink2); font-variant-numeric: tabular-nums; }
 .gs-graph .k-value { margin-inline-start: auto; color: var(--k-menu-ink2); font-variant-numeric: tabular-nums; }
 .gs-graph .ab-rename { width: 100%; }
 .gs-many { max-height: 460px; }
@@ -32,7 +34,7 @@
         const groups = L.frame.legend.rows.length + L.frame.legend.other.title.split(/,| and /).length;
         // the file the reader loaded, as the inspector, Data place and Data page name it (the fixture's
         // own `file` is the corpus the numbers were computed on)
-        const base = { name: L.frame.graphRow, nodes: L.nodes, how: L.nodes + " nodes, " + L.edges + " edges, from miserables.gexf", current: true };
+        const base = { name: L.frame.graphRow, nodes: L.nodes, how: L.nodes + " nodes, " + L.edges + " edges, from miserables.gexf", current: true, notes: 1 };
         return two ? [base, { name: L.frame.graphRow + " by group", nodes: groups, how: "Made from " + L.frame.graphRow + " by Quotient by groups" }] : [base];
     }
     // The transfers project with one graph per month (graphs-switcher/many): March 2026 is the
@@ -65,12 +67,16 @@
         });
     }
     const TRANSFERS_FRAME = { own: true, dataset: "transactions", left: "graph-place/transfers-loaded" };
-    const switchTo = (g) => (g.current ? AB.close() : AB.flash("Switched to " + g.name + " (not wired in the skeleton)"));
+    const switchTo = (g) => (g.current ? AB.close() : AB.flash("Switched to " + g.name + ""));
 
     let list = null, lastState = null, timer = 0;
     const NO_TRANSFORM = "graphty-element has no transform API: extract, bipartite projection, quotient, combine and null-model sample would each make a new graph here";
 
+    // The graph's note count: the notes about the graph itself (the Notes place holds one about
+    // Co-appearances) plus any saved about it in this page view, as the inspector's Notes section counts
+    const noteCount = (g) => (g.notes || 0) + AB.sessionNotes.filter((n) => n.about.some((t) => t.label === g.name && (t.go || [])[0] === "inspector-nothing-selected")).length;
     function graphItem(g, redraw) {
+        const nn = noteCount(g);
         const name = h("span", { class: "gs-name k-ellipsis" }, g.name);
         const item = h("div", Object.assign({ class: "k-menu-item gs-graph", role: "menuitemcheckbox", "aria-checked": String(!!g.current), "aria-keyshortcuts": "F2" },
             AB.act({ onClick: (e) => {
@@ -79,9 +85,10 @@
                 if (e && e.detail > 1) return;
                 timer = setTimeout(() => switchTo(g), e && e.detail === 1 ? 250 : 0);
             } })),
-            h("span", { class: "k-check-col" }, g.current ? icon("check", "sm") : null), name, g.nodes != null ? h("span", { class: "k-value" }, g.nodes.toLocaleString("en-US") + " nodes") : null);
+            h("span", { class: "k-check-col" }, g.current ? icon("check", "sm") : null), name, g.nodes != null ? h("span", { class: "k-value" }, g.nodes.toLocaleString("en-US") + " nodes") : null,
+            h("span", nn ? { class: "gs-notes", role: "img", "aria-label": AB.count(nn, "note") } : { class: "gs-notes" }, nn ? [icon(AB.ICON.note, "sm"), String(nn)] : null));
         // a name past what the menu shows (end ellipsis) leads its tooltip
-        AB.tip(item, g.name.length > 32 ? g.name + ". " + g.how : g.how, { label: false });
+        AB.tip(item, (g.name.length > 32 ? g.name + ". " + g.how : g.how) + (nn ? ". " + AB.count(nn, "note") : ""), { label: false });
         const rename = () => clearTimeout(timer) || AB.renameInPlace(name, { focusAfter: item, onSave: (n) => { g.name = n; redraw(); } });
         item.addEventListener("dblclick", (e) => { e.stopPropagation(); rename(); });
         item.addEventListener("keydown", (e) => { if (e.key === "F2") { e.preventDefault(); e.stopPropagation(); rename(); } });

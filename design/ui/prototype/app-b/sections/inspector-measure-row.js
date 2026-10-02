@@ -4,12 +4,12 @@
    opens the one Binding popover (style-pickers/binding). There is no binding block and no unbind
    dialog here: Detach and everything else about the binding live in that popover.
    Data: Values (the histogram, drag to select, and one caption), Top 10 (ten rows, or every row known
-   when fewer; "Show all in table" is in its "..." and opens the table sorted by the measure), Made with (settings that differ from the default, "All options...", then
+   when fewer; under it "N more in the table" opens the table sorted by the measure), Made with (settings that differ from the default, "All options...", then
    provenance only where it differs from the current graph), Notes. The state bar is one line with
    Rerun and Revert. No verbs in the bodies.
 
    Numbers. Les Miserables PageRank and edge betweenness are computed on the published graph the
-   fixtures describe (77 nodes, 254 edges; unweighted; PageRank damping 0.85; edge betweenness
+   fixtures describe (77 nodes, 254 edges; the loaded weight value; PageRank damping 0.85; edge betweenness
    normalized); "Filter to degree >= 2" leaves 60 nodes, as fixtures.json says. riskScore uses
    fixtures.json only (the transfers bands and the 14 flagged accounts scored 88 to 98).
 
@@ -17,14 +17,18 @@
    inspector to reuse (spec: "the attribute histogram is the measure row's histogram"). This file
    also registers the small overlay section "measure-row-options", the "All options..." popover.
    Weight in All options reads its source: "loaded weight" when the data defined one, else
-   "None: no weight loaded" (Les Miserables loads no weight).
+   "None: no weight loaded" (Les Miserables loads the weight value, read as stronger, as the graph
+   inspector and Analyze say).
 
    The number rules. A range always names its column ("PageRank 0.0033 to 0.0754"). A value computed
    on a set other than the current graph names that set ("0.419, on 60 of 77"), and Made with gets a
    Scope row; the header's kind slot then shows the funnel (computed before the current filter) and
    the row keeps painting. Ranks: equal values at the shown precision share a rank marked "="
    ("2="); a sampled run shows every rank as a range from its own error bound ("#3-#5") and one
-   stability sentence under Top 10. A weighted run's Made with names the weight and its meaning.
+   stability sentence under Top 10, which also names the top set exactly and counts the rows within the
+   error bound of its cut-off row. A sampled run names itself in its header ("Betweenness, sampled 500").
+   An exact run's Made with says "Exact" with an info mark. A weighted run's Made with names the weight and its meaning.
+   A row covered on every node by a row above says so in its state bar, with Move above (one undo step).
    Every statistic or setting label with a reader line (READER) carries it on hover and keyboard
    focus, dotted underlined, as the label's description.
    The sampled transfers betweenness values are illustrative (the fixtures hold no transfers
@@ -46,6 +50,7 @@
 .imr-brushed { display: flex; align-items: center; gap: 6px; min-height: 24px; }
 .imr-rank { min-width: 16px; text-align: end; white-space: nowrap; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; flex: none; }
 .imr-edited .k-value .k-field { color: var(--cm-text-brand); }
+.imr-info { display: inline-flex; vertical-align: -2px; color: var(--cm-text-secondary); cursor: help; }
 .imr-term { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
 .imr-edge-kind { position: relative; display: inline-flex; }
 .imr-edge-kind > svg { clip-path: polygon(0 0, 100% 0, 100% 45%, 45% 100%, 0 100%); }
@@ -76,7 +81,7 @@
             // the ten highest of the PageRank column the Nodes table shows (table-dock.js PR)
             top: [["Valjean", 0.0754], ["Myriel", 0.0428], ["Gavroche", 0.0358], ["Marius", 0.0309], ["Javert", 0.0303], ["Thenardier", 0.0279], ["Fantine", 0.027], ["Enjolras", 0.0219], ["Cosette", 0.0206], ["Mme.Thenardier", 0.0195]],
             binNames: { 4: ["Enjolras", "Cosette"], 5: ["Fantine", "Thenardier"], 6: ["Marius", "Javert"], 7: ["Gavroche"], 8: ["Myriel"], 15: ["Valjean"] },
-            options: [["Damping", "0.85"], ["Iterations", "Up to 100"], ["Weight", "None: no weight loaded"]],
+            options: [["Damping", "0.85"], ["Iterations", "Up to 100"], ["Weight", "value (loaded weight), stronger"]],
             ran: "Sep 28, on the CPU",
             writes: "pagerank",
             sort: "pagerank",
@@ -90,7 +95,7 @@
             hist: { from: 0, width: 0.01, bins: [170, 40, 33, 3, 4, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
             top: [["Myriel - Valjean", 0.1832], ["Valjean - Gavroche", 0.083], ["Valjean - Fantine", 0.0762], ["Mme.Burgon - Gavroche", 0.0513], ["Valjean - Mlle.Gillenormand", 0.045]],
             binNames: { 5: ["Mme.Burgon - Gavroche"], 7: ["Valjean - Fantine"], 8: ["Valjean - Gavroche"], 18: ["Myriel - Valjean"] },
-            options: [["Weight", "None: no weight loaded"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
+            options: [["Weight", "value (loaded weight), stronger"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
             ran: "Sep 28, on the CPU",
             writes: "edge betweenness (on edges)",
         },
@@ -138,14 +143,15 @@
             fmt: (v) => A.num(v),
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "node.color": { field: "Betweenness", palette: "Yellow to orange", ramp: ["#fde7c8", "#E69F00"] } },
-            order: "Covered by PageRank for Color on " + A.count(L.nodes, null, { of: L.nodes }),
+            order: ["Covered by ", A.link("inspector-measure-row", "style", "PageRank", { class: "ab-link" }), " for Color on " + A.count(L.nodes, null, { of: L.nodes })],
+            coveredBy: "PageRank", coveredProp: "Color",
             // every value it paints is covered: the Paints line says so, the paint-order line says by what
             hidden: "none visible",
             range: "0 to " + A.num(L.topByBetweenness[0].betweenness),
             hist: { from: 0, width: 0.04, bins: [L.nodes - 10, 5, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
             top: L.topByBetweenness.slice(0, 10).map((x) => [x.label, x.betweenness]),
             binNames: { 14: ["Valjean"], 4: ["Myriel", "Gavroche"], 3: ["Marius", "Fantine"] },
-            options: [["Weight", "None: no weight loaded"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
+            options: [["Weight", "value (loaded weight), stronger"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
             optionsState: "betweenness",
             ran: "Sep 28, on the CPU",
             writes: "betweenness",
@@ -165,14 +171,14 @@
             scopeNote: "on " + A.count(F.after.step1, null, { of: L.nodes }),
             scopeRow: A.count(F.after.step1, "node", { of: L.nodes }) + ", under " + F.steps[0] + " (now off)",
             scopeWhy: "Ran on " + A.count(F.after.step1, "node", { of: L.nodes }) + " under " + F.steps[0] + "; that filter is off now. It keeps painting the " + A.num(F.after.step1) + " it computed.",
-            options: [["Weight", "None: no weight loaded"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
+            options: [["Weight", "value (loaded weight), stronger"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
             optionsState: "betweenness",
             ran: "Sep 28, on the CPU",
             writes: "betweenness",
         },
         // Transfers: betweenness weighted by amount, sampled from 500 source accounts
         sampled: {
-            title: "Betweenness", over: "node", unit: "accounts", total: T.nodes, run: true, icon: "chart-column", table: "transfers",
+            title: "Betweenness", label: "Betweenness, sampled " + A.num(500), over: "node", unit: "accounts", total: T.nodes, run: true, icon: "chart-column", table: "transfers",
             fmt: (v) => A.num(v),
             provenance: ["from Analyze", "analyze-popover", "open"],
             bound: { "node.color": { field: "Betweenness", palette: "Orange to brown", ramp: RAMP } },
@@ -305,7 +311,7 @@
         requestAnimationFrame(sortBy);
     }
     // An attribute name takes the middle ellipsis (spec 2.5); prose keeps the end ellipsis
-    const nameOf = (m, max) => (m.long ? A.truncMiddle(m.title, max) : m.title);
+    const nameOf = (m, max) => (m.long ? A.truncMiddle(m.title, max) : m.label || m.title);
 
     // ---------- Style tab ----------
     function styleTab(m, st) {
@@ -329,8 +335,8 @@
         new MutationObserver(mark).observe(tab, { childList: true, subtree: true });
         mark();
         return h("div", null,
-            A.paintsLine("Paints " + A.count(st.paints || (m.has != null ? m.has : m.total), m.unit.replace(/s$/, "")) + (m.hidden ? ", " + m.hidden : " (every " + m.unit.replace(/s$/, "") + " with a value)"), ["table-dock", tableOf(m)]),
-            A.paintOrderLine(m.order),
+            A.paintsLine("Paints " + A.count(st.paints || (m.has != null ? m.has : m.total), m.unit.replace(/s$/, "")) + (m.hidden && !st.moved ? ", " + m.hidden : " (every " + m.unit.replace(/s$/, "") + " with a value)"), ["table-dock", tableOf(m)]),
+            A.paintOrderLine(st.moved ? ["Covers ", A.link("inspector-measure-row", "style", m.coveredBy, { class: "ab-link" }), " for " + m.coveredProp] : m.order),
             tab);
     }
 
@@ -389,7 +395,15 @@
                 h("span", { class: "imr-rank", style: m.err ? "min-width: 52px" : null }, rk[i]), h("span", { class: "k-grow k-ellipsis" }, name), h("span", { class: "k-secondary k-num", style: "white-space: nowrap" }, m.fmt(v) + (m.scopeNote || st.scopeNote ? ", " + (m.scopeNote || st.scopeNote) : "")));
         // a sampled run: one sentence on how stable the ranks are, from the first range wider than one rank
         const firstRange = rk.findIndex((r) => r.includes("-"));
-        const stable = m.err ? h("div", { class: "imr-cap", style: "padding: 4px 16px" }, firstRange < 0 ? "No rank swaps between runs" : firstRange === 0 ? "Every rank may swap between runs" : "Ranks below #" + firstRange + " may swap between runs") : null;
+        // the top set named exactly, and how many rows lie within the error bound of its cut-off row
+        const cut = m.top.length, cutV = m.top[cut - 1][1];
+        const near = m.err ? (m.pool || m.top.map((t) => t[1])).filter((o, i) => i !== cut - 1 && Math.abs(o - cutV) < 2 * m.err).length : 0;
+        const stable = m.err ? h("div", { class: "imr-cap", style: "padding: 4px 16px" },
+            h("div", null, firstRange < 0 ? "No rank swaps between runs" : firstRange === 0 ? "Every rank may swap between runs" : "Ranks below #" + firstRange + " may swap between runs"),
+            h("div", null, "Top " + cut + " by " + (m.label || m.title) + ": " + A.count(near, "row") + (near === 1 ? " is" : " are") + " within the error bound of row " + cut)) : null;
+        // the rest of the ranking is in the table, sorted by this measure
+        const rest = (m.has != null ? m.has : m.total) - m.top.length;
+        const moreLink = rest > 0 ? h("div", { class: "imr-cap", style: "padding: 4px 16px" }, h("a", Object.assign({ class: "ab-link", href: A.href("table-dock", tableOf(m)) }, A.act({ onClick: (e) => { e.preventDefault(); showAll(m); } })), A.num(rest) + " more in the table")) : null;
         const made = [];
         if (m.run) {
             // settings that differ from the default, as editable fields; the rest behind All options
@@ -397,21 +411,25 @@
             const set = (m.set || []).concat(st.edited ? [["Damping", "0.90"]] : []);
             set.forEach(([k, v]) => made.push(h("div", { class: "k-data" + (st.edited ? " imr-edited" : "") }, h("span", { class: "k-name" }, term(k)),
                 h("span", { class: "k-value" }, A.field(v, { go: ["measure-row-options", opts] })))));
+            // an exact run says so, with what exact does and does not mean
+            if (!m.err) made.push(A.data("Precision", h("span", null, "Exact ", A.tip(h("span", { class: "imr-info", role: "img", tabindex: "0" }, icon("info", "sm")), EXACT))));
             made.push(h("div", { class: "k-data" }, h("span", { class: "k-name" }, set.length ? "" : "Settings"),
                 h("span", { class: "k-value" }, set.length ? null : h("span", { class: "k-secondary" }, "Defaults "),
                     A.link("measure-row-options", opts, "All options...", { "data-imr-options": "" }))));
         }
         (m.made || []).forEach(([k, v]) => made.push(A.data(term(k), v)));
         if (st.scopeRow || m.scopeRow) made.push(A.data(term("Scope"), st.scopeRow || m.scopeRow));
-        if (m.ran) made.push(A.data("Ran", m.ran));
+        // the compute-in-place link: reruns here and redraws this panel, its cost stated in the link
+        // (none while the state bar holds the rerun, so there is one door at a time)
+        if (m.ran) made.push(A.data("Ran", st.rerunHere && !m.table ? h("span", null, m.ran + ", ",
+            h("a", Object.assign({ class: "ab-link", href: "#", style: "white-space: nowrap" }, A.act({ onClick: (e) => { e.preventDefault(); st.rerunHere(); } })), "Rerun, " + COST)) : m.ran));
         made.push(A.data("Writes", m.long ? A.truncMiddle(m.writes, 20) : m.writes, { go: m.writesGo || (m.long ? ["data-place", "attributes-wide"] : ["data-place", "attributes"]) }));
         // Spec order: Values, Top 10, Made with, Notes (AB.dataTab would sort Top 10 after Made with)
         // the key is the section's kind, not its title, so "Top 5" and "Top 10" share one open state
         const sec = (title, summary, body, actions) => A.section({ title, actions, collapsible: true, key: "data.measure." + title.toLowerCase().replace(/^top \d+$/, "top-10").replace(/\s+/g, "-"), summary }, body);
         return h("div", null,
             sec("Values", m.caption || caption(m, true), histogram(m, st.brush)),
-            sec("Top " + m.top.length, m.top.slice(0, 3).map((t) => t[0]).join(", ") + "...", [m.top.map(topRow), stable],
-                A.iconButton(A.ICON.options, "More for Top " + m.top.length, { onClick: (e) => A.openMenu(e.currentTarget, [{ label: "Show all in table", onClick: () => showAll(m) }]) })),
+            sec("Top " + m.top.length, m.top.slice(0, 3).map((t) => t[0]).join(", ") + "...", [m.top.map(topRow), stable, moreLink]),
             sec("Made with", st.edited ? "Damping 0.90" : m.set ? m.set.map(([k, v]) => k + " " + v).join("; ") : m.run ? "Default settings" : m.made[0][1], made),
             A.notesSection(0, null, "measure"));
     }
@@ -482,22 +500,30 @@
     // estimate; on Les Miserables every rerun is under a second) and redraws this panel where it is.
     // ran: null, "running" (PageRank on the 60: the fixtures hold no values for it) or "done" (the result is on screen)
     const COST = "under a second";
-    function draw(el, state, ran) {
-        const again = (next, said) => { el.replaceChildren(); draw(el, state, next); A.announce(said); };
+    const EXACT = "Computed on every node, not estimated. It does not say the ranking is meaningful.";
+    function draw(el, state, ran, moved) {
+        const again = (next, said) => { el.replaceChildren(); draw(el, state, next, moved); A.announce(said); };
         {
-            const st = Object.assign({ id: STATES[state] ? state : "style" }, STATES[state] || STATES.style);
+            const st = Object.assign({ id: STATES[state] ? state : "style", moved: !!moved }, STATES[state] || STATES.style);
             const L = A.fx.datasets.lesmis, now = L.filterSteps.after.step1;
             // a rerun of Betweenness on the whole graph is the whole-graph result the fixtures hold
-            const m = st.painted ? painted(st.painted) : ran === "done" ? Object.assign({}, MEASURES().betweenness, { ran: "Just now, on the CPU" }) : MEASURES()[st.m];
+            const m = st.painted ? painted(st.painted) : ran === "now" ? Object.assign({}, MEASURES()[st.m], { ran: "Just now, on the CPU" }) : ran === "done" ? Object.assign({}, MEASURES().betweenness, { ran: "Just now, on the CPU" }) : MEASURES()[st.m];
             if (st.scope) Object.assign(st, { scopeNote: "on all " + A.num(L.nodes), scopeRow: "All " + A.count(L.nodes, "node") + "; the filter now leaves " + A.num(now), paints: now });
             let stateBar = null;
-            if (st.edited) stateBar = { text: "Settings changed", why: "Settings changed since the run: Damping 0.85 to 0.90", actions: [{ label: "Rerun", go: ["graph-place", "running"] }, { label: "Revert", go: ["inspector-measure-row", "data"] }] };
+            if (st.edited) stateBar = { text: "Settings changed, " + COST + " to rerun", why: "Settings changed since the run: Damping 0.85 to 0.90", actions: [{ label: "Rerun", go: ["graph-place", "running"] }, { label: "Revert", go: ["inspector-measure-row", "data"] }] };
             const rerun = (n, why) => ({ text: "Ran on " + A.num(n[0]) + "; now " + A.num(n[1]) + ", " + COST + " to rerun", why, actions: [{ label: "Rerun on " + A.num(n[1]), onClick: () => again(st.scope ? "running" : "done", "Rerunning " + m.title + " on " + A.count(n[1], "node") + ", " + COST) }] });
             if (st.scope && ran === "running") stateBar = { text: "Rerunning on " + A.count(now, "node") + ", " + COST, why: "Reruns PageRank on the " + A.count(now, "node") + " the filter keeps; it keeps painting until the new values arrive." };
             else if (st.scope) stateBar = rerun([L.nodes, now], "Ran on " + A.count(L.nodes, "node") + "; a filter step now leaves " + A.num(now) + ". It keeps painting.");
             if (m.scopeWhy) stateBar = rerun([m.has, m.total], m.scopeWhy);
+            // covered on every node by a row above: say so, and offer Move above (one undo step)
+            if (m.coveredBy && !moved) stateBar = { text: "Covered by " + m.coveredBy + " for " + m.coveredProp, why: m.coveredBy + " is above this row and paints " + m.coveredProp + " on every node, so this row's " + m.coveredProp.toLowerCase() + " never shows. Move above puts this row over " + m.coveredBy + ".",
+                actions: [{ label: "Move above", onClick: () => {
+                    el.replaceChildren(); draw(el, state, ran, true);
+                    A.notice("Moved " + m.title + " above " + m.coveredBy, { label: "Undo", onClick: () => { el.replaceChildren(); draw(el, state, ran, false); A.announce("Moved " + m.title + " back below " + m.coveredBy); } });
+                } }] };
             // The kind slot: the funnel while the values were computed on another set than the graph on screen
             // (spec 3.3: a different scope is not out of date, so no warning mark); an edge measure carries an edge mark
+            if (!stateBar && m.run) st.rerunHere = () => again("now", "Reran " + m.title + ", " + COST);
             const funnel = stateBar && stateBar.actions && (st.scope || m.scopeWhy) ? A.tip(h("span", { class: "ab-status", role: "img" }, icon(A.ICON.filter)), stateBar.why) : null;
             // a row named after an attribute shows that attribute's type glyph, as its tree row does
             const kind = m.type ? A.typeGlyph(m.type) : m.icon;
@@ -512,7 +538,7 @@
                 menu: ["context-menus", "measure-row"],
                 onRename: (n) => A.flash("Renamed to " + n + "; the legend title follows"),
                 stateBar,
-                changed: !!stateBar && !funnel && ran !== "running",
+                changed: !!stateBar && !funnel && ran !== "running" && !m.coveredBy,
                 kindKey: "measure-row",
                 tab: st.tab,
                 tabs: { Style: () => styleTab(m, st), Data: () => dataTab(m, st) },
@@ -521,7 +547,7 @@
             if (m.long) el.querySelector(".ab-insp-head .k-name").setAttribute("aria-label", m.title);
             // the header's "..." names its owner, so it is never one of several "More actions"
             const more = el.querySelector(".ab-insp-sub .k-icon-btn");
-            if (more) { more.removeAttribute("aria-label"); A.tip(more, "Actions for " + m.title, { key: "Shift+F10" }); }
+            if (more) { more.removeAttribute("aria-label"); A.tip(more, "Actions for " + (m.label || m.title), { key: "Shift+F10" }); }
         }
     }
 

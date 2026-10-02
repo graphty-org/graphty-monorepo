@@ -61,7 +61,13 @@
     // with AB.setUsageData(on), which redraws the header. Their answered states imply it too.
     AB.usageData = false;
     AB.setUsageData = (on) => { AB.usageData = !!on; if (route && route.frame.top && !route.frame.full) { $("ab-top").replaceChildren(); renderTop($("ab-top")); } };
-    const USAGE_STATE = { "settings/privacy": false, "settings/privacy-on": true, "start-screen/answered": true, "start-screen/declined": false };
+    const USAGE_STATE = { "settings/privacy": false, "settings/privacy-on": true, "start-screen/answered": true, "start-screen/declined": false, "start-screen/answered-choose": true, "start-screen/declined-choose": false };
+    // This page view's project names and recent projects. A rename or Save as in the project menu sets
+    // AB.projectNames[dataset], which the header reads. AB.visit.fresh is set by a first-launch start
+    // screen: from then on the start screen's Recent lists only AB.visit.recents (what was opened or
+    // saved in this page view, newest first), never the fixtures' returning reader's projects.
+    AB.projectNames = {};
+    AB.visit = { fresh: false, recents: [] };
 
     function setTheme(t) {
         if (t) document.documentElement.setAttribute("data-theme", t);
@@ -131,13 +137,13 @@
             || document.querySelector("#ab-left:not([hidden]) .ab-place-title") || document.querySelector("#ab-right .ab-insp-head .k-name");
         if (el) el.focus({ preventScroll: true });
     }
-    const describe = (el) => el && el !== document.body ? { el, stage: !!(el.closest && el.closest("#ab-canvas .k-stage")), id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row } : null;
+    const describe = (el) => el && el !== document.body ? { el, stage: !!(el.closest && el.closest("#ab-canvas .k-stage")), id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row, who: el.closest && el.closest("#ab-main tr[data-who]") && el.closest("#ab-main tr[data-who]").dataset.who } : null;
     AB.describeFocus = () => describe(document.activeElement);
     AB.refocus = (d) => refocus(d);
     function refocus(d) {
         if (!d) return false;
         const q = (sel) => { try { return document.querySelector(sel); } catch (e) { return null; } };
-        const el = (d.el && d.el.isConnected && d.el) || (d.stage && q("#ab-canvas .k-stage")) || (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
+        const el = (d.el && d.el.isConnected && d.el) || (d.stage && q("#ab-canvas .k-stage")) || (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.who && q(`#ab-main tr[data-who="${CSS.escape(d.who)}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
         if (el) el.focus();
         return !!el;
     }
@@ -155,6 +161,7 @@
     // subject (the graph is never put into the selection). The left panel stays the place it was, in
     // the project on screen. The empty canvas and Escape both call this.
     AB.clearSelection = function () {
+        AB.tablePicks = null; // the node table's picked rows (table-dock) go with the selection
         if (!route) return;
         const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
         const ds = route.frame.dataset, left = refOf(route.frame.left);
@@ -162,11 +169,25 @@
         const st = ds === "lesmis" ? (left && left.id === place ? left.state : RAIL_STATE.lesmis[route.rail] || null) : left && left.id === place && left.state !== "at-rest" ? left.state : (RAIL_STATE[ds] || {})[route.rail] || null;
         const right = refOf(route.frame.right);
         if (route.id === place && (!right || right.id === "inspector-nothing-selected")) return;
+        // What was selected, for the notice: elements are counted, a row is named
+        const bar = selectionBarFor(route.frame.right);
+        const N = { "selection-bar/one-node": [1, "node"], "selection-bar/one-edge": [1, "edge"], "selection-bar/two-nodes": [2, "node"], "selection-bar/five-nodes": [5, "node"] }[bar];
+        const head = document.querySelector("#ab-right .ab-insp-head .k-name");
+        const what = N ? AB.count(N[0], N[1]) : head ? head.textContent.trim() : null;
+        const back = location.hash;
         clearing = true;
-        AB.keepLeft = route.id === place || (left && left.id === place);
+        // the tree is drawn again, so the row the inspector showed is no longer marked selected
+        AB.keepLeft = false;
+        AB.redrawLeft = true;
+        afterRender = () => {
+            // nothing is selected: no row of the left panel's tree is marked, whatever its state draws
+            document.querySelectorAll('#ab-left [role=treeitem][aria-selected="true"]').forEach((x) => x.setAttribute("aria-selected", "false"));
+            AB.notice("Selection cleared" + (what ? " (" + what + ")" : ""), { label: "Bring it back", onClick: () => { location.hash = back; AB.announce("Selection restored"); } });
+            AB.announce("Selection cleared" + (what ? " (" + what + ")" : "") + ". Ctrl+Z brings it back");
+        };
         if (location.hash === href(place, st)) render(); else go(place, st);
-        AB.announce("Selection cleared");
     };
+    let afterRender = null;
     const hasSelection = () => !!(route && !route.frame.overlay && !["workspace", "full"].includes(route.sec.region) && route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected");
     AB.toggleDock = function () {
         shell.dock = shell.dock === "open" ? "closed" : "open";
@@ -322,7 +343,9 @@
         const [label, ic, target] = PLACES[key];
         // The rail stays in the project on screen: the door entries' Graph and Data places, the transfers' Graph place
         // A just-loaded transfers project has no runs and no filter steps yet
-        const st = placeOf(route.frame.dataset, key);
+        // A new project with nothing loaded keeps its empty Graph and Data places, never the sample's
+        const none = ["canvas-and-states/empty", "canvas-and-states/refused-project"].includes(route.frame.canvas) ? { graph: "empty", data: "no-sources" } : null;
+        const st = none ? none[key] || placeOf(route.frame.dataset, key) : placeOf(route.frame.dataset, key);
         const a = act({ go: st ? [target, st] : [target] });
         // A place with no state of its own for this project (Assistant) opens over the project on screen
         if (route.frame.dataset !== "lesmis") {
@@ -336,7 +359,13 @@
     }
     // Header, left to right (spec 9): main menu, project name, undo and redo, privacy chip, filter chip
     function renderTop(el) {
-        const D = AB.fx.datasets[route.frame.dataset] || fxl();
+        const D0 = AB.fx.datasets[route.frame.dataset] || fxl();
+        // A new project with nothing loaded is not the sample: it has no name yet. So is a file opened
+        // as a new graph (frame.newProject) from the start screen or a direct link: no project is open
+        const untitled = (route.frame.dataset === "lesmis" && route.frame.canvas === "canvas-and-states/empty")
+            || (route.frame.newProject && (!AB.pageOpener || AB.pageOpener.startsWith("#/start-screen")));
+        const D = untitled ? { frame: { project: "Untitled project" } }
+            : AB.projectNames[route.frame.dataset] ? { frame: { project: AB.projectNames[route.frame.dataset] } } : D0;
         const menuBtn = AB.iconButton("menu", "Main menu", { go: ["main-menu", "open"] });
         menuBtn.id = "ab-rail-menu"; // the id is kept from version 2, when the button sat in the rail
         menuBtn.setAttribute("aria-haspopup", "menu");
@@ -352,10 +381,25 @@
             AB.iconButton("redo-2", "Redo", { key: "Ctrl+Shift+Z", onClick: () => AB.flash("Nothing to redo") }),
             AB.tip(h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["settings", AB.usageData ? "privacy-on" : "privacy"] })), icon(AB.ICON.local, "sm"), AB.usageData ? "Usage data on, content masked" : "Local only"), "Privacy settings", { label: false }),
             // The filter chip always says what the graph shows: "Full graph", or "812 of 3,000 nodes" while
-            // a filter step removes something. A click opens the project's filters (a link, not a menu)
-            AB.tip(h("span", Object.assign({ id: "ab-filter", class: "ab-privacy", role: "link" }, act({ go: ["data-place", route.frame.chip && route.frame.chip !== "Full graph" ? "filters" : placeOf(route.frame.dataset, "data")] })), icon("funnel", "sm"), route.frame.chip || "Full graph"), "Filters", { label: false }),
+            // a filter step removes something. It is a button (a caret, a border) that opens the project's
+            // filters, Data > Filters; its tooltip lists the steps that are off (frame.stepsOff)
+            filterChip(),
             h("span", { class: "k-grow" }),
         ]);
+    }
+    // Where the chip opens: the project's filters. A Data place on screen already holds them (with any step
+    // the reader just added); else the transfers' Filters, Les Miserables' degree steps, or the project's Data place
+    function chipDoor(chip) {
+        const ds = route.frame.dataset, left = String(route.frame.left || "");
+        if (chip === "Full graph") return ["data-place", placeOf(ds, "data")];
+        if (left.startsWith("data-place/")) return left.split("/");
+        return ["data-place", ds === "transactions" ? "filters" : ds === "lesmis" ? "lesmis-filters" : placeOf(ds, "data")];
+    }
+    function filterChip() {
+        // stepsOff null: the section did not say, so the tooltip claims nothing about the steps
+        const chip = route.frame.chip || "Full graph", off = route.frame.stepsOff;
+        const b = h("span", Object.assign({ id: "ab-filter", class: "ab-filter-chip", role: "button" }, act({ go: chipDoor(chip) })), icon("funnel", "sm"), h("span", null, chip), icon("chevron-down", "sm"));
+        return AB.tip(b, "Filters" + (!off ? "" : off.length ? ", off: " + off.join("; ") : ", every step on"), { label: false });
     }
     function renderReview(el, sec, state) {
         if (participant()) return;
@@ -418,6 +462,12 @@
             if (own && own !== state && sec.states.some((x) => x.id === own)) { location.replace(href(sec.id, own)); return; }
             if (!own) railCarry = true;
         }
+        // A section's own state for the project on screen (sec.stateFor(dataset, state)): a door that
+        // names the generic state (P, Path between..., Analyze > Shortest path) lands on that project's
+        if (sec.stateFor && route && route.frame.dataset) {
+            const own = sec.stateFor(route.frame.dataset, state);
+            if (own && own !== state) { location.replace(href(sec.id, own)); return; }
+        }
         const extra = frameOf(sec, state);
         // The project on screen stays on screen. A menu, popover or dialog that names no data set (or
         // the same one) opens over the panels that were showing, and Esc goes back to them; a rail
@@ -446,9 +496,18 @@
         // a transfers place (Data, the Path tool) brings the transfers canvas, inspector and table.
         const leftExtra = leftSec && leftSec !== sec ? frameOf(leftSec, leftRef.state || leftSec.states[0].id) : {};
         frame.dataset = extra.dataset || leftExtra.dataset || (carried ? was.frame.dataset : "lesmis");
-        frame.chip = chipWording(extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph"));
+        // A project's filter steps, as its Data place last left them (AB.projectFilter), hold on every place of that project
+        const pf = (AB.projectFilter || {})[frame.dataset] || {};
+        frame.chip = chipWording(extra.chip || leftExtra.chip || pf.chip || (carried ? was.frame.chip : "Full graph"));
+        // How many nodes the graph on screen holds, for AB.count's set rule (null: all of them)
+        const shownM = typeof frame.chip === "string" && frame.chip.match(/^([\d,]+) of [\d,]+ nodes?$/);
+        frame.shown = shownM ? Number(shownM[1].replace(/,/g, "")) : null;
+        // The names of the project's filter steps that are off, for the chip's tooltip
+        frame.stepsOff = extra.stepsOff || leftExtra.stepsOff || pf.stepsOff || (carried ? was.frame.stepsOff : null) || null;
         // The attributes the project's filter steps read (on or off): the field lists' "Filter step" tag
-        frame.filterOn = extra.filterOn || leftExtra.filterOn || (carried ? was.frame.filterOn : null) || null;
+        frame.filterOn = extra.filterOn || leftExtra.filterOn || pf.filterOn || (carried ? was.frame.filterOn : null) || null;
+        // The node ids the filter steps that apply leave (a Set), where the Data place can say: the canvas draws only those
+        frame.keep = extra.keep || leftExtra.keep || pf.keep || (carried ? was.frame.keep : null) || null;
         if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
         // the canvas stays as it was drawn (communities, a legend) when an inspector opens beside the same project
         if (carried === "dataset" && sec.region === "right" && !("canvas" in extra)) frame.canvas = was.frame.canvas;
@@ -497,9 +556,10 @@
 
         // Opening a menu or popover over the same panels keeps them as they were (no redraw), so what
         // the reader changed there (a label line just added) is still behind the popover and after it
-        const keepLeft = prevLeft && leftRef && prevLeft.id === leftRef.id && (AB.keepLeft || (!!frame.overlay && prevLeft.state === leftRef.state));
+        // AB.redrawLeft: an overlay that changed what the left panel lists (a row Find path added) draws it again
+        const keepLeft = !AB.redrawLeft && prevLeft && leftRef && prevLeft.id === leftRef.id && (AB.keepLeft || (!!frame.overlay && prevLeft.state === leftRef.state));
         const keepRight = prevRight && prevRight === frame.right && (AB.keepRight || !!frame.overlay);
-        AB.keepLeft = AB.keepRight = false;
+        AB.keepLeft = AB.keepRight = AB.redrawLeft = false;
         prevLeft = leftRef;
         prevRight = frame.right;
         const fill = (id, region) => {
@@ -523,6 +583,7 @@
         $("ab-rail").hidden = !frame.rail;
         if (frame.rail) renderRail($("ab-rail"));
         ["left", "right", "canvas", "toolbar", "dock", "workspace", "full", "overlay"].forEach((r) => fill("ab-" + r, r));
+        if (afterRender) { const f = afterRender; afterRender = null; f(); }
         // Every region has a heading, so a keyboard or screen reader user hears which region holds focus
         Object.entries(REGION_HEADING).forEach(([id, text]) => {
             const r = $(id);
@@ -640,7 +701,8 @@
     // Select one node of a project as the walk does (a canvas hot spot, a table row): its node
     // inspector, the selection bar, and the walk's cursor on it
     AB.walkList = walkNodes;
-    AB.selectNode = (ds, i) => {
+    // opts.focus false: focus stays where the click was (a table row), not on the canvas
+    AB.selectNode = (ds, i, opts) => {
         const node = walkTo(ds, i);
         if (!node) return;
         const [id, state] = node.at.split("/");
@@ -648,7 +710,7 @@
         if (location.hash === href(id, state)) render();
         else go(id, state);
         // the canvas keeps focus, not the hot spot: its focus ring would read as a second selection
-        setTimeout(() => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); }, 100);
+        if (!opts || opts.focus !== false) setTimeout(() => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); }, 100);
     };
     // A canvas hot spot that selects its node: a button, Enter or Space too
     AB.selectHot = (el, ds, i) => {
@@ -692,18 +754,18 @@
         // A key the menus and the shortcuts sheet advertise: the same action as its button or menu item,
         // else a notice that says what it would do. Never the browser's own (Ctrl+S, Ctrl+O, Ctrl+E).
         const press = (sel, fallback) => () => { const b = document.querySelector(sel); if (b && b.getAttribute("aria-disabled") !== "true") b.click(); else AB.flash(fallback); };
-        const stub = (text) => () => AB.flash(text + " (not wired in the skeleton)");
+        const stub = (text) => () => AB.flash(text + " (not available yet)");
         // Ctrl+Z and Ctrl+Shift+Z act on the notice's own change first (its Undo or Redo), then the header's
         const noticeAction = (word) => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === word);
         const keys = [
-            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = noticeAction("Undo"); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
+            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = noticeAction("Undo") || noticeAction("Bring it back"); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
             [() => mod && e.shiftKey && !e.altKey && k === "z", () => { const r = noticeAction("Redo"); if (r) r.click(); else press("#ab-top [aria-label='Redo']", "Nothing to redo")(); }],
             [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go(...AB.COMMANDS["open-file"].go)],
             [() => mod && !e.shiftKey && !e.altKey && k === "s", () => AB.COMMANDS.save.onClick()],
             [() => mod && e.shiftKey && !e.altKey && k === "s", stub("Save as")],
             [() => mod && !e.shiftKey && !e.altKey && k === "e", () => go("export-dialog")],
             [() => free && mod && !e.shiftKey && !e.altKey && k === "a", () => go("inspector-selection-and-everything", "selection")],
-            [() => free && mod && !e.shiftKey && !e.altKey && k === "g", () => (t && t.closest && t.closest("#ab-left [role=tree]") ? ((route.frame.dataset || "lesmis") === "lesmis" ? go(...AB.COMMANDS["new-folder"].go) : AB.flash("New folder (not wired in the skeleton)")) : press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")())],
+            [() => free && mod && !e.shiftKey && !e.altKey && k === "g", () => (t && t.closest && t.closest("#ab-left [role=tree]") ? ((route.frame.dataset || "lesmis") === "lesmis" ? go(...AB.COMMANDS["new-folder"].go) : AB.flash("New folder (not available yet)")) : press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")())],
             [() => free && mod && e.shiftKey && !e.altKey && k === "h", press("#ab-toolbar [data-tool='Hide on canvas'], #ab-toolbar [data-tool='Show on canvas']", "Ctrl+Shift+H hides the selection on canvas: select something first")],
             [() => free && !mod && !e.altKey && e.key === "/", () => go("graph-place", "find")],
             [() => free && !mod && !e.shiftKey && !e.altKey && k === "i", stub("I inverts the selection")],
@@ -720,7 +782,7 @@
             [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "l" || e.key === "L"), () => AB.setLegend(!AB.legendOn())],
             [() => free && !mod && e.key === "?", () => go("commands-and-search", "shortcuts")],
             [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "n" || e.key === "N"), () => AB.addNote()],
-            [() => free && !mod && !e.altKey && e.key === "5", () => { const b = document.querySelector('[data-tool="View"]'); if (b) { b.classList.add("ab-pulse"); setTimeout(() => b.classList.remove("ab-pulse"), 900); } AB.flash("5 switches 2D and 3D (not wired in the skeleton)"); }],
+            [() => free && !mod && !e.altKey && e.key === "5", () => { const b = document.querySelector('[data-tool="View"]'); if (b) { b.classList.add("ab-pulse"); setTimeout(() => b.classList.remove("ab-pulse"), 900); } AB.flash("5 switches 2D and 3D (not available yet)"); }],
             [() => free && !mod && e.shiftKey && e.key === "T", () => AB.toggleDock()],
         ];
         // F6 / Shift+F6: move between regions in their visual order (spec 3.8)
@@ -763,6 +825,10 @@
     // Shared by data-page, data-place, inspector-attribute-and-filter-step and context-menus, so no
     // count is typed twice. `report` stands in for graphty-element's match report object: the app
     // renders it and counts nothing. `model` holds the model strip for each choice on entries.
+    // The published Les Miserables edge list (Knuth 1993; the edges ../kit/gen-canvas.mjs draws), as
+    // "source-target" row ids: kit/fixtures.json holds only the rows, so the shell carries the edges and
+    // every count over them (a group's edges) is read from here, never typed
+    const LESMIS_EDGES = "1-0 2-0 3-0 3-2 4-0 5-0 6-0 7-0 8-0 9-0 11-10 11-3 11-2 11-0 12-11 13-11 14-11 15-11 17-16 18-16 18-17 19-16 19-17 19-18 20-16 20-17 20-18 20-19 21-16 21-17 21-18 21-19 21-20 22-16 22-17 22-18 22-19 22-20 22-21 23-16 23-17 23-18 23-19 23-20 23-21 23-22 23-12 23-11 24-23 24-11 25-24 25-23 25-11 26-24 26-11 26-16 26-25 27-11 27-23 27-25 27-24 27-26 28-11 28-27 29-23 29-27 29-11 30-23 31-30 31-11 31-23 31-27 32-11 33-11 33-27 34-11 34-29 35-11 35-34 35-29 36-34 36-35 36-11 36-29 37-34 37-35 37-36 37-11 37-29 38-34 38-35 38-36 38-37 38-11 38-29 39-25 40-25 41-24 41-25 42-41 42-25 42-24 43-11 43-26 43-27 44-28 44-11 45-28 47-46 48-47 48-25 48-27 48-11 49-26 49-11 50-49 50-24 51-49 51-26 51-11 52-51 52-39 53-51 54-51 54-49 54-26 55-51 55-49 55-39 55-54 55-26 55-11 55-16 55-25 55-41 55-48 56-49 56-55 57-55 57-41 57-48 58-55 58-48 58-27 58-57 58-11 59-58 59-55 59-48 59-57 60-48 60-58 60-59 61-48 61-58 61-60 61-59 61-57 61-55 62-55 62-58 62-59 62-48 62-57 62-41 62-61 62-60 63-59 63-48 63-62 63-57 63-58 63-61 63-60 63-55 64-55 64-62 64-48 64-63 64-58 64-61 64-60 64-59 64-57 64-11 65-63 65-64 65-48 65-62 65-58 65-61 65-60 65-59 65-57 65-55 66-64 66-58 66-59 66-62 66-65 66-48 66-63 66-61 66-60 67-57 68-25 68-11 68-24 68-27 68-48 68-41 69-25 69-68 69-11 69-24 69-27 69-48 69-41 70-25 70-69 70-68 70-11 70-24 70-27 70-41 70-58 71-27 71-69 71-68 71-70 71-11 71-48 71-41 71-25 72-26 72-27 72-11 73-48 74-48 74-73 75-69 75-68 75-25 75-48 75-41 75-70 75-71 76-64 76-65 76-66 76-63 76-62 76-48 76-58";
     const DOOR_ENTRIES = {
         title: "Door entries, March 2026",
         graphName: "Door entries",
@@ -806,7 +872,7 @@
         report: {
             entries: { rows: 4212, distinctPersonIds: 423, bothEnds: 4180, missingPeople: 25, missingBuildings: 7, missingRows: 32, pairEdges: 1306, leadingZeroKeys: 3,
                 // the element's report after an Add choice (one row per unmatched value; each new node makes one new pair)
-                added: { people: { bothEnds: 4205, pairEdges: 1331, people: 437, buildings: 9 }, bldg: { bothEnds: 4187, pairEdges: 1313, people: 412, buildings: 16 }, both: { bothEnds: 4212, pairEdges: 1338, people: 437, buildings: 16 } },
+                added: { people: { bothEnds: 4205, pairEdges: 1331, people: 436, buildings: 9 }, bldg: { bothEnds: 4187, pairEdges: 1313, people: 411, buildings: 16 }, both: { bothEnds: 4212, pairEdges: 1338, people: 436, buildings: 16 } },
                 // stand-in for data.preview under One edge per Pair: one sample row per pair, its time combined
                 // to earliest and latest, and how many entries it merged (the derived count)
                 pairSample: [
@@ -838,20 +904,42 @@
         },
         // The weight the last Load chose: count under Pair, none under Row or as nodes
         loadedWeight() { return this.loaded.per === "pair" ? "count" : null; },
-        // The node counts per type after the last Load: { person, building, entry, total, added: { person, building } }
+        // The node counts per type after the last Load: { person, building, entry, total, base, added: { person, building } }.
+        // base is the nodes each table makes before an Add choice: people.csv's rows less its repeated
+        // keys (the first is kept), so 412 rows make 411 person nodes
         loadedTypes() {
             const e = this.report.entries, k = this.loaded.add;
+            const base = { person: this.tables[0].rows - this.report.people.repeatedKeys, building: this.tables[1].rows };
             const added = { person: k === "people" || k === "both" ? e.missingPeople : 0, building: k === "bldg" || k === "both" ? e.missingBuildings : 0 };
-            const t = { person: this.tables[0].rows + added.person, building: this.tables[1].rows + added.building, entry: this.loaded.per === "nodes" ? e.rows : 0, added };
+            const t = { person: base.person + added.person, building: base.building + added.building, entry: this.loaded.per === "nodes" ? e.rows : 0, base, added };
             t.total = t.person + t.building + t.entry;
             return t;
         },
         model: {
-            row: { strip: "person (412) --entries (4,180 edges from 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per row: 4,180 edges" },
-            pair: { strip: "person (412) --entries (1,306 edges from 4,180 of 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per pair: 1,306 edges; weight: count" },
-            entryAsNode: { strip: "person (412) <--person_id-- entry (4,212) --building_id--> building (9)", tip: "entry.person_id = people.id; entry.building_id = buildings.bldg; each entry is a node with two edges and its time" },
+            row: { strip: "person (411) --entries (4,180 edges from 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per row: 4,180 edges" },
+            pair: { strip: "person (411) --entries (1,306 edges from 4,180 of 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per pair: 1,306 edges; weight: count" },
+            entryAsNode: { strip: "person (411) <--person_id-- entry (4,212) --building_id--> building (9)", tip: "entry.person_id = people.id; entry.building_id = buildings.bldg; each entry is a node with two edges and its time" },
         },
     };
+
+    // Counts the kit's fixtures imply but do not list, worked out once at boot so no section types them:
+    // lesmis.edgeList and each legend row's `edges` (both ends in that group); nested.derived (below)
+    function derivedCounts(X) {
+        const L = X.lesmis, group = {};
+        L.rows.forEach((r) => { group[r.id] = String(r.group); });
+        L.edgeList = LESMIS_EDGES.split(" ").map((p) => p.split("-"));
+        L.frame.legend.rows.forEach((g) => { g.edges = L.edgeList.filter(([a, b]) => group[a] === g.label && group[b] === g.label).length; });
+        // The nested export's edge sources: coauthor_ids items, the distinct pairs they name, affiliations
+        // items, and the links rows whose target is a researcher (the rest point at institutions)
+        const N = X.nested, R = N.document.data.researchers, ids = new Set(R.map((r) => r.id)), pairs = new Set();
+        R.forEach((r) => r.relationships.coauthor_ids.forEach((c) => pairs.add([r.id, c].sort().join(" "))));
+        N.derived = {
+            coauthorItems: R.reduce((a, r) => a + r.relationships.coauthor_ids.length, 0),
+            coauthorPairs: pairs.size,
+            affiliations: R.reduce((a, r) => a + (r.attributes.affiliations || []).length, 0),
+            linksToResearchers: N.document.links.filter((l) => ids.has(l.target)).length,
+        };
+    }
 
     // ---------- boot: fixtures, then every section file in the manifest, in order ----------
     async function boot() {
@@ -861,6 +949,11 @@
             fx.datasets.doorEntries = DOOR_ENTRIES;
             // wide (300 hosts, 60+ attributes), nested (an API's nested JSON) and plainJson (node-link): generated by ../kit/gen-wide-nested.mjs
             Object.assign(fx.datasets, more);
+            derivedCounts(fx.datasets);
+            // The transfers' 40 sample rows hold none of the busiest accounts, so a ranking would top out at 15
+            // while the summary says 907: the ten by degree join the rows (after them, so row indexes hold)
+            const Tx = fx.datasets.transactions;
+            Tx.topByDegree.forEach((r) => { if (!Tx.rows.some((x) => x.id === r.id)) Tx.rows.push(Object.assign({}, r)); });
             AB.fx = fx;
             AB.order = manifest;
             const shared = AB.projectCounts;

@@ -192,7 +192,8 @@
             if (AB.route && AB.route.id === "toolbar" && entered !== state) {
                 // Entering a state sets the layout and the legend it shows; toggles after that stick
                 entered = state;
-                AB.layoutState = LAYOUT[state] || "running";
+                // a popover opened from the bar (Analyze, Layout) leaves the layout as it was: opening it starts nothing
+                if (!/-open$/.test(state)) AB.layoutState = LAYOUT[state] || "running";
                 const legend = state !== "legend-off";
                 if (AB.legendOn() !== legend) setTimeout(() => AB.setLegend(legend)); // redraws, so the canvas card agrees
                 if (TIP_ON[state] || state === "tooltip-focus") raiseTip(state);

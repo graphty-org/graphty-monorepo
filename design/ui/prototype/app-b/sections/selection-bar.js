@@ -10,6 +10,25 @@
     const act = AB.act;
     const C = (id) => AB.COMMANDS[id];
 
+    // G opens Neighborhood (spec 2.3). The command record in lib.js carries no shortcut and app.js
+    // binds no G yet, so the key is bound here, under the shell's single-key rule: not in a text
+    // field, an open menu, popover, dialog or list box, nor with single keys off in Settings. It
+    // presses the bar's own button, so G and the click are one door.
+    // ponytail: move to app.js and COMMANDS.neighborhood.shortcut when the shell next changes.
+    const NBR_KEY = C("neighborhood").shortcut || "G";
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "g" && e.key !== "G") return;
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
+        const t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+        if (t && t.closest && t.closest("#ab-overlay, [role=menu], [role=dialog], [role=listbox], [role=combobox]")) return;
+        if (AB.mem.get("singleKeys") === "off") return;
+        const b = document.querySelector("#ab-toolbar [data-tool='Neighborhood']");
+        e.preventDefault();
+        if (b && b.getAttribute("aria-disabled") !== "true") b.click();
+        else AB.flash("G shows a node's neighborhood: select a node first");
+    });
+
     // The canvas drawing that shows each Les Miserables state's selection (fixture drawings only).
     const DRAWING = {
         "one-node": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Valjean selected"],
@@ -33,13 +52,39 @@
         const rings = circles.filter((c) => at(c, V[0], V[1]) && c.getAttribute("fill") === "none" && c.getAttribute("stroke-width") === "2");
         rings.forEach((r) => { const k = r.cloneNode(); k.setAttribute("cx", J[0]); k.setAttribute("cy", J[1]); k.setAttribute("r", String(+r.getAttribute("r") + dr)); r.parentNode.append(k); });
     }
-    // Hidden on canvas: Valjean, his ring, his label and his edges are not drawn
-    function hideValjean(doc) {
-        const V = ["698.7", "394.3"];
-        doc.querySelectorAll("circle").forEach((c) => { if (c.getAttribute("cx") === V[0] && c.getAttribute("cy") === V[1]) c.remove(); });
-        doc.querySelectorAll("line").forEach((l) => { if ((l.getAttribute("x1") === V[0] && l.getAttribute("y1") === V[1]) || (l.getAttribute("x2") === V[0] && l.getAttribute("y2") === V[1])) l.remove(); });
-        doc.querySelectorAll("text").forEach((t) => { if (t.textContent.trim() === "Valjean") t.remove(); });
+    // Hidden on canvas: the Les Miserables names Hide on canvas took out of sight, kept until shown
+    // again, whatever is selected next. The tree footer and the canvas read AB.hiddenOnCanvas.
+    const hiddenSet = AB.hiddenOnCanvas = AB.hiddenOnCanvas || new Set();
+    // Where each character is drawn: the at-rest drawing marks no one, so its node circles are in row order
+    let spots = null;
+    fetch("kit/canvas/lesmis-groups-rest-light.svg").then((r) => r.text()).then((t) => {
+        const doc = new DOMParser().parseFromString(t, "image/svg+xml");
+        spots = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none").map((c) => [c.getAttribute("cx"), c.getAttribute("cy")]);
+    }).catch(() => {});
+    const spotOf = (name) => { const i = spots ? L().rows.findIndex((r) => r.label === name) : -1; return i >= 0 ? spots[i] : null; };
+    // Each hidden node, its rings, its label and its edges are not drawn
+    function hideNames(names, then) {
+        const fn = (doc, theme) => {
+            if (then) then(doc, theme);
+            names.forEach((name) => {
+                const V = spotOf(name);
+                if (V) {
+                    doc.querySelectorAll("circle").forEach((c) => { if (c.getAttribute("cx") === V[0] && c.getAttribute("cy") === V[1]) c.remove(); });
+                    doc.querySelectorAll("line").forEach((l) => { if ((l.getAttribute("x1") === V[0] && l.getAttribute("y1") === V[1]) || (l.getAttribute("x2") === V[0] && l.getAttribute("y2") === V[1])) l.remove(); });
+                }
+                doc.querySelectorAll("text").forEach((t) => { if (t.textContent.trim() === name) t.remove(); });
+            });
+        };
+        Object.defineProperty(fn, "name", { value: (then ? then.name : "") + "-hide-" + names.join("|") });
+        return fn;
     }
+    // Every Les Miserables drawing (canvas-and-states defines AB.lesmisDrawing, after this file loads)
+    // leaves the hidden names out, whoever is selected next. canvas-and-states could read
+    // AB.hiddenOnCanvas itself; until then the hiding is added here, around its drawing function.
+    let inner = AB.lesmisDrawing;
+    const hiding = (base, alt, edit, after) => inner(base, alt, edit, hiddenSet.size ? hideNames([...hiddenSet], after) : after);
+    Object.defineProperty(AB, "lesmisDrawing", { configurable: true, get: () => inner && hiding, set: (f) => { inner = f; } });
+
     // Filtered to neighbors: only the nodes within the step's hops of Valjean, and the edges among
     // them, are drawn (read from the drawing's own edges)
     function keepNear(hops) {
@@ -64,7 +109,11 @@
         Object.defineProperty(fn, "name", { value: "keepNear" + hops });
         return fn;
     }
+    // A Les Miserables node other than Valjean is selected (the drawings with a selection all mark Valjean)
+    const walkedOther = () => !!(AB.walked && AB.walked.dataset === "lesmis" && AB.walked.name !== "Valjean");
     function patchCanvas(state) {
+        // ponytail: the selected node keeps its own ring; its neighbors get no ring until a drawing marks them
+        if (state === "neighborhood" && walkedOther()) return;
         const cv = document.getElementById("ab-canvas");
         const d = DRAWING[state];
         // the node inspector's edited state draws its own canvas (Valjean in his Overrides color)
@@ -73,7 +122,10 @@
         const imgs = cv.querySelectorAll(".k-stage img");
         const f = state === FILTERED ? filteredOf() : null;
         if (f && f.who !== "Valjean") return;
-        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, state === "two-nodes" ? ringJavert : state === "hidden" ? hideValjean : f ? keepNear(f.hops) : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
+        const own = state === "two-nodes" ? ringJavert : f ? keepNear(f.hops) : null;
+        const after = own;
+        const alt = hiddenSet.size ? d[1].replace(/, Valjean not drawn$/, "") + ", " + [...hiddenSet].join(", ") + " not drawn" : d[1];
+        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], alt, null, after).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
         // "1 node not drawn" is said once, in the tree footer (graph-place), not again on the legend card
     }
 
@@ -128,6 +180,30 @@
         // one element: the one the inspector shows (a node the canvas walk reached, a door-entries person)
         const head = document.querySelector("#ab-right .ab-insp-head .k-name");
         return { names: (AB.walked && AB.walked.name) || (head && head.textContent.trim()) || "Valjean", n: 1 };
+    }
+
+    // What Hide on canvas acts on: the rows Shift- or Ctrl-clicked in the table (the several-node
+    // states), else the bar's subject. The table redraws when the inspector changes, so the rows
+    // are counted as they are clicked.
+    let picked = [];
+    document.addEventListener("click", (e) => {
+        const tr = e.target.closest && e.target.closest("#ab-dock tbody tr[data-who]");
+        if (!tr) return;
+        const who = tr.dataset.who;
+        if (!(e.shiftKey || e.ctrlKey || e.metaKey)) picked = [who];
+        else picked = picked.includes(who) ? picked.filter((x) => x !== who) : picked.concat(who);
+    }, true);
+    function selectedNames(state) {
+        if (["two-nodes", "five-nodes"].includes(state) && picked.length > 1) return picked.slice();
+        return subject(state).names.split(", ");
+    }
+    let lastSel = null, lastState = null;
+    // Hide on canvas: what was selected before it joins the hidden set. Run from the frame too, so the
+    // tree's footer (drawn before this bar) already counts it
+    function hideSel() {
+        // a row added to several selected ones keeps the same screen, so the rows are read again here
+        lastSel = ["two-nodes", "five-nodes"].includes(lastState) ? selectedNames(lastState) : lastSel || selectedNames("one-node");
+        if (other() === null) lastSel.forEach((n) => hiddenSet.add(n));
     }
 
     // The walk's readout, visible over the bar: the node and the number it is read with, named
@@ -198,16 +274,25 @@
         const tree = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
         // The node menu's order (explore, then organize, then visibility, then notes), one command record per verb
         return AB.toolbarBar([
-            AB.toolbarButton("target", C("neighborhood").label.replace(/\.\.\.$/, ""), { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
+            AB.toolbarButton("target", C("neighborhood").label.replace(/\.\.\.$/, ""), { key: NBR_KEY, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
             AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", open: state === "long-name-path", go: isLong(state) ? ["selection-bar", "long-name-path"] : C("find-paths").go }),
             "sep",
             AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, SET_TEXT, back) }),
             hidden
-                ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "one-node"] })
+                ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, onClick: () => showAgain() })
                 : AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "hidden"] }),
             "sep",
             AB.toolbarButton(AB.ICON.addNote, C("add-note").label, { key: C("add-note").shortcut, onClick: () => AB.addNote() }),
         ], "Selection: " + s.names);
+    }
+
+    // Show on canvas and the notice's Undo: the names just hidden are drawn again
+    function showAgain() {
+        const names = lastSel || [];
+        names.forEach((n) => hiddenSet.delete(n));
+        // one character stays selected, as before Hide
+        const i = names.length === 1 && other() === null ? L().rows.findIndex((r) => r.label === names[0]) : -1;
+        if (i >= 0) AB.selectNode("lesmis", i); else AB.go("selection-bar", "one-node");
     }
 
     // ---------- Neighborhood: G selects one hop; the popover grows it in place ----------
@@ -215,50 +300,95 @@
         const ds = !directed && other();
         // another project: the node the inspector shows, its own direction, and no counts the fixtures do not hold
         if (ds) directed = !!(AB.fx.datasets[ds] || {}).directed;
-        const who = ds ? subject("one-node").names : directed ? T().merchant.id : "Valjean";
+        const mine = !ds && !directed && walkedOther() ? AB.walked : null;
+        const who = ds ? subject("one-node").names : directed ? (AB.walked && AB.walked.dataset === "transactions" ? AB.walked.name : T().merchant.id) : mine ? mine.name : "Valjean";
+        const nbrs = mine ? mine.neighbors : L().valjeanNeighbors;
         let hops = 1, dir = "both";
-        // Dated neighbors (directed transfers): only edges from this date on. graphty-element's
-        // neighborhood takes depth and direction; the date is not one of its options yet
-        const span = (AB.fx.datasets.transactions.attributes.find((a) => a.name === "timestamp (edge)") || {}).range || [];
+        // An optional window on any date column of the project, a node's or an edge's: None by default,
+        // so a project with no date column shows no Window line at all. graphty-element's neighborhood
+        // takes depth and direction; a time window is not one of its options yet (the chip says so)
+        const dsKey = ds || (directed ? "transactions" : "lesmis");
+        const attrs = (AB.fx.datasets[dsKey] || {}).attributes || [];
+        const dateCols = AB.fieldsOf(dsKey).flatMap((g) => g.fields.filter((f) => f.type === "time").map((f) => Object.assign({}, f, { element: g.element, table: g.table })));
         const day = (iso) => (iso || "").slice(0, 10);
-        let from = day(span[0]);
-        const fromBox = h("input", { type: "date", class: "k-field", style: "border:0;font:inherit;color-scheme:light dark", value: from, min: day(span[0]), max: day(span[1]), "aria-label": "From date",
-            on: { change: (e) => { from = e.target.value || day(span[0]); paint(); } } });
-        const timed = directed && (!ds || ds === "transactions");
-        const dated = () => timed && from && from !== day(span[0]);
-        const dateWord = () => new Date(from + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const spanOf = (f) => (attrs.find((a) => a.name === f.name || a.name === f.name + " (edge)") || {}).range || [];
+        let col = null, from = "", to = "", pop = null;
+        const winBox = h("span", { style: "display:flex;align-items:center;gap:4px;min-width:0" });
+        const rangeBox = h("div");
+        const dateBox = (label, get, set) => h("input", { type: "date", class: "k-field", style: "border:0;font:inherit;color-scheme:light dark", value: get(), min: day(spanOf(col)[0]) || null, max: day(spanOf(col)[1]) || null, "aria-label": label + " date, " + col.label,
+            on: { change: (e) => { set(e.target.value); paint(); } } });
+        function pickCol(f) {
+            col = f;
+            const s = f ? spanOf(f) : [];
+            from = day(s[0]); to = day(s[1]);
+            drawWindow();
+            paint();
+            // the popover grew or shrank by the From and To lines: place it above the toolbar again
+            // ponytail: AB.position places once; a popover that changes height could re-place itself there
+            if (pop) AB.position(pop, anchor, "auto");
+        }
+        function drawWindow() {
+            const label = col ? col.label + " (" + col.table + ")" : "None";
+            const pick = AB.field(label, { caret: true, onClick: (e) => AB.openFieldList(e.currentTarget, { label: "Date column",
+                items: [{ label: "None", check: !col, onClick: () => pickCol(null) }].concat(dateCols.map((f) => ({ label: f.label, desc: "on each " + f.element + ", " + f.table, check: col && col.name === f.name, onClick: () => pickCol(f) }))) }) });
+            pick.setAttribute("aria-label", "Window: " + label);
+            winBox.replaceChildren(pick, AB.needsElement("graphty-element's neighborhood takes depth and direction; a window on a date column needs a time-range option"));
+            rangeBox.replaceChildren(...(col ? [
+                AB.fieldRow("From", dateBox("From", () => from, (v) => { from = v; }), { popover: true }),
+                AB.fieldRow("To", dateBox("To", () => to, (v) => { to = v; }), { popover: true }),
+            ] : []));
+        }
+        drawWindow();
+        const dateWord = (d) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "any date");
+        const windowText = () => (col ? col.label + " " + dateWord(from) + " to " + dateWord(to) : "");
         const said = h("div", { role: "status", style: "color:var(--cm-text-secondary);padding:0 16px 8px" });
         const hopsBox = h("span"), dirBox = h("span");
         // Distance is counted in edges, the noun every domain shares ("hops" and "steps" are search aliases)
         const away = () => (hops === 1 ? "1 edge away" : "1 to " + hops + " edges away");
-        const stepName = () => "Neighbors of " + who + ", " + away() + (directed && dir !== "both" ? ", " + dir : "") + (dated() ? ", from " + dateWord() : "");
+        const stepName = () => "Neighbors of " + who + ", " + away() + (directed && dir !== "both" ? ", " + dir : "") + (col ? ", " + windowText() : "");
         function paint() {
             // AB.seg is redrawn on each pick; focus returns to the picked option so arrows keep working
             const again = (box) => { paint(); const f = box.querySelector("[aria-checked='true']"); if (f) f.focus(); };
             hopsBox.replaceChildren(h("span", { style: "display:flex;align-items:center;gap:6px" }, AB.seg([1, 2, 3].map((n) => [n, String(n)]), hops, (n) => { hops = n; again(hopsBox); }, { label: "Distance in edges" }), h("span", { class: "k-caption" }, hops === 1 ? "edge away" : "edges away")));
             if (directed) dirBox.replaceChildren(AB.seg([["out", "Out"], ["in", "In"], ["both", "Both"]], dir, (d) => { dir = d; again(dirBox); }, { label: "Direction" }));
             // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
-            if (ds) said.textContent = "Selected: " + who + " and every node " + away() + (directed && dir === "out" ? " it points to." : directed && dir === "in" ? " that points to it." : ".");
-            else if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: Valjean and everyone " + away() + ".";
-            else if (dated()) said.textContent = "Selected: " + who + " and every account " + away() + " by a transfer on or after " + dateWord() + ".";
-            else if (hops === 1 && dir === "in") said.textContent = "Selected: " + who + " and the " + T().payers.count + " accounts that paid it.";
-            else said.textContent = "Selected: " + who + " and every account " + away() + (dir === "out" ? " that it pays." : dir === "in" ? " that pays it." : ", either way.");
+            if (ds) said.textContent = "Covers: " + who + " and every node " + away() + (directed && dir === "out" ? " it points to" : directed && dir === "in" ? " that points to it" : "") + (col ? ", counting only " + (col.element === "edge" ? "edges" : "nodes") + " with " + windowText() : "") + ".";
+            else if (!directed) said.textContent = hops === 1 ? "Covers: " + who + " and " + AB.count(nbrs, "neighbor") + "." : "Covers: " + who + " and everyone " + away() + ".";
+            else if (col) said.textContent = "Covers: " + who + " and every account " + away() + (dir === "out" ? " that it pays" : dir === "in" ? " that pays it" : ", either way") + ", counting only " + (col.element === "edge" ? "transfers" : "accounts") + " with " + windowText() + ".";
+            else if (hops === 1 && dir === "in" && who === T().merchant.id) said.textContent = "Covers: " + who + " and the " + T().payers.count + " accounts that paid it.";
+            else said.textContent = "Covers: " + who + " and every account " + away() + (dir === "out" ? " that it pays." : dir === "in" ? " that pays it." : ", either way.");
         }
         paint();
         const back = ds ? ["selection-bar", "one-node"] : ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
         const steps = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
-        const p = AB.popover({
+        // Add as steps: one group row per distance (the breadth-first levels), on top of the tree under
+        // the built-in rows, where graph-place draws AB.combinedRows. The node stays selected, so the
+        // tree marks no other row. Only the Les Miserables tree reads AB.combinedRows today.
+        function addSteps() {
+            if (ds || directed) return commit(steps, "Added " + stepName() + ": one group per distance", back);
+            const level = (d) => who + ", " + (d === 1 ? "1 edge away" : d + " edges away");
+            const added = [1, 2, 3].slice(0, hops).map((d) => ({ id: "nbr-" + d, name: level(d), count: d === 1 ? nbrs : null, go: ["selection-bar", "one-node"] }));
+            const names = added.map((r) => r.name);
+            AB.combinedRows = (AB.combinedRows || []).filter((r) => !/^nbr-/.test(r.id)).concat(added);
+            window.addEventListener("hashchange", () => AB.notice("Added " + AB.count(hops, "group row") + " on top of the tree, one per distance", { label: "Undo", onClick: () => {
+                AB.combinedRows = AB.combinedRows.filter((r) => !names.includes(r.name));
+                AB.go(back[0], back[1]);
+            } }), { once: true });
+            AB.go("selection-bar", "one-node");
+        }
+        const p = pop = AB.popover({
             anchor,
             title: "Neighborhood of " + who,
             width: 300,
             body: [
                 AB.fieldRow("Distance", hopsBox, { popover: true }),
                 AB.fieldRow("Direction", directed ? dirBox : h("span", { class: "k-caption" }, "Undirected graph"), { popover: true }),
-                timed ? AB.fieldRow("From date", h("span", { style: "display:flex;align-items:center;gap:4px" }, fromBox, AB.needsElement("graphty-element's neighborhood takes depth and direction; a from date needs an edge time option")), { popover: true }) : null,
+                dateCols.length ? AB.fieldRow("Window", winBox, { popover: true }) : null,
+                dateCols.length ? rangeBox : null,
                 said,
             ],
             foot: [
-                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(steps, "Added " + stepName() + ": one group per distance", back) }),
+                AB.button("Add as steps", { kind: "secondary", onClick: () => addSteps() }),
                 AB.button("Filter to neighbors", { onClick: () => {
                     const fr = AB.route.frame;
                     // the panels it was committed from; the Les Miserables popover keeps Valjean's
@@ -288,6 +418,8 @@
         const w = AB.walked && AB.walked.dataset === ds ? { walk: AB.walked.index + 1 } : {};
         return Object.assign({ dataset: ds, left: f.left, right: f.right, canvas: f.canvas }, w, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : { dock: f.dock });
     }
+    // The selection is on the transfers (the walk or the panels): its Neighborhood is the directed one
+    const onTransfers = () => (AB.walked ? AB.walked.dataset : AB.route && AB.route.frame.dataset) === "transactions";
     registerSection({
         id: "selection-bar",
         title: "Selection bar",
@@ -307,9 +439,16 @@
             { id: FILTERED, label: "After Filter to neighbors" },
         ],
         // The Neighborhood popover is this section's own overlay, so Esc, the X and a click outside close it
-        frame: (state) => keepProject(state) || (state === FILTERED ? filteredFrame() : state === "neighborhood-directed"
-            ? { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: false, overlay: "selection-bar/neighborhood-directed" }
+        // Hide joins the hidden set here, before the canvas draws: the canvas puts its own drawing back
+        // after the bar renders, so a hide added only in render() would leave the node drawn
+        frame: (state) => (state === "hidden" && (!AB.route || AB.route.frame.dataset === "lesmis") ? hideSel() : null, keepProject(state)) || (state === FILTERED ? filteredFrame() : state === "neighborhood-directed" || (state === "neighborhood" && onTransfers())
+            // the account the walk or a table row selected stays selected under the popover
+            ? Object.assign({ dataset: "transactions", left: "graph-place/" + (AB.placeOf("transactions", "graph") || "many-groups"), right: false, dock: false, overlay: "selection-bar/neighborhood-directed" }, AB.walked && AB.walked.dataset === "transactions" ? { walk: AB.walked.index + 1 } : {})
             : state === "one-edge" ? { left: "graph-place/at-rest", right: "inspector-edge/style", dock: "table-dock/edges" }
+            // Hide on canvas keeps the node it hid in the inspector (the walk stays on it), not Valjean
+            : state === "hidden" && AB.walked && AB.walked.dataset === "lesmis" ? { left: "graph-place/at-rest", right: AB.walked.right, walk: AB.walked.index + 1 }
+            // Neighborhood keeps the node the reader selected (found, clicked or walked to), not Valjean
+            : state === "neighborhood" && walkedOther() ? { left: "graph-place/at-rest", right: AB.walked.right, walk: AB.walked.index + 1, dock: false, overlay: "selection-bar/neighborhood" }
             : Object.assign({
                 left: "graph-place/at-rest",
                 right: state === "two-nodes" ? "inspector-several-elements/two-nodes" : state === "five-nodes" ? "inspector-several-elements/style" : "inspector-node/why-this-look",
@@ -320,13 +459,19 @@
                 el.append(neighborhoodPopover(document.querySelector("#ab-toolbar [data-tool='Neighborhood']"), state === "neighborhood-directed"));
                 return;
             }
+            // Hide on canvas (the bar, its key or a menu) hides what was selected before it: the walk
+            // is cleared by then, so the selection is read on every other state of the bar
+            if (state === "hidden") hideSel();
+            else if (state !== "one-edge") { lastSel = selectedNames(state); lastState = state; }
             patchCanvas(state);
             if (isLong(state)) patchLongName();
             const b = bar(state);
             const wrap = h("div", { style: "display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%" });
             if (state === "hidden") {
-                AB.notice(subject("one-node").names + " hidden on canvas", { label: "Undo", go: ["selection-bar", "one-node"] });
-                wrap.append(AB.openQuestion("Does a hidden node stay selected, keeping this bar?"));
+                AB.notice(lastSel.join(", ") + " hidden on canvas", { label: "Undo", onClick: showAgain });
+                wrap.append(h("div", { style: "display:flex;gap:6px;flex-wrap:wrap;justify-content:center" },
+                    AB.needsElement("Hide on canvas only stops drawing: the node stays in the data, its results and the table. graphty-element needs a per-element visible flag that leaves layout and algorithms alone"),
+                    AB.openQuestion("Does a hidden node stay selected, keeping this bar?")));
             }
             // Notes are graphty-element API, except a note on an edge picked on the canvas
             if (state === "one-edge") wrap.append(AB.needsElement("graphty-element's notes attach to a node, a set or the graph; a note on an edge needs an edge subject"));

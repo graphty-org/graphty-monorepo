@@ -51,7 +51,17 @@
         .map((name, i) => ({ id: "m" + i, name, art: ARTS[i % ARTS.length], tour: i % 4 !== 2 }));
     // 60 characters: the name takes the end ellipsis, the full name in its tooltip
     const LONG = "Valjean, Javert and the students at the Rue de la Chanvrerie";
-    const NEW_VIEW = { id: "new", name: "View 4", art: "lesmis-neighbors", tour: true, isNew: true };
+    // The views this page view keeps, in order: the fixture until the Views place first draws, empty
+    // after "No views yet", and a view saved here stays in it. Present reads it as AB.savedViews.
+    let kept = null;
+    let lastState = null;
+    const live = () => (kept || (kept = AB.savedViews = VIEWS.map((v) => Object.assign({}, v))));
+    // the list's order and membership after a drag, a move or a delete
+    const sync = (list) => {
+        if (!kept || !list.closest("[data-vp-live]")) return;
+        const byId = new Map(kept.map((v) => [v.id, v]));
+        kept.splice(0, kept.length, ...[...list.querySelectorAll(".vp-row")].map((li) => byId.get(li.dataset.id)).filter(Boolean));
+    };
 
     function header(state, n) {
         const save = AB.plus({ label: "Save view", items: ["Save view"], onAdd: () => AB.go("views-place", "saving") });
@@ -80,7 +90,8 @@
     function del(li, v, list) {
         const next = li.nextElementSibling;
         li.remove();
-        AB.deleted(v.name, () => list.insertBefore(li, next && next.isConnected ? next : null));
+        sync(list);
+        AB.deleted(v.name, () => { list.insertBefore(li, next && next.isConnected ? next : null); sync(list); });
     }
 
     function row(v, o, list) {
@@ -118,7 +129,7 @@
             else if ((e.ctrlKey || e.metaKey) && (e.key === "]" || e.key === "[")) {
                 // Mod+] moves up, Mod+[ down, as in the Graph tree
                 const sib = e.key === "[" ? li.nextElementSibling : li.previousElementSibling;
-                if (sib && sib.classList.contains("vp-row")) { list.insertBefore(li, e.key === "[" ? sib.nextSibling : sib); li.focus(); AB.announce(v.name + (e.key === "]" ? " moved up" : " moved down")); }
+                if (sib && sib.classList.contains("vp-row")) { list.insertBefore(li, e.key === "[" ? sib.nextSibling : sib); sync(list); li.focus(); AB.announce(v.name + (e.key === "]" ? " moved up" : " moved down")); }
             } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 const sib = e.key === "ArrowDown" ? li.nextElementSibling : li.previousElementSibling;
                 if (sib && sib.classList.contains("vp-row")) { list.querySelectorAll(".vp-row").forEach((x) => (x.tabIndex = x === sib ? 0 : -1)); sib.focus(); }
@@ -151,14 +162,14 @@
         });
         list.addEventListener("drop", (e) => {
             e.preventDefault();
-            if (dragged && line.parentNode) { list.insertBefore(dragged, line); AB.announce(dragged.getAttribute("aria-label") + " moved"); }
+            if (dragged && line.parentNode) { list.insertBefore(dragged, line); sync(list); AB.announce(dragged.getAttribute("aria-label") + " moved"); }
         });
         list.addEventListener("dragend", () => { if (dragged) dragged.removeAttribute("data-ghost"); line.remove(); dragged = null; });
     }
 
     // The new row opens in rename, "View 4" selected. Enter saves; Esc keeps "View 4". A standard
     // view's name shows the element's refusal under the field and keeps the field open.
-    function nameNew(li, typed) {
+    function nameNew(li, v, typed) {
         const err = (n) => {
             const input = li.querySelector(".ab-rename");
             if (!input) return;
@@ -172,8 +183,8 @@
             if (old) old.remove();
             AB.createThenRename(li, {
                 onSave: (name) => {
-                    if (!STANDARD.some((s) => s.toLowerCase() === name.trim().toLowerCase())) return;
-                    li.querySelector(".vp-name").textContent = NEW_VIEW.name;
+                    if (!STANDARD.some((s) => s.toLowerCase() === name.trim().toLowerCase())) { v.name = name; li.setAttribute("aria-label", v.name + (v.tour ? ", in tour" : ", not in tour")); return; }
+                    li.querySelector(".vp-name").textContent = v.name;
                     setTimeout(() => { open(name); }, 0);
                 },
             });
@@ -220,22 +231,37 @@
             return {};
         },
         render(el, state) {
-            const empty = state === "empty";
-            el.append(header(state, empty ? 0 : VIEWS.length));
+            const again = lastState === state;
+            lastState = state;
+            const naming = state === "saving" || state === "save-name-taken";
+            // at-rest and Save view draw the kept list; the other states draw their fixture
+            const isLive = naming || state === "at-rest";
+            if (state === "empty") kept = AB.savedViews = [];
+            // Save view saves at once (the name can change in the row); a redraw of the same state
+            // (an inspector opening beside it) shows the view already saved, not another one
+            let fresh = null;
+            if (naming && !again) {
+                const n = live().length + 1;
+                fresh = { id: "new" + n, name: "View " + n, art: "lesmis-neighbors", tour: true, isNew: true };
+                kept.push(fresh);
+            }
+            const empty = state === "empty" || (isLive && !live().length);
+            el.append(header(state, empty ? 0 : isLive ? live().length : VIEWS.length));
             if (empty) {
                 el.append(AB.empty("No saved views.", { verb: "Save view", key: "+", go: ["views-place", "saving"] }));
                 return;
             }
-            const naming = state === "saving" || state === "save-name-taken";
+            if (isLive) el.dataset.vpLive = "";
             const base = state === "many" ? MANY : state === "long-name" ? VIEWS.map((v) => v.id === "circle" ? Object.assign({}, v, { name: LONG }) : v) : VIEWS;
-            const views = base.map((v) => Object.assign({}, v)).concat(naming ? [Object.assign({}, NEW_VIEW)] : []);
+            const newest = isLive && kept[kept.length - 1];
+            const views = isLive ? kept : base.map((v) => Object.assign({}, v));
             // Past 15 views a find line leads the list (the field list's rule)
             if (views.length > 15) el.append(AB.treebar({ placeholder: "Find views", onInput: (input) => findViews(list, input.value) }));
             el.append(h("div", { class: "vp-cols k-secondary" }, AB.needsElement(ORDER_NEEDS), h("span", null, "In tour")));
             const list = h("ul", { class: "vp-list", role: "listbox", "aria-label": "Saved views, in tour order" });
             const drag = state === "reorder-drag";
             views.forEach((v, i) => {
-                const selected = state === "applied-missing" ? v.id === "whole" : (state === "one-selected" || state === "row-menu") ? v.id === "circle" : !!v.isNew;
+                const selected = state === "applied-missing" ? v.id === "whole" : (state === "one-selected" || state === "row-menu") ? v.id === "circle" : naming && v === newest;
                 // mid-drag: "From above" is lifted over the drop line under "Whole cast"; its old slot shows faint
                 if (drag && i === 1) list.append(h("li", { class: "vp-drop", "aria-hidden": "true" }), row(Object.assign({}, views[2]), { lifted: true }, list));
                 list.append(row(v, { selected, ghost: drag && v.id === "top" }, list));
@@ -245,7 +271,7 @@
             reorderable(list);
             el.append(list);
             const at = (id) => list.querySelector('[data-id="' + id + '"]');
-            if (naming) requestAnimationFrame(() => nameNew(at("new"), state === "save-name-taken" ? "Top" : null));
+            if (fresh) requestAnimationFrame(() => nameNew(at(fresh.id), fresh, state === "save-name-taken" ? "Top" : null));
             // The view applies its camera; a row it named was deleted, so the notice names it and the view shows without it
             if (state === "applied-missing") requestAnimationFrame(() => AB.notice("Applied Whole cast without Group 1: that row was deleted", { label: "Update view", onClick: () => AB.announce("Whole cast updated") }));
             if (state === "in-tour-2d") requestAnimationFrame(() => headMenu(el.querySelector('[aria-label="More for views"]'), views.length));

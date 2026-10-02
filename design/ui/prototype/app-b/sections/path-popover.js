@@ -11,6 +11,13 @@
    the path: 22,397.82"), a capacity gives its smallest step, a similarity its weakest step, and a
    weight with no declared kind sums, labeled as a sum. When routes tie, the bar says so and adds a
    "Route 1 of 2" stepper (previous and next, arrow keys while it has focus).
+   Under Weight, one line names the weight used and how many edges have no value for it and are left
+   out of a weighted path. On data with a time column, Direction also offers Follow time order
+   (needs graphty-element). A found path keeps its hops in path order (the path inspector lists them
+   with their dates); a hop dated earlier than the hop before it is flagged on the result bar ("Not in
+   time order: step 2 (7 Mar) is earlier than step 1 (9 Mar)"), and a path whose dates run forward says "Dates in order". On Les Miserables the found path is
+   drawn as the selection (the selection ring on its nodes, its edges in the ring's color); it adds no
+   style layer and moves none.
    Plain ASCII. */
 (function () {
     "use strict";
@@ -65,11 +72,15 @@
         }
         if (state === "transfers-directed" || ds === "transactions") {
             const P = T.setsAndPaths.path;
+            // From is the account selected (the canvas walk or a table row), else it waits for a pick; the
+            // weight's meaning is the one set at load, as the graph inspector and Analyze say ("amount, stronger")
+            const W = AB.walked && AB.walked.dataset === "transactions" ? AB.walked.name : null;
             return {
                 directed: true, unit: "accounts", count: T.nodes,
-                from: P.from.id, to: P.to.id, fromIcon: "building-2", toIcon: "user",
+                from: W, to: null, fromIcon: "building-2", toIcon: "user",
                 loaded: { weight: "amount", meaning: "stronger", desc: "Amount per transfer" }, weights: ["amount"], direction: "follow",
-                names: T.rows.map((r) => r.id), pickFrom: P.from.id, pickTo: P.to.id,
+                // every account the fixtures name (the sample rows, the paths' routes, the flagged ring), not only the 40 sample rows
+                names: [...new Set(T.rows.map((r) => r.id).concat(JSON.stringify(T).match(/ACC-\d+/g) || []))], pickFrom: P.from.id, pickTo: P.to.id,
             };
         }
         const two = state !== "from-analyze";
@@ -90,60 +101,136 @@
         };
     }
 
-    // The path the last Find path added on this project, or the fixture's own
-    function foundPath(ds) {
-        const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === (ds || "lesmis") ? AB.lastPath : null;
-        if (lp) return lp;
-        const P = AB.fx.datasets.transactions.setsAndPaths.path;
-        return ds === "transactions" ? { ds, from: P.from.id, to: P.to.id, weight: "amount", meaning: "farther", loaded: "amount" } : { ds: "lesmis", from: "Valjean", to: "Javert", weight: "value", meaning: "stronger", loaded: "value" };
+    // The edges a path can run on: what the fixture holds of each project's edge list (the
+    // transfers on the fixture's routes and the CSV's first rows; Les Miserables' Javert -- Valjean,
+    // value 17, the edge inspector's row). ponytail: a pair these do not join finds no route and the
+    // bar stays away; a full edge list in kit/fixtures.json would let any two ends find one.
+    // Les Miserables' 254 edges with their value (the published graph, as kit/fixtures.json's degrees
+    // count it: graphty-element/examples/data/miserables.json), "source,target,value;..."
+    const LM_EDGES = "Napoleon,Myriel,1;Mlle.Baptistine,Myriel,8;Mme.Magloire,Myriel,10;Mme.Magloire,Mlle.Baptistine,6;CountessdeLo,Myriel,1;Geborand,Myriel,1;Champtercier,Myriel,1;Cravatte,Myriel,1;Count,Myriel,2;OldMan,Myriel,1;Valjean,Labarre,1;Valjean,Mme.Magloire,3;Valjean,Mlle.Baptistine,3;Valjean,Myriel,5;Marguerite,Valjean,1;Mme.deR,Valjean,1;Isabeau,Valjean,1;Gervais,Valjean,1;Listolier,Tholomyes,4;Fameuil,Tholomyes,4;Fameuil,Listolier,4;Blacheville,Tholomyes,4;Blacheville,Listolier,4;Blacheville,Fameuil,4;Favourite,Tholomyes,3;Favourite,Listolier,3;Favourite,Fameuil,3;Favourite,Blacheville,4;Dahlia,Tholomyes,3;Dahlia,Listolier,3;Dahlia,Fameuil,3;Dahlia,Blacheville,3;Dahlia,Favourite,5;Zephine,Tholomyes,3;Zephine,Listolier,3;Zephine,Fameuil,3;Zephine,Blacheville,3;Zephine,Favourite,4;Zephine,Dahlia,4;Fantine,Tholomyes,3;Fantine,Listolier,3;Fantine,Fameuil,3;Fantine,Blacheville,3;Fantine,Favourite,4;Fantine,Dahlia,4;Fantine,Zephine,4;Fantine,Marguerite,2;Fantine,Valjean,9;Mme.Thenardier,Fantine,2;Mme.Thenardier,Valjean,7;Thenardier,Mme.Thenardier,13;Thenardier,Fantine,1;Thenardier,Valjean,12;Cosette,Mme.Thenardier,4;Cosette,Valjean,31;Cosette,Tholomyes,1;Cosette,Thenardier,1;Javert,Valjean,17;Javert,Fantine,5;Javert,Thenardier,5;Javert,Mme.Thenardier,1;Javert,Cosette,1;Fauchelevent,Valjean,8;Fauchelevent,Javert,1;Bamatabois,Fantine,1;Bamatabois,Javert,1;Bamatabois,Valjean,2;Perpetue,Fantine,1;Simplice,Perpetue,2;Simplice,Valjean,3;Simplice,Fantine,2;Simplice,Javert,1;Scaufflaire,Valjean,1;Woman1,Valjean,2;Woman1,Javert,1;Judge,Valjean,3;Judge,Bamatabois,2;Champmathieu,Valjean,3;Champmathieu,Judge,3;Champmathieu,Bamatabois,2;Brevet,Judge,2;Brevet,Champmathieu,2;Brevet,Valjean,2;Brevet,Bamatabois,1;Chenildieu,Judge,2;Chenildieu,Champmathieu,2;Chenildieu,Brevet,2;Chenildieu,Valjean,2;Chenildieu,Bamatabois,1;Cochepaille,Judge,2;Cochepaille,Champmathieu,2;Cochepaille,Brevet,2;Cochepaille,Chenildieu,2;Cochepaille,Valjean,2;Cochepaille,Bamatabois,1;Pontmercy,Thenardier,1;Boulatruelle,Thenardier,1;Eponine,Mme.Thenardier,2;Eponine,Thenardier,3;Anzelma,Eponine,2;Anzelma,Thenardier,2;Anzelma,Mme.Thenardier,1;Woman2,Valjean,3;Woman2,Cosette,1;Woman2,Javert,1;MotherInnocent,Fauchelevent,3;MotherInnocent,Valjean,1;Gribier,Fauchelevent,2;Mme.Burgon,Jondrette,1;Gavroche,Mme.Burgon,2;Gavroche,Thenardier,1;Gavroche,Javert,1;Gavroche,Valjean,1;Gillenormand,Cosette,3;Gillenormand,Valjean,2;Magnon,Gillenormand,1;Magnon,Mme.Thenardier,1;Mlle.Gillenormand,Gillenormand,9;Mlle.Gillenormand,Cosette,2;Mlle.Gillenormand,Valjean,2;Mme.Pontmercy,Mlle.Gillenormand,1;Mme.Pontmercy,Pontmercy,1;Mlle.Vaubois,Mlle.Gillenormand,1;Lt.Gillenormand,Mlle.Gillenormand,2;Lt.Gillenormand,Gillenormand,1;Lt.Gillenormand,Cosette,1;Marius,Mlle.Gillenormand,6;Marius,Gillenormand,12;Marius,Pontmercy,1;Marius,Lt.Gillenormand,1;Marius,Cosette,21;Marius,Valjean,19;Marius,Tholomyes,1;Marius,Thenardier,2;Marius,Eponine,5;Marius,Gavroche,4;BaronessT,Gillenormand,1;BaronessT,Marius,1;Mabeuf,Marius,1;Mabeuf,Eponine,1;Mabeuf,Gavroche,1;Enjolras,Marius,7;Enjolras,Gavroche,7;Enjolras,Javert,6;Enjolras,Mabeuf,1;Enjolras,Valjean,4;Combeferre,Enjolras,15;Combeferre,Marius,5;Combeferre,Gavroche,6;Combeferre,Mabeuf,2;Prouvaire,Gavroche,1;Prouvaire,Enjolras,4;Prouvaire,Combeferre,2;Feuilly,Gavroche,2;Feuilly,Enjolras,6;Feuilly,Prouvaire,2;Feuilly,Combeferre,5;Feuilly,Mabeuf,1;Feuilly,Marius,1;Courfeyrac,Marius,9;Courfeyrac,Enjolras,17;Courfeyrac,Combeferre,13;Courfeyrac,Gavroche,7;Courfeyrac,Mabeuf,2;Courfeyrac,Eponine,1;Courfeyrac,Feuilly,6;Courfeyrac,Prouvaire,3;Bahorel,Combeferre,5;Bahorel,Gavroche,5;Bahorel,Courfeyrac,6;Bahorel,Mabeuf,2;Bahorel,Enjolras,4;Bahorel,Feuilly,3;Bahorel,Prouvaire,2;Bahorel,Marius,1;Bossuet,Marius,5;Bossuet,Courfeyrac,12;Bossuet,Gavroche,5;Bossuet,Bahorel,4;Bossuet,Enjolras,10;Bossuet,Feuilly,6;Bossuet,Prouvaire,2;Bossuet,Combeferre,9;Bossuet,Mabeuf,1;Bossuet,Valjean,1;Joly,Bahorel,5;Joly,Bossuet,7;Joly,Gavroche,3;Joly,Courfeyrac,5;Joly,Enjolras,5;Joly,Feuilly,5;Joly,Prouvaire,2;Joly,Combeferre,5;Joly,Mabeuf,1;Joly,Marius,2;Grantaire,Bossuet,3;Grantaire,Enjolras,3;Grantaire,Combeferre,1;Grantaire,Courfeyrac,2;Grantaire,Joly,2;Grantaire,Gavroche,1;Grantaire,Bahorel,1;Grantaire,Feuilly,1;Grantaire,Prouvaire,1;MotherPlutarch,Mabeuf,3;Gueulemer,Thenardier,5;Gueulemer,Valjean,1;Gueulemer,Mme.Thenardier,1;Gueulemer,Javert,1;Gueulemer,Gavroche,1;Gueulemer,Eponine,1;Babet,Thenardier,6;Babet,Gueulemer,6;Babet,Valjean,1;Babet,Mme.Thenardier,1;Babet,Javert,2;Babet,Gavroche,1;Babet,Eponine,1;Claquesous,Thenardier,4;Claquesous,Babet,4;Claquesous,Gueulemer,4;Claquesous,Valjean,1;Claquesous,Mme.Thenardier,1;Claquesous,Javert,1;Claquesous,Eponine,1;Claquesous,Enjolras,1;Montparnasse,Javert,1;Montparnasse,Babet,2;Montparnasse,Gueulemer,2;Montparnasse,Claquesous,2;Montparnasse,Valjean,1;Montparnasse,Gavroche,1;Montparnasse,Eponine,1;Montparnasse,Thenardier,1;Toussaint,Cosette,2;Toussaint,Javert,1;Toussaint,Valjean,1;Child1,Gavroche,2;Child2,Gavroche,2;Child2,Child1,3;Brujon,Babet,3;Brujon,Gueulemer,3;Brujon,Thenardier,3;Brujon,Gavroche,1;Brujon,Eponine,1;Brujon,Claquesous,1;Brujon,Montparnasse,1;Mme.Hucheloup,Bossuet,1;Mme.Hucheloup,Joly,1;Mme.Hucheloup,Grantaire,1;Mme.Hucheloup,Bahorel,1;Mme.Hucheloup,Courfeyrac,1;Mme.Hucheloup,Gavroche,1;Mme.Hucheloup,Enjolras,1";
+    let lmEdges = null;
+    function edgesOf(ds) {
+        if (!ds || ds === "lesmis") return lmEdges || (lmEdges = LM_EDGES.split(";").map((x) => { const [source, target, v] = x.split(","); return { source, target, w: { value: Number(v) } }; }));
+        if (ds !== "transactions") return [];
+        const T = AB.fx.datasets.transactions, P = T.setsAndPaths.path, seen = new Map();
+        const add = (s, t, amount, timestamp) => { const k = s + ">" + t + ">" + timestamp; if (!seen.has(k)) seen.set(k, { source: s, target: t, amount, timestamp, w: { amount } }); };
+        P.routes.forEach((r) => r.transfers.forEach((x) => add(x.source, x.target, x.amount, x.timestamp)));
+        (T.firstRows || []).forEach((x) => add(x.from_account, x.to_account, Number(x.amount), x.timestamp));
+        return [...seen.values()];
     }
     // The weight's declared kind, from the meaning words the Data page and Analyze use
     // (Stronger, Farther, Capacity); anything else is a weight with no declared kind.
     const KIND = { farther: "distance", stronger: "similarity", capacity: "capacity" };
+    // A hop's date as the path inspector writes it ("4 Mar")
+    const day = (ts) => new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+    // Hops dated earlier than the hop before them, in path order: graphty-element reports this with the
+    // path result; ponytail: read here from the fixture's transfers until it does.
+    function timeFlags(edges) {
+        return edges.map((e, k) => (k > 0 && e.timestamp && edges[k - 1].timestamp && e.timestamp < edges[k - 1].timestamp
+            ? "step " + (k + 1) + " (" + day(e.timestamp) + ") is earlier than step " + k + " (" + day(edges[k - 1].timestamp) + ")" : null)).filter(Boolean);
+    }
     // A value in the column's own precision (amount has cents, value is whole): no currency case
     function fmt(v, vals) {
         const d = Math.max(0, ...vals.map((x) => (String(x).split(".")[1] || "").length));
         return v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
     }
-    // The routes a found path ties with, each with its step count and its summary, read by the
-    // weight's kind. A stand-in for graphty-element's path result, which reports the route, its
-    // cost and its ties. Only the two projects with path fixtures have them (ponytail: the door
-    // entries and loaded projects show no bar until they get one).
-    function routesOf(ds, p) {
-        const P = AB.fx.datasets.transactions.setsAndPaths.path;
-        // each route's weights, in path order; Les Miserables' is Valjean -- Javert, value 17 (the edge inspector's row)
-        const all = ds === "transactions" ? P.routes.map((r) => ({ key: r.accounts.join(), w: r.transfers.map((t) => t.amount) }))
-            : !ds || ds === "lesmis" ? [{ key: "", w: [17] }] : [];
-        if (!all.length) return [];
-        const col = p.weight, kind = col ? KIND[p.meaning] || null : null;
+    // The routes from p.from to p.to on the project's edges, read by p's weight and its kind and by
+    // p.direction ("follow" keeps to the edges' direction), cheapest first; the ties all come back.
+    // A stand-in for graphty-element's path result, which reports the route, its cost and its ties.
+    // ponytail: every simple path is tried, fine for the fixture's handful of edges; Dijkstra when a full edge list lands.
+    function cheapest(adj, from, to, cost) {
+        const dist = new Map([[from, 0]]), pred = new Map([[from, []]]), done = new Set();
+        for (;;) {
+            let u = null;
+            dist.forEach((v, k) => { if (!done.has(k) && (u === null || v < dist.get(u))) u = k; });
+            if (u === null || u === to) break;
+            done.add(u);
+            (adj.get(u) || []).forEach(([b, e]) => {
+                const c = cost(e);
+                if (c == null || done.has(b)) return;
+                const nd = dist.get(u) + c, od = dist.get(b);
+                if (od === undefined || nd < od - 1e-9) { dist.set(b, nd); pred.set(b, [[u, e]]); } else if (Math.abs(nd - od) < 1e-9) pred.get(b).push([u, e]);
+            });
+        }
+        if (!dist.has(to)) return [];
+        const out = [], back = (at, nodes, edges) => {
+            if (out.length >= 20) return; // ponytail: at most 20 tied routes listed
+            if (at === from) { out.push({ nodes: [from, ...nodes], edges }); return; }
+            pred.get(at).forEach(([u, e]) => back(u, [at, ...nodes], [e, ...edges]));
+        };
+        back(to, [], []);
+        return out;
+    }
+    function solve(p) {
+        const col = p.weight, kind = col ? KIND[p.meaning] || null : null, adj = new Map();
+        const link = (a, b, e) => { if (!adj.has(a)) adj.set(a, []); adj.get(a).push([b, e]); };
+        edgesOf(p.ds).forEach((e) => { link(e.source, e.target, e); if (p.direction !== "follow") link(e.target, e.source, e); });
+        const all = [], walk = (at, nodes, edges) => {
+            if (at === p.to) return all.push({ nodes: nodes.slice(), edges: edges.slice() });
+            (adj.get(at) || []).forEach(([b, e]) => { if (nodes.includes(b) || (col && e.w[col] == null)) return; nodes.push(b); edges.push(e); walk(b, nodes, edges); nodes.pop(); edges.pop(); });
+        };
+        // An additive cost (steps, 1/w, w) on a graph of any size: Dijkstra, keeping every tied predecessor so
+        // the ties come back; a capacity (the widest route) on the transfers' handful of edges: every simple path
+        const step = (e) => (!col ? 1 : e.w[col] == null ? null : kind === "similarity" ? 1 / e.w[col] : e.w[col]);
+        if (p.from && p.to && p.from !== p.to) {
+            if (kind === "capacity") walk(p.from, [p.from], []);
+            else all.push(...cheapest(adj, p.from, p.to, step));
+        }
         // what the route minimizes: steps with no weight; 1/w summed for a similarity; the smallest step,
         // negated, for a capacity (the widest route); the plain sum for a distance or no declared kind
         const sum = (w) => w.reduce((a, b) => a + b, 0);
         const cost = (w) => (!col ? w.length : kind === "similarity" ? sum(w.map((x) => 1 / x)) : kind === "capacity" ? -Math.min(...w) : sum(w));
-        const best = Math.min(...all.map((r) => cost(r.w)));
-        // the path inspector's route first, so the bar and the inspector open on the same route
-        const shown = P.asDistance.route.join();
-        const tied = all.filter((r) => Math.abs(cost(r.w) - best) < 1e-9).sort((a, b) => (b.key === shown) - (a.key === shown));
+        const ws = (r) => r.edges.map((e) => e.w[col]);
+        const best = Math.min(...all.map((r) => cost(col ? ws(r) : r.edges)));
         const say = (w) => (!col ? ""
             : kind === "capacity" ? "Smallest " + col + " on the path: " + fmt(Math.min(...w), w)
             : kind === "similarity" ? "Weakest " + col + " on the path: " + fmt(Math.min(...w), w)
             : "Sum of " + col + " along the path: " + fmt(sum(w), w));
-        return tied.map((r) => ({ steps: r.w.length, col, text: say(r.w) }));
+        // a tie opens on the fixture's asDistance route, as the path inspector does
+        const first = p.ds === "transactions" ? AB.fx.datasets.transactions.setsAndPaths.path.asDistance.route.join() : "";
+        return all.filter((r) => Math.abs(cost(col ? ws(r) : r.edges) - best) < 1e-9).sort((a, b) => (b.nodes.join() === first) - (a.nodes.join() === first)).map((r) => ({
+            // route, hops, transfers and dollars: the shape of the fixture's path result, which the path inspector reads
+            route: r.nodes, hops: r.edges.length, transfers: r.edges.filter((e) => e.amount != null).map(({ source, target, amount, timestamp }) => ({ source, target, amount, timestamp })),
+            dollars: p.ds === "transactions" ? Math.round(sum(r.edges.map((e) => e.amount)) * 100) / 100 : undefined,
+            steps: r.edges.length, col, text: col ? say(ws(r)) : "", late: timeFlags(r.edges), timed: r.edges.some((e) => e.timestamp),
+        }));
+    }
+    // A found path: its ends and settings, its name after its ends, its routes that tie, and the one
+    // route the tree, the canvas and the path inspector show (the first; the result bar opens on it)
+    // The transfers' path found with Weight None: two routes tie (found-tied, and the path inspector's path-tied)
+    AB.tiedPath = () => withRoutes(Object.assign({}, foundPath("transactions"), { weight: null, routes: null }));
+    function withRoutes(p) {
+        const routes = solve(p);
+        return Object.assign(p, { name: p.from + " to " + p.to, routes, route: routes[0] || null });
+    }
+    // The path the last Find path added on this project, or the fixture's own
+    function foundPath(ds) {
+        const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === (ds || "lesmis") ? AB.lastPath : null;
+        if (lp) return lp.routes ? lp : withRoutes(lp);
+        const P = AB.fx.datasets.transactions.setsAndPaths.path;
+        return withRoutes(ds === "transactions" ? { ds, from: P.from.id, to: P.to.id, weight: "amount", meaning: "farther", loaded: "amount", direction: "follow" }
+            : { ds: "lesmis", from: "Valjean", to: "Javert", weight: "value", meaning: "stronger", loaded: "value", direction: "either" });
     }
     // The result bar above the toolbar: "3 steps. Sum of amount along the path: 22,397.82", and
     // "2 routes tie" with the stepper only on a tie
     function resultBar(ds) {
-        const routes = routesOf(ds, foundPath(ds)), dock = document.getElementById("ab-toolbar");
+        const routes = foundPath(ds).routes, dock = document.getElementById("ab-toolbar");
         if (!routes.length || !dock) return;
-        let i = 0;
         const line = h("span", { "aria-live": "polite" });
         const of = h("span", { class: "pp-of" });
+        const late = AB.needsElement("graphty-element's path result reports each hop's date and flags a hop earlier than the one before it");
         const show = () => {
-            const r = routes[i];
-            line.textContent = AB.count(r.steps, "step") + (r.col ? ". " + r.text : "") + (routes.length > 1 ? ". " + AB.count(routes.length, "route") + " tie" : "");
+            const i = Math.min(AB.pathRouteAt || 0, routes.length - 1), r = routes[i];
+            line.textContent = AB.count(r.steps, "step") + (r.col ? ". " + r.text : "") + (routes.length > 1 ? ". " + AB.count(routes.length, "route") + " tie" : "")
+                // on data with a time column the line always says how the dates run, so "in order" is told apart from "not checked"
+                + (r.late.length ? ". Not in time order: " + r.late.join("; ") + "." : r.timed ? ". Dates in order" : "");
+            late.style.display = r.timed ? "" : "none";
             of.textContent = "Route " + (i + 1) + " of " + routes.length;
         };
-        const step = (d) => { i = (i + d + routes.length) % routes.length; show(); };
+        // the route on screen is shared with the path inspector (AB.setPathRoute redraws it and tells this bar)
+        const step = (d) => { const i = ((AB.pathRouteAt || 0) + d + routes.length) % routes.length; if (AB.setPathRoute) AB.setPathRoute(i); else { AB.pathRouteAt = i; show(); } };
+        const onRoute = () => { if (line.isConnected) show(); else document.removeEventListener("ab-path-route", onRoute); };
+        document.addEventListener("ab-path-route", onRoute);
         const stepper = routes.length > 1 ? h("span", { class: "pp-step", role: "group", tabindex: "0", "aria-label": "Routes that tie on cost: arrow keys step" },
             AB.iconButton("chevron-left", "Previous route", { onClick: () => step(-1) }), of, AB.iconButton("chevron-right", "Next route", { onClick: () => step(1) })) : null;
         if (stepper) stepper.addEventListener("keydown", (e) => {
@@ -152,19 +239,61 @@
             e.preventDefault(); e.stopPropagation(); step(d);
         });
         show();
-        dock.prepend(h("div", { class: "k-toolbar pp-result", role: "group", "aria-label": "Path found" }, icon("route", "sm"), line, stepper ? h("span", { class: "k-toolbar-sep" }) : null, stepper));
+        dock.prepend(h("div", { class: "k-toolbar pp-result", role: "group", "aria-label": "Path found" }, icon("route", "sm"), line, late, stepper ? h("span", { class: "k-toolbar-sep" }) : null, stepper));
+    }
+
+    // The found path drawn as the selection on Les Miserables: Valjean's selection rings (the drawing
+    // that marks him) copied onto every node of the route and taken off him when he is not on it, and
+    // the route's edges redrawn in the outer ring's color. The selection, not a style layer: no layer
+    // is added or moved. The at-rest drawing's node circles are in row order, so it says where each
+    // character is drawn; the drawing that marks Valjean draws everyone at the same places.
+    let spots = null;
+    const spotsReady = fetch("kit/canvas/lesmis-groups-rest-light.svg").then((r) => r.text()).then((t) => {
+        const doc = new DOMParser().parseFromString(t, "image/svg+xml");
+        spots = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none").map((c) => [c.getAttribute("cx"), c.getAttribute("cy")]);
+    }).catch(() => {});
+    function drawPathSelected(nodes) {
+        const cv = document.getElementById("ab-canvas"), imgs = cv ? cv.querySelectorAll(".k-stage img") : [];
+        if (!spots) { spotsReady.then(() => { if (spots && AB.route && AB.route.id === "path-popover") drawPathSelected(nodes); }); return; }
+        if (!imgs.length || !AB.lesmisDrawing || !nodes) return;
+        const rows = AB.fx.datasets.lesmis.rows, spotOf = (n) => spots[rows.findIndex((r) => r.label === n)];
+        if (nodes.some((n) => !spotOf(n))) return;
+        const after = (doc) => {
+            const at = (c, x, y) => c.getAttribute("cx") === x && c.getAttribute("cy") === y;
+            const fills = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none");
+            const fillAt = (n) => { const [x, y] = spotOf(n); return fills.find((c) => at(c, x, y)); };
+            const V = fillAt("Valjean");
+            if (!V) return;
+            const rings = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") === "none" && c.getAttribute("stroke-width") === "2" && at(c, V.getAttribute("cx"), V.getAttribute("cy")));
+            if (!rings.length) return;
+            const outer = rings.reduce((a, b) => (+b.getAttribute("r") > +a.getAttribute("r") ? b : a));
+            const pts = nodes.map(fillAt);
+            if (pts.some((c) => !c)) return;
+            pts.slice(1).forEach((b, k) => {
+                const a = pts[k], ax = a.getAttribute("cx"), ay = a.getAttribute("cy"), bx = b.getAttribute("cx"), by = b.getAttribute("cy");
+                const line = [...doc.querySelectorAll("line")].find((l) => (l.getAttribute("x1") === ax && l.getAttribute("y1") === ay && l.getAttribute("x2") === bx && l.getAttribute("y2") === by) || (l.getAttribute("x1") === bx && l.getAttribute("y1") === by && l.getAttribute("x2") === ax && l.getAttribute("y2") === ay));
+                if (line) { line.setAttribute("stroke", outer.getAttribute("stroke")); line.setAttribute("stroke-width", "3"); line.setAttribute("stroke-opacity", "1"); line.parentNode.append(line); }
+            });
+            const dr0 = +V.getAttribute("r");
+            pts.forEach((c) => { if (c === V) return; rings.forEach((r) => { const k = r.cloneNode(); k.setAttribute("cx", c.getAttribute("cx")); k.setAttribute("cy", c.getAttribute("cy")); k.setAttribute("r", String(+r.getAttribute("r") + +c.getAttribute("r") - dr0)); r.parentNode.append(k); }); });
+            if (!pts.includes(V)) rings.forEach((r) => r.remove());
+        };
+        Object.defineProperty(after, "name", { value: "path-" + nodes.join("|") });
+        AB.lesmisDrawing("lesmis-groups-valjean", "Les Miserables colored by PageRank; the path " + nodes.join(", ") + " selected", null, after).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
     }
 
     function render(el, state) {
         if (!document.getElementById("pp-css")) document.head.append(h("style", { id: "pp-css" }, CSS));
-        if (state === "found" || state === "found-tied") {
+        if (state === "found" || state === "found-tied" || state === "found-out-of-time") {
             // The selected path row and its inspector confirm the result; the notice offers only Undo,
             // which goes back to the project's tree as it was before the path
             const ds = AB.route && AB.route.frame.dataset;
-            if (state === "found-tied") AB.lastPath = Object.assign(foundPath("transactions"), { weight: null });
             const undo = ds && ds !== "lesmis" ? ["graph-place", AB.placeOf(ds, "graph") || "at-rest"] : ["path-popover", "from-selection"];
-            el.append(AB.notice("Path added", { label: "Undo", go: undo }));
+            // a path the tree already holds (the at-rest Shortest paths) is selected, not added again
+            const lp = AB.lastPath, have = (!ds || ds === "lesmis") && lp && (lp.ds || "lesmis") === "lesmis" && ["Valjean to Javert", "Myriel to Javert"].includes(lp.name);
+            el.append(have ? AB.notice(lp.name + " is already in Shortest paths; it is selected") : AB.notice("Path added", { label: "Undo", go: undo }));
             resultBar(ds);
+            if (!ds || ds === "lesmis") drawPathSelected(foundPath(ds).route && foundPath(ds).route.route);
             return;
         }
         const s = setup(state);
@@ -194,7 +323,10 @@
                     e.preventDefault();
                     const q = inp.value.trim().toLowerCase();
                     const hit = q && (which === "scope" ? [s.set].filter(Boolean) : s.names).find((n) => n.toLowerCase().startsWith(q));
-                    if (!hit) return AB.flash('No match for "' + inp.value.trim() + '"');
+                    // said under the field, not in a toast that would sit over Find path
+                    const was = f.parentNode && f.parentNode.querySelector(".pp-nomatch");
+                    if (was) was.remove();
+                    if (!hit) { const say = 'No match for "' + inp.value.trim() + '"'; f.after(h("div", { class: "pp-nomatch k-secondary", role: "status", style: "padding:2px 0 0;font-size:11px" }, say)); inp.setAttribute("aria-invalid", "true"); return; }
                     choose(which, hit);
                 });
                 f.append(inp);
@@ -219,28 +351,39 @@
         // the Weight choice's words: the attribute set at load says so, None says what it does
         const wordOf = (w) => (!w ? "None (fewest steps)" : w === s.loaded.weight ? w + " (set at load)" : w);
         const overridden = () => s.weight !== s.loaded.weight || (s.weight && s.meaning !== s.loaded.meaning);
+        // The project's edge attributes (the field list's fields), for the Weight choices and the time column
+        const ds0 = AB.route && AB.route.frame.dataset;
+        const edgeFields = () => AB.fieldsOf(ds0 || "lesmis").filter((g) => g.element === "edge").flatMap((g) => g.fields);
         function weightField() {
             const L = s.loaded;
-            // The same words as Analyze's Weight field: the loaded weight says so. The dropdown is the field
-            // list at menu size (edge attributes, numbers suitable), so a project with dozens of edge
-            // attributes gets Find and groups; None leads it, above the list.
-            const f = AB.field(wordOf(s.weight), { caret: true, onClick: () => {
-                const m = AB.openFieldList(f, { kind: "number", element: "edge", current: s.weight, label: "Weight", results: false, notes: false,
-                    onPick: (name) => { s.weight = name; if (name === L.weight) s.meaning = L.meaning; draw(); } });
-                if (!m) return;
-                // ponytail: None sits above the listbox, so arrows do not reach it; a lead-item option in fieldList would fold it in
-                const none = h("div", { class: "k-menu-item ab-fl-opt", role: "button", tabindex: "0", "aria-pressed": String(!s.weight) },
-                    h("span", { class: "k-check-col" }, !s.weight ? icon("check", "sm") : null),
-                    h("span", { class: "ab-fl-name" }, wordOf(null)));
-                AB.tip(none, "Every edge counts as one step", { label: false });
-                const pickNone = () => { AB.closeMenu(true); s.weight = null; draw(); };
-                none.addEventListener("click", pickNone);
-                none.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickNone(); } });
-                m.insertBefore(none, m.querySelector(".ab-fl-list"));
-            } });
+            // The field list at menu size, its choices in the decided order: the weight set at load, then
+            // None, then the project's other numeric edge attributes (Find past 15)
+            const pick = (w) => { s.weight = w; if (w && w === L.weight) s.meaning = L.meaning; draw(); };
+            const item = (w, desc) => ({ label: wordOf(w), check: s.weight === w, desc, onClick: () => pick(w) });
+            const others = edgeFields().filter((x) => x.type === "num" && x.name !== L.weight);
+            const items = (L.weight ? [item(L.weight, L.desc)] : []).concat([item(null, "Every edge counts as one step")],
+                others.length ? [{ heading: "Other numbers" }].concat(others.map((x) => item(x.name))) : []);
+            const f = AB.field(wordOf(s.weight), { caret: true, onClick: () => AB.openFieldList(f, { items, label: "Weight" }) });
             f.classList.add("pp-full");
             f.setAttribute("aria-label", "Weight: " + wordOf(s.weight));
             return f;
+        }
+        // The weight used, and how many edges have no value for it (left out of a weighted path), read
+        // from the field's fill (every edge has one when the field list shows no fill)
+        function weightUse() {
+            if (!s.weight) return null;
+            const x = edgeFields().find((y) => y.name === s.weight), pc = AB.projectCounts(ds0 || "lesmis");
+            if (!x || !pc) return null;
+            const missing = x.fill == null ? 0 : Math.round(pc.edges * (1 - x.fill));
+            return h("span", { class: "pp-loaded" }, "Uses " + s.weight + ". Edges with no " + s.weight + ", left out: " + AB.count(missing, "edge", { of: pc.edges }));
+        }
+        // Follow time order: on data with a time column on its edges, a path whose dates run forward
+        function timeOrder() {
+            if (!edgeFields().some((x) => x.type === "time")) return null;
+            const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": "false", "aria-disabled": "true", style: "opacity:.5" });
+            AB.tip(box, "Follow time order", { second: "Needs graphty-element: a path option that keeps each step no earlier than the one before" });
+            return h("span", { style: "display:flex;align-items:center;gap:8px" }, h("label", { style: "display:flex;align-items:center;gap:8px;color:var(--cm-text-tertiary)" }, box, "Follow time order"),
+                AB.needsElement("graphty-element's shortest path has no time option; Follow time order needs one that keeps each hop's date no earlier than the hop before"));
         }
         // No path: the two ends lie in different parts of what the graph draws (a filter split it)
         function noPath() {
@@ -259,9 +402,11 @@
                 AB.fieldRow("To", pickField("to"), { popover: true }),
                 s.directed ? AB.fieldRow("Direction", h("span", { class: "pp-col" },
                     AB.seg([["follow", "Follow edges"], ["either", "Either way"]], s.direction, (v) => { s.direction = v; draw(); }, { label: "Direction" }),
-                    AB.needsElement("graphty-element's shortest path reads every graph as undirected; Follow edges needs a direction option")), { popover: true }) : null,
+                    AB.needsElement("graphty-element's shortest path reads every graph as undirected; Follow edges needs a direction option"),
+                    timeOrder()), { popover: true }) : null,
                 AB.fieldRow("Weight", h("span", { class: "pp-col" },
                     weightField(),
+                    weightUse(),
                     s.weight ? AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
                     overridden() ? h("span", { class: "pp-loaded" }, "This path only. Set at load: " + loadedLine()) : null,
                     // The same words as Analyze: a path reads a weight as distance, so a Stronger weight is inverted
@@ -279,7 +424,7 @@
             const foot = AB.button("Find path", {
                 icon: "route", disabled: np ? "No path between these two in what the graph draws" : ready ? null : "Choose From and To first",
                 // The ends and the weight go with the new row, so the tree and the inspector name this path
-                onClick: () => { AB.lastPath = { ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, meaning: s.meaning, loaded: s.loaded.weight, scope: s.scope }; AB.go("path-popover", "found"); },
+                onClick: () => { AB.redrawLeft = true; AB.lastPath = withRoutes({ ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, meaning: s.meaning, loaded: s.loaded.weight, scope: s.scope, direction: s.directed ? s.direction : "either" }); AB.go("path-popover", AB.lastPath.ds === "transactions" && AB.lastPath.routes.length > 1 ? "found-tied" : "found"); },
             });
             const pop = AB.popover({ anchor: anchor(), title: "Path between", body, foot, width: 360 });
             pop.querySelector(".k-popover-body").append(AB.openQuestion("Can From or To be a set, so the path starts at the nearest member? graphty-element takes one source node"));
@@ -298,9 +443,9 @@
                 }
             }
             host.replaceChildren(...layer);
-            // a pick field that is picking takes the keyboard too
+            // a pick field that is picking takes the keyboard too; its name is selected, so typing replaces it
             const inp = pop.querySelector(".pp-pick input");
-            if (inp) requestAnimationFrame(() => requestAnimationFrame(() => inp.focus()));
+            if (inp) requestAnimationFrame(() => requestAnimationFrame(() => { inp.focus(); inp.select(); }));
         }
         draw();
     }
@@ -318,21 +463,30 @@
             { id: "from-analyze", label: "From Analyze > Find paths, nothing selected" },
             { id: "found", label: "Path found: the new row selected" },
             { id: "found-tied", label: "Path found: two routes tie, Route 1 of 2" },
+            { id: "found-out-of-time", label: "Path found against the transfers' direction: its dates run backward" },
             { id: "no-path", label: "No path: a filter step splits the graph" },
         ],
         closeTo: "graph-place/at-rest",
+        // the transfers have their own state: P, Path between... and Analyze > Shortest path open it there
+        stateFor: (ds, st) => (ds === "transactions" && (st === "from-selection" || st === "from-analyze") ? "transfers-directed" : null),
         frame(state) {
-            if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
+            // a just-loaded transfers project (no runs yet) keeps its own tree and plain drawing
+            if (state === "transfers-directed") return AB.fx.datasets.transactions.fresh ? { dataset: "transactions", left: "graph-place/" + AB.placeOf("transactions", "graph"), dock: false }
+                : { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
             if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: AB.count(AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes, "node", { of: AB.fx.datasets.lesmis.nodes }), filterOn: ["group"] };
-            if (state === "found" || state === "found-tied") {
+            if (state === "found" || state === "found-tied" || state === "found-out-of-time") {
                 // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
-                const ds = state === "found-tied" ? "transactions" : AB.route && AB.route.frame.dataset;
+                const ds = state === "found-tied" || state === "found-out-of-time" ? "transactions" : AB.route && AB.route.frame.dataset;
+                // two routes tie when the weight is None: three steps each
+                if (state === "found-tied" && !(AB.lastPath && AB.lastPath.ds === "transactions" && AB.lastPath.routes && AB.lastPath.routes.length > 1)) AB.lastPath = AB.tiedPath();
+                // Either way, from the flagged account back to the first: the route runs against the transfers, so its dates run backward
+                if (state === "found-out-of-time") { const P = AB.fx.datasets.transactions.setsAndPaths.path; AB.lastPath = withRoutes({ ds: "transactions", from: P.to.id, to: P.from.id, weight: "amount", meaning: "farther", loaded: "amount", direction: "either" }); }
                 if (ds === "doorEntries") return { own: true, dataset: ds, left: "graph-place/door-entries-path", right: "inspector-group-set-path-row/path-door-entries", dock: false };
-                if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
+                if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/" + (AB.lastPath && AB.lastPath.routes && AB.lastPath.routes.length > 1 ? "path-tied" : "path"), canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
                 // a loaded project has no path fixture: its own tree, beside the graph's inspector
                 if (ds && ds !== "lesmis") return { own: true, dataset: ds, left: "graph-place/" + (AB.placeOf(ds, "graph") || "at-rest"), dock: false };
-                return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/path-lesmis", dock: false };
+                return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/" + ({ "Valjean to Javert": "path-lesmis", "Myriel to Javert": "path-lesmis-2" }[AB.lastPath && (AB.lastPath.ds || "lesmis") === "lesmis" ? AB.lastPath.name : "Valjean to Javert"] || "path-lesmis-found"), dock: false };
             }
             return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", dock: false };
         },

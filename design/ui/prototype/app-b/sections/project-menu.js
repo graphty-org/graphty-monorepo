@@ -16,7 +16,7 @@
     }
 
     let name = null; // the project's name for this visit; starts from the fixtures
-    const names = {}; // per project on screen: renaming the door entries leaves Les Miserables as it was
+    const names = AB.projectNames; // per project on screen (the shell's, so the header reads it): renaming the door entries leaves Les Miserables as it was
     const ds = () => (AB.route && AB.route.frame.dataset) || "lesmis";
 
     const LONG = "Les Miserables co-occurrence network, every chapter, 1862 ed"; // 60 characters
@@ -62,10 +62,22 @@
             if (state === "closed") return;
             if (state === "rename") { setTimeout(renameName, 0); return; }
             if (state === "save-as") {
+                // Save as names the project from here on: the header shows the new name, and this page
+                // view's Recent projects lists it, dated now (the start screen reads AB.visit.recents)
+                const input = h("input", { class: "k-field", type: "text", value: name + " copy", "aria-label": "Name", spellcheck: "false" });
+                const save = () => {
+                    const n = input.value.trim() || name, d = ds(), now = new Date();
+                    names[d] = n;
+                    const when = "Today " + String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+                    AB.visit.recents = [{ name: n, dataset: d, go: d === "lesmis" ? ["graph-place", "at-rest"] : null, when, path: "~/Documents/graphty/" + n + ".graphty" }].concat(AB.visit.recents.filter((r) => r.dataset !== d));
+                    AB.flash("Saved as " + n);
+                    AB.close();
+                };
+                input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
                 el.append(AB.modal({
                     title: "Save " + name + " as",
-                    body: AB.fieldRow("Name", h("input", { class: "k-field", type: "text", value: name + " copy", "aria-label": "Name", spellcheck: "false" }), { popover: true }),
-                    foot: [AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), AB.button("Save", { onClick: () => { AB.flash("Saved a copy (not wired in the skeleton)"); AB.close(); } })],
+                    body: AB.fieldRow("Name", input, { popover: true }),
+                    foot: [AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), AB.button("Save", { onClick: save })],
                 }));
                 return;
             }

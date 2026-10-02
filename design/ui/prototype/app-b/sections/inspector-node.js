@@ -4,10 +4,11 @@
    the Data tab is their home. A token opens its property's popover (style-pickers/token-edit,
    "Valjean only -- writes to Overrides"); the edit lands in Overrides, which the tree then shows
    (the "edited" state), and Overrides' line clears with "-" on hover.
-   Label positions stack like every property: each position is its own token on the line of the
-   row that writes it ("Label above from Group 2", "Label below from Notes"). Labels keyed by position wait on graphty-element.
-   Data tab: Summary (the file's attributes, then Results: rank, scope when run on a subset, bridges; Degree selects the neighbors),
-   Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
+   Tokens use the Style tab's names (Color, Size, Shape, Label, Opacity); a label line's position is in its
+   tooltip. Under a winning line, the rows it covers ("Covers Louvain, ... and Betweenness for Color").
+   A node whose label is hidden to avoid overlap offers Show label anyway (label-hidden, label-shown).
+   Data tab: Summary (the attributes in use, then Results: rank, scope when run on a subset, bridges;
+   Degree selects the neighbors; then "N more attributes"), Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
    most notes will not; the count is the one link to them, so no name appears here. Plain ASCII.
    See ../README.md. */
 (function () {
@@ -19,40 +20,109 @@
     // ponytail: the shared whyThisLook() draws its closed summary on its own wrapping line under the
     // head; closed must take one line, so the summary moves into the head and ends in an ellipsis
     // (the full list stays in its tooltip). Belongs in lib.js / app.css for edges and several too.
+    // ponytail: three more things the shared whyThisLook() does not draw yet, added here after it draws
+    // (all belong in lib.js, for edges and several elements too):
+    //   - a line's `covered` rows ({ name, go }) under it, inside the block: "Covers A, B and C for Color",
+    //     every covered row named and a link;
+    //   - every token of a line (the helper shows two, then "+N"), so Selection reads Color Size Opacity;
+    //   - the eye-off glyph on a row not listed in the tree that still paints (spec 5.4).
     function whyLook(lines, opts) {
         const s = AB.whyThisLook(lines, opts), sum = s.querySelector(":scope > .ab-sec-sum"), grow = s.querySelector(":scope > .k-section-head > .k-grow");
         if (sum && grow) {
             sum.style.cssText = "display:block;flex:1 1 0;min-width:0;margin:0 0 0 8px;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400";
             grow.replaceWith(sum);
         }
+        const winners = lines.filter((l) => l.wins && l.wins.length);
+        s.querySelectorAll(".ab-why-line").forEach((row, i) => {
+            const l = winners[i];
+            if (!l) return;
+            const more = row.querySelector(".ab-token-more");
+            // each extra token is drawn by the helper itself (one line, one property), so it opens what a token opens
+            if (more) more.replaceWith(...l.wins.slice(1).map((p) => {
+                const t = AB.whyThisLook([Object.assign({}, l, { wins: [p], swatch: null })], opts).querySelector(".ab-token");
+                t.tabIndex = -1;
+                return t;
+            }));
+            // three tokens wrap inside their own right-aligned cell rather than run past the panel's edge
+            if (more) {
+                row.style.cssText += ";height:auto;min-height:24px;padding-block:2px";
+                row.querySelector(".ab-why-tokens").style.cssText = "flex-wrap:wrap;justify-content:flex-end;row-gap:2px;max-width:80px";
+            }
+            if (l.hiddenRow) row.querySelector(".ab-why-marks").append(AB.tip(h("span", null, AB.icon(AB.ICON.hidden, "sm")), "Not listed in the tree; it still paints", { label: false }));
+            if (l.covered && l.covered.length) {
+                const names = l.covered.map((r) => (r.go ? AB.link(r.go[0], r.go[1], r.name, { class: "ab-link", tabindex: "-1" }) : r.name));
+                const joined = names.flatMap((n, j) => (j === 0 ? [n] : [j === names.length - 1 ? " and " : ", ", n]));
+                row.after(h("div", { role: "listitem", class: "k-secondary", style: "padding:0 8px 2px 40px;line-height:18px" }, "Covers ", joined, " for " + l.coveredFor));
+            }
+        });
         return s;
     }
 
+    // The one Selection line every node shows while it is selected: read from the element's selection
+    // state (selection is not a style layer), so it carries Color, Size and Opacity
+    const selectionLine = (wins = ["color", "size", "opacity"]) => ({ name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"],
+        wins, values: { color: "#FFD700", size: "1.45 times", opacity: "40%" } });
+    const everythingLine = (values) => ({ name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"],
+        wins: ["shape"], values: Object.assign({ shape: "Faceted sphere, the default look" }, values) });
+    const prLine = (wins, value) => ({ name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"], wins, values: { color: value } });
+    // Degree is not listed in the tree but still paints
+    const degreeLine = (v) => ({ name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], hiddenRow: true,
+        wins: ["size"], values: { size: AB.num(v.degree) } });
+    const group2Line = (wins, value) => ({ name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), go: ["inspector-group-set-path-row", "label-two"], wins, values: { label: value } });
+
+    // The rows PageRank covers for Color on this node: the paint order's covered rows (AB.covers), less the
+    // kept groups the node is not in.
+    // ponytail: the shell's PAINT_ORDER leaves out Betweenness (the "For the report" folder's measure, Color
+    // on every node), so it is added here; add it to PAINT_ORDER and drop this.
+    function prCovers(v) {
+        return AB.covers("PageRank", "Color", "lesmis").filter((r) => !/^Group \d+$/.test(r.name) || r.name === "Group " + v.group)
+            .concat([{ name: "Betweenness", go: ["inspector-measure-row", "covered"] }]);
+    }
+
     function styleTab(state) {
-        const edited = state === "edited";
+        // The node on screen: Valjean, or the one the canvas walk, Find or a table row selected
+        const L = AB.fx.datasets.lesmis, wi = walkedOn("lesmis");
+        const v = (wi != null && L.rows[wi]) || L.rows.find((r) => r.label === "Valjean"), own = v.label === "Valjean";
+        const edited = state === "edited" && own;
+        const notes = own ? 2 : PAIR_NOTE.includes(v.label) ? 1 : 0, pr = (AB.lesmisPR || [])[L.rows.indexOf(v)];
         const lines = [
             edited ? { name: "Overrides", swatch: EDIT_COLOR, go: ["inspector-selection-and-everything", "overrides"], overrides: true,
-                wins: ["color"], values: { color: EDIT_COLOR + ", set on Valjean by hand" } } : null,
-            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"],
-                wins: ["label below"], values: { "label below": "2, from Note count" } },
-            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"],
-                wins: edited ? [] : ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
-            // Degree is hidden from the list but still paints
-            { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], hiddenRow: true,
-                wins: ["size"], values: { size: "36, largest" } },
-            // Two rows each write one label position, and both show: each position is its own token on its
-            // row's line (labels keyed by position: a gap). Below is the Notes row's Note count, 2 for Valjean.
-            { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), go: ["inspector-group-set-path-row", "label-two"],
-                wins: ["label above"], values: { "label above": "Valjean, from label" } },
-            // Selection is read from the element's selection style, not from explain()
-            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"],
-                wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+                wins: ["color"], values: { color: EDIT_COLOR + ", set on Valjean by hand" },
+                covered: [{ name: "PageRank", go: ["inspector-measure-row", "style"] }].concat(prCovers(v)), coveredFor: "Color" } : null,
+            // Two rows each write a label line; the token is the Style tab's Label, its position in the tooltip
+            notes ? { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"],
+                wins: ["label"], values: { label: "Below: " + notes + ", from Note count" } } : null,
+            Object.assign(prLine(edited ? [] : ["color"], own ? PR_COLOR + ", 0.0754, highest" : pr == null ? "From its PageRank, on the ramp" : AB.num(pr) + ", from its PageRank, on the ramp"), { covered: prCovers(v), coveredFor: "Color" }),
+            degreeLine(v),
+            // Group 2's label lines paint only Group 2's members
+            v.group === 2 ? group2Line(["label"], "Above: " + v.label + ", from label") : null,
+            selectionLine(),
             // graphty-element's defaults still win the shape
-            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"],
-                wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+            everythingLine(),
         ].filter(Boolean);
-        return whyLook(lines, { kind: "node", element: "Valjean",
-            notes: ["Labels keyed by position (one token per position) need graphty-element's per-position label channels and explain() reporting them."] });
+        return whyLook(lines, { kind: "node", element: v.label,
+            notes: ["Labels keyed by position (each label line its own position) need graphty-element's per-position label channels and explain() reporting them."] });
+    }
+
+    // ---------- a node whose label is hidden to avoid overlap, and Show label anyway ----------
+    // graphty-element hides a label that would overlap another (an element-owned rule, shown locked when it
+    // wins). Show label anyway writes the node to one user style layer, "Labels shown anyway (this file)",
+    // where such labels are listed, reordered or removed.
+    const HIDDEN_LABEL = "Labarre"; // a one-edge neighbor of Valjean; the drawing does not label it
+    const SHOWN_ANYWAY = "Labels shown anyway (this file)";
+    function labelStyle(state, v) {
+        const shown = state === "label-shown";
+        const g2 = { name: "Group 2", go: ["inspector-group-set-path-row", "label-two"] };
+        const lines = [
+            shown ? { name: SHOWN_ANYWAY, swatch: AB.icon("tag", "sm"), wins: ["label"], values: { label: "Above: " + v.label + ", from label" }, covered: [g2], coveredFor: "Label" }
+                : { name: "Label overlap", swatch: AB.icon("tag", "sm"), locked: true, wins: ["label"], values: { label: "Hidden: it would overlap Valjean's label" }, covered: [g2], coveredFor: "Label" },
+            prLine(["color"], "From its PageRank, on the ramp"),
+            degreeLine(v),
+            selectionLine(),
+            everythingLine(),
+        ];
+        return whyLook(lines, { kind: "node", element: v.label,
+            notes: ["Hiding a label to avoid overlap, and explain() reporting it as a locked line, need a label collision rule in graphty-element."] });
     }
 
     // The Summary's two parts: what the file holds, then what runs computed (never mixed)
@@ -67,8 +137,33 @@
     }
     // Valjean is the only neighbor of these five, so each edge to them is a bridge (Les Miserables)
     const BRIDGES_TO = ["Labarre", "Mme.deR", "Isabeau", "Gervais", "Scaufflaire"];
-    function dataTab() {
-        const L = AB.fx.datasets.lesmis;
+    // Bridges is an edge measure: a node reads how many result edges it touches, and a node on none reads
+    // so in words, never a blank or a zero. The fixture holds Valjean's bridges; a one-edge node's edge is
+    // always a bridge; Myriel's household (Mlle.Baptistine, Mme.Magloire) closes triangles with Myriel and
+    // Valjean, so it is on none. Any other node's bridges are not in the fixture, so the row is left out.
+    const NOT_ON_BRIDGE = ["Mlle.Baptistine", "Mme.Magloire"];
+    const bridgesOf = (v) => (v.label === "Valjean" ? BRIDGES_TO.length : v.degree === 1 ? 1 : NOT_ON_BRIDGE.includes(v.label) ? 0 : null);
+    const bridgesText = (n) => (n ? "On " + AB.count(n, "bridge edge") : "Not on a bridge edge");
+    // The file's own attributes on a Les Miserables node: the ones in use, each with its role tag, then
+    // "N more attributes" (the rest; the ones with no value counted, not listed), as on every project
+    function lesmisFile(L, v, go) {
+        const fields = AB.fieldsOf("lesmis").find((g) => g.element === "node").fields;
+        // degree's use (Size) is the Degree row, shown under Results with its rank
+        const inUse = fields.filter((x) => x.usedBy && x.name !== "degree"), rest = fields.filter((x) => !x.usedBy);
+        const empty = rest.filter((x) => isEmpty(v[x.name])), shown = rest.filter((x) => !isEmpty(v[x.name]));
+        const ds = ownDataset("lesmis:" + v.id, "nodes", shown);
+        const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + v.label, empty: empty.map((x) => x.name), emptyWhere: "on " + v.label, trail: (x) => valueTrail(v[x.name]), onPick: (n) => AB.openField("lesmis", n) });
+        return {
+            inUse: [subhead("From " + L.file), AB.data("id", h("span", { class: "k-mono" }, v.id))]
+                .concat(inUse.map((x) => AB.data(withRole(x.name, x.usedBy), String(v[x.name]), x.name === "group" && go ? { go } : undefined))),
+            more: rest.length ? moreSection(rest.length, empty.length, list) : null,
+        };
+    }
+    function dataTab(state) {
+        const L = AB.fx.datasets.lesmis, wi = walkedOn("lesmis");
+        if (state === "data-no-bridge") return walkedData(L, L.rows.find((r) => r.label === NOT_ON_BRIDGE[0]));
+        if (state === "label-hidden" || state === "label-shown") return walkedData(L, L.rows.find((r) => r.label === HIDDEN_LABEL));
+        if (wi != null && L.rows[wi] && L.rows[wi].label !== "Valjean") return walkedData(L, L.rows[wi]);
         const v = L.rows.find((r) => r.label === "Valjean");
         const of = "#1 of " + AB.num(L.nodes);
         // Betweenness here ran sampled on the 60 nodes the first filter step keeps
@@ -77,33 +172,76 @@
         const toMeasure = { go: ["inspector-measure-row", "data"] };
         const degree = AB.data("Degree", ranked(String(v.degree), of), { go: ["selection-bar", "neighborhood"] });
         AB.tip(degree, "Select Valjean's " + L.valjeanNeighbors + " neighbors", { label: false });
-        const bridges = "On " + BRIDGES_TO.length + " bridge edges";
+        const bridges = bridgesText(bridgesOf(v));
+        const file = lesmisFile(L, v, ["inspector-group-set-path-row", "group-2"]);
+        // Every row that contains Valjean, one home: the kept set of the top nodes by degree included
+        const top = AB.covers("PageRank", "Color", "lesmis").find((r) => /^Top \d+ by degree$/.test(r.name));
         return AB.dataTab({
             Summary: {
                 summary: "group " + v.group + "; PageRank #1, Betweenness #" + bwAt + "-#" + (bwAt + 1) + ", Degree #1; " + bridges.toLowerCase(),
-                body: [
-                    subhead("From " + L.file),
-                    AB.data("id", h("span", { class: "k-mono" }, v.id)),
-                    AB.data("label", v.label),
-                    AB.data("group", String(v.group), { go: ["inspector-group-set-path-row", "group-2"] }),
+                body: file.inUse.concat([
                     subhead("Results"),
                     AB.data("PageRank", ranked("0.0754", of), toMeasure),
                     AB.data("Betweenness", ranked(AB.num(bw[bwAt - 1].betweenness), "#" + bwAt + "-#" + (bwAt + 1), { sampled: true, scope: "on " + AB.num(kept) + " of " + AB.num(L.nodes) }), toMeasure),
                     degree,
                     AB.data("Bridges", bridges),
                     h("div", { class: "k-secondary", style: "padding:0 8px 4px 16px" }, "to " + BRIDGES_TO.join(", ")),
-                ],
+                    file.more,
+                ]),
             },
             Memberships: {
-                summary: "Community 1, Valjean to Javert, Watchlist, Group 2",
+                summary: "Community 1, Valjean to Javert, " + (top ? top.name + ", " : "") + "Watchlist, Group 2",
                 body: [
                     AB.row({ icon: "circle-dot", swatch: AB.chit("#E69F00", true), label: "Community 1", go: ["inspector-group-set-path-row", "community-1"] }),
                     AB.row({ icon: "route", swatch: AB.chit("#D55E00"), label: "Valjean to Javert", go: ["inspector-group-set-path-row", "path-lesmis"] }),
+                    top ? AB.row({ icon: AB.ICON.set, swatch: AB.chit("#F0E442", true), label: top.name, go: top.go }) : null,
                     AB.row({ icon: AB.ICON.set, swatch: AB.chit("#CC79A7", true), label: "Watchlist", go: ["inspector-group-set-path-row", "watchlist"] }),
                     AB.row({ icon: AB.ICON.set, swatch: AB.chit(L.groupColors["2"], true), label: "Group 2", go: ["inspector-group-set-path-row", "group-2"] }),
                 ],
             },
             Notes: { count: 2, target: ["notes-place", "about-selection"] },
+        }, { kind: "node" });
+    }
+
+    // Any other node the canvas walk reaches: its own fixture row (id, label, group, degree,
+    // betweenness), ranked over all 77 rows, its PageRank from the Nodes table's column, the tree's
+    // rows that hold it, its group, and the notes whose subject holds it.
+    // The tree's rows a walked node belongs to (the at-rest tree's sets and paths; the same members their
+    // inspectors list), and the notes whose subject holds it
+    const IN_ROWS = [
+        { label: "Watchlist", icon: "circle-check", color: "#CC79A7", round: true, go: ["inspector-group-set-path-row", "watchlist"], has: ["Thenardier", "Mme.Thenardier", "Valjean", "Javert", "Eponine"] },
+        { label: "Valjean to Javert", icon: "route", color: "#D55E00", go: ["inspector-group-set-path-row", "path-lesmis"], has: ["Valjean", "Javert"] },
+        { label: "Myriel to Javert", icon: "route", color: "#0072B2", go: ["inspector-group-set-path-row", "path-lesmis-2"], has: ["Myriel", "Valjean", "Javert"] },
+    ];
+    const PAIR_NOTE = ["Valjean", "Javert"]; // the Sep 28 note about Valjean and Javert
+    function walkedData(L, v) {
+        const rank = (k) => "#" + (L.rows.filter((r) => r[k] > v[k]).length + 1) + " of " + AB.num(L.nodes);
+        const group = "Group " + v.group, nb = bridgesOf(v), file = lesmisFile(L, v);
+        const PR = AB.lesmisPR || [], i = L.rows.indexOf(v), pr = PR[i];
+        const prRank = pr == null ? null : "#" + (PR.filter((x) => x > pr).length + 1) + " of " + AB.num(L.nodes);
+        const top = AB.covers("PageRank", "Color", "lesmis").find((r) => /^Top \d+ by degree$/.test(r.name));
+        const inTop = top && AB.topN(L.rows, (r) => r.degree, Number(top.name.match(/\d+/)[0])).includes(v);
+        const rows = IN_ROWS.filter((r) => r.has.includes(v.label));
+        const rowOf = (r) => AB.row({ icon: r.icon, swatch: AB.chit(r.color, r.round), label: r.label, go: r.go });
+        return AB.dataTab({
+            Summary: {
+                summary: "group " + v.group + "; Degree " + rank("degree").replace(/ of .*/, "") + (nb == null ? "" : "; " + bridgesText(nb).toLowerCase()),
+                body: file.inUse.concat([
+                    subhead("Results"),
+                    pr == null ? null : AB.data("PageRank", ranked(AB.num(pr), prRank), { go: ["inspector-measure-row", "data"] }),
+                    AB.data("Degree", ranked(String(v.degree), rank("degree"))),
+                    nb == null ? null : AB.data("Bridges", bridgesText(nb)),
+                    file.more,
+                ]),
+            },
+            Memberships: {
+                summary: rows.map((r) => r.label).concat(inTop ? [top.name] : [], [group]).join(", "),
+                body: [
+                    ...rows.map(rowOf),
+                    inTop ? AB.row({ icon: AB.ICON.set, swatch: AB.chit("#F0E442", true), label: top.name, go: top.go }) : null,
+                    AB.row({ icon: AB.ICON.set, swatch: AB.chit(L.groupColors[String(v.group)] || "#808080", true), label: group })],
+            },
+            Notes: { count: PAIR_NOTE.includes(v.label) ? 1 : 0, target: ["notes-place", "all"] },
         }, { kind: "node" });
     }
 
@@ -117,8 +255,8 @@
         const r = (W && tbl.sample.find((x) => (d.type === "person" ? x.name : x.bldg) === W)) || tbl.sample.find((x) => x[d.key] === d.id);
         const title = d.type === "person" ? r.name : r.bldg;
         const style = () => whyLook([
-            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+            selectionLine(),
+            everythingLine(),
         ], { kind: "node", element: title });
         const data = () => AB.dataTab({
             Summary: {
@@ -133,7 +271,7 @@
         el.append(AB.inspector({
             icon: d.type === "person" ? "user" : "building-2", title, kind: "Node, " + d.type, kindKey: "node",
             menu: ["context-menus", "node"],
-            onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
+            onRename: (name) => AB.flash("Renamed to " + name + ""),
             tab: "Data",
             tabs: { Style: style, Data: data },
         }));
@@ -160,8 +298,9 @@
     const valueTrail = (v) => AB.tip(h("span", { class: "inn-val k-ellipsis", tabindex: "-1" }, fmt(v)), fmt(v), { label: false });
     // "N more attributes": read-only, so the shared collapsible section, open or closed remembered per kind
     function moreSection(count, empty, list) {
-        return AB.section({ title: count + " more attributes", collapsible: true, key: "data.node.more", summary: empty + " empty, not shown" },
-            h("div", { class: "inn-empty k-secondary" }, empty + " empty, not shown"), h("div", { class: "inn-more" }, list));
+        const none = empty ? empty + " empty, not shown" : null;
+        return AB.section({ title: AB.count(count, "more attribute"), collapsible: true, key: "data.node.more", summary: none },
+            none ? h("div", { class: "inn-empty k-secondary" }, none) : null, h("div", { class: "inn-more" }, list));
     }
     // ponytail: the field list takes no subset of a project's fields, so the attributes with a value on
     // this node (the shared field objects from AB.fieldsOf, fill dropped: one node has a value or not)
@@ -199,8 +338,8 @@
         const why = whyLook([
             sized && { name: VULN, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "long-name"], wins: ["size"], values: { size: "Size by " + VULN + ": " + r[VULN] } },
             // the one Selection look every project uses (Les Miserables' why-this-look)
-            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: sized ? ["color"] : ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look", color: "Gray, the default", size: "1, the default" } },
+            selectionLine(sized ? ["color", "opacity"] : undefined),
+            everythingLine({ color: "Gray, the default", size: "1, the default" }),
         ].filter(Boolean), { kind: "node", element: AB.nameOf("wide", r) });
         // An attribute name takes the middle ellipsis (spec 5.4): the row named for its attribute
         why.querySelectorAll(".ab-why-name").forEach((n) => { if (n.textContent === VULN) n.replaceChildren(AB.truncMiddle(VULN, 22)); });
@@ -213,16 +352,16 @@
         el.append(AB.inspector({
             icon: "cpu", title: AB.nameOf("wide", r), kind: "Node, host", kindKey: "node",
             menu: ["context-menus", "node"],
-            onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
+            onRename: (name) => AB.flash("Renamed to " + name + ""),
             tab: state === "wide-why" ? "Style" : "Data",
             tabs: { Style: () => wideStyle(r), Data: () => wideData(state) },
         }));
         if (state === "wide-more") setTimeout(() => { const f = el.querySelector(".ab-fl-find input"); if (f) f.focus(); }, 0);
     }
 
-    // The nested researchers: a sub-object's fields sit under their parent (dotted paths in Summary,
-    // the field list's folders in "N more"), tags is a list, and a value kept whole (affiliations,
-    // addresses) reads as a collapsed tree under its row.
+    // The nested researchers: a sub-object's values show under their dotted paths (in Summary and in
+    // "N more", where a long path takes the middle ellipsis), tags is a list, and a value kept whole
+    // (affiliations, addresses) reads as a collapsed tree under its row.
     function nestedRow() {
         const R = AB.fx.datasets.nested.document.data.researchers, i = walkedOn("nested");
         return i != null ? R[i] : R[0];
@@ -241,14 +380,19 @@
             const v = at(rec, x.name);
             if (x.type === "list") return AB.tip(h("span", { class: "inn-val k-ellipsis" }, v.join(", ")), v.join(", "), { label: false });
             if (x.type !== "whole") return valueTrail(v);
-            const btn = h("span", { class: "inn-val inn-whole ab-link", role: "button", tabindex: "0", "aria-expanded": "false", "aria-label": "Expand " + x.name + ", " + sizeOf(v) }, sizeOf(v));
+            const chev = () => AB.icon(btn && btn.getAttribute("aria-expanded") === "true" ? "chevron-down" : "chevron-right", "sm");
+            let btn = null;
+            btn = h("span", { class: "inn-val inn-whole", style: "white-space:nowrap;gap:2px;flex:none", role: "button", tabindex: "0", "aria-expanded": "false", "aria-label": "Expand " + x.name + ", " + sizeOf(v) }, chev(), sizeOf(v));
             AB.tip(btn, x.name + ", kept as one value", { label: false });
+            // the expander never clips: its row's name gives up the room (the field list cuts the name in the middle after this)
+            requestAnimationFrame(() => { const n = btn.closest("[data-fl-row]"); if (n && n.querySelector(".ab-fl-name")) n.querySelector(".ab-fl-name").style.maxWidth = "52%"; });
             const flip = (e) => {
                 e.stopPropagation();
                 const row = btn.closest("[data-fl-row]"), next = row.nextElementSibling;
-                if (next && next.classList.contains("inn-tree")) { next.remove(); btn.setAttribute("aria-expanded", "false"); return; }
+                if (next && next.classList.contains("inn-tree")) { next.remove(); btn.setAttribute("aria-expanded", "false"); btn.firstChild.replaceWith(chev()); return; }
                 row.after(wholeTree(v));
                 btn.setAttribute("aria-expanded", "true");
+                btn.firstChild.replaceWith(chev());
             };
             btn.addEventListener("click", flip);
             btn.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), flip(e)));
@@ -264,11 +408,10 @@
         const others = fields.filter((x) => !x.usedBy);
         const empty = others.filter((x) => isEmpty(at(rec, x.name)));
         const nameRow = joined ? [AB.data(withRole("Name", parts.map((c) => c.split(".").pop()).join(" + ")), AB.nameOf("nested", rec))] : [];
-        const ds = ownDataset("nested:" + rec.id, "researchers", others.filter((x) => !isEmpty(at(rec, x.name))));
+        // one flat list, each field named by its dotted path (x.name), so no folders
+        const ds = ownDataset("nested:" + rec.id, "researchers", others.filter((x) => !isEmpty(at(rec, x.name))).map((x) => Object.assign({}, x, { parent: null, label: x.name })));
         const dotted = (x) => (x.parent ? x.parent + "." + x.label : x.label);
         const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + AB.nameOf("nested", rec), empty: empty.map(dotted), emptyWhere: "on " + AB.nameOf("nested", rec), trail: nestedTrail(rec), onPick: (name) => AB.openField("nested", name) });
-        // This state shows every folder open: open each in turn (a folder redraws the list when it opens)
-        for (let i = 0, f; i < 20 && (f = list.querySelector(".ab-fl-folder[data-open=false]")); i++) f.click();
         const rows = inUse.map((x) => AB.data(withRole(AB.truncMiddle(dotted(x), 26), x.usedBy), x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name))));
         rows.splice(inUse.length && inUse[0].name === "id" ? 1 : 0, 0, ...nameRow); // the Name after the key
         return AB.dataTab({
@@ -286,12 +429,12 @@
         el.append(AB.inspector({
             icon: "user", title: name, kind: "Node, researcher", kindKey: "node",
             menu: ["context-menus", "node"],
-            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            onRename: (n) => AB.flash("Renamed to " + n + ""),
             tab: "Data",
             tabs: {
                 Style: () => whyLook([
-                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                    selectionLine(),
+                    everythingLine(),
                 ], { kind: "node", element: name }),
                 Data: nestedData,
             },
@@ -306,12 +449,12 @@
         el.append(AB.inspector({
             icon: "circle-dot", title: AB.nameOf("plainJson", r), kind: "Node", kindKey: "node",
             menu: ["context-menus", "node"],
-            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            onRename: (n) => AB.flash("Renamed to " + n + ""),
             tab: "Data",
             tabs: {
                 Style: () => whyLook([
-                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                    selectionLine(),
+                    everythingLine(),
                 ], { kind: "node", element: AB.nameOf("plainJson", r) }),
                 Data: () => wideData("plain-data", "plainJson", r),
             },
@@ -326,21 +469,27 @@
         // The accounts file's own columns, then the run results; an empty alert column says so
         const fromFile = ["kind", "country", "riskScore", "flagged", "alertRule", "alertTime"], results = ["degree", "pagerank"];
         const val = (c) => (isEmpty(r[c]) ? h("span", { class: "k-secondary" }, "empty") : fmt(r[c]));
+        // A directed weighted graph: the weighted in and out totals, named from the weight attribute
+        // ("Total amount in"), never from a domain word. graphty-element does not compute them yet.
+        const weight = AB.fieldsOf("transactions").flatMap((g) => g.fields).find((x) => x.usedBy === "Weight");
+        const wName = weight ? String(weight.label || weight.name).replace(/ \(edge\)$/, "") : null;
+        const totals = AB.fx.datasets.transactions.directed && wName ? ["in", "out"].map((d) => AB.data("Total " + wName + " " + d,
+            h("span", null, h("span", { class: "k-secondary" }, "(not available yet) "), AB.needsElement("graphty-element computes a node's weighted in and out totals (the sum of the weight on its incoming and on its outgoing edges) on a directed weighted graph; it does not yet.")))) : [];
         el.append(AB.inspector({
             icon: "circle-dot", title: r.id, kind: "Node, account", kindKey: "node",
             menu: ["context-menus", "node"],
-            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            onRename: (n) => AB.flash("Renamed to " + n + ""),
             tab: "Data",
             tabs: {
                 Style: () => whyLook([
-                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                    selectionLine(),
+                    everythingLine(),
                 ], { kind: "node", element: r.id }),
                 Data: () => AB.dataTab({
                     Summary: {
                         summary: r.kind + ", " + r.country + ", degree " + r.degree,
                         body: [subhead("From " + AB.fx.datasets.transactions.accountsFile), AB.data("id", h("span", { class: "k-mono" }, r.id))]
-                            .concat(fromFile.map((c) => AB.data(c, val(c))), subhead("Results"), results.map((c) => AB.data(c, val(c)))),
+                            .concat(fromFile.map((c) => AB.data(c, val(c))), subhead("Results"), results.map((c) => AB.data(c, val(c))), totals),
                     },
                     Notes: { count: 0, target: ["notes-place", "many"] },
                 }, { kind: "node" }),
@@ -354,12 +503,12 @@
     const BAD = { row: "Appearances", path: "appearances.total" };
     function unknownPathStyle() {
         const why = whyLook([
-            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"], wins: ["label below"], values: { "label below": "2, from Note count" } },
+            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"], wins: ["label"], values: { label: "Below: 2, from Note count" } },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"], wins: ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
             { name: BAD.row, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], wins: ["size"], values: { size: "Nothing: " + BAD.path + " reads nothing" } },
-            { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), go: ["inspector-group-set-path-row", "label-two"], wins: ["label above"], values: { "label above": "Valjean, from label" } },
-            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
-            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+            group2Line(["label"], "Above: Valjean, from label"),
+            selectionLine(),
+            everythingLine(),
         ], { kind: "node", element: "Valjean", notes: ["The error on a line needs graphty-element's styles.explain() to report E_UNKNOWN_ATTRIBUTE on the row it concerns."] });
         const tok = why.querySelector('[aria-label="Size from ' + BAD.row + '"]');
         const line = tok && tok.closest(".ab-why-line");
@@ -372,6 +521,7 @@
     }
 
     const WIDE = { "wide-data": 1, "wide-more": 1, "wide-why": 1 };
+    const OTHER_NODE = { "label-hidden": HIDDEN_LABEL, "label-shown": HIDDEN_LABEL, "data-no-bridge": NOT_ON_BRIDGE[0] };
     registerSection({
         id: "inspector-node",
         title: "Inspector: one node",
@@ -385,6 +535,9 @@
                     : state === "plain-data" ? { dataset: "plainJson", left: "graph-place/at-rest" }
                     // no left panel: the account opens beside the transfers place the reader was in
                     : state === "transfers-node" ? { dataset: "transactions" }
+                    // a state about another node than Valjean puts the canvas walk on it, so the drawing's
+                    // selection ring and the selection bar name the node the inspector shows
+                    : OTHER_NODE[state] ? { left: "graph-place/at-rest", walk: AB.fx.datasets.lesmis.rows.findIndex((r) => r.label === OTHER_NODE[state]) + 1 }
                     : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
@@ -401,6 +554,9 @@
             { id: "plain-data", label: "Plain JSON (Coauthors): a node's Data tab" },
             { id: "transfers-node", label: "Transfers: an account's Data tab" },
             { id: "why-unknown-path", label: "Why this look: a row whose path reads nothing" },
+            { id: "label-hidden", label: "Label hidden to avoid overlap (Labarre): Show label anyway" },
+            { id: "label-shown", label: "Label shown anyway (Labarre)" },
+            { id: "data-no-bridge", label: "Data tab: a node on no bridge edge (Mlle.Baptistine)" },
         ],
         render(el, state) {
             if (!document.querySelector("link[data-inn]")) document.head.append(h("link", { rel: "stylesheet", href: "sections/inspector-node.css", "data-inn": "" }));
@@ -410,15 +566,28 @@
             if (state === "plain-data") return plainNode(el);
             if (state === "transfers-node") return transfersNode(el);
             // The review states pin the remembered open or closed choice so each one is reachable
+            const dataState = state === "data" || state === "data-no-bridge";
             if (state === "why-closed") AB.mem.set("sec.why.node", "0");
-            else if (state !== "data") AB.mem.set("sec.why.node", "1");
+            else if (!dataState) AB.mem.set("sec.why.node", "1");
+            if (dataState) AB.mem.set("sec.data.node.summary", "1");
+            // Labarre selected any other way (the canvas walk, a table row) lands on why-this-look or data,
+            // and gets the same hidden label and Show label anyway as its own state
+            const wi = walkedOn("lesmis"), L = AB.fx.datasets.lesmis;
+            const hidden = state === "label-hidden" || (wi != null && L.rows[wi] && L.rows[wi].label === HIDDEN_LABEL && state !== "label-shown");
+            const label = hidden || state === "label-shown", labelState = hidden ? "label-hidden" : state;
+            const v = L.rows.find((r) => r.label === (label ? HIDDEN_LABEL : state === "data-no-bridge" ? NOT_ON_BRIDGE[0] : "Valjean"));
             el.append(AB.inspector({
-                icon: "circle-dot", title: "Valjean", kind: "Node", kindKey: "node",
+                icon: "circle-dot", title: v.label, kind: "Node", kindKey: "node",
                 menu: ["context-menus", "node"],
-                onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
-                tab: state === "data" ? "Data" : "Style",
-                tabs: { Style: () => (state === "why-unknown-path" ? unknownPathStyle() : styleTab(state)), Data: dataTab },
+                onRename: (name) => AB.flash("Renamed to " + name + ""),
+                // a lasting state: the label stays hidden until the reader shows it anyway
+                stateBar: hidden ? { text: "Label hidden to avoid overlap", why: "Show label anyway adds " + v.label + " to the style layer " + SHOWN_ANYWAY + ", where such labels are listed, reordered or removed.",
+                    actions: [{ label: "Show label anyway", go: ["inspector-node", "label-shown"] }] } : null,
+                tab: dataState ? "Data" : "Style",
+                tabs: { Style: () => (state === "why-unknown-path" ? unknownPathStyle() : label ? labelStyle(labelState, v) : styleTab(state)), Data: () => dataTab(state) },
             }));
+            // The layer's full name, which the tree and the Why this look line cut short
+            if (state === "label-shown") el.append(AB.notice(v.label + "'s label added to " + SHOWN_ANYWAY, { label: "Undo", go: ["inspector-node", "label-hidden"] }));
         },
     });
 })();

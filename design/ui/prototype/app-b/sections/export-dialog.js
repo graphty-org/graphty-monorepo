@@ -37,6 +37,8 @@
 .ex-set .k-field { max-width: 260px; }
 .ex-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 24px; }
 .ex-chk { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; line-height: 24px; }
+.ex-chk[data-disabled] { cursor: default; color: var(--cm-text-disabled); }
+.ex-chk[data-disabled] .k-check { box-shadow: inset 0 0 0 1px var(--cm-border-disabled); }
 .ex-callout { display: flex; gap: 8px; align-items: flex-start; margin-left: 16px; padding: 8px 10px; border-radius: 6px; background: var(--cm-bg-secondary); }
 .ex-callout > svg, .ex-callout > .k-icon { flex: none; margin-top: 2px; }
 .ex-callout[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--cm-bg-warning); }
@@ -52,6 +54,10 @@
 .ex-rec { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--cm-border); }
 .ex-rec .ex-sum { grid-column: 2; font-size: 11px; }
 .ex-rec .k-btn { grid-row: 1 / span 2; grid-column: 3; }
+.ex-print .xi-preview > img, .ex-print .xi-preview > svg, .ex-print .xi-preview .k-legend-card { filter: grayscale(1); }
+.ex-look { max-width: 416px; }
+.ex-steps { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; padding-left: 16px; }
+.ex-step { display: inline-flex; align-items: center; gap: 4px; }
 .ex-footl { flex: 1 1 auto; min-width: 0; color: var(--cm-text-secondary); display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 `;
     if (!document.getElementById("ex-style")) document.head.append(h("style", { id: "ex-style" }, CSS));
@@ -61,6 +67,18 @@
     const n = (v) => Number(v).toLocaleString("en-US");
     const PROJECT = "les-miserables";
     const WATCH = ["Valjean", "Javert", "Thenardier", "Mme.Thenardier", "Eponine"]; // the Watchlist set row
+
+    // The transfers project: March as loaded, April after the Data page's Replace (AB.replaceTransfers,
+    // published by data-place). Its data export names the month in the file and, once April replaced
+    // March, offers the "Compared with" column.
+    const TX = () => AB.fx.datasets.transactions, TA = () => AB.fx.datasets.transactionsApril;
+    const isTx = () => !!(AB.route && AB.route.frame.dataset === "transactions");
+    const updated = () => isTx() && TX().file === TA().files.transfers.file;
+    const period = (file) => file.match(/\d{4}-\d{2}/)[0];
+    const monthName = (p) => new Date(+p.slice(0, 4), +p.slice(5) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+    const EARLIER = () => period(TA().previous.file); // the version April replaced
+    const FLAG = () => TX().flaggedAccounts[0]; // the alert-triage account, ACC-365386
+    const projectFile = () => (isTx() ? "transfers_" + period(TX().file) : PROJECT);
 
     // ---------- the list ----------
     const LIST = [
@@ -103,6 +121,10 @@
         foot = [].concat(foot || []);
         const hasNote = foot.some((f) => f && f.textContent && f.textContent.includes("nothing is uploaded"));
         if (!hasNote) foot.unshift(h("span", { class: "ex-footl" }, icon("lock", "sm"), NOTE));
+        if (activeId === "image" && body && body.querySelector) {
+            const f = body.querySelector(":scope > .xi-fields");
+            body.insertBefore(lookBlock(body), f);
+        }
         const m = AB.modal({ title: "Export", body: [list(activeId === "from-row" ? "data" : activeId), body], foot });
         m.querySelector(".k-modal").classList.add("ex-modal");
         return m;
@@ -117,11 +139,13 @@
 
     const row = (label, ...ctl) => AB.fieldRow(label, h("span", { class: "ex-ctl" }, ctl), { popover: true });
     let chkSeq = 0;
-    function check(label, on, flip) {
+    // off: a reason the box cannot be checked yet; it stays focusable and the reason is drawn beside it
+    function check(label, on, flip, off) {
         const id = "ex-chk-" + ++chkSeq;
         const text = h("span", { id }, label);
-        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-labelledby": id, "aria-label": typeof label === "string" ? label : null });
-        const wrap = h("label", { class: "ex-chk" }, box, text);
+        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-disabled": off ? "true" : null, "aria-labelledby": id, "aria-label": typeof label === "string" ? label : null });
+        const wrap = h("label", { class: "ex-chk", "data-disabled": off ? "" : null }, box, text);
+        if (off) flip = () => {};
         wrap.addEventListener("click", (e) => { e.preventDefault(); flip(); });
         box.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); flip(); } });
         return wrap;
@@ -136,8 +160,86 @@
         return f;
     }
 
+    // ---------- Image: the Look (Screen or Print), for this file only ----------
+    // The Print look draws the image in gray. It reads the colors the image carries from the canvas's
+    // legend card (the card the image copies): categorical colors are how a gray figure fails, so it
+    // says how many categories fall on nearly the same gray (CIE lightness L* closer than GRAY_STEP),
+    // and for a ramp it prints the value at each gray step. No "no change" band: nothing is drawn
+    // that the reader did not set. It never touches the project's style rows. The frame adds it to
+    // the Image body (ponytail: export-image should draw it among its own fields).
+    const GRAY_STEP = 8, STEPS = 5;
+    const rgbs = (css) => (css.match(/rgba?\([^)]*\)/g) || []).map((c) => c.match(/[\d.]+/g).slice(0, 3).map(Number));
+    function lightness([r, g, b]) {
+        const lin = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+        const Y = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+        return Y > 216 / 24389 ? 116 * Math.cbrt(Y) - 16 : (Y * 24389) / 27;
+    }
+    function grayOf(Ls) {
+        const Y = Ls > 8 ? ((Ls + 16) / 116) ** 3 : (Ls * 27) / 24389;
+        const c = Math.round(255 * (Y <= 0.0031308 ? 12.92 * Y : 1.055 * Y ** (1 / 2.4) - 0.055));
+        return "#" + c.toString(16).padStart(2, "0").repeat(3);
+    }
+    const and = (xs) => (xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1]);
+    // The legend card's parts: { title, cats: [{ label, rgb }], ramp: { stops: [rgb], lo, hi } }
+    function legendParts() {
+        const card = document.querySelector("#ab-canvas .k-legend-card");
+        const parts = [];
+        if (card) [...card.children].forEach((el) => {
+            if (el.classList.contains("k-lg-title")) return parts.push({ title: el.textContent, cats: [], ramp: null });
+            const p = parts[parts.length - 1];
+            if (!p || !el.classList.contains("k-lg-row")) return;
+            const sw = el.firstElementChild, label = (el.querySelector(".k-ellipsis") || el).textContent;
+            const grad = sw && rgbs(getComputedStyle(sw).backgroundImage);
+            const m = label.match(/(-?[\d.,]+) to (-?[\d.,]+)/);
+            if (grad && grad.length > 1 && m) p.ramp = { stops: grad, lo: +m[1].replace(/,/g, ""), hi: +m[2].replace(/,/g, "") };
+            else if (sw && sw.classList.contains("k-chit")) p.cats.push({ label, rgb: rgbs(getComputedStyle(sw).backgroundColor)[0] });
+        });
+        return parts;
+    }
+    function rampAt(stops, t) {
+        const x = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), f = x - i;
+        return stops[i].map((v, k) => v + (stops[i + 1][k] - v) * f);
+    }
+    const stepRow = (label, Ls) => h("span", { class: "ex-step", role: "listitem" }, AB.chit(grayOf(Ls)), label);
+    function printPart() {
+        const parts = legendParts();
+        const cats = parts.flatMap((p) => p.cats.map((c) => ({ label: c.label, L: lightness(c.rgb) }))).sort((a, b) => b.L - a.L);
+        // runs of neighbors closer than GRAY_STEP in lightness read as one gray
+        const runs = [];
+        cats.forEach((st, i) => (i && cats[i - 1].L - st.L < GRAY_STEP ? runs[runs.length - 1].push(st) : runs.push([st])));
+        const alike = runs.filter((r) => r.length > 1), k = alike.reduce((t, r) => t + r.length, 0);
+        const ramps = parts.filter((p) => p.ramp);
+        const catLine = !cats.length ? `In gray, no categories need telling apart: ${ramps.length ? "the colors are " + and(ramps.map((p) => p.title.replace(/^Color: /, ""))) + ", a ramp" : "the image has no colors from a row"}.`
+            : k ? `In gray, ${AB.count(k, "category", { of: cats.length, plural: "categories" })} cannot be told apart: ${alike.map((r) => and(r.map((x) => x.label))).join("; ")}.`
+            : `In gray, all ${AB.count(cats.length, "category", { plural: "categories" })} can be told apart.`;
+        return h("div", null,
+            h("div", { class: "ex-line" }, catLine, " ", AB.needsElement("graphty-element draws the Print look and reports which colors fall on the same gray.")),
+            ramps.map((p) => [
+                h("div", { class: "ex-line ex-sum" }, `The legend prints the value at each gray step (${p.title}):`),
+                h("div", { class: "ex-steps", role: "list", "aria-label": "Gray steps: " + p.title },
+                    Array.from({ length: STEPS }, (_, i) => stepRow(AB.num(p.ramp.lo + ((p.ramp.hi - p.ramp.lo) * i) / (STEPS - 1)), lightness(rampAt(p.ramp.stops, i / (STEPS - 1))))))]),
+            cats.length ? [
+                h("div", { class: "ex-line ex-sum" }, "The legend prints each category's value beside its gray:"),
+                h("div", { class: "ex-steps", role: "list", "aria-label": "Gray steps: categories" }, cats.map((c) => stepRow(c.label, c.L)))] : null);
+    }
+    function lookBlock(body) {
+        body.classList.toggle("ex-print", S.look === "Print");
+        const blk = h("div", { class: "ex-set ex-look" },
+            AB.fieldRow("Look", h("span", { class: "ex-ctl" },
+                AB.seg([["Screen", "Screen"], ["Print", "Print"]], S.look, (x) => {
+                    S.look = x;
+                    const nb = lookBlock(body);
+                    blk.replaceWith(nb);
+                    const r = nb.querySelector("[role=radio][aria-checked=true]");
+                    if (r) r.focus();
+                }, { label: "Look" }),
+                h("span", { class: "ex-sum" }, "For this file only")), { popover: true }),
+            S.look === "Print" ? printPart() : null);
+        return blk;
+    }
+
     // ---------- reader choices for this visit ----------
-    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", cols: "Visible", onlyStyle: false, methodsOnly: false, adv: {} };
+    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", cols: "Visible", onlyStyle: false, compare: true, look: "Screen", adv: {} };
     // A table export writes the columns the table shows (its one Columns state), so it needs no
     // picker of its own. table-dock keeps that state private, so this reads its Columns button
     // ("Columns: 7 of 7") on the active tab (a shell gap: table-dock should publish it on AB).
@@ -169,6 +271,12 @@
     function lossNotes() {
         // a project loaded from nested JSON: graph-io writes its flattened columns back as dotted keys (element-requirements-5.md, Deferred)
         if (AB.route && AB.route.frame.dataset === "nested") return ["Nested fields are written as flat dotted keys (\"attributes.profile.h_index\": 24), not in the nesting of " + AB.fx.datasets.nested.file + "."];
+        if (isTx()) {
+            if (S.format === "CSV" && S.table === "Edges") return ["The edge table holds transfers only: each account's kind, country, riskScore, flagged, degree and PageRank are not written. Choose Table: Nodes to keep them."];
+            if (S.format === "CSV" && S.table === "Nodes") return ["The node table holds accounts only: the transfers, their amount and time are not written. Choose Table: Edges to keep them."];
+            if (S.format === "CSV") return ["An adjacency table holds who sent to whom and the amount only; every account attribute and run result is not written."];
+            return [];
+        }
         const nodeCols = "label, group, degree, betweenness, PageRank, the Louvain community, the position and the drawn color and size";
         if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them.`];
         if (S.format === "CSV" && S.table === "Nodes") return [`The node table holds nodes only: the ${n(L().edges)} edges and their value are not written. Choose Table: Edges to keep them.`];
@@ -183,12 +291,37 @@
         const all = L().rows.map((x) => x.betweenness);
         return [all.filter((v) => v >= r.betweenness).length, all.filter((v) => v === r.betweenness).length - 1];
     }
+    // PageRank (unweighted, damping 0.85) of the first three fixture rows, as table-dock's PR list has them
+    const PR3 = [0.0428, 0.00558, 0.0103];
+    // The "Compared with" column: one value per row against the earlier version
+    const cmpCol = () => "compared_with_" + EARLIER().replace("-", "_");
+    const comparing = () => updated() && S.compare && isTable();
+    function txPreview() {
+        const ext = FMT[S.format].ext;
+        if (ext !== "csv") return "No preview for this file type";
+        const cmp = comparing() ? "," + cmpCol() : "";
+        if (S.table === "Nodes" && updated()) {
+            // two accounts in both months, one opened in April, one closed (a Watchlist member gone from April)
+            const A = TA(), nw = A.newAccountFlows.accounts[0], gone = A.watchlist.notInCurrentData[0];
+            return ["id,kind,country,degree,pagerank" + cmp]
+                .concat(A.rows.slice(0, 2).map((r) => [r.id, r.kind, r.country, r.degree, r.pagerank].join(",") + (cmp && ",in both")))
+                .concat([`${nw.id},...,${nw.degree},...` + (cmp && ",new"), `${gone},,,,` + (cmp && ",no longer present")]).join("\n") + "\n...";
+        }
+        if (S.table === "Nodes") return ["id,kind,country,riskScore,flagged,degree,pagerank"].concat(TX().rows.slice(0, 3).map((r) => [r.id, r.kind, r.country, r.riskScore, r.flagged, r.degree, r.pagerank].join(","))).join("\n") + "\n...";
+        if (S.table === "Edges" && S.scope === "Selection") {
+            const id = FLAG().id;
+            return ["from_account,to_account,amount,timestamp"].concat(AB.fx.scenarios.exportDialog.ringTransferRows.filter((r) => r.from_account === id || r.to_account === id).map((r) => [r.from_account, r.to_account, r.amount, "..."].join(","))).join("\n") + "\n...";
+        }
+        if (S.table === "Edges") return ["from_account,to_account,amount,timestamp" + cmp].concat(updated() ? [] : TX().firstRows.slice(0, 3).map((r) => [r.from_account, r.to_account, r.amount, r.timestamp].join(","))).join("\n") + "\n...";
+        return "," + TX().rows.slice(0, 3).map((r) => r.id).join(",") + ",...\n...";
+    }
     function dataPreview() {
+        if (isTx()) return txPreview();
         const rs = L().rows.slice(0, 3);
         const ext = FMT[S.format].ext;
         // the table's own columns, in its order; the rest of its header is not drawn in the skeleton
-        if (ext === "csv" && S.table === "Nodes" && S.cols === "Visible") return ["label,group,degree,..."].concat(rs.map((r) => [r.label, r.group, r.degree].join(",") + ",...")).join("\n") + "\n...";
-        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,betweenness,betweenness_rank,betweenness_tie,results.louvain.community,x,y,color,size"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
+        if (ext === "csv" && S.table === "Nodes" && S.cols === "Visible") return ["label,group,degree,pagerank,..."].concat(rs.map((r, i) => [r.label, r.group, r.degree, PR3[i]].join(",") + ",...")).join("\n") + "\n...";
+        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,pagerank,betweenness,betweenness_rank,betweenness_tie,results.louvain.community,x,y,color,size"].concat(rs.map((r, i) => [r.id, r.label, r.group, r.degree, PR3[i], r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
         if (ext === "csv" && S.table === "Edges") return "source,target,value\n0,1,...\n...";
         if (ext === "csv") return ",Myriel,Napoleon,Mlle.Baptistine,...\nMyriel,0,1,...\n...";
         if (ext === "graphml") return ['<graphml xmlns="http://graphml.graphdrawing.org/xmlns">', '  <key id="label" for="node" attr.name="label" attr.type="string"/>', '  <key id="group" for="node" attr.name="group" attr.type="int"/>', `  <graph edgedefault="${S.adv.GraphML || "undirected"}">`]
@@ -223,13 +356,21 @@
     function dataBody(fromRow) {
         const f = FMT[S.format];
         const st = STEP();
-        const scopeTxt = S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : S.scope === "Step" ? `${st.name}: ${AB.count(st.edges, "edge", { of: L().edges })}, among ${AB.count(st.nodes, "node")}` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
-        const scopeOpts = ["Full graph", "Watchlist"].concat(stepOpen() ? ["Step"] : []);
-        const scopeName = (o) => (o === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : o === "Step" ? "Open filter step: " + st.name : o);
+        // the transfers: the data as loaded now (April after Replace), and the selected flagged account's own transfers
+        const txN = updated() ? { nodes: TA().nodes, edges: TA().edges } : AB.projectCounts("transactions");
+        const sel = () => `Selection: ${FLAG().id} and its ${AB.count(FLAG().degree, "transfer")}`;
+        const scopeTxt = isTx() ? (S.scope === "Selection" ? sel() : `Full graph, ${AB.count(txN.nodes, "account")}, ${AB.count(txN.edges, "transfer")}`)
+            : S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : S.scope === "Step" ? `${st.name}: ${AB.count(st.edges, "edge", { of: L().edges })}, among ${AB.count(st.nodes, "node")}` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
+        const scopeOpts = isTx() ? ["Full graph"].concat(S.scope === "Selection" ? ["Selection"] : []) : ["Full graph", "Watchlist"].concat(stepOpen() ? ["Step"] : []);
+        const scopeName = (o) => (o === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : o === "Step" ? "Open filter step: " + st.name : o === "Selection" ? sel() : o);
+        const D = TA().versionDiff, earlier = monthName(EARLIER());
+        const cmpWhat = S.table === "Nodes" ? `${AB.count(D.accountsKept, "account")} in both, ${n(D.accountsAdded)} new, ${n(D.accountsRemoved)} no longer present`
+            : `${AB.count(D.transfersBoth, "transfer")} in both, ${n(D.transfersAdded)} new, ${n(D.transfersRemoved)} no longer present`;
         const tc = isTable() && S.cols === "Visible" ? tableCols() : null;
         const notes = (tc && tc.shown < tc.total ? [`The ${tc.total - tc.shown} columns the table hides are not written. Choose Columns: Every column to keep them.`] : []).concat(lossNotes());
         const inline = f.inline.map(([label, v, k]) => {
-            if (!Array.isArray(v)) return row(label, check("On", true, () => AB.flash(label + " (not wired in the skeleton)")));
+            if (!Array.isArray(v)) return row(label, check("On", true, () => AB.flash(label + " (not available yet)")));
+            if (label === "Graph name" && isTx()) v = [TX().graphName];
             const cur = k === "table" ? S.table : S.adv[S.format] || v[0];
             const set = (x) => { if (k === "table") S.table = x; else S.adv[S.format] = x; redraw(); };
             return row(label, v.length <= 3 ? AB.seg(v.map((o) => [o, o]), cur, set, { label }) : dropdown(cur, v, set, label));
@@ -243,14 +384,19 @@
             advBtn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); advBtn.click(); } });
         }
         return h("div", { class: "ex-main" },
-            head("Data", `${scopeTxt} - ${isTable() && S.cols === "Visible" ? "the columns the table shows" : "every attribute and run result"} - ${S.format}`),
+            head("Data", `${scopeTxt} - ${isTable() && S.cols === "Visible" ? "the columns the table shows" : "every attribute and run result"}${comparing() ? " - compared with " + earlier : ""} - ${S.format}`),
             h("div", { class: "ex-set" },
                 row("Format", dropdown(S.format, Object.keys(FMT), (x) => { S.format = x; redraw(); }, "Format")),
                 row("Scope", dropdown(scopeName(S.scope), scopeOpts.map((o) => ({ label: scopeName(o), check: o === S.scope, onClick: () => { S.scope = o; redraw(); } })), null, "Scope"),
-                    S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a filter step's or a set's elements needs graphty-element") : null),
+                    S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a filter step's, a set's or the selection's elements needs graphty-element") : null),
                 inline,
                 isTable() ? row("Columns", AB.seg([["Visible", "Shown in the table"], ["All", "Every column"]], S.cols, (x) => { S.cols = x; redraw(); }, { label: "Columns" }),
                     h("span", { class: "ex-sum" }, S.cols === "All" ? "Hidden columns too" : tableCols() ? `${tableCols().shown} of ${tableCols().total}, as the table's Columns shows them` : `As the ${S.table} table's Columns shows them`)) : null,
+                updated() && isTable() ? row("Compared with", check(earlier, S.compare, () => { S.compare = !S.compare; redraw(); }),
+                    h("span", { class: "ex-sum" }, `Adds a column ${cmpCol()}: ${cmpWhat}`))
+                // one version so far: the same offer, off until an update with new data makes an earlier version
+                : isTable() ? row("Compared with", check("Earlier version", false, null, true),
+                    h("span", { class: "ex-sum" }, `Adds a column with each row's state against the earlier version: new, in both or no longer present. Offered after an update with new data; ${isTx() ? TX().file : L().file} has one version so far.`)) : null,
                 advBtn ? row("", advBtn) : null),
             notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
             h("div", { class: "ex-h" }, "Preview"),
@@ -258,7 +404,7 @@
             FMT[S.format].ext === "csv" && S.table === "Nodes" && S.cols === "All" ? h("div", { class: "ex-line ex-sum" }, "A rank is a whole number (1 = highest) and Tie says how many other nodes share the value, so the column stays numeric in a spreadsheet. A sampled estimate writes Rank low and Rank high columns in its place.") : null,
             );
     }
-    const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : S.scope === "Step" ? "_degree-2-or-more" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
+    const dataFile = () => `${projectFile()}${S.scope === "Watchlist" ? "_watchlist" : S.scope === "Step" ? "_degree-2-or-more" : S.scope === "Selection" ? "_" + FLAG().id.toLowerCase() : ""}${comparing() ? "_vs-" + EARLIER() : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
 
     // ---------- Recipe: the sender's side ----------
     // What travels, in the order it runs when applied: the open filter step, then the runs (which
@@ -270,7 +416,7 @@
         const step = stepOpen() ? STEP().name : null;
         const dd = (t, d) => [h("dt", null, t), h("dd", null, d)];
         return h("div", { class: "ex-main" },
-            head("Recipe", S.onlyStyle ? "Only the style - paint rows - no data" : `The analysis without the data - ${step ? "1 filter step, " : ""}6 runs, the layout, ${views.length} saved views`),
+            head("Recipe", S.onlyStyle ? "Only the style: the paint rows and their palettes - never your data" : "Styles, steps and the layout with its parameters - never your data"),
             h("div", { class: "ex-set" },
                 row("Include", check("Only the style", S.onlyStyle, () => { S.onlyStyle = !S.onlyStyle; redraw(); })),
                 row("File", h("span", null, S.onlyStyle ? `${PROJECT}.style` : `${PROJECT}.recipe`), AB.openQuestion("The recipe and style files' name endings"))),
@@ -283,18 +429,22 @@
                     step ? dd("1. Filter", step) : null,
                     dd((step ? "2. " : "") + "Runs", RUNS),
                     dd("Layout", "Spread Out, engine NGraph Force, seed 7. Positions are drawn again on the recipient's data."),
+                    dd("Saved views", views.join(", ")),
                 ],
-                dd("Style", "Every paint row in the tree, with the custom palettes they use"),
-                S.onlyStyle ? null : dd("Saved views", views.join(", ")),
+                dd("Styles", "Every paint row in the tree, with the custom palettes they use"),
                 dd("Needs", "group (node) and value (edge), from the recipient's data"),
                 dd("Not included", L().file + " (named, not carried), node names and values, positions, the Watchlist's members, Overrides and notes: they name things in this data")));
     }
 
-    // ---------- Report (disabled: title, one sentence, the mark) ----------
+    // ---------- Report (disabled: title, one sentence, the mark; no settings, no preview) ----------
+    // The spec asks for a "Methods text only" choice and also for a disabled output with no settings:
+    // while Report is disabled, the sentence names the choice by its name and no control is drawn
+    // (studio decision: a control would be a setting, which a disabled output does not show). The
+    // participant view replaces the needs-graphty-element chip with the summary "Not available yet".
     function reportBody() {
         return h("div", { class: "ex-main" },
-            head("Report", null),
-            h("p", { class: "ex-line", style: "margin:0" }, `One self-contained HTML file: the saved views as pages, in tour order, with their notes, ${AB.legendOn() ? "the legend card as the canvas shows it" : "no legend card (the legend is off, as on the canvas)"} and the methods text, which says how every number was computed.`),
+            head("Report", "Not available yet"),
+            h("p", { class: "ex-line", style: "margin:0" }, `One self-contained HTML file that opens offline and prints to PDF from the browser: a page per view in the tour, in tour order, each figure embedded, the notes and tables as real text, ${AB.legendOn() ? "the legend card as the canvas shows it" : "no legend card (the legend is off, as on the canvas)"}, and the methods text that says how every number was computed, with a choice, Methods text only, that writes just that text.`),
             h("div", { class: "ex-line" }, AB.needsElement("graphty-element keeps no run records a methods writer could read; writing the methods in the app would be the app describing the graph")));
     }
 
@@ -302,14 +452,18 @@
     // Each row names the data version it was made from; Export again names the current one when it
     // differs. Les Miserables has one version (its file); the transfers case has March and April
     // (full-canvas-modes' version history: the March export, then April's data replaced it).
+    let aprilDone = false;
     const month = (d) => d.title.replace(/^.*, (\w+) \d{4}$/, "$1") + " data";
     function recentRows() {
         if (AB.route && AB.route.frame.dataset === "transactions") {
-            const M = AB.fx.datasets.transactions, ring = AB.fx.scenarios.exportDialog.march.length;
-            return { now: month(AB.fx.datasets.transactionsApril), rows: [
-                { file: "case-acc-233575_ring-pagerank_2026-03.csv", what: `Data, CSV, ${ring} accounts of the Mule ring and the methods file`, when: "Sep 28", version: month(M),
-                  again: () => AB.flash("Export again on the current data (not drawn in the skeleton): the same settings, a new file named for the month, the earlier file kept") },
-            ] };
+            // the data as the project holds it now: March until the reader replaces it with April
+            const X = AB.fx.scenarios.exportDialog, now = month(AB.fx.datasets.transactions), april = /^April/.test(now);
+            // Export again writes a file on the data as it is now beside the March one: a new row, newest first
+            const again = () => { aprilDone = true; redraw(); };
+            return { now, rows: [
+                aprilDone ? { file: "case-acc-233575_ring-pagerank_2026-0" + (april ? 4 : 3) + (april ? "" : "-2") + ".csv", what: `Data, CSV, ${april ? X.ringInApril : X.march.length} accounts of the Mule ring: PageRank with Rank and Tie, and the methods file`, when: "Just now", version: now, again } : null,
+                { file: "case-acc-233575_ring-pagerank_2026-03.csv", what: `Data, CSV, ${X.march.length} accounts of the Mule ring: PageRank with Rank and Tie, and the methods file`, when: "Sep 28", version: "March data", again },
+            ].filter(Boolean) };
         }
         const v = L().file;
         return { now: v, rows: [
@@ -327,7 +481,7 @@
                 icon("file", "sm"), h("span", { class: "k-ellipsis" }, r.file),
                 AB.button(r.version === now ? "Export again" : `Export again, on ${now}`, { kind: "secondary", onClick: r.again || (() => { Object.assign(S, r.set || {}); AB.go(r.go[0], r.go[1]); }) }),
                 h("span", { class: "ex-sum" }, `${r.what} - ${r.when} - made from ${r.version}`)))),
-            h("div", { class: "ex-line ex-sum" }, "Export again opens the output with the same settings, on the data as it is now. The earlier file is kept."));
+            h("div", { class: "ex-line ex-sum" }, rows[0].again ? "Export again writes a new file with the same settings, on the data as it is now, and adds it here. The earlier file is kept." : "Export again opens the output with the same settings, on the data as it is now. The earlier file is kept."));
     }
 
     // ---------- the section ----------
@@ -339,12 +493,19 @@
             if (state === "style") S.onlyStyle = true;
             state = ALIAS[state];
         }
-        if (state === "image") return ctx.renderSection("export-image/image", el);
+        if (state === "image-print") S.look = "Print";
+        if (state === "image" || state === "image-print") return ctx.renderSection("export-image/image", el);
         if (state === "video") return ctx.renderSection("export-video/still", el);
         // A door only fills a field: the Watchlist row's menu fills Scope (and the node table)
         if (!again && state === "from-row") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Watchlist" });
         // With a filter step open, a data export starts from that step's edges
         if (!again && (state === "data" || state === "filter-step")) Object.assign(S, stepOpen() ? { format: "CSV", table: "Edges", scope: "Step" } : { scope: "Full graph" });
+        // After April replaced March: the node table with the "Compared with" column. A selected flagged
+        // account: its own edges, the transfers it sent and received
+        if (!again && state === "data-updated") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Full graph", compare: true });
+        if (!again && state === "selection") Object.assign(S, { format: "CSV", table: "Edges", scope: "Selection" });
+        if (state === "recent-updated") state = "recent-exports";
+        if (!again && state === "recent-exports") aprilDone = false;
         const cancel = AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() });
         let body, foot;
         if (state === "report") {
@@ -360,7 +521,7 @@
             body = dataBody(state === "from-row");
             foot = [cancel, AB.button("Copy", { kind: "secondary", onClick: () => AB.flash(`Copied ${dataFile()} to the clipboard`) }), AB.button("Export", { icon: "download", onClick: () => done(dataFile()) })];
         }
-        el.append(frame(state === "recent-exports" ? "recent" : state === "from-row" || state === "filter-step" ? "data" : state, body, foot));
+        el.append(frame(state === "recent-exports" ? "recent" : ["from-row", "filter-step", "data-updated", "selection"].includes(state) ? "data" : state, body, foot));
     }
 
     registerSection({
@@ -377,6 +538,14 @@
             // open, so the step default is what the reader meets; switching outputs inside the dialog
             // keeps the screen behind as it was
             const inDialog = was && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id);
+            // The transfers after Replace: April is the data, March the earlier version
+            if (state === "data-updated" || state === "recent-updated") {
+                if (AB.replaceTransfers) AB.replaceTransfers();
+                return { left: "graph-place/many-groups", dataset: "transactions" };
+            }
+            if (state === "selection") return { left: "graph-place/many-groups", dataset: "transactions" };
+            // switching outputs inside the dialog over the transfers keeps the transfers behind it
+            if (inDialog && was.dataset === "transactions") return { left: was.left, dataset: "transactions" };
             if (state === "filter-step" || (state === "data" && !inDialog)) return { left: "graph-place/scope-mark" };
             if (state === "recent-exports") return was && was.dataset === "lesmis" && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id) ? { left: "graph-place/at-rest" } : { left: "graph-place/many-groups", dataset: "transactions" };
             if (was && was.dataset === "lesmis" && was.chip && was.chip !== "Full graph" && was.left) return { left: was.left };
@@ -385,6 +554,7 @@
         closeTo: "graph-place",
         states: [
             { id: "image", label: "Image (the export-image section)" },
+            { id: "image-print", label: "Image with the Print look" },
             { id: "video", label: "Video (the export-video section)" },
             { id: "report", label: "Report, disabled" },
             { id: "recipe", label: "Recipe" },
@@ -392,6 +562,9 @@
             { id: "filter-step", label: "Data, with a filter step open" },
             { id: "from-row", label: "Data from the Watchlist row's menu" },
             { id: "recent-exports", label: "Recent exports" },
+            { id: "data-updated", label: "Data, after an update with new data (Compared with)" },
+            { id: "selection", label: "Data with a flagged account selected (its transfers)" },
+            { id: "recent-updated", label: "Recent exports, after the data changed" },
         ],
         render,
     });

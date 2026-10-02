@@ -1,7 +1,7 @@
 /* Inspector: the built-in rows of the paint tree -- Selection (top, pinned), Notes (starts under
    Selection), Overrides (under Notes once it holds something) and Everything (bottom, pinned).
-   Selection, Everything and Notes: the one Style tab (AB.styleTab) and a Data tab. Overrides: one body,
-   a list of edits (spec: no tabs; one shared value cannot describe per-element edits). Plain ASCII. */
+   Everything and Notes: the one Style tab (AB.styleTab) and a Data tab. Selection: one body, three lines.
+   Overrides: one body, a list of edits (spec: no tabs; one shared value cannot describe per-element edits). Plain ASCII. */
 (function () {
     const A = window.AB;
     const ID = "inspector-selection-and-everything";
@@ -40,31 +40,25 @@
             A.scrub(label, inp, { range });
             return A.fieldRow(label, [inp, suffix ? h("span", { class: "k-secondary" }, suffix) : null]);
         };
+        // No Paints line: the row's count follows the selection and is blank when nothing is selected (this route).
+        // The two marks are note-only lines (data-needs): the 240 px Color line has no room for a chip, and the eye lives in the tree.
         return [
-            A.paintsLine("Paints 0 nodes"),
             A.fieldRow("Color", A.colorField({ name: "Color", hex: "#FFD700", pct: null })),
             num("Size", 1.45, [0, null]),
             num("Opacity", 40, [0, 100], "%"),
-            h("div", { class: "ab-review-only" },
-                h("div", { class: "ab-cap k-secondary" }, "The row's eye:", A.needsElement("graphty-element draws the selection highlight outside the layer stack and has no switch to stop drawing it. The app must not fake one by writing opacity 0, which would overwrite the reader's own Opacity.")),
-                h("div", { class: "ab-cap k-secondary" }, "Default color:", A.needsElement("The default gold on the default whitesmoke canvas measures about 1.3:1, under the 3:1 of WCAG 1.4.11. The element's default must pass. The selection style paints nodes only; an edge side is filed."))),
+            h("div", { class: "ab-cap k-secondary", "data-needs": "" }, "Default color:", A.needsElement("The default gold on the default whitesmoke canvas measures about 1.3:1, under the 3:1 of WCAG 1.4.11. The element's default must pass. The selection style paints nodes only; an edge side is filed.")),
+            h("div", { class: "ab-cap k-secondary", "data-needs": "" }, "The row's eye:", A.needsElement("graphty-element draws the selection highlight outside the layer stack and has no switch to stop drawing it. The app must not fake one by writing opacity 0, which would overwrite the reader's own Opacity.")),
         ];
     }
 
-    function selectionData() {
-        return A.dataTab({ Summary: [A.data("Selected", "nothing")] }, { kind: "selection" });
-    }
-
     // ---------- Everything: the element's base style as lines; edits go to the Everything layer ----------
-    // Base values: graphty-element's defaultNodeStyle and defaultEdgeStyle (NodeStyle.ts, EdgeStyle.ts;
-    // the line width is EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, darkgrey is #A9A9A9).
-    const BASE = { "node.shape": "icosphere", "node.size": 1, "node.color": "#6366F1", "edge.style": "solid", "edge.width": 8, "edge.color": "#A9A9A9", "edge.arrowHead": "normal" };
+    // Base values: the one base style, AB.BASE_STYLE in lib.js (the gray the canvas drawings paint).
     function everythingStyle(state) {
         const mine = A.boundOn(ID + "/" + state);
         const edited = state === "everything-edited" || Object.keys(mine).length > 0;
         return A.styleTab({
             kinds: ["node", "edge"], kind: state === "everything-edges" ? "edge" : "node",
-            base: BASE, set: state === "everything-edited" ? { "node.size": 1.5 } : {}, changed: state === "everything-edited" ? ["node.size"] : [], bound: mine,
+            base: A.BASE_STYLE, set: state === "everything-edited" ? { "node.size": 1.5 } : {}, changed: state === "everything-edited" ? ["node.size"] : [], bound: mine,
             paints: "Paints " + C().nodes + " nodes, " + C().edges + " edges",
             order: edited ? "Your change is in the Everything layer, under every other row" : "Default look, under every other row",
         });
@@ -96,8 +90,9 @@
     const notedText = (N) => plural(N.nodes.length, "node") + (N.edges.length ? ", " + plural(N.edges.length, "edge") : "");
     // No layer until a look is added (graphty-element refuses a layer that writes nothing, and a layer paints
     // nodes or edges, not both): the first look on a side adds that side's layer, the Everything pattern.
-    // Its selector reads graphty-element's note count (notes.count > `0`), so a label bound to Note count
-    // draws only on the noted elements.
+    // Its selector reads graphty-element's note count (notes.count > `0`), so in the product a label bound
+    // to Note count draws only on the noted elements. The skeleton's canvas does not model that scope yet:
+    // canvas-and-states.js lmScope() applies a row titled "Notes" to every node.
     function notesStyle(state) {
         const N = noted(), empty = state === "notes-row";
         // the count is the link; the hint after it is plain text
@@ -136,7 +131,8 @@
                 })))));
         };
         draw();
-        return [A.paintsLine("Paints 1 node", ["inspector-node", "edited"]), list];
+        return [A.paintsLine("Paints 1 node", ["inspector-node", "edited"]), list,
+            h("div", { class: "ab-cap k-secondary", "data-needs": "" }, "Element form:", A.openQuestion("To confirm with graphty-element: one id-keyed binding per property (encode with a per-value map) as the element form of Overrides."))];
     }
 
     registerSection({
@@ -151,6 +147,7 @@
             { id: "everything", label: "Everything row" },
             { id: "everything-edited", label: "Everything row, one line changed" },
             { id: "everything-edges", label: "Everything row, Edges" },
+            { id: "everything-data", label: "Everything row, Data" },
             { id: "notes-row", label: "Notes row, nothing set" },
             { id: "notes-row-outlined", label: "Notes row, outline added" },
             { id: "notes-row-label", label: "Notes row, Label Below: Note count" },
@@ -159,10 +156,10 @@
         ],
         render(el, state) {
             if (state === "notes") state = "notes-row"; // older links (the tree) used "notes"
-            if (state === "data") state = "everything";
+            if (state === "data") state = "everything-data";
             const base = { builtin: true, menu: MENU, kind: "Built-in row" };
             if (state === "selection") {
-                el.append(A.inspector(Object.assign(base, { icon: "scan", title: "Selection", kindKey: "selection-row", tab: "Style", tabs: { Style: selectionBody, Data: selectionData } })));
+                el.append(A.inspector(Object.assign(base, { icon: "scan", title: "Selection", body: selectionBody() })));
             } else if (state.startsWith("notes")) {
                 el.append(A.inspector(Object.assign(base, {
                     icon: "message-square", title: "Notes", kindKey: "notes-row", tab: state === "notes-data" ? "Data" : "Style",
@@ -172,7 +169,7 @@
                 el.append(A.inspector(Object.assign(base, { icon: "pencil", title: "Overrides", body: overridesBody() })));
             } else {
                 el.append(A.inspector(Object.assign(base, {
-                    icon: "base-layer", title: "Everything", kindKey: "everything-row", tab: "Style",
+                    icon: "base-layer", title: "Everything", kindKey: "everything-row", tab: state === "everything-data" ? "Data" : "Style",
                     tabs: { Style: () => everythingStyle(state), Data: everythingData },
                 })));
             }

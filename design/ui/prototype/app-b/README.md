@@ -17,6 +17,10 @@ it needs HTTP, not `file://`). `#/map` lists every section and state.
 | `sections/<id>.js` | one section | its builder, and nobody else |
 | `kit/` | copies of the gallery kit: `cm.css` (tokens), `kit.css` (the `k-*` components), `icons.svg`, `fonts/`, `fixtures.json`, and the Les Miserables and transfers drawings in `canvas/` | nobody: copy more drawings from `../kit/canvas/` if you need them |
 
+**Words.** The product's vocabulary (row, run, set, step, place, Paints, Covers) is defined once in
+`design/ui/framework/glossary.md`; this README does not keep its own. Every door to a command uses
+its `cmd()` label word for word (below).
+
 A section writes only its own file. If you need something shared, write it inside your file
 and say so in your report; do not edit `app.js`, `lib.js`, `app.css` or another section.
 
@@ -162,7 +166,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | Tooltip | `tip(el, name, { key, second, label })` | The one tooltip: a light bubble 500 ms after the pointer arrives, at once on keyboard focus (`:focus-visible`), at once for a neighbor within 1 s of the last one hiding; Esc dismisses it; the pointer can rest on it; a 500 ms long press shows it on touch. The bubble is hidden from speech: `name` becomes the control's `aria-label` (unless `label: false`, for a control whose visible text names it) and `key` its `aria-keyshortcuts`, drawn as a key chip. `second` is a second line, only for a disabled reason or a modifier gesture ("Alt-click: show only this row"). "Undo (Ctrl+Z)" is split into name and key for you. A section may instead write `data-tip`, `data-key` and `data-tip2` attributes; the shell gives such an icon-only control its label after each render |
 | Add | `plus({ label: "Add to Line", items, onAdd(item), go, fields })` | The one "+", only in a section or list header (`section({ actions: AB.plus(...) })`). One item: adds it at once. Two to 15: a dark menu. Past 15: the field list at menu size, its find over the items. `fields` (fieldList options) makes it the field list of those fields at any length, `onAdd({ label: name, type, ...field })`. None: returns `null`, so the "+" disappears. `go` sends it to a route instead (a picker section that draws its own menu) |
 | Name a new thing | `createThenRename(rowEl, { onSave })` | A new item gets a default name and opens straight into rename, its name selected |
-| Edit a value in detail | `popover({ anchor, title, body, foot, width, place })` | The one light popover: a title and an X; each change applies live; Esc or a click outside closes it; focus starts on the first field and returns to the anchor; the shell keeps the panels as they were (no redraw). Placement is automatic: left of the inspector, level with the anchor, for an anchor in the inspector; directly above the toolbar for an anchor in the toolbar or the selection bar. `foot` only when the popover creates something |
+| Edit a value in detail | `popover({ anchor, title, body, foot, width, place, onClose })` | The one light popover (`onClose`, for one opened in place rather than as a route, is what its X does instead of the shell's close): a title and an X; each change applies live; Esc or a click outside closes it; focus starts on the first field and returns to the anchor; the shell keeps the panels as they were (no redraw). Placement is automatic: left of the inspector, level with the anchor, for an anchor in the inspector; directly above the toolbar for an anchor in the toolbar or the selection bar. `foot` only when the popover creates something |
 | A field in a popover or a body | `fieldRow(label, control, { popover })` | Label column 88 px in the inspector, 96 px in popovers; 24 px rows; 8 px gap; labels top-aligned. Never set your own label widths |
 | Read-only block | `section({ title, collapsible: true, summary, key })` | Collapsible with a chevron and a one-line summary when closed, remembered per KIND in `key` (`why.node`, `data.run.made-with`, `notes.group`) |
 | Editable block | `section({ title, editable: true, actions })` | Always open: no accordion in anything editable (`editable` refuses `collapsible`) |
@@ -173,18 +177,20 @@ uses the helper; a section-local copy of any of them is a defect.
 | A control the skeleton does not model | `flash(text)` | The same notice with no action |
 | Needs graphty-element | `needsElement(reason)` | The one design-note chip, placed after the control it qualifies; the reason is its tooltip |
 | An open question | `openQuestion(text)` | The same chip, worded "Open question" |
-| A menu | `menu({ anchor, place, label, items, back })` | A dark menu. Item: `{ label, shortcut, go or onClick, sub, check, disabled: true or "reason", desc, needs: "reason", toggle: [label when on, label when off], on }`, `{ sep: true }`, `{ heading }`. One line per item: `desc` becomes the item's tooltip; a second line only says why an item is disabled. `needs` draws the item disabled with the chip, and "Hide design notes" hides it. Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes to `back`); Esc closes one level; hover opens a submenu after 200 ms. Disabled items stay focusable |
+| A menu | `menu({ anchor, place, label, items, back })` | A dark menu. Item: `{ label, shortcut, go or onClick, sub, check, disabled: true or "reason", desc, needs: "reason", toggle: [label when on, label when off], on }`, `{ sep: true }`, `{ heading }`. One line per item: `desc` becomes the item's tooltip; a second line only says why an item is disabled. `needs` draws the item disabled with the chip; "Hide design notes" hides only the chip, and the item stays listed with its reason on its second line in participant words: `needs: "graphty-element cannot copy a subgraph into a new graph yet"` reads "Not available yet: this version cannot copy a subgraph into a new graph yet". Write `needs` as the reason (a sentence about graphty-element, or a fragment such as "a grouping"), never as "Not available yet". Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes to `back`); Esc closes one level; hover opens a submenu after 200 ms. Disabled items stay focusable |
 | A menu that is not a route | `openMenu(anchor, items)`, `closeMenu()` | A dark menu of 15 items or fewer (it has no find; past 15 it warns). The "+" menu uses this |
-| An attribute's menu | `attributeMenu(anchor, dataset, name, { editOn, table, noTable })` | **The one attribute menu**: Data > Attributes' rows, the attribute inspector's More actions (an inspector `menu` may be a function of its button) and a table column's menu. Color by and Size by call `paintRow`; Filter to... is `AB.filterTo` (a step on the attribute in the project's Data place, opened through `AB.openStep`); Select where <attribute> is... (`cmd("select-where-attribute", { attribute })`) is `AB.whereFrom`: the one Select where dialog with that attribute's condition filled in (`select-where/attribute`), which keeps both set kinds (a fixed Create set and Create set from rule); Read as... is `AB.openField` |
+| An attribute's menu | `attributeMenu(anchor, dataset, name, { editOn, table, noTable })` | **The one attribute menu**: Data > Attributes' rows, the attribute inspector's More actions (an inspector `menu` may be a function of its button) and a table column's menu. It has no Color by or Size by (painting from an attribute is a bind in a row's Style tab); Add label line and Select where come from `cmd()`; Filter to... is `AB.filterTo` (a step on the attribute in the project's Data place, opened through `AB.openStep`); Select where <attribute> is... (`cmd("select-where-attribute", { attribute })`) is `AB.whereFrom`: the one Select where dialog with that attribute's condition filled in (`select-where/attribute`), which keeps both set kinds (a fixed Create set and Create set from rule); Read as... is `AB.openField` |
 | Paint from an attribute | `paintBy(dataset, "Color" or "Size", name, on)`, `paintRow`, `paintOf`, `boundOn(route)`, `painted` | A binding in a loaded project (wide, nested, plain JSON): `on` is `"row"` (a measure row named after the attribute, `graph-place/painted`, `inspector-measure-row/painted-color`) or the inspector route whose line a bind icon bound (Everything's Color). The tree, the canvas and its legend, the field lists' In use and the inspectors read it; a Binding popover that picks a source sets `AB.repaint`, so closing it redraws the panels |
 | Find or pick an attribute | `fieldList(o)`, `openFieldList(anchor, o)`, `fieldsOf(dataset)` | **The field list**, every attribute picker and attribute list (below). `openFieldList` opens it at menu size from a control, as `openMenu` does; a section drawing it in its own overlay places it with `position(fieldList(o), anchor, place)`; at panel size append `fieldList({ size: "panel", ... })` |
 | What went wrong | `problem({ what, todo, action, level })` | **The problem block**: a red "x" (error) or yellow "!" (`level: "partial"`), the line saying what happened, a second line saying what to do, and at most one action (`{ label, go or onClick }`) under them. The Data page's refusals and partial loads, the Binding popover's and Why this look's unknown path |
 | A name that does not fit | `truncMiddle(text, max, ranges)` | The middle ellipsis for attribute names and paths (`cpu_util...p95_pct`): keeps the start and the end within `max` characters, bolds `ranges`, and puts the full text in the tooltip and the accessible name. Field lists, column headers, legends, Why this look. Prose (node, note, source and row names) uses the end ellipsis, `k-ellipsis` |
 | Find by word starts | `wordMatch(name, query)` | The one matcher: names split at `_ . - [ ]`, spaces and case changes, and so does what is typed; each typed word starts a word of the name, in order ("vu cr", "cpu p95", "kernel_version", "profile.field"). Returns the matched `[start, end)` ranges for bold, or `null`. Any find over names uses it (the field list, Go to column) |
-| A count or a measure | `count(n, noun, { of, plural, version })`, `num(v, digits = 3)` | **The one number formatter.** `count(L.nodes, "node")` is "77 nodes", `count(60, "node", { of: L.nodes })` "60 of 77 nodes", `version` adds the data version in parentheses when it is not what the screen shows ("before the filter"). `num` writes a whole number with thousands separators and anything else to three significant digits ("0.0868", "0.00101", "0.570", "6.60"). Read the number from `AB.fx` (or `AB.projectCounts`), never type it: `node app-b/study.mjs --counts` fails on a count typed by hand in a section file |
+| A count or a measure | `count(n, noun, { of, plural, version, on, onOf, also })`, `range(lo, hi, column, { on, onOf, also })`, `num(v, digits = 3)` | **The one number formatter.** `count(L.nodes, "node")` is "77 nodes", `count(60, "node", { of: L.nodes })` "60 of 77 nodes", `version` adds the data version in parentheses when it is not what the screen shows ("before the filter"). **The set rule lives only here**: `on` is the size of the set a value was computed over (`onOf` its whole, default the project's nodes), and the set is named only when it is not the graph on screen (the filter chip's count, `AB.route.frame.shown`) or when `also: true` says the same measure appears elsewhere over another set: `count(0.0754, null, { on: 77 })` is "0.0754, on all 77" while the chip reads "60 of 77 nodes" and "0.0754" on the full graph; `count(0.419, null, { on: 60, also: true })` "0.419, on 60 of 77". A range always names its column: `range(0.0033, 0.0754, "PageRank")` "PageRank 0.00330 to 0.0754". `num` writes a whole number with thousands separators and anything else to three significant digits ("0.0868", "0.00101", "0.570", "6.60"). Read the number from `AB.fx` (or `AB.projectCounts`), never type it: `node app-b/study.mjs --counts` fails on a count typed by hand in a section file, also inside `AB.count(...)` |
+| Column names | `distinctNames(names, where)` | Two columns never share one display name: every list of column headers (the table, Columns, an export's columns) passes its names through it; a clash is a console error |
+| Top 10 | `topN(items, valueOf, n = 10)` | The highest `n` with ties kept whole: every item reaching the nth value, so a tie at the cut is never split. Every Top 10 list uses it |
 | A command | `cmd(id, extra?)`, `COMMANDS` | A menu item from the one command table (below) |
 | The File list | `fileList()` | **The one File list**: Open project or file..., Save, Export..., Apply recipe or style file..., Version history, as `cmd()` items. The main menu and the project-name menu both append it where their File group goes, so the two show identical words. Never list these commands one by one |
-| Clear the selection | `clearSelection()` | **The one way to empty the selection**: the empty canvas and Escape call it. The selection becomes empty and the inspector shows the graph on screen as its subject; the left panel stays the place and the project it was. The graph is never put into the selection |
+| Clear the selection | `clearSelection()` | **The one way to empty the selection**: the empty canvas and Escape call it. The selection becomes empty and the inspector shows the graph on screen as its subject; the left panel stays the place and the project it was, drawn again so no row stays marked selected. The graph is never put into the selection. It raises the notice "Selection cleared (1 node)" (elements are counted, a row is named: "Selection cleared (Watchlist)") with **Bring it back**, which reopens what was selected; while the notice shows, Ctrl+Z presses it (so only the selection comes back), and after it the next Ctrl+Z undoes as usual. It is spoken as "Selection cleared (1 node). Ctrl+Z brings it back" |
 | What a row menu acts on | `AB.menuTarget` | `{ name, kind }` of the row whose menu is opening: the tree sets it on right-click and Shift+F10, the inspector frame on its "..." (a `menu` given as `[id, state]`). A row-menu section heads its menu with `AB.menuTarget.name` and acts on it, never on a fixed row |
 | Everything's base values | `BASE_STYLE` | **The one base style** (`{ "node.color": "#808080", "edge.width": 8, ... }`): every section that shows Everything or its look reads it. The fill is the gray the drawings paint, so the panel never disagrees with the picture. A local copy is a defect |
 | Several choices | `seg([[value, label, extra]], value, onChange, { label })` | A segmented control for 2 to 4 short options: one Tab stop, arrows move and select |
@@ -192,6 +198,9 @@ uses the helper; a section-local copy of any of them is a defect.
 | A project's counts | `projectCounts(ds)`, `countSource(ds, fn)`, `removeFromData(ds, { nodes, edges })` | **The one reader of a project's node and edge counts**, `{ nodes, edges }` as the data is now: the fixture's counts (or what `countSource` registered for a project a section builds, such as the nested one) minus every Remove from data in this page view. `removeFromData` records what a removal took and returns the Undo that gives it back, so after the table removes Valjean (1 node, 36 edges) the table, Everything and the graph inspector all say 76 nodes. Read counts here, never from `AB.fx` directly where an edit could change them. A section never assigns `AB.projectCounts`: `--counts` fails on it |
 | Legend state | `legendOn()`, `setLegend(bool)`, `legendButton()`, `legendCard(parts)` | On by default, remembered per project. The toolbar's Legend button and L are its only doors: nothing else opens or closes it, and the card has no X. `legendCard([{ title: "Color: group", rows: [{ swatch, label, count }], more: "28 more communities" }])` draws the card top left and returns `null` while the legend is off. The card is read-only (the canvas carries no controls; `go` is ignored); `legendCard([])` draws "Nothing is colored or sized by a row", so a pressed Legend button always shows a card |
 | Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is its state (pause while running, play otherwise) and a click opens the Layout popover (`toolbar/layout-open`: Pause or Resume, then the graph's Layout group), wherever the bar is drawn; `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
+| The project's name and Recent | `AB.projectNames[dataset]`, `AB.visit` | A rename or Save as in the project menu sets `projectNames`, which the header reads. `AB.visit.fresh` is set by a first-launch start screen; from then on the start screen's Recent lists only `AB.visit.recents` (what was opened or saved in this page view), never the returning reader's fixture projects |
+| A row shown alone | `AB.soloRow` | The name of the row whose eye is soloed (the tree sets it; a tree drawn again clears it). The Les Miserables canvas and its legend paint from it (Louvain by community) |
+| A path's route on screen | `AB.pathRouteAt`, `AB.setPathRoute(i)` | Routes that tie: the path popover's result bar and the path inspector step the same index, so they never name different routes |
 | One meaning per icon | `ICON` | `view` bookmark, `set` circle-check, `createSet`, `run` layers, `legend` list, `note` message-square, `addNote`, `filter` funnel (data filters only), `options` ellipsis, `swap` arrow-left-right, `mode3d` box, `mode2d` square, `hidden` eye-off, `shown` eye |
 
 ### Frames and building blocks
@@ -215,10 +224,10 @@ uses the helper; a section-local copy of any of them is a defect.
 | `row({ icon, swatch, label, trail, selected, go, onClick })` | a `k-row` |
 | `tabs(names, active, onChange)` | a tab list that switches in place |
 | `inspector({ icon, swatch, title, kind, kindKey, locked, provenance, menu, stateBar, changed, builtin, renameDisabled, onRename, tabs, tab, body })` | the one inspector frame (below) |
-| `dataTab({ Summary, Members, Values, "Made with", Notes: { count, target } }, { kind })`, `dataVocab` | a Data tab in the one order (below) |
-| `paintsLine("Paints 10 nodes", [id, state])`, `paintOrderLine(text)` | the two lines that open every painting row's Style tab |
+| `dataTab({ Summary, Members, Values, "Made with": { body, provenance }, Notes: { count, target } }, { kind })`, `dataVocab` | a Data tab in the one order (below). Made with's `provenance` (`{ "Created from", Scope, "Data version", Ran }`) is drawn after its settings as read-only rows, always in that order, any missing one left out (give Scope and Data version only when they differ from the graph on screen) |
+| `paintsLine("Paints 10 nodes", [id, state])`, `paintOrderLine(text or { row, prop })`, `PAINT_ORDER`, `covers(row, prop, ds?)` | the two lines that open every painting row's Style tab. The paint-order line is drawn as given, in one grammar: "Covered by PageRank for Color on 10 of 10" (a string, or `["Covered by ", link, " for Color on 10 of 10"]`). The Covers form is never typed: `paintOrderLine({ row: "PageRank", prop: "Color" })` reads `PAINT_ORDER` (each project's rows, top of the tree first, and the properties each paints) through `covers()` and writes "Covers Louvain and 5 more for Color", the first row a link and "and 5 more" a popover listing the rest, so it names every covered row |
 | `addNote(subject?)`, `noteSubject()` | Add note, the one gesture: every door (N, "+", the selection bar, any menu's Add note, an empty Notes section) calls `addNote()`, which writes about the subject the inspector shows (the graph of the project on screen when nothing is selected) and keeps that inspector, also after Save. Pass `{ targets: [{ label, icon or swatch, go }], right }` only when the subject is not the inspector's (a filter step's row menu). The editor reads `AB.noteDraft` |
-| `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes" as one link to those notes, or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds). Notes saved in this page view live in `AB.sessionNotes` (the Notes place writes them), and the count adds those about the inspector's subject, so a saved note shows the same number everywhere |
+| `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes -- Open in Notes" (the link opens those notes), or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds). Notes saved in this page view live in `AB.sessionNotes` (the Notes place writes them), and the count adds those about the inspector's subject, so a saved note shows the same number everywhere |
 | `tree(rows, { label, onEye, go })`, `treeFooter(text or candidates, link)` | the paint tree (below) and the one line under it |
 | `styleTab(o)` | the one Style tab (below). A number whose channel has a `unit` (`edge.width`, the arrow sizes: px) shows it after the value ("Width 8 px"), and so does every other reader of the value |
 | `whyThisLook(lines, opts)` | the node, edge and several-elements Style body (below) |
@@ -322,6 +331,24 @@ Each entry as a node draws an entry dot between its person and its building.
 
 The Les Miserables and transfers fixtures are unchanged.
 
+### Counts the shell derives from the fixtures
+
+Some counts follow from the kit's fixtures but are not listed in them. The shell works them out
+once at boot (`derivedCounts` in `app.js`), so a section reads them and never types them
+(`--counts` fails a hand-typed one):
+
+- `AB.fx.datasets.lesmis.edgeList`: the published 254 edges as `[source, target]` row ids (the
+  same edges the canvas drawings use; every row's `degree` matches it).
+- `AB.fx.datasets.lesmis.frame.legend.rows[i].edges`: the edges with both ends in that group
+  (group 2: 14 nodes, `edges` 28). Write "Group 2" as `AB.count(g.count, "node") + ", " +
+  AB.count(g.edges, "edge")`.
+- `AB.fx.datasets.nested.derived`: `coauthorItems` (coauthor_ids items, one edge each under
+  Several edges per item), `coauthorPairs` (the distinct pairs they name, one edge each per pair),
+  `affiliations` (affiliations items) and `linksToResearchers` (links rows whose target is a
+  researcher: the only links that make edges while institutions are not loaded).
+- The nested project's node count, as loaded, is `AB.projectCounts("nested").nodes`; its whole
+  record count is `nested.records`.
+
 Gone in version 3: `cameraFace`, `layoutChip`, `legendClose` (the canvas has no controls),
 `inspector({ meta })` (the Paints line takes its place), `styleTab({ inherited, openSection,
 collapseAll, all })`, the `queued` and `partial` text in tree rows (status icons instead), the
@@ -359,8 +386,11 @@ Privacy. Its state is `AB.usageData`; whatever answers the question (Settings > 
 start screen's card) calls `AB.setUsageData(on)`, which redraws the header (`settings/privacy-on` and
 `start-screen/answered` imply it on, `settings/privacy` and `start-screen/declined` off). The filter
 chip always shows: "Full graph", or the frame's `chip` ("812 of 3,000 nodes") while a filter step
-removes something; it opens the project's filters (Data > Filters, or the project's Data place
-when nothing is filtered). A counted chip has one wording, `AB.count(left, "node", { of: total })`,
+removes something. It is drawn as a button (a border and a caret), not a label like the privacy
+chip, and opens the project's filters (Data > Filters, or the project's Data place when nothing is
+filtered). Its tooltip lists the steps that are off ("Filters, off: amount is at least 1,000"), from
+the frame's `stepsOff` (the names of the project's steps that are off; the Data place sets it, and
+`AB.projectFilter[dataset].stepsOff` carries it to every place of the project). A counted chip has one wording, `AB.count(left, "node", { of: total })`,
 with no "Filtered:" before it: the shell rewrites any counted chip a section gives to that wording,
 so `AB.route.frame.chip` always reads "60 of 77 nodes". A chip with no count ("Filtered: neighbors
 of Ana Ruiz", where the fixtures hold none) is shown as given.
@@ -377,7 +407,7 @@ Analyze; P the Path popover; L the legend; ? shortcuts; 5 the view mode; Shift+T
 closes one level, starting with the innermost (a handler that closes, cancels or clears something
 calls `preventDefault()`, and the shell then leaves that press alone), and with nothing open while a
 reviewer has hidden design notes it shows them again (never in the participant view study.mjs opens); Ctrl+Z and Ctrl+Shift+Z press the notice's own
-Undo or Redo first, then the header's; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
+Undo or Redo (or a cleared selection's Bring it back) first, then the header's; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
 key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G groups what
 is selected: with focus in the tree it is New folder, anywhere else the selection bar's Create set. T is not a key: the time slider opens
 from the table's options. Never bind W, A, S, D, Q, E, the arrows, = or -: they are
@@ -490,6 +520,8 @@ status, statusText, progress }`.
   Sources row opens the Data page) sets `waitDouble: true`: its single click waits out the
   double-click interval (350 ms) before it opens, the Notes place's rule, so a double-click still
   renames; Enter opens at once. Each row carries `data-row`, so focus finds it again after a redraw.
+  A table row in the dock is found the same way by its `data-who`: clicking a row that opens its
+  inspector keeps focus on that row, so Ctrl+F still searches the table.
 - `treeFooter([[text, link], ...])`: one line under the tree; the first (most specific) wins.
 
 ## Commands
@@ -522,8 +554,21 @@ uses its command's label word for word; a door that rewords it is a second patte
 - **One empty state** (`empty()`), **one notice** (`notice()`, `deleted()`), **one tooltip**
   (`tip()`), **one design-note chip** (`needsElement()`, `openQuestion()`).
 - **Items that need graphty-element** are drawn disabled with the chip (`needs` on a menu item,
-  `data-needs` on any other control). "Hide design notes" in the review bar hides them all: the
-  owner reviews with notes showing; user tests run with them hidden.
+  `data-needs` on a design-note-only control). "Hide design notes" in the review bar hides every
+  chip and every `data-needs` control, but never product text: a menu item marked `needs` stays
+  listed, disabled, its second line the reason ("Not available yet: <reason>"). The owner reviews
+  with notes showing; user tests run with them hidden.
+- **A disabled control always says why, to a participant too.** In the participant view every
+  tooltip, menu reason and notice that says "needs graphty-element" is rewritten once, in `lib.js`
+  (`plainReason`): the reason stays and the library's name goes. "Needs graphty-element: X" reads
+  "Not available yet: X", "Rename needs graphty-element: X" reads "This name cannot be changed: X",
+  "A needs graphty-element" reads "A is not available in this version", any other "graphty-element"
+  in that text reads "this version", and "(filed)" is dropped. Text that names graphty-element on
+  purpose ("graphty-element's default") is not touched. Never write "Not available yet" alone.
+- **Disabled is grayed.** Every element marked `aria-disabled="true"` is drawn in the disabled text
+  color by default (`app.css`); the kit's buttons, menu items and toolbar buttons keep their own
+  disabled look, and a section may still style its own. A name that cannot be renamed is content,
+  not a control, and is not grayed: the refusal is in its tooltip.
 - **Notes are graphty-element API** (the owner's decision): adding, listing, counting and binding
   to notes are enabled everywhere and carry no "needs graphty-element" chip. The one exception is
   noting an edge picked on the canvas, which keeps the chip.
@@ -574,17 +619,30 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
 ## Checking routes (`study.mjs`, run from `design/ui/prototype/`)
 
 - `node app-b/study.mjs --check <route> ...`: each route renders with no stub, no failure, no
-  script error and no 404. A route may end in `@1024` (in `--check`, `--shoot`, `--try` and
+  script error, no 404 and no reviewer word ("skeleton", "not wired", "not modeled", "stand-in")
+  in visible text or a tooltip outside a design note. A route may end in `@1024` (in `--check`, `--shoot`, `--try` and
   `--matrix`): it opens in a 1024 x 768 window instead of 1440 x 900.
 - `node app-b/study.mjs --counts`: fails on every fixture count (a dataset's node, edge or record
   count) typed by hand in a section file, outside comments, before any counted noun (nodes, edges, accounts,
-  proteins, patents, researchers ...): "77 nodes", "124,318 patents", "of 254", `count: 77`; on a
+  proteins, patents, researchers ...): "77 nodes", "124,318 patents", "of 254", `count: 77`; on any
+  count found anywhere in the fixtures (a nested document's record arrays and relationship counts,
+  a list's length, and the nested counts the shell derives in `nested.derived`) typed inside the
+  formatter (`AB.count(242, "row")`, `AB.count(x ? 242 : 0, ...)`, `{ of: 254 }`) or picked by
+  either branch of a ternary (`x ? 514 : 510` fails on both; a duration or size such as `loadMs` is
+  not a count); on a
   part of a whole written another way than `AB.count(n, noun, { of })` ("Filtered: " before a
   count, "3,000 to 812 nodes", "3,000 -> 812", two numbers around an arrow icon); and on a banned
   scope string anywhere in the skeleton ("within 1%", "near #", "not used yet", "Change..."); and on
-  a section that assigns `AB.projectCounts` (it registers a project's counts with `AB.countSource`).
+  a section that assigns `AB.projectCounts` (it registers a project's counts with `AB.countSource`);
+  and on a string a participant can read (a notice, a tooltip, a label) holding a reviewer word,
+  "skeleton", "not wired", "not modeled" or "stand-in". Say what the product would do, or "(not
+  available yet)"; a design note (`openQuestion`, `needsElement`) is review-only and may keep them,
+  but only when the text is written inside the call.
 - `node app-b/study.mjs --prove`: proves `--check` fails on an unknown section, an unknown state and
-  a stub (a section with no render, planted for the run), and passes a good route.
+  a stub (a section with no render, planted for the run), and passes a good route; and proves `--try`:
+  `--type` types into a focused box and exits 1 with nothing focused, `--shift-click` and
+  `--ctrl-click` leave two rows selected where a plain click leaves one, a reviewer word is caught,
+  and an unknown step exits 2.
 - `node app-b/study.mjs --task <id> <route> ...`: a task's participant shots, `01.png` on. Every route
   must draw the same project (`frame.dataset`); a mix exits 1 and writes no `routes.json`.
 - `node app-b/study.mjs --matrix`: checks `../study/structure-comparison/state-matrix.md`. It fails
@@ -594,7 +652,15 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
 - `node app-b/study.mjs --try <out.png> <route> --key Shift+ArrowRight ...`: a click-through. Steps:
   `--click`, `--rclick`, `--dblclick` (rename), `--shift-click`, `--ctrl-click`, `--alt-click` (add
   to the selection, solo a row), `--hover` (a name), `--key` (a key), `--type` (text, typed a key at
-  a time into what has focus), `--expect` and `--expect-not` (text on screen). An unknown step is
-  refused before the browser opens.
+  a time into what has focus; exits 1, typing nothing, when nothing that takes text has focus),
+  `--expect` and `--expect-not` (text on screen; `role=menu` for a role; `selected=2` for exactly two
+  selected rows), `--hover-at x,y` and `--hover-icon n` (hover a point, or the nth icon-only control
+  in page order, to read a tooltip whose name is unknown). Every hover prints the tooltip. A name
+  several controls share prints `ambiguous: "<name>" matches N controls (...)` and clicks the first;
+  `"<name>#2"` picks the second and `"role=treeitem:<name>"` only that role. A script error, a 404
+  or a reviewer word on screen exits 1. An unknown step is refused (exit 2) before the browser opens.
+- Every page a run opens starts from an empty browser store (only the participant view and the
+  theme set), so a state one route remembers, such as the legend turned off, never carries into the
+  next route.
 - Every run holds one shared browser slot (`../kit/with-browser.sh`), runs one browser, gives every
   25 routes a fresh context and closes it.

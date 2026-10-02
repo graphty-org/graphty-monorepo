@@ -72,6 +72,7 @@
         graph: { label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] },
         pagerank: { label: "PageRank", icon: "chart-column", go: ["inspector-measure-row", "data"] },
         betweenness: { label: "Betweenness", icon: "chart-column", go: ["inspector-measure-row", "data"] },
+        watchlist: { label: "Watchlist", swatch: "#CC79A7", /* the Watchlist set's color in the Graph tree */ go: ["inspector-group-set-path-row", "watchlist"] },
     };
 
     // The walk step that selects a target node (1-based, as frame.walk takes it), or null
@@ -105,6 +106,9 @@
                 text: "Valjean and Javert land in the same community, with Marius and Cosette." },
             { id: "n4", when: at(9, 29, 11, 20), about: [T.valjean], cites: [T.betweenness],
                 text: `Highest betweenness in the book, ${v.betweenness}. Next is ${next.label} at ${next.betweenness}.` },
+            // A target set whose members changed after the note was written (graphty-element's set:changed): the note says so in place
+            state === "missing-target" ? { id: "n5", when: at(9, 28, 16, 2), about: [Object.assign({ changed: true }, T.watchlist)], cites: [T.pagerank],
+                text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." } :
             { id: "n5", when: at(9, 28, 16, 2), about: [T.valjean, T.javert], cites: [Object.assign({ earlier: true }, T.pagerank)],
                 text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
             { id: "n6", when: at(9, 28, 12, 30), about: [T.edge],
@@ -217,6 +221,12 @@
     }
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Cmd" : "Ctrl";
     let nameHintSeen = false; // the no-name line shows until the first note is saved in this page view
+    // The project's author setting (Settings > Your name, graphty-element's session.author). Empty is the
+    // normal case; the named states use the name settings/general-name-set shows. A note saved while it is
+    // set carries it; notes saved before keep no name, and an edit never adds one.
+    let author = null;
+    const NAMED = ["two-authors", "writing-named"];
+    const AUTHOR = "Maya Chen";
     let pending = null; // a single click waits out the double-click interval, so double-click can edit
 
     // The editor, in place of a note (edit) or at the top of the list (new). targets come from the selection.
@@ -257,9 +267,10 @@
         drawCites();
         sync();
         requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
-        // No author set: a new note says once, quietly, that it is saved without a name. It asks for nothing.
-        // (The skeleton has no author set; graphty-element's session.author is empty until Settings sets it.)
-        const hint = !o.text && !nameHintSeen ? h("div", { class: "np-hint" }, "Notes are saved without a name. Add your name in ", AB.link("settings", "general", "Settings", { class: "ab-link" }), ".") : null;
+        // With an author name set, every editor (new or edit) says whose name it saves under, and links to
+        // Settings to change it. With none, a new note says once, quietly, that it is saved without a name.
+        const hint = author ? h("div", { class: "np-hint" }, "Saving as: " + author + ". Change it in ", AB.link("settings", "general-name-set", "Settings", { class: "ab-link" }), ".")
+            : !o.text && !nameHintSeen ? h("div", { class: "np-hint" }, "Notes are saved without a name. Add your name in ", AB.link("settings", "general", "Settings", { class: "ab-link" }), ".") : null;
         return h("div", { class: "np-editor", role: "group", "aria-label": o.text ? "Edit note" : "New note" },
             chips,
             ta,
@@ -383,6 +394,27 @@
             return h("div", { class: "np-earlier" }, "Earlier run", btn);
         };
         earlierEl = earlierLine();
+        // A target set whose members changed since the note was written: said in place, with Restore set,
+        // which puts the members back as they were then (Undo takes that back)
+        let changedEl = null;
+        const changedLine = () => {
+            const t = n.about.find((x) => x.changed);
+            if (!t) return null;
+            const btn = AB.button("Restore set", { kind: "ghost", onClick: () => {
+                t.changed = false;
+                changedEl.remove();
+                li.focus();
+                AB.notice("Restored " + t.label + " as it was when the note was written", { label: "Undo", onClick: () => {
+                    t.changed = true;
+                    changedEl = changedLine();
+                    about.after(changedEl);
+                    li.focus();
+                } });
+            } });
+            AB.tip(btn, "Put " + t.label + "'s members back as they were when this note was written", { label: false });
+            return h("div", { class: "np-earlier" }, "The set this note pointed to was changed", btn);
+        };
+        changedEl = changedLine();
         const meta = h("span", null, AB.tip(h("span", { class: "k-num" }, stamp(n.when)), agoOf(n), { label: false }), n.edited ? ", edited" : null);
         // A second click on "..." closes the menu it opened
         const more = AB.iconButton(AB.ICON.options, "Note options", { onClick: () => (document.querySelector(".k-menu") ? AB.closeMenu() : options(more)) });
@@ -391,6 +423,7 @@
         AB.append(li, [
             text,
             about,
+            changedEl,
             citesEl,
             earlierEl,
             h("div", { class: "np-meta k-secondary" },
@@ -404,12 +437,44 @@
         return li;
     }
 
-    // Filters: the selection is Valjean, or the edge Javert -- Valjean in the edge-note state.
-    const FILTERS = { all: null, "about-selection": "valjean", "edge-note": "edge", "about-graph": "graph" };
-    const heading = { valjean: "About Valjean", edge: "About Javert -- Valjean", graph: "About this graph" };
+    // Where the list was opened from: the project, the inspector beside it and the walked node of the
+    // route before it (read in frame(), before the shell moves on). A note-count link keeps all three,
+    // so the list is the notes of that project and that selection, never Les Miserables'.
+    let from = null;
+    const OPENED = ["all", "about-selection", "about-graph", "door-entries"];
+    function openedFrom() {
+        const r = AB.route;
+        if (!r || !r.frame || !r.frame.right) return;
+        const w = AB.walked && AB.walked.dataset === r.frame.dataset && /^inspector-node/.test(r.frame.right) ? AB.walked : null;
+        from = { ds: r.frame.dataset || "lesmis", right: r.frame.right, walked: w };
+    }
+    const keptFrame = () => Object.assign({ right: from.right }, from.ds !== "lesmis" ? { dataset: from.ds } : {}, from.walked ? { walk: from.walked.index + 1 } : {});
+    // The selection the list is about: [chip label, name], read from the inspector it was opened beside.
+    // A direct link (nothing before it) is about Valjean, the node inspector's own node.
+    const DOOR_SEL = { "door-ana": [["Ana Ruiz . person", "Ana Ruiz"]], "door-b1": [["B1 . building", "B1"]], "door-pair": [["Ana Ruiz -> B1 . entries", "Ana Ruiz -> B1"]], "door-two": [["Ana Ruiz . person", "Ana Ruiz"], ["B1 . building", "B1"]] };
+    function selection() {
+        const [id, st] = from ? String(from.right).split("/") : ["inspector-node", "data"];
+        const one = (x) => [[x, x]];
+        if (projectOf() === "doorEntries") return DOOR_SEL[st] || [];
+        if (projectOf() !== "lesmis") return from && from.walked ? one(from.walked.name) : [];
+        if (from && from.walked) return one(from.walked.name);
+        if (id === "inspector-edge") return one(T.edge.label);
+        if (id === "inspector-run-row") return one(T.louvain.label);
+        if (id === "inspector-group-set-path-row") return one(T.community3.label);
+        if (id === "inspector-several-elements") return (st === "two-nodes" ? ["Valjean", "Javert"] : ["Valjean", "Javert", "Thenardier", "Fantine", "Cosette"]).map((x) => [x, x]);
+        return id === "inspector-node" || !from ? one("Valjean") : [];
+    }
+    // A filter: the list heading and which subjects it keeps
+    function filterOf(state) {
+        if (state === "about-graph") return { heading: "About this graph", has: (t) => t.icon === "network" };
+        const sel = state === "edge-note" ? [[T.edge.label, T.edge.label]] : state === "about-selection" ? selection() : null;
+        if (!sel) return null;
+        const labels = sel.map((x) => x[0]);
+        return { heading: sel.length ? "About " + sel.map((x) => x[1]).join(", ") : "About the selection", has: (t) => labels.includes(t.label) };
+    }
 
     function filterButton(state) {
-        const f = FILTERS[state] || null;
+        const f = state === "about-graph" ? "graph" : state === "edge-note" ? "edge" : state === "about-selection" ? "valjean" : null;
         const sel = state === "edge-note" ? "edge-note" : "about-selection";
         // A menu button (a Tab stop); pressed while a filter other than All notes is on (spec 8), its name the filter
         const now = !f ? "All notes" : f === "graph" ? "About this graph" : "About the selection";
@@ -453,16 +518,17 @@
             { id: "all", label: "All notes" },
             { id: "about-selection", label: "About the selection (Valjean)" },
             { id: "about-graph", label: "About this graph" },
-            { id: "writing", label: "Writing a note" },
+            { id: "writing", label: "Writing a note, no name set (the usual case)" },
+            { id: "writing-named", label: "Writing a note, with your name set in Settings" },
             { id: "editing", label: "Editing a note in place" },
             { id: "edge-note", label: "A note about an edge" },
             { id: "empty", label: "Empty" },
             { id: "filter-step-on", label: "A filter step removes a target" },
-            { id: "missing-target", label: "A target not in the current data" },
+            { id: "missing-target", label: "A target not in the current data, and a set that changed" },
             { id: "earlier-group", label: "A note about a group of an earlier result" },
             { id: "note-menu", label: "A note's menu" },
             { id: "selected", label: "A note selected (its targets in the inspector)" },
-            { id: "two-authors", label: "Two people named their notes" },
+            { id: "two-authors", label: "Two people named their notes; writing one with a name set" },
             { id: "one-author", label: "Only one person named their notes" },
             { id: "door-entries", label: "Door entries: chips name each node's type" },
             { id: "find-no-match", label: "Find with no match" },
@@ -470,14 +536,17 @@
             { id: "many", label: "Forty notes on the transfers" },
             { id: "long-note", label: "A 600-character note and a long subject" },
             { id: "editing-long", label: "Editing a 600-character note" },
-            { id: "chip-removed-saved", label: "A subject removed, then saved" },
+            { id: "chip-removed-saved", label: "A subject removed, then saved; the last subject removed from another" },
         ],
         frame(state) {
             // After Save the inspector the note was written from stays (AB.addNote's contract)
             const keep = AB.noteKeep;
+            if (OPENED.includes(state)) openedFrom();
+            // Opened from a project's inspector (a note count, a note link): that project and selection stay
+            if (!keep && from && OPENED.includes(state) && (state !== "door-entries" || from.ds === "doorEntries")) return keptFrame();
             if (state === "door-entries") return { dataset: "doorEntries", right: (keep && keep.right) || "inspector-nothing-selected/door-entries" };
             if (state === "about-selection") return { right: "inspector-node/data" };
-            if (state === "writing") {
+            if (state === "writing" || state === "writing-named") {
                 const d = AB.noteDraft;
                 return Object.assign({ right: (d && d.right) || "inspector-node/data" }, d && d.dataset && d.dataset !== "lesmis" ? { dataset: d.dataset } : {});
             }
@@ -491,10 +560,15 @@
             return {};
         },
         render(el, state) {
+            const afterSave = !!AB.noteKeep;
             AB.noteKeep = null; // used once, by the frame of the screen Save lands on
+            // The author setting holds while a note is written and saved; any other state opens on its own
+            if (NAMED.includes(state)) author = AUTHOR;
+            else if (state !== "writing" && state !== "selected" && !afterSave) author = null;
+            const writing = state === "writing" || state === "writing-named" || state === "two-authors";
             const ds = projectOf();
             // While a note is being written, "+" returns to it rather than starting a second draft
-            const add = AB.plus({ label: "Add note (N)", items: ["Note"], onAdd: () => { const d = state === "writing" && el.querySelector("textarea, [contenteditable]"); if (d) { d.focus(); AB.announce("Writing a note"); } else AB.addNote(); } });
+            const add = AB.plus({ label: "Add note (N)", items: ["Note"], onAdd: () => { const d = writing && el.querySelector(".np-editor textarea"); if (d) { d.focus(); AB.announce("Writing a note"); } else AB.addNote(); } });
             el.append(AB.placeHead("Notes", [add]));
             if (state === "empty") {
                 el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() }));
@@ -503,29 +577,31 @@
             if (OWN_LIST.includes(state)) listState = state; else if (state !== "selected") listState = null;
             const list = state === "selected" ? listState || state : state;
             const all = ds === "doorEntries" ? doorNotes() : ds === "transactions" ? (list === "many" ? transferNotes() : []).concat(savedIn("transactions")) : ds === "lesmis" ? notes(list) : savedIn(ds); // a just-loaded project has only the notes written in it
-            if (!all.length && state !== "writing") { el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() })); return; }
+            if (!all.length && !writing) { el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() })); return; }
             const names = showNames(all);
-            const f = FILTERS[state] || null;
-            const shown = f ? all.filter((n) => n.about.includes(T[f])) : all;
+            const f = filterOf(state);
+            const shown = f ? all.filter((n) => n.about.some(f.has)) : all;
             // Filter to degree >= 2 removes Napoleon (degree 1): his note is kept, listed apart.
             const removedNote = state === "filter-step-on" ? (n) => n.about.includes(T.napoleon) : () => false;
 
             const scroll = h("div", { class: "k-scroll" });
             el.append(findBar(scroll, state), scroll);
             // One count, named for what it counts: every note in this project, or a filter's part of it
-            if (f) scroll.append(h("div", { class: "np-head" }, heading[f], h("span", { class: "k-secondary" }, " . " + AB.count(shown.length, "note", { of: all.length }))));
+            if (f) scroll.append(h("div", { class: "np-head" }, f.heading, h("span", { class: "k-secondary" }, " . " + AB.count(shown.length, "note", { of: all.length }))));
             else if (all.length) scroll.append(h("div", { class: "np-count" }, AB.count(all.length, "note") + " in this project"));
-            if (state === "writing") {
-                // The subject comes from the door that opened the editor (AB.addNote); a direct link writes about Valjean
-                const draft = AB.noteDraft;
-                scroll.append(editor({ targets: draft ? draft.targets : [T.valjean], graph: draft && draft.graph, draftText: draft && draft.text, done: (ok, v) => {
+            if (writing) {
+                // The subject comes from the door that opened the editor (AB.addNote); a direct link writes about
+                // Valjean, and the two-authors list (the graph inspector beside it) about the whole graph
+                const draft = state === "two-authors" ? null : AB.noteDraft;
+                const ed = editor({ targets: draft ? draft.targets : state === "two-authors" ? [] : [T.valjean], graph: draft && draft.graph, draftText: draft && draft.text, done: (ok, v) => {
                     AB.noteDraft = null;
+                    if (!ok && state === "two-authors") { ed.remove(); return; } // the list stays as it was
                     if (ok) {
-                        saved.unshift({ id: "s" + (saved.length + 1), ds, when: new Date(), live: true, about: v.about, text: v.text });
+                        saved.unshift({ id: "s" + (saved.length + 1), ds, by: author, when: new Date(), live: true, about: v.about, text: v.text });
                         focusNote = saved[0].id;
                         nameHintSeen = true;
                         // The list of the project it was written in, beside the inspector it was written from
-                        AB.noteKeep = { right: (draft && draft.right) || "inspector-node/data", dataset: ds };
+                        AB.noteKeep = { right: (draft && draft.right) || (state === "two-authors" ? "inspector-nothing-selected/overview" : "inspector-node/data"), dataset: ds };
                         AB.go("notes-place", ds === "doorEntries" ? "door-entries" : "all");
                         return;
                     }
@@ -535,7 +611,8 @@
                     if (from && from.hash && from.hash !== location.hash) { location.hash = from.hash; setTimeout(() => AB.refocus(from.focus), 80); }
                     else AB.go("notes-place", "all");
                     if (v) setTimeout(() => AB.notice("Note discarded", { label: "Undo", onClick: () => { AB.noteFrom = from; AB.noteDraft = Object.assign({}, draft || { targets: v.about }, { targets: v.about, text: v.text }); AB.go("notes-place", "writing"); } }), 120);
-                } }));
+                } });
+                scroll.append(ed);
             }
             scroll.append(h("ul", { class: "np-list", "aria-label": "Notes, newest first" }, shown.filter((n) => !removedNote(n)).map((n) => noteItem(n, names))));
             const removed = shown.filter(removedNote);
@@ -561,6 +638,9 @@
                 const ed = scroll.querySelector(".np-editor");
                 ed.querySelectorAll(".np-chip")[1].querySelector(".np-x").click();
                 [...ed.querySelectorAll(".k-btn")].find((b) => b.textContent.trim().startsWith("Save")).click();
+                // Then the one subject of another note removed: it is now about the whole graph, whose x is disabled
+                all.find((n) => n.id === "n4").edit();
+                scroll.querySelector(".np-editor .np-chip .np-x").click();
             }
             if (state === "find-no-match") {
                 const q = el.querySelector(".ab-treebar input");

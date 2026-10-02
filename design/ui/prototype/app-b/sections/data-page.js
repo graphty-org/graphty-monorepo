@@ -59,7 +59,7 @@
 .dpg-ctl input.k-field { min-width: 280px; }
 .dpg-locked { display: inline-flex; align-items: center; gap: 4px; color: var(--cm-text-secondary); }
 .dpg-auto { font-size: 10px; line-height: 14px; padding: 0 4px; border-radius: 3px; color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); flex: none; }
-.dpg-grid { flex: 1 1 auto; min-height: 140px; overflow: auto; }
+.dpg-grid { flex: 1 1 0; min-height: 140px; overflow: auto; }
 .dpg-grid .k-table { width: auto; min-width: 100%; }
 .dpg-grid .k-table th { vertical-align: top; padding-top: 4px; padding-bottom: 4px; height: auto; }
 .dpg-grid .k-table td { height: 26px; }
@@ -83,7 +83,7 @@
 .dpg-filter { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 16px; background: var(--cm-bg-selected-secondary); border-bottom: 1px solid var(--cm-border); }
 .dpg-pre { margin: 12px 16px; padding: 8px 12px; border-radius: 6px; background: var(--cm-bg-secondary); font: 12px/18px var(--cm-font-family-mono, ui-monospace, monospace); white-space: pre; overflow: auto; }
 .dpg-grid .ab-empty { padding: 12px 16px; }
-.dpg-report { flex: none; max-height: 38%; overflow: auto; border-top: 1px solid var(--cm-border); padding: 6px 16px 10px; }
+.dpg-report { flex: 0 1 auto; min-height: 0; overflow: auto; border-top: 1px solid var(--cm-border); padding: 6px 16px 10px; }
 .dpg-report h3 { margin: 0 0 4px; font: inherit; font-weight: 550; display: flex; align-items: center; gap: 8px; height: 24px; }
 .dpg-rl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 24px; line-height: 18px; }
 .dpg-rl > .k-warn-glyph { flex: none; }
@@ -176,6 +176,8 @@
             .concat(t.flaggedAccounts.slice(0, 4).map((r) => ({ id: r.id, kind: r.kind, country: r.country, riskScore: String(r.riskScore), flagged: String(r.flagged), alertRule: r.alertRule, alertTime: r.alertTime })));
         return mk(Object.assign({ id: "accounts", file: t.accountsFile, name: "accounts", rows: t.nodes, cols: ACC_COLS.slice(), sample, type: "account", types: Object.assign({}, ACC_TYPES), unique: ["id"], roles: { id: role("key") } }, o));
     }
+    // The transfers export that does not read (an amount holds a comma): its own name, never a clean month's file
+    const BAD_T = "transfers-bank-export.csv";
     function transfersTable(o) {
         const t = T();
         return mk(Object.assign({ id: "transfers", file: t.file, name: "transfers", rows: t.edges, cols: t.columns.slice(), sample: t.firstRows.slice(0, 8), kind: "edge", typeName: "transfer",
@@ -308,14 +310,17 @@
         out.forEach((t) => { if (t.json && !t.group && t.parent !== "doc") t.parent = "s:" + t.parent; });
         return out;
     }
+    // A child table's first column: the parent record, named for its type ("researcher (parent)")
+    const parentCol = (type) => type + " (parent)";
+    const PARENT_R = parentCol("researcher");
     // affiliations as Several rows: a child table under researchers, its first column the parent, locked
     function affiliationsTable() {
         const R = NX().document.data.researchers;
-        const sample = R.flatMap((r) => r.attributes.affiliations.map((a) => ({ "parent": r.id, institution_id: a.institution_id, role: a.role, since: a.since, current: String(a.current) }))).slice(0, 8);
+        const sample = R.flatMap((r) => r.attributes.affiliations.map((a) => ({ [PARENT_R]: r.id, institution_id: a.institution_id, role: a.role, since: a.since, current: String(a.current) }))).slice(0, 8);
         return mk({ id: "affiliations", parent: "researchers", childOf: "researchers", childCol: "attributes.affiliations", path: "data.researchers[].attributes.affiliations", name: "affiliations", kind: "edge", typeName: "affiliation",
-            file: NX().file, format: "JSON", rows: NREP.affiliations, cols: ["parent", "institution_id", "role", "since", "current"], sample,
-            types: { "parent": "cat", institution_id: "cat", role: "cat", since: "cat", current: "bool" },
-            roles: { "parent": role("from", "researcher", "id", { locked: true, parentCol: true }), institution_id: role("to", "institution", "id") } });
+            file: NX().file, format: "JSON", rows: NREP.affiliations, cols: [PARENT_R, "institution_id", "role", "since", "current"], sample,
+            types: { [PARENT_R]: "cat", institution_id: "cat", role: "cat", since: "cat", current: "bool" },
+            roles: { [PARENT_R]: role("from", "researcher", "id", { locked: true, parentCol: true }), institution_id: role("to", "institution", "id") } });
     }
     // Any other array of records as Several rows (addresses): a child node table, one row per item, its
     // first column the parent researcher (locked, Links to), its columns the items' leaves
@@ -323,13 +328,14 @@
         if (c === "attributes.affiliations") return affiliationsTable();
         const tp = t.path, pre = tp + "[]." + c + "[].", name = c.split(".").pop();
         const cols = NX().paths.filter((p) => p.path.startsWith(pre) && !p.path.slice(pre.length).includes("[") && !p.kinds.object && !p.kinds.array).map((p) => p.path.slice(pre.length));
-        const recs = get(NX().document, tp).flatMap((r) => (get(r, c) || []).map((it) => Object.assign({ "parent": r.id }, Object.fromEntries(cols.map((k) => [k, get(it, k)])))));
+        const pc = parentCol(t.type);
+        const recs = get(NX().document, tp).flatMap((r) => (get(r, c) || []).map((it) => Object.assign({ [pc]: r.id }, Object.fromEntries(cols.map((k) => [k, get(it, k)])))));
         return mk({ id: name, parent: t.id, childOf: t.id, childCol: c, path: tp + "[]." + c, name, type: /sses$/.test(name) ? name.slice(0, -2) : name.replace(/s$/, ""), file: NX().file, format: "JSON", rows: recs.length,
-            cols: ["parent"].concat(cols), sample: recs.slice(0, 8), types: Object.fromEntries([["parent", "cat"]].concat(cols.map((k) => [k, typeof recs[0][k] === "number" ? "num" : "cat"]))),
-            roles: { "parent": role("links", t.type, "id", { locked: true, parentCol: true }) } });
+            cols: [pc].concat(cols), sample: recs.slice(0, 8), types: Object.fromEntries([[pc, "cat"]].concat(cols.map((k) => [k, typeof recs[0][k] === "number" ? "num" : "cat"]))),
+            roles: { [pc]: role("links", t.type, "id", { locked: true, parentCol: true }) } });
     }
     function nested(o) {
-        const m = base(Object.assign({ door: { title: "Add data", done: ["graph-place", "nested"] }, tables: nestedTables(), sel: "doc", direction: "undirected", json: "nested", coPer: "pair" }, o));
+        const m = base(Object.assign({ door: { title: NEW_TITLE, done: ["graph-place", "nested"] }, tables: nestedTables(), sel: "doc", direction: "undirected", json: "nested", coPer: "pair" }, o));
         // graphty-element proposes an array of ids that match a proposed node table's keys as Several
         // edges (element-requirements section 8); the loaded defaults are AB.NESTED_LOADED in lib.js
         if (!o || !o.tables) coauthorEdges(m);
@@ -407,7 +413,8 @@
 
     // ---------- the states ----------
     // door: title, verb, where Load goes; plus the tables, the selected table and what is open
-    const NEW = { title: "Add data", done: ["canvas-and-states", "loading"] };
+    const NEW_TITLE = "Open as a new graph";
+    const NEW = { title: NEW_TITLE, done: ["canvas-and-states", "loading"] };
     const base = (o) => Object.assign({ door: NEW, direction: "directed", filter: null }, o);
     // Load ends on the graph it loaded: the canvas reads the same fixture the page shows
     const NEW_DOOR = Object.assign({}, NEW, { done: ["canvas-and-states", "door-entries-loading"] });
@@ -416,7 +423,10 @@
     const transfers = (o) => base(Object.assign({ door: NEW_T, tables: [accountsTable(), transfersTable()], sel: "transfers" }, o));
     const edgeOnly = (o) => base({ door: NEW_T, tables: [transfersTable(Object.assign({ name: "transfers-2026-03", roles: { from_account: role("from", "node", null, { auto: true }), to_account: role("to", "node", null, { auto: true }) } }, o))], sel: "transfers", focusLoad: true });
     // transfers-2026-04.csv: the fixture has its counts and columns, not its rows, so the sample is March's (said in the report)
-    const april = (o) => { const ta = TA().files.transfers; return Object.assign({ id: "april", name: "transfers-2026-04", file: ta.file, rows: ta.rows, sampleFrom: T().file }, o); };
+    // its preview rows are March's first rows a month later, so an April file never shows March dates
+    // (about five in six of April's transfers repeat March's: the same accounts, the same amounts)
+    const aprilSample = () => T().firstRows.slice(0, 8).map((r) => Object.assign({}, r, { timestamp: r.timestamp.replace(/^2026-03-(\d\d)/, (x, d) => "2026-04-" + (d === "31" ? "30" : d)) }));
+    const april = (o) => { const ta = TA().files.transfers; return Object.assign({ id: "april", name: "transfers-2026-04", file: ta.file, rows: ta.rows, sampleFrom: T().file, sample: aprilSample() }, o); };
     const toNodes = (t, type) => { t.kind = "node"; t.type = type; Object.keys(t.roles).forEach((c) => { if (["from", "to"].includes(t.roles[c].r)) t.roles[c].r = "links"; }); return t; };
     const STATES = {
         entries: () => door(),
@@ -446,8 +456,11 @@
         "edit-people": () => editDoor("people"),
         "edit-buildings": () => editDoor("buildings"),
         "weight-moved": () => { const m = transfers(); const t = m.tables[1]; t.per = "pair"; t.combine.amount = "Sum"; t.combine.timestamp = "Earliest and latest"; t.roles.amount = undefined; delete t.roles.amount; t.roles.count = role("weight"); m.moved = ["amount", "count"]; return m; },
-        // Replace reads a new file, so its primary is Load (focused: every column matches, so the task is the command, the file and Load)
-        replace: () => { const ta = TA().files.transfers; const m = transfers({ door: { title: "Replace: " + T().file, verb: "Load", done: ["data-place", "after-replace"] }, focusLoad: true, replaced: { id: "transfers", file: ta.file, rows: ta.rows, was: T().file } }); m.tables[1].sampleFrom = T().file; return m; },
+        // Replace with file... opens the file picker first, over the page titled for the act; the file
+        // picked fills the page with every role carried over, and focus goes to Load (every column matches)
+        replace: () => replaceModel(true),
+        // the file already known (Replace from Add to transfers' report): no picker
+        "replace-chosen": () => replaceModel(false),
         // Edit on the loaded transfers, either table selected; Apply returns to the Data place as it was
         "edit-source": () => transfers({ door: { title: "Edit: transfers", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
         "edit-accounts": () => transfers({ sel: "accounts", door: { title: "Edit: accounts", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
@@ -457,11 +470,11 @@
         "edit-graph-file": () => base({ tables: lesmisFile(), sel: "lm-nodes", direction: "file", door: { title: "Edit: miserables.gexf", verb: "Apply", done: ["data-place", "graph-file"], edit: true } }),
         "edge-list": () => edgeOnly(),
         url: () => urlState(),
-        "detect-several": () => base({ tables: [mk({ id: "paste", name: "Pasted text", kind: "text", pasted: PASTED_XML, format: null, candidates: ["GraphML", "GEXF"], rows: null, auto: {} })], sel: "paste", direction: "file" }),
-        "detect-none": () => base({ tables: [mk({ id: "paste", name: "Pasted text", kind: "text", pasted: PASTED_PROSE, format: null, candidates: [], rows: null, auto: {} })], sel: "paste", direction: "file" }),
+        "detect-several": () => base({ into: "new",  tables: [mk({ id: "paste", name: "Pasted text", kind: "text", pasted: PASTED_XML, format: null, candidates: ["GraphML", "GEXF"], rows: null, auto: {} })], sel: "paste", direction: "file" }),
+        "detect-none": () => base({ into: "new",  tables: [mk({ id: "paste", name: "Pasted text", kind: "text", pasted: PASTED_PROSE, format: null, candidates: [], rows: null, auto: {} })], sel: "paste", direction: "file" }),
         "unsupported-format": () => base({ tables: [mk({ id: "sif", name: "interactions", file: "interactions.sif", kind: "text", format: "SIF", rows: null, refusal: { terminal: true, text: "SIF: " + UNSERVED.SIF + ".", todo: "Save it from Cytoscape as GraphML or as a CSV edge list, and open that." } })], sel: "sif" }),
-        // A file dropped while a project is open opens as a new graph: no "this graph or a new one?" question
-        "load-into": () => Object.assign(edgeOnly(april()), { sel: "april" }),
+        // A file dropped while a project is open: the footer's Load into (This graph | New graph), New graph first
+        "load-into": () => intoModel("new"),
         // Add rows from file... on the transfers source row: the header says what the door said ("Add to
         // transfers"); the file's columns match, so its rows are added to transfers, and Load stays on
         "add-rows": () => addRows(),
@@ -476,7 +489,7 @@
             return m;
         },
         "refused-empty": () => base({ tables: [mk({ id: "empty", name: "Untitled", file: "Untitled.csv", kind: "edge", cols: T().columns.slice(), rows: 0, refusal: { terminal: true, text: "Untitled.csv has a header row and nothing under it, so it holds no nodes and no edges.", todo: "Choose another file." } })], sel: "empty" }),
-        "refused-parse": () => Object.assign(edgeOnly({ refusal: { setting: true, text: "Lines 2 and 5 have 5 columns where the header has 4: an amount holds a comma.", todo: "Quote the amounts in the file, or choose Semicolon in File settings if the file uses it.", settings: true } }), { focusLoad: false }),
+        "refused-parse": () => Object.assign(edgeOnly({ name: BAD_T.replace(/\.csv$/, ""), file: BAD_T, refusal: { setting: true, text: "Lines 2 and 5 have 5 columns where the header has 4: an amount holds a comma.", todo: "Quote the amounts in the file, or choose Semicolon in File settings if the file uses it.", settings: true } }), { focusLoad: false }),
         "refused-endpoints": () => { const m = edgeOnly({ roles: {} }); m.focusLoad = false; return m; },
         "refused-fetch": () => urlState(true),
         "refused-too-large": () => base({ tables: [mk({ id: "big", name: "patent-citations-sample", file: C().file, kind: "edge", cols: C().columns.slice(), rows: C().edges, sample: [], refusal: { terminal: true, text: n(C().nodes) + " nodes and " + n(C().edges) + " edges: a graph draws up to " + n(C().drawingLimit) + " nodes.", todo: "Choose another file, or a part of this one under the limit." } })], sel: "big" }),
@@ -488,13 +501,13 @@
         // Regression (d): person_id linked to person by badge, not by its Key
         "link-by-badge": () => { const m = door(); m.tables[2].roles.person_id.by = "badge"; return m; },
         // ----- wide data: 69 and 26 columns -----
-        "wide-hosts": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts" }),
-        "wide-find-column": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
-        "wide-link-menu": () => base({ door: { title: "Add data", done: ["graph-place", "wide"] }, tables: wideTables(), sel: "connections", menu: { col: "source", sub: "from" } }),
+        "wide-hosts": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts" }),
+        "wide-find-column": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
+        "wide-link-menu": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "wide"] }, tables: wideTables(), sel: "connections", menu: { col: "source", sub: "from" } }),
         // ----- nested JSON -----
-        "json-plain": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep(), pj: "node-link", sel: "pj-nodes", direction: "file", focusLoad: true }),
-        "json-graphology": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep("graphology"), pj: "graphology", sel: "pj-nodes", direction: "file", focusLoad: true }),
-        "json-jgf": () => base({ door: { title: "Add data", done: ["graph-place", "plain-json"] }, tables: oneStep("jgf"), pj: "jgf", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-plain": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "plain-json"] }, tables: oneStep(), pj: "node-link", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-graphology": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "plain-json"] }, tables: oneStep("graphology"), pj: "graphology", sel: "pj-nodes", direction: "file", focusLoad: true }),
+        "json-jgf": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "plain-json"] }, tables: oneStep("jgf"), pj: "jgf", sel: "pj-nodes", direction: "file", focusLoad: true }),
         // Edit source from the loaded projects' Sources rows: the clicked table selected, Apply back to the Data place
         "edit-wide-hosts": () => base({ door: { title: "Edit: " + W().file, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "hosts" }),
         "edit-wide-connections": () => base({ door: { title: "Edit: " + W().edgesFile, verb: "Apply", done: ["data-place", "attributes-wide"], edit: true }, tables: wideTables(), sel: "connections" }),
@@ -512,19 +525,32 @@
         "json-affiliations": () => affiliationRows(nested({ sel: "affiliations" })),
         "json-any-type": () => nested({ sel: "links", menu: { col: "target", sub: "to", any: true } }),
         "json-report": () => affiliationRows(coauthorEdges(nested())),
-        "json-invalid": () => base({ door: { title: "Add data", done: ["graph-place", "nested"] }, sel: "doc", direction: "undirected",
+        "json-invalid": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "nested"] }, sel: "doc", direction: "undirected",
             tables: [mk({ id: "doc", group: true, kind: "json", name: NX().file, file: NX().file, format: "JSON", rows: null, json: true, auto: { format: true },
                 refusal: { terminal: true, text: NX().file + " is not valid JSON: line 1,214, column 9 expects a comma or a closing brace.", todo: "Fix the file at that place, or choose another file.", stand: true } })] }),
         "json-no-records": () => { const m = nested({ tables: nestedTables({ only: "meta", file: "network-export-meta.json", preview: NX().document.meta }) }); const d = m.tables[0]; d.refusal = { terminal: true, text: "network-export-meta.json holds no array of records, so it makes no nodes and no edges.", todo: "Its objects and arrays are listed in Tables. Choose another file, one that holds the records." }; m.tables.forEach((t) => { if (t.struct) t.open = true; }); return m; },
         "json-path-gone": () => { const m = nested({ sel: "links", door: { title: "Edit: " + NX().file, verb: "Apply", done: ["data-place", "attributes-nested"], edit: true } }); table(m, "links").gone = true; return m; },
-        "json-keyed-weight": () => base({ door: { title: "Add data", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "installed_together", json: "registry" }),
-        "json-keyed": () => base({ door: { title: "Add data", done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
+        "json-keyed-weight": () => base({ door: { title: NEW_TITLE, done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "installed_together", json: "registry" }),
+        "json-keyed": () => base({ door: { title: NEW_TITLE, done: ["canvas-and-states", "registry-loading"] }, tables: registryTables(), sel: "packages", json: "registry", menu: { col: "dependencies" } }),
         "edit-registry": () => base({ door: { title: "Edit: " + REGISTRY.file, verb: "Apply", done: ["data-place", "registry"], edit: true }, tables: registryTables(), sel: "packages", json: "registry" }),
     };
-    function addRows() {
-        const m = transfers({ door: { title: "Add to transfers", done: ["canvas-and-states", "transfers-loading"] }, sel: "april" });
+    // Replace reads a new file, so its primary is Load
+    function replaceModel(choosing) {
+        const ta = TA().files.transfers, r = { id: "transfers", file: ta.file, rows: ta.rows, was: T().file };
+        const m = transfers({ door: { title: "Replace: " + T().file, verb: "Load", done: ["data-place", "after-replace"] }, focusLoad: !choosing, replaced: choosing ? null : r, replacing: r, choosing });
+        if (!choosing) Object.assign(m.tables[1], { sampleFrom: T().file, sample: aprilSample() });
+        return m;
+    }
+    function addRows(door) {
+        const m = transfers({ door: door || { title: "Add to transfers", verb: "Add", done: ["canvas-and-states", "transfers-loading"] }, sel: "april" });
         m.tables.push(transfersTable(april({ matches: "transfers", append: true })));
         return m;
+    }
+    // Load into on a drop into the open transfers graph: New graph reads April's file on its own; This
+    // graph adds its rows to the loaded transfers (the same page Add rows from file... opens, titled for the graph)
+    function intoModel(v) {
+        return v === "this" ? Object.assign(addRows({ title: "Add to " + T().graphName, verb: "Add", done: ["canvas-and-states", "transfers-loading"] }), { into: "this" })
+            : Object.assign(edgeOnly(april()), { sel: "april", into: "new", door: { title: NEW_TITLE, done: NEW_T.done } });
     }
     // Edit source on the nested project opens on the load as it was (AB.nestedLoaded: the last Load's choices)
     function editNested(sel) {
@@ -620,7 +646,9 @@
     }
     // The node types on the page: [{ name, rows, table, unique }]
     function types(m) {
-        const out = visible(m).filter((t) => t.kind === "node" && !t.addsTo && !t.refusal).map((t) => ({ name: t.type || t.name, rows: rowsOf(m, t), table: t, unique: [colWith(t, "key")].concat(t.unique.filter((u) => u !== colWith(t, "key"))).filter(Boolean) }));
+        // a node type counts its nodes: a repeated key is one node (people.csv's 412 rows hold one repeated key, 411 people)
+        const repeated = (t) => (t.file === DE().tables[0].file && typeof rowsOf(m, t) === "number" ? DE().report.people.repeatedKeys : 0);
+        const out = visible(m).filter((t) => t.kind === "node" && !t.addsTo && !t.refusal).map((t) => ({ name: t.type || t.name, rows: rowsOf(m, t) - repeated(t), table: t, unique: [colWith(t, "key")].concat(t.unique.filter((u) => u !== colWith(t, "key"))).filter(Boolean) }));
         return out;
     }
 
@@ -637,10 +665,12 @@
     function problem(m, t) {
         if (t.group && !t.refusal) return below(m, t).filter((k) => !k.struct && k.tick !== false).map((k) => problem(m, k)).find(Boolean) || null;
         if (t.gone) return { level: "err", text: "ticked, and the file no longer has it" };
+        if (m.choosing && m.replacing.id === t.id) return { level: "warn", text: "choose the file that replaces " + t.file };
         if (t.refusal) return { level: "err", text: t.refusal.busy ? "not loaded: another file is still reading" : t.refusal.fetch ? "the address did not answer" : t.refusal.setting ? "could not be read" : "cannot be loaded" };
         if (t.reading) return null;
         // a file whose columns match a loaded table never blocks Load: its rows are added, or it loads as its own table
         if (t.matches) return null;
+        if (t.pending) return { level: "warn", text: "type the data's address" };
         if (t.kind === "text") return { level: "warn", text: t.candidates && t.candidates.length ? "choose " + t.candidates.join(" or ") + " in File settings" : "choose a format in File settings" };
         if (t.kind === "edge" && (!colWith(t, "from") || !colWith(t, "to"))) return { level: "warn", text: (colWith(t, "from") || colWith(t, "to") ? "choose a From and a To under two column headers" : "no endpoint columns found; choose From and To under two of its columns") + (t.cols.length ? " (the file has " + t.cols.join(", ") + ")" : "") };
         const known = types(m).map((x) => x.name);
@@ -658,7 +688,9 @@
     const addedKey = (m) => { const a = m.add || {}; return a.people && a.bldg ? "both" : a.people ? "people" : a.bldg ? "bldg" : null; };
     const entriesNow = (m) => { const e = DE().report.entries, k = addedKey(m); return Object.assign({ people: 412, buildings: 9 }, e, k ? e.added[k] : {}); };
     // "412 + 25 added": a type's rows plus the nodes an Add choice made (the report's added count per type)
-    const addedTo = (m, name) => { const a = m.add || {}, e = DE().report.entries; return name === "person" && a.people ? e.missingPeople : name === "building" && a.bldg ? e.missingBuildings : 0; };
+    // rows added to a loaded transfers table bring their new accounts (the match report's count, so the strip and the report agree)
+    const addedTo = (m, name) => { const a = m.add || {}, e = DE().report.entries; return name === "person" && a.people ? e.missingPeople : name === "building" && a.bldg ? e.missingBuildings
+        : name === "account" && m.tables.some((t) => t.append && t.matches) ? TA().versionDiff.accountsAdded : 0; };
     const plusAdded = (m, name, rows) => n(rows) + (addedTo(m, name) ? " + " + n(addedTo(m, name)) + " added" : "");
     // One line per link column whose target a table here makes: "9,113 of 9,113 from_account found in accounts".
     // found(c) is the report's matched count for that column (default: every row)
@@ -737,10 +769,10 @@
             : { text: "researcher (" + n(r.rows) + ")", tip: "key: researchers.id" });
         if (r.tick !== false) idLinks(m).forEach((x) => lines.push({ text: "researcher --" + x.name + " (" + n(x.n) + ")--> " + x.target, tip: "researchers." + x.col + " = " + x.target + "s.id; one edge per value that matches" }));
         // a child node table (Several rows on an array of records with no id of its own): each row links to its parent
-        m.tables.filter((x) => x.childOf && x.kind === "node" && table(m, x.childOf).tick !== false).forEach((x) => { const p = table(m, x.childOf); lines.push({ text: x.type + " (" + n(x.rows) + ") --" + x.name + "--> " + p.type, tip: x.name + ".parent = " + p.name + ".id; one " + x.type + " node per item of " + x.childCol }); });
+        m.tables.filter((x) => x.childOf && x.kind === "node" && table(m, x.childOf).tick !== false).forEach((x) => { const p = table(m, x.childOf); lines.push({ text: x.type + " (" + n(x.rows) + ") --" + x.name + "--> " + p.type, tip: x.name + "." + parentCol(p.type) + " = " + p.name + ".id; one " + x.type + " node per item of " + x.childCol }); });
         const instOn = inst && inst.tick !== false;
         if (af && !instOn) lines.push({ text: "affiliations (" + n(af.rows) + "): no edges, no institution nodes", tip: "affiliations.institution_id = institutions.id, and data.institutions is not used" });
-        else if (af) lines.push({ text: "researcher --affiliations (" + n(af.rows) + ")--> institution (" + n(inst.rows) + ")", tip: "affiliations.parent = researchers.id; affiliations.institution_id = institutions.id; role and since are edge attributes" });
+        else if (af) lines.push({ text: "researcher --affiliations (" + n(af.rows) + ")--> institution (" + n(inst.rows) + ")", tip: "affiliations." + PARENT_R + " = researchers.id; affiliations.institution_id = institutions.id; role and since are edge attributes" });
         else if (inst && inst.tick !== false) lines.push({ text: "institution (" + n(inst.rows) + ")", tip: "key: institutions.id" });
         if (lk && lk.tick !== false && !lk.gone && r.tick === false) lines.push({ text: "links (" + n(lk.rows) + "): no edges, no researcher nodes", tip: "links.source = researchers.id, and data.researchers is not used" });
         else if (lk && lk.tick !== false && !lk.gone) {
@@ -759,6 +791,13 @@
         it && it.tick !== false ? { text: "package --installed_together (" + n(it.rows) + ")--> package", tip: "installed_together.package = packages.key; installed_together.with = packages.key; one edge per row" + (colWith(it, "weight") ? "; weight: " + colWith(it, "weight") : "") } : null].filter(Boolean);
     }
 
+    // Ids that do not match: up to three examples from the sample, and one general line when they look like
+    // dates a spreadsheet made of them (SEPT2 -> 2-Sep). Stands in for the report object's examples
+    const examples = (vals) => [...new Set(vals.filter((v) => v != null && v !== ""))].slice(0, 3);
+    const andList = (xs) => (xs.length > 1 ? xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1] : xs.join(""));
+    const SHEET_DATE = /^\d{1,2}-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/;
+    const datedLine = (vals) => { const d = vals.filter((v) => SHEET_DATE.test(String(v))); return d.length ? { level: "warn", parts: [AB.count(d.length, "id") + " look like spreadsheet dates (SEPT2 -> 2-Sep)."] } : null; };
+
     // ---------- the match report (stands in for graphty-element's report object) ----------
     // Each line: { level: "warn" | "err" | "res" | null, parts }. `count(text, filterId)` filters the grid.
     // A refusal or a blocking problem is one problem block (AB.problem): what happened, what to do, one action
@@ -766,12 +805,14 @@
     function report(m, t, count, seg, pick, cb) {
         const R = DE().report;
         const L1 = (level, ...parts) => ({ level, parts });
+        if (m.choosing && m.replacing.id === t.id) return [P1({ what: "Choose the file that replaces " + t.file + ".", todo: "Its columns are matched to these, and every role that matches carries over.", level: "partial", action: { label: "Choose a file...", kind: "primary", onClick: () => cb.chooseReplace() } }), L1(null, count(n(t.rows) + " rows", "all"), " loaded now, from " + t.file + ".")];
         if (t.gone) return [P1({ what: t.path + " is ticked, and " + t.file + " no longer has it.", todo: "The file changed since it was loaded. Untick " + t.path + " to load the rest, or choose another file.", action: { label: "Untick " + t.path, onClick: () => cb.untick(t) } })];
         // the action is the one way forward: a setting, another try, or (when no setting fixes it) another file, as the primary button
-        if (t.refusal) return [P1({ what: t.refusal.text, todo: t.refusal.todo, action: t.refusal.settings ? { label: "File settings", onClick: cb.settings } : t.refusal.fetch ? { label: "Try again", kind: "primary", go: ["data-page", "url"] }
-            : t.refusal.terminal ? { label: "Choose another file...", kind: "primary", onClick: () => AB.flash("Opens the file picker") } : null }),
+        if (t.refusal) return [P1({ what: t.refusal.text, todo: t.refusal.todo, action: t.refusal.settings ? { label: "File settings", onClick: cb.settings } : t.refusal.fetch ? (t.id === "alerts" ? { label: "Try again", kind: "primary", go: ["data-page", "url"] } : { label: "Try again", kind: "primary", onClick: () => cb.fetch(t) })
+            : t.refusal.terminal ? { label: "Choose another file...", kind: "primary", onClick: () => cb.chooseFile() } : null }),
             (t.refusal.setting && t.kind !== "text") || t.refusal.stand ? L1(null, AB.openQuestion("The line and column are a stand-in: the fixture file reads cleanly; graph-io's error summary supplies the real ones")) : null].filter(Boolean);
         if (t.reading) return [L1(null, "Reading " + t.file + ": " + (t.readRows ? n(t.readRows) + " of " + n(t.rows) + " rows read." : "..."))];
+        if (t.pending) return [L1("warn", "Type the data's address above and press Enter: it is read then.")];
         if (t.kind === "text") return [L1("warn", t.candidates && t.candidates.length ? "The text matches " + t.candidates.join(" and ") + ": choose one in File settings." : "Nothing recognized this text. Choose a format in File settings, or paste a file's text as it is saved.")];
         if (m.json && (t.json || t.childOf)) return nestedReport(m, t, count, pick, cb);
         // A table whose columns match a loaded source: its rows are added to that table (the default), or it
@@ -785,7 +826,7 @@
             const counts = t.append ? L1("res", AB.count(rowsOf(m, t), "row") + " to add - " + AB.count(0, "repeated row") + " - " + AB.count(va.accountsAdded, "new account"), AB.needsElement("Adding rows to a loaded table, and its three counts, is not in graphty-element yet"))
                 : L1("res", n(rowsOf(m, t)) + " rows became " + n(rowsOf(m, t)) + " edges of " + t.name + ".");
             return [choice, counts,
-                t.append ? L1(null, "Or ", AB.link("data-page", "replace", "replace " + fileOf(m, was) + " with it"), ", which drops March's rows.") : null,
+                t.append ? L1(null, "Or ", AB.link("data-page", "replace-chosen", "replace " + fileOf(m, was) + " with it"), ", which drops March's rows.") : null,
                 t.sampleFrom ? L1(null, AB.openQuestion("The sample rows are " + t.sampleFrom + "'s and the new accounts are the April accounts file's: the fixture holds " + t.file + "'s counts and columns, not its rows")) : null].flat().filter(Boolean);
         }
         const pr = problem(m, t);
@@ -794,24 +835,28 @@
         const flat = t.dialect ? [...new Set(t.cols.filter((c) => c.includes(".")).map((c) => c.slice(0, c.indexOf("."))))] : [];
         if (flat.length) out.push(L1(null, flat.join(" and ") + " in each record is flattened: one column per field, named by its full path."));
         const ok = offKey(m, t);
-        if (ok) return [P1({ what: "0 of " + n(rowsOf(m, t)) + " " + ok.col + " values are " + ok.by + "s in " + ok.table + ": " + n(rowsOf(m, t)) + " rows have no " + ok.target + ".",
-            todo: ok.col + " holds ids such as 1001; " + ok.table + "." + ok.by + " holds values such as B-20417. Match " + ok.target + " by its Key, " + types(m).find((y) => y.name === ok.target).unique[0] + ".",
-            action: { label: "Match " + ok.target + " by " + types(m).find((y) => y.name === ok.target).unique[0], onClick: () => cb.byKey(t, ok.col) } })];
+        // the count and a few examples, as for any ids that do not match; no one-click repair: only the reader
+        // knows which column was meant (the role menu under the column header sets it)
+        if (ok) {
+            const ex = examples(sampleOf(t).map((r) => r[ok.col]));
+            return [P1({ what: "Not in " + ok.table + " (by " + ok.by + "): " + AB.count(rowsOf(m, t), ok.col + " value", { plural: ok.col + " values" }) + ", for example " + andList(ex) + ". No row has a " + ok.target + ".",
+                todo: ok.table + "." + ok.by + " holds values such as " + DE().tables.find((x) => x.name === ok.table).sample[0][ok.by] + ". To match on another column, choose it under " + ok.col + "." }), datedLine(ex), L1(null, count(n(rowsOf(m, t)) + " rows", "all"), " read; 0 edges.")].filter(Boolean);
+        }
         if (pr) out.push(P1({ what: t.name + ": " + pr.text + ".", level: pr.level === "err" ? "error" : "partial" }));
         if (t.id === "entries") {
             const e = R.entries;
             const now = entriesNow(m);
             const asNode = t.kind === "node";
             // one row per unmatched value in this file; the report gives both counts, so values and rows are never mixed
-            const unm = (key, num, col, word, other) => L1("warn", count(num + " " + col + " values (" + num + " rows)", key), " are not in " + other + ".", seg(key, col, [["add", "Add as " + word], ["leave", asNode ? "Leave out the link" : "Leave out"]], m.add && m.add[key] ? "add" : "leave"),
+            const unm = (key, num, col, word, other) => L1("warn", count(num + " " + col + " values (" + num + " rows)", key), " are not in " + other + ", for example " + andList(examples(t.sample.filter((r) => FILTERS[key].test(r)).map((r) => r[col]))) + ".", seg(key, col, [["add", "Add as " + word], ["leave", asNode ? "Leave out the link" : "Leave out"]], m.add && m.add[key] ? "add" : "leave"),
                 m.add && m.add[key] ? h("span", { class: "k-secondary" }, num + " " + word + " are added, each with only an id") : null);
             // With one link column there are no "both ends": its found-keys line says how many rows it matches
             if (linkCols(t).length === 1) out.push(L1(null, count(n(e.rows) + " rows", "all"), "."));
             else out.push(L1(null, count(n(e.rows) + " rows", "all"), "; ", count(n(now.bothEnds), "both"), " have both ends."));
             // found in the file's own table: a value an Add choice makes a node is still not found there
             out.push(...linkLines(m, t, e.rows, (c) => e.rows - (c === "person_id" ? e.missingPeople : e.missingBuildings)));
-            if (t.roles.person_id) out.push(unm("people", e.missingPeople, "person_id", "people", "people"));
-            if (t.roles.building_id) out.push(unm("bldg", e.missingBuildings, "building_id", "buildings", "buildings"));
+            if (t.roles.person_id) out.push(...[unm("people", e.missingPeople, "person_id", "people", "people"), datedLine(t.sample.filter((r) => FILTERS.people.test(r)).map((r) => r.person_id))].filter(Boolean));
+            if (t.roles.building_id) out.push(...[unm("bldg", e.missingBuildings, "building_id", "buildings", "buildings"), datedLine(t.sample.filter((r) => FILTERS.bldg.test(r)).map((r) => r.building_id))].filter(Boolean));
             // The one fixture note about a left-out building (B12): only an edit has notes; a new graph has none yet
             if (m.door.edit && DE().hasNotes() && t.roles.building_id && !(m.add && m.add.bldg)) out.push(L1(null, "1 note is about a node no longer in the graph (B12): it reads 'Not in the current data'."));
             const left = e.rows - now.bothEnds;
@@ -841,10 +886,16 @@
         if (t.id === "accounts") {
             const rows = rowsOf(m, t);
             const lines = [L1(null, count(n(rows) + " rows", "all"), "; every key is unique.")];
+            // the accounts the new file drops, and the notes about them (the transfers project holds none in the fixture;
+            // a note written in this page view counts when it is about one of the Watchlist's accounts the new file drops)
+            if (m.lost) {
+                const goneIds = TA().watchlist.notInCurrentData, notes = AB.sessionNotes.filter((x) => (x.about || []).some((a) => goneIds.includes(a.label))).length;
+                lines.push(L1(notes ? "warn" : null, AB.count(TA().versionDiff.accountsRemoved, "account") + " are not in " + m.replaced.file + ", so they and their transfers leave the graph. " + (notes ? AB.count(notes, "note") + " about them will read 'Not in the current data'." : "No note is about one of them.")));
+            }
             if (colWith(t, "type") === "kind") lines.push(L1("res", "kind makes 3 subtypes of account: " + typeLabel(t) + ". Every node stays type account, keyed by id, so links and notes still point at account."));
             return out.concat(lines);
         }
-        if (t.id === "alerts") return out.concat([L1(null, "Fetched on the first of 3 tries."), L1("res", "Adds 2 columns to account: ", count(t.rows + " of " + t.rows, "all"), " matched.")]);
+        if (t.id.startsWith("alerts")) return out.concat([t.url ? L1(null, "Fetched on the first of 3 tries.") : null, L1("res", "Adds 2 columns to account: ", count(t.rows + " of " + t.rows, "all"), " matched.")].filter(Boolean));
         if (t.id === "lm-nodes") return [L1(null, count(L().nodes + " rows", "all"), "; every id is unique.")];
         if (t.id === "lm-edges") return [L1(null, count(L().edges + " rows", "all"), "; every edge has both ends.")];
         if (t.kind === "edge") {
@@ -852,6 +903,22 @@
             const rows = rowsOf(m, t);
             const pairWord = t.per === "pair" ? "No two transfers share both ends: One edge per Pair changes nothing." : "No two transfers share both ends, so One edge per Pair would change nothing.";
             const lines = [L1(null, count(n(rows) + " rows", "all"), m.replaced && m.replaced.id === t.id ? "; all " + t.cols.length + " columns of " + m.replaced.was + " are here, so every role carried over." : "; every row has both ends.")].concat(linkLines(m, t, rows));
+            // Before a new load: what will load, facts only, read from the file's summary (the weight's total,
+            // with a unit only when the data declares one, which a CSV does not; the time range and its zone;
+            // the top node; where the data stays)
+            if (t.id === "transfers" && !m.door.edit && !m.replaced) {
+                const A = (name) => T().attributes.find((a) => a.name === name), tc = colWith(t, "time"), top = T().topByDegree[0];
+                const range = A("timestamp (edge)").range, zone = range.every((x) => /Z$/.test(x)) ? "UTC" : "local time";
+                const day = (x) => x.replace("T", " ").replace(/:\d\dZ?$/, "");
+                const ew0 = colWith(t, "weight");
+                lines.unshift({ level: "sub", parts: ["What will load"] },
+                    L1(null, count(n(rows) + " rows", "all"), ew0 === "amount" ? "; amount totals " + AB.num(A("amount (edge)").total) + "." : "."),
+                    tc === "timestamp" ? L1(null, tc + " runs from " + day(range[0]) + " to " + day(range[1]) + ", " + zone + ".") : null,
+                    L1(null, "Top node: " + top.id + ", in " + AB.count(top.degree, "transfer") + "."),
+                    L1(null, "The data stays on this computer: nothing is uploaded."),
+                    { level: "sub", parts: ["How it matched"] });
+                lines.splice(lines.findIndex((l) => l && l.level === "sub" && l.parts[0] === "How it matched") + 1, 1, L1(null, "Every row has both ends."));
+            }
             if (/^transfers-2026-0[34]$/.test(t.name)) lines.push(L1(null, n((t.id === "april" ? TA() : T()).nodes) + " ids found in " + colWith(t, "from") + " and " + colWith(t, "to") + " become nodes of type node."));
             if (!m.replaced && /^transfers/.test(t.id)) lines.push(L1(null, pairWord));
             if (t.per === "pair" && m.direction === "undirected") lines.push(L1(null, "Undirected: (a, b) and (b, a) now merge: " + n(rows) + " edges become " + n(rows - R.transfers.reversePairs) + "."));
@@ -859,7 +926,7 @@
             if (ew && ew !== "count") lines.push(L1(null, ew + " is each edge's weight; every row has " + (/^[aeiou]/.test(ew) ? "an " : "a ") + ew + " value. A row without one would weigh", pick([["1", "1"], ["0", "0"]], m.missEW || "1", (v) => { m.missEW = v; }, "Missing " + ew + " reads", "mew", ["A row with no " + ew + " value weighs 1", "A row with no " + ew + " value weighs 0"]), "."));
             lines.push(L1("res", n(rows) + " rows became " + n(rows) + " edges."));
             if (t.sampleFrom) lines.push(L1(null, AB.openQuestion("The sample rows are " + t.sampleFrom + "'s: the fixture holds " + fileOf(m, t) + "'s counts and columns, not its rows")));
-            return out.concat(lines);
+            return out.concat(lines.filter(Boolean));
         }
         if (t.kind === "node" && !pr) out.push(L1(null, count(n(rowsOf(m, t)) + " rows", "all"), "; every key is unique."));
         return out;
@@ -1101,6 +1168,78 @@
         // The glyph is drawn, not read: a screen reader hears the line's words, not "!"
         const glyph = (level) => h("span", { class: "k-warn-glyph" + (level === "err" ? " k-err-glyph" : ""), "aria-hidden": "true" }, "!");
 
+        // ----- Add a table: File..., Paste..., From a URL... add to this import, never replace it -----
+        // The project this import belongs to, read from its tables
+        const projectOf = () => (table(m, "transfers") ? "transactions" : table(m, "entries") ? "doorEntries" : table(m, "lm") ? "lesmis" : m.json === "nested" ? "nested" : null);
+        const freshId = (id) => { let k = id, i = 2; while (table(m, k)) k = id + i++; return k; };
+        // An edge table whose ends still make plain "node" nodes links to the accounts once they are added
+        const toAccounts = () => m.tables.forEach((t) => Object.values(t.roles).forEach((r) => { if (r && ["from", "to"].includes(r.r) && r.target === "node" && !r.locked) { r.target = "account"; r.by = "id"; delete r.auto; } }));
+        // The one table a paste or an address gives in this project (the fixtures have no other): the
+        // accounts while the import has none, else the flagged accounts' alert columns; door entries' rows
+        function secondTable(how, where) {
+            const p = projectOf(), as = how === "paste" ? { file: "Pasted text", url: null, tries: null, auto: { format: "Worked out from the pasted text", sep: true } } : { file: where, url: where, auto: { format: "Worked out from the address" } };
+            if (p === "transactions" && !table(m, "accounts")) { toAccounts(); return accountsTable(Object.assign({ id: freshId("accounts"), name: how === "paste" ? "Pasted table" : "accounts" }, as)); }
+            if (p === "transactions") return Object.assign(urlState().tables.find((t) => t.id === "alerts"), { id: freshId("alerts"), name: how === "paste" ? "Pasted table" : "flagged accounts", format: "CSV" }, as);
+            if (p === "doorEntries") { const e = doorTables()[2]; return Object.assign(e, { id: freshId("entries"), name: how === "paste" ? "Pasted table" : "entries", rows: e.sample.length, format: "CSV" }, as); }
+            return null;
+        }
+        // The files the chooser offers: the second table this project's tasks bring in, and any newer file
+        // of the same kind (which may not read)
+        function filesHere() {
+            const p = projectOf(), out = [];
+            if (p === "transactions" && !table(m, "accounts")) out.push({ file: T().accountsFile, desc: "The account list: one row per account", make: () => { toAccounts(); return accountsTable({ id: freshId("accounts") }); } });
+            if (p === "transactions" && !m.tables.some((t) => t.file === BAD_T)) out.push({ file: BAD_T, desc: "Another transfers export", make: () => transfersTable(april({ id: freshId("april"), name: BAD_T.replace(/\.csv$/, ""), file: BAD_T, sampleFrom: null, roles: {}, refusal: { setting: true, text: "Lines 2 and 5 have 5 columns where the header has 4: an amount holds a comma.", todo: "Quote the amounts in the file, or choose Semicolon in File settings if the file uses it.", settings: true } })) });
+            if (p === "doorEntries" && !table(m, "newwing")) out.push({ file: "entries-new-wing.csv", desc: "This week's door entries from the new wing", make: () => mk({ id: "newwing", name: "entries-new-wing", file: "entries-new-wing.csv", kind: "edge", cols: DE().tables.find((x) => x.name === "entries").columns.slice(), rows: 0, refusal: { terminal: true, text: "entries-new-wing.csv has a header row and nothing under it, so it holds no nodes and no edges.", todo: "Choose another file." } }) });
+            if (p === "lesmis" && !table(m, "ids")) out.push({ file: "miserables-edited.graphml", desc: "A graph file", make: () => STATES["refused-ids"]().tables[0] });
+            if (p === "nested" && !table(m, "doc2")) out.push({ file: "network-export-2026-04.json", desc: "The newer export", make: () => { const f = "network-export-2026-04.json"; return mk({ id: "doc2", kind: "json", name: f, file: f, format: "JSON", rows: null, auto: { format: true }, refusal: { terminal: true, stand: true, text: f + " is not valid JSON: line 1,214, column 9 expects a comma or a closing brace.", todo: "Fix the file at that place, or choose another file." } }); } });
+            return out;
+        }
+        function addTable(t, said) {
+            m.tables.push(t);
+            m.sel = t.id;
+            m.filter = null;
+            m.focusLoad = false;
+            changed();
+            redraw("t:" + t.id);
+            AB.announce(said);
+        }
+        function chooseFile(anchor) {
+            const files = filesHere();
+            pickMenu(anchor || el.querySelector("[aria-label='Add a table']") || el, [{ heading: "Choose a file" }].concat(files.length
+                ? files.map((f) => ({ label: f.file, desc: f.desc, onClick: () => addTable(f.make(), f.file + " is added to the tables") }))
+                : [{ label: "No other data files in this folder", disabled: true }]), { label: "Choose a file" });
+        }
+        // Replace with file...'s picker: the files that can replace this source; a pick fills the page
+        function chooseReplace() {
+            const r = m.replacing;
+            pickMenu(el.querySelector("[data-fmt]") || el, [{ heading: "Replace " + r.was + " with" }, { label: r.file, desc: AB.count(r.rows, "row") + "; " + T().columns.join(", "), onClick: () => {
+                m.choosing = false; m.replaced = r; m.focusLoad = true; Object.assign(sel(), { sampleFrom: T().file, sample: aprilSample() }); redraw("primary"); AB.announce(r.file + " is read; every role carried over");
+            } }], { label: "Choose a file" });
+        }
+        // Prose that is no format, about the project on screen (the hosts' own names; Les Miserables' characters)
+        function proseHere() {
+            const ds = projectOf() || (AB.route && AB.route.frame.dataset);
+            if (ds === "wide") { const n = W().nodeRows.slice(0, 3).map((r) => r.hostname); return n[0] + " sends its logs to " + n[1] + "\n" + n[2] + " was patched on Tuesday\nAsk the network team about " + n[1]; }
+            if (ds === "lesmis") return PASTED_PROSE;
+            return "Notes from the review on Monday\nThe March file is the one to use\nAsk who owns the export";
+        }
+        function pasteTable() {
+            const p = projectOf(), t = secondTable("paste") || mk({ id: freshId("paste"), name: "Pasted text", kind: "text", pasted: p === "lesmis" ? PASTED_XML : proseHere(), format: null, candidates: p === "lesmis" ? ["GraphML", "GEXF"] : [], rows: null, auto: {} });
+            addTable(t, "The pasted text is added to the tables");
+        }
+        // An address entry: nothing is read until the reader types an address and presses Enter
+        function urlTable() { addTable(mk({ id: freshId("address"), name: "From a URL", url: "https://", pending: true, kind: "text", format: null, candidates: [], rows: null, cols: [], auto: {} }), "Type the data's address"); }
+        function fetchUrl(t, where) {
+            if (!where || where === "https://") return;
+            const got = secondTable("url", where);
+            const i = m.tables.indexOf(t);
+            if (got) { m.tables[i] = got; m.sel = got.id; }
+            else Object.assign(t, { pending: false, url: where, file: where, format: "JSON", tries: 3, refusal: { fetch: true, text: "The address did not answer after 3 tries.", todo: "Check it and your connection, then try again." } });
+            changed();
+            redraw("t:" + m.sel);
+            AB.announce(got ? where + " is read" : "The address did not answer");
+        }
+
         // ----- tables list -----
         function tablesList() {
             // One tree: tables, a graph file's two tables, and a JSON document's objects and arrays
@@ -1131,7 +1270,7 @@
                 AB.deleted(fileOf(m, t) || t.name, () => { m.tables.splice(i, 0, ...gone); redraw(); });
             };
             // A child table's one home is its column's role menu: its Remove says so
-            const childWhy = (t) => "Untick it, or choose another outcome under " + t.childCol.split(".").pop() + " in " + t.childOf;
+            const childWhy = (t) => "Choose another outcome under " + t.childCol.split(".").pop() + " in " + t.childOf;
             // an array of records in a record is used as a table by Several rows (a child table); unticking keeps it as one value
             const isOn = (t) => (t.childOf ? true : t.inRec ? false : t.tick !== false);
             const tick = (t) => {
@@ -1161,7 +1300,7 @@
                 const jsonRow = t.struct || (t.json && !t.group) || t.childOf;
                 // JSON rows count their items, never their leaf values: [170] for an array, {1,204} for an object
                 const countText = t.gone ? "" : t.struct ? (t.struct === "array" ? "[" + n(t.count) + "]" : "{" + n(t.count) + "}") : jsonRow && rows != null ? (t.keyed ? "{" + n(rows) + "}" : "[" + n(rows) + "]") : rows != null ? (t.kind === "node" && t.type ? plusAdded(m, t.type, rows) : n(rows)) : "";
-                const ticks = (t.json && !t.group && !t.struct && !t.childOf) || !!t.inRec || !!t.childOf;
+                const ticks = (t.json && !t.group && !t.struct && !t.childOf) || !!t.inRec; // a child table has no checkbox: its home is its column's role menu
                 const box = ticks ? h("span", { class: "k-check", "aria-hidden": "true", "aria-checked": String(isOn(t)) }) : null;
                 if (box) { AB.tip(box, "Use as table", { label: false }); box.addEventListener("click", (e) => { e.stopPropagation(); tick(t); }); }
                 const glyphOf = t.struct ? AB.tip(h("span", { class: "ab-abc", role: "img", "aria-label": t.struct === "array" ? "array" : "object" }, t.struct === "array" ? "[ ]" : "{ }"), t.struct === "array" ? "An array" + (t.unread ? "; not read" : "") : "An object" + (t.unread ? "; not read" : ""), { label: false })
@@ -1193,7 +1332,7 @@
                 li._t = t;
                 ul.append(li);
             });
-            if (!shown.length) ul.append(h("li", { role: "none" }, AB.empty("No tables.", { verb: "Add a file", onClick: () => AB.flash("Opens the file picker") })));
+            if (!shown.length) ul.append(h("li", { role: "none" }, AB.empty("No tables.", { verb: "Add a file", onClick: (e) => chooseFile(e && e.currentTarget) })));
             // One Tab stop: Up and Down move (and show a table), Right and Left open and close or go to
             // the parent, Space ticks an array, Home and End, Delete removes, Shift+F10 the row menu
             ul.addEventListener("keydown", (e) => {
@@ -1213,9 +1352,9 @@
                 else if ((e.key === "F10" && e.shiftKey) || e.key === "ContextMenu") { if (li._menu) { e.preventDefault(); li._menu(); } }
             });
             const add = AB.plus({ label: "Add a table", items: [{ label: "File...", desc: "A CSV, GEXF, GraphML, GML, DOT, Pajek or JSON file; a file dropped on this page lands here too" }, { label: "From a URL..." }, { label: "Paste..." }], onAdd: (it) => {
-                if (it.label === "File...") AB.flash("Opens the file picker");
-                else if (it.label === "From a URL...") AB.go("data-page", "url");
-                else AB.go("data-page", "detect-several");
+                if (it.label === "File...") chooseFile();
+                else if (it.label === "From a URL...") urlTable();
+                else pasteTable();
             } });
             return h("div", { class: "dpg-tables" }, AB.section({ title: "Tables", editable: true, actions: add }, ul));
         }
@@ -1235,8 +1374,9 @@
             // the format line, which opens File settings
             if (t.url) {
                 const inp = h("input", { class: "k-field k-id", type: "url", value: t.url, "aria-label": "Address", spellcheck: "false", "data-k": "addr" });
-                inp.addEventListener("change", () => { t.url = inp.value.trim(); AB.flash("Fetches the address, with 3 tries"); });
+                inp.addEventListener("change", () => { if (t.pending || t.refusal) fetchUrl(t, inp.value.trim()); else { t.url = inp.value.trim(); AB.flash("Fetches the address, with 3 tries"); } });
                 kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Address"), inp));
+                if (t.pending) return h("div", { class: "dpg-head" }, kids);
             }
             const fmtText = t.kind === "text" && !t.format ? (t.candidates && t.candidates.length ? "Choose: " + t.candidates.join(" or ") : "Choose a format") : t.format + (t.format === "CSV" ? ", " + t.sep.toLowerCase() : t.dialect ? ", " + t.dialect : ""); // the JSON dialect graph-io detected says why roles are locked
             const fmt = AB.field(fmtText, { icon: t.pasted ? "type" : t.url ? "link" : "file", caret: true, onClick: (e) => (m.pop ? (m.pop = false, closePop(true)) : openSettings(e.currentTarget)) });
@@ -1744,7 +1884,9 @@
             const seg = (key, col, opts, value) => segOf(opts, value, (v) => { m.add = m.add || {}; m.add[key] = v === "add"; if (m.filter === "missing" && !(sampleOf(t).some((r) => FILTERS.missing.test(r, m)))) m.filter = null; changed(); }, "Unmatched " + col + " values", "u:" + key, ["Each value becomes a new node with only an id (Gephi's Create missing nodes)", t.kind === "node" ? "The entry node stays; only its link to a missing node is left out" : "The rows are left out; the count stays here"]);
             const cb = {
                 settings: () => openSettings(),
-                byKey: (tt, col) => { const r = tt.roles[col]; r.by = types(m).find((y) => y.name === r.target).unique[0]; changed(); redraw("t:" + tt.id); },
+                chooseFile: () => chooseFile(),
+                chooseReplace: () => chooseReplace(),
+                fetch: (tt) => { tt.refusal = null; fetchUrl(tt, tt.url); },
                 untick: (tt) => { tt.tick = false; tt.gone = false; m.tables = m.tables.filter((x) => x !== tt); m.sel = "doc"; changed(); redraw("t:doc"); AB.announce(tt.path + " is no longer read"); },
                 // a one-click offer in the report: it does what it says and nothing else
                 offer: (label, fn, key) => h("span", Object.assign({ class: "ab-link", role: "button", "data-k": key }, AB.act({ onClick: fn })), label),
@@ -1754,7 +1896,7 @@
             const all = report(m, t, count, seg, (opts, value, set, label, key, tips) => segOf(opts, value, (v) => { set(v); changed(); }, label, key, tips), cb).concat(lookLines(t, cb));
             // A problem block sits on the table it concerns, under its header strip; the report keeps the rest
             const probs = all.filter((l) => l.problem), lines = all.filter((l) => !l.problem);
-            const sec = h("div", { class: "dpg-report", style: t.kind === "json" ? "max-height:64%" : null, role: "region", "aria-label": "Match report for " + (t.path || t.name) },
+            const sec = h("div", { class: "dpg-report", role: "region", "aria-label": "Match report for " + (t.path || t.name) },
                 h("h3", null, "Match report: " + (t.path || t.name)),
                 lines.length ? lines.map((l) => (l.level === "sub" ? h("div", { class: "dpg-rl dpg-rl-sub" }, l.parts)
                     : h("div", { class: "dpg-rl" + (l.level === "res" ? " dpg-rl-res" : "") }, l.level === "warn" || l.level === "err" ? glyph(l.level) : null, h("span", { class: "dpg-rt" }, l.parts)))) : AB.empty("Nothing to match: nothing was read."));
@@ -1789,6 +1931,12 @@
             if (m.direction === "file" && dirOff) m.direction = "directed";
             // Nothing read (every table refused for good): no Direction to choose
             const nothingRead = m.tables.length && m.tables.every((t) => t.refusal && t.refusal.terminal);
+            // Load into: only on a drop or a paste into an open graph; the page's title follows it
+            if (m.into && !nothingRead) kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Load into"), segOf([["this", "This graph"], ["new", "New graph"]], m.into, (v) => {
+                if (v === m.into) return;
+                if (m.state === "load-into") { const keep = { state: m.state }; Object.keys(m).forEach((k) => delete m[k]); Object.assign(m, keep, intoModel(v)); }
+                else { m.into = v; m.door = Object.assign({}, m.door, { title: v === "this" ? "Add to " + (AB.fx.datasets[AB.route.frame.dataset].graphName || AB.fx.datasets[AB.route.frame.dataset].title) : NEW_TITLE }); }
+            }, "Load into", "into", ["Adds what this reads to the graph on screen", "Opens what this reads as a graph of its own; the graph on screen stays as it is"])));
             if (!nothingRead) kids.push(h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Direction"), segOf([["file", "As the file says"], ["directed", "Directed"], ["undirected", "Undirected"]], m.direction, (v) => { m.direction = v; changed(); }, "Direction", "dir", ["As the file says; a file with both kinds of edge reads as mixed", "Every edge points from its From to its To", "An edge is the same both ways"], anyCsv ? dirOff : null)));
             // what blocks the primary button, or what it will lose
             const blockT = vis.concat(m.tables.filter((t) => t.group && t.refusal)).map((t) => [t, problem(m, t)]).find(([, p]) => p);
@@ -1815,7 +1963,20 @@
                 // Row or Pair, or each entry as a node, and the Add choices
                 const entries = m.tables.find((t) => t.id === "entries");
                 const records = entries && to && (to[1] === "door-entries-loading" || (m.door.edit && to[1] === "door-entries"));
-                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; } AB.go(to[0], to[1]); } });
+                // What Load leaves for the graph inspector's Weight and Direction rows (as nestedChoices does for
+                // the nested project): the loaded edge table's weight column, or null, and the Direction chosen
+                const transfersT = to && to[0] !== "graph-place" ? m.tables.find((t) => t.id === "transfers" && !t.refusal && colWith(t, "from")) : null;
+                const loadedChoices = (t) => ({ weight: t.kind === "edge" ? colWith(t, "weight") || null : null, means: t.means || "stronger", direction: m.direction === "file" ? "directed" : m.direction });
+                // Replace: the project's source becomes the new file, its name, month and row count
+                const replaceWith = (r) => {
+                    const X = T();
+                    // March as it was read, for the screens that name the earlier version (version history)
+                    X.march = X.march || { file: X.file, accountsFile: X.accountsFile, nodes: X.nodes, edges: X.edges };
+                    if (r.id === "transfers") { X.file = X.frame.file = r.file; X.edges = r.rows; if (AB.transfersReplaced) AB.transfersReplaced(); } else { X.accountsFile = r.file; X.nodes = r.rows; }
+                    const month = (r.file.match(/(\d{4})-(\d{2})/) || []).slice(1);
+                    if (month.length) { const name = new Date(Number(month[0]), Number(month[1]) - 1, 1).toLocaleString("en-US", { month: "long" }) + " " + month[0]; X.title = X.title.replace(/\w+ \d{4}$/, name); X.frame.project = X.frame.project.replace(/\w+ \d{4}$/, name); }
+                };
+                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.byLoad = true; DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; Object.assign(DE().loaded, loadedChoices(entries)); } if (transfersT && !m.replaced) T().loaded = Object.assign({ per: transfersT.per }, loadedChoices(transfersT)); if (m.replaced) replaceWith(m.replaced); AB.go(to[0], to[1]); } });
             }
             primary.dataset.k = "primary";
             const cancel = AB.button("Cancel", { kind: "secondary", key: "Esc", onClick: () => AB.onPageCancel && AB.onPageCancel() });
@@ -1828,8 +1989,10 @@
             // Cancel (or one Esc too many) leaves with a way back: Undo reopens this page as it was left
             const leave = () => {
                 const back = m.state;
-                if (AB.pageOpener) location.assign(AB.pageOpener); else AB.close();
-                setTimeout(() => AB.notice(m.door.edit ? "Edit cancelled: nothing changed" : "Load cancelled: nothing was loaded", { label: "Undo", onClick: () => AB.go("data-page", back) }), 0);
+                // a direct link has no opener: back to the Data place of the project on screen, never another project's
+                const ds = AB.route && AB.route.frame.dataset;
+                if (AB.pageOpener) location.assign(AB.pageOpener); else if (ds && ds !== "lesmis") AB.go("data-place", AB.placeOf(ds, "data") || "at-rest"); else AB.close();
+                setTimeout(() => AB.notice(m.door.edit ? "Edit canceled: nothing changed" : "Load canceled: nothing was loaded", { label: "Undo", onClick: () => AB.go("data-page", back) }), 0);
             };
             const head = AB.pageHead(m.door.title, { backTip: "Cancel", onCancel: leave });
             const main = h("div", { class: "dpg-main" }, modelStrip());
@@ -1858,7 +2021,9 @@
                 m.first = false;
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                     if (m.focusLoad) f.primary.focus();
-                    else { const s = el.querySelector(".dpg-t[tabindex='0']"); if (s) s.focus(); }
+                    if (m.choosing) chooseReplace();
+                    // a page whose every column matches keeps Load focused; otherwise the selected table takes it
+                    else if (!m.focusLoad) { const s = el.querySelector(".dpg-t[tabindex='0']"); if (s) s.focus(); }
                     if (m.menu && m.menu.newType) { const { col: c, sub } = m.menu, t0 = sel(); m.menu = null; nameType(el.querySelector(`[data-k="r:${c}"]`), "New type from " + c, c.replace(/_id$/, ""), (v) => { t0.roles[c] = role(sub, v, null, { fresh: true }); }); }
                     if (m.menu) { const b = el.querySelector(`[data-k="r:${CSS.escape(m.menu.col)}"]`); if (b) { b.scrollIntoView({ block: "nearest", inline: "center" }); openRoleMenu(b, sel(), m.menu.col, m.menu.sub, m.menu.any); } m.menu = null; }
                     // Go to column with a find typed: the list open on its matches, the grid on the first one
@@ -1878,17 +2043,20 @@
             }
         }
         build();
+        // The Data place's Sources + > Paste... or From a URL... on a project with no state of its own: add that table here
+        if (AB.pendingAdd) { const a = AB.pendingAdd; AB.pendingAdd = null; if (a === "paste") pasteTable(); else urlTable(); }
     }
 
     const WIDE = ["wide-hosts", "wide-find-column", "wide-link-menu", "edit-wide-hosts", "edit-wide-connections"];
-    const TRANSFERS = ["reading", "transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "add-matching", "add-rows", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
+    const TRANSFERS = ["reading", "transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "replace-chosen", "add-matching", "add-rows", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
     registerSection({
         id: "data-page",
         title: "Data page",
         region: "workspace",
         rail: "data",
         // The package registry is a new project of its own: the header names it, not the research network
-        frame: (state) => (state === "json-keyed" || state === "json-keyed-weight" || state === "edit-registry" ? { dataset: registryDataset() } : { dataset: TRANSFERS.includes(state) ? "transactions" : WIDE.includes(state) ? "wide" : ["json-plain", "json-graphology", "json-jgf", "edit-plain-nodes", "edit-plain-links"].includes(state) ? "plainJson" : (state || "").startsWith("edit-json-") ? "nested" : (state || "").startsWith("json-") ? "nested"
+        // A refused file opened as a new graph read nothing: the header names no project (app.js renderTop)
+        frame: (state) => state === "refused-ids" ? { dataset: "lesmis", newProject: true } : (state === "json-keyed" || state === "json-keyed-weight" || state === "edit-registry" ? { dataset: registryDataset() } : { dataset: TRANSFERS.includes(state) ? "transactions" : WIDE.includes(state) ? "wide" : ["json-plain", "json-graphology", "json-jgf", "edit-plain-nodes", "edit-plain-links"].includes(state) ? "plainJson" : (state || "").startsWith("edit-json-") ? "nested" : (state || "").startsWith("json-") ? "nested"
             : state === "graph-file" || state === "edit-graph-file" || state === "refused-ids" || (state || "").startsWith("detect") ? "lesmis" : "doorEntries" }),
         states: [
             { id: "entries", label: "Door entries: three tables, entries selected" },
@@ -1908,7 +2076,8 @@
             { id: "weight-moved", label: "Pair keeps amount; the reader moves Weight to count (notice)" },
             { id: "transfers", label: "March transfers: accounts and transfers" },
             { id: "kind-as-type", label: "kind as Subtype: three subtypes of account" },
-            { id: "replace", label: "Replace with file" },
+            { id: "replace", label: "Replace with file: the file picker first" },
+            { id: "replace-chosen", label: "Replace with file: transfers-2026-04.csv picked" },
             { id: "edit-source", label: "Edit source" },
             { id: "edit-accounts", label: "Edit: accounts" },
             { id: "edit-source-lost", label: "Replace: attributes lost" },
@@ -1919,7 +2088,7 @@
             { id: "detect-several", label: "Paste: several formats match" },
             { id: "detect-none", label: "Paste: no format matches" },
             { id: "unsupported-format", label: "Unsupported format (SIF)" },
-            { id: "load-into", label: "Dropped on an open graph: opens as a new graph" },
+            { id: "load-into", label: "Dropped on an open graph: Load into This graph or New graph" },
             { id: "add-rows", label: "Add to transfers: April's rows added to the loaded transfers" },
             { id: "add-matching", label: "Added table matches a loaded source: its rows added" },
             { id: "one-at-a-time", label: "One load at a time" },

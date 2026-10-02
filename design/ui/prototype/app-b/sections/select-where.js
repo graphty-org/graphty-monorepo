@@ -27,6 +27,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
 .sw-status .ab-link { cursor: pointer; white-space: nowrap; }
 .sw-col { width: 100%; }
 .sw-foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sw-hl { pointer-events: none; }
 .sw-miss { font-family: var(--cm-font-family-mono); font-size: 11px; color: var(--cm-text-secondary); }
 `;
     if (!document.getElementById("sw-style")) document.head.append(h("style", { id: "sw-style" }, css));
@@ -42,7 +43,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         const m = /^\s*"?([\w.]+)"?\s*(==|!=|>=|<=|>|<)\s*'?([^']*?)'?\s*$/.exec(q);
         if (!m) return null;
         const [, a, op, raw] = m;
-        const v = raw === "" || isNaN(raw) ? raw : Number(raw);
+        const v = raw === "true" ? true : raw === "false" ? false : raw === "" || isNaN(raw) ? raw : Number(raw);
         const ops = { "==": (x) => x === v, "!=": (x) => x !== v, ">": (x) => x > v, ">=": (x) => x >= v, "<": (x) => x < v, "<=": (x) => x <= v };
         return { a, op, v, test: (x) => x != null && ops[op](x) };
     }
@@ -57,7 +58,13 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
     // ... and over the transfers, which the sample holds as value tables and ranges, not rows:
     // a count the tables cannot give is null, and the status says graphty-element counts it
     function countTransfers(t, q, edges) {
-        if (terms(q).length > 1) return terms(q).every(parse) ? null : undefined;
+        if (terms(q).length > 1) {
+            const ps = terms(q).map(parse);
+            if (!ps.every(Boolean)) return undefined;
+            // flagged == true narrows to the 14 flagged accounts, which the fixture holds in full: every other clause is counted on them
+            if (!edges && ps.some((p) => p.a === "flagged" && p.op === "==" && p.v === true)) return countRows(t.flaggedAccounts, q);
+            return null;
+        }
         const p = parse(q);
         if (!p) return undefined;
         const at = t.attributes.find((x) => x.name === p.a || x.name.startsWith(p.a + " ("));
@@ -73,6 +80,13 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             if (!range.some((x) => p.test(x)) && !(p.op === "!=" || (range[0] < p.v && p.v < range[1]))) return 0;
         }
         return null;
+    }
+    // A readable default name for a set made here: "kind is personal", "riskScore over 98" (null: pasted ids)
+    function nameOf(q) {
+        if (q == null) return "Pasted ids";
+        const p = parse(q);
+        const op = p && { "==": "is", "!=": "is not", ">": "over", ">=": "at least", "<": "under", "<=": "at most" }[p.op];
+        return p ? p.a + " " + op + " " + p.v : q.trim();
     }
     // The one door with a condition filled in: "Select where <attribute> is..." on the one attribute menu
     // (Data > Attributes, the attribute inspector, a table column) and Find's typed rule. `AB.whereFrom(ds, name, q)` opens Select over that project with `q` as the query
@@ -94,6 +108,47 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         from = { ds, name, rows, on: g && g.element === "edge" ? "edges" : "nodes", q: q != null ? q : cond };
         AB.go("select-where", "attribute");
     };
+
+    // The live highlight: while a query is typed, graphty-element draws what Select would take in its
+    // own selection highlight (the Selection row's look, gold at 40%), over the canvas, so the reader
+    // sees the matches before pressing Select. Drawn in the overlay layer over the drawing, never into it.
+    // ponytail: the transfers drawing is a density image with no node positions, so a seeded share of
+    // its cells equal to the matched share of accounts is marked; the element highlights the real nodes.
+    // Only the density drawing is marked (the hosts' drawing has no positions this file can read).
+    const SEL_FILL = "#FFD700", SEL_OPACITY = 0.4; // graphty-element's selection highlight, as Why this look names it
+    let cells = null; // the density drawing's cells, read once from its file
+    function highlighter(layer) {
+        const NS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(NS, "svg");
+        svg.setAttribute("class", "sw-hl");
+        svg.setAttribute("viewBox", "0 0 1200 800");
+        svg.setAttribute("aria-hidden", "true");
+        let share = 0;
+        const paint = () => {
+            const img = document.querySelector("#ab-canvas .k-stage img");
+            const stage = img && img.parentElement;
+            if (!stage || !/density/.test(img.getAttribute("src") || "")) return svg.replaceChildren();
+            if (!cells) {
+                cells = [];
+                fetch(img.getAttribute("src")).then((r) => r.text()).then((txt) => { cells = [...txt.matchAll(/<polygon points="([^"]+)"/g)].map((m) => m[1]); paint(); }).catch(() => {});
+                return;
+            }
+            const L = layer.getBoundingClientRect(), S = stage.getBoundingClientRect();
+            Object.assign(svg.style, { left: S.left - L.left + "px", top: S.top - L.top + "px", width: S.width + "px", height: S.height + "px" });
+            const g = document.createElementNS(NS, "g");
+            g.setAttribute("fill", SEL_FILL);
+            g.setAttribute("fill-opacity", String(SEL_OPACITY));
+            cells.forEach((pts, i) => {
+                if (((Math.imul(i + 1, 2654435761) >>> 0) % 1000) / 1000 >= share) return;
+                const poly = document.createElementNS(NS, "polygon");
+                poly.setAttribute("points", pts);
+                g.append(poly);
+            });
+            svg.replaceChildren(g);
+        };
+        svg.update = (s) => { share = s; paint(); };
+        return svg;
+    }
 
     function render(el, state) {
         const t = T();
@@ -120,7 +175,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             if (!s.q.trim() && s.tab === "where") return { n: 0, of: 0, noun, hint: "Type a query, or insert an attribute" };
             if (wide) {
                 const rows = fromAttr ? (s.on === fromAttr.on ? fromAttr.rows : []) : edges ? W.edgeRows : W.nodeRows;
-                if (fromAttr && !rows.length) return { n: 0, of: 0, noun, hint: "The sample holds no " + noun + " to count; graphty-element counts them" };
+                if (fromAttr && !rows.length) return { n: 0, of: 0, noun, hint: "No " + noun + " to count for this attribute" };
                 const k = countRows(rows, s.q);
                 return k === null ? { n: 0, of: 0, noun, hint: "Finish the query with a comparison, such as > 0" } : { n: k, of: fromAttr ? rows.length : edges ? W.edges : W.nodes, noun };
             }
@@ -135,7 +190,8 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             if (s.mode === "within") return edges ? { n: 0, of: 0, noun, hint: "No transfers are selected" } : { n: countRows(t.flaggedAccounts, s.q) ?? 0, of: SELECTED, noun: "selected nodes" };
             const k = countTransfers(t, s.q, edges);
             if (k === undefined) return { n: 0, of: 0, noun, hint: "Finish the query with a comparison on a " + (edges ? "transfer" : "account") + " attribute, such as " + (edges ? "amount > 0" : "kind == 'personal'") };
-            if (k === null) return { n: 0, of: 0, noun, hint: "The sample cannot count this query; graphty-element counts it" };
+            // ponytail: the fixture has no full account table, so a query it cannot count is refused in participant words
+            if (k === null) return { n: 0, of: 0, noun, hint: "Not available yet: counting this query in this version" };
             return { n: k, of: edges ? t.edges : t.nodes, noun };
         }
 
@@ -157,6 +213,9 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 r.n > CAP && s.mode !== "remove" ? h("span", { class: "k-secondary" }, ". A selection holds " + n(CAP) + "; the first " + n(CAP) + " in file order are kept.") : null));
         }
 
+        const hl = highlighter(el);
+        // The share of the drawn accounts the query matches (the drawing shows accounts, not transfers)
+        const shareOf = (r) => (wide || s.on !== "nodes" || !r.n ? 0 : r.n / AB.projectCounts("transactions").nodes);
         function draw() {
             el.textContent = "";
             const r = result();
@@ -191,28 +250,18 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 requestAnimationFrame(() => requestAnimationFrame(() => { const f = list && list.querySelector("input, .ab-fl-list"); if (f) f.focus(); }));
             };
             insert = h("span", Object.assign({ class: "ab-link", role: "button", "aria-haspopup": "listbox", "aria-expanded": "false" }, AB.act({ onClick: openList })), "Insert attribute...");
-            // A second condition: "and" goes on the end and the field list opens for its attribute
-            const addCondition = () => { s.q = s.q.replace(/\s+$/, "") + " and "; draw(); const f = el.querySelector(".sw-input"); if (f) f.setSelectionRange(s.q.length, s.q.length); el.querySelector(".sw-hint .ab-link").click(); };
-            // shown once the query holds whole conditions; typing updates it (refresh)
-            const complete = () => !!s.q.trim() && terms(s.q).every(parse);
-            const more = h("span", Object.assign({ class: "ab-link", role: "button", "aria-label": "Add condition", hidden: bad || !complete() }, AB.act({ onClick: addCondition })), "+ condition");
+            // The hint names no attribute and has one link (a second condition is typed: "... and ...")
             const hint = s.tab === "where"
-                ? h("span", null, "The same expressions as filters. ", insert, " ", more)
+                ? h("span", null, "The same expressions as filters. ", insert)
                 : (wide ? "One id per line, or comma separated. Matched against the " + (fromAttr ? "nodes'" : "hosts'") + " " + (P.nodeKey || "id") + " column." : "One id per line, or comma separated. Matched against the id column of accounts-2026-03.csv.");
             const pick = (k, v) => { s[k] = v; if (k === "on" && !wide) s.q = v === "edges" ? "amount > 0" : "kind == 'personal'"; draw(); };
             const body = h("div", { class: "sw-body" },
                 h("div", { class: "sw-pad" }, AB.seg([["where", "Query"], ["ids", "Ids"]], s.tab, (v) => AB.go("select-where", v === "ids" ? "by-ids" : "where"), { label: "Select by" })),
                 AB.fieldRow("Look for", AB.seg([["nodes", "Nodes"], ["edges", "Edges"]], s.on, (v) => pick("on", v), { label: "Look for" }), { popover: true }),
                 AB.fieldRow(s.tab === "where" ? "Query" : "Ids", h("div", { class: "sw-body sw-col" }, field, h("div", { class: "sw-hint sw-status" }, hint)), { popover: true }),
-                AB.fieldRow("Selection", AB.seg([["replace", "Replace"], ["add", "Add"], ["remove", "Remove"], ["within", "Within"]], s.mode, (v) => pick("mode", v), { label: "Selection" }), { popover: true }),
-                statusSlot);
-            // A readable default name for a set made here: "kind is personal", "riskScore over 98"
-            const setName = () => {
-                if (s.tab === "ids") return "Pasted ids";
-                const p = parse(s.q);
-                const op = p && { "==": "is", "!=": "is not", ">": "over", ">=": "at least", "<": "under", "<=": "at most" }[p.op];
-                return p ? p.a + " " + op + " " + p.v : s.q.trim();
-            };
+                statusSlot,
+                AB.fieldRow("Selection", AB.seg([["replace", "Replace"], ["add", "Add"], ["remove", "Remove"], ["within", "Within"]], s.mode, (v) => pick("mode", v), { label: "Selection" }), { popover: true }));
+            const setName = () => nameOf(s.tab === "ids" ? null : s.q);
             // Both set kinds: Create set keeps today's members; Create set from rule keeps the query, so its
             // members follow the data. Either lands in the project's Sets and says so in the one notice.
             const here = [AB.route.id, AB.route.state];
@@ -238,14 +287,16 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 const r2 = result();
                 statusSlot.replaceChildren(status(r2));
                 field.setAttribute("aria-invalid", String(!!r2.error));
-                more.hidden = !!r2.error || !complete();
                 const b = footFor(r2);
                 foot.replaceWith(b);
                 foot = b;
+                hl.update(shareOf(r2));
             }
             const pop = AB.popover({ anchor: "#ab-toolbar", place: "above-toolbar", title: "Select", body, foot, width: 440 });
             pop.addEventListener("pointerdown", (e) => { if (!insert.contains(e.target)) shut(); });
+            el.prepend(hl);
             el.append(pop);
+            requestAnimationFrame(() => hl.update(shareOf(r)));
             if (bad) AB.announce("Nothing in this graph answers amout. Did you mean amount?");
         }
         draw();
@@ -256,19 +307,61 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
     // Where Select lands: the usual selection picture in the project the query ran over -- the tree's
     // Selection row with its count, the selection bar and the several-elements inspector -- framed here
     // so the door never draws another project. Selection is full is the same picture with the notice.
-    // ponytail: the inspector shows the query's own selection once inspector-several-elements registers a
-    // "query" state (reading AB.querySelection); until then the nearest existing several-elements state.
-    const QUERY_INSPECTOR = ["inspector-several-elements", "query"];
-    function selectionInspector(ds) {
-        const s = AB.sections[QUERY_INSPECTOR[0]];
-        if (s && s.states.some((x) => x.id === QUERY_INSPECTOR[1])) return QUERY_INSPECTOR.join("/");
-        return QUERY_INSPECTOR[0] + "/" + ({ wide: "wide", doorEntries: "door-two" }[ds] || "data");
+    // The inspector is this section's own (region right, below): the several-elements inspector has no
+    // state for a selection a query made, so it would show another project's five nodes.
+    // What Select selected; directly, the transfers' kind == 'personal' (Selection is full: every transfer, cut at the cap)
+    const lastSelection = (state) => AB.querySelection || (state === "selection-full"
+        ? { dataset: "transactions", on: "edges", query: "amount > 0", mode: "replace", n: CAP, matched: T().edges }
+        : { dataset: "transactions", on: "nodes", query: "kind == 'personal'", mode: "replace", n: countTransfers(T(), "kind == 'personal'", false) });
+    function selectionInspector(el, state) {
+        const q = lastSelection(state);
+        const P = AB.projectCounts(q.dataset);
+        const noun = q.on === "edges" ? "edge" : "node";
+        const total = q.on === "edges" ? P.edges : P.nodes;
+        // ponytail: graph-place's tree reads its Selection count from the inspector beside it and knows
+        // only the node and several-elements inspectors; until it reads AB.querySelection the count is
+        // written into its Selection row here, after the tree has drawn (the left region draws first)
+        const slot = document.querySelector('#ab-left [data-row="selection"] .ab-tcount');
+        if (slot) slot.textContent = n(q.n);
+        const all = n(q.n) + " of " + n(q.n);
+        const style = () => [AB.whyThisLook([
+            { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: SEL_FILL + " at " + SEL_OPACITY * 100 + "%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
+        ], { kind: "several", element: AB.count(q.n, noun), coverage: true })];
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: AB.count(q.n, noun, { of: total }),
+                body: [
+                    AB.data("Size", AB.count(q.n, noun, { of: total })),
+                    q.query != null ? AB.data("Selected where", h("span", { class: "sw-miss" }, q.query)) : AB.data("Selected by", "Pasted ids"),
+                ],
+            },
+            Notes: { count: 0, target: ["notes-place", "empty"] },
+        }, { kind: "several" });
+        const insp = AB.inspector({ icon: "circle-dot", title: AB.count(q.n, noun), kind: "Elements", kindKey: "several",
+            renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
+            menu: ["context-menus", "several"], tab: "Data", tabs: { Style: style, Data: data } });
+        el.append(insp);
     }
     function selectedFrame(only) {
         const ds = only || (AB.querySelection && AB.querySelection.dataset) || "transactions";
         const place = ds === "transactions" ? "many-groups" : ds === "wide" ? "wide" : AB.placeOf(ds, "graph") || "at-rest";
         const canvas = { transactions: "canvas-and-states/transfers", wide: "canvas-and-states/hosts" }[ds];
-        return Object.assign({ left: "graph-place/" + place, dataset: ds, right: selectionInspector(ds) }, canvas ? { canvas } : {});
+        // own: Select draws these panels instead of keeping the ones behind the popover
+        // The selection bar: the shell raises it only beside the several-elements inspector, so it is named here
+        return Object.assign({ left: "graph-place/" + place, dataset: ds, right: "select-where/" + (only ? "selection-full" : "selected"), toolbar: "selection-bar/five-nodes", own: true }, canvas ? { canvas } : {});
+    }
+
+    // After Select the query would be lost: the one notice offers to keep it as a set (the selection
+    // bar's Create set keeps today's members). Directly: the transfers' kind == 'personal'.
+    function offerRule() {
+        const q = lastSelection();
+        if (q.query == null || !q.n) return;
+        const P = AB.projectCounts(q.dataset);
+        const noun = q.on === "edges" ? "edge" : "node";
+        const name = nameOf(q.query);
+        AB.notice("Selected " + AB.count(q.n, noun, { of: q.on === "edges" ? P.edges : P.nodes }) + " where " + name, { label: C("create-set").label + " from rule",
+            onClick: () => setTimeout(() => AB.notice("Created '" + name + "' in Sets", { label: "Undo", onClick: offerRule }), 0) });
     }
 
     registerSection({
@@ -295,8 +388,9 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             { id: "attribute", label: "Select where <attribute> is... from an attribute's menu (directly: the hosts' 46-character attribute)" },
             { id: "selected", label: "After Select: the usual selection picture (directly: the transfers)" },
         ],
-        render(el, state) {
-            if (state === "selected") return; // the popover has closed; the frame draws the selection
+        render(el, state, ctx) {
+            if (ctx && ctx.region === "right") return selectionInspector(el, state);
+            if (state === "selected") return offerRule(); // the popover has closed; the frame draws the selection
             if (state !== "selection-full") return render(el, state);
             // The element truncated: the one notice, one action
             el.append(AB.notice("Selection is full: the first " + n(CAP) + " of " + n(T().edges) + " matching transfers are selected.",

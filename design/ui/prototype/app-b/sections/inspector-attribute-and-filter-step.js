@@ -26,6 +26,7 @@
         ".ia-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}" +
         ".ia-tags>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
         ".ia-tagnote{flex-basis:100%;color:var(--cm-text-secondary)}" +
+        ".ia-tagline{flex-basis:100%}" +
         ".ia-gone{text-decoration:line-through;color:var(--cm-text-secondary)}" +
         ".ia-problem{padding:4px 16px 8px}" +
         ".ia-break{overflow-wrap:anywhere;white-space:normal}" +
@@ -81,19 +82,47 @@
     const D = () => AB.fx.datasets.doorEntries;
     const entriesFile = () => D().tables.find((x) => x.name === "entries").file;
 
-    // The roles row: read-only tags (AB.roleTag), each opening the Data page, where roles are chosen.
-    // tags: [[word, second]]; extra: nodes after the tags (a visible note line, a needs mark).
-    // ponytail: the Data page has no per-column route yet, so a tag opens the table's page, not the column.
-    function roles(tags, page, extra) {
+    // The roles row: read-only tags (AB.roleTag), each opening the Data page at this attribute's column,
+    // where roles are chosen. tags: [[word, second]]; col: the column; extra: nodes after the tags.
+    // A Weight tag carries its meaning in visible words after it (spec 5.2), never only in the tooltip.
+    function roles(tags, page, col, extra) {
         return AB.fieldRow(tags.length > 1 ? "Roles" : "Role", h("span", { class: "ia-tags" },
-            tags.map(([w, second]) => AB.roleTag(w, { second, go: ["data-page", page] })), extra || null));
+            tags.map(([w, second]) => [atColumn(AB.roleTag(w, { second: second + ". Opens the Data page at " + col, go: ["data-page", page] }), col),
+                /^Weight/.test(w) ? h("span", { class: "ia-tagline" }, "-- " + WEIGHT_USE) : null]), extra || null));
+    }
+    // ponytail: the Data page has no per-column route, so after the tag's own navigation this finds the
+    // column's role control (data-k "r:<col>") once the page draws it, scrolls to it and focuses it.
+    // A column route on the Data page would replace this.
+    function atColumn(tag, col) {
+        const seek = (tries) => {
+            const b = document.querySelector(`.dpg-role[data-k="r:${window.CSS.escape(col)}"]`);
+            if (!b) return tries && requestAnimationFrame(() => seek(tries - 1));
+            document.querySelectorAll(".dpg-role").forEach((x) => (x.tabIndex = -1));
+            b.tabIndex = 0;
+            b.scrollIntoView({ block: "nearest", inline: "center" });
+            b.focus();
+        };
+        tag.addEventListener("click", () => seek(60));
+        tag.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") seek(60); });
+        return tag;
+    }
+    // Changing Name or Time after load: whether graphty-element re-derives what depends on it (spec 5.2)
+    const NAME_TIME = () => AB.openQuestion("To confirm with graphty-element: that changing Name or Time after load re-derives what depends on it (labels, search, the walk, a time window)");
+    // "N <rows> have no <attr> value: its weight reads 1 | 0" (spec 2.4, missingWeight, default 1)
+    function blankWeight(n, noun, attr) {
+        const holder = h("span", { class: "ia-dd" });
+        const draw = (v) => holder.replaceChildren(AB.count(n, noun) + (n === 1 ? " has" : " have") + " no " + attr + " value: its weight reads",
+            AB.seg([["1", "1"], ["0", "0"]], v, (x) => { draw(x); AB.announce("A blank " + attr + " value weighs " + x); holder.querySelector("[aria-checked=true]").focus(); }, { label: "A blank " + attr + " value weighs" }));
+        draw("1");
+        return holder;
     }
     // Where an attribute came from, in full: the header's provenance link is cut beside the kind at the
     // inspector's width (its tooltip holds the rest), so the Summary's From row names the file, wrapping,
     // and says the values were imported, so they never read as computed by graphty.
     const fromRow = (file, go, how) => AB.data("From", h("span", { class: "ia-break" }, file + " (" + (how || "imported, not computed") + ")"), { go });
     // The inspector's Weight tag reads "Weight, set when loaded" (spec 2.4); its link opens the Data page
-    const WEIGHT = "every run uses it unless the run picks another. Change it on the Data page";
+    const WEIGHT_USE = "every run uses it unless the run picks another";
+    const WEIGHT = WEIGHT_USE + ". Change it on the Data page";
 
     // ---------- amount: an edge attribute from the file, Role None ----------
     function amountBody() {
@@ -102,9 +131,9 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                roles([["Weight, set when loaded", WEIGHT]], "edit-source", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded)")]),
+                roles([["Weight, set when loaded", WEIGHT]], "edit-source", "amount", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded)")]),
                 fromRow(t.file, ["data-page", "edit-source"]),
-                AB.data("On", fmt(t.edges) + " edges (transfers)", { go: ["table-dock", "edges"] }),
+                AB.data("On", AB.count(t.edges, "edge") + " (transfers)", { go: ["table-dock", "edges"] }),
                 AB.data("Missing", "none: every transfer has an amount (a blank would weigh 1)", { go: ["data-page", "edit-source"] })),
             AB.dataTab({
                 // No unit: the file declares none, so the inspector names none
@@ -124,9 +153,9 @@
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
                 roles([["Key", "each row's id: links from other tables match against it"],
-                    ["Name for account", "each account's name: search, tooltips and the Label line read it"]], "edit-accounts"),
+                    ["Name for account", "each account's name: search, tooltips and the Label line read it"]], "edit-accounts", "id", [NAME_TIME()]),
                 fromRow(t.accountsFile, ["data-page", "edit-accounts"]),
-                AB.data("On", fmt(t.nodes) + " nodes (accounts)", { go: ["table-dock", "nodes"] }),
+                AB.data("On", AB.count(t.nodes, "node") + " (accounts)", { go: ["table-dock", "nodes"] }),
                 AB.data("Missing", "none: it is the key")),
             AB.dataTab({
                 Values: { summary: fmt(t.nodes) + " distinct", body: AB.data("Distinct", fmt(t.nodes) + ", one per account") },
@@ -135,23 +164,41 @@
         ];
     }
 
+    // ---------- name: people's Name role (door entries) ----------
+    function personNameBody() {
+        const p = D().tables.find((x) => x.name === "people");
+        const people = D().loadedTypes().person;
+        return [
+            AB.section({ title: "Summary", editable: true },
+                dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
+                roles([["Name for person", "each person's name: the inspector title, search, tooltips and the Label line read it"]], "edit-people", "name", [NAME_TIME()]),
+                fromRow(p.file, ["data-page", "edit-people"]),
+                AB.data("On", AB.count(people, "node") + " (people)", { go: ["table-dock", "door-entries-nodes"] })),
+            AB.dataTab({
+                Values: { summary: "one per person", body: AB.data("Sample", p.sample.slice(0, 3).map((r) => r.name).join(", ")) },
+                "Painted by": { summary: "No rows", body: none("name") },
+            }, { kind: "attribute" }),
+        ];
+    }
+
     // ---------- floors: buildings' node weight (door entries) ----------
     function floorsBody() {
         const b = D().tables.find((x) => x.name === "buildings");
         const v = b.sample.filter((r) => r.floors !== "").map((r) => Number(r.floors));
+        const blank = b.sample.length - v.length;
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
                 // The weight's gap is said in visible words under its tag (spec 5.2): nothing reads node weight yet
-                roles([["Weight, set when loaded", WEIGHT + ". A type with no weight column (person) weighs 1"]], "edit-buildings",
-                    [h("span", { class: "ia-tagnote" }, "No measure reads node weight yet."), AB.needsElement("PageRank's restart weights read node weight once its catalog entry carries nodeWeighted; no graphty-element entry reads node weight yet")]),
+                roles([["Weight, set when loaded", WEIGHT + ". A type with no weight column (person) weighs 1"]], "edit-buildings", "floors",
+                    [h("span", { class: "ia-tagnote" }, "No measure reads node weight yet. PageRank's restart weights would."), AB.needsElement("PageRank's restart weights read node weight once its catalog entry carries nodeWeighted; no graphty-element entry reads node weight yet")]),
                 fromRow(b.file, ["data-page", "edit-buildings"]),
-                AB.data("On", fmt(b.rows) + " nodes (buildings)", { go: ["data-page", "edit-buildings"] }),
-                AB.data("Missing", "1 building has no floors value: its weight reads 1")),
+                AB.data("On", AB.count(b.rows, "node") + " (buildings)", { go: ["data-page", "edit-buildings"] }),
+                AB.fieldRow("Missing", blankWeight(blank, "building", "floors"))),
             AB.dataTab({
                 Values: { summary: Math.min(...v) + " to " + Math.max(...v) + " floors", body: [
                     AB.data("Range", Math.min(...v) + " to " + Math.max(...v) + " floors"),
-                    AB.data("Read", (b.rows - 1) + " of " + b.rows + " buildings (1 reads 1)"),
+                    AB.data("Read", AB.count(b.rows - blank, "building", { of: b.rows }) + " have a floors value"),
                 ] },
                 "Painted by": { summary: "No rows", body: none("floors") },
             }, { kind: "attribute" }),
@@ -166,9 +213,9 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                roles([["Weight, set when loaded", WEIGHT]], "edit-entries", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded). Derived by One edge per Pair: how many entries each pair made")]),
+                roles([["Weight, set when loaded", WEIGHT]], "edit-entries", "count", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded). Derived by One edge per Pair: how many entries each pair made")]),
                 fromRow(entriesFile(), ["data-page", "edit-entries"], "counted per pair when loaded"),
-                AB.data("On", fmt(edges) + " edges (entries)", { go: ["table-dock", "door-entries"] }),
+                AB.data("On", AB.count(edges, "edge") + " (entries)", { go: ["table-dock", "door-entries"] }),
                 AB.data("Missing", "none: every pair counts at least 1 entry")),
             AB.dataTab({
                 Values: { summary: fmt(e.bothEnds) + " entries in " + fmt(edges) + " pairs", body: [
@@ -187,9 +234,9 @@
             AB.section({ title: "Summary", editable: true },
                 // Number, as the Data page reads it; the match report says it is matched to people.id as text
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                roles([["From -> person", "each entry starts at the person whose id matches person_id"]], "edit-entries"),
+                roles([["From -> person", "each entry starts at the person whose id matches person_id"]], "edit-entries", "person_id"),
                 fromRow(entriesFile(), ["data-page", "edit-entries"]),
-                AB.data("On", fmt(D().loadedEdges()) + " edges (entries)", { go: ["data-page", "edit-entries"] }),
+                AB.data("On", AB.count(D().loadedEdges(), "edge") + " (entries)", { go: ["data-page", "edit-entries"] }),
                 AB.data("Matched", fmt(r.bothEnds) + " of " + fmt(r.rows) + " rows", { go: ["data-page", "edit-entries"] }),
                 AB.data("Unmatched", fmt(r.missingPeople) + " ids not in people", { go: ["data-page", "edit-entries"] })),
             AB.dataTab({
@@ -247,6 +294,8 @@
         // The attribute picker is the field list at menu size, over the project on screen
         const openPicker = () => AB.openFieldList(a, {
             current: o.gone ? null : cur, label: "Attribute",
+            // a step computes degree on what the steps above left, so it is offered before any run wrote it
+            computed: o.step ? [["degree", "num"]] : null,
             onPick(name, t) {
                 cur = name; type = t;
                 aText.className = "";
@@ -292,7 +341,8 @@
                 o.cap ? h("div", { class: "ab-cap k-secondary" }, o.cap) : null,
                 apply,
                 // Both counts are named: what this step does to what the steps above left, and the full graph
-                AB.data("This step", h("span", null, after, o.gone ? " (skipped)" : null), { go: ["table-dock", o.unit[1]] }),
+                // A computed step's two counts are plain text side by side (black, neither a link), so they read as a pair
+                AB.data("This step", h("span", null, after, o.gone ? " (skipped)" : null), o.full != null ? null : { go: ["table-dock", o.unit[1]] }),
                 o.full != null ? AB.data("Full graph", (E ? AB.count(E.full, "edge") + ", " : "") + AB.count(o.full, "node") + " would pass") : null),
             o.noted ? AB.notesSection(1, ["notes-place", "all"], "filter-step") : AB.notesSection(0, null, "filter-step"),
         ];
@@ -323,18 +373,23 @@
         return { attr: "degree", type: "num", cond: "is at least", value: rule(1).split(">= ")[1], before: LF().after.step1, after: LF().after.step2, full: LF().statsByState["2"].nodes,
             unit: ["nodes", "nodes"], scope: "Degree on " + step1Scope() };
     }
+    const UNDIRECTED = "Les Miserables is undirected: every edge goes both ways";
+    const NEIGHBOR_OPTS = "graphty-element's neighbors filter takes hops only; a direction and a From date (a time window on a time attribute) are options it needs";
     // Neighbors of Valjean after step 1: he keeps fewer neighbors there than on the full graph
     function neighborsStep() {
         const near = LF().byStep[0].top.find((r) => r.label === "Valjean").degree, all = LM().valjeanNeighbors;
         return { attr: null, before: LF().after.step1, after: near + 1, full: all + 1, unit: ["nodes", "nodes"], open: false,
-            sentence: [dropdown("Keep", KEEP, "Neighbors"), AB.data("Of", "Valjean, 1 hop", { go: ["inspector-node", "why-this-look"] })],
+            sentence: [dropdown("Keep", KEEP, "Neighbors"), AB.data("Of", "Valjean, 1 hop", { go: ["inspector-node", "why-this-look"] }),
+                // graphty-element's neighbors options: Direction (Both | Out | In) and a From date on a time attribute
+                dropdown("Direction", [{ label: "Both" }, { label: "Out", disabled: UNDIRECTED }, { label: "In", disabled: UNDIRECTED }], "Both", { needs: NEIGHBOR_OPTS }),
+                dropdown("From date", [{ label: "Any time" }, { label: "Pick a date...", disabled: "These edges have no time attribute" }], "Any time", { needs: NEIGHBOR_OPTS })],
             scope: "Neighbors among " + step1Scope(),
             cap: "Keeps Valjean and the " + near + " neighbors he has there; on the full graph he has " + all + "." };
     }
     // The step row's own menu (spec: Move up, Move down, Add note, Delete)
     const lmStepMenu = (title) => (b) => AB.openMenu(b, [
         { heading: title },
-        { label: "Move up", shortcut: "Ctrl+]", onClick: () => AB.flash("Move up (not wired in the skeleton)") },
+        { label: "Move up", shortcut: "Ctrl+]", onClick: () => AB.flash("Move up (not available yet)") },
         { label: "Move down", shortcut: "Ctrl+[", disabled: "Already last" },
         { sep: true },
         AB.cmd("add-note"),
@@ -350,7 +405,7 @@
     const P = () => AB.fx.datasets.plainJson;
     const LONG = "vuln_count_critical_unremediated_over_30_days";
     const tally = (vals) => { const c = {}; vals.forEach((x) => { c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((p, q) => q[1] - p[1]); };
-    const pct = (a, b) => Math.round((a / b) * 100) + "%";
+    const pct = (a, b) => (a && a / b < 0.005 ? "under 1%" : Math.round((a / b) * 100) + "%");
     // The full stored name, wrapping, so it never lives only in a tooltip
     const fullName = (name) => AB.data("Name", h("span", { class: "k-id ia-break" }, name));
 
@@ -385,7 +440,7 @@
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
                 fromRow(w.file, ["data-page", "edit-wide-hosts"]),
-                AB.data("On", fmt(w.nodes) + " nodes (hosts)", { go: ["table-dock", "wide"] }),
+                AB.data("On", AB.count(w.nodes, "node") + " (hosts)", { go: ["table-dock", "wide"] }),
                 AB.data("Fill", pct(n, w.nodes) + ": " + n + " of " + fmt(w.nodes) + " hosts have a value"),
                 AB.data("No value", fmt(without) + " hosts", { go: ["table-dock", "wide"] })),
             AB.dataTab({
@@ -408,7 +463,7 @@
                 fullName(LONG),
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
                 fromRow(w.file, ["data-page", "edit-wide-hosts"]),
-                AB.data("On", fmt(w.nodes) + " nodes (hosts)", { go: ["table-dock", "wide"] }),
+                AB.data("On", AB.count(w.nodes, "node") + " (hosts)", { go: ["table-dock", "wide"] }),
                 AB.data("Missing", "none: every host has a value")),
             AB.dataTab({
                 Values: { summary: "0 to " + max + ", " + some + " hosts at 1 or more", body: histogram(bins, ["0", String(max)],
@@ -431,7 +486,7 @@
                 dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
                 AB.data("Path", h("span", { class: "k-id ia-break" }, "tags")), AB.data("In", h("span", { class: "k-id ia-break" }, "data.researchers[]")),
                 fromRow(N().file, ["data-page", "edit-json-researchers"]),
-                AB.data("On", fmt(rs.length) + " nodes (researchers)", { go: ["table-dock", "wide"] }),
+                AB.data("On", AB.count(rs.length, "node") + " (researchers)", { go: ["table-dock", "wide"] }),
                 AB.data("Items", fmt(items) + " in " + rs.length + " lists; " + several + " hold two or more"),
                 AB.data("Empty", emptyLists + " researchers have an empty list"),
                 h("div", { class: "ab-cap k-secondary" }, "A filter step on tags reads \"contains\": tags contains " + tags[0][0] + " keeps the " + tags[0][1] + " researchers that hold it.")),
@@ -449,20 +504,21 @@
     // project's first number field. Every figure is read from kit/wide-nested.json and AB.fieldsOf.
     let picked = null;
     const OWN = { wide: { legacy_asset_tag: "sparse", [LONG]: "long-name" }, nested: { tags: "list-attribute" } };
-    // The transfers and the door entries keep their own attribute states; Les Miserables opens lesmis-field
+    // amount and id on the transfers, and the door entries, keep their own attribute states; any other
+    // transfers attribute opens transactions-field; Les Miserables opens lesmis-field
     const KEPT = {
-        transactions: (name) => (/^id\b/.test(name) ? "attribute-name-role" : "attribute"),
-        doorEntries: (name) => ({ floors: "node-weight", count: "edge-weight", person_id: "link-key" })[name] || null,
+        transactions: (name) => (/^id\b/.test(name) ? "attribute-name-role" : name === "amount" ? "attribute" : "transactions-field"),
+        doorEntries: (name) => ({ name: "person-name", floors: "node-weight", count: "edge-weight", person_id: "link-key" })[name] || null,
     };
     AB.openField = (ds, name) => {
         const own = (OWN[ds] || {})[name];
         if (own) return AB.go(ID, own);
-        if (KEPT[ds]) {
-            const st = KEPT[ds](name);
-            return st ? AB.go(ID, st) : AB.flash("Opens " + name + "'s inspector (not wired in the skeleton)");
-        }
         picked = { ds, name };
-        AB.go(ID, { nested: "nested-field", plainJson: "plain-field", lesmis: "lesmis-field" }[ds] || "wide-field");
+        const st = KEPT[ds] ? KEPT[ds](name) : { nested: "nested-field", transactions: "transactions-field", plainJson: "plain-field", lesmis: "lesmis-field" }[ds] || "wide-field";
+        if (!st) return AB.flash("Opens " + name + "'s inspector (not available yet)");
+        // From one field to another on the same route the hash does not change: render the new pick anyway
+        if (location.hash === AB.href(ID, st).replace(/^[^#]*/, "")) return window.dispatchEvent(new HashChangeEvent("hashchange"));
+        AB.go(ID, st);
     };
 
     // ---------- any filter step of any project (AB.openStep) ----------
@@ -497,8 +553,31 @@
         const doc = N().document;
         return g.table === "researchers" ? doc.data.researchers : g.table === "institutions" ? doc.data.institutions : g.table === "links" ? doc.links : [];
     }
+    // The transfers fixture holds each attribute's own counts and range (kit/fixtures.json
+    // transactions.attributes), not its rows: the Values read those, and the Fill reads the counts
+    const tDate = (x) => String(x).slice(0, 10);
+    function transfersValues(x, g) {
+        const t = T(), meta = t.attributes.find((a) => a.name === x.name || a.name === x.name + " (edge)") || {};
+        const n = g.element === "edge" ? t.edges : t.nodes, unit = g.element === "edge" ? "transfers" : "accounts";
+        const values = [];
+        let summary = "values in " + meta.source, filled = null;
+        if (meta.values) {
+            const t2 = Object.entries(meta.values).sort((p, q) => q[1] - p[1]);
+            filled = t2.reduce((k, [, c]) => k + c, 0);
+            summary = t2.length + " distinct";
+            values.push(AB.data("Distinct", fmt(t2.length)), ...t2.slice(0, 3).map(([v, k]) => AB.data(AB.truncMiddle(v, 22), AB.count(k, unit.replace(/s$/, "")))));
+        } else if (meta.range) {
+            summary = x.type === "time" ? tDate(meta.range[0]) + " to " + tDate(meta.range[1]) : meta.range[0] + " to " + meta.range[1];
+            values.push(AB.data("Range", summary));
+        } else values.push(AB.data("Values", "Read from " + meta.source + " on the Data page"));
+        if (meta.sourceNote) values.push(h("div", { class: "ab-cap k-secondary" }, meta.sourceNote));
+        // alertTime has no counts of its own: it is filled on the flagged accounts, as alertRule is
+        if (filled == null && meta.note) filled = Object.values(t.attributes.find((a) => a.name === "alertRule").values).reduce((k, c) => k + c, 0);
+        return { summary, values, n, unit, filled, note: meta.note, file: meta.source || t.accountsFile };
+    }
     const UNIT = { hosts: "hosts", connections: "connections", researchers: "researchers", institutions: "institutions", links: "links", nodes: "nodes", edges: "edges" };
     function fieldBody(ds) {
+        if (ds === "transactions") return transfersBody();
         const [x, g] = fieldOf(ds), rows = rowsFor(ds, g), unit = UNIT[g.table] || g.table;
         const edit = { wide: ["data-page", g.element === "edge" ? "edit-wide-connections" : "edit-wide-hosts"], plainJson: ["data-page", g.element === "edge" ? "edit-plain-links" : "edit-plain-nodes"], lesmis: ["data-page", "edit-graph-file"] }[ds] || ["data-page", "edit-json-researchers"];
         const file = ds === "wide" ? (g.element === "edge" ? W().edgesFile : W().file) : ds === "lesmis" ? AB.fx.datasets.lesmis.file : (ds === "plainJson" ? P() : N()).file;
@@ -520,14 +599,14 @@
         } else {
             const t = tally(vals.flatMap((v) => (Array.isArray(v) ? v : [v])).map(String));
             summary = t.length + " distinct";
-            values.push(AB.data("Distinct", fmt(t.length)), ...t.slice(0, 3).map(([v, k]) => AB.data(AB.truncMiddle(v, 22), k + " " + unit)));
+            values.push(AB.data("Distinct", fmt(t.length)), ...t.slice(0, 3).map(([v, k]) => AB.data(AB.truncMiddle(v, 22), AB.count(k, unit.replace(/s$/, "")))));
         }
         return { x, g, unit, edit, file, body: [
             AB.section({ title: "Summary", editable: true },
                 fullName(x.name),
                 x.type === "whole" || x.type === "list" ? AB.data("Read as", word) : dropdown("Read as", READ_AS(), word === "Number" || word === "Time" ? word : "Category", { needs: OVERRIDE }),
                 fromRow(file, edit),
-                AB.data("On", fmt(rows.length || AB.fx.datasets[ds].edges) + " " + (g.element === "edge" ? "edges" : "nodes") + " (" + unit + ")", { go: ["table-dock", ds === "lesmis" ? (g.element === "edge" ? "edges" : "nodes") : "wide"] }),
+                AB.data("On", AB.count(rows.length || AB.fx.datasets[ds].edges, g.element) + " (" + unit + ")", { go: ["table-dock", ds === "lesmis" ? (g.element === "edge" ? "edges" : "nodes") : "wide"] }),
                 rows.length ? AB.data("Fill", pct(vals.length, rows.length) + ": " + fmt(vals.length) + " of " + fmt(rows.length) + " " + unit + " have a value") : null,
                 AB.data("In use", x.usedBy || "Nothing uses it")),
             AB.dataTab({
@@ -536,12 +615,31 @@
             }, { kind: "attribute" }),
         ] };
     }
+    function transfersBody() {
+        const [x, g] = fieldOf("transactions"), r = transfersValues(x, g);
+        const edit = ["data-page", g.element === "edge" ? "edit-source" : "edit-accounts"];
+        const word = { num: "Number", time: "Time" }[x.type] || "Category";
+        return { x, g, unit: r.unit, edit, file: r.file, body: [
+            AB.section({ title: "Summary", editable: true },
+                fullName(x.name),
+                dropdown("Read as", READ_AS(), word, { needs: OVERRIDE }),
+                fromRow(r.file, edit),
+                AB.data("On", AB.count(r.n, g.element) + " (" + r.unit + ")", { go: ["table-dock", g.element === "edge" ? "edges" : "nodes"] }),
+                r.filled != null ? AB.data("Fill", pct(r.filled, r.n) + ": " + fmt(r.filled) + " of " + fmt(r.n) + " " + r.unit + " have a value") : null,
+                r.note ? AB.data("Missing", r.note) : null,
+                AB.data("In use", x.usedBy || "Nothing uses it")),
+            AB.dataTab({
+                Values: { summary: r.summary, body: r.values },
+                "Painted by": paintedBy("transactions", x.name),
+            }, { kind: "attribute" }),
+        ] };
+    }
     const fieldView = (ds) => ({
         type: "num", kind: "Attribute", dyn: () => {
             const r = fieldBody(ds), edit = r.edit;
             // The attribute's own menu, the one Data > Attributes opens on its row
             return { type: r.x.type, title: AB.truncMiddle(r.x.name, 28), kind: (r.g.element === "edge" ? "Edge" : "Node") + " attribute",
-                menu: (b) => AB.attributeMenu(b, ds, r.x.name, { editOn: edit, table: ds === "lesmis" ? ["nodes", "edges"] : ["wide", "wide"] }),
+                menu: (b) => AB.attributeMenu(b, ds, r.x.name, { editOn: edit, table: ds === "lesmis" || ds === "transactions" ? ["nodes", "edges"] : ["wide", "wide"] }),
                 prov: ["from " + r.file, edit[0], edit[1]], body: () => r.body };
         },
     });
@@ -553,6 +651,7 @@
     const VIEWS = {
         attribute: { type: "num", title: "amount", kind: "Edge attribute", prov: () => ["from " + T().file, "data-page", "edit-source"], menu: aMenu("transactions", "amount", ["data-page", "edit-source"], ["nodes", "edges"]), body: amountBody },
         "attribute-name-role": { type: "cat", title: "id", kind: "Node attribute", prov: () => ["from " + T().accountsFile, "data-page", "edit-accounts"], menu: aMenu("transactions", "id", ["data-page", "edit-accounts"], ["nodes", "edges"]), body: idBody },
+        "person-name": { type: "cat", title: "name", kind: "Node attribute", prov: () => ["from people.csv", "data-page", "edit-people"], menu: aMenu("doorEntries", "name", ["data-page", "edit-people"], ["door-entries-nodes", "door-entries"]), body: personNameBody },
         "node-weight": { type: "num", title: "floors", kind: "Node attribute", prov: () => ["from buildings.csv", "data-page", "edit-buildings"], menu: aMenu("doorEntries", "floors", ["data-page", "edit-buildings"], ["door-entries-nodes", "door-entries"]), body: floorsBody },
         "edge-weight": { type: "num", title: "count", kind: "Edge attribute", prov: () => ["derived from entries.csv", "data-page", "edit-entries"], menu: aMenu("doorEntries", "count", ["data-page", "edit-entries"], ["door-entries-nodes", "door-entries"]), body: countBody },
         "link-key": { type: "cat", title: "person_id", kind: "Edge attribute", prov: () => ["from entries.csv", "data-page", "edit-entries"], menu: aMenu("doorEntries", "person_id", ["data-page", "edit-entries"], ["door-entries-nodes", "door-entries"]), body: personIdBody },
@@ -567,12 +666,13 @@
         "nested-field": fieldView("nested"),
         "plain-field": fieldView("plainJson"),
         "lesmis-field": fieldView("lesmis"),
+        "transactions-field": fieldView("transactions"),
         step: { dyn: stepView },
         "computed-step": { dyn: () => LM_STEP(rule(1), () => filterBody(degreeStep())) },
         "neighbors-step": { dyn: () => LM_STEP("Neighbors of Valjean", () => filterBody(neighborsStep())) },
     };
     const isStep = (state) => ["filter-step", "filter-step-noted", "step-attribute-gone", "wide-filter", "step", "computed-step", "neighbors-step"].includes(state);
-    const isDoor = (state) => state === "node-weight" || state === "link-key" || state === "edge-weight";
+    const isDoor = (state) => state === "node-weight" || state === "person-name" || state === "link-key" || state === "edge-weight";
     // The wide and nested routes: the project and its Data place
     const DS_FRAME = {
         "step-attribute-gone": { left: "data-place/step-attribute-gone", dataset: "transactions" },
@@ -593,11 +693,12 @@
         rail: "data",
         // The Data place draws only transfers, so a door-entries attribute shows no left panel rather than the wrong table
         frame: (state) => (state === "step" ? { left: stepOf().left, dataset: stepOf().ds } : null)
-            || (state === "computed-step" ? lmFrame(LF().after.step2) : state === "neighbors-step" ? lmFrame(neighborsStep().after) : null) || DS_FRAME[state] || (isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" }),
+            || (state === "computed-step" ? lmFrame(LF().after.step2) : state === "neighbors-step" ? lmFrame(neighborsStep().after) : null) || DS_FRAME[state] || (isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" || state === "person-name" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" }),
         closeTo: "data-place",
         states: [
             { id: "attribute", label: "amount, Weight" },
             { id: "attribute-name-role", label: "id, Key and Name" },
+            { id: "person-name", label: "name, Name for person (door entries)" },
             { id: "node-weight", label: "floors, node Weight (door entries)" },
             { id: "link-key", label: "person_id, From -> person (door entries)" },
             { id: "edge-weight", label: "count, edge Weight from Pair (door entries)" },
@@ -612,6 +713,7 @@
             { id: "nested-field", label: "Any other researcher attribute (nested JSON)" },
             { id: "plain-field", label: "Any attribute of the plain JSON graph (Coauthors)" },
             { id: "lesmis-field", label: "Any Les Miserables attribute (the first number one when opened directly)" },
+            { id: "transactions-field", label: "Any other transfers attribute: kind, flagged, ... (riskScore when opened directly)" },
             { id: "step", label: "Any project's filter step; directly, a new step on the transfers, its field list open" },
             { id: "computed-step", label: "A computed step after another: Scope line and both counts (Les Miserables)" },
             { id: "neighbors-step", label: "A neighbors step after another: Scope line and both counts (Les Miserables)" },

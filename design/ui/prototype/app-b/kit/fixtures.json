@@ -380,7 +380,7 @@
   },
   "lesmis": {
    "title": "Les Miserables",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "source": "Knuth 1993, The Stanford GraphBase, via graph-io's test corpus",
    "nodes": 77,
    "edges": 254,
@@ -2614,7 +2614,7 @@
    "frame": {
     "note": "what screens/frame-at-rest.html shows for this dataset; the degree bars are percent of the tallest bar, 0 draws an empty bar",
     "project": "Les Miserables",
-    "file": "miserables.json",
+    "file": "miserables.gexf",
     "graphRow": "Co-appearances",
     "drawing": "canvas/lesmis-groups-onesize-{theme}.svg",
     "alt": "Les Miserables colored by group, nothing selected",
@@ -12799,7 +12799,7 @@
   "quiet-weight-trap": {
    "question": "Something about these rankings bothers a reviewer. Can the numbers be trusted?",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "weight": "value",
     "weightMeans": "co-appearance count: a bigger number is a stronger tie",
@@ -12884,7 +12884,7 @@
   "narrow-or-paint": {
    "question": "Look only at the characters with 5 or more co-appearance partners. How many are there, and who matters most among them?",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "nodes": 77,
     "components": 1,
@@ -12929,7 +12929,7 @@
   "get-back": {
    "question": "After your last few actions the numbers changed in a way you did not expect. Get back to where you were.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "nodes": 77,
     "edges": 254
@@ -13107,7 +13107,7 @@
   "fix-wrong-middle-step": {
    "question": "Of three filter steps, the second removed the wrong group. Fix it without losing the third.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "steps": [
      "Filter to degree >= 2",
@@ -13515,7 +13515,7 @@
   "two-runs-compared": {
    "question": "Yesterday you ranked the Les Miserables characters one way. A colleague asks you to rank them again with one thing changed, and to tell her what differs between the two rankings and how each was made.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "nodes": 77,
     "measure": "betweenness"
@@ -13618,7 +13618,7 @@
   "first-launch": {
    "question": "This is your first time with this app. Get a network on screen to try it out, and tell me what, if anything, the app will know about you or your data.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "usageData": "off until the person says yes at first use; graph content always masked",
     "sample": "Les Miserables",
@@ -13673,7 +13673,7 @@
   "nothing-matches": {
    "question": "After a few changes, the table at the bottom shows nobody, and looking up Cosette finds nothing. Find out why, and get back to seeing her.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "steps": [
      "Filter to degree >= 2",
@@ -13699,7 +13699,7 @@
   "save-failed": {
    "question": "You have spent the morning on this project. Before you leave for lunch, make sure you could pick it up this afternoon exactly where you stopped, even if this browser tab closes.",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "nodes": 77,
     "cause": "browser storage full"
@@ -13808,7 +13808,7 @@
   "what-is-left": {
    "question": "Take out the characters who have only one co-appearance partner. Then, among the characters still in, show only those with at least five partners who are also still in. How many are there?",
    "dataset": "lesmis",
-   "file": "miserables.json",
+   "file": "miserables.gexf",
    "facts": {
     "steps": [
      "Filter to degree >= 2",

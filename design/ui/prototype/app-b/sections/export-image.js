@@ -3,15 +3,19 @@
 
    Body: the dialog's head (title with the extension, the summary line), one callout (the dialog's
    callout, or the problem block when no image can be made), the
-   preview (above the fold, with the legend exactly as the image draws it), then five dropdown
-   fields (Preset, Size, Format, View, Background), the Legend checkbox and an Advanced field that
-   opens a light popover (quality for JPEG and WebP, sharper rendering, custom pixels with the
-   aspect lock, print width).
+   preview (above the fold, exactly what the file gets, legend included), the line naming the labels
+   hidden to avoid overlap (its list selects a node), then five dropdown fields (Preset, Size,
+   Format, View, Background), the Legend line and an Advanced field that opens a light popover
+   (quality for JPEG and WebP, sharper rendering, custom pixels with the aspect lock, print width).
 
-   Legend: there is one legend state (AB.legendOn / AB.setLegend), shared by the canvas, Present
-   and this image. "Include legend" IS that toggle, a third door beside the toolbar's Legend button
-   and L: unchecking it hides the canvas legend too. It is not an export-only setting. Footer: the one footer note, Cancel, Copy, Export. After a
-   copy or an export the dialog closes and one notice names the file.
+   Legend: there is one legend state (AB.legendOn), shared by the canvas, Present and this image;
+   its only doors are the toolbar's Legend button and L. This body has no legend switch: the Legend
+   line says what the image carries. The image's legend adds a footer with the weight and the
+   scaling the colors used. SVG (the owner's figure format) is listed disabled with the
+   needs-graphty-element chip, since the element's capture is pixels only today; PDF comes later
+   and is not listed. Footer: the one footer note, Cancel, Copy, Export; while waiting
+   for the layout to settle, the progress takes the note's place. After a copy or an export the
+   dialog closes and one notice names the file.
 
    Numbers follow the element's own rules in graphty-element/src/screenshot: dimensions.ts
    BROWSER_LIMITS, the capability-check.ts memory formula, presets.ts, constants.ts settle timeout,
@@ -44,6 +48,11 @@
 .xi-in:focus { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .xi-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
 .xi-sub { color: var(--cm-text-secondary); font-size: 11px; line-height: 15px; }
+.xi-hid { margin-left: 16px; }
+.xi-fields .xi-line { width: 100%; flex-wrap: nowrap; }
+.xi-fields .xi-line > .k-field { flex: 1 1 auto; min-width: 0; }
+.xi-hid-list { margin: 4px 0 0; max-width: 400px; max-height: 168px; overflow: auto; box-shadow: 0 0 0 1px var(--cm-border); border-radius: 2px; }
+.xi-preview .k-legend-card .xi-lg-foot { border-top: 1px solid var(--cm-border); margin-top: 4px; padding-top: 4px; line-height: 15px; color: var(--cm-text-secondary); }
 `;
     if (!document.getElementById("xi-style")) document.head.append(h("style", { id: "xi-style" }, CSS));
 
@@ -81,7 +90,7 @@
     const MULTS = [1, 2, 4];
     const STANDARD = ["Fit", "Front", "Side", "Top", "Isometric"];   // the View flyout's standard views (3D)
     const BG = { canvas: "Canvas color", white: "White", transparent: "Transparent" };
-    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp", SVG: "svg" };
+    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp" };
     const LOSSY = (f) => f === "JPEG" || f === "WebP";   // only these take a Quality
     const NO_ALPHA = "JPEG cannot hold a transparent background.";
     const CLIP_INSECURE = "Copy needs a secure page (HTTPS), and this page is not one.";
@@ -89,8 +98,10 @@
 
     let s = null;       // this visit's choices
     let shown = null;   // the state they belong to
+    let hidOpen = false; // the hidden-labels list is open
 
     function fresh(state) {
+        hidOpen = false;
         s = { format: "PNG", quality: 92, mode: "x", mult: 2, w: 0, h: 0, lock: true, mm: 174, dpi: 300, bg: "canvas", sharp: false, view: "Current camera", preset: "web-share", fell: null };
         if (state === "size-refused") applyPreset(PRESETS[0]);
         return s;
@@ -195,7 +206,6 @@
         if (state === "failed") return AB.problem({ what: `No image was made: the layout did not settle within ${SETTLE_S} seconds.`, todo: "Capture the graph as it is now, or try again." });
         if (!chk.ok) return AB.problem({ what: "This size cannot be captured. " + chk.reason, todo: "Choose a smaller size." });
         const mem = chk.near ? `At ${mp(chk.px)} megapixels, capturing needs about ${n(chk.mem)} MB of memory and may fail on computers with less.` : null;
-        if (state === "waiting-to-settle") return call("info", "info", h("span", { class: "xi-line" }, `Waiting for the layout to settle (up to ${SETTLE_S} seconds) before capturing.`, h("span", { class: "k-progress xi-bar", role: "progressbar", "aria-label": "Waiting for the layout to settle" }, h("i"))));
         if (s.fell) return call("warning", "triangle-alert", `${s.fell.preset} asks for ${s.fell.from}x, more than this browser can capture from a ${n(c.w)} x ${n(c.h)} canvas, so the size is ${s.fell.to}x. `, mem);
         if (mem) return call("warning", "triangle-alert", "Large image. ", mem);
         if (state === "clipboard-refused") return call("info", "info", CLIP_INSECURE, " Export still saves the file.");
@@ -220,10 +230,8 @@
 
         const fmtItem = (f) => ({ label: f, check: s.format === f, disabled: f === "JPEG" && s.bg === "transparent" ? NO_ALPHA + " Change Background first." : false, onClick: () => { s.format = f; edited(); redraw(); } });
         const format = drop("Format", s.format, [fmtItem("PNG"), fmtItem("JPEG"), fmtItem("WebP"),
-            // SVG needs graphty-element (it captures the canvas as pixels only; a vector export is filed).
-            // Spec 12.1 draws it disabled with its reason in every view, so `disabled`, not `needs` (which user tests hide).
-            { label: "SVG", desc: "A vector figure: stays sharp at any size, for papers and slides",
-                disabled: "Not available yet" }]);
+            // SVG: listed, disabled with the chip until graphty-element writes SVG figures
+            { label: "SVG", desc: "A vector figure: stays sharp at any size, for papers and slides", needs: "graphty-element writes the graph as an SVG figure (it captures pixels only today)." }]);
 
         const pickView = (v) => ({ label: v, check: s.view === v, onClick: () => { s.view = v; edited(); redraw(); } });
         const view = drop("View", s.view, [pickView("Current camera"), { sep: true }, { heading: "Standard views" }, ...STANDARD.map(pickView), { sep: true }, { heading: "Your views" }, ...AB.SAVED_VIEWS.map(pickView)]);
@@ -232,12 +240,6 @@
             disabled: id === "transparent" && s.format === "JPEG" ? NO_ALPHA + " Choose PNG or WebP." : false,
             onClick: () => { s.bg = id; edited(); redraw(); } });
         const bg = drop("Background", BG[s.bg], ["canvas", "white", "transparent"].map(bgItem));
-
-        // The one legend state: this checkbox, the toolbar's Legend button and L all flip it
-        const legendBox = check2("Include legend", AB.legendOn(), () => {
-            AB.setLegend(!AB.legendOn());
-            requestAnimationFrame(() => requestAnimationFrame(() => { const b = host && host.querySelector('[aria-label="Include legend"]'); if (b) b.focus(); }));
-        });
 
         const advSum = [!LOSSY(s.format) ? null : "Quality " + s.quality, s.sharp ? "Sharper rendering" : "Standard rendering"].filter(Boolean).join(", ");
         const advField = AB.field(advSum, { icon: "sliders-horizontal", onClick: (e) => (adv ? closeAdv(true) : openAdv(e.currentTarget)) });
@@ -251,17 +253,49 @@
             AB.fieldRow("Format", format, { popover: true }),
             AB.fieldRow("View", view, { popover: true }),
             AB.fieldRow("Background", bg, { popover: true }),
-            AB.fieldRow("Legend", h("span", { class: "xi-line" }, legendBox, "Include legend",
-                AB.needsElement("graphty-element draws the legend card into the captured image, at the image's scale.")), { popover: true }),
+            AB.fieldRow("Legend", h("span", { class: "xi-line" }, AB.legendOn() ? "As on the canvas, shown in the preview" : "None: the canvas shows no legend",
+                AB.needsElement("graphty-element draws the legend card into the captured image, at the image's scale, with its footer.")), { popover: true }),
             AB.fieldRow("Advanced", advField, { popover: true }));
 
         const head = AB.exportHead(["Image ", h("span", { class: "k-secondary", style: "font-weight:400" }, "." + EXT[s.format])],
-            AB.legendOn() ? "Full graph, with the legend" : "Full graph, no legend (the legend is off)");
+            AB.legendOn() ? "Full graph, with the legend" : "Full graph, no legend");
 
-        const draw = (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Preview: Les Miserables as the canvas draws it" + (s.view === "Current camera" ? "" : ", from " + s.view));
+        const draw = previewArt() || (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Preview: Les Miserables as the canvas draws it" + (s.view === "Current camera" ? "" : ", from " + s.view));
         const preview = h("div", { class: "xi-preview", "data-bg": s.bg, "data-waiting": busy ? "" : null }, draw, previewLegend());
 
-        return h("div", { class: "ex-main xi-main" }, head, callout(state, chk), preview, fields);
+        return h("div", { class: "ex-main xi-main" }, head, callout(state, chk), preview, hiddenLabels(), fields);
+    }
+
+    // The canvas drawing, copied. On a direct load the canvas's image may not have its picture yet
+    // (it is painted after a fetch), and a copy taken then stays empty: it takes the picture when
+    // the canvas's own image gets it. ponytail: AB.canvasCopy could do this for every caller
+    function previewArt() {
+        const copy = AB.canvasCopy("Preview: ");
+        if (!copy) return null;
+        const art = [...document.querySelectorAll("#ab-canvas .k-stage > img, #ab-canvas .k-stage > svg")];
+        copy.forEach((c, i) => {
+            const o = art[i];
+            if (c.tagName !== "IMG" || c.getAttribute("src") || !o) return;
+            c.hidden = true; // no broken-image icon while the picture is on its way
+            o.addEventListener("load", () => { c.src = o.src; c.hidden = false; }, { once: true });
+        });
+        return copy;
+    }
+
+    // The labels the image leaves out to avoid overlap: the kit's drawing names these 13 nodes and
+    // graphty-element hides every other label where they would overlap.
+    // ponytail: the drawing's fixed label set; label lines a row adds are not counted
+    const LABELED = ["Valjean", "Gavroche", "Marius", "Javert", "Fantine", "Enjolras", "Courfeyrac", "Bossuet", "Bahorel", "Mme.Thenardier", "Cosette", "Eponine", "Myriel"];
+    function hiddenLabels() {
+        const rows = AB.fx.datasets.lesmis.rows;
+        const hid = rows.map((r, i) => ({ r, i })).filter(({ r }) => !LABELED.includes(r.label)).sort((a, b) => b.r.degree - a.r.degree);
+        if (!hid.length) return null;
+        const toggle = h("span", Object.assign({ class: "ab-link", role: "button", "aria-expanded": String(hidOpen) }, AB.act({ onClick: () => { hidOpen = !hidOpen; redraw(); requestAnimationFrame(() => { const t = host && host.querySelector(".xi-hid [aria-expanded]"); if (t) t.focus(); }); } })), hidOpen ? "hide list" : "show list");
+        return h("div", { class: "xi-hid" },
+            h("div", { class: "xi-line" }, AB.count(hid.length, "label") + " hidden to avoid overlap:", toggle,
+                AB.needsElement("graphty-element reports which labels it hid to avoid overlap.")),
+            hidOpen ? h("div", { class: "xi-hid-list", role: "list", "aria-label": "Labels hidden to avoid overlap" },
+                hid.map(({ r, i }) => { const x = AB.row({ label: r.label, trail: "degree " + r.degree, onClick: () => { closeAdv(); AB.selectNode("lesmis", i); } }); x.setAttribute("role", "listitem"); return x; })) : null);
     }
 
     // The canvas's legend card, cloned and scaled to the preview, so the preview shows the legend the
@@ -275,6 +309,9 @@
         copy.removeAttribute("id");
         copy.setAttribute("aria-label", "In the image: " + (card.getAttribute("aria-label") || "Legend"));
         copy.style.transform = `translate(${12 * k}px, ${12 * k}px) scale(${k})`;
+        // The image's legend says how its numbers were made (the measure inspector's PageRank: the
+        // loaded weight value, damping 0.85; the ramp runs from the lowest value to the highest)
+        if (/PageRank/.test(card.textContent)) copy.append(h("div", { class: "xi-lg-foot" }, "Weighted by value, the loaded weight. PageRank damping 0.85; colors scaled from the lowest to the highest value."));
         return copy;
     }
 
@@ -332,7 +369,13 @@
         const draw = () => {
             const b = body(state);
             const f = foot(state);
-            el.append(AB.exportDialogFrame("image", b, f));
+            const m = AB.exportDialogFrame("image", b, f);
+            // While waiting, the footer's left side is the progress, in place of the footer note
+            const note = state === "waiting-to-settle" && m.querySelector(".ex-footl");
+            if (note) note.replaceWith(h("span", { class: "ex-footl", role: "status" },
+                h("span", { class: "k-progress xi-bar", role: "progressbar", "aria-label": "Waiting for the layout to settle" }, h("i")),
+                `Waiting for the layout to settle (up to ${SETTLE_S} seconds)...`));
+            el.append(m);
         };
         redraw = () => { closeAdv(); el.textContent = ""; draw(); };
         draw();

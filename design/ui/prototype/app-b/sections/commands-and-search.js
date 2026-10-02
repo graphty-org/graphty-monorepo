@@ -1,7 +1,7 @@
 /* Quick actions (Ctrl+K), Find (/) and the keyboard shortcuts panel (?).
    Quick actions finds commands and places, grouped by their homes; a row's hint shows only when it teaches
    a place ("Place > Control"). Find (/) finds rows and notes: it is the tree's search field, so its state
-   draws the Graph place's own Find results. A typed rule ("country = UK and amount > 1000") makes Find offer
+   draws the Graph place's own Find results. A typed rule ("country == 'GB' and flagged == true") makes Find offer
    Select where with that rule, the one Select where dialog. The shortcuts panel lists graphty-element's canvas keys first,
    then the app's keys by home. This file also binds / for the skeleton (the shell binds ? and Ctrl+K).
    Plain ASCII. */
@@ -106,7 +106,7 @@
         L("Layout", "refresh-cw", "Unpin all", "Canvas menu > Unpin all", { go: ["context-menus", "canvas"], aka: ["pin", "pinned"] }),
         // Selection
         C("create-set", "Selection", I.set, { go: null, off: NEEDS_SEL, aka: ["group", "save selection"] }),
-        C("neighborhood", "Selection", "network", { go: null, off: NEEDS_SEL, aka: ["neighbors", "ego", "hops"] }),
+        C("neighborhood", "Selection", "network", { go: null, off: NEEDS_SEL, aka: ["neighbors", "ego", "hops", "steps"] }),
         C("hide-on-canvas", "Selection", I.hidden, { go: null, off: NEEDS_SEL }),
         C("show-hidden", "Selection", I.shown, { aka: ["unhide"] }),
         C("add-note", "Selection", I.note, { aka: ["comment", "annotate"] }),
@@ -155,6 +155,15 @@
         return document.documentElement.hasAttribute("data-design-notes-hidden") ? all.filter((c) => !c.needs) : all;
     }
     const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
+
+    // A node whose name is the query, exactly (any case), in the project on screen: the first result of
+    // Quick actions and of Find. A stand-in for graphty-element's node lookup by name.
+    function exactNode(q) {
+        const ds = (AB.route && AB.route.frame.dataset) || "lesmis", s = q.trim().toLowerCase();
+        const list = s ? AB.walkList(ds) : [];
+        const i = list.findIndex((w) => w.name.toLowerCase() === s);
+        return i < 0 ? null : { ds, i, w: list[i] };
+    }
 
     function matches(q) {
         const s = q.trim().toLowerCase();
@@ -215,14 +224,23 @@
                 RECENT.forEach((n) => list.append(resultRow(all.find((c) => c.name === n), "")));
                 groups(all, "");
             } else {
-                if (!hits.length) list.append(AB.noMatch(q.trim()));
+                const node = exactNode(q);
+                if (node) {
+                    list.append(h("div", { class: "qs-head" }, "Nodes"));
+                    const r = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("circle-dot"), h("span", { class: "qs-name" }, h("mark", null, node.w.name)),
+                        h("span", { class: "qs-why" }, AB.count(node.w.neighbors, "neighbor")));
+                    r._run = () => AB.selectNode(node.ds, node.i);
+                    r.addEventListener("click", r._run);
+                    list.append(r);
+                }
+                if (!hits.length && !node) list.append(AB.noMatch(q.trim()));
                 groups(hits.map((x) => x.c), q);
                 // the hand-off: Quick actions finds commands and places; rows and notes are Find's
                 list.append(h("div", { class: "qs-head" }, "Rows and notes"));
                 const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '"'), h("span", { class: "qs-why" }, AB.cmd("find").home), h("span", { class: "k-kbd qs-key" }, AB.cmd("find").shortcut));
-                // the skeleton's one Find with results is "Jav"; a rule goes to Find's Select where offer;
-                // anything else is Find's no-match line
-                find._run = () => ruleShaped(q.trim()) ? findRuleFrom(q.trim()) : AB.go("commands-and-search", /^jav/i.test(q.trim()) ? "find" : "find-no-match");
+                // the skeleton's Finds with results are "Jav" and the exact node name "Javert"; a rule goes to
+                // Find's Select where offer; anything else is Find's no-match line
+                find._run = () => ruleShaped(q.trim()) ? findRuleFrom(q.trim()) : AB.go("commands-and-search", exactShaped(q.trim()) ? "find-exact" : /^jav/i.test(q.trim()) ? "find" : "find-no-match");
                 find.addEventListener("click", find._run);
                 list.append(find);
             }
@@ -326,16 +344,40 @@
         { by: null, at: "Sep 28", about: "about Valjean and Javert", go: ["inspector-several-elements", "two-nodes"],
             text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
     ];
-    function findNotes() {
+    // marks the query in a result's text, any case
+    const markQ = (s, q) => { const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? [s] : [s.slice(0, i), h("mark", null, s.slice(i, i + q.length)), s.slice(i + q.length)]; };
+    function findNotes(q) {
+        q = q || "Jav";
         const head = [...document.querySelectorAll(".gp-find-head")].find((x) => x.textContent === "Notes");
         if (!head) return;
         while (head.nextElementSibling) head.nextElementSibling.remove();
-        const mk = (s) => { const i = s.indexOf("Jav"); return [s.slice(0, i), h("mark", null, "Jav"), s.slice(i + 3)]; };
         FIND_NOTES.forEach((n) => {
             const sub = [n.by, n.at, n.about].filter(Boolean).join(", ");
             head.parentNode.append(h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ go: n.go })), icon(AB.ICON.note),
-                h("span", { class: "gp-hit-text" }, mk(n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text), h("span", { class: "gp-hit-sub" }, sub))));
+                h("span", { class: "gp-hit-text" }, markQ(n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text, q), h("span", { class: "gp-hit-sub" }, sub))));
         });
+    }
+
+    // ---------- Find on a node's exact name ----------
+    // Typed "Javert", the name of a node: that node comes first, under Nodes, and selects it; the rows and
+    // notes that mention it follow. The Graph place draws Find's field and its "Jav" rows; this puts the
+    // whole name in the field, adds the node above the rows and marks the whole name.
+    const EXACT = "Javert";
+    const exactShaped = (q) => q.toLowerCase() === EXACT.toLowerCase() && !!exactNode(q);
+    function findExact() {
+        const input = document.querySelector(".ab-left .ab-treebar input");
+        const rows = [...document.querySelectorAll(".ab-left .gp-find-head")].find((x) => x.textContent === "Rows");
+        const node = exactNode(EXACT);
+        if (!input || !rows || !node) return;
+        input.value = EXACT;
+        findNotes(EXACT);
+        rows.parentNode.querySelectorAll(".gp-hit-text").forEach((t) => {
+            const sub = t.querySelector(".gp-hit-sub");
+            t.replaceChildren(...markQ([...t.childNodes].filter((x) => x !== sub).map((x) => x.textContent).join(""), EXACT), ...(sub ? [sub] : []));
+        });
+        rows.before(h("div", { class: "gp-find-head" }, "Nodes"),
+            h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ onClick: () => AB.selectNode(node.ds, node.i) })), icon("circle-dot"),
+                h("span", { class: "gp-hit-text" }, h("mark", null, node.w.name), h("span", { class: "gp-hit-sub" }, AB.count(node.w.neighbors, "neighbor")))));
     }
 
     // ---------- Find on an id ----------
@@ -355,11 +397,11 @@
     }
 
     // ---------- Find on a rule ----------
-    // A query that compares an attribute with a value ("country = UK and amount > 1000") is a rule, not a
+    // A query that compares an attribute with a value ("country == 'GB' and flagged == true") is a rule, not a
     // name: Find offers "Select where <rule> ..." first, which hands the rule to the one Select where
     // dialog, and finds no rows or notes under it. The rule is handed as typed; the dialog (graphty-element's
     // query parser) reads it. Drawn on the transfers, the project whose attributes the example names.
-    const RULE = "country = UK and amount > 1000";
+    const RULE = "country == 'GB' and flagged == true";
     let rule = RULE;
     const ruleShaped = (q) => /[\w"']\s*(==?|!=|>=?|<=?)\s*\S/.test(q);
     function findRuleFrom(q) {
@@ -368,17 +410,9 @@
         else AB.go("commands-and-search", "find-rule");
     }
     // Hands the rule to the one Select where dialog: its Query field holds the rule, its count follows
+    // (AB.whereFrom, the one door with a condition filled in, so the dialog draws the rule's count and highlight at once)
     function toSelectWhere() {
-        const r = rule;
-        window.addEventListener("hashchange", () => setTimeout(() => {
-            const q = document.querySelector(".ab-overlay .sw-q");
-            if (!q) return;
-            q.value = r;
-            q.dispatchEvent(new Event("input", { bubbles: true }));
-            q.focus();
-            q.setSelectionRange(r.length, r.length);
-        }, 0), { once: true });
-        AB.go("select-where", "where");
+        AB.whereFrom("transactions", null, rule);
     }
     function findRule() {
         const input = document.querySelector(".ab-left .ab-treebar input");
@@ -397,13 +431,16 @@
         AB.announce(label);
         requestAnimationFrame(() => offer.focus());
     }
-    // Enter in the tree's Find field with a rule in it goes here, before the field's own name search
+    // Enter in the tree's Find field with a rule or an exact node name in it goes here, before the field's own name search
     document.addEventListener("keydown", (e) => {
         const t = e.target;
-        if (e.key !== "Enter" || !t || !t.closest || !t.closest(".ab-left .ab-treebar") || !ruleShaped(t.value.trim())) return;
+        if (e.key !== "Enter" || !t || !t.closest || !t.closest(".ab-left .ab-treebar")) return;
+        const q = t.value.trim();
+        if (!ruleShaped(q) && !exactShaped(q)) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        findRuleFrom(t.value.trim());
+        if (ruleShaped(q)) findRuleFrom(q);
+        else AB.go("commands-and-search", "find-exact");
     }, true);
 
     // ---------- keys this section owns ----------
@@ -424,6 +461,7 @@
         // field list's empty line, `No match for "xyz"` and Clear; Find lists rows and notes, never attributes,
         // so an attribute name (middle ellipsis, AB.truncMiddle) only shows in the field list's own find.
         frame: (state) => (state === "find" || state === "find-no-match" ? { left: "graph-place/" + state }
+            : state === "find-exact" ? { left: "graph-place/find" }
             : state === "find-rule" ? { left: "graph-place/many-groups", dataset: "transactions" }
             : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
@@ -434,13 +472,15 @@
             { id: "quick-actions-layout", label: "Quick actions, typed \"layout\"" },
             { id: "quick-actions-settings", label: "Quick actions, typed \"settings\"" },
             { id: "find", label: "Find, row and note results" },
+            { id: "find-exact", label: "Find, typed a node's exact name: the node first" },
             { id: "find-no-match", label: "Find, no match on an id: 0 matches" },
             { id: "find-rule", label: "Find, typed a rule: offers Select where with it" },
             { id: "shortcuts", label: "Keyboard shortcuts panel" },
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
-            else if (state === "find") setTimeout(findNotes, 0); // the Graph place draws Find's field and rows
+            else if (state === "find") setTimeout(() => findNotes(), 0);
+            else if (state === "find-exact") setTimeout(findExact, 0); // the Graph place draws Find's field and rows // the Graph place draws Find's field and rows
             else if (state === "find-no-match") setTimeout(findId, 0); // the Graph place draws the field and its no-match line
             else if (state === "find-rule") setTimeout(findRule, 0); // the Graph place draws the field and the tree
             else quick(el, { "quick-actions-results": "important", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");

@@ -70,7 +70,14 @@
     if (!document.getElementById("td-style")) document.head.append(h("style", { id: "td-style" }, CSS));
 
     const fmt = (n) => Number(n).toLocaleString("en-US");
-    const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
+    const flash = (what) => () => AB.flash(what + " is not available in this preview");
+    // A row with no inspector in this preview: the click marks the row selected (table() does it), nothing more
+    const keepRow = () => {};
+    // set by a row click that opens the row's inspector: the redrawn table focuses the selected row
+    let focusRow = false;
+    // Shift-, Ctrl- or Cmd-click adds the row to the table's selection (table() marks it) and opens nothing
+    const adds = (e) => !!(e && (e.shiftKey || e.ctrlKey || e.metaKey));
+    const sameTransfer = (a, b) => !!(a && b && a.from === b.from && a.to === b.to && a.timestamp === b.timestamp);
     // Sort arrows (lucide arrow-up and arrow-down, ISC): the kit sprite has neither
     const ARROW = { up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>', down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>' };
     const arrow = (d) => { const s = h("svg", { class: "k-i k-i-sm", "aria-hidden": "true", viewBox: "0 0 24 24" }); s.innerHTML = ARROW[d]; return s; };
@@ -112,6 +119,10 @@
     }
     const notesCol = { key: "notes", label: "Notes", n: true, cell: (r) => notesCell(r.notes) };
     const current = () => /^#\/table-dock(\/|$)/.test(location.hash);
+    // A result header names its method, then (in parentheses) its unit and, only when a filter step
+    // leaves part of the graph (the header's chip is not "Full graph"), the scope it was computed on
+    const filtered = () => { const c = AB.route && AB.route.frame && AB.route.frame.chip; return !!c && c !== "Full graph"; };
+    const scoped = (label, unit) => { const p = [unit, filtered() ? "full graph" : null].filter(Boolean); return label + (p.length ? " (" + p.join(", ") + ")" : ""); };
 
     /* A sortable table. cols: [{ key, label, type, n (numeric), profile, cell(row), val(row) (the value sorted on, default row[key]), field (the
        attribute the column shows, default key), edit (true: double-click edits the value in place),
@@ -120,9 +131,9 @@
        The Notes column is added only when a row has a note. o.columns ({ ds, element }) lets the
        Columns button choose which attribute columns show (columnsView below); the first column is
        frozen when it is the key. o.ds names the project when there is no o.columns: on a directed
-       graph every degree column must say in, out or total. o.sum ({ key, label, all: [rows, value] }) adds the footer: the sum
-       of that column over the selected rows (Shift- or Ctrl-click adds a row), or over every row when
-       none is selected. */
+       graph every degree column must say in, out or total. o.sum ({ key, label, split }) adds the footer: the sum
+       of that column over the selected rows (Shift- or Ctrl-click adds a row); with none selected it
+       says how to select some. */
     function table(allCols, rows, o) {
         o = o || {};
         let sortKey = o.sort || null, dir = o.dir || -1;
@@ -133,11 +144,22 @@
         const sumUp = () => {
             if (!foot) return;
             const sel = [...wrap.querySelectorAll("tbody tr[aria-selected='true']")].map((tr) => rowOf.get(tr)).filter(Boolean);
-            const [n, total] = sel.length ? [sel.length, sel.reduce((a, r) => a + Number(r[o.sum.key] || 0), 0)] : o.sum.all || [rows.length, rows.reduce((a, r) => a + Number(r[o.sum.key] || 0), 0)];
-            foot.replaceChildren("Sum of " + o.sum.label + ", " + (sel.length ? "" : "all ") + AB.count(n, "row") + ":", h("span", { class: "k-num" }, AB.num(total)),
-                ...(sel.length ? [] : [h("span", null, "(select rows to total them)")]), AB.needsElement("graphty-element sums a column over the current selection"));
+            const add = (rs) => rs.reduce((a, r) => a + Number(r[o.sum.key] || 0), 0);
+            const sp = o.sum.split;
+            if (sp) {
+                // A dated neighbors step: the total split in two, named from the data (in before the date, out after)
+                const rs = sel.length ? sel : rows;
+                foot.replaceChildren("Total " + o.sum.label + " in before " + sp.label + ":", h("span", { class: "k-num" }, AB.num(add(rs.filter((r) => r.to === sp.who && r.timestamp < sp.date)))),
+                    h("span", null, "--"), "Total " + o.sum.label + " out after:", h("span", { class: "k-num" }, AB.num(add(rs.filter((r) => r.from === sp.who && r.timestamp >= sp.date)))),
+                    h("span", null, "(" + AB.count(rs.length, "row") + ")"), AB.needsElement("graphty-element sums a column over the current selection, split at the step's From date"));
+                return;
+            }
+            // The total is over the selection only: with none, the footer says how to make one
+            foot.replaceChildren(...(sel.length ? ["Sum of " + o.sum.label + ", " + AB.count(sel.length, "row") + ":", h("span", { class: "k-num" }, AB.num(add(sel)))]
+                : ["Sum of " + o.sum.label + ": select rows to total them"]), AB.needsElement("graphty-element sums a column over the current selection"));
         };
         wrap.foot = foot;
+        wrap.sumUp = sumUp;
         const cv = o.columns ? columnsView(allCols, o.columns) : null;
         const tds = (o.columns && o.columns.ds) || o.ds || "lesmis"; // the project whose attributes the columns show
         const valOf = (c, r) => (c.val ? c.val(r) : r[c.key]);
@@ -229,6 +251,8 @@
                 }));
                 const stop = tbody.querySelector("tr[aria-selected='true']") || tbody.firstElementChild;
                 if (stop) stop.tabIndex = 0;
+                // the row a click just opened keeps focus after the redraw, so Find (Ctrl+F) and the arrows still work
+                if (focusRow && stop && stop.getAttribute("aria-selected") === "true") { focusRow = false; setTimeout(() => stop.isConnected && stop.focus({ preventScroll: true }), 0); }
                 sumUp();
                 cols.forEach((c) => {
                     const th = heads[c.key];
@@ -244,8 +268,8 @@
                 const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), columnName(tds, c) + " column menu", { key: "Alt+Down" });
                 const th = h("th", { id: "td-col-" + c.key.replace(/[^A-Za-z0-9_-]/g, "_"), class: c.n ? "k-n" : null, scope: "col", tabindex: "0", "data-open": o.openMenu === c.key ? "" : null, "data-frozen": i === 0 && c.id ? "" : null },
                     h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type" }, AB.typeGlyph(c.type)) : null, c.generic ? AB.truncMiddle(c.label, 28) : h("span", null, c.label), h("span", { class: "td-sort" }), caret));
-                AB.tip(th, [c.type ? typeTitle[c.type] || null : null, c.profile].filter(Boolean).join(", ") || c.label, { label: false });
-                const sort = () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.asc ? 1 : c.n ? -1 : 1; } fill(); };
+                AB.tip(th, c.profile || (c.type && typeTitle[c.type]) || c.label, { label: false });
+                const sort = () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.asc ? 1 : c.n ? -1 : 1; } fill(); wrap.scrollTop = 0; };
                 th.addEventListener("click", (e) => { if (!e.target.closest(".td-caret")) sort(); });
                 th.addEventListener("keydown", (e) => {
                     if (e.target !== th) return;
@@ -272,9 +296,12 @@
         const f = c.field || c.key;
         return AB.fieldsOf(ds).some((g) => g.fields.some((x) => x.name === f)) ? f : c.label;
     }
+    // The column's attribute on the Data page, the table the Data place's and the attribute inspector's menus open
+    const EDIT_ON = { lesmis: ["edit-graph-file", "edit-graph-file"], transactions: ["edit-accounts", "edit-source"], doorEntries: ["edit-entries", "edit-entries"],
+        wide: ["edit-wide-hosts", "edit-wide-connections"], nested: ["edit-json-researchers", "edit-json-researchers"], plainJson: ["edit-plain-nodes", "edit-plain-links"] };
     function columnMenu(anchor, ds, c) {
-        const name = columnName(ds, c);
-        const editOn = ds === "wide" ? ["data-page", "edit-wide-hosts"] : ds === "nested" ? ["data-page", "edit-json-researchers"] : null;
+        const name = columnName(ds, c), g = AB.fieldIn(ds, name)[1], on = EDIT_ON[ds];
+        const editOn = on ? ["data-page", on[g && g.element === "edge" ? 1 : 0]] : null;
         return AB.attributeMenu(anchor, ds, name, { noTable: true, editOn });
     }
 
@@ -423,14 +450,14 @@
     }
     function openRowMenu(kind, r) {
         const c = colsAt || ROW_DEFAULT;
-        rowAt = kind === "node" ? { state: c.state, active: c.active, kind, name: r.label, id: safeId(r.label), key: "node|" + r.label }
+        rowAt = kind === "node" ? { state: c.state, active: c.active, kind, name: r.label, id: safeId(r.label), key: "node|" + r.label, row: r }
             : { state: c.state, active: c.active, kind, name: r.source + " -- " + r.target, id: "e-" + safeId(r.source) + "-" + safeId(r.target), key: "edge|" + r.source + "|" + r.target };
         AB.go("table-dock", "row-menu");
     }
     function rowMenu(el) {
         const c = rowAt || ROW_DEFAULT, C = AB.cmd;
         const done = (text, action) => ({ onClick: () => { back = true; AB.close(); setTimeout(() => AB.notice(text, action), 0); } });
-        const later = (label) => done(label + " (not wired in the skeleton)");
+        const later = (label) => done(label + " is not available in this preview");
         const what = c.kind === "node" ? c.name + " and " + (c.name === "Valjean" ? "his" : "its") + " edges" : "the edge " + c.name;
         const remove = { label: "Remove from data", desc: "Removes it from the data, not only from the canvas; Undo puts it back", onClick: () => {
             removed.add(c.key);
@@ -440,7 +467,7 @@
         } };
         const items = c.kind === "node" ? [
             { heading: c.name },
-            C("neighborhood"),
+            c.state === "past-limit" ? C("neighborhood", { go: null, onClick: () => citedBy(c.row) }) : C("neighborhood"),
             C("find-paths", { disabled: "Select a second node first" }),
             { sep: true },
             C("analyze"),
@@ -472,19 +499,44 @@
     const L = () => AB.fx.datasets.lesmis;
     const nodeRow = (label) => L().rows.find((r) => r.label === label);
     const groupColor = (g) => L().groupColors[g] || AB.fx.canvas.nodeGray;
-    const openNode = (r, e) => (e && (e.shiftKey || e.metaKey || e.ctrlKey) ? AB.go("inspector-several-elements", "two-nodes") : AB.selectNode("lesmis", L().rows.findIndex((x) => x.label === r.label)));
+    // The rows picked in the node table (Shift- or Ctrl-click adds or drops one): two or more open the
+    // several-elements inspector on them (it reads AB.tablePicks), one opens that node
+    let lmPicks = [];
+    AB.lesmisPR = PR;
+    AB.lesmisCommunities = COMMUNITIES; // the Louvain run's six communities and their members (the canvas paints them while Louvain is shown alone)
+    const lmPicked = (r) => lmPicks.includes(r.label) && /^inspector-(node|several-elements)\//.test(String((AB.route && AB.route.frame.right) || ""));
+    const openNode = (r, e) => {
+        const add = e && (e.shiftKey || e.metaKey || e.ctrlKey);
+        if (!add) lmPicks = [r.label];
+        else {
+            if (!lmPicked({ label: lmPicks[0] })) lmPicks = [];
+            lmPicks = lmPicks.includes(r.label) ? lmPicks.filter((x) => x !== r.label) : lmPicks.concat(r.label);
+        }
+        focusRow = true;
+        if (lmPicks.length >= 2) {
+            AB.tablePicks = lmPicks.slice();
+            AB.announce(lmPicks.length + " nodes selected");
+            if (location.hash === AB.href("inspector-several-elements", "two-nodes")) AB.render(); else AB.go("inspector-several-elements", "two-nodes");
+        } else if (lmPicks.length === 1) { AB.tablePicks = null; AB.selectNode("lesmis", L().rows.findIndex((x) => x.label === lmPicks[0]), { focus: false }); }
+        else { AB.tablePicks = null; AB.clearSelection(); }
+    };
 
-    /* Ranks, as the measure row writes them: an exact measure ranks by its shown value (3 significant
-       digits) and marks a rank shared at that precision "2="; an estimate shows its rank range "#3-#5".
-       Each node: { rank (sorts), text }. graphty-element returns ranks with a run's result. */
+    /* Ranks, as the measure row writes them, out of the nodes ranked ("#2 of 77"): an exact measure
+       ranks by its shown value (3 significant digits) and equal values share one rank, marked "#3= of 77";
+       an estimate shows the rank range its error bound allows ("#3-#5 of 77"), and equal estimates share
+       it the same way. Each node: { rank (sorts), worst, text }. graphty-element returns ranks with a run's result. */
+    const tied = (shown, i) => shown.some((x, j) => j !== i && x === shown[i]);
     function exactRanks(vals) {
-        const shown = vals.map((v) => AB.num(v));
+        const shown = vals.map((v) => AB.num(v)), of = " of " + AB.num(vals.length);
         return vals.map((v, i) => {
             const r = 1 + vals.filter((o, j) => o > v && shown[j] !== shown[i]).length;
-            return { rank: r, worst: r, text: String(r) + (shown.some((x, j) => j !== i && x === shown[i]) ? "=" : "") };
+            return { rank: r, worst: r, text: "#" + r + (tied(shown, i) ? "=" : "") + of };
         });
     }
-    const rangeRanks = (pairs) => pairs.map(([lo, hi]) => ({ rank: lo, worst: hi, text: lo === hi ? "#" + lo : "#" + lo + "-#" + hi }));
+    const rangeRanks = (pairs, vals) => {
+        const shown = vals.map((v) => AB.num(v)), of = " of " + AB.num(vals.length);
+        return pairs.map(([lo, hi], i) => ({ rank: lo, worst: hi, text: (lo === hi ? "#" + lo : "#" + lo + "-#" + hi) + (tied(shown, i) ? "=" : "") + of }));
+    };
 
     // The Les Miserables measures that have finished, in the tree's order, each over every node
     function lesmisMeasures(sampled) {
@@ -493,7 +545,7 @@
         return [
             { key: "degree", name: "Degree", vals: deg, ranks: exactRanks(deg) },
             { key: "pagerank", name: "PageRank", vals: PR, ranks: exactRanks(PR) },
-            { key: "betweenness", name: "Betweenness", vals: bt, ranks: sampled ? rangeRanks(BT_SAMPLED.map((x) => [x[1], x[2]])) : exactRanks(bt) },
+            { key: "betweenness", name: "Betweenness", vals: bt, ranks: sampled ? rangeRanks(BT_SAMPLED.map((x) => [x[1], x[2]]), bt) : exactRanks(bt) },
         ];
     }
     // One line once two or more measures have run: who is near the top on all of them, from the ranks
@@ -519,29 +571,42 @@
             ms.forEach((m) => { x[m.key] = m.vals[i]; x[m.key + "Rank"] = m.ranks[i]; });
             return x;
         });
-        const total = AB.count(Lx.nodes, "node");
-        // A result column names its scope and method; a ranking adds its rank column beside its score
-        const score = (key, label, profile) => ({ key, label, type: "num", n: true, profile, cell: (r) => AB.num(r[key]) });
+        // Each run adds a score column and a rank column; the header names the method, and the scope only
+        // when the run's set is not the graph on screen (a filter step leaves part of it)
+        // a result column's profile: its values and range ("77 values, 1 to 36"), then anything the reader must know
+        const prof = (vals, more) => AB.num(vals.length) + " values, " + AB.num(Math.min(...vals)) + " to " + AB.num(Math.max(...vals)) + (more ? "; " + more : "");
+        const score = (key, label, profile, unit) => ({ key, label: scoped(label, unit), type: "num", n: true, profile, cell: (r) => AB.num(r[key]) });
         const rank = (m, label, profile) => ({ key: m.key + "Rank", label, type: "num", n: true, asc: true, profile, val: (r) => r[m.key + "Rank"].rank, cell: (r) => r[m.key + "Rank"].text });
+        const SHARED = "#1 is highest; equal values at 3 significant digits share one rank, marked =";
         const bt = ms[2];
         const cols = [
             { key: "label", label: "label", type: "text", id: true, edit: true, profile: AB.num(Lx.nodes) + " values" },
             { key: "group", label: "group", type: "cat", edit: true, profile: Object.keys(Lx.groupColors).length + " values", cell: (r) => [AB.chit(groupColor(r.group)), String(r.group)] },
-            score("degree", "Degree (full graph)", "Links per node, on all " + total + ", 1 to " + Lx.stats.maxDegree),
-            score("pagerank", "PageRank (full graph)", "Damping 0.85, exact, on all " + total),
-            rank(ms[1], "Rank by PageRank", "1 is highest; equal at 3 significant digits shares a rank, marked ="),
-            o.sampled ? score("betweenness", "Betweenness (estimate, 20 sources)", "Estimated from 20 source nodes, seed 7; each value may move between runs")
-                : score("betweenness", "Betweenness (full graph)", "Exact, every node a source, on all " + total),
-            rank(bt, o.sampled ? "Rank range by betweenness" : "Rank by betweenness", o.sampled ? "The lowest and highest rank this node takes over 20 seeded runs" : "1 is highest; equal at 3 significant digits shares a rank, marked ="),
+            score("degree", "Degree", prof(ms[0].vals)),
+            rank(ms[0], "Rank by degree", SHARED),
+            score("pagerank", "PageRank", prof(PR)),
+            rank(ms[1], "Rank by PageRank", SHARED),
+            o.sampled ? score("betweenness", "Betweenness", prof(bt.vals, "estimated from 20 source nodes, seed 7; each value may move between runs"), "estimate, 20 sources")
+                : score("betweenness", "Betweenness", prof(bt.vals)),
+            rank(bt, o.sampled ? "Rank range by betweenness" : "Rank by betweenness", o.sampled ? "The lowest and highest rank this node takes over 20 seeded runs; equal estimates share one range, marked =" : SHARED),
         ];
         // The measure the table is sorted by leads, right after the key and group, its rank beside it
-        if (o.sampled) cols.splice(2, 0, ...cols.splice(5, 2));
-        const t = table(cols, rows, { sort: o.sort || "degree", dir: o.dir, label: "Nodes", openMenu, columns: { ds: "lesmis", element: "node" }, empty: o.empty, onRow: openNode, who: (r) => r.label, rowId: (r) => safeId(r.label),
-            onRowMenu: (r) => openRowMenu("node", r) });
+        if (o.sampled) cols.splice(2, 0, ...cols.splice(6, 2));
+        const t = table(cols, rows, { sort: o.sort || "degree", dir: o.dir, label: "Nodes", openMenu, columns: { ds: "lesmis", element: "node" }, empty: o.empty, onRow: openNode, selected: lmPicked, who: (r) => r.label, rowId: (r) => safeId(r.label),
+            sum: { key: "degree", label: "degree" }, onRowMenu: (r) => openRowMenu("node", r) });
         t.agree = members ? null : agreementLine(ms);
         return t;
     }
 
+    // An edge row opens the edge inspector on that edge: AB.pickedEdge names the row for the inspector to read
+    const JAVERT = { source: "Javert", target: "Valjean" };
+    const edgeKey = (r) => r.source + "|" + r.target;
+    function openEdge(r, e) {
+        if (adds(e)) return;
+        AB.pickedEdge = { source: r.source, target: r.target, value: r.value };
+        focusRow = true;
+        if (location.hash === AB.href("inspector-edge", "style")) AB.render(); else AB.go("inspector-edge", "style");
+    }
     function edgesTable(o) {
         const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: EDGE_NOTES[a + "|" + b] || 0 })).filter((r) => !edgeGone(r));
         // A cell edit that went through: one undoable step (graphty-element's updateEdges), its notice offers Undo
@@ -555,8 +620,11 @@
             { key: "target", label: "target", type: "text", id: true },
             { key: "value", label: "value", type: "num", n: true, int: true, edit: true, profile: "chapters shared, 1 to 31" },
         ];
-        return table(cols, rows, { sort: "value", label: "Edges", columns: { ds: "lesmis", element: "edge" }, refuse: o && o.refuse, selected: o && (o.refuse || (o.edited && REFUSE)), who: (r) => r.source + " - " + r.target, rowId: (r) => "e-" + safeId(r.source) + "-" + safeId(r.target),
-            onRow: () => AB.go("inspector-edge", "style"), onRowMenu: (r) => openRowMenu("edge", r) });
+        // The row a click selected stays marked while its inspector shows (AB.pickedEdge names it)
+        const edgeShown = AB.route && /^inspector-edge\//.test(String(AB.route.frame.right || ""));
+        const picked = (r) => edgeShown && edgeKey(r) === edgeKey(AB.pickedEdge || JAVERT);
+        return table(cols, rows, { sort: "value", label: "Edges", columns: { ds: "lesmis", element: "edge" }, refuse: o && o.refuse, selected: (o && (o.refuse || (o.edited && REFUSE))) || picked, who: (r) => r.source + " - " + r.target, rowId: (r) => "e-" + safeId(r.source) + "-" + safeId(r.target),
+            sum: { key: "value", label: "value" }, onRow: openEdge, onRowMenu: (r) => openRowMenu("edge", r) });
     }
 
     function communitiesTable() {
@@ -576,7 +644,7 @@
         const cols = [
             { key: "a", label: "first node", type: "text", id: true },
             { key: "b", label: "second node", type: "text", id: true },
-            { key: "score", label: "Adamic-Adar score (full graph)", type: "num", n: true, cell: (r) => AB.num(r.score) },
+            { key: "score", label: scoped("Adamic-Adar score"), type: "num", n: true, cell: (r) => AB.num(r.score) },
             { key: "common", label: "shared neighbors", type: "num", n: true },
         ];
         return table(cols, rows, { sort: "score", label: PAIR_RUN.label, onRow: () => AB.go("inspector-several-elements", "two-nodes") });
@@ -602,40 +670,73 @@
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
             { key: "amount", label: "amount", type: "num", n: true, edit: true, cell: (r) => AB.num(r.amount) },
         ];
-        const total = Tx.attributes.find((a) => a.name === "amount (edge)").total;
-        return table(cols, rows, { label: "Edges", columns: { ds: "transactions", element: "edge" }, who: (r) => r.from + " - " + r.to, selected: o.rows ? () => true : null,
-            sum: { key: "amount", label: "amount", all: o.rows ? null : [Tx.edges, total] },
-            onRow: (r) => AB.flash("Selects the transfer " + r.from + " - " + r.to + " (not wired in the skeleton)") });
+        // A transfer row opens that transfer in the edge inspector (inspector-edge/transfer reads AB.pickedTransfer)
+        const edgeOpen = AB.route && /^inspector-edge\/transfer$/.test(String(AB.route.frame.right || ""));
+        return table(cols, rows, { label: "Edges", sort: o.split ? "timestamp" : null, dir: o.split ? 1 : -1, columns: { ds: "transactions", element: "edge" }, who: (r) => r.from + " - " + r.to,
+            selected: o.rows ? () => true : edgeOpen ? (r) => sameTransfer(r, AB.pickedTransfer) : null,
+            sum: { key: "amount", label: "amount", split: o.split },
+            onRow: o.rows ? keepRow : (r, e) => { if (adds(e)) return; AB.pickedTransfer = r; focusRow = true; AB.go("inspector-edge", "transfer"); } });
     }
-    // Rows a to b of n, and the page arrows: graphty-element pages and sorts the whole table, the skeleton holds one page
+    // Rows a to b of n, and the page arrows: graphty-element pages and sorts the whole table, this preview holds one page
+    // An arrow with no rows on its side is disabled and says so (a table that fits one page has both off)
     function pager(from, to, total) {
-        const say = flash("Showing the next rows");
+        const say = flash("Showing other rows");
         return h("span", { class: "td-pager" }, h("span", { class: "k-num" }, "Rows " + AB.num(from) + " to " + AB.num(to) + " of " + AB.num(total)),
-            AB.iconButton("chevron-left", "Previous rows", { onClick: say }), AB.iconButton("chevron-right", "Next rows", { onClick: say }),
+            AB.iconButton("chevron-left", "Previous rows", from > 1 ? { onClick: say } : { disabled: "These are the first rows" }),
+            AB.iconButton("chevron-right", "Next rows", to < total ? { onClick: say } : { disabled: "These are the last rows" }),
             AB.needsElement("graphty-element pages the rows and sorts every row by any column, results included, so a large graph never blocks the table"));
     }
-    function transferNodes() {
+    // sort: the result the table opens sorted by (default Links total)
+    function transferNodes(sort) {
         const Tx = T();
-        const rows = Tx.rows.map((r, i) => ({ id: r.id, kind: r.kind, country: r.country, riskScore: r.riskScore, flagged: r.flagged ? "yes" : "no", degree: r.degree,
-            linksIn: INOUT[i][0], linksOut: INOUT[i][1], amountIn: INOUT[i][2], amountOut: INOUT[i][3] }));
+        // past the 40 sampled rows: the busiest accounts (merchants, every transfer received), money in where the fixtures hold it
+        const money = AB.fx.scenarios.runAndReadMoney, moneyIn = new Map(money.topMoneyIn.concat(money.topLinksIn).map((x) => [x.id, x.moneyIn]));
+        const io = (r, i) => INOUT[i] || (r.kind === "merchant" ? [r.degree, 0, moneyIn.has(r.id) ? moneyIn.get(r.id) : null, 0] : [null, null, null, null]);
+        const rows = Tx.rows.map((r, i) => ({ i, id: r.id, kind: r.kind, country: r.country, riskScore: r.riskScore, flagged: r.flagged ? "yes" : "no", degree: r.degree,
+            linksIn: io(r, i)[0], linksOut: io(r, i)[1], amountIn: io(r, i)[2], amountOut: io(r, i)[3] }));
+        // An account the fixtures rank by money in but hold no row for: what they give, the rest blank
+        money.topMoneyIn.filter((m) => !Tx.rows.some((r) => r.id === m.id)).forEach((m) => rows.push({ i: -1, id: m.id, kind: m.kind, country: "", riskScore: null, flagged: "",
+            degree: null, linksIn: m.linksIn, linksOut: null, amountIn: m.moneyIn, amountOut: null }));
         const risk = Tx.attributes.find((a) => a.name === "riskScore");
         const all = AB.count(Tx.nodes, "account");
         // On a directed graph every degree says which way; a weighted one is named from its column ("Total amount in")
-        const res = (key, label, profile) => ({ key, label, type: "num", n: true, profile: profile + ", on all " + all, cell: (r) => AB.num(r[key]) });
+        const res = (key, label, unit, profile, val) => ({ key, label: scoped(label, unit), type: "num", n: true, profile: profile + ", on all " + all, val,
+            cell: (r) => { const v = val ? val(r) : r[key]; return v == null ? "--" : AB.num(v); } });
+        const both = (f) => (r) => (r.amountIn == null || r.amountOut == null ? null : f(r.amountIn, r.amountOut));
+        const W = WEIGHT();
         const cols = [
             { key: "id", field: "id (account)", label: "id", type: "text", id: true, profile: fmt(Tx.nodes) + " values" },
-            // The three link counts lead, side by side, so in, out and total read together
-            res("linksIn", "Links in (count, full graph)", "Transfers received"),
-            res("linksOut", "Links out (count, full graph)", "Transfers sent"),
-            res("degree", "Links total (count, full graph)", "Transfers sent and received, 1 to " + fmt(Tx.stats.maxDegree)),
+            // The link counts lead, then the same three weighted by the data's amount, so in, out and total read together
+            res("linksIn", "Links in", "count", "Transfers received"),
+            res("linksOut", "Links out", "count", "Transfers sent"),
+            res("degree", "Links total", "count", "Transfers sent and received, 1 to " + fmt(Tx.stats.maxDegree)),
+            res("amountIn", "Total " + W + " in", null, "The sum of " + W + " over transfers received"),
+            res("amountOut", "Total " + W + " out", null, "The sum of " + W + " over transfers sent"),
+            res("amountTotal", "Total " + W + " in and out", null, "The sum of " + W + " over transfers received and sent", both((a, b) => a + b)),
+            netCol ? res("amountNet", "Total " + W + " in minus out", null, "Received minus sent; sorts by the signed value", both((a, b) => a - b)) : null,
             { key: "kind", label: "kind", type: "cat", edit: true, profile: "3 values" },
             { key: "country", label: "country", type: "cat", edit: true },
-            { key: "riskScore", label: "riskScore", type: "num", n: true, edit: true, profile: risk.range[0] + " to " + risk.range[1] },
+            { key: "riskScore", label: "riskScore", type: "num", n: true, edit: true, profile: risk.range[0] + " to " + risk.range[1], cell: (r) => (r.riskScore == null ? "" : String(r.riskScore)) },
             { key: "flagged", label: "flagged", type: "bool", edit: true },
-            res("amountIn", "Total amount in (full graph)", "The sum of amount over transfers received"),
-            res("amountOut", "Total amount out (full graph)", "The sum of amount over transfers sent"),
-        ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", columns: { ds: "transactions", element: "node" }, who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        ].filter(Boolean);
+        // The footer totals the selection
+        return table(cols, rows, { sort: sort || "degree", label: "Nodes", columns: { ds: "transactions", element: "node" }, who: (r) => r.id,
+            sum: { key: "amountIn", label: "total " + W + " in" },
+            selected: (r) => !!(r.i >= 0 && AB.walked && AB.walked.dataset === "transactions" && AB.walked.index === r.i),
+            onRow: (r, e) => { if (adds(e) || r.i < 0) return; focusRow = true; AB.selectNode("transactions", r.i, { focus: false }); } });
+    }
+    // The weight column weighted degree is named from: the data's weight (the transfers' amount)
+    const WEIGHT = () => T().attributes.find((a) => a.name === "amount (edge)").name.replace(/ \(edge\)$/, "");
+    // New column: weighted degree, named from the data. In, out and total show already; in minus out is added on demand
+    let netCol = false;
+    function newColumnMenu(el) {
+        const W = WEIGHT(), have = "Already a column in this table";
+        el.append(AB.menu({ anchor: "#ab-dock [aria-label='Table options']", place: "below-end", label: "New column", back: ["table-dock", "transfers-options"], items: [
+            { heading: "Weighted by " + W },
+            { label: "Total " + W + " in", check: true, disabled: have },
+            { label: "Total " + W + " out", check: true, disabled: have },
+            { label: "Total " + W + " in minus out", check: netCol, disabled: netCol ? have : false, onClick: () => { netCol = true; AB.go("table-dock", "transfers-nodes"); } },
+        ] }));
     }
     // March against April: each busiest merchant's links total in both months and the signed change, colored by sign
     function changesTable() {
@@ -650,7 +751,7 @@
             { key: "april", label: "Links total (count, April)", type: "num", n: true, cell: (r) => AB.num(r.april) },
             { key: "change", label: "Change in links total", type: "num", n: true, profile: "April minus March; sorts by the signed value", cell: (r) => signed(r.change) },
         ];
-        return table(cols, rows, { sort: "march", label: "Nodes", ds: "transactions", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        return table(cols, rows, { sort: "march", label: "Nodes", ds: "transactions", who: (r) => r.id, onRow: (r) => { const i = Tx.rows.findIndex((x) => x.id === r.id); if (i >= 0) AB.selectNode("transactions", i); } });
     }
 
     // Play, the track, the window readout, the window length, close
@@ -700,7 +801,16 @@
     }
 
     // the transfers states and whether each shows the time slider
-    const TRANSFERS = { "time-slider": true, "slider-options": true, transfers: false, "transfers-nodes": false, "transfers-options": false, "path-members": false, changes: false };
+    const TRANSFERS = { "time-slider": true, "slider-options": true, transfers: false, "transfers-nodes": false, "transfers-options": false, "new-column": false, "path-members": false, changes: false, "dated-neighbors": false };
+    /* A dated neighbors step (Direction: both, From date) on the account in the middle of the shortest
+       paths: its transfers in the fixture, every one selected, and the footer's total split in two.
+       The fixture holds this account's transfers only on the two paths, so those are the rows. */
+    const DATED = { from: "2026-03-05T00:00:00Z", label: "Mar 5" };
+    function datedNeighbors() {
+        const P = T().setsAndPaths.path, who = P.routes[0].accounts[1], seen = new Set();
+        const rows = P.routes.flatMap((x) => x.transfers).filter((t) => (t.source === who || t.target === who) && !seen.has(t.source + t.target + t.timestamp) && seen.add(t.source + t.target + t.timestamp));
+        return { who, rows };
+    }
 
     /* Find (Ctrl+F while the table has focus): a find chip on the scope line. Each keystroke lands on
        the first row whose name matches (word starts, AB.wordMatch), selects it and scrolls it into
@@ -726,8 +836,11 @@
             const tr = hits[at], wrap = tr.closest(".k-table-wrap"), head = wrap.querySelector("thead");
             trs.forEach((r) => r.removeAttribute("aria-selected"));
             tr.setAttribute("aria-selected", "true");
+            if (wrap.sumUp) wrap.sumUp(); // the footer totals the row Find selected
             wrap.scrollTop = tr.offsetTop - (head ? head.offsetHeight : 0) - 4;
-            wrap.scrollLeft = wrap.scrollWidth; // the key stays frozen at the left; the result columns, last, come into view
+            // the key stays frozen at the left; the result columns (the numbers) start right beside it
+            const firstN = wrap.querySelector("thead th.k-n"), key = wrap.querySelector("thead th[data-frozen]");
+            wrap.scrollLeft = firstN ? firstN.offsetLeft - (key ? key.offsetWidth : 0) : wrap.scrollWidth;
             AB.announce(tr.dataset.who + ", " + (at + 1) + " of " + hits.length);
         };
         input.addEventListener("input", () => land(false));
@@ -743,7 +856,7 @@
 
     // ---------- the dock ----------
     // The dock state a Columns popover opens over (an overlay state draws its dock as this one)
-    const BASE = { "column-menu": "nodes", "table-options": "nodes", "transfers-options": "transfers", "slider-options": "time-slider", "door-entries-options": "door-entries", "wide-columns": "wide" };
+    const BASE = { "column-menu": "nodes", "table-options": "nodes", "transfers-options": "transfers", "new-column": "transfers", "slider-options": "time-slider", "door-entries-options": "door-entries", "wide-columns": "wide" };
     // A route that shows a misspelled find with no match (Find, Ctrl+F, searches the table when it has focus)
     const NO_MATCH = "Jondrete";
     // A route that shows Find landing on a row: the row selected, every result column beside it
@@ -759,6 +872,8 @@
         if (current()) {
             const main = document.getElementById("ab-main");
             if (main && main.dataset.dock !== "none") main.dataset.dock = state === "closed" ? "closed" : "open";
+            // an open table stays open when a row click opens that row's inspector
+            if (state !== "closed" && main && main.dataset.dock !== "none") AB.openDock();
         }
         // The Columns popover draws over the table it was opened from
         if (state === "columns") { const c = colsAt || { state: "nodes" }; state = c.state; active0 = c.active; }
@@ -777,6 +892,8 @@
         if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state], active0, at, state);
         if (/^door-entries/.test(state)) return doorDock(root, state, active0, at);
         if (state === "wide") return wideDock(root, active0, at);
+        // the patent citations are past the drawing limit wherever their table shows (their filter step too)
+        if (state === "past-limit" || (AB.route && AB.route.frame.dataset === "citations")) return pastLimitDock(root, at);
 
         let members = state === "members-of-row" ? COMMUNITIES[2] : null;
         const pairTab = { id: "pairs", label: PAIR_RUN.label, full: PAIR_RUN.full, icon: PAIR_RUN.icon, close: () => AB.go("table-dock", "communities") };
@@ -803,7 +920,7 @@
                 const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all nodes");
                 AB.nav(x, "table-dock", "nodes");
                 t = nodesTable(m.members);
-                root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, AB.count(m.size, "node", { of: Lx.nodes }))), t);
+                root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, AB.count(m.size, "node", { of: Lx.nodes }))), t, t.foot);
             } else if (active === "nodes" && state === "no-match") {
                 // Find over the table matched no row: the find chip, the headers kept, the one empty line
                 const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Clear find");
@@ -814,11 +931,14 @@
                 // Sorted by one measure, the other measures beside it: the ranking view (no separate top-N table)
                 const sampled = state === "sampled";
                 t = nodesTable(null, state === "column-menu" ? "degree" : null, sampled ? { sampled, sort: "betweennessRank", dir: 1 } : null);
-                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT), t.agree, t);
+                // Paged and sorted by a result, as every table is at any size (past the drawing limit too)
+                const shown = t.querySelectorAll("tbody tr").length;
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "sorted by " + (sampled ? "rank range by betweenness" : "degree")), pager(1, shown, liveCounts().nodes)), t.agree, t, t.foot);
                 if (state === "find") setTimeout(() => openFind(root, FIND), 0);
             } else if (active === "edges") {
                 t = edgesTable(quiet ? null : state === "edit-refused" ? { refuse: REFUSE } : state === "edited" ? { edited: true } : null);
-                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().edges, "edge"), ROW_HINT), t);
+                const shown = t.querySelectorAll("tbody tr").length;
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().edges, "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "sorted by value"), pager(1, shown, liveCounts().edges)), t, t.foot);
             } else if (active === "communities") {
                 root.replaceChildren(strip(null), scope(AB.count(COMMUNITIES.length, "community", { plural: "communities" })), communitiesTable());
             } else if (active === "pairs") {
@@ -827,6 +947,45 @@
             }
         };
         draw();
+    }
+
+    // ---------- past the drawing limit: the patent citations (datasets.citations, scenarios.pastLimitTop200) ----------
+    // Nothing is drawn, and the table is not blocked: its rows are paged and sorted by the result
+    // (citationsReceived). The subsets it offers are ordinary filter steps: "Keep these 200 rows" (the top
+    // 200 by the sort) and, from a row's menu, Neighborhood... around that patent. No new command.
+    function pastLimitDock(root, at) {
+        const C = AB.fx.datasets.citations, S = AB.fx.scenarios.pastLimitTop200;
+        at("nodes", "citations");
+        const rows = S.rows.filter((r) => !nodeGone(r.id)).map((r) => Object.assign({ label: r.id }, r));
+        const cols = [
+            { key: "id", field: "id (patent number)", label: "id", type: "text", id: true },
+            { key: "category", label: "category", type: "cat" },
+            { key: "grantYear", label: "grantYear", type: "num", n: true, cell: (r) => String(r.grantYear) },
+            { key: "citationsReceived", label: "citationsReceived", type: "num", n: true, profile: "Citations received, 0 to 779" },
+        ];
+        const t = table(cols, rows, { sort: "citationsReceived", label: "Nodes", ds: "citations", who: (r) => r.id, rowId: (r) => safeId(r.id), onRow: keepRow,
+            onRowMenu: (r) => openRowMenu("node", r) });
+        const keep = AB.button("Keep these " + AB.num(S.n) + " rows", { kind: "secondary", tip: "Adds a filter step: " + S.step,
+            onClick: () => AB.openStep({ ds: "citations", left: "graph-place/empty", attr: S.sortedBy, type: "num", cond: "is in the top", value: AB.num(S.n), before: C.nodes, after: S.nodes, unit: ["nodes", "nodes"] }) });
+        const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }];
+        root.replaceChildren(tabStrip("past-limit", tabsOpen, "nodes", () => {}, "table-options", null),
+            scope(C.notDrawnLine, "Past the drawing limit the table still lists every row; right-click a row, then Neighborhood..., to keep that row and its neighbors", h("span", { class: "k-secondary" }, "sorted by " + S.sortedBy), keep, pager(1, rows.length, C.nodes)), t);
+    }
+
+    // A patent's neighbors past the drawing limit: the ordinary neighbors filter step (Keep: Neighbors), in the
+    // citations project. Direction In: the patents citing it, as many as its citationsReceived
+    function citedBy(r) {
+        const C = AB.fx.datasets.citations;
+        AB.openStep({ ds: "citations", left: "graph-place/empty", attr: null, open: false, before: C.nodes, after: r.citationsReceived + 1, unit: ["nodes", "past-limit"],
+            sentence: [AB.data("Keep", "Neighbors"), AB.data("Of", r.id + ", 1 hop"), AB.data("Direction", "In (patents citing it)")],
+            cap: "Keeps " + r.id + " and the " + AB.count(r.citationsReceived, "patent") + " that cite it." });
+    }
+
+    // The canvas past the drawing limit: loaded, nothing drawn; the legend card carries the not-drawn line
+    function notDrawn(el) {
+        const C = AB.fx.datasets.citations;
+        el.append(h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": C.notDrawnLine }),
+            AB.legendCard([{ title: C.notDrawnLine, sub: "The table lists every node, sorted by " + AB.fx.scenarios.pastLimitTop200.sortedBy }]));
     }
 
     // ---------- the wide, nested and plain JSON projects (kit/wide-nested.json) ----------
@@ -861,9 +1020,9 @@
         const who = (r) => (element === "node" ? AB.nameOf(ds, r) : r.source + " - " + r.target);
         // A node row selects that node, as the canvas walk does (the inspector reads the walked row)
         const walkAt = (r) => (ds === "wide" ? AB.fx.datasets.wide.nodeRows.indexOf(r) : AB.fx.datasets.nested.document.data.researchers.indexOf(r));
-        const open = ds === "plainJson" ? (r) => AB.flash("Selects " + who(r) + " (not wired in the skeleton)")
-            : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : flash("Selects " + who(r))())
-                : ds === "wide" ? () => AB.go("inspector-edge", "wide-data") : (r) => AB.flash("Selects the edge " + who(r) + " (not wired in the skeleton)");
+        const open = ds === "plainJson" ? keepRow
+            : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : keepRow())
+                : ds === "wide" ? () => AB.go("inspector-edge", "wide-data") : keepRow;
         const typeCol = ds === "nested" && element === "edge" ? [{ key: "edgeType", label: "edge type", type: "cat", val: (r) => r.edgeType, cell: (r) => r.edgeType }] : [];
         // A Name built from several fields is one column, the Name; its parts stay in Columns, unchecked
         const parts = ds === "nested" && element === "node" ? Object.values(AB.nestedLoaded().name || {}) : [];
@@ -906,17 +1065,22 @@
     // state "path-members": a path's transfers as Edges rows, every edge column, all selected, under the path's chip;
     // "changes": the busiest merchants' links total in March and April, with the signed change
     function transfersDock(root, withSlider, active0, at, state) {
-        const Tx = T(), P = Tx.setsAndPaths.path, path = state === "path-members" ? P.asDistance.transfers : null;
+        const Tx = T(), P = Tx.setsAndPaths.path, dated = state === "dated-neighbors" ? datedNeighbors() : null;
+        const path = state === "path-members" ? P.asDistance.transfers : dated ? dated.rows : null;
         win.start = 9; win.len = 7;
-        let active = active0 || (withSlider || path ? "edges" : "nodes");
+        const edgeOpen = AB.route && /^inspector-edge\//.test(String(AB.route.frame.right || ""));
+        let active = active0 || (withSlider || path || edgeOpen ? "edges" : "nodes");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
         // The table lists the whole data; under a filter step its count says so (the canvas draws what the filter leaves)
         const chip = AB.route && AB.route.frame.chip;
         const version = chip && chip !== "Full graph" ? "before the filter" : null;
+        // A ranked table opens sorted by the result that opened it: the project's table opens on Total amount in
+        // (studio decision: the weighted in-degree is the ranking the transfers' tasks ask for first)
+        const ranked = state === "transfers" ? "amountIn" : null;
         let tableHost = null, colsHost = null, footHost = null;
         const drawTable = () => {
             if (!tableHost) return;
-            const t = state === "changes" && active === "nodes" ? changesTable() : active === "edges" ? transferEdges(withSlider, { rows: path && active === "edges" ? path : null }) : transferNodes();
+            const t = state === "changes" && active === "nodes" ? changesTable() : active === "edges" ? transferEdges(withSlider, { rows: path && active === "edges" ? path : null, split: dated ? { who: dated.who, date: DATED.from, label: DATED.label } : null }) : transferNodes(ranked);
             tableHost.replaceChildren(t);
             colsHost.replaceChildren(t.colsButton || "");
             footHost.replaceChildren(t.foot || "");
@@ -926,7 +1090,12 @@
             colsHost = h("span", { style: "display:contents" });
             root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, withSlider ? "slider-options" : "transfers-options", colsHost));
             if (withSlider) root.append(timeSlider(() => AB.go("table-dock", "transfers"), drawTable));
-            if (path && active === "edges") {
+            if (dated && active === "edges") {
+                const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all edges");
+                AB.nav(x, "table-dock", "transfers");
+                root.append(h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, icon(AB.ICON.filter, "sm"), "Neighbors of " + dated.who + ": " + WEIGHT() + " in before " + DATED.label + ", out after", x),
+                    h("span", null, AB.count(path.length, "edge", { of: Tx.edges }) + ", in time order")));
+            } else if (path && active === "edges") {
                 const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all edges");
                 AB.nav(x, "table-dock", "transfers");
                 root.append(h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, icon("route", "sm"), "Path " + P.from.id + " to " + P.to.id, x),
@@ -937,8 +1106,7 @@
             } else if (active === "edges") {
                 root.append(scope(AB.count(Tx.edges, "edge", { version }), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null, pager(1, Tx.firstRows.length, Tx.edges)));
             } else {
-                const first = 381; // fixtures.json's rows are the account file's rows 381 to 420 (kit/gen-canvas.mjs)
-                root.append(scope(AB.count(Tx.nodes, "node", { version }), null, h("span", { class: "k-secondary" }, "from the node file " + Tx.accountsFile), pager(first, first + Tx.rows.length - 1, Tx.nodes)));
+                root.append(scope(AB.count(Tx.nodes, "node", { version }), ROW_HINT, h("span", { class: "k-secondary" }, (ranked ? "sorted by Total " + WEIGHT() + " in, " : "") + "from the node file " + Tx.accountsFile), pager(1, transferNodes().querySelectorAll("tbody tr").length, Tx.nodes)));
             }
             tableHost = h("div", { style: "display:contents" });
             footHost = h("div", { style: "display:contents" });
@@ -973,7 +1141,7 @@
             { key: "site", label: "site", type: "cat", edit: true },
             { key: "floors", label: "floors", type: "num", n: true, edit: true },
         ].concat(asNodes ? [{ key: "time", label: "time", type: "time", cell: (r) => (r.time ? shortTime(r.time) : "") }] : []);
-        return table(cols, rows, { label: "Nodes", columns: { ds: "doorEntries", element: "node" }, who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        return table(cols, rows, { label: "Nodes", columns: { ds: "doorEntries", element: "node" }, who: (r) => r.id, onRow: (r) => { const i = AB.walkList("doorEntries").findIndex((x) => x.name === (r.type === "person" ? r.name : r.id)); if (i >= 0) AB.selectNode("doorEntries", i); } });
     }
     function doorEdges() {
         const D = DE(), ids = new Set(D.tables[0].sample.map((r) => r.id)), bldgs = new Set(D.tables[1].sample.map((r) => r.bldg)), pairs = new Map();
@@ -986,11 +1154,11 @@
                 if (bldgs.has(r.building_id)) links.push({ entry: String(i + 1), to: r.building_id, via: "building_id" });
             });
             return table([{ key: "entry", label: "entry", type: "num", id: true }, { key: "to", label: "to", type: "cat", id: true }, { key: "via", label: "link column", type: "cat" }],
-                links, { label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => "entry " + r.entry + " - " + r.to, onRow: (r) => AB.flash("Selects the edge entry " + r.entry + " - " + r.to + " (not wired in the skeleton)") });
+                links, { label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => "entry " + r.entry + " - " + r.to, onRow: keepRow });
         }
         if (D.loaded.per === "row") {
             return table([{ key: "person_id", label: "person_id", type: "num", id: true }, { key: "building_id", label: "building_id", type: "cat", id: true }, { key: "time", label: "time", type: "time", cell: (r) => shortTime(r.time) }],
-                matched, { columns: { ds: "doorEntries", element: "edge" }, /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: (r) => AB.flash("Selects the edge " + r.person_id + " - " + r.building_id + " (not wired in the skeleton)") });
+                matched, { columns: { ds: "doorEntries", element: "edge" }, /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: keepRow });
         }
         // One row per pair, from the same preview the Data page shows (data.preview under Pair), so the counts agree
         D.report.entries.pairSample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id)).forEach((r) => {
@@ -1004,7 +1172,7 @@
             { key: "first", field: "time", label: "time (earliest)", type: "time", cell: (r) => shortTime(r.first) },
             { key: "last", field: "time", label: "time (latest)", type: "time", cell: (r) => shortTime(r.last) },
         ];
-        return table(cols, [...pairs.values()], { sort: "count", label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the edge " + r.from + " - " + r.to + " (not wired in the skeleton)") });
+        return table(cols, [...pairs.values()], { sort: "count", label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => r.from + " - " + r.to, onRow: (r) => (r.from === "1001" && r.to === "B1" ? AB.go("inspector-edge", "door-pair") : keepRow()) });
     }
     function doorDock(root, state, active0, at) {
         const D = DE(), [people, buildings] = D.tables;
@@ -1038,9 +1206,10 @@
                 time === "door" ? { label: "Time slider", onClick: flash("The time slider over the entries' times") }
                 : time ? { label: "Time slider", check: time === "on", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
                     : { label: "Time slider", disabled: "This data has no time attribute" },
+                time === "off" ? { label: "New column", sub: true, go: ["table-dock", "new-column"] } : null,
                 { sep: true },
                 { label: "Export table as CSV...", go: ["export-dialog", "table"] },
-            ],
+            ].filter(Boolean),
         }));
     }
     // Columns: the field list at panel size with a checkbox per attribute, the key locked. Each check
@@ -1066,9 +1235,10 @@
         if (state === "row-menu") return rowMenu(el);
         if (state === "column-menu") {
             // Degree's menu, as its column's chevron opens it; the dock draws before the overlay, so wait a frame
-            requestAnimationFrame(() => { const th = document.getElementById("td-col-degree"); if (th) columnMenu(th.querySelector(".td-caret") || th, "lesmis", { key: "degree", label: "Degree (full graph)" }); });
+            requestAnimationFrame(() => { const th = document.getElementById("td-col-degree"); if (th) columnMenu(th.querySelector(".td-caret") || th, "lesmis", { key: "degree", label: "Degree" }); });
         } else if (state === "table-options") optionsMenu(el, null);
         else if (state === "transfers-options") optionsMenu(el, "off");
+        else if (state === "new-column") newColumnMenu(el);
         else if (state === "slider-options") optionsMenu(el, "on");
         else if (state === "door-entries-options") optionsMenu(el, "door");
     }
@@ -1082,10 +1252,22 @@
         if (state === "row-menu") return rowAt ? Object.assign(frame(rowAt.state), { overlay: "table-dock/row-menu" }) : { right: "inspector-node/why-this-look", overlay: "table-dock/row-menu" };
         if (state === "columns") return Object.assign(frame((colsAt && colsAt.state) || "nodes"), colsAt && colsAt.state === "wide" ? { dataset: colsAt.ds } : {}, { overlay: "table-dock/columns" });
         if (state === "wide") return { dataset: loadedDs(), left: "graph-place/at-rest" };
+        if (state === "past-limit") {
+            // The canvas section's own frame for this project names it in the header (it sets the project's frame); the table stays open
+            const cs = AB.sections["canvas-and-states"];
+            if (cs && typeof cs.frame === "function") cs.frame("refused-project");
+            // The project is loaded and not drawn: the canvas says so (drawn below), and no left panel offers "Add data"
+            return { dataset: "citations", left: false, canvas: "table-dock/past-limit", right: false };
+        }
         if (state === "wide-columns") return { dataset: loadedDs(), left: "graph-place/at-rest", overlay: "table-dock/wide-columns" };
-        if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
+        if (state === "transfers-options" || state === "slider-options" || state === "new-column") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
         if (state === "path-members") return { dataset: "transactions", left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" };
         if (state === "changes") return { dataset: "transactions", left: "data-place/at-rest" };
+        // The dated neighbors step is a filter step: the header's chip counts the accounts it keeps
+        if (state === "dated-neighbors") {
+            const d = datedNeighbors(), kept = new Set(d.rows.flatMap((r) => [r.source, r.target]));
+            return { left: "data-place/at-rest", chip: AB.count(kept.size, "node", { of: T().nodes }) };
+        }
         if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
         if (state === "door-entries-options") return { dataset: "doorEntries", left: "graph-place/door-entries", overlay: "table-dock/" + state };
         if (state === "door-entries" || state === "door-entries-nodes") return { dataset: "doorEntries", left: "graph-place/door-entries" };
@@ -1140,9 +1322,13 @@
             { id: "edited", label: "A cell edit that went through, with Undo" },
             { id: "path-members", label: "A path's transfers as Edges rows, with their sum" },
             { id: "changes", label: "Transfers: change in links total, March to April" },
+            { id: "new-column", label: "Transfers: New column (weighted degree)" },
+            { id: "dated-neighbors", label: "Transfers: a dated neighbors step, the footer split in two" },
+            { id: "past-limit", label: "Past the drawing limit: patent citations, paged, with a Keep step" },
         ],
         render(el, state, ctx) {
             if (ctx && ctx.region === "overlay") return overlay(el, state);
+            if (ctx && ctx.region === "canvas") return notDrawn(el);
             dock(el, state);
         },
     });

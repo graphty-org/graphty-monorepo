@@ -1,6 +1,6 @@
 /* View flyout: replaces the Camera menu. A dark menu anchored above the toolbar's View button
    ([data-tool=View]), focus on its first item. Most frequent first (spec 2.3):
-   Fit 0, Frame selection F; Standard views (3D) or Zoom in / Zoom out (2D, the element's = and -);
+   Fit 0, Frame selection F (the selected nodes, or a selected row's members); Standard views and plugin views (3D) or Zoom in / Zoom out (2D, the element's = and -);
    Your views (the Views place's order) and Save view; Switch to 2D/3D 5, Enter VR, Enter AR.
    Labels and keys come from AB.COMMANDS. Plain ASCII. */
 (function () {
@@ -21,6 +21,9 @@
     const MANY = ["Whole cast", "Valjean's circle", "From above", "The bishop's household", "Fantine's friends", "Thenardier family", "Javert's pursuit",
         "Cosette and Marius", "Friends of the ABC", LONG, "Gavroche", "Eponine", "Champmathieu trial", "Petit-Gervais", "Montreuil-sur-Mer",
         "The convent", "Gorbeau house", "Patron-Minette", "Bridges to Valjean", "Closing shot"];
+    // Studio decision: one registered plugin view stands for the element catalog's plugin entries
+    // (camerasForMode lists built-ins first, then registered views), so the slot is visible.
+    const PLUGIN_VIEWS = ["Turntable"];
     const XR_REASON = "graphty-element's isVRSupported() and isARSupported() return only true or false; the reason a device cannot enter is needed";
 
     // Choosing an item: the camera moves (not modeled), the flyout closes, then the notice shows (after
@@ -31,13 +34,32 @@
         setTimeout(() => AB.flash(text), 0);
     };
 
+    // Opened over Les Miserables with something selected (a canvas node, a tree row), the flyout keeps
+    // the panels that show it, so Frame selection has something to frame. The shell carries panels under
+    // an overlay only for the loaded projects; this covers Les Miserables until the shell does too.
+    // AB.route is still the route being left while the shell asks for this frame.
+    function carrySelection() {
+        const was = AB.route;
+        if (!was || was.frame.overlay || !was.frame.right || (was.frame.dataset && was.frame.dataset !== "lesmis")) return {};
+        if (String(was.frame.right).startsWith("inspector-nothing-selected")) return {};
+        const out = {};
+        ["left", "right", "canvas", "dock", "toolbar"].forEach((r) => { out[r] = was.frame[r]; });
+        return out;
+    }
+
     function items(state) {
         const is2d = state === "2d";
         const f = AB.route && AB.route.frame;
         // a node selected on the project on screen (the flyout opens over its panels)
+        // or a row selected in the tree (Frame selection frames its members, spec 2.3)
         const head = document.querySelector("#ab-right .ab-insp-head .k-name");
-        const selected = state === "3d-selected" || !!(f && String(f.toolbar || "").startsWith("selection-bar/") && head);
-        const who = state === "3d-selected" ? "Valjean" : head ? head.textContent.trim() : "the selection";
+        const rows = document.querySelectorAll("#ab-left .ab-trow[aria-selected=true]").length;
+        const onCanvas = !!(f && String(f.toolbar || "").startsWith("selection-bar/") && head);
+        const selected = state === "3d-selected" || onCanvas || rows > 0;
+        const who = state === "3d-selected" ? "Valjean"
+            : onCanvas ? head.textContent.trim()
+            : rows > 1 ? "the members of " + rows + " rows"
+            : rows ? "the members of " + (head ? head.textContent.trim() : "the row") : "the selection";
         const headset = state === "headset";
         // the saved views are Les Miserables'; a loaded project has none yet (its Views place is empty)
         const own = !f || !f.dataset || f.dataset === "lesmis";
@@ -62,6 +84,8 @@
                 { label: "Side", shortcut: "3", onClick: done("Camera moves to Side") },
                 { label: "Top", shortcut: "7", onClick: done("Camera moves to Top") },
                 { label: "Isometric", onClick: done("Camera moves to Isometric") },
+                // then the views plugins registered with the element's camera catalog, in its order
+                ...PLUGIN_VIEWS.map((name) => ({ label: name, desc: "Added by a plugin", onClick: done("Camera moves to " + name) })),
             );
         }
         list.push({ sep: true }, { heading: "Your views" });
@@ -105,6 +129,7 @@
         closeTo: "graph-place",
         frame: (state) => Object.assign(
             { mode: state === "2d" ? "2d" : "3d" },
+            carrySelection(),
             state === "3d-selected" ? { right: "inspector-node/why-this-look" } : {},
         ),
         render(el, state) {

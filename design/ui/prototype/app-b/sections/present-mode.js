@@ -6,8 +6,10 @@
    locked or not; Esc leaves. The view's name appears once, in the caption
    at the foot, with the step counter and previous / next. Lock the canvas is graphty-element's
    setInputEnabled(false): off by default, remembered per project, no notice.
-   The legend card is the shared one (AB.legendCard), shown or hidden by the same per-project legend
-   state the toolbar's Legend button and L set; Present adds no control of its own for it.
+   Each view is the project's canvas as its rows paint it now (the canvas section's own drawing and
+   legend card), seen from the view's camera: graphty-element stores no view snapshot yet, so a view
+   keeps where it looks from, not the paint it had when it was saved. The legend card is shown or
+   hidden by the same per-project legend state the toolbar's Legend button and L set.
    With no saved views Present is disabled in the Views place ("Save a view first"), so this
    section has no empty state; on the last view Next is disabled. Plain ASCII. */
 (function () {
@@ -16,7 +18,8 @@
 
     const CSS = `
 .pm { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--k-canvas); }
-.pm .k-canvas { flex: 1 1 auto; }
+.pm .k-canvas { flex: 1 1 auto; overflow: hidden; }
+.pm .k-stage > img { transition: transform 300ms ease; }
 .pm-head { position: absolute; left: 0; right: 0; top: 0; z-index: 2; transition: transform 160ms ease, opacity 160ms ease; }
 .pm-head[data-hidden] { transform: translateY(-100%); opacity: 0; }
 .pm-head:focus-within { transform: none; opacity: 1; }
@@ -29,20 +32,28 @@
 .pm .ab-legend { top: 56px; bottom: auto; z-index: 1; max-height: calc(100% - 140px); overflow: auto; }
 .pm-step { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pm-count { min-width: 44px; text-align: center; color: var(--cm-text-secondary); }
-@media (prefers-reduced-motion: reduce) { .pm-head { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .pm-head, .pm .k-stage > img { transition: none; } }
 `;
     if (!document.querySelector("style[data-pm-css]")) document.head.append(h("style", { "data-pm-css": "" }, CSS));
 
-    // The views checked In tour, in the Views place's order ("From above" is not in the tour;
-    // "Valjean's neighbors" is the view saved in views-place/saved-toast).
-    const VIEWS = [
-        { name: AB.SAVED_VIEWS[0], pic: "lesmis-groups", alt: "Les Miserables, colored by community, the whole graph in frame",
-            caption: "The characters fall into communities of people who share chapters." },
-        { name: AB.SAVED_VIEWS[1], pic: "lesmis-groups-valjean", alt: "Les Miserables, framed on Valjean and the characters around him",
-            caption: "Valjean sits where most of the story's communities meet." },
-        { name: "Valjean's neighbors", pic: "lesmis-neighbors", alt: "Les Miserables, Valjean and the characters who share a chapter with him",
-            caption: "The characters who share at least one chapter with Valjean." },
+    // The deck is the Views place's saved-view list, the views checked In tour, in its order. The
+    // Views place publishes that list as AB.savedViews ({ name, art, tour }, a view saved this page
+    // view included); until it does, the deck is its at-rest list ("From above" is not in the tour).
+    const AT_REST = [
+        { name: AB.SAVED_VIEWS[0], art: "lesmis-groups-rest", tour: true },
+        { name: AB.SAVED_VIEWS[1], art: "lesmis-groups-valjean", tour: true },
+        { name: AB.SAVED_VIEWS[2], art: "lesmis-plain", tour: false },
     ];
+    // A known view's camera and caption; a view the reader saved looks at the whole graph, no caption.
+    // The camera is a stand-in: a zoom on a point of the 1200 x 800 drawing (Valjean is at 698.7, 394.3).
+    const LOOK = {
+        [AB.SAVED_VIEWS[0]]: { frame: "the whole graph in frame",
+            caption: "The characters fall into communities of people who share chapters." },
+        [AB.SAVED_VIEWS[1]]: { frame: "framed on Valjean and the characters around him", cam: { x: 698.7 / 1200, y: 394.3 / 800, zoom: 1.8 },
+            caption: "Valjean sits where most of the story's communities meet." },
+    };
+    const deck = () => (AB.savedViews || AT_REST).filter((v) => v.tour).map((v) =>
+        Object.assign({ name: v.name, frame: "the view " + v.name, cam: null, caption: "" }, LOOK[v.name]));
     // present-mode/long-caption: the same view with a caption at the 300-character limit, which
     // wraps inside the caption box; the name keeps its one line and the stepper keeps its place.
     const LONG_CAPTION = "Valjean sits where most of the story's communities meet: the convicts of Toulon, the Thenardiers and their inn, the students of the ABC cafe, and the household on the Rue Plumet. Remove him and the graph falls apart into islands, which is why the novel needs him in nearly every one of its five volumes.";
@@ -53,8 +64,10 @@
         const root = h("div", { class: "pm", role: "region", "aria-label": "Present" });
         el.append(root);
 
-        // The route picks where the skeleton starts; stepping and locking then happen in place.
-        let i = state === "first-view" ? 0 : 1;
+        // Present opens on the first view; the long-caption state opens on the view whose caption it lengthens.
+        const VIEWS = deck();
+        // last-view opens on the tour's last view, where Next is disabled.
+        let i = state === "long-caption" ? Math.max(0, VIEWS.findIndex((v) => v.name === AB.SAVED_VIEWS[1])) : state === "last-view" ? VIEWS.length - 1 : 0;
         let locked = state === "locked" ? true : state === "presenting" ? false : AB.mem.get(LOCK_KEY) === "on";
         if (state !== "first-view") AB.mem.set(LOCK_KEY, locked ? "on" : "off");
 
@@ -79,7 +92,14 @@
         hideSoon();
 
         // ---- the canvas and the caption ----
+        // The canvas section draws the project as its rows paint it now, with its legend card. Present
+        // keeps the picture and the legend only: no hot spots, and no canvas context menu.
         const canvas = h("div", { class: "k-canvas" });
+        AB.sections["canvas-and-states"].render(canvas, "drawn");
+        canvas.oncontextmenu = null;
+        canvas.querySelectorAll(".ab-hot, .cs-edge").forEach((x) => x.remove());
+        const stage = canvas.querySelector(".k-stage");
+        const paintAlt = stage.getAttribute("aria-label");
         const prev = AB.iconButton("chevron-left", "Previous view", { key: "ArrowLeft", onClick: () => step(-1) });
         const next = AB.iconButton("chevron-right", "Next view", { key: "ArrowRight", onClick: () => step(1) });
         const name = h("b", { class: "k-ellipsis" });
@@ -96,11 +116,17 @@
 
         function paint() {
             const v = VIEWS[i];
-            canvas.replaceChildren(h("div", { class: "k-stage" }, AB.drawing(v.pic, v.alt)));
+            const c = v.cam;
+            stage.querySelectorAll(":scope > img").forEach((img) => {
+                img.style.transformOrigin = c ? (c.x * 100) + "% " + (c.y * 100) + "%" : "";
+                img.style.transform = c ? "scale(" + c.zoom + ")" : "";
+            });
+            stage.setAttribute("aria-label", paintAlt + ", " + v.frame);
             canvas.setAttribute("aria-label", locked ? "Graph, locked" : "Graph");
             box.setAttribute("aria-checked", String(locked));
             name.textContent = v.name;
-            cap.textContent = state === "long-caption" && i === 1 ? LONG_CAPTION : v.caption;
+            cap.textContent = state === "long-caption" && v.name === AB.SAVED_VIEWS[1] ? LONG_CAPTION : v.caption;
+            cap.hidden = !cap.textContent;
             count.textContent = (i + 1) + " of " + VIEWS.length;
             setDisabled(prev, i === 0);
             setDisabled(next, i === VIEWS.length - 1);
@@ -113,28 +139,20 @@
             paint();
         }
 
-        // Every view in the tour is colored by group and sized by degree, so one legend serves them all.
-        const lg = AB.fx.datasets.lesmis.frame.legend;
-        const legend = AB.legendCard([
-            { title: "Color: group", rows: lg.rows.map((r) => ({ swatch: r.color, label: "Group " + r.label, count: r.count }))
-                .concat([{ swatch: lg.other.color, label: "Other", count: lg.other.count }]) },
-            { title: "Size: Degree" },
-        ]);
-
         root.append(canvas, hot, head, foot);
-        if (legend) root.append(legend);
         paint();
 
         // Right / Page Down / Space next, Left / Page Up / Shift+Space previous, locked or not.
-        // Esc is the shell's (pageHead's cancel).
+        // Esc is the shell's (pageHead's cancel). Listened for first (capture), so the drawing's own
+        // arrow keys (orbit, Shift+Arrow walk) never take a step's key.
         const onKey = (e) => {
             if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
             const fwd = e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !e.shiftKey && e.target === document.body);
             const bk = e.key === "ArrowLeft" || e.key === "PageUp" || (e.key === " " && e.shiftKey && e.target === document.body);
-            if (fwd) { e.preventDefault(); step(1); } else if (bk) { e.preventDefault(); step(-1); }
+            if (fwd) { e.preventDefault(); e.stopPropagation(); step(1); } else if (bk) { e.preventDefault(); e.stopPropagation(); step(-1); }
         };
-        document.addEventListener("keydown", onKey);
-        const off = () => { clearTimeout(timer); document.removeEventListener("keydown", onKey); window.removeEventListener("hashchange", off); };
+        document.addEventListener("keydown", onKey, true);
+        const off = () => { clearTimeout(timer); document.removeEventListener("keydown", onKey, true); window.removeEventListener("hashchange", off); };
         window.addEventListener("hashchange", off);
     }
 
@@ -145,9 +163,10 @@
         frame: { top: false, rail: false },
         closeTo: "views-place",
         states: [
-            { id: "presenting", label: "Stepping: view 2 of 3" },
+            { id: "presenting", label: "Stepping through the tour" },
             { id: "locked", label: "Canvas locked" },
             { id: "first-view", label: "First view" },
+            { id: "last-view", label: "Last view: Next disabled" },
             { id: "long-caption", label: "A 300-character caption, wrapped" },
         ],
         render,

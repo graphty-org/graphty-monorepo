@@ -56,6 +56,7 @@
         { id: "label-two", label: "Label: name above, degree below" },
         { id: "label-all-used", label: "Label: every position used" },
         { id: "label-by", label: "Add label line for degree, from its menu" },
+        { id: "label-top-n", label: "Label only the top 10 by degree: a top-N rule row" },
         { id: "invalid-value", label: "Style: an invalid value" },
         { id: "notes", label: "Notes, from a row's note count" },
         { id: "group", label: "Group (Group 2)" },
@@ -63,13 +64,17 @@
         { id: "community-3", label: "Community 3 (Louvain)" },
         { id: "overlap", label: "Partly covered" },
         { id: "watchlist", label: "Set (Watchlist)" },
+        { id: "top-degree", label: "Set (Top 9 by degree)" },
         { id: "rule-set", label: "Rule set" },
         { id: "rule-set-empty", label: "Rule set matching no nodes" },
         { id: "one-member", label: "Set of one node" },
         { id: "long-name", label: "Long set name and label line (researchers)" },
         { id: "kept-2", label: "Set made from Group 2, in a folder" },
         { id: "path-lesmis", label: "Path: Valjean to Javert" },
+        { id: "path-lesmis-found", label: "Path: the one the last Find path added (Les Miserables)" },
         { id: "path", label: "Path from Path between" },
+        { id: "path-tied", label: "Path: two routes tie, Route 1 of 2" },
+        { id: "path-notes", label: "Path: its Notes, and the chip a note on it carries" },
         { id: "path-reversed", label: "Path traced end to start: dates out of order" },
         { id: "path-door-entries", label: "Path: door entries, from Find path" },
         { id: "path-style", label: "Path: Style" },
@@ -86,7 +91,7 @@
     const SELECT = ["inspector-several-elements", "style"];
     const pr = () => lnk("PageRank", ["inspector-measure-row", "style"]);
     const memberRow = (name, trail) => AB.row({ label: name, trail, go: ["inspector-node", name === "Valjean" ? "why-this-look" : "data"] });
-    const acctRow = (id, trail) => AB.row({ label: h("span", { class: "k-id" }, id), trail, onClick: () => AB.flash("Selects " + id + " (not wired in the skeleton)") });
+    const acctRow = (id, trail) => AB.row({ label: h("span", { class: "k-id" }, id), trail, onClick: () => AB.flash("Selects " + id + "") });
     const scope = (L) => ["Scope", "Full graph, " + L.nodes + " nodes"];
     const version = (L) => ["Data version", L.file + ", current"];
 
@@ -127,8 +132,9 @@
 
     function overlapModel() {
         const m = groupModel("4");
-        m.order = ["Covered by ", lnk("Watchlist", [SELF, "watchlist"]), " for Color on " + G4_WATCHED.length + " of 11"];
-        m.orderTip = G4_WATCHED.join(", ") + ". Drag this row above Watchlist in the tree to win on all 11.";
+        const n = L0().frame.legend.rows.find((r) => r.label === "4").count;
+        m.order = ["Covered by ", lnk("Watchlist", [SELF, "watchlist"]), " for Color on " + G4_WATCHED.length + " of " + n];
+        m.orderTip = G4_WATCHED.join(", ") + ". Drag this row above Watchlist in the tree to win on all " + n + ".";
         return m;
     }
 
@@ -153,6 +159,25 @@
             membersSummary: "All " + n + ", by degree within the set",
             members: W.members.map(([nm, d]) => memberRow(nm, String(d))),
             dist: W.members, distOf: "degree within the set",
+            made: [],
+            all: [["Members", "Fixed: they do not follow the data"], scope(L), version(L)],
+        };
+    }
+
+    // The kept set "Top 9 by degree": the nodes whose degree reaches the 9th highest (the tree's row "top")
+    function topDegreeModel() {
+        const L = L0(), byDeg = [...L.rows].sort((a, b) => b.degree - a.degree);
+        const mem = byDeg.filter((r) => r.degree >= byDeg[8].degree), n = mem.length;
+        return {
+            title: "Top " + n + " by degree", color: "#F0E442", icon: "circle-check", kind: "Set",
+            provenance: ["from degree", "inspector-attribute-and-filter-step", "attribute"],
+            set: { "node.color": "#F0E442" },
+            paints: ["Paints " + n + " nodes", SELECT],
+            order: ["Covered by ", pr(), " for Color on " + n + " of " + n],
+            summary: [["Size", n + " nodes", SELECT], ["Degree", mem[n - 1].degree + " to " + mem[0].degree]],
+            membersSummary: "All " + n + ", by degree",
+            members: mem.map((r) => memberRow(r.label, String(r.degree))),
+            dist: mem.map((r) => [r.label, r.degree]), distOf: "degree",
             made: [],
             all: [["Members", "Fixed: they do not follow the data"], scope(L), version(L)],
         };
@@ -237,7 +262,7 @@
             order: "Wins Color on " + n + " of " + n + ": nothing above it paints these researchers",
             summary: [["Size", n + " nodes", SELECT], ["Of", R.length + " researchers"]],
             membersSummary: "Top 10 of " + n + ", by " + LONG_FIELD,
-            members: mem.slice(0, 10).map((r) => AB.row({ label: nm(r), trail: cites(r).toLocaleString("en-US"), onClick: () => AB.flash("Selects " + nm(r) + " (not wired in the skeleton)") })),
+            members: mem.slice(0, 10).map((r) => AB.row({ label: nm(r), trail: cites(r).toLocaleString("en-US"), onClick: () => AB.flash("Selects " + nm(r) + "") })),
             made: [],
             all: [["Members", "Fixed: they do not follow the data"], ["Scope", "Full graph, " + R.length + " researchers"], ["Data version", N.file + ", current"]],
         };
@@ -246,7 +271,8 @@
     function communityModel(c) {
         const L = L0(), [size, def, notes] = COMMUNITIES[c] || COMMUNITIES[3];
         const key = "Louvain/" + c, color = RECOLOR[key] || def;
-        const known = String(c) === "3" ? GROUPS[3][3] : null;
+        // Community 3 is Myriel's circle (the table's Louvain tab, the notes): its 10 members are the group-1 rows
+        const known = String(c) === "3" ? GROUPS[1][3] : null;
         return {
             title: "Community " + c, color, icon: "circle-dot", kind: "Group",
             recolor: { key, def },
@@ -255,7 +281,7 @@
             renameDisabled: "a run's groups renumber when it reruns; Create set to name one",
             set: { "node.color": color },
             paints: ["Paints " + size + " nodes", SELECT],
-            edgesInside: c === "3" || c === 3 ? 30 : null, // Fantine's circle: the 30 edges among its 10 members (GROUPS[3])
+            edgesInside: c === "3" || c === 3 ? GROUPS[1][0] : null, // Myriel's circle: the 10 edges among its 10 members (GROUPS[1])
             order: ["Covered by ", pr(), " for Color on " + size + " of " + size],
             summary: [["Size", size + " nodes", SELECT]],
             membersSummary: known ? "All " + known.length + ", by degree within the community" : "Not ranked",
@@ -282,6 +308,21 @@
             all: [["Weight", "Not used: fewest edges"], scope(L), version(L)],
         };
     }
+    // The path the last Find path added on Les Miserables (path-popover's AB.lastPath and its first route)
+    function lesmisFoundModel() {
+        const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === "lesmis" ? AB.lastPath : null;
+        if (!lp || !lp.route) return lesmisPathModel();
+        const r = lp.route, nodes = r.route.length, edges = r.hops, size = AB.count(nodes, "node") + ", " + AB.count(edges, "edge");
+        const at = (n) => ["inspector-node", n === "Valjean" ? "why-this-look" : "data"];
+        return Object.assign(lesmisPathModel(), {
+            title: lp.name, color: "#009E73", set: { "node.color": "#009E73", "edge.color": "#009E73" },
+            paints: ["Paints " + size, SELECT],
+            order: ["Covered by ", pr(), " for Color on " + nodes + " of " + nodes + " nodes"],
+            summary: [["Size", size, SELECT], ["From", lp.from, at(lp.from)], ["To", lp.to, at(lp.to)]].concat(r.text ? [["Along the path", r.text.replace(/^.*: /, "") + " (" + r.text.replace(/: .*$/, "").toLowerCase() + ")"]] : []),
+            members: r.route.map((n, i) => memberRow(n, i === 0 ? "start" : i === nodes - 1 ? "end" : "hop " + i)),
+            all: [["Weight", lp.weight ? lp.weight + ", " + lp.meaning : "Not used: fewest edges"], scope(L0()), version(L0())],
+        });
+    }
     // Myriel to Javert: Myriel, Valjean, Javert (2 edges; networkx 3.1, see graph-place.js)
     function lesmisPath2Model() {
         const m = lesmisPathModel();
@@ -301,24 +342,68 @@
     // `reversed` traces the same accounts end to start (direction ignored), which runs the dates backward.
     const COLS = "display:grid;grid-template-columns:1fr 40px 48px;column-gap:6px;align-items:end;padding:0 8px 0 16px";
     const day = (ts) => new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-    function pathModel(reversed) {
-        const T = AB.fx.datasets.transactions, P = T.setsAndPaths.path, r = P.asDistance;
+    // The route the last Find path drew: path-popover's AB.lastPath.route, the route its result bar opens
+    // on (route, hops, transfers, dollars, the fixture's path shape). No Find path yet: the fixture's asDistance.
+    // Routes that tie on cost come with it (lp.routes); the stepper picks one (routeAt). `tied` (a direct load of
+    // path-tied) reads the fixture's two equally short routes, found with no weight.
+    // The route on screen is shared with the path popover's result bar (AB.pathRouteAt): stepping
+    // either one moves both, so the bar and this inspector never name different routes
+    AB.pathRouteAt = 0;
+    AB.setPathRoute = (i) => {
+        AB.pathRouteAt = i;
+        const r = document.getElementById("ab-right"), ref = AB.route && AB.route.frame.right;
+        if (r && ref && ref.startsWith(SELF + "/")) { r.replaceChildren(); AB.renderSection(ref, r); }
+        document.dispatchEvent(new Event("ab-path-route"));
+    };
+    function foundRoutes(P, tied) {
+        const sum = (t) => Math.round(t.reduce((a, x) => a + x.amount, 0) * 100) / 100;
+        if (tied) return P.routes.map((x) => ({ weight: null, route: x.accounts, hops: x.transfers.length, transfers: x.transfers, dollars: sum(x.transfers) }));
+        const lp = AB.lastPath && AB.lastPath.ds === "transactions" && AB.lastPath.route ? AB.lastPath : null;
+        return lp ? (lp.routes && lp.routes.length ? lp.routes : [lp.route]).map((x) => Object.assign({ weight: lp.weight, meaning: lp.meaning, from: lp.from, to: lp.to }, x))
+            : [Object.assign({ weight: "amount", meaning: "farther" }, P.asDistance)];
+    }
+    // The same stepper as the path popover's result bar: "Route 1 of 2", previous and next, arrow keys while it has focus
+    function routeStepper(n) {
+        const step = (d) => { AB.setPathRoute((AB.pathRouteAt + d + n) % n); AB.announce("Route " + (AB.pathRouteAt + 1) + " of " + n); requestAnimationFrame(() => { const s = document.querySelector("#ab-right .igs-step"); if (s) s.focus(); }); };
+        const g = h("span", { class: "igs-step", role: "group", tabindex: "0", "aria-label": "Routes that tie on cost: arrow keys step", style: "display:inline-flex;align-items:center;gap:2px;border-radius:6px" },
+            AB.iconButton("chevron-left", "Previous route", { onClick: () => step(-1) }), h("span", { style: "min-width:76px;text-align:center" }, "Route " + (AB.pathRouteAt + 1) + " of " + n), AB.iconButton("chevron-right", "Next route", { onClick: () => step(1) }));
+        g.addEventListener("keydown", (e) => { const d = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key]; if (!d) return; e.preventDefault(); e.stopPropagation(); step(d); });
+        return h("div", { style: "display:flex;align-items:center;gap:8px;padding:0 8px 4px 16px" }, h("span", { class: "k-secondary" }, AB.count(n, "route") + " tie"), g);
+    }
+    function pathModel(reversed, tied) {
+        const T = AB.fx.datasets.transactions, P = T.setsAndPaths.path;
+        const all = reversed ? [Object.assign({ weight: "amount", meaning: "farther" }, P.asDistance)] : foundRoutes(P, tied);
+        if (AB.pathRouteAt >= all.length) AB.pathRouteAt = 0;
+        const r = all[AB.pathRouteAt];
         const route = reversed ? r.route.slice().reverse() : r.route;
         const tr = reversed ? r.transfers.slice().reverse() : r.transfers;
         const n = route.length;
-        const [from, to] = reversed ? [P.to, P.from] : [P.from, P.to];
-        const selAll = () => AB.flash("Selects the path's accounts and transfers (not wired in the skeleton)");
+        // the ends the reader picked, read from the account rows (the fixture's ends carry their own)
+        const acct = (id) => [P.from, P.to].concat(T.rows).find((x) => x.id === id) || { id };
+        const [from, to] = reversed ? [P.to, P.from] : [acct(r.from || P.from.id), acct(r.to || P.to.id)];
+        const selAll = () => AB.flash("Selects the path's accounts and transfers");
         const size = AB.count(n, "account") + ", " + AB.count(r.hops, "transfer");
         const late = tr.map((t, k) => k > 0 && t.timestamp < tr[k - 1].timestamp);
-        const flags = tr.map((t, k) => (late[k] ? "step " + (k + 1) + " (" + day(t.timestamp) + ") is earlier than hop " + k + " (" + day(tr[k - 1].timestamp) + ")" : null)).filter(Boolean);
+        const flags = tr.map((t, k) => (late[k] ? "step " + (k + 1) + " (" + day(t.timestamp) + ") is earlier than the hop before (" + day(tr[k - 1].timestamp) + ")" : null)).filter(Boolean);
+        // Members states the hop count and the path's total of its weight attribute ("3 transfers, 22,397.82 amount")
+        const total = tr.reduce((a, t) => a + t.amount, 0);
+        const head = AB.count(r.hops, "transfer") + (r.weight === "amount" ? ", " + fmtAmount(total) + " amount" : "");
         const members = [h("div", { class: "igs-hops", style: COLS + ";font-weight:550" }, h("span", null, "Transfer"), h("span", null, "Date"), h("span", null, "Dates in order"))];
         route.forEach((id, k) => {
             members.push(acctRow(id, k === 0 ? "start" : k === n - 1 ? "end" : "via"));
             const got = k > 0 ? tr[k - 1].amount : 0, sent = k < n - 1 ? tr[k].amount : 0;
             members.push(h("div", { class: "igs-hops", style: "padding-left:16px" }, "Total amount " + [got ? "in " + fmtAmount(got) : null, sent ? "out " + fmtAmount(sent) : null].filter(Boolean).join(" / ") + ", this trace"));
-            if (tr[k]) members.push(h("div", { class: "igs-hops", style: COLS + ";margin-bottom:4px" }, h("span", null, "step " + (k + 1) + ", " + fmtAmount(tr[k].amount)), h("span", null, day(tr[k].timestamp)), h("span", { class: late[k] ? "k-strong" : null }, late[k] ? "No" : "Yes")));
+            // A hop that goes back in time is drawn dashed, with a clock mark, and named in its row
+            if (tr[k]) members.push(h("div", { class: "igs-hops", style: COLS + ";margin-bottom:4px" + (late[k] ? ";border:1px dashed var(--cm-border-strong, var(--cm-border));border-radius:4px" : "") },
+                h("span", null, "step " + (k + 1) + ", " + fmtAmount(tr[k].amount)), h("span", null, day(tr[k].timestamp)), h("span", { class: late[k] ? "k-strong" : null }, late[k] ? "No" : "Yes"),
+                late[k] ? h("span", { style: "grid-column:1 / -1;display:flex;align-items:center;gap:4px" }, icon("clock", "sm"), "earlier than the hop before") : null));
         });
+        // The trace ends with one computed summary line
+        const ts = tr.map((t) => t.timestamp).sort();
+        members.push(h("div", { class: "igs-hops", style: "padding:4px 8px 0 16px;font-weight:550" },
+            "This trace: " + head + ", " + day(ts[0]) + " to " + day(ts[ts.length - 1]) + ", " + (flags.length ? AB.count(flags.length, "hop") + " earlier than the hop before" : "dates in order")));
         const accounts = T.nodes.toLocaleString("en-US");
+        const who = (x) => [x.id, x.kind, x.riskScore != null ? "riskScore " + x.riskScore : null, x.flagged ? "flagged" : null].filter(Boolean).join(", ");
         const dir = reversed ? "Either way" : "Follow it";
         return {
             title: from.id + " to " + to.id, icon: "route", color: "#D55E00", kind: "Path",
@@ -326,13 +411,15 @@
             set: { "node.color": "#D55E00", "edge.color": "#1A1A1A" },
             paints: h("div", { class: "ab-paints" }, act("Paints " + AB.count(n, "account") + ", " + AB.count(r.hops, "transfer"), selAll)),
             order: "Wins Color on " + n + " of " + n + ": nothing above it paints these accounts",
-            summary: [["Size", size, selAll], ["From", from.id + ", " + from.kind + ", riskScore " + from.riskScore + (from.flagged ? ", flagged" : "")], ["To", to.id + ", " + to.kind + ", riskScore " + to.riskScore + (to.flagged ? ", flagged" : "")], ["Sum of amount", fmtAmount(r.dollars)]],
-            membersSummary: "In path order, " + (flags.length ? AB.count(flags.length, "hop") + " out of time order" : "dates in order"),
+            summary: [["Size", size, selAll], ["From", who(from)], ["To", who(to)], ["Sum of amount", fmtAmount(r.dollars)]],
+            membersSummary: head,
+            membersOrder: "In path order, " + (flags.length ? AB.count(flags.length, "hop") + " earlier than the hop before" : "dates in order"),
+            membersLead: all.length > 1 ? routeStepper(all.length) : null,
             membersNote: AB.needsElement("graphty-element returns each hop's date, whether the dates run in order, and each account's amount in and out along the trace, as part of the path result"),
             membersFlag: flags.length ? AB.problem({ level: "partial", what: "Not in time order: " + flags.join("; ") + ".", todo: "Money cannot be passed on before it arrives, so this trace is not one chain of transfers." }) : null,
             members,
-            made: reversed ? [["Direction", "Either way"]] : [],
-            all: [["Weight", "amount (set at load), larger is farther"], ["Direction", dir], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
+            made: reversed ? [["Direction", "Either way"]] : tied ? [["Weight", "None: fewest transfers"]] : r.weight !== "amount" || r.meaning !== "stronger" ? [["Weight", (r.weight ? r.weight + ", " + r.meaning : "None") + " (this run's override)"]] : [],
+            all: [["Weight", r.weight ? r.weight + (r.weight === "amount" && r.meaning === "stronger" ? " (set at load)" : "") + ", larger is " + (r.meaning === "stronger" ? "stronger" : r.meaning === "capacity" ? "more capacity" : "farther") : "None: fewest transfers"], ["Direction", dir], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
         };
     }
 
@@ -359,7 +446,7 @@
         const route = doorRoute(p.from, p.to), edges = route.length - 1;
         const isB = (x) => /^B\d+$/.test(x);
         const size = route.length + " nodes, " + edges + (edges === 1 ? " edge" : " edges");
-        const sel = () => AB.flash("Selects the path's people and buildings (not wired in the skeleton)");
+        const sel = () => AB.flash("Selects the path's people and buildings");
         const w = p.weight ? p.weight + ", stronger: Dijkstra used 1/" + p.weight : "None: fewest edges";
         const over = (p.weight || null) !== (p.loaded || null);
         return {
@@ -370,7 +457,7 @@
             order: "Wins Color on " + route.length + " of " + route.length + ": nothing above it paints these nodes",
             summary: [["Size", size, sel], ["From", p.from], ["To", p.to], ["Via", route.slice(1, -1).join(", ") || "one entry edge"]],
             membersSummary: "In path order",
-            members: route.map((x, k) => AB.row({ label: x, icon: isB(x) ? "building-2" : "user", trail: k === 0 ? "start" : k === edges ? "end" : "hop " + k, onClick: () => AB.flash("Selects " + x + " (not wired in the skeleton)") })),
+            members: route.map((x, k) => AB.row({ label: x, icon: isB(x) ? "building-2" : "user", trail: k === 0 ? "start" : k === edges ? "end" : "hop " + k, onClick: () => AB.flash("Selects " + x + "") })),
             made: over ? [["Weight", (p.weight || "None") + " (this run's override)"]] : [],
             all: [["Weight", w], ["Direction", "Either way"], ["Scope", "Full graph, " + D.loadedTypes().total.toLocaleString("en-US") + " nodes"], ["Data version", D.tables.length + " tables, current"]],
         };
@@ -386,11 +473,34 @@
             set: {}, labels: [{ pos: "Above", field: "degree", type: "num" }],
             paints: ["Paints " + L.nodes + " nodes", SELECT],
             order: "Wins Label Above on " + L.nodes + " of " + L.nodes + ": nothing above it labels these nodes",
+            // Top-N labeling has no label option of its own: a row's selector (a top-N rule) picks the nodes
+            styleNote: ["To label only the highest, put the label line on a row whose rule picks them: ", lnk("Top 10 by degree", [SELF, "label-top-n"]), "."],
             summary: [["Size", L.nodes + " nodes, every node with a degree", SELECT]],
             membersSummary: "Not ranked",
             members: [AB.empty("Every node has a degree.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
             made: [],
             all: [["Attribute", "degree"], scope(L), version(L)],
+        };
+    }
+
+    // Labeling only the top N by a value: a rule set whose rule is a top-N rule (ties kept whole, AB.topN)
+    // carries the label line, so only its members are labeled. No label option does this.
+    function labelTopModel() {
+        const L = L0(), mem = AB.topN(L.rows, (r) => r.degree, 10), n = mem.length;
+        const rule = () => h("span", { class: "k-mono" }, "degree, top 10, ties kept");
+        return {
+            title: "Top 10 by degree", color: "#F0E442", icon: ruleGlyph(), kind: "Rule set",
+            provenance: ["from degree", "inspector-attribute-and-filter-step", "attribute"],
+            styleNote: RULE_NOTE,
+            set: {}, labels: [{ pos: "Above", field: "degree", type: "num" }],
+            paints: ["Paints " + n + " nodes", SELECT],
+            order: "Wins Label Above on " + n + " of " + n + ": nothing above it labels these nodes",
+            summary: [["Size", n + " nodes", SELECT], ["Degree", mem[n - 1].degree + " to " + mem[0].degree]],
+            membersSummary: "All " + n + ", by degree",
+            members: mem.map((r) => memberRow(r.label, String(r.degree))),
+            dist: mem.map((r) => [r.label, r.degree]), distOf: "degree",
+            made: [["Rule", rule()]],
+            all: [["Rule", rule()], ["Members", "Follow the data"], scope(L), version(L)],
         };
     }
 
@@ -429,18 +539,26 @@
         if (state.startsWith("kept-") && GROUPS[state.slice(5)]) return keptModel(state.slice(5));
         if (state === "overlap") return overlapModel();
         if (state === "watchlist") return watchlistModel();
+        if (state === "top-degree") return topDegreeModel();
         if (state === "rule-set") return ruleSetModel();
         if (state === "rule-set-empty") return ruleSetEmptyModel();
         if (state === "one-member") return oneMemberModel();
         if (state === "long-name") return longNameModel();
         if (state === "path-lesmis" || state === "arrows") return lesmisPathModel();
         if (state === "path-lesmis-2") return lesmisPath2Model();
-        if (state === "path" || state === "path-style") return pathModel();
+        if (state === "path-lesmis-found") return lesmisFoundModel();
+        if (state === "path" || state === "path-style" || state === "path-notes") return pathModel();
+        if (state === "path-tied") {
+            const lp = AB.lastPath;
+            if (!(lp && lp.ds === "transactions" && lp.routes && lp.routes.length > 1) && AB.tiedPath) AB.lastPath = AB.tiedPath();
+            return pathModel(false, !AB.tiedPath);
+        }
         if (state === "path-reversed") return pathModel(true);
         if (state === "path-edge-set") return edgeSetModel();
         if (state === "path-door-entries") return doorPathModel();
         if (LABELS[state]) return groupModel("2");
         if (state === "label-by") return labelByModel();
+        if (state === "label-top-n") return labelTopModel();
         // style, data, notes and the Style variants show Community 3, the row the tree selects beside them
         return communityModel("3");
     }
@@ -452,6 +570,10 @@
         if (state === "fill-set" && AB.route && AB.route.id === SELF) o.set["node.opacity"] = 0.8;
         if (state === "edges-side") { o.set["edge.color"] = m.set["node.color"]; o.kind = "edge"; }
         if (state === "arrows") { Object.assign(o.set, { "edge.arrowHead": "normal", "edge.arrowTail": "dot" }); o.kind = "edge"; o.selected = "edge.arrowHead"; }
+        // a line bound with its bind icon on this row (AB.boundOn) replaces the row's fixed value on that line
+        const mine = AB.boundOn(SELF + "/" + state);
+        Object.keys(mine).forEach((k) => delete o.set[k]);
+        if (Object.keys(mine).length) o.bound = Object.assign({}, o.bound, mine);
         const labels = LABELS[state] || m.labels;
         if (labels) { o.labels = labels; o.selected = "node.label"; }
         // The path's edges: one middle label (the date), and the head and tail captions
@@ -473,11 +595,21 @@
         // An attribute path takes the middle ellipsis (spec 2.5); the shared label line draws the end
         // ellipsis, so the long field's value is redrawn here with AB.truncMiddle
         // (again after every redraw of the tab's body). 16 characters fit the value column at 1024 wide.
-        const mid = () => tab.querySelectorAll('.ab-sline[data-ch="node.label"][data-bound] .k-grow.k-ellipsis').forEach((v) => {
-            const f = v.textContent;
-            if (f.length > 16) { v.classList.remove("k-ellipsis"); v.replaceChildren(AB.truncMiddle(f, 16)); }
-        });
-        if (labels) { mid(); new MutationObserver(mid).observe(tab, { childList: true, subtree: true }); }
+        const mid = () => {
+            tab.querySelectorAll('.ab-sline[data-ch="node.label"][data-bound] .k-grow.k-ellipsis').forEach((v) => {
+                const f = v.textContent;
+                if (f.length > 16) { v.classList.remove("k-ellipsis"); v.replaceChildren(AB.truncMiddle(f, 16)); }
+            });
+            // Temporary, until AB.styleTab's draft label line says it itself: README and spec 16.6 word an empty
+            // line "Pick a field" ("Label, Above: no field, draws nothing"); lib.js still writes "attribute"
+            tab.querySelectorAll('.ab-sline[data-ch="node.label"]:not([data-bound]) .ab-sv[aria-haspopup="menu"]').forEach((v) => {
+                const t = v.querySelector(".k-grow");
+                if (t && t.textContent === "Pick an attribute") t.textContent = "Pick a field";
+                const a = v.getAttribute("aria-label");
+                if (a && a.includes("no attribute")) v.setAttribute("aria-label", a.replace("no attribute", "no field"));
+            });
+        };
+        mid(); new MutationObserver(mid).observe(tab, { childList: true, subtree: true });
         if (state === "path-style") {
             const cap = () => [["edge.arrowHead", "amount"], ["edge.arrowTail", "no caption"]].forEach(([ch, t]) => {
                 const v = tab.querySelector('.ab-sline[data-ch="' + ch + '"] .k-field .k-grow');
@@ -504,12 +636,22 @@
             Summary: { summary: m.summary[0][1], // a row that selects (no route) keeps the link look a routed row gets from the shell
             body: m.summary.map(([k, v, go]) => (typeof go === "function" ? AB.data(k, h("span", { class: "ab-link" }, v), { onClick: go }) : AB.data(k, v, go ? { go } : null))) },
             Members: { summary: m.membersSummary, body: [m.dist && m.dist.length > 1 && AB.histogram ? AB.histogram(distModel(m.dist, m.distOf)) : null,
-                m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.membersSummary, m.membersNote ? [" ", m.membersNote] : null) : null,
+                m.membersLead || null,
+                m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.membersSummary, m.membersOrder ? ". " + m.membersOrder : null, m.membersNote ? [" ", m.membersNote] : null) : null,
                 m.membersFlag || null, m.members] },
             "Made with": { summary: m.made.length ? m.made.map((x) => x[0]).join(", ") : "All at their defaults", body: madeBody },
-            Notes: { count: m.notes || 0, target: ["notes-place", "about-selection"] },
+            Notes: { count: m.notes || 0, target: ["notes-place", (AB.route && AB.route.frame.dataset) === "doorEntries" ? "door-entries" : "all"] },
         }, { kind: "group" });
-        if (hot) { const n = parts[parts.length - 1]; n.classList.add("igs-hot"); n.id = "igs-notes"; }
+        const notes = parts[parts.length - 1];
+        // A note on a path carries the path's color swatch and the word "Path", not an icon only: the
+        // Notes section shows that chip, as the notes list and the note box draw it (notes-place's np-chip look)
+        if (m.kind === "Path" && notes) {
+            const chip = h("span", { class: "np-chip", "aria-label": "Path, " + m.title }, AB.chit(m.color, true), h("span", { style: "font-weight:550" }, "Path"), h("span", { class: "np-label k-ellipsis" }, m.title));
+            const line = h("div", { class: "np-chips", style: "padding:2px 16px 4px" }, h("span", { class: "np-on" }, "Note on:"), chip);
+            const body = notes.querySelector(".k-data, .ab-empty, [class*=empty]");
+            if (body) body.before(line); else notes.append(line);
+        }
+        if (hot) { notes.classList.add("igs-hot"); notes.id = "igs-notes"; }
         return parts;
     }
 
@@ -531,7 +673,7 @@
     }
 
     // ---------- the section ----------
-    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path", "path-reversed", "path-door-entries"];
+    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path-lesmis-found", "path", "path-reversed", "path-tied", "path-notes", "path-door-entries"];
     const baseOf = (state) => {
         const s = String(state || "style").replace(/\/all-options$/, "");
         return RENAMED[s] || s;
@@ -540,7 +682,7 @@
     // A run's group recolored from the Color popover (style-pickers draws it over this inspector and
     // reports no pick, so its swatch clicks are read here): saved against the category value, the field
     // and header follow, and the change is announced in words with Undo. ponytail: swatches only, not a typed hex.
-    let shown = null;
+    let shown = null, lastBase = null, lastLp = null;
     function recolor(hex, name) {
         hex = String(hex || "").trim();
         if (name && /^#[0-9A-F]{6}$/i.test(hex)) COLOR_NAMES[hex.toUpperCase()] = name;
@@ -563,31 +705,42 @@
         title: "Inspector: a group, set or path row",
         region: "right",
         rail: "graph",
-        frame: (state) => (/^path(-style|-reversed)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
+        frame: (state) => (/^path(-style|-reversed|-tied|-notes)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
             : baseOf(state) === "path-door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries-path", dock: false }
             : baseOf(state) === "long-name" ? { dataset: "nested", left: "graph-place/nested-set", canvas: "canvas-and-states/nested-set" } : { left: "graph-place/at-rest" }),
         // All options closes back to the row it opened from; everything else to the tree
         get closeTo() {
             const parts = location.hash.replace(/^#\/?/, "").split("/");
             return parts[0] === SELF && parts[parts.length - 1] === "all-options" ? SELF + "/" + parts.slice(1, -1).join("/")
-                : parts[1] === "path-door-entries" ? "graph-place/door-entries-path" : /^path(-style|-reversed)?$/.test(parts[1] || "") ? "graph-place/path-found" : "graph-place/at-rest";
+                : parts[1] === "path-door-entries" ? "graph-place/door-entries-path" : /^path(-style|-reversed|-tied|-notes)?$/.test(parts[1] || "") ? "graph-place/path-found" : "graph-place/at-rest";
         },
         states: STATES,
         render(el, state) {
             const base = baseOf(state);
             const options = /\/all-options$/.test(state);
+            // A new path, or another path state, opens on its first route
+            if (base !== lastBase || AB.lastPath !== lastLp) AB.pathRouteAt = 0;
+            lastBase = base; lastLp = AB.lastPath;
             const m = modelFor(base);
+            // A row renamed in the tree (graph-place keeps AB.renamedRows by tree row id) keeps its new name here
+            const rowId = { "kept-2": "g2", "kept-8": "g8", watchlist: "watchlist", "top-degree": "top" }[base];
+            AB.renamedRows = AB.renamedRows || {};
+            if (rowId && AB.renamedRows[rowId]) m.title = AB.renamedRows[rowId];
             el.append(AB.inspector({
                 icon: m.icon, swatch: m.color ? AB.chit(m.color, m.icon === "circle-dot" || m.icon === "circle-check" || m.kind === "Rule set") : null,
                 title: m.title, kind: m.kind, kindKey: "igs", locked: m.locked,
                 provenance: m.provenance,
                 menu: ["context-menus", "row"],
-                onRename: (name) => AB.flash("Renamed to " + name),
+                onRename: (name) => { if (rowId) AB.renamedRows[rowId] = name; AB.flash("Renamed to " + name); },
                 renameDisabled: m.renameDisabled || null,
                 tab: options || DATA_STATES.includes(base) ? "Data" : "Style",
-                tabs: { Style: () => styleTab(m, base), Data: () => dataTab(m, base, base === "notes") },
+                tabs: { Style: () => styleTab(m, base), Data: () => dataTab(m, base, base === "notes" || base === "path-notes") },
             }));
             el.firstChild.classList.add("igs");
+            // The Notes link opens the notes of the project on screen, beside this row (notes-place reads AB.noteKeep)
+            el.firstChild.addEventListener("click", (e) => {
+                if (e.target.closest && e.target.closest('a[href^="#/notes-place/"]')) AB.noteKeep = { right: SELF + "/" + state, dataset: (AB.route && AB.route.frame.dataset) || "lesmis" };
+            }, true);
             shown = { m, el: el.firstChild };
             // The popover lives in the overlay layer like every popover; the shell fills that layer after
             // this region, so it goes in a frame later. Its X, Esc and closeTo return to the row.
@@ -598,7 +751,7 @@
                 layer.hidden = false;
                 layer.append(pop);
                 requestAnimationFrame(() => requestAnimationFrame(() => { const f = pop.querySelector("[tabindex='0']"); if (f) f.focus(); })); });
-            if (base === "notes") requestAnimationFrame(() => { const n = el.querySelector("#igs-notes"); if (n) n.scrollIntoView({ block: "start" }); });
+            if (base === "notes" || base === "path-notes") requestAnimationFrame(() => { const n = el.querySelector("#igs-notes"); if (n) n.scrollIntoView({ block: "start" }); });
         },
     });
 })();

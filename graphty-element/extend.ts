@@ -290,7 +290,7 @@ export type { AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec } from "./sr
 export { declaredCaveats, forEachChunked } from "./src/algorithms/results/types";
 export type { RegisteredAlgorithm } from "./src/catalog/registry";
 export { clearRegisteredAlgorithmsForTesting, registeredAlgorithmDescriptors } from "./src/catalog/registry";
-export type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, ResultShape } from "./src/catalog/types";
+export type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, ResultShape, SuggestedName } from "./src/catalog/types";
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";

@@ -43,6 +43,7 @@ const EXAMPLES = {
     strongestTie: () => import("../../../docs/examples/simple-tier/strongest-tie"),
     components: () => import("../../../docs/examples/simple-tier/components"),
     rank: () => import("../../../docs/examples/simple-tier/rank"),
+    reach: () => import("../../../docs/examples/simple-tier/reach"),
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -349,6 +350,24 @@ describe("a whole-graph score", () => {
         const few = session().estimate({ op: "algo.run", algorithm: "acme-rank", params: { passes: 2 } });
         const many = session().estimate({ op: "algo.run", algorithm: "acme-rank", params: { passes: 200 } });
         assert.isAbove(many.seconds, few.seconds);
+    });
+});
+
+describe("a suggested name", () => {
+    it("names an unnamed run after the algorithm, and after the setting once it leaves its default", async () => {
+        await EXAMPLES.reach();
+
+        const plain = element.run("acme-reach");
+        const result = await plain;
+        assert.strictEqual(plain.id, "acme_reach");
+        assert.strictEqual(plain.label, "Acme reach");
+        assert.strictEqual(result.node("a")?.value, 3, "b and c in one step, d in two");
+
+        const three = element.run("acme-reach", { hops: 3 });
+        await three;
+        assert.strictEqual(three.id, "acme_reach_3");
+        assert.strictEqual(three.label, "Reach in 3 hops");
+        assert.strictEqual(element.run("acme-reach", { hops: 3 }).id, "acme_reach_3", "the same run again is the same result");
     });
 });
 

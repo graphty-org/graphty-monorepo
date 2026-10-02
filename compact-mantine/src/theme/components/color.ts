@@ -1,13 +1,12 @@
-import { ColorPicker, ColorSwatch, type MantineThemeComponent } from "@mantine/core";
+import { ColorSwatch, type MantineThemeComponent } from "@mantine/core";
 
 /**
  * The color package's Mantine theme extensions (design/figma-spec.md section 7). The CSS the
  * class names below point at is src/theme/css/color.css.ts.
  *
- * Mantine resolves HueSlider's and AlphaSlider's styles under the ColorPicker name, so the
- * ColorPicker extension's classNames style every color slider, standalone or inside a picker.
- * The two slider extensions carry the same class names as default props so that a consumer who
- * replaces the ColorPicker extension still gets themed sliders.
+ * The slider class names are default props of HueSlider and AlphaSlider, which the color picker
+ * (ColorPickerPanel) draws. Mantine's own ColorInput and ColorPicker are not themed: the
+ * package's color field is CompactColorInput, and a stock one renders as plain Mantine.
  */
 const SLIDER_CLASS_NAMES = {
     slider: "cm-color-slider",
@@ -45,14 +44,6 @@ export const colorComponentExtensions = {
             shadowOverlay: "cm-chit-shadow",
         },
         vars: (_theme, props) => ({ root: swatchVars(props) }),
-    }),
-
-    ColorPicker: ColorPicker.extend({
-        classNames: {
-            ...SLIDER_CLASS_NAMES,
-            saturation: "cm-color-mantine-saturation",
-            saturationOverlay: "cm-color-saturation-overlay",
-        },
     }),
 
     // HueSlider and AlphaSlider are plain forwardRef components (no `.extend`); useProps still

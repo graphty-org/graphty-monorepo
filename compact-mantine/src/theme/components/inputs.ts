@@ -1,6 +1,5 @@
 import {
     Autocomplete,
-    ColorInput,
     Combobox,
     FileInput,
     InputClearButton,
@@ -317,23 +316,6 @@ export const inputComponentExtensions = {
             },
         }),
         classNames: fieldClassNames("filled"),
-    }),
-
-    // A filled field with the 14px color chit at x+5 in a 24px leading slot (spec 6.7, 7.1).
-    ColorInput: ColorInput.extend({
-        defaultProps: { size: "sm", variant: "filled" },
-        vars: (_theme, props) => ({
-            root: {},
-            wrapper: compactVarsForSize(compactInputScale, props?.size),
-            eyeDropperIcon: { "--ci-eye-dropper-icon-size": "12px" },
-            eyeDropperButton: { "--ci-button-size": "24px" },
-            colorPreview: { "--ci-preview-size": "14px" },
-        }),
-        classNames: (theme, props) => ({
-            ...fieldClassNames("filled", "cm-color-field")(theme, props),
-            colorPreview: "cm-color-field-chit",
-            dropdown: "cm-popover-surface",
-        }),
     }),
 
     // Mantine's combobox targets omit aria-expanded unless asked; every themed target states it.

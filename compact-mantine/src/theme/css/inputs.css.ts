@@ -312,7 +312,7 @@ const css = `
     padding-inline-end: 0;
 }
 
-/* ---- PasswordInput, FileInput, ColorInput ---- */
+/* ---- PasswordInput, FileInput ---- */
 .cm-input-inner {
     color: var(--input-color);
     font-weight: 450;
@@ -324,15 +324,6 @@ const css = `
 }
 .cm-input-placeholder {
     color: var(--input-placeholder-color);
-}
-.cm-color-field.cm-input-wrapper {
-    --input-left-section-size: 24px;
-}
-/* The chit (spec 7.1): 14 x 14, radius 2, at x+5 of the 24px slot. Its radius is written on the
-   swatch and its layers directly: the swatch's own radius variable is set inline. */
-.cm-color-field .cm-color-field-chit,
-.cm-color-field .cm-color-field-chit > * {
-    border-radius: 2px;
 }
 
 /* ---- The clear (x) of a field ---- */

@@ -7,13 +7,12 @@
  * an 8px text inset, and the label is the field-row legend's text (a 9/14 500 0.27px caption in
  * a 16px band, 4px above the field).
  * Covers: TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete,
- * MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton.
+ * MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton.
  *
  * The Figma-capture comparisons, states and interactions are in tests/figma/inputs.browser.test.tsx.
  */
 import {
     Autocomplete,
-    ColorInput,
     FileInput,
     Input,
     JsonInput,
@@ -792,29 +791,6 @@ describe("JsonInput - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(<JsonInput label="Test" />);
             expectLegendLabel(styleOf(container, ".mantine-JsonInput-label"));
         });
-    });
-});
-
-// ============================================================================
-// ColorInput
-// ============================================================================
-describe("ColorInput - All CSS Values (Browser)", () => {
-    it("the wrapper is the filled field", () => {
-        const { container } = renderWithTheme(<ColorInput label="Test" defaultValue="#1a1a1a" />);
-        expectFilledField(styleOf(container, ".mantine-ColorInput-wrapper"));
-    });
-
-    it("the chit is 14px, radius 2, in a 24px slot; the text starts at 24", () => {
-        const { container } = renderWithTheme(<ColorInput label="Test" defaultValue="#1a1a1a" />);
-        const chit = styleOf(container, ".mantine-ColorInput-colorPreview");
-        expect(chit.width).toBe("14px");
-        expect(chit.borderTopLeftRadius).toBe("2px");
-        expect(styleOf(container, ".mantine-ColorInput-input").paddingLeft).toBe("24px");
-    });
-
-    it("the label is the field-row legend", () => {
-        const { container } = renderWithTheme(<ColorInput label="Test" />);
-        expectLegendLabel(styleOf(container, ".mantine-ColorInput-label"));
     });
 });
 

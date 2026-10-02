@@ -412,14 +412,6 @@ const css = `
 .cm-color-slider:focus-visible .cm-color-thumb,
 .cm-color-slider[data-state="focus"] .cm-color-thumb { margin-top: 1px; }
 
-/* Mantine's own ColorPicker, themed onto the same parts. */
-.cm-color-mantine-saturation {
-    border-radius: 5px;
-    outline: 1px solid var(--cm-border-translucent);
-    outline-offset: -1px;
-}
-.cm-color-mantine-saturation .cm-color-saturation-overlay { border-radius: 5px; inset: 0; }
-
 /* 7.5 Gradient editor: direction row, handles over a 32-tall bar, a Stops header, 32 rows. */
 .cm-gradient {
     box-sizing: border-box;

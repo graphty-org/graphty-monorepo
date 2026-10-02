@@ -52,7 +52,6 @@ describe("Input Component Extensions (Refactored)", () => {
                 "PillsInput",
                 "FileInput",
                 "JsonInput",
-                "ColorInput",
             ] as const;
 
             for (const name of inputComponents) {
@@ -94,7 +93,6 @@ describe("Input Component Extensions (Refactored)", () => {
             "PillsInput",
             "FileInput",
             "JsonInput",
-            "ColorInput",
         ] as const;
 
         it.each(fields)("%s has no inline styles", (name) => {

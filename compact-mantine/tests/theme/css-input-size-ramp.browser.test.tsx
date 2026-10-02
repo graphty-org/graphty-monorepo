@@ -2,21 +2,13 @@
  * The rendered height of every multi-value and native input follows its size prop.
  *
  * MultiSelect, TagsInput and PillsInput used to pin their field at a static
- * 24px min-height whatever size they were given, and NativeSelect and
- * ColorInput had no compact extension here at all (the graphty app styled
- * them itself, at one frozen size). Each is measured at every size token:
+ * 24px min-height whatever size they were given, and NativeSelect had no
+ * compact extension here at all (the graphty app styled it itself, at one
+ * frozen size). Each is measured at every size token:
  * the height must rise from xs to md to xl (20, 32, 44), and the default must
  * be the compact 24px.
  */
-import {
-    ColorInput,
-    MantineProvider,
-    type MantineSize,
-    MultiSelect,
-    NativeSelect,
-    PillsInput,
-    TagsInput,
-} from "@mantine/core";
+import { MantineProvider, type MantineSize, MultiSelect, NativeSelect, PillsInput, TagsInput } from "@mantine/core";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -36,7 +28,6 @@ const components: [string, Sized][] = [
         ),
     ],
     ["NativeSelect", (size) => <NativeSelect size={size} label="Field" data={["A", "B"]} />],
-    ["ColorInput", (size) => <ColorInput size={size} label="Field" />],
 ];
 
 /**

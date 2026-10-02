@@ -1126,16 +1126,6 @@ describe.skipIf(!available)("6.7 other inputs", () => {
         expectMeasured(part(container, "button"), { width: 24, height: 24 });
     });
 
-    it("ColorInput: filled field, 14px chit at x+5, text at x+24", async () => {
-        const { ColorInput } = await import("@mantine/core");
-        const { container } = await renderFigma(<ColorInput aria-label="Fill" defaultValue="#1a1a1a" />);
-        expectMeasured(field(container), { height: 24, backgroundColor: "#f5f5f5" });
-        const chit = part(container, ".cm-color-field-chit");
-        expectMeasured(chit, { width: 14, height: 14, borderTopLeftRadius: "2px" });
-        expect(chit.getBoundingClientRect().left - field(container).getBoundingClientRect().left).toBeCloseTo(5, 0);
-        expect(textInset(container)).toBeCloseTo(24, 1);
-    });
-
     it("no field animates (no transition on the field or its input)", async () => {
         const { container } = await renderFigma(<TextInput aria-label="Name" />);
         expect(computed(part(container, "input")).transitionDuration).toBe("0s");

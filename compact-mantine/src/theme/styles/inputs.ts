@@ -57,7 +57,7 @@ function growingVars(minHeight: string, paddingY: string, fontSize: string, line
 
 /**
  * Fixed-height fields: TextInput, NumberInput, Select, NativeSelect, PasswordInput,
- * Autocomplete, FileInput, ColorInput.
+ * Autocomplete, FileInput.
  */
 export const compactInputScale: CompactSizeScale = {
     compactSize: "sm",

@@ -268,6 +268,10 @@ the license text ships as `dist/fonts/LICENSE-Inter.txt`, and the package's lice
     `variant="filled"`.
 53. `Card` defaults to padding 8, radius 5, `withBorder` (a transparent edge) and no fill (was
     Mantine's md padding on the body color).
+54. Mantine's `ColorInput` and `ColorPicker` are no longer themed: the `ColorInput` and
+    `ColorPicker` theme extensions are removed, so both render as plain Mantine. Use
+    `CompactColorInput`; `ColorPickerPanel` is the picker on its own surface. `HueSlider` and
+    `AlphaSlider` keep their compact look.
 
 ## Known differences from Figma
 

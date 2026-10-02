@@ -4,7 +4,6 @@ import {
     Box,
     Button,
     Checkbox,
-    ColorInput,
     Group,
     HoverCard,
     Menu,
@@ -1598,7 +1597,7 @@ export const WorkedExampleInteractions: Story = {
 /**
  * Components with floating parts of their own, inside a pop-out. Every dropdown, menu and tooltip
  * here appears above the panel and can be used without dismissing it:
- * - Form Inputs: Select, Autocomplete, MultiSelect, TagsInput, ColorInput
+ * - Form Inputs: Select, Autocomplete, MultiSelect, TagsInput
  * - Overlays: Menu, Tooltip
  * - Custom: CompactColorInput, StyleSelect, GradientEditor
  *
@@ -1610,7 +1609,6 @@ export const ComponentCompatibility: Story = {
         const [selectValue, setSelectValue] = useState<string | null>("react");
         const [multiSelectValue, setMultiSelectValue] = useState<string[]>(["react"]);
         const [tagsValue, setTagsValue] = useState<string[]>(["tag1"]);
-        const [colorValue, setColorValue] = useState("#339af0");
         const [compactColor, setCompactColor] = useState<string | undefined>(undefined);
         const [compactOpacity, setCompactOpacity] = useState<number | undefined>(undefined);
         const [styleSelectValue, setStyleSelectValue] = useState<string | undefined>(undefined);
@@ -1714,12 +1712,6 @@ export const ComponentCompatibility: Story = {
                                                         onChange={setTagsValue}
                                                         data={["tag1", "tag2", "tag3"]}
                                                         placeholder="Add tags"
-                                                    />
-                                                    <ColorInput
-                                                        label="ColorInput"
-                                                        data-testid="test-colorinput"
-                                                        value={colorValue}
-                                                        onChange={setColorValue}
                                                     />
                                                 </Stack>
                                             </Popout.Content>

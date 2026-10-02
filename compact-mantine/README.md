@@ -54,6 +54,7 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Accessibility](#accessibility)
 - [TypeScript](#typescript)
 - [Which one should I use?](#which-one-should-i-use)
+    - [Use these instead of Mantine's](#use-these-instead-of-mantines)
 - [Breaking changes in the Figma release](#breaking-changes-in-the-figma-release)
 - [Contributing](#contributing)
 - [License](#license)
@@ -211,16 +212,16 @@ imported before this package's stylesheet as in the quick start.
 Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
 and you get larger sizes back.
 
-| Group      | Components                                                                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs     | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
-| Buttons    | Button, ActionIcon, CloseButton                                                                                                                                             |
-| Controls   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                              |
-| Color      | ColorSwatch, ColorPicker, HueSlider, AlphaSlider                                                                                                                            |
-| Display    | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill                                                                                                          |
-| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                                          |
-| Feedback   | Loader, Progress, RingProgress, Notification                                                                                                                                |
-| Overlays   | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea                                                                                                         |
+| Group      | Components                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs     | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton |
+| Buttons    | Button, ActionIcon, CloseButton                                                                                                                                 |
+| Controls   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                  |
+| Color      | ColorSwatch, HueSlider, AlphaSlider                                                                                                                             |
+| Display    | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill                                                                                              |
+| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                              |
+| Feedback   | Loader, Progress, RingProgress, Notification                                                                                                                    |
+| Overlays   | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea                                                                                             |
 
 A few defaults are worth knowing: `Badge` defaults to the outlined look
 (`variant="filled"` and `"light"` are the brand looks); `Kbd` is Figma's dark key
@@ -894,6 +895,17 @@ A lone boolean is not a row: put it in the trailing slot of the row it modifies,
 segment of a `SegmentedControl`. `ToggleRowGroup` warns in development when given only one child,
 for exactly this reason.
 
+### Use these instead of Mantine's
+
+Where this package has its own component for a job a stock Mantine component also does, the
+theme leaves the Mantine one unstyled, so it renders exactly as Mantine documents it. Use these
+instead to get the compact, Figma-matched look:
+
+| Mantine component | Use instead                                                                  |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `ColorInput`      | `CompactColorInput`                                                          |
+| `ColorPicker`     | `CompactColorInput`, or `ColorPickerPanel` for the picker on its own surface |
+
 Every component puts its own name, in kebab case, on a root `data-testid` --
 `advanced-button`, `metric-row`, `popout-panel` -- so a test can find any of
 them the same way.
@@ -949,6 +961,9 @@ page has the migrations.
     both schemes, `Modal` has no backdrop by default, `Loader` at `sm` is 16px, and
     `PopoutButton` defaults to `sm` and shows its open state as the ghost button's
     `aria-expanded` look.
+16. **Mantine's `ColorInput` and `ColorPicker` are no longer themed.** They render as plain
+    Mantine. Use `CompactColorInput` (see
+    [Use these instead of Mantine's](#use-these-instead-of-mantines)).
 
 ## Contributing
 

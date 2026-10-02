@@ -51,15 +51,15 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.NativeSelect).toBeDefined();
     });
 
-    it("exports ColorInput extension (spec 6.7: a filled field with a chit)", () => {
-        expect(inputComponentExtensions.ColorInput).toBeDefined();
+    // CompactColorInput is the package's color field; a stock ColorInput renders as plain Mantine.
+    it("leaves Mantine's ColorInput unstyled", () => {
+        expect(inputComponentExtensions).not.toHaveProperty("ColorInput");
     });
 
-    it("exports all 15 input components", () => {
+    it("exports all 14 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(15);
+        expect(components).toHaveLength(14);
         expect(components).toContain("NativeSelect");
-        expect(components).toContain("ColorInput");
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");
         expect(components).toContain("Select");

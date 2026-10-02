@@ -46,7 +46,7 @@ const HEALTH_WAIT_MS = 30_000;
 const HEALTH_POLL_MS = 250;
 /** A lock with no owner.json is stale after this long. */
 const LOCK_STALE_MS = 60_000;
-/** At most one restart for a wedged loop per this long. */
+/** At most one restart for a wedged loop, and one start of code that failed to start, per this long. */
 const RESTART_EVERY_MS = 15 * 60_000;
 const HEARTBEAT_MS = 60_000;
 const HEARTBEAT_JITTER_MS = 10_000;
@@ -489,6 +489,14 @@ export async function ensureDaemon(ctx) {
         if (ours(ctx, health) && health.codeHash === target.hash && ticking(ctx, health))
             return { url: url(health), action: "warm" };
 
+        // A start that failed is not retried for 15 minutes, and pages once per code hash.
+        const failFile = join(ctx.stateDir, "start-failed.json");
+        const failed = readJson(failFile);
+        const failedBefore = failed?.codeHash === target.hash;
+        if (failedBefore && ctx.now().getTime() - Date.parse(failed.at) < RESTART_EVERY_MS) {
+            throw new Error(`${failed.reason} (at ${failed.at}; next try 15 minutes after that)`);
+        }
+
         const live = record && sameProcess(record) ? record : null;
         /** @type {"started" | "restarted"} */
         let action;
@@ -521,9 +529,12 @@ export async function ensureDaemon(ctx) {
         if (!up) {
             const reason = `githerd daemon failed to start: ${error}`;
             logLine(ctx, "error", reason);
-            await page(ctx, reason);
+            const at = ctx.now().toISOString();
+            writeFileSync(failFile, `${JSON.stringify({ codeHash: target.hash, at, reason })}\n`);
+            if (!failedBefore) await page(ctx, reason);
             throw new Error(reason);
         }
+        rmSync(failFile, { force: true });
         return { url: url(up), action };
     } finally {
         releaseLock(ctx);

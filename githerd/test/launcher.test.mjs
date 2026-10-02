@@ -436,13 +436,20 @@ describe("restarts and upgrades", () => {
         expect(calls()).toEqual([]);
     });
 
-    it("logs and pages once when the daemon does not come up", async () => {
+    it("logs and pages once when the daemon does not come up, and retries only after 15 minutes", async () => {
         pushPackage("broken daemon", (pkg) =>
             writeFileSync(join(pkg, "bin", "githerd-daemon.mjs"), "process.exit(1);\n"),
         );
         const notifyLog = join(dir, "notify.log");
         writeConfig({ notify: { command: [process.execPath, FAKE_NOTIFY, notifyLog, "ok", "{status}", "{message}"] } });
-        await expect(ensureDaemon(context({ healthWaitMs: 1000 }))).rejects.toThrow(/failed to start/);
+        // three heartbeats in a row, then one 16 minutes later
+        for (let i = 0; i < 3; i++) {
+            await expect(ensureDaemon(context({ healthWaitMs: 1000 }))).rejects.toThrow(/failed to start/);
+        }
+        expect(starts()).toHaveLength(1);
+        const later = () => new Date(Date.now() + 16 * 60_000);
+        await expect(ensureDaemon(context({ healthWaitMs: 1000, now: later }))).rejects.toThrow(/failed to start/);
+        expect(starts()).toHaveLength(2);
         const log = readFileSync(join(root, ".githerd", "launcher.log"), "utf8");
         expect(log).toMatch(/ error githerd daemon failed to start: /);
         const pages = readFileSync(notifyLog, "utf8")

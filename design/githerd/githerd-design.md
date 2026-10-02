@@ -168,7 +168,10 @@ as a clear error instead of a missing server.
      githerd`, because `start` with an unchanged command returns "existing" and does nothing;
    - poll `/health` every 250 ms for up to 30 seconds until it reports the expected hash, then
      remove the lock. On timeout, append an `error` line to `.githerd/launcher.log` and run the
-     notify command once with "githerd daemon failed to start: <reason>".
+     notify command once with "githerd daemon failed to start: <reason>". The failure is recorded
+     in `.githerd/start-failed.json` with the code hash; for 15 minutes after it, launchers report
+     the recorded reason without starting anything, and the same hash never pages again. A
+     successful start removes the file.
    A launcher restarts the daemon for wedging at most once per 15 minutes, recorded in
    `.githerd/last-restart.json`, so a fault that survives restarts does not become a restart loop.
 7. **Start lock.** `mkdir <root>/.githerd/start.lock`, then write `owner.json` inside with the
@@ -296,7 +299,7 @@ Everything lives in `<root>/.githerd/` in the main checkout, which `.gitignore` 
 |---|---|---|
 | `daemon.json` | on daemon start | how launchers find the daemon, and the fence (section 3.2) |
 | `start.lock/` | by a starting launcher | directory lock with `owner.json` inside |
-| `last-restart.json`, `launcher.log` | by launchers | restart rate limit; launcher errors |
+| `last-restart.json`, `start-failed.json`, `launcher.log` | by launchers | restart and failed-start rate limits; launcher errors |
 | `state.json` | atomically on every change | everything the daemon needs to resume |
 | `state.json.bak` | before each rewrite | the previous good state |
 | `ledger.jsonl`, `ledger-YYYY-MM.jsonl` | appended on every event and action | the journal; monthly rotation |

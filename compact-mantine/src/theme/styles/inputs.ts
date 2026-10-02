@@ -165,12 +165,20 @@ export const compactDropdownStyles = {
 export const compactMultiValueStyles = {
     input: {
         ...compactInputStyles.input,
-        minHeight: 24,
+        // A floor, not a height: the field starts at its size's --input-height
+        // and still grows when the pills wrap onto a second line. A static 24
+        // here once pinned every size to 24px.
+        minHeight: "var(--input-height)",
         height: "auto",
         display: "flex",
         alignItems: "center",
-        paddingTop: 4,
-        paddingBottom: 4,
+        // 1px, because the smallest size has no room for more: Mantine draws
+        // TagsInput's and PillsInput's text field 1.6em tall, which at xs (10px
+        // text) is 16px, and 16 + 2 x 1 + the 2px border is exactly xs's 20px.
+        // An xs pill is 14px, so it fits too. 4px here made every field with a
+        // text box in it at least 27.6px tall at the 24px compact size.
+        paddingTop: 1,
+        paddingBottom: 1,
     },
     pillsList: {
         columnGap: 4,
@@ -222,8 +230,24 @@ function compactInputVarsNoHeightAt(fontSize: string): CompactVars {
 }
 
 /**
+ * The compact input variables for a field that starts at one height and grows
+ * with its content: --input-height (which Mantine reads as the field's
+ * min-height) without --input-size (which Mantine reads as its height, and
+ * which would clip a second line of pills).
+ * @param height - the field's minimum height
+ * @param fontSize - the size the field's own text is set in
+ * @returns the wrapper variables for a growing field at that size
+ */
+function compactInputVarsMinHeightAt(height: string, fontSize: string): CompactVars {
+    return {
+        ...compactInputVarsNoHeightAt(fontSize),
+        "--input-height": height,
+    };
+}
+
+/**
  * Per-size wrapper variables for the fixed-height compact inputs: TextInput,
- * Select, PasswordInput, Autocomplete and FileInput.
+ * Select, PasswordInput, Autocomplete, FileInput, NativeSelect and ColorInput.
  *
  * The heights follow compactButtonScale's ramp (20/24/30/36/44) so a field and a
  * button asked for the same size still line up beside each other in a row.
@@ -241,8 +265,8 @@ export const compactInputScale: CompactSizeScale = {
 };
 
 /**
- * Per-size wrapper variables for the compact inputs that size themselves to
- * their content: Textarea, TagsInput, PillsInput and JsonInput.
+ * Per-size wrapper variables for the multi-line compact inputs that size
+ * themselves to their content: Textarea and JsonInput.
  */
 export const compactInputNoHeightScale: CompactSizeScale = {
     compactSize: "sm",
@@ -302,5 +326,20 @@ export const compactMultiSelectScale: CompactSizeScale = {
         md: { ...compactInputVarsAt("30px", "13px"), "--combobox-chevron-size": "14px" },
         lg: { ...compactInputVarsAt("36px", "15px"), "--combobox-chevron-size": "16px" },
         xl: { ...compactInputVarsAt("44px", "17px"), "--combobox-chevron-size": "18px" },
+    },
+};
+
+/**
+ * Per-size wrapper variables for TagsInput and PillsInput: a field that starts
+ * at compactInputScale's height for its size and grows as its pills wrap.
+ */
+export const compactMultiValueScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: compactInputVarsMinHeightAt("20px", "10px"),
+        sm: compactInputVarsMinHeightAt("24px", "11px"),
+        md: compactInputVarsMinHeightAt("30px", "13px"),
+        lg: compactInputVarsMinHeightAt("36px", "15px"),
+        xl: compactInputVarsMinHeightAt("44px", "17px"),
     },
 };

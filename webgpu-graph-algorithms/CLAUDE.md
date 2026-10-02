@@ -152,7 +152,9 @@ SKIPS the comparison entirely when `gpu-report.json`'s nvidia-smi sample shows u
 software session; watch the SM clock too (`nvidia-smi --query-gpu=clocks.sm,pstate`): NVIDIA's power management leaves
 the card at its idle 210 MHz (P8) under sparse sub-millisecond dispatches, and a kernel timed there reads 4-15x slower
 (G3 finding G3-F1; the `layout-exact` group's clock warm-up burst is the countermeasure, the `roundtrip` rows measured
-after the `upload` group still see it). `test/benchmarks.test.ts` proves the harness, the datasets, every branch of
+after the `upload` group still see it). On the T4 lane `gpu.yml` locks the SM clock at the card's maximum for the
+bench and records it: `gpu-clocks.json` in the run's artifact holds each group's min and median clock
+(`gpu-report.js --clocks`), and `bench-compare.js` quotes it beside a regression. `test/benchmarks.test.ts` proves the harness, the datasets, every branch of
 `bench-compare.js`, the ladder table, the 7.8 rule and the driver's helpers without a GPU. Browser numbers (T-3 in
 Chromium, T-5) arrive through the `appendBenchRecord` command of `vitest.config.ts` from `bench`-tagged browser tests
 (`test/browser/bench.test.ts`, run only under `GRAPHTY_BROWSER_GPU=nvidia`) into `benchmarks/out/<the browser's runner

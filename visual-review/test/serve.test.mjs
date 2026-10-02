@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished,
 
 import { parsePasskeys, verifyApproval, verifyRecord } from "../trusted/lib/approval.mjs";
 import { downloadCaptures, hurry, newestMasterCapture, withRetries } from "../trusted/lib/github.mjs";
-import { createApp } from "../trusted/lib/serve.mjs";
+import { createApp, pageFiles, STALE_PAGE } from "../trusted/lib/serve.mjs";
 import { thumbnail } from "../trusted/lib/thumbs.mjs";
 import { PNG } from "pngjs";
 import {
@@ -288,6 +288,56 @@ describe("serve: access", () => {
         expect(page.status).toBe(200);
         expect(page.headers.get("content-security-policy")).toContain("default-src 'self'");
         expect(await page.text()).toContain("review.js");
+    });
+
+    it("never lets index.html be cached, and names each page file by this version, cached for good", async () => {
+        const s = await start({ gh: onePr() });
+        const index = await fetch(`${s.origin}/`);
+        expect(index.headers.get("cache-control")).toBe("no-store");
+        const html = await index.text();
+        const version = html.match(/src="review\.js\?v=([0-9a-f]{16})"/)?.[1];
+        expect(version).toBeDefined();
+        expect(html).toContain(`href="review.css?v=${version}"`);
+        const script = await fetch(`${s.origin}/review.js?v=${version}`);
+        expect(script.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+        const js = await script.text();
+        expect(js).toContain(`from "/passkey.js?v=${version}"`);
+        expect(js).toContain(`from "/pixelmatch.mjs?v=${version}"`);
+        // Asked for by another version's URL, or by none: the current file, never cached.
+        for (const path of ["/review.js?v=0123456789abcdef", "/review.js", "/passkey.js"]) {
+            const res = await fetch(`${s.origin}${path}`);
+            expect(res.status).toBe(200);
+            expect(res.headers.get("cache-control")).toBe("no-store");
+        }
+    });
+
+    it("gives the page files a new version when any of them changes, and the same one when none does", () => {
+        const { version } = pageFiles();
+        expect(pageFiles().version).toBe(version);
+        const read = (edit) => (file) => {
+            const body = readFileSync(new URL(`../trusted/lib/${file}`, import.meta.url));
+            return file.endsWith(edit) ? Buffer.concat([body, Buffer.from("\n")]) : body;
+        };
+        for (const file of ["review.js", "review.css", "passkey.js", "index.html", "pixelmatch.mjs"]) {
+            expect(pageFiles(read(file)).version).not.toBe(version);
+        }
+    });
+
+    it("tells a page from another version of the server to reload, before blaming its token", async () => {
+        const s = await start({ gh: onePr() });
+        const { version } = pageFiles();
+        const old = await s.api("GET", "/api/prs?cached=1", undefined, {
+            "x-review-version": "0123456789abcdef",
+            "x-review-token": "wrong",
+        });
+        expect(old.status).toBe(409);
+        expect(old.body).toEqual({ error: STALE_PAGE, stale: true });
+        expect((await s.api("GET", "/api/prs?cached=1", undefined, { "x-review-version": version })).status).toBe(200);
+        const wrong = await s.api("GET", "/api/prs?cached=1", undefined, {
+            "x-review-version": version,
+            "x-review-token": "wrong",
+        });
+        expect(wrong.status).toBe(401);
     });
 
     it("refuses a state-changing request from a foreign origin", async () => {
@@ -1327,7 +1377,14 @@ describe("serve: passkeys", () => {
 
     it("needs nothing while no key is known", async () => {
         const s = await startWithPulls();
-        expect((await s.api("GET", "/api/passkeys")).body).toEqual({ rpId: "127.0.0.1", keys: [], required: false });
+        expect((await s.api("GET", "/api/passkeys")).body).toEqual({
+            rpId: "127.0.0.1",
+            keys: [],
+            required: false,
+            problem: null,
+            waiting: null,
+            preview: false,
+        });
         await decide(s, "badge--default.light.png");
         expect((await s.api("POST", "/api/finish-prepare", { id: "123" })).body).toEqual({ required: false });
         const { job } = await finishJob(s, "123");
@@ -1362,10 +1419,11 @@ describe("serve: passkeys", () => {
             KEY.entry.id,
         );
         expect(s.opened[0]).toMatchObject({ head: body.branch, base: "master" });
-        expect((await s.api("GET", "/api/passkeys")).body).toEqual({
+        expect((await s.api("GET", "/api/passkeys")).body).toMatchObject({
             rpId: "127.0.0.1",
             keys: [{ id: KEY.entry.id, rpId: "127.0.0.1", label: "iPad Keychain", pending: true }],
             required: true,
+            problem: null,
         });
         expect((await registerKey(s)).body.error).toBe("this passkey is already registered");
 

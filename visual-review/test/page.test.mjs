@@ -997,6 +997,37 @@ describe("review page: waits that say what they wait for", () => {
         await expect.poll(() => page.locator("#listline").textContent()).toMatch(/^Updated \d+ s agoRefresh$/);
     });
 
+    it("asks for the list less and less often while the first load runs, still showing its progress", async () => {
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        let asked = 0;
+        await open(
+            (r) => {
+                server.on("request", (req) => (asked += req.url.startsWith("/api/prs") ? 1 : 0));
+                const gh = onePr()(r);
+                return {
+                    gh: async (args, input) => {
+                        if (args[1]?.includes("/pulls?")) {
+                            await held;
+                        }
+                        return gh(args, input);
+                    },
+                };
+            },
+            { review: false },
+        );
+        await expect.poll(() => box("detail")).toBe("Listing pull requests");
+        const from = asked;
+        await new Promise((resolve) => setTimeout(resolve, 6000));
+        // From 1 s growing to 5 s: at most 4 more in 6 s (every 0.7 s would be 8 or more).
+        expect(asked - from).toBeLessThanOrEqual(4);
+        expect(asked - from).toBeGreaterThanOrEqual(2);
+        expect(await box("detail")).toBe("Listing pull requests");
+        expect(await box("elapsed")).toMatch(/^\d+ s$/);
+        release();
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
+    }, 30000);
+
     it("lists captures still downloading, and fills the rows in when they land", async () => {
         let release;
         const held = new Promise((resolve) => (release = resolve));
@@ -1208,8 +1239,36 @@ describe("review page: the wait box", () => {
         // The targets stay usable meanwhile.
         expect(await page.getByRole("button", { name: "Review", exact: true }).first().isEnabled()).toBe(true);
         release();
-        await expect.poll(status).toBe("");
+        // The page asks again within 5 s (it backs off while the server works).
+        await expect.poll(status, { timeout: 10000 }).toBe("");
     }, 30000);
+});
+
+describe("review page: a page from another server", () => {
+    it("says the page is out of date when its script is another version than the server", async () => {
+        await open((r) => ({ gh: onePr()(r) }), { review: false });
+        // The script of an older server: loaded by its own version's URL.
+        await page.route(`${origin}/`, async (route) => {
+            const res = await route.fetch();
+            const html = (await res.text()).replace(/review\.js\?v=\w+/, "review.js?v=0123456789abcdef");
+            await route.fulfill({ response: res, body: html });
+        });
+        await page.reload();
+        await expect.poll(() => page.locator("#stale p").textContent()).toBe("This page is out of date: reload it.");
+        expect(await page.locator("#stale button").textContent()).toBe("Reload");
+        expect(await box()).toBeNull();
+        await page.unroute(`${origin}/`);
+        await page.locator("#stale button").click();
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor();
+    });
+
+    it("reads a new session token pasted into the same tab", async () => {
+        await open((r) => ({ gh: onePr()(r) }), { review: false });
+        await page.goto(`${origin}/#token=${"w".repeat(43)}`);
+        await expect.poll(() => box("error")).toMatch(/wrong session token/);
+        await page.goto(`${origin}/#token=${TOKEN}`);
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor();
+    });
 });
 
 describe("review page: moving on", () => {
@@ -1704,6 +1763,56 @@ describe("review page: the passkey", () => {
         expect(verifyApproval(record, [entry], { origin })).toBeNull();
         expect(new Set(await page.evaluate(() => globalThis.whileAsking))).toEqual(new Set([true]));
     }, 90000);
+
+    it("offers Register passkey while the first list still loads, and it works", async () => {
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        const opened = [];
+        const r = await open(
+            (repo) => {
+                const gh = onePr()(repo);
+                return {
+                    gh: async (args, input) => {
+                        if (args[1] === "repos/{owner}/{repo}/pulls") {
+                            opened.push(JSON.parse(input));
+                            return JSON.stringify({ html_url: "https://gh/pull/500" });
+                        }
+                        if (args[1]?.includes("/pulls?")) {
+                            await held;
+                        }
+                        return gh(args, input);
+                    },
+                };
+            },
+            { review: false, host: "localhost" },
+        );
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("WebAuthn.enable");
+        await cdp.send("WebAuthn.addVirtualAuthenticator", {
+            options: {
+                protocol: "ctap2",
+                transport: "internal",
+                hasResidentKey: true,
+                hasUserVerification: true,
+                isUserVerified: true,
+                automaticPresenceSimulation: true,
+            },
+        });
+        await expect.poll(() => box("title")).toBe("Loading the pull requests");
+        // In the wait box, which covers the page while there is no list.
+        await page.locator("#wait-body").getByRole("button", { name: "Register passkey" }).click();
+        await expect
+            .poll(() => page.locator("#wait-body .passkey-line").textContent(), { timeout: 30000 })
+            .toBe(
+                "Passkey waiting for #500 to merge: Finish asks for it already, but the CI gate checks approvals only once it is merged.",
+            );
+        expect(await box("title")).toBe("Loading the pull requests");
+        const [entry] = parsePasskeys(git(r.remote, "show", `${opened[0].head}:visual-review/passkeys.json`));
+        expect(entry).toMatchObject({ rpId: "localhost" });
+        release();
+        await page.getByRole("button", { name: "Review", exact: true }).first().waitFor({ timeout: 10000 });
+        expect(await page.locator("#app .passkey-line").textContent()).toMatch(/^Passkey waiting for #500 to merge/);
+    }, 60000);
 
     it("says plainly that accepts are not yet protected while no passkey is registered", async () => {
         const r = await open((repo) => ({ gh: onePr()(repo) }), { review: false });

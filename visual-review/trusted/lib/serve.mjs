@@ -78,6 +78,35 @@ const STATIC = {
     "/pixelmatch.mjs": ["../vendor/pixelmatch.mjs", "text/javascript; charset=utf-8"],
     "/passkey.js": ["../page/passkey.js", "text/javascript; charset=utf-8"],
 };
+/**
+ * The page's files, each URL that names another carrying `?v=` and the version: a hash of every
+ * file, so a new server always loads its own scripts while a cached copy of the same version
+ * stays valid. The page sends the version with each /api request, so a page left open from an
+ * older server is told to reload instead of failing in a way that blames something else.
+ * @param {(file: string) => Buffer} read reads a file named relative to this one
+ * @returns {{ version: string, files: Record<string, [Buffer, string]> }} the version, and each
+ *     path's body and type
+ */
+export function pageFiles(read = (file) => readFileSync(join(HERE, file))) {
+    const raw = Object.fromEntries(Object.entries(STATIC).map(([path, [file]]) => [path, read(file)]));
+    const hash = createHash("sha256");
+    for (const [path, body] of Object.entries(raw)) {
+        hash.update(`${path}\0${body.length}\0`).update(body);
+    }
+    const version = hash.digest("hex").slice(0, 16);
+    const names = Object.keys(STATIC)
+        .filter((p) => p !== "/")
+        .map((p) => p.slice(1).replace(".", "\\."));
+    const linked = new RegExp(`(["'])(/?)(${names.join("|")})(["'])`, "g");
+    /** @type {Record<string, [Buffer, string]>} */
+    const files = {};
+    for (const [path, [, type]] of Object.entries(STATIC)) {
+        files[path] = [Buffer.from(raw[path].toString("utf8").replace(linked, `$1$2$3?v=${version}$4`)), type];
+    }
+    return { version, files };
+}
+export const STALE_PAGE = "This page is out of date: reload it";
+
 const HEADERS = {
     "content-security-policy":
         "default-src 'self'; img-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -366,6 +395,21 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
     let passkeyPr = null;
     /** The passkey pull request this server opened: listed until GitHub's list or the file has it. */
     let passkeyOpened = null;
+    /**
+     * What the targets screen and Finish's header say about the passkey, from what the last
+     * readPasskeys found. The Finish routes read the keys again themselves: this is for display.
+     * @returns {object} rpId, whether Finish requires a passkey, the keys, a problem, the waiting PR
+     */
+    const passkeyView = () => ({
+        rpId,
+        required: passkeyState.problem !== null || passkeyState.main.length + passkeyState.pending.length > 0,
+        keys: [
+            ...passkeyState.main.map(({ id, label, rpId: host }) => ({ id, label, rpId: host, pending: false })),
+            ...passkeyState.pending.map(({ id, label, rpId: host }) => ({ id, label, rpId: host, pending: true })),
+        ],
+        problem: passkeyState.problem,
+        waiting: passkeyPr,
+    });
     const busy = (t) => finishing && job?.target === t.id;
     const BUSY = "a Finish is running on this target: wait for it to end";
 
@@ -929,26 +973,7 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             startCommand,
             // What the targets screen and Finish's header say about the passkey. The Finish routes
             // read the keys again themselves: this is for display only.
-            passkey: {
-                rpId,
-                required: passkeyState.problem !== null || passkeyState.main.length + passkeyState.pending.length > 0,
-                keys: [
-                    ...passkeyState.main.map(({ id, label, rpId: host }) => ({
-                        id,
-                        label,
-                        rpId: host,
-                        pending: false,
-                    })),
-                    ...passkeyState.pending.map(({ id, label, rpId: host }) => ({
-                        id,
-                        label,
-                        rpId: host,
-                        pending: true,
-                    })),
-                ],
-                problem: passkeyState.problem,
-                waiting: passkeyPr,
-            },
+            passkey: passkeyView(),
             projects: t.projects.map((p) => {
                 const counts = {};
                 for (const item of p.results?.items ?? []) {
@@ -1382,17 +1407,10 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             });
             return [200, { accepted, unpublished: unpublishedOf(t) }];
         },
+        // The passkey line, read now: the page shows it while the target list still loads.
         "GET /api/passkeys": async () => {
-            const { main, pending } = await knownKeys();
-            const show = (k, isPending) => ({ id: k.id, rpId: k.rpId, label: k.label ?? null, pending: isPending });
-            return [
-                200,
-                {
-                    rpId,
-                    keys: [...main.map((k) => show(k, false)), ...pending.map((k) => show(k, true))],
-                    required: main.length + pending.length > 0,
-                },
-            ];
+            await readPasskeys();
+            return [200, { ...passkeyView(), preview: Boolean(results) }];
         },
         "POST /api/passkey-challenge": async () => {
             if (results) {
@@ -1665,15 +1683,17 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
 
     const finishLabel = (t) => (t.pr === null ? "the master seed" : `#${t.pr}`);
 
+    const page = pageFiles();
+
     const tokenOk = (given) => {
         const a = Buffer.from(String(given ?? ""));
         const b = Buffer.from(token);
         return b.length > 0 && a.length === b.length && timingSafeEqual(a, b);
     };
 
-    function send(res, status, body, type = "application/json") {
+    function send(res, status, body, type = "application/json", extra = {}) {
         const data = type === "application/json" ? JSON.stringify(body) : body;
-        res.writeHead(status, { ...HEADERS, "content-type": type });
+        res.writeHead(status, { ...HEADERS, "content-type": type, ...extra });
         res.end(data);
     }
 
@@ -1708,10 +1728,20 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                const entry =
+                    req.method === "GET" && Object.hasOwn(page.files, url.pathname) ? page.files[url.pathname] : null;
+                // index.html is never cached; a file asked for by this version's URL is for good.
+                const keep =
+                    url.pathname !== "/" && url.searchParams.get("v") === page.version
+                        ? { "cache-control": "public, max-age=31536000, immutable" }
+                        : {};
+                return entry ? send(res, 200, entry[0], entry[1], keep) : send(res, 404, { error: "not found" });
+            }
+            // A page from another version of this server (a tab left open across a restart): its
+            // script and this server no longer agree, whatever else the request says.
+            const asked = req.headers["x-review-version"];
+            if (asked !== undefined && asked !== page.version) {
+                return send(res, 409, { error: STALE_PAGE, stale: true });
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });

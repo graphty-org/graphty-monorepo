@@ -12,7 +12,13 @@
 import { approve, prepareRegistration, registerPasskey } from "/passkey.js";
 import pixelmatch from "/pixelmatch.mjs";
 
-const token = new URLSearchParams(location.hash.slice(1)).get("token") ?? "";
+const tokenIn = (hash) => new URLSearchParams(hash.slice(1)).get("token") ?? "";
+const token = tokenIn(location.hash);
+// The server's version this script came with (the ?v= it was loaded by). Sent with every request,
+// so the server can tell a page left open from another version of it (see stale below).
+const version = new URL(import.meta.url).searchParams.get("v");
+let staleText = null; // set once the server says this page is out of date
+const apiHeaders = { "x-review-token": token, ...(version ? { "x-review-version": version } : {}) };
 const app = document.getElementById("app");
 const bar = document.getElementById("bar");
 const statusRow = document.getElementById("status-row");
@@ -64,6 +70,7 @@ const saved = loadOptions();
 const reduceMotion = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
 const state = {
+    passkey: null, // GET /api/passkeys: the passkey line's state, read apart from the list
     list: null, // GET /api/prs?cached=1: the targets, when they were read, and any refresh running
     target: null, // summary of the pull request (or master) being reviewed
     project: null,
@@ -152,6 +159,9 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // Like replaceChildren, but a null child (a section that does not apply) is left out.
 function render(...children) {
+    if (staleText !== null) {
+        return;
+    }
     app.replaceChildren(...children.filter((c) => c !== null && c !== undefined && c !== false));
 }
 
@@ -197,6 +207,8 @@ function sayBusy(text, ...extra) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// How long to wait before asking the server again while it works: 1 s, growing to 5 s.
+const backoff = (ms) => Math.min(Math.round(ms * 1.5), 5000);
 
 // ---------------------------------------------------------------- the wait box
 
@@ -328,6 +340,9 @@ function block(title, { cancel = null, delay = SLOW_MS } = {}) {
         waitPart("elapsed").textContent = w.failed ? `Stopped after ${duration(s)}` : duration(s);
     };
     const show = () => {
+        if (staleText !== null) {
+            return;
+        }
         if (!w.ended && !waitOpen()) {
             const box = waitBox();
             box.showModal();
@@ -454,13 +469,37 @@ function ask(message, yes, { onYes = () => {}, label = null, unavailable = null,
     );
 }
 
+// This script and the server are different versions (the server restarted with new code while
+// the page stayed open): nothing the page does can work, so it says so in place of every screen.
+// The screens' own handling of the error that follows never draws over it.
+function stale(message) {
+    if (staleText !== null) {
+        return;
+    }
+    staleText = message;
+    nav++;
+    blocking?.end();
+    say("");
+    app.replaceChildren(
+        el(
+            "div",
+            { class: "error", id: "stale" },
+            el("p", {}, `${staleText}.`),
+            el("button", { type: "button", onclick: () => location.reload() }, "Reload"),
+        ),
+    );
+}
+
 async function api(path, body) {
     const res = await fetch(path, {
         method: body ? "POST" : "GET",
-        headers: { "x-review-token": token, ...(body ? { "content-type": "application/json" } : {}) },
+        headers: { ...apiHeaders, ...(body ? { "content-type": "application/json" } : {}) },
         body: body ? JSON.stringify(body) : undefined,
     });
     const json = await res.json().catch(() => ({}));
+    if (json.stale) {
+        stale(json.error);
+    }
     if (!res.ok) {
         const err = new Error(json.error ?? `${res.status} ${res.statusText}`);
         err.status = res.status;
@@ -503,7 +542,7 @@ function image(kind, file, hash, route = "img") {
         route === "img" ? IMAGES_KEPT : THUMBS_KEPT,
         () => {
             const path = [route, state.target.id, state.project, kind, file].map(encodeURIComponent).join("/");
-            return fetch(`/api/${path}`, { headers: { "x-review-token": token } }).then(async (res) => {
+            return fetch(`/api/${path}`, { headers: apiHeaders }).then(async (res) => {
                 if (!res.ok) {
                     throw new Error(`${file}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
                 }
@@ -813,6 +852,18 @@ async function followTargets(seq, ask) {
     const first = () =>
         box && !box.ended && !box.failed ? box : (box = block("Loading the pull requests", { delay: 0 }));
     const retry = () => showTargets("", true);
+    // The passkey line does not wait for the list: Register passkey works during the first load.
+    api("/api/passkeys").then(
+        (pk) => {
+            state.passkey = pk;
+            if (seq === nav) {
+                box?.update({ body: loadingPasskeyLine() });
+                drawTargets();
+            }
+        },
+        () => {},
+    );
+    let wait = 1000;
     for (;;) {
         let list;
         try {
@@ -852,6 +903,7 @@ async function followTargets(seq, ask) {
                 return;
             }
             first().update({
+                body: loadingPasskeyLine(),
                 text: "Reading the open pull requests and their CI runs from GitHub.",
                 detail: r ? stepText(r) : "Starting",
                 done: r?.done ?? null,
@@ -865,7 +917,8 @@ async function followTargets(seq, ask) {
         }
         ask = "cached";
         const busy = list.refreshing || !list.targets || list.targets.some((t) => t.downloading);
-        await sleep(busy ? 700 : 5000);
+        await sleep(busy ? wait : 5000);
+        wait = busy ? backoff(wait) : 1000;
         if (seq !== nav) {
             box?.end();
             return;
@@ -921,7 +974,7 @@ function drawTargets() {
     render(
         finishOutcome(),
         finishable ? signerBlock(finishable) : null,
-        finishable ? passkeyLine(finishable.passkey) : null,
+        passkeyLine(finishable?.passkey ?? (state.passkey?.preview ? null : state.passkey)),
         listLine(),
         targets.length === 0
             ? el("p", {}, "No open pull requests. To seed baselines, start the server with --master-run <run id>.")
@@ -938,6 +991,17 @@ function drawTargets() {
 }
 
 // ---------------------------------------------------------------- the passkey
+
+// The passkey line in the wait box of the first load (the box covers the page). One node per
+// state, so the box does not redraw it, and a focused button keeps its focus, on every poll.
+let loadingLine = [undefined, null];
+function loadingPasskeyLine() {
+    const pk = state.passkey?.preview ? null : state.passkey;
+    if (loadingLine[0] !== pk) {
+        loadingLine = [pk, passkeyLine(pk)];
+    }
+    return loadingLine[1];
+}
 
 const hasKeys = (pk) => (pk?.keys ?? []).length > 0;
 
@@ -1303,7 +1367,7 @@ async function loadProject(targetId, project, seq) {
         },
     });
     box.update({ text: `Reading the ${project} captures from the server.` });
-    for (;;) {
+    for (let wait = 1000; ; wait = backoff(wait)) {
         let data;
         try {
             data = await api(`/api/pr/${encodeURIComponent(targetId)}/${encodeURIComponent(project)}`);
@@ -1337,7 +1401,7 @@ async function loadProject(targetId, project, seq) {
             total: d?.total ?? null,
             net: networkLine(data.network, data.now),
         });
-        await sleep(700);
+        await sleep(wait);
         if (seq !== nav) {
             box.end();
             return null;
@@ -3840,7 +3904,7 @@ async function route() {
 // A link straight into a project has only its own target: the list for the header's Target picker
 // is read from the server's cache (no GitHub call), asking again while its first load runs.
 async function listForPickers() {
-    for (let tries = 0; tries < 60 && !state.list?.targets; tries++) {
+    for (let tries = 0, wait = 1000; tries < 60 && !state.list?.targets; tries++, wait = backoff(wait)) {
         try {
             const list = await api("/api/prs?cached=1");
             if (list.targets) {
@@ -3853,7 +3917,7 @@ async function listForPickers() {
         } catch {
             return;
         }
-        await sleep(1000);
+        await sleep(wait);
     }
 }
 
@@ -4102,7 +4166,9 @@ async function copyLink() {
 document.getElementById("home").addEventListener("click", () => showTargets());
 document.getElementById("copy-link").addEventListener("click", copyLink);
 document.getElementById("keys-button").addEventListener("click", toggleKeys);
-window.addEventListener("popstate", () => route());
+// A link with another session token pasted into this tab changes only the fragment, which keeps
+// this script and the token it read at load: reload, so the page reads the new one.
+window.addEventListener("popstate", () => (tokenIn(location.hash) === token ? route() : location.reload()));
 
 if (token === "") {
     render(el("p", { class: "error" }, "No session token: open the URL that visual-review serve printed."));

@@ -1,3 +1,11 @@
+## 3.5.3 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.24
+- Updated algorithms to 3.1.7
+- Updated layout to 2.0.7
+
 ## 3.5.2 (2026-10-02)
 
 ### 🧱 Updated Dependencies

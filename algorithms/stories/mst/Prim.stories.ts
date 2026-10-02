@@ -474,11 +474,18 @@ export const Prim: Story = {
         await expect(canvasElement.querySelectorAll("[data-order-badge]").length).toBe(args.nodeCount - 1);
         await expect(canvasElement.querySelectorAll("[data-mst-edge]").length).toBe(args.nodeCount - 1);
 
-        // Every node is reached by the drawn tree edges.
+        // The drawn tree edges connect every node to the start node: with n - 1 edges, that makes
+        // them a spanning tree (n - 1 edges merely touching every node could hold a cycle).
+        const ends = Array.from(treeLines, (l) => [l.getAttribute("data-source"), l.getAttribute("data-target")]);
         const reached = new Set([String(start)]);
-        for (const line of treeLines) {
-            reached.add(line.getAttribute("data-source") ?? "");
-            reached.add(line.getAttribute("data-target") ?? "");
+        for (let grew = true; grew; ) {
+            grew = false;
+            for (const [a, b] of ends) {
+                if (a !== null && b !== null && reached.has(a) !== reached.has(b)) {
+                    reached.add(a).add(b);
+                    grew = true;
+                }
+            }
         }
         await expect(reached.size).toBe(args.nodeCount);
 

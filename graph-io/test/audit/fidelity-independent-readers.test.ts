@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cx2Importer } from "../../src/formats/cx2/importer.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
 import { gexfImporter } from "../../src/formats/gexf/importer.js";
@@ -38,6 +39,7 @@ type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>> = {
     csv: csvImporter as GraphImporter<AnyImportOptions>,
+    cx2: cx2Importer as GraphImporter<AnyImportOptions>,
     dot: dotImporter as GraphImporter<AnyImportOptions>,
     gexf: gexfImporter as GraphImporter<AnyImportOptions>,
     gml: gmlImporter as GraphImporter<AnyImportOptions>,

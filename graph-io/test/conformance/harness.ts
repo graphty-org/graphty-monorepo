@@ -13,7 +13,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
@@ -239,6 +239,20 @@ function agrees(expected: unknown, actual: unknown): boolean {
 }
 
 /**
+ * A cell as a reader sees it: the value of a set row, the declared default of an unset one (CX2,
+ * GraphML and GEXF defaults answer for a missing value), else undefined.
+ * @param column - the column
+ * @param row - the row
+ * @returns the value
+ */
+function cellOf(column: Column, row: number): unknown {
+    if (column.isSet(row)) {
+        return column.value(row);
+    }
+    return column.meta.default === undefined ? undefined : column.value(row);
+}
+
+/**
  * Compare an import result with the expectation's counts and spot checks.
  * @param expected - the expectation
  * @param result - the import result
@@ -286,7 +300,7 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
             );
             continue;
         }
-        const actual = column.isSet(index) ? column.value(index) : undefined;
+        const actual = cellOf(column, index);
         if (!agrees(check.value, actual)) {
             problems.push(
                 `node ${JSON.stringify(check.id)} ${where}: expected ${JSON.stringify(check.value)}, got ${JSON.stringify(plain(actual))}`,
@@ -319,7 +333,7 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
         const column = snapshot.edges.get(check.column);
         let actual: unknown;
         if (column !== null) {
-            actual = column.isSet(e) ? column.value(e) : undefined;
+            actual = cellOf(column, e);
         } else if (check.column === "weight") {
             actual = weightOf(snapshot, arc);
         } else {

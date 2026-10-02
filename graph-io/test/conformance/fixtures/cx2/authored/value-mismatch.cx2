@@ -1,0 +1,6 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"d":{"d":"double"},"i":{"d":"integer"},"b":{"d":"boolean"},"l":{"d":"list_of_double"},"s":{"d":"string","v":"default"}}}]},
+{"nodes":[{"id":1,"v":{"d":"3.5"}},{"id":2,"v":{"i":3.7}},{"id":3,"v":{"i":2147483648}},{"id":4,"v":{"b":"true"}},{"id":5,"v":{"l":1.5}},{"id":6,"v":{"l":[1,"2"]}},{"id":7,"v":{"d":"NaN","s":"NaN"}},{"id":8,"v":{"s":null,"d":null}},{"id":9,"v":{"i":3.0,"d":-0}}]},
+{"status":[{"error":"","success":true}]}
+]

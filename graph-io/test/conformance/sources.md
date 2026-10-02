@@ -1233,3 +1233,87 @@ cross-check: it agrees on every file but `nucleus.json`, whose untyped nodes it 
 
 `authored/*.json` (3 files: the README's `subj` key, two graphs, an endpoint missing from
 `nodes`) are written by `tools/make_obo_fixtures.py` (MIT, authored).
+
+## 13. CX2 (`fixtures/cx2/`)
+
+Research date: 2026-10-02. The feature and error inventory is
+`design/graph-io/cytoscape-and-obo/research-cx2.md`; the mapping is section 1.3 of `design.md` in
+the same folder.
+
+### 13.1 Specification and readers
+
+- CX2 specification (Cytoscape Consortium / NDEx):
+  https://cytoscape.org/cx/cx2/specification/cytoscape-exchange-format-specification-(version-2)/ ;
+  CX2 visual styles: https://cytoscape.org/cx/cx2/cx2-visual-styles/ . There is no published JSON
+  Schema for a whole document.
+- Oracle: ndex2 3.12.0 (BSD-3-Clause), `CX2Network.create_from_raw_cx2`, through
+  `tools/oracle_cx2.py`. It needs networkx 3.4, so it runs in its own Python:
+  `uv venv tmp/cx/venv -p 3.10 && VIRTUAL_ENV=tmp/cx/venv uv pip install ndex2==3.12.0`, then
+  `tmp/cx/venv/bin/python test/conformance/tools/oracle.py cx2`. Positions are expected y-up.
+- Where ndex2 departs from the specification the fixture is hand-written (`"oracle": "spec"`) and
+  says so in `oracleDisagrees`: falsy defaults ignored, `3.7` truncated in an integer column, any
+  string but `"true"` read as false, the last `attributeDeclarations` block kept, aliases resolved
+  only for declarations that precede the elements, an undeclared column typed by its first value
+  (0.1 read as 0), dangling edges, bypasses and a missing or failed status accepted, a declaration
+  without `d` typed from its values (the Java reader reads string).
+- Second opinions read from source, not run: ndex-object-model `CXReader` (Java) and Cytoscape
+  Web's `validator.ts`.
+
+### 13.2 Real files
+
+Each file is copied unchanged. NDEx regenerates CX2 on request, so the NDEx copies are pinned by
+their SHA-256 here, never re-fetched; a network's license is its own `rights` attribute.
+| File | Origin | Version | License (where stated) | SHA-256 |
+| --- | --- | --- | --- | --- |
+| `ndex2-client/demo.cx2` | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/demo.cx2 | commit e6467d8 | BSD-3-Clause (ndex2-client LICENSE.txt) | `87d1b75325a0817b934f8d07e92b75d79853544ac69ae0fb92052d1133cadb1d` |
+| `ndex2-client/glypican2.cx2` | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2.cx2 | commit e6467d8 | BSD-3-Clause (ndex2-client LICENSE.txt) | `af847428ae84dc22d33797ff014d9e1fd9a5ac940b12c5c2e7cb2077b700a92f` |
+| `ndex2-client/no_edge_style2.cx2` | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/no_edge_style2.cx2 | commit e6467d8 | BSD-3-Clause (ndex2-client LICENSE.txt) | `87bc4f7fadcf3c19e10f69c5449f6fc96448b100fdef7ddb46c33355ced35733` |
+| `ndex-object-model/cx2_tiny.cx2` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny.cx2 | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `33a7384377cb7855c6a8dfa06f3de03d739f1c1d8d2f62d98bac126206b05b98` |
+| `ndex-object-model/cx2_tiny_double_and_longattribute.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny_double_and_longattribute.cx | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `c42c3e51ff29c252e3c9c2b3a1158e4742ec24e82b87b84939015fb72b5bed38` |
+| `ndex-object-model/cx2_empty.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_empty.cx | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `ec504a092124a9ddcc541f3f4f3db8465ccb8c456e75682998fedfd82290f03e` |
+| `ndex-object-model/cx2_aspect_after_postmetadata.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_aspect_after_postmetadata.cx | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `61f5f4f91887cb9ae809606d4ff9f985db5005a9ccd9c2e7d840ef592f50d72f` |
+| `ndex-object-model/cx2_metadata_after_normal_aspect.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_metadata_after_normal_aspect.cx | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `dd53c6a9165a7c59a3f0db9ee58f027c0e75fca31ae79f22a957e67d4dff4727` |
+| `ndex-object-model/cx2_pre_post_metadata.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_pre_post_metadata.cx | commit 44dad96 | BSD-3-Clause (ndex-object-model LICENSE) | `94269e05ae13e9c5ec485ea2fb01956cb32f2aee748dc43521c004f172b80341` |
+| `cytoscape-web/minimal.valid.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/minimal.valid.cx2 | commit c66154f | MIT (cytoscape-web LICENSE) | `1730e453eece0826990ff6a76e3adab0394f435949fd66d44d712b458d09781e` |
+| `cytoscape-web/with-cartesian-layout.valid.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/with-cartesian-layout.valid.cx2 | commit c66154f | MIT (cytoscape-web LICENSE) | `2882b465899ee15987992860669df13937c4636ebbf55957bc154e49ac9ecb94` |
+| `cytoscape-web/svg-passthrough.valid.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/svg-passthrough.valid.cx2 | commit c66154f | MIT (cytoscape-web LICENSE); data: Cytoscape's galFiltered sample | `14affd586c74b340e20385b3767744fc651db194e3d7e22bdbdd6ba6f7170fb1` |
+| `cytoscape-web/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2 | commit c66154f | MIT (cytoscape-web LICENSE); network rights CC0 (WikiPathways WP5049) | `645cbce30731873723e53c3dc4162dec80297244e14eb716a997539ee46f59a0` |
+| `cytoscape-web/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2 | commit c66154f | MIT (cytoscape-web LICENSE); network rights MIT (MuSIC v1 hierarchy) | `c9966bb90524cff9af6cb4e3ff3f73b2d8fbc1caffa73851996121ddb5e6ffa8` |
+| `cytoscape-web/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2 | commit c66154f | MIT (cytoscape-web LICENSE) | `5410e9527f9015cc60c3ff6e61c2ab4dfbcb49b1f37501fd6ab368d33259c3c7` |
+| `ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2` | https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf | retrieved 2026-10-02 | CC0 (network rights: Waiver-No Rights Reserved (CC0), holder WikiPathways) | `0aa7058d667a6e4a8431f08990cc7b34acc442d8f3750cab9c9e14313d5c06fc` |
+| `ndex/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf.cx2` | https://www.ndexbio.org/v3/networks/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf | retrieved 2026-10-02 | CC0 (network rights: Waiver-No rights reserved (CC0)) | `2f69beb1b68996ba27ea5a6b76df058ed62ff17b2b33be67c6def14cd77ea4cd` |
+| `ndex/c370fda6-c69c-11e8-aaa6-0ac135e8bacf.cx2` | https://www.ndexbio.org/v3/networks/c370fda6-c69c-11e8-aaa6-0ac135e8bacf | retrieved 2026-10-02 | CC BY 4.0 (network rights; Fanconi Anemia Machine, NDEx network c370fda6, author Myself) | `d2a91d8a670ebbf8d4bb795ac003ba6e9255a543ca335bd2d3af8bee66089b58` |
+| `ndex/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf.cx2` | https://www.ndexbio.org/v3/networks/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf | retrieved 2026-10-02 | CC0 (network rights: Waiver-No rights reserved (CC0), holder Charles Tapley Hoyt) | `a7f0079e9f371f217dcbffb4a4bfe02c79a610124c8dd807d98238612c552d96` |
+| `ndex/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf.cx2` | https://www.ndexbio.org/v3/networks/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf | retrieved 2026-10-02 | MIT (network rights: MIT license (MIT), holder The Jackson Laboratory) | `81eb013378a7383e8ddd9f3a5b2e76ad43abb503101624983af28c85afc5bf1a` |
+The CC BY 4.0 network `c370fda6` is "Fanconi Anemia Machine - Cyndex2 network" on NDEx
+(https://www.ndexbio.org/viewer/networks/c370fda6-c69c-11e8-aaa6-0ac135e8bacf); this entry is its
+attribution.
+
+### 13.3 Authored files
+
+`fixtures/cx2/authored/` is written by `tools/make_cx2_fixtures.py` (MIT, authored for graph-io):
+one file per feature or error of research-cx2.md section 6.1 and design.md section 6.4 that no
+real file shows -- fragments declared and undeclared, all ten types, falsy defaults, alias edge
+cases, ids beyond 2^53 (also after 1,000 safe ones), value mismatches, unknown and missing types,
+the Python type spellings, failed / warning / malformed / missing status, partial and legacy
+coordinates, versions 2.1, 2 and 3.0, a CX1 document under a `.cx2` name, BOM / UTF-16 / Latin-1,
+flat editor properties, dangling bypasses and edges, edges before nodes, declarations after nodes,
+`1` and `"1"` as one node, unknown element keys, mangled ids, an empty network, malformed blocks,
+order and count problems, and style rules next to per-element visual values.
+
+### 13.4 Malformed corpus and unit corpus
+
+`test/corpus/malformed/cx2/` holds Cytoscape Web's 11 invalid fixtures (MIT,
+https://github.com/cytoscape/cytoscape-web/tree/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/invalid),
+renamed without the `.invalid` infix. `test/corpus/cx2/` holds four of the real files above for the
+cross-format fidelity matrix.
+
+### 13.5 Not vendored
+
+- The `cytoscape/cx` repository's examples (`small_network_with_styles.cx2`,
+  `different_attribute_types_no_style.cx2`): the repository has no license; the authored set
+  covers their cases, and `demo.cx2` is a byte-identical copy of the first under ndex2-client's
+  BSD license.
+- IntAct coronavirus (NDEx cabdc0e0, 6.5 MB, CC BY 4.0), BioPlex 3 HCT116 (NDEx e96d063d, 10 MB,
+  CC0) and STRING v12 (90 MB): too large to commit; both smaller ones import (1,583 / 2,449 and
+  10,251 / 75,346 nodes / edges) and BioPlex 3 is a planned graph-samples dataset.

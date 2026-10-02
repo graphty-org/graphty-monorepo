@@ -1,5 +1,5 @@
 import { useUncontrolled } from "@mantine/hooks";
-import React from "react";
+import React, { useId } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useNumberFormatter } from "../../i18n";
@@ -23,12 +23,24 @@ export interface DataRowProps {
      * The trailing value, drawn small in the secondary text color. Bare: the
      * repeated unit word belongs on `DataRowHeader`.
      *
-     * It is drawn exactly as given. A number is not formatted for you, so pass
-     * it through `useNumberFormatter().format(n)` first; handed the raw number
-     * the row draws `1284` in every locale, rather than `1,284` for a reader in
-     * en-US and `1.284` for one in de-DE.
+     * Pass a number raw: the row formats it for the reader's locale, `1,284`
+     * in en-US and `1.284` in de-DE, keeping every fraction digit it is given.
+     * Anything else is drawn exactly as given, so pass a string when you have
+     * rounded or formatted the value yourself.
      */
     value?: React.ReactNode;
+    /**
+     * Draws the row as a stat: a label and its reading, such as "Nodes 1,000,000".
+     *
+     * The name is drawn in the secondary text color at weight 400 and the value
+     * in the primary color at weight 500, because the reading is the half the
+     * reader came for. The pair is exposed as one `role="group"` named by the
+     * name, so a screen reader reads "Nodes, 1,000,000" as one unit (WCAG 1.3.1).
+     *
+     * Leave it off for a list of the reader's own strings -- datasets, files,
+     * nodes -- where the name is the thing being read.
+     */
+    stat?: boolean;
     /** A 16px leading icon, worth drawing only when the rows differ in type. */
     icon?: React.ReactNode;
     /**
@@ -51,7 +63,7 @@ export interface DataRowProps {
      * ```tsx
      * <DataRow
      *     name={node.id}
-     *     value={formatter.format(node.degree)}
+     *     value={node.degree}
      *     selected={node.id === current}
      *     onClick={() => { setCurrent(node.id); }}
      * />
@@ -94,7 +106,8 @@ export interface DataRowProps {
  * is a `Tree` (nested) or a `PageList` (flat); a find result is a `ResultRow`.
  * @param props - Component props
  * @param props.name - The reader's own string
- * @param props.value - The trailing value, bare and in the secondary text color
+ * @param props.value - The trailing value, bare and in the secondary text color; a number is formatted for the locale
+ * @param props.stat - Draws the row as a stat: the name as the label, the value emphasized, the pair one group
  * @param props.icon - A 16px leading icon, worth drawing only when the rows differ in type
  * @param props.selected - Whether this row is the current one, reported as `aria-current`
  * @param props.onClick - Called when the row is activated, with the event and the activation source
@@ -109,7 +122,7 @@ export interface DataRowProps {
  *     <DataRow
  *         key={node.id}
  *         name={node.id}
- *         value={formatter.format(node.degree)}
+ *         value={node.degree}
  *         selected={node.id === current}
  *         onClick={() => { setCurrent(node.id); }}
  *     />
@@ -119,6 +132,7 @@ export interface DataRowProps {
 export function DataRow({
     name,
     value,
+    stat = false,
     icon,
     selected = false,
     onClick,
@@ -127,6 +141,11 @@ export function DataRow({
     trailing,
 }: DataRowProps): React.JSX.Element {
     useCompactStyles();
+    const nameId = useId();
+    // Every fraction digit the caller gave is kept: rounding a reading is the
+    // caller's call, made by passing a string.
+    const numberFormatter = useNumberFormatter({ maximumFractionDigits: 20 });
+    const reading = typeof value === "number" ? numberFormatter.format(value) : value;
     const interactive = onClick !== undefined;
     const hasIcon = icon !== undefined && icon !== null;
     const hasValue = value !== undefined && value !== null;
@@ -156,13 +175,18 @@ export function DataRow({
                 Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <span className="cm-data-row-name" data-testid="data-row-name" title={name}>
+            <span
+                className="cm-data-row-name"
+                data-testid="data-row-name"
+                id={stat ? nameId : undefined}
+                title={name}
+            >
                 {name}
             </span>
 
             {hasValue && (
                 <span className="cm-data-row-value" data-testid="data-row-value">
-                    {value}
+                    {reading}
                 </span>
             )}
         </>
@@ -170,10 +194,18 @@ export function DataRow({
 
     // The fills (hover, selected) and the focus ring are the row's pseudo elements, a 24px pill
     // inset 4 8 4 12 in the 32px row (design/figma-spec.md 10.5), drawn by tree.css.ts.
+    //
+    // A stat's pairing is the ARIA practices' plain grouping technique: role="group"
+    // named through aria-labelledby by the name already on the screen, so the spoken
+    // name and the drawn one cannot drift apart. It sits on the outer row so it holds
+    // the row's button too.
     return (
         <div
             data-testid="data-row"
             className="cm-data-row"
+            role={stat ? "group" : undefined}
+            aria-labelledby={stat ? nameId : undefined}
+            data-stat={stat ? "" : undefined}
             data-selected={selected ? "true" : undefined}
             data-interactive={interactive ? "" : undefined}
             data-trailing={hasTrailing ? "" : undefined}

@@ -62,8 +62,15 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * ))}
  * ```
  *
- * The value is drawn exactly as given. Format numbers for the reader's locale first
- * (`useNumberFormatter()`), or `1284` is drawn the same in every locale.
+ * A number passed as the value is formatted for the reader's locale: `1,284` in en-US,
+ * `1.284` in de-DE. Anything else is drawn exactly as given.
+ *
+ * ## Stat rows
+ *
+ * `stat` draws the row as a label and its reading, such as "Nodes 1,000,000": the name in the
+ * secondary color at weight 400, the value in the primary color at weight 500, and the pair
+ * exposed to a screen reader as one group named by the name. Use it for facts about a graph or a
+ * file; leave it off for lists of the reader's own strings.
  *
  * ## Keyboard and accessibility
  *
@@ -340,6 +347,28 @@ export const WithTrailing: Story = {
                 ))}
             </Stack>
         );
+    },
+};
+
+/**
+ * Stat rows: facts about a graph, each a label and its reading. The value is passed as a raw
+ * number and formatted for the locale; the reading is the emphasized half, and each pair is one
+ * group a screen reader reads as a unit.
+ */
+export const Stat: Story = {
+    parameters: BOTH_SCHEMES,
+    render: (): React.JSX.Element => (
+        <Stack gap={0}>
+            <DataRow stat name="Nodes" value={1000000} />
+            <DataRow stat name="Edges" value={4218337} />
+            <DataRow stat name="Density" value={0.0042} />
+            <DataRow stat name="Direction" value="Directed" />
+        </Stack>
+    ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // Grouped in whatever locale the browser runs in: 1,000,000 or 1.000.000, never 1000000.
+        await expect(canvas.getAllByRole("group", { name: "Nodes" })[0]).toHaveTextContent(/1\D000\D000/);
     },
 };
 

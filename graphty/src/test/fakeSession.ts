@@ -574,7 +574,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const notes: Note[] = [];
     let noteSeq = 0;
     const targetKey = (target: NoteTargetInput): string =>
-        JSON.stringify(Object.entries(target).map(([kind, value]) => [kind, typeof value === "number" ? String(value) : value]));
+        JSON.stringify(
+            Object.entries(target).map(([kind, value]) => [kind, typeof value === "number" ? String(value) : value]),
+        );
     const noteChanged = (note: Note, change: "created" | "removed", cause: string): void => {
         publish("note:changed", { id: note.id, change, fields: [], note: change === "removed" ? null : note, cause });
     };

@@ -1034,11 +1034,7 @@ export function keyChipFor(id: ShellCommandId, apple: boolean = isApplePlatform(
 /**
  * One rung of the Escape ladder.
  */
-export type EscapeRungId =
-    | "cancelDragOrMarquee"
-    | "clearSelection"
-    | "closeTopmostTransient"
-    | "pauseTimelinePlayback";
+export type EscapeRungId = "cancelDragOrMarquee" | "clearSelection" | "closeTopmostTransient" | "pauseTimelinePlayback";
 
 /**
  * The Escape ladder: one rung per press, first match wins. The last rung ("nothing") is

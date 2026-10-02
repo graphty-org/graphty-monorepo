@@ -19,7 +19,22 @@
  * 7. one `More in Analyze` link.
  */
 
-import { ActionRow, AdvancedButton, ControlSection, DataRow, DataRowHeader, type HistogramBin, HistogramRow, PANEL_GRID, PANEL_INK, PanelField, Popout, ProseBlock, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
+import {
+    ActionRow,
+    AdvancedButton,
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    type HistogramBin,
+    HistogramRow,
+    PANEL_GRID,
+    PANEL_INK,
+    PanelField,
+    Popout,
+    ProseBlock,
+    UiGlyph,
+    useNumberFormatter,
+} from "@graphty/compact-mantine";
 import { Box, Menu, Tabs, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useMemo, useState } from "react";
 
@@ -462,9 +477,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                                         </UnstyledButton>
                                     </Menu.Target>
                                     <Menu.Dropdown>
-                                        <Menu.Item onClick={onExportTop}>
-                                            {GRAPH_SUMMARY_LABELS.exportTopCsv}
-                                        </Menu.Item>
+                                        <Menu.Item onClick={onExportTop}>{GRAPH_SUMMARY_LABELS.exportTopCsv}</Menu.Item>
                                         <Menu.Item onClick={onExportRanked}>
                                             {GRAPH_SUMMARY_LABELS.exportRankedCsv}
                                         </Menu.Item>

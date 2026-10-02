@@ -582,19 +582,17 @@ class OboReader {
     }
 
     /**
-     * Apply one clause to a record.
-     * @param record - the record
+     * A clause's tag (a 1.0 tag read as its current one), the synonym scope that tag implies, its
+     * qualifier block and its value, with the syntax warnings about stray braces recorded.
      * @param clause - the clause
+     * @returns the parts
      */
-    private applyClause(record: NodeRecord, clause: Clause): void {
-        const key = `${clause.tag}\u0000${clause.value}`;
-        if (record.seen.has(key)) {
-            return;
-        }
-        record.seen.add(key);
-        if (record.kind === "Typedef") {
-            (record.raw[clause.tag] ??= []).push(clause.value);
-        }
+    private clauseParts(clause: Clause): {
+        tag: string;
+        scope: string | null;
+        qualifiers: ReturnType<typeof splitQualifiers>["qualifiers"];
+        value: string;
+    } {
         let { tag } = clause;
         let scope: string | null = null;
         const deprecated = DEPRECATED_TAGS.get(tag);
@@ -627,7 +625,57 @@ class OboReader {
                 clause.line,
             );
         }
-        const { value } = split;
+        return { tag, scope, qualifiers, value: split.value };
+    }
+
+    /**
+     * A def, expand_assertion_to or expand_expression_to clause: quoted text and its xref list.
+     * @param record - the record
+     * @param tag - the tag
+     * @param value - the clause value
+     * @param tokens - its tokens
+     * @param qualifiers - its qualifier block
+     * @param line - its line
+     */
+    private definition(
+        record: NodeRecord,
+        tag: string,
+        value: string,
+        tokens: ReturnType<typeof tokenize>,
+        qualifiers: ReturnType<typeof splitQualifiers>["qualifiers"],
+        line: number,
+    ): void {
+        if (tag === "def" && record.values.has("def")) {
+            // the second def of an id: reported, and none of its xrefs leak into the first's
+            this.single(record, "def", null, line);
+            return;
+        }
+        const text = this.quotedWithXrefs(record, tag, value, tokens, line);
+        if (tag === "def") {
+            this.single(record, "def", text.text, line, () => {
+                record.values.set("def.xrefs", text.xrefs);
+            });
+            this.extraQualifiers(record, tag, text.text, qualifiers);
+        } else {
+            this.push(record, tag, withQualifiers({ template: text.text, xrefs: text.xrefs }, qualifiers));
+        }
+    }
+
+    /**
+     * Apply one clause to a record.
+     * @param record - the record
+     * @param clause - the clause
+     */
+    private applyClause(record: NodeRecord, clause: Clause): void {
+        const key = `${clause.tag}\u0000${clause.value}`;
+        if (record.seen.has(key)) {
+            return;
+        }
+        record.seen.add(key);
+        if (record.kind === "Typedef") {
+            (record.raw[clause.tag] ??= []).push(clause.value);
+        }
+        const { tag, scope, qualifiers, value } = this.clauseParts(clause);
         const where = { line: clause.line, element: record.id };
         if (TYPEDEF_TAGS.has(tag) && record.kind !== "Typedef") {
             this.unrecognized(record, clause);
@@ -731,23 +779,9 @@ class OboReader {
             }
             case "def":
             case "expand_assertion_to":
-            case "expand_expression_to": {
-                if (tag === "def" && record.values.has("def")) {
-                    // the second def of an id: reported, and none of its xrefs leak into the first's
-                    this.single(record, "def", null, clause.line);
-                    return;
-                }
-                const text = this.quotedWithXrefs(record, tag, value, tokens, clause.line);
-                if (tag === "def") {
-                    this.single(record, "def", text.text, clause.line, () => {
-                        record.values.set("def.xrefs", text.xrefs);
-                    });
-                    this.extraQualifiers(record, tag, text.text, qualifiers);
-                } else {
-                    this.push(record, tag, withQualifiers({ template: text.text, xrefs: text.xrefs }, qualifiers));
-                }
+            case "expand_expression_to":
+                this.definition(record, tag, value, tokens, qualifiers, clause.line);
                 return;
-            }
             case "synonym":
                 this.synonym(record, tokens, scope, qualifiers, clause.line);
                 return;

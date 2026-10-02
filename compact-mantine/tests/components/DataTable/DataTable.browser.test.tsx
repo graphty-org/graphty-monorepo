@@ -82,6 +82,15 @@ describe("DataTable geometry", () => {
         });
     });
 
+    it("draws the search field at the panel's control height, like every other field", () => {
+        renderTable(
+            <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} searchable />,
+        );
+
+        const field = screen.getByTestId("data-table-search");
+        expect(field.getBoundingClientRect().height).toBe(PANEL_GRID.CONTROL_HEIGHT);
+    });
+
     it("keeps the rows exactly one data pitch apart", () => {
         renderTable(<DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />);
 
@@ -141,12 +150,7 @@ describe("DataTable geometry", () => {
             <DirectionProvider initialDirection="rtl" detectDirection={false}>
                 <MantineProvider theme={compactTheme}>
                     <div style={{ width: 400 }}>
-                        <DataTable
-                            columns={COLUMNS}
-                            data={NODES}
-                            getRowId={(node) => node.id}
-                            height={VIEWPORT}
-                        />
+                        <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />
                     </div>
                 </MantineProvider>
             </DirectionProvider>,

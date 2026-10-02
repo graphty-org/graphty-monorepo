@@ -9,7 +9,7 @@
  * `n * n` stays small -- the empty graph, one node, a self-loop, karate, the 30 x 30 grid, the 500-path, the
  * 1000-star, K64, the 101-cycle, seeded G(n, m) with and without self-loops and parallels, directed and undirected,
  * weighted and not, a disconnected graph -- plus the two sizes the blocking alone can get wrong: 33 nodes and
- * `32 x 33 + 1 = 1057`, where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
+ * `32 x 33 + 1 = 1057` (`randomBig`; 50 on a software adapter), where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
  * refusals (a negative or non-finite weight, a wrong `dest`, an aborted signal, the node count one above the
  * device's ceiling), the submit split, and the ceiling arithmetic.
  */
@@ -48,16 +48,21 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 /** Design 9.7 line 3327: all-pairs parity is exact unweighted and `1e-5` relative weighted. */
 const WEIGHTED_REL = 1e-5;
 
-/** One fixture: its edges, directedness and node count. */
+/** One fixture: its edges (or their generator over the scaled size), directedness and node count. */
 interface Fixture {
     readonly name: string;
-    readonly edges: readonly EdgeSpec[];
+    readonly edges: readonly EdgeSpec[] | ((big: number) => readonly EdgeSpec[]);
     readonly directed?: boolean | undefined;
     readonly nodeCount?: number | undefined;
 }
 
-/** The largest n of the scaled fixtures on this adapter (1057 on hardware, 50 on a software adapter at 1 / 50). */
-const BIG = gpuScale() < 1 ? 50 : 1057;
+/**
+ * The largest n of the scaled fixtures on this adapter: 1057 on hardware, 50 on a software adapter at 1 / 50. A
+ * function, read inside the test: the setup probes the adapter in a beforeAll, after this module is collected.
+ */
+function big(): number {
+    return gpuScale() < 1 ? 50 : 1057;
+}
 
 const FIXTURES: readonly Fixture[] = [
     { name: "empty", edges: [], nodeCount: 0 },
@@ -84,11 +89,11 @@ const FIXTURES: readonly Fixture[] = [
     // one partial edge tile of each kind
     { name: "random33/uniform", edges: weightedEdges(randomEdges(33, 80, 13), "uniform", 14) },
     {
-        name: `random${BIG}/uniform/directed`,
-        edges: weightedEdges(randomEdges(BIG, 4 * BIG, 15), "uniform", 16),
+        name: "randomBig/uniform/directed",
+        edges: (n) => weightedEdges(randomEdges(n, 4 * n, 15), "uniform", 16),
         directed: true,
     },
-    { name: `random${BIG}`, edges: randomEdges(BIG, 3 * BIG, 17) },
+    { name: "randomBig", edges: (n) => randomEdges(n, 3 * n, 17) },
 ];
 
 /** Awaits a rejection and asserts its code; returns the error for detail assertions. */
@@ -117,7 +122,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
     for (const fixture of FIXTURES) {
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
-            const s = snapshotOf(fixture.edges, {
+            const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
                 directed: fixture.directed,
                 nodeCount: fixture.nodeCount,
                 checksum: true,

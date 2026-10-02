@@ -1,3 +1,9 @@
+## 0.8.29 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.4.2
+
 ## 0.8.28 (2026-10-02)
 
 ### 🩹 Fixes

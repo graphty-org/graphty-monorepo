@@ -1,6 +1,7 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
+import { Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import {
@@ -1746,5 +1747,178 @@ export const TwoDAllLines: Story = {
         chromatic: {
             delay: 1000,
         },
+    },
+};
+
+/**
+ * A caption for one edge of the two pattern stories below, set by the same layer as its line.
+ * @param text - What the edge is called.
+ * @returns The label channels.
+ */
+const patternCaption = (text: string): Record<string, unknown> => ({
+    "edge.label": text,
+    "edge.labelStyle": { sizePx: 32, color: "#000000", background: "transparent", location: "top", attachOffset: 1 },
+});
+
+/**
+ * A solid line and a dashed line, both at half opacity, one above the other.
+ *
+ * WHAT TO LOOK FOR: the dashes are the same pale grey as the solid line. A dash drawn darker than
+ * the line above it is a patterned line ignoring its opacity (issue #619).
+ */
+export const PatternedLineOpacity: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge PatternedLineOpacity");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 2 });
+        await assertViewMode(scene, "3d");
+
+        // Half of darkgrey over whitesmoke is 0xcf. Each count is read per pixel of line length,
+        // since both lines grow with their length alone. Measured on a 1200 x 600 canvas: with
+        // both lines blended, 0.9 pixels per pixel of line at full darkgrey (the antialiased edges
+        // of the black captions) and 18.9 at the blend; with the dashed line drawn opaque, 10.3
+        // at full darkgrey and 10.2 at the blend, which is the solid line's alone.
+        const ink = await pixelsOfColour(scene, "#a9a9a9");
+        const faded = await pixelsOfColour(scene, "#cfcfcf");
+        const span = edgeSpanPx(scene, "dash-src", "dash-dst");
+
+        await holds(
+            ink / span < 3,
+            `Styles/Edge PatternedLineOpacity: both lines are asked for at half opacity and the canvas holds ` +
+                `${(ink / span).toFixed(2)} pixels at the line colour's full strength per pixel of line, where ` +
+                "two blended lines leave under 1 and an opaque dashed line over 10",
+        );
+
+        // And both lines are there, blended: without this the ceiling above passes on a blank edge.
+        await holds(
+            faded / span > 14,
+            `Styles/Edge PatternedLineOpacity: the canvas holds ${(faded / span).toFixed(2)} pixels at the ` +
+                "half-way blend per pixel of line, where two blended lines leave about 19 and the solid line " +
+                "alone about 10",
+        );
+
+        await assertDistinctPicture(scene, "Styles/Edge", `pattern-opacity grey=${String(Math.round(ink / 1000))}k`);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            layers: [
+                {
+                    name: "edges where data.source == 'solid-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'solid-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.opacity": 0.5,
+                        "edge.style": "solid",
+                        "edge.arrowHead": "none",
+                        ...patternCaption("solid, opacity 0.5"),
+                    },
+                },
+                {
+                    name: "edges where data.source == 'dash-src'",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.source == 'dash-src'" },
+                    set: {
+                        "edge.color": "darkgrey",
+                        "edge.opacity": 0.5,
+                        "edge.style": "dash",
+                        "edge.arrowHead": "none",
+                        ...patternCaption("dash, opacity 0.5"),
+                    },
+                },
+            ],
+        }),
+        nodeData: [
+            { id: "solid-src", position: { x: -4, y: 2, z: 0 } },
+            { id: "solid-dst", position: { x: 4, y: 2, z: 0 } },
+            { id: "dash-src", position: { x: -4, y: -2, z: 0 } },
+            { id: "dash-dst", position: { x: 4, y: -2, z: 0 } },
+        ],
+        edgeData: [
+            { src: "solid-src", dst: "solid-dst" },
+            { src: "dash-src", dst: "dash-dst" },
+        ],
+        layout: "fixed",
+    },
+};
+
+/** The patterns, and the angles, the 2D pattern-angle story draws: one edge for each pair. */
+const ANGLE_PATTERNS = ["dash", "diamond", "zigzag"] as const;
+const ANGLES = [
+    { name: "horizontal", dx: 3, dy: 0 },
+    { name: "vertical", dx: 0, dy: 3 },
+    { name: "diagonal", dx: 2.1, dy: 2.1 },
+] as const;
+
+/**
+ * Three patterns, each on a horizontal, a vertical and a diagonal edge, in 2D.
+ *
+ * WHAT TO LOOK FOR: every dash, diamond and zigzag runs along its own line. A dash lying across a
+ * vertical line, or zigzag teeth that stay horizontal on a vertical or diagonal edge, is a 2D pattern that does not
+ * turn to follow its edge (issue #620).
+ */
+export const TwoDPatternAngles: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge TwoDPatternAngles");
+
+        await assertGraphLoaded(scene, { nodes: ANGLE_PATTERNS.length * ANGLES.length * 2, edges: 9 });
+        await assertViewMode(scene, "2d");
+
+        // Every pattern shape is built along its own X axis, so a slot that turns it onto its line
+        // maps that axis onto the line's direction. Read per element, so one element lying across
+        // its line anywhere in the picture fails the story.
+        const across: string[] = [];
+
+        for (const edge of scene.graph.getDataManager().edges.values()) {
+            const elements = edge.drawnPattern;
+            const along = elements[elements.length - 1].position.subtract(elements[0].position).normalize();
+
+            for (const element of elements) {
+                const axis = Vector3.TransformNormal(Vector3.Right(), element.transform).normalize();
+
+                if (Vector3.Dot(axis, along) < 0.999) {
+                    across.push(`${String(edge.srcId)}: (${axis.x.toFixed(2)}, ${axis.y.toFixed(2)})`);
+                }
+            }
+        }
+
+        await holds(
+            across.length === 0,
+            `Styles/Edge TwoDPatternAngles: ${String(across.length)} pattern elements do not point along their ` +
+                `line: ${across.slice(0, 5).join(", ")}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Edge", "pattern-angles");
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            layers: ANGLE_PATTERNS.map((pattern) => ({
+                name: `edges in the ${pattern} row`,
+                target: "edge" as const,
+                selector: { match: "expression" as const, where: `data.pattern == '${pattern}'` },
+                set: { "edge.color": "darkgrey", "edge.style": pattern, "edge.arrowHead": "none" },
+            })),
+        }),
+        nodeData: ANGLE_PATTERNS.flatMap((pattern, row) =>
+            ANGLES.flatMap((angle, column) => {
+                const x = (column - 1) * 7;
+                const y = (1 - row) * 6;
+
+                return [
+                    { id: `${pattern}-${angle.name}-src`, position: { x: x - angle.dx, y: y - angle.dy, z: 0 } },
+                    { id: `${pattern}-${angle.name}-dst`, position: { x: x + angle.dx, y: y + angle.dy, z: 0 } },
+                ];
+            }),
+        ),
+        edgeData: ANGLE_PATTERNS.flatMap((pattern) =>
+            ANGLES.map((angle) => ({
+                src: `${pattern}-${angle.name}-src`,
+                dst: `${pattern}-${angle.name}-dst`,
+                pattern,
+            })),
+        ),
+        layout: "fixed",
     },
 };

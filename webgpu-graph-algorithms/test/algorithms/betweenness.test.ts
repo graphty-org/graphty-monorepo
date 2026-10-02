@@ -18,6 +18,7 @@ import {
     accelerated,
     betweennessCentrality as cpuBetweenness,
     edgeBetweennessCentrality as cpuEdgeBetweenness,
+    PathCountOverflowError,
 } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
@@ -57,6 +58,7 @@ import {
     rmatEdges,
     snapshotOf,
     starEdges,
+    wideAndNarrowEdges,
 } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { brandesOracle } from "../oracle/betweenness.js";
@@ -188,27 +190,48 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     }, 120_000);
 
-    it("the overflow flag: layered(4, 18) has 4^16 shortest paths and reports it; layered(4, 16) (4^14) does not; so does grid(30, 30), whose corner-to-corner count is C(58, 29)", async (t) => {
+    it("path counts past 2^32 (grid(20, 20), grid(40, 40), layered(4, 18)) are rescaled level by level and equal the CPU in both forward forms", async (t) => {
         const ctx = await context(t);
-        const grid = await betweennessCentrality(ctx, snapshotOf(gridEdges(30, 30)), { sources: [0] });
-        expect(grid.sigmaOverflow).toBe(true);
+        // grid(40, 40) has C(78, 39), about 2.6e22, corner-to-corner paths: past u32 and far past f32's 2^24 integers
+        for (const [name, s] of [
+            ["grid(20, 20)", snapshotOf(gridEdges(20, 20))],
+            ["grid(40, 40)", snapshotOf(gridEdges(40, 40))],
+            ["layered(4, 18)", snapshotOf(layeredEdges(4, 18))],
+        ] as const) {
+            const want = cpuBetweenness(s).scores;
+            for (const forward of ["frontier", "edge"] as const) {
+                const got = await collect(ctx, s, undefined, { forward });
+                expect(got.overflow, `${name} ${forward}`).toBe(false);
+                expect(got.batches[0].scaled, `${name} ${forward}: the first batch's u32 counts wrap`).toBe(true);
+                expect(scoreError(got.scores, want), `${name} ${forward}`).toBeLessThanOrEqual(TOLERANCE);
+            }
+            const edges = await edgeBetweennessCentrality(ctx, s);
+            expect(edges.sigmaOverflow, name).toBe(false);
+            expect(scoreError(edges.scores, cpuEdgeBetweenness(s).scores), name).toBeLessThanOrEqual(TOLERANCE);
+        }
+    }, 300_000);
+
+    it("the overflow flag: counts at one depth spread wider than f32 can hold (wideAndNarrow(130)) raise it and the dispatcher refuses the scores; wideAndNarrow(100) does not", async (t) => {
+        const ctx = await context(t);
         for (const forward of ["frontier", "edge"] as const) {
             const over = await betweennessWithTuning(
                 ctx,
-                snapshotOf(layeredEdges(4, 18)),
+                snapshotOf(wideAndNarrowEdges(130)),
                 { sources: [0] },
                 { forward },
             );
             expect(over.sigmaOverflow, forward).toBe(true);
-            const under = await betweennessWithTuning(
-                ctx,
-                snapshotOf(layeredEdges(4, 16)),
-                { sources: [0] },
-                { forward },
-            );
-            expect(under.sigmaOverflow, forward).toBe(false);
+            const under = snapshotOf(wideAndNarrowEdges(100));
+            const fine = await betweennessWithTuning(ctx, under, { sources: [0] }, { forward });
+            expect(fine.sigmaOverflow, forward).toBe(false);
+            const want = vertexConvention(under, brandesOracle(under, { sources: [0] }).vertex);
+            expect(scoreError(fine.scores, want), forward).toBeLessThanOrEqual(TOLERANCE);
         }
-    }, 60_000);
+        const dispatch = accelerated(createAccelerator(ctx));
+        await expect(
+            dispatch.betweennessCentrality(snapshotOf(wideAndNarrowEdges(130)), { sources: [0] }),
+        ).rejects.toBeInstanceOf(PathCountOverflowError);
+    }, 120_000);
 
     it("exact betweenness on the fixture list within 1e-4 of the reference, top-10 order kept, bitwise run to run, the snapshot unchanged", async (t) => {
         const ctx = await context(t);

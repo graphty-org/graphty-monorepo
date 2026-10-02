@@ -1,7 +1,7 @@
 # Playbook: retriage-candidates
 
 Part of the weekly re-read of every open issue. You get a batch of issues and judge each one on the
-default branch as it is today. You never propose closing anything; a separate run checks your
+default branch at the verified green SHA, which is your working directory. You never propose closing anything; a separate run checks your
 candidates.
 
 For each issue in the batch:

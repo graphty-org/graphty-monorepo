@@ -178,6 +178,8 @@ function issueFile(rec) {
  * @param {{start: (req: any) => {ok: boolean, reason?: string, id?: string}}} options.runner the runner
  * @param {(kind: string) => string} options.prompt the base prompt of a kind (`buildPrompt` at the
  *   green SHA)
+ * @param {() => Promise<string>} [options.workdir] the tree of the green SHA the runs read
+ *   (`readTree`); without it a run works in its empty run directory
  * @param {(entry: any) => Promise<void> | void} [options.ledger] appends a ledger line
  * @param {() => Promise<void> | void} [options.save] persists the state
  * @param {(level: string, text: string) => void} [options.log] the daemon log
@@ -191,6 +193,7 @@ export function createRetriage({
     github,
     runner,
     prompt,
+    workdir,
     ledger = () => {},
     save = () => {},
     log = () => {},
@@ -362,8 +365,10 @@ export function createRetriage({
             // Running runs may still come in under their budgets; stop only once none is left.
             if (why === "budget") return items.some((i) => i.status === "running");
             if (why) return true;
+            const cwd = workdir ? await workdir() : undefined;
             const res = runner.start({
                 kind,
+                cwd,
                 event: "retriage",
                 target: `retriage:${pass.date}`,
                 batch: item.issues.map((/** @type {number} */ n) => `issue:${n}`),

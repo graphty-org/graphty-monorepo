@@ -442,8 +442,9 @@ function inside(dir, path) {
  * @property {string} event what started it
  * @property {string} target the target, for example `pr:704` or `master`
  * @property {string} prompt the prompt text (`buildPrompt`)
- * @property {string} [cwd] the githerd-owned worktree of a code-editing kind; read-only kinds work
- *   in `runs/<id>/work/`
+ * @property {string} [cwd] the githerd-owned worktree of a code-editing kind, or the green SHA's
+ *   tree (`readTree`) a read-only kind reads; a read-only kind without one works in the empty
+ *   `runs/<id>/work/`
  * @property {number} [timeoutMs] overrides the kind's `timeoutMinutes`
  * @property {string[]} [batch] further `issue:N` / `pr:N` targets the run's write tools may touch
  * @property {string} [greenSha] the verified green SHA the run was given
@@ -476,7 +477,8 @@ function inside(dir, path) {
  * @param {() => string[]} [options.sandboxMissing] the sandbox commands this machine lacks; a
  *   code-editing run is refused while any is missing
  * @returns {{start: (req: RunRequest) => {ok: false, reason: string} | {ok: true, id: string,
- *   done: Promise<any>}, shutdown: () => Promise<void>, inFlight: () => string[]}} the runner
+ *   done: Promise<any>}, refuses: (kind: string) => string | null, shutdown: () => Promise<void>,
+ *   inFlight: () => string[]}} the runner
  */
 export function createRunner({
     stateDir,
@@ -515,6 +517,20 @@ export function createRunner({
     }
 
     /**
+     * Why a run of `kind` can never start on this machine, or null. The daemon asks before it
+     * prepares a worktree, so a run that cannot start costs no checkout and no setup.
+     * @param {string} kind the run kind
+     * @returns {string | null} the reason
+     */
+    function refuses(kind) {
+        if (!CODE_EDITING.has(kind)) return null;
+        const missing = missingSandbox();
+        return missing.length
+            ? `code-editing runs are off: no Bash sandbox (${missing.join(", ")} not installed)`
+            : null;
+    }
+
+    /**
      * Admits, prepares and spawns a run. Admission and the `running` record happen before anything
      * asynchronous, so two runs admitted together are both counted.
      * @param {RunRequest} req the run
@@ -525,21 +541,14 @@ export function createRunner({
         const cfg = config();
         const at = now();
         state.runs ??= {};
-        if (CODE_EDITING.has(req.kind)) {
-            const missing = missingSandbox();
-            if (missing.length) {
-                return {
-                    ok: false,
-                    reason: `code-editing runs are off: no Bash sandbox (${missing.join(", ")} not installed)`,
-                };
-            }
-        }
+        const refused = refuses(req.kind);
+        if (refused) return { ok: false, reason: refused };
         const admitted = admit(state, cfg, mode(), req.kind, at);
         if (!admitted.ok) return /** @type {{ok: false, reason: string}} */ (admitted);
         const caps = capsFor(cfg, req.kind);
         const id = newId(at);
         const runDir = join(stateDir, "runs", id);
-        const cwd = CODE_EDITING.has(req.kind) ? req.cwd : join(runDir, "work");
+        const cwd = req.cwd ?? (CODE_EDITING.has(req.kind) ? undefined : join(runDir, "work"));
         if (!cwd) throw new Error(`${req.kind} runs need a worktree`);
         mkdirSync(join(runDir, "work"), { recursive: true });
         const token = randomBytes(32).toString("hex");
@@ -815,7 +824,7 @@ export function createRunner({
         for (const r of [...live.values()]) r.interrupt();
     }
 
-    return { start, shutdown, inFlight: () => [...live.keys()] };
+    return { start, refuses, shutdown, inFlight: () => [...live.keys()] };
 }
 
 /**

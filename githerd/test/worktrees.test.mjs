@@ -1,11 +1,11 @@
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { createWorktree, removeWorktree, slug } from "../lib/worktrees.mjs";
+import { createWorktree, readTree, removeWorktree, slug, sweepWorktrees } from "../lib/worktrees.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 const LIB = fileURLToPath(new URL("../lib/", import.meta.url));
@@ -54,20 +54,26 @@ describe("createWorktree", () => {
             pushBranch: "githerd/issue-643-1",
             base: green,
         });
-        const dir = join(repo.root, ".worktrees", "githerd-issue-643");
+        const dir = join(repo.root, ".worktrees", "githerd-issue-643-1");
         expect(r.ok && r.dir).toBe(dir);
         expect(readFileSync(join(dir, "setup-ran"), "utf8")).toBe(dir);
         expect(state.worktrees[dir]).toMatchObject({ createdBy: "githerd", for: "issue:643", base: green });
         expect(entries.map((e) => e.kind)).toEqual(["worktree-created"]);
     });
 
-    it("numbers the branch past ones that already exist and refuses a directory already in use", async () => {
+    it("numbers the branch and directory past ones that exist, are recorded or are on disk", async () => {
         git(repo.root, "branch", "githerd/master-1", green);
         const state = {};
-        const r = await createWorktree({ root: repo.root, state, target: "master", greenSha: green, ledger });
-        expect(r.ok && r.branch).toBe("githerd/master-2");
+        const saves = [];
+        const save = () => void saves.push(JSON.parse(JSON.stringify(state.worktrees)));
+        const r = await createWorktree({ root: repo.root, state, target: "master", greenSha: green, ledger, save });
+        expect(r).toMatchObject({ ok: true, branch: "githerd/master-2" });
+        expect(r.ok && r.dir).toBe(join(repo.root, ".worktrees", "githerd-master-2"));
+        // Recorded and saved before `git worktree add` ran.
+        expect(saves[0][join(repo.root, ".worktrees", "githerd-master-2")]).toMatchObject({ base: null });
+        mkdirSync(join(repo.root, ".worktrees", "githerd-master-3"));
         const again = await createWorktree({ root: repo.root, state, target: "master", greenSha: green, ledger });
-        expect(again).toMatchObject({ ok: false, dir: null });
+        expect(again).toMatchObject({ ok: true, branch: "githerd/master-4" });
     });
 
     it("reports a failing setup command and keeps the worktree recorded for removal", async () => {
@@ -180,6 +186,52 @@ describe("removeWorktree", () => {
         expect(entries.map((e) => e.kind)).toEqual(["worktree-remove-failed"]);
         expect(readFileSync(join(dir, "README.md"), "utf8")).toBe("edited\n");
         expect(state.worktrees[dir].removeFailed.reason).toBeTruthy();
+    });
+});
+
+describe("readTree", () => {
+    it("checks out the green SHA detached once and shares it, whatever the main checkout has", async () => {
+        put(join(repo.root, "README.md"), "a feature branch\n");
+        commitAll(repo.root, "feat: not on master");
+        const state = {};
+        const stateDir = join(repo.root, ".githerd");
+        const dir = await readTree({ root: repo.root, state, stateDir, sha: green, ledger });
+        expect(dir).toBe(join(stateDir, "trees", green));
+        expect(readFileSync(join(dir, "README.md"), "utf8")).toBe("hello\n");
+        expect(git(dir, "rev-parse", "HEAD")).toBe(green);
+        expect(state.worktrees[dir]).toMatchObject({ createdBy: "githerd", for: "read-only", base: green });
+        expect(await readTree({ root: repo.root, state, stateDir, sha: green, ledger })).toBe(dir);
+        expect(entries.filter((e) => e.kind === "worktree-created")).toHaveLength(1);
+    });
+
+    it("refuses a ref that is not a SHA and records nothing for a SHA git does not have", async () => {
+        const state = {};
+        const stateDir = join(repo.root, ".githerd");
+        await expect(readTree({ root: repo.root, state, stateDir, sha: "HEAD", ledger })).rejects.toThrow(
+            /not a commit/,
+        );
+        await expect(readTree({ root: repo.root, state, stateDir, sha: "f".repeat(40), ledger })).rejects.toThrow(
+            /worktree add/,
+        );
+        expect(state.worktrees).toEqual({});
+    });
+});
+
+describe("sweepWorktrees", () => {
+    it("removes every recorded worktree no running run uses, keeps the named ones, and forgets unmade ones", async () => {
+        const state = /** @type {any} */ ({ runs: {} });
+        const used = await createWorktree({ root: repo.root, state, target: "pr:1", greenSha: green, ledger });
+        const done = await createWorktree({ root: repo.root, state, target: "pr:1", greenSha: green, ledger });
+        const tree = await readTree({ root: repo.root, state, stateDir: join(repo.tmp, "s"), sha: green, ledger });
+        const unmade = join(repo.root, ".worktrees", "githerd-x-1");
+        state.worktrees[unmade] = { createdBy: "githerd", for: "x" };
+        if (!used.ok || !done.ok) throw new Error("no worktree");
+        state.runs.a = { status: "running", worktree: { dir: used.dir } };
+        state.runs.b = { status: "ended", worktree: { dir: done.dir } };
+        const removed = await sweepWorktrees({ root: repo.root, state, ledger, keep: [tree] });
+        expect(removed.sort()).toEqual([done.dir, unmade].sort());
+        expect(existsSync(done.dir)).toBe(false);
+        expect(Object.keys(state.worktrees).sort()).toEqual([used.dir, tree].sort());
     });
 });
 

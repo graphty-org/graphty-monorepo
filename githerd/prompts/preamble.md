@@ -9,6 +9,10 @@ First call `githerd_run_context`. It tells you the event, the target, the mode, 
 batch of issues or pull requests you may act on, and the verified green SHA. Then follow the
 playbook below, and nothing else.
 
+Your working directory is a checkout of that green SHA: a read-only tree when your run only reads,
+your own worktree when it edits code. "The default branch" in a playbook means that checkout; never
+judge the code from another directory on the machine.
+
 ## How to finish
 
 - Stop at the playbook's terminal state and fill in the structured result: `outcome` (`done`,

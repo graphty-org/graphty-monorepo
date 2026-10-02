@@ -11,6 +11,7 @@ import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { identify } from "../lib/proc.mjs";
 import { readLedger } from "../lib/store.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
+import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
@@ -812,6 +813,15 @@ describe("dispatching", () => {
         gitSync(dir, "init", "-q");
         gitSync(dir, "config", "user.name", "Owner");
         gitSync(dir, "config", "user.email", "o@example.com");
+        writeFileSync(join(dir, "README.md"), "master at the green SHA\n");
+        gitSync(dir, "add", "README.md");
+        gitSync(dir, "commit", "-q", "-m", "chore: first");
+        const green = gitSync(dir, "rev-parse", "HEAD");
+        // The main checkout moves on to a branch that is not master.
+        gitSync(dir, "switch", "-q", "-c", "feat/elsewhere");
+        writeFileSync(join(dir, "README.md"), "a feature branch\n");
+        gitSync(dir, "commit", "-q", "-am", "feat: elsewhere");
+        scene = { head: green, ci: [run(100, green, "success")], commits: [commit(green, null, "first")], prs: [] };
         const scenarioFile = join(dir, "scenario.json");
         writeFileSync(scenarioFile, JSON.stringify({ hang: true }));
         scene.issues = [
@@ -828,9 +838,13 @@ describe("dispatching", () => {
         await poll(daemon);
 
         const runs = Object.values(daemon.state.runs);
-        expect(runs).toMatchObject([{ kind: "triage", target: "issue:7", greenSha: A, status: "running" }]);
+        expect(runs).toMatchObject([{ kind: "triage", target: "issue:7", greenSha: green, status: "running" }]);
         const prompt = readFileSync(join(dir, ".githerd", "runs", runs[0].id, "prompt.md"), "utf8");
         expect(prompt).toContain('"target": "issue:7"');
+        expect(prompt).toContain(`"greenSha": "${green}"`);
+        // A read-only run reads a detached tree of the green SHA, not the main checkout's branch.
+        expect(runs[0].cwd).toBe(join(dir, ".githerd", "trees", green));
+        expect(readFileSync(join(runs[0].cwd, "README.md"), "utf8")).toBe("master at the green SHA\n");
         expect(daemon.state.issues.byNumber[7].lastTriagedAt).toBe(clock.toISOString());
         const events = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "event");
         expect(events.map((e) => e.event)).toContain("retriage-done");
@@ -840,6 +854,114 @@ describe("dispatching", () => {
         await daemon.shutdown();
         for (let i = 0; i < 50 && groupAlive(pgid); i++) await new Promise((r) => setTimeout(r, 20));
         expect(groupAlive(pgid)).toBe(false);
+    });
+});
+
+describe("code-editing runs", () => {
+    /** @type {{tmp: string, root: string, remote: string}} */
+    let repo;
+    /** @type {any} */
+    let daemon;
+
+    /**
+     * A repository whose PR #7 (branch fix/x) fails its required check while master is green, and
+     * a daemon on it whose runs are fake-claude ending at once.
+     * @param {string[]} missing the sandbox commands this machine lacks
+     */
+    async function failingPr(missing) {
+        repo = makeRepo();
+        const green = gitSync(repo.root, "rev-parse", "HEAD");
+        gitSync(repo.root, "branch", "fix/x", green);
+        const scratch = join(repo.tmp, "scratch");
+        gitSync(repo.root, "worktree", "add", "-q", scratch, "fix/x");
+        put(join(scratch, "src/a.txt"), "a\n");
+        const prHead = commitAll(scratch, "fix: a");
+        gitSync(scratch, "push", "-q", "origin", "fix/x");
+        gitSync(repo.root, "worktree", "remove", scratch);
+
+        writeConfig({ requiredChecks: ["All Checks Pass"] });
+        const check = { __typename: "CheckRun", name: "All Checks Pass", status: "COMPLETED", conclusion: "FAILURE" };
+        scene = {
+            head: green,
+            ci: [run(100, green, "success")],
+            commits: [commit(green, null, "first")],
+            prs: [
+                {
+                    number: 7,
+                    title: "fix(x): a fix",
+                    isDraft: false,
+                    updatedAt: "2026-10-02T11:00:00Z",
+                    headRefName: "fix/x",
+                    headRefOid: prHead,
+                    baseRefName: "master",
+                    mergeable: "MERGEABLE",
+                    autoMergeRequest: null,
+                    labels: { nodes: [] },
+                    author: { login: "owner" },
+                    commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [check] } } } }] },
+                },
+            ],
+        };
+        const scenarioFile = join(dir, "scenario.json");
+        const result = {
+            subtype: "success",
+            total_cost_usd: 0.1,
+            structured_output: { outcome: "partial", summary: "s" },
+        };
+        writeFileSync(scenarioFile, JSON.stringify({ result }));
+        daemon = await start({
+            root: repo.root,
+            runner: {
+                claude: [process.execPath, FAKE_CLAUDE, scenarioFile],
+                servherd: async () => ({ servers: [] }),
+                sandboxMissing: () => missing,
+                killGraceMs: 200,
+            },
+        });
+    }
+
+    afterEach(async () => {
+        await daemon?.shutdown();
+        daemon = null;
+        if (repo) rmSync(repo.tmp, { recursive: true, force: true });
+        repo = null;
+    });
+
+    it("starts a second pr-fix run on the same PR after the first ends, each in a fresh worktree", async () => {
+        await failingPr([]);
+        /**
+         * Polls until a pr-fix run has started and ended.
+         * @returns {Promise<any>} the run record
+         */
+        const nextRun = async () => {
+            const before = Object.keys(daemon.state.runs).length;
+            for (let i = 0; i < 3 && Object.keys(daemon.state.runs).length === before; i++) {
+                clock = new Date(clock.getTime() + 31 * 60_000);
+                await poll(daemon);
+            }
+            const rec = Object.values(daemon.state.runs).at(-1);
+            expect(Object.keys(daemon.state.runs)).toHaveLength(before + 1);
+            for (let i = 0; i < 250 && rec.status === "running"; i++) await new Promise((r) => setTimeout(r, 20));
+            return rec;
+        };
+        const first = await nextRun();
+        const second = await nextRun();
+        expect([first.kind, second.kind]).toEqual(["pr-fix", "pr-fix"]);
+        expect(first.worktree.dir).not.toBe(second.worktree.dir);
+        expect(existsSync(first.worktree.dir)).toBe(false);
+        expect(daemon.state.escalations["worktree:pr:7"]).toBeUndefined();
+        expect(daemon.state.prs["7"].attempts.runs).toHaveLength(2);
+    });
+
+    it("makes no worktree for a run the missing sandbox refuses", async () => {
+        await failingPr(["bwrap", "socat"]);
+        for (let i = 0; i < 2; i++) {
+            clock = new Date(clock.getTime() + 31 * 60_000);
+            await poll(daemon);
+        }
+        expect(daemon.state.runs).toEqual({});
+        expect(daemon.state.worktrees ?? {}).toEqual({});
+        expect(existsSync(join(repo.root, ".worktrees"))).toBe(false);
     });
 });
 

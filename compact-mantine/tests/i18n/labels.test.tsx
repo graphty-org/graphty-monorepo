@@ -77,6 +77,7 @@ describe("useLabels", () => {
         expect(defaultLabels.direction).toBe("Direction");
         expect(defaultLabels.gradientDirection).toBe("Gradient direction");
         expect(defaultLabels.settings).toBe("Settings");
+        expect(defaultLabels.passwordReveal).toBe("Show the password");
 
         expect(defaultLabels.percentile("98th")).toBe("98th percentile");
         expect(defaultLabels.addToSection("Filters")).toBe("Add Filters");

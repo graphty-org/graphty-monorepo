@@ -75,12 +75,13 @@ export function edgeRowsOf(snapshot: GraphSnapshot, members: readonly EdgeMember
 }
 
 /**
- * Notes as they are saved (design/documents/notes.md, "Targets" rule 2). An edge target naming an
- * edge the session added by the id graphty-element made up for it is written as that edge's
- * position among the edges now between its two ends, counted in row order, which is how a load of
- * this graph counts it: so the note finds its edge once the graph is reopened. An edge that is gone
- * has no position and keeps its made-up id, which reads missing once opened. Every other note is
- * returned as it is held.
+ * Notes as they are saved (design/documents/notes.md, "Targets" rule 2). An edge target without a
+ * file edge id -- one saved by position, or an edge the session added, named by the id
+ * graphty-element made up for it -- is written as that edge's position among the edges now between
+ * its two ends, counted in row order, which is how a load of this graph counts it: so the note
+ * finds its edge once the graph is reopened, whatever parallel edges were added or removed in the
+ * session. A target that binds no edge now is written as it is held; a made-up id then reads
+ * missing once opened. Every other note is returned as it is held.
  * @param notes - The notes.
  * @param snapshot - The snapshot.
  * @returns The notes to write, in the same order.
@@ -93,7 +94,7 @@ export function savedForms(notes: readonly Note[], snapshot: GraphSnapshot): Not
                 "edge" in target &&
                 supportedTarget(target) &&
                 !namesForeignSessionEdge(target) &&
-                isSessionEdgeId(target.edge.id)
+                (isSessionEdgeId(target.edge.id) || !Object.hasOwn(target.edge, "id"))
             ) {
                 minted.push({ note: n, target: t, edge: target.edge });
             }

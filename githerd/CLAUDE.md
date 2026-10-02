@@ -37,8 +37,8 @@ Found by `scripts/smoke-runs.sh` (dry-run, real repository, $3 cap):
   even with `allowUnsandboxedCommands: false`. So the runner refuses every code-editing kind
   (master-red, pr-fix, pr-conflict, backlog) while either command is missing from PATH, and kills
   one whose claude reports the sandbox disabled. Until the owner installs both, milestone 2 runs
-  read-only kinds only, and the sandbox checks (reading `~/.config/gh/hosts.yml`, `git credential
-  fill`, reaching `api.github.com`) are unverified.
+  read-only kinds only, and the sandbox checks (reading `~/.config/gh/hosts.yml`,
+  `git credential fill`, reaching `api.github.com`) are unverified.
 - Read-only runs (triage, retriage-candidates) start with the expected tools and the githerd
   server connected, end with a structured result, have no permission denials, and record only
   `would-do` writes.

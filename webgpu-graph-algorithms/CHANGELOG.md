@@ -1,3 +1,17 @@
+## 0.6.22 (2026-10-02)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** minimum spanning tree on the GPU with Boruvka ([ffa3b1db](https://github.com/graphty-org/graphty-monorepo/commit/ffa3b1db))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.21 (2026-10-02)
 
 ### 🩹 Fixes

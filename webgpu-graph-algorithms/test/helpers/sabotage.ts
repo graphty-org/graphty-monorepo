@@ -1339,8 +1339,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     "bf-relax": Object.freeze([
         {
             // the compare-exchange result is ignored: a lane whose exchange failed gives up as if it had changed
-            // something; the next round repairs the lost update, so dist never misses -- the witness is the retry
-            // bound, which the real kernel's losing lanes exhaust under maxRetries 1 and this mutant never reaches
+            // something; on the descending fan the one round before the decision round loses every candidate but
+            // one per SIMD group, so the decision round's repair reads as a negative cycle (flag and dist miss)
             name: "exchange-result-ignored",
             find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }",
             replace: "{ atomicStore(&flags[0], 1u); break; }",

@@ -1,3 +1,13 @@
+## 0.8.18 (2026-10-02)
+
+### 🚀 Features
+
+- **compact-mantine:** let DataTable draw a window of a larger list ([0284b3ad](https://github.com/graphty-org/graphty-monorepo/commit/0284b3ad))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.17 (2026-10-02)
 
 ### 🩹 Fixes

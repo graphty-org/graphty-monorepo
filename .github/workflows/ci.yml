@@ -25,7 +25,7 @@ jobs:
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
@@ -365,7 +365,7 @@ jobs:
         name: Test (${{ matrix.shard }})
         needs: build
         if: needs.build.outputs.test-count != '0'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
@@ -525,7 +525,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -566,7 +566,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -607,7 +607,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -648,7 +648,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -689,7 +689,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -731,7 +731,7 @@ jobs:
     links:
         name: Links
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -807,7 +807,7 @@ jobs:
         name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -848,7 +848,7 @@ jobs:
         name: Cost Estimate Accuracy
         needs: build
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -1051,7 +1051,7 @@ jobs:
                 visual,
             ]
         if: always()
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               env:

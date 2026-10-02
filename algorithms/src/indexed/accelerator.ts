@@ -305,8 +305,10 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `labelPropagationSynchronous` is the deterministic label propagation on both paths: the accelerator's
  * `labelPropagation` member (webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule) or
- * the synchronous port. The two share the rule family -- synchronous passes, the lowest of the best-voted
- * labels, an alternating direction guard -- but not every detail (which direction the first pass moves,
+ * the synchronous port. The two share the rule family -- synchronous passes, one best-voted label chosen
+ * by a fixed order, an alternating direction guard -- but not every detail (the order: the lowest label
+ * on the device, a scramble of the label in the port, which on a path numbered in order makes the device
+ * creep one node per two passes where the port settles in a few; which direction the first pass moves,
  * whether a label that ties for the lead is kept, and how a cycling run ends: the port stops when a pass
  * repeats the labels of two passes before and reports `converged: false`, the accelerator runs to
  * `maxIterations` and reports no `converged`), so on a tie the partitions can differ; they agree on

@@ -53,7 +53,9 @@ Each of these was found by drawing the same styled scene with both renderers and
 - **The compiler fetch.** WebGPU needs about 1 MB of WebAssembly from Babylon's CDN. A port of the
   GLSL shaders to WGSL would remove it; until then a page with a strict Content Security Policy
   draws with WebGL.
-- **Loading is much slower under WebGPU**, measured below and not yet explained.
+- **Loading takes a second or two longer under WebGPU** (see "Load time" below): opening the
+  engine and fetching the compiler, translating the GLSL shaders to WGSL, and about 40 frames
+  while Babylon builds its pipelines.
 - **GPU frame time is not measured under WebGPU**: Babylon reads it from a timestamp query the
   element does not ask the device for, so the counter reads zero.
 
@@ -95,8 +97,41 @@ What they say:
 - **Neither renderer is shown to be faster.** WebGPU was slower in three rows and faster in one --
   100k nodes orbiting, by 32% at the median and 2.8 times at p95 -- and one run per row on a
   shared machine does not separate those margins from noise.
-- **WebGPU loads 7 to 40 times slower.** That is a real cost a reader would feel, and the reason
-  it happens is not yet known.
+- **WebGPU loaded 7 to 40 times slower** when these rows were taken. The cause was found and
+  fixed afterwards; see "Load time" below.
 
 So WebGL stays the default, WebGPU is there for a consumer who asks for it, and the frame-time
 work belongs to the CPU side -- the active-mesh evaluation above -- not to the renderer.
+
+## Load time
+
+The load column above was measured before a fix (#614). The graph is built on a WebGL engine,
+because the element builds its scene in its constructor and a WebGPU engine opens asynchronously.
+Data assigned before the element was attached arrived while WebGPU was still opening, so every
+node and edge was built on the WebGL scene. That scene was then disposed, and everything was
+built again on the WebGPU scene. Disposing it was quadratic. Each node mesh has its own Babylon
+`ActionManager`, and disposing a mesh that owns one scans `scene.meshes` twice. Removing each
+instance from `scene.meshes` and from its parent's children also shifts the whole array. At 20k
+nodes the disposal alone took 4.1 s.
+
+The element now holds its operation queue while WebGPU opens, so a load waits and builds once,
+on the scene that will draw it. The per-node action manager is still quadratic wherever many
+nodes are disposed at once (#680).
+
+Headless Chromium on the RTX 4070 SUPER, `acceleration="off"`, a random layout, one run each,
+load average 18 to 32. Load is the time from assigning the data until every node and edge is
+built, the style stack has nothing pending and the scene reports ready for three frames:
+
+| Graph                | WebGL      | WebGPU before | WebGPU after |
+| -------------------- | ---------- | ------------- | ------------ |
+| 1k nodes, 2k edges   | 0.6-1.7 s  | 1.5 s         | 1.8-2.3 s    |
+| 10k nodes, 20k edges | 3.1-5.2 s  | 45.6 s        | 5.7-7.1 s    |
+| 30k nodes, 90k edges | 9.0-17.7 s | 371.9 s       | 10.2-19.3 s  |
+| 50k nodes            | 2.6-3.0 s  | 28.3 s        | 2.8-4.4 s    |
+
+The remaining WebGPU cost is fixed, not per node. Opening the adapter and device and fetching
+glslang and twgsl from Babylon's CDN takes 0.5 to 1 s. Translating the element's GLSL shaders to
+WGSL takes about 0.3 s of main-thread time at 10k nodes (glslang 0.22 s, twgsl 0.10 s); porting
+the shaders to WGSL (#615) would remove both the fetch and the translation. The rest is about 40
+frames, instead of 6 under WebGL, before Babylon reports every mesh ready while it builds its
+render pipelines.

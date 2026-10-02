@@ -476,6 +476,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const work = {
             capability,
             nodeCount: snapshot.nodeCount,
+            edgeCount: snapshot.edgeCount,
             forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
             ...(options?.sources === undefined
                 ? {}

@@ -363,6 +363,38 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         assert.isAbove(inkNearNode(after, "alpha"), LEGIBLE, "and the words are actually drawn where the node is");
     });
 
+    it("draws each node's id when a layer switches labels on without naming the words", async () => {
+        const before = await readFrame();
+
+        assert.isUndefined(nodeObject("alpha").label, "no layer has asked for a label yet");
+        assert.isBelow(inkNearNode(before, "alpha"), LEGIBLE, "and nothing that looks like text is on screen");
+
+        const added = await session.styles.add({
+            name: "Labels on",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { enabled: true } },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+
+        const switchedOn = await readFrame();
+        const inkSwitchedOn = inkNearNode(switchedOn, "alpha");
+
+        assert.isDefined(nodeObject("alpha").label, "a layer that switches labels on builds the node a label");
+        assert.isAbove(inkSwitchedOn, LEGIBLE, "and words are actually drawn where the node is");
+
+        // The same frame with the id written out as the words: identical glyphs cover identical
+        // pixels, so equal counts say the words drawn above were the node's id.
+        await session.styles.update(added.id, { set: { "node.label": "alpha" } });
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.strictEqual(
+            inkNearNode(await readFrame(), "alpha"),
+            inkSwitchedOn,
+            "and the words drawn are the node's own id",
+        );
+    });
+
     it("draws the words on an edge when a layer adds only edge.label", async () => {
         const before = await readFrame();
         const edge = edgeObject();

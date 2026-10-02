@@ -475,18 +475,27 @@ export interface SynchronousLabelPropagationOptions {
  * Label propagation in synchronous passes: every node reads its neighbours' labels from the
  * previous pass, and all nodes move at once. Deterministic, with no random stream.
  *
- * A node keeps its label when that label is dominant among its neighbours; otherwise it takes the
- * LOWEST label with the largest summed vote. Synchronous updates alone make two neighbours trade
- * labels for ever (on a single edge a-b, a takes b's label while b takes a's), so passes alternate
- * a swap guard: an even pass (the first is pass 0) lets a node move only to a higher label, an odd
- * pass only to a lower one (the up/down rule of cuGraph's Louvain move phase). The run stops after
- * two passes in a row with no move, one up and one down -- then every node's label is dominant and
- * `converged` is true -- or after `maxIterations` passes.
+ * A node keeps its label when that label is dominant among its neighbours; otherwise it takes, of
+ * the labels with the largest summed vote, the one of lowest PRIORITY. A label's priority is a fixed
+ * scramble of its value (the murmur3 32-bit finalizer, a one-to-one map, so no two labels share a
+ * priority). Ranking labels by their raw value instead ties the outcome to the node numbering: on a
+ * path or a cycle numbered in order every interior node is tied between its two neighbours, the
+ * lowest label wins every tie, and it spreads one node per two passes -- 1,998 passes to settle a
+ * 1,000-node path, into a single community. Under the scrambled priority the winners of those ties
+ * are spread along the chain, so a path or a cycle settles in a few passes into short runs of
+ * nodes, as {@link labelPropagation} does, and a star or a clique still ends as one community.
+ *
+ * Synchronous updates alone make two neighbours trade labels for ever (on a single edge a-b, a takes
+ * b's label while b takes a's), so passes alternate a swap guard: an even pass (the first is pass 0)
+ * lets a node move only to a label of higher priority, an odd pass only to one of lower priority
+ * (the up/down rule of cuGraph's Louvain move phase). The run stops after two passes in a row with
+ * no move, one up and one down -- then every node's label is dominant and `converged` is true -- or
+ * after `maxIterations` passes.
  *
  * The guard stops the single-edge swap but not every cycle: on some weighted graphs a node climbs to
- * a higher label on each up pass and falls back on each down pass. When a pass returns the labels
- * of two passes before, the run can only repeat itself, so it stops there with `converged` false;
- * the result is then the same for any larger `maxIterations`. Longer cycles run to the cap.
+ * a higher-priority label on each up pass and falls back on each down pass. When a pass returns the
+ * labels of two passes before, the run can only repeat itself, so it stops there with `converged`
+ * false; the result is then the same for any larger `maxIterations`. Longer cycles run to the cap.
  *
  * This is what the legacy `labelPropagationAsync` does, despite its name, with the swap guard it
  * lacks and the tie rule applied to the finished tally rather than to a running one. Conventions
@@ -513,8 +522,11 @@ export function labelPropagationSynchronous(
     let next = new Uint32Array(n);
     // The labels two passes back, to catch a period-2 cycle.
     let before = new Uint32Array(n).fill(INVALID_INDEX);
+    // Each label's tie and guard priority; see the doc comment for why it is not the label itself.
+    const priority = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
         label[i] = i;
+        priority[i] = scramble(i);
     }
     let passes = 0;
     let quiet = 0;
@@ -533,11 +545,11 @@ export function labelPropagationSynchronous(
             let best = INVALID_INDEX;
             for (let i = 0; i < tally.count; i++) {
                 const c = touched[i];
-                if (acc[c] === max && c < best) {
+                if (acc[c] === max && (best === INVALID_INDEX || priority[c] < priority[best])) {
                     best = c;
                 }
             }
-            if (up ? best > current : best < current) {
+            if (up ? priority[best] > priority[current] : priority[best] < priority[current]) {
                 next[u] = best;
                 moved = true;
             }
@@ -549,6 +561,20 @@ export function labelPropagationSynchronous(
     const converged = quiet >= 2 || allDominant(tally, label, null);
     const { labels, count } = renumberPartition(label);
     return { ...withGroups(labels, count), iterations: passes, converged };
+}
+
+/**
+ * The murmur3 32-bit finalizer: a one-to-one scramble of a u32.
+ * @param x - A label
+ * @returns Its priority
+ */
+function scramble(x: number): number {
+    x ^= x >>> 16;
+    x = Math.imul(x, 0x85ebca6b);
+    x ^= x >>> 13;
+    x = Math.imul(x, 0xc2b2ae35);
+    x ^= x >>> 16;
+    return x >>> 0;
 }
 
 /**

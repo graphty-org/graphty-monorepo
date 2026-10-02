@@ -257,6 +257,41 @@ export const RESULT_SHAPES = [
 /** The shape of an algorithm's result. */
 export type ResultShape = (typeof RESULT_SHAPES)[number];
 
+/**
+ * One band of a field's interpretation scale: a range of values and what a value in it means.
+ *
+ * A band's lower bound is `above` (exclusive) or `atLeast` (inclusive), never both. The lowest
+ * band has neither and takes everything below the band above it.
+ */
+export interface FieldBand {
+    /** A stable id a consumer may key its own wording on, such as "clear". */
+    id: string;
+    /** The band in a few plain words, such as "Clearly separated". */
+    plainName: string;
+    /** One plain-language sentence on what a value in this band means. */
+    description: string;
+    /** A value strictly greater than this is in the band. */
+    above?: number;
+    /** A value greater than or equal to this is in the band. */
+    atLeast?: number;
+}
+
+/**
+ * How to read a quality score: what the scale measures, where its bands lie, and where the
+ * thresholds come from.
+ */
+export interface FieldInterpretation {
+    /** One sentence on what the score measures and the value that counts as good. */
+    summary: string;
+    /** Where the thresholds come from, as a citation a reader can look up. */
+    source: string;
+    /**
+     * The bands, highest first. A value is in the first band whose bound it meets, so every
+     * finite value is in exactly one band. `RunResult.band(field)` does this lookup.
+     */
+    bands: readonly FieldBand[];
+}
+
 /** One field a result publishes, per element or for the graph as a whole. */
 export interface FieldDescriptor {
     name: string;
@@ -266,6 +301,8 @@ export interface FieldDescriptor {
     type: "number" | "integer" | "boolean" | "string" | "table";
     unit?: string;
     normalization?: string;
+    /** How to read the value, for a quality score whose number alone means little. */
+    interpretation?: FieldInterpretation;
     path: Path;
 }
 

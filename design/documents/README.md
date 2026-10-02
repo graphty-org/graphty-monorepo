@@ -1,13 +1,15 @@
 # graphty document formats, version 1
 
 graphty-element reads and writes graphs in the formats other tools already use. Those files carry a
-graph; they do not carry what a person did with it in graphty. This directory specifies the two
+graph; they do not carry what a person did with it in graphty. This directory specifies the three
 graphty documents that carry those things, and the one JSON file they travel in:
 
 - a **style**: how nodes and edges are drawn, as rules over the data's columns, so the same look
   applies to the next dataset;
 - a **recipe**: the analysis commands that were run (filters, algorithms and a layout), so the same
-  analysis runs on the next dataset -- a colleague's, a partner's, or your own next month.
+  analysis runs on the next dataset -- a colleague's, a partner's, or your own next month;
+- **notes**: what a person wrote about the graph, its nodes and edges, its kept sets and its
+  results ([notes.md](notes.md)).
 
 Status: specification of version 1, not yet implemented; recipes need graphty-element 3.0.0. The
 owner's decisions are in
@@ -235,9 +237,10 @@ those too, in plain sentences, and changes nothing.
 | [container.md](container.md) | [container.schema.json](container.schema.json), [data.schema.json](data.schema.json) | The one JSON file: how it is recognised, versioned, extended, applied and written; the data member |
 | [style.md](style.md) | [style.schema.json](style.schema.json) | The style member: layers, selectors, encodings, carried palettes |
 | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | The recipe member: its commands, how it binds to a new graph's columns, how it replays and is recorded |
+| [notes.md](notes.md) | [notes.schema.json](notes.schema.json) | The notes member: people's notes about a graph, how they are saved, and how opening them merges |
 | [export-mapping.md](export-mapping.md) | -- | How styles and results are written into other tools' formats |
 | [conformance.md](conformance.md) | -- | The edge-case rulings: input, expected result, the rule each follows; each row becomes a test |
-| [drafts/](drafts/) | -- | Data plan, view preset, annotations and the earlier project envelope: not version 1 |
+| [drafts/](drafts/) | -- | Data plan, view preset and the earlier project envelope: not version 1; annotations, superseded by notes.md |
 
 ## Conventions
 
@@ -252,7 +255,7 @@ changes a live graph session from one. graphty-element is all three.
    reader does not use a schema as an accept-or-refuse test for the whole file; it checks each
    member, and in a style each layer.
 3. The schemas are published at `https://graphty.app/schema/documents/<kind>/v<major>.json`
-   (`graphty-document`, `graphty-style`, `graphty-recipe`, `graphty-data`) and exported from
+   (`graphty-document`, `graphty-style`, `graphty-recipe`, `graphty-data`, `graphty-notes`) and exported from
    graphty-element with the same content.
 
 ## Three things called a file format
@@ -395,11 +398,13 @@ A document is data from someone else.
    document it came from (style.md, "Reading and applying" rule 6). `generator` is a claim the file
    makes, shown as such. Style and recipe ids starting `graphty.` or `graphty:`, or on
    `graphty.app`, in any case, are reserved for graphty-element. Ids hold only letters, digits and
-   `. _ : / -`.
+   `. _ : / -`. Notes opened from a file record which file and when (notes.md, "Opening" rule 1).
 6. **Text is text.** Every string from a document or its data that a reader shows -- labels, names,
    descriptions, a column or member name a report quotes -- is rendered as text, never as HTML, and
    isolated from the text around it, so right-to-left override characters cannot reorder what
    follows. A report quotes a string from the data or an unknown member cut to 256 characters.
+   A note's `text` is the one exception: an application MAY interpret it (notes.md) and MUST then
+   treat it as untrusted; graphty-element never does.
 7. **A service that runs documents submitted by others** against data of its own MUST NOT return
    their reports to the document's author: a report's counts and quotes reveal the data.
 
@@ -415,6 +420,9 @@ in a session that draws nothing.
 - no member name `__proto__` and no object with the same member name twice (`E_BAD_DOCUMENT`);
 - at most 64 members; 1,000 style layers in the file; per style 100 carried palettes of at most 256
   colours; per recipe 1,000 commands;
+- per notes member 10,000 notes; per note 64 targets, 64 cites, 65,536 code points of text and
+  262,144 bytes (256 KB) saved as JSON; a note's `extensions` at most 65,536 bytes (64 KB) saved and
+  32 levels deep; a session holds at most 10,000 notes (notes.md, "Limits");
 - an expression of at most 1,024 characters and 32 levels of nesting; a longer one fails its layer
   or command, not the file;
 - every number a document gives is finite; `1e400` fails its layer or command with `E_OPTION_RANGE`;
@@ -524,6 +532,9 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | `W_RELEASE_DIFFERS` | the file or recipe was written by another release of graphty-element |
 | `W_PRECISION_DIFFERS` | a run replays in another precision than its recipe records; names the `acceleration` setting |
 | `W_FEW_VALUES` | fewer than half of the elements a layer or command reads have a value at a path it reads |
+| `W_FUTURE_TIME` | a note's `time` or `edited` is more than a day after the moment it was opened; kept as read (notes.md, "Opening" rule 10) |
+| `W_GRAPHTY_NOTES` | an export left out the session's notes; `count` is the number of notes (export-mapping.md, "Notes") |
+| `W_GRAPHTY_TRUNCATED` | an exported `graphty.notes.text` cell was cut to 64 KB (export-mapping.md, "Notes") |
 | `W_GRAPHTY_*` | the loss notes of an export (export-mapping.md) |
 
 `E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits and the recipe budgets, and

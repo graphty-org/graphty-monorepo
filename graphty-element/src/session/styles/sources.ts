@@ -45,6 +45,7 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
+import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
@@ -86,6 +87,11 @@ export interface SelectorSourceParts {
      * see {@link createSelectorSource} for why one key has one source and never two.
      */
     readonly records?: SessionRecordSource;
+    /**
+     * The note values of one node or edge row, for the `graphty.notes.*` paths. Absent, those
+     * paths read nothing, as they do on an element no note names.
+     */
+    readonly notes?: NoteFactsReader;
 }
 
 /**
@@ -188,10 +194,18 @@ export function edgeEndpointOf(graph: GraphSnapshot, index: number, key: string)
 /** The prefix a result path carries in front of the run id. */
 const RESULT_PREFIX = `${RESULT_ROOT}.`;
 
+/**
+ * The root reserved for values graphty-element itself provides (design/documents/style.md,
+ * "Paths" rule 1). A path under it never reads a column; `data.graphty.<name>` does.
+ */
+const ELEMENT_ROOT = "graphty.";
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
     /** A key of the record a node or an edge arrived with, or a column of the snapshot. */
     | "attribute"
+    /** One of the note values, under `graphty.notes.`. */
+    | "note"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -205,7 +219,7 @@ interface PathEntry {
     readonly key: string;
     /** The run, for a result path; empty otherwise. */
     readonly runId: RunId;
-    /** The field, for a result path; empty otherwise. */
+    /** The field, for a result path, or the note value, for a note path; empty otherwise. */
     readonly field: string;
 }
 
@@ -235,6 +249,12 @@ function parsePath(path: Path): PathEntry {
         }
 
         return { kind: "result", key: "", runId, field };
+    }
+
+    if (path.startsWith(ELEMENT_ROOT)) {
+        const note = noteFieldOf(path);
+        // A `graphty.` path this release does not know reads nothing, so a later one is an addition.
+        return note === undefined ? NOTHING : { kind: "note", key: "", runId: "", field: note };
     }
 
     // The prefix is stripped rather than required, matching the session's filter value source:
@@ -410,7 +430,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records } = parts;
+    const { snapshot: readSnapshot, records, notes } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -582,6 +602,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return undefined;
         }
 
+        if (entry.kind === "note") {
+            return notes?.(target, index)?.[entry.field as keyof NoteFacts];
+        }
+
         const held = current();
 
         if (entry.kind === "result") {
@@ -603,6 +627,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "none") {
             return false;
+        }
+
+        if (entry.kind === "note") {
+            return notes?.(target, index) !== undefined;
         }
 
         const held = current();

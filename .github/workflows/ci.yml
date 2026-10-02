@@ -25,7 +25,7 @@ jobs:
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
@@ -365,7 +365,7 @@ jobs:
         name: Test (${{ matrix.shard }})
         needs: build
         if: needs.build.outputs.test-count != '0'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
@@ -525,7 +525,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -566,7 +566,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -607,7 +607,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -648,7 +648,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -689,7 +689,7 @@ jobs:
         # Switched off: Chromatic has no spending cap and is being replaced (design/visual-testing/).
         # The variable is unset on purpose; setting it is an owner decision.
         if: vars.CHROMATIC_ENABLED == 'owner-approved'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
@@ -731,7 +731,7 @@ jobs:
     links:
         name: Links
         needs: build
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -807,7 +807,7 @@ jobs:
         name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -848,7 +848,7 @@ jobs:
         name: Cost Estimate Accuracy
         needs: build
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
 
@@ -932,8 +932,11 @@ jobs:
             # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
             # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
             # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
-            # stays near zero. design/visual-testing/design.md section 7 has the estimate.
+            # stays near zero. design/visual-testing/design.md section 7 has the estimate. Depth 2 for the
+            # base branch tip (HEAD^1 of a pull request's merge commit), whose capture code runs below.
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 2
 
             - name: Restore this project's baseline images
               uses: actions/cache@v4
@@ -944,6 +947,15 @@ jobs:
 
             - name: Fetch this project's baseline images from Git LFS
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
+
+            # A pull request runs the base branch's copy of the tool (capture and the trusted code it
+            # imports), never its own: code that wrote "unchanged" for everything would otherwise pass
+            # the gate. A change to capture is first exercised here by the pull request after it.
+            - name: Use the base branch's capture code
+              if: github.event_name == 'pull_request'
+              run: |
+                  rm -rf visual-review/capture visual-review/trusted
+                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
             - uses: pnpm/action-setup@v4
 
@@ -1039,7 +1051,7 @@ jobs:
                 visual,
             ]
         if: always()
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               env:
@@ -1069,14 +1081,16 @@ jobs:
             # excluded items (so every story without an approved baseline blocks, unseeded included),
             # or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
-            # added in the pull request that names its new hash. So it shows the captures match the pull
-            # request's baselines and that each baseline change is named (path and new hash) in a record;
-            # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
-            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
+            # added in the pull request that names its new hash. Once visual-review/passkeys.json on the
+            # base branch holds a key, every record the pull request adds must also carry the owner's
+            # passkey approval (Face ID) over exactly that record and this pull request number, by a key
+            # read from the base branch, never from the pull request; a pull request that would leave no
+            # key fails (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
-            # (standard library only), run from this checkout rather than with npx as the package's
-            # template does, so a change to the gate is tested by its own pull request; it reads
-            # visual-review.config.json from the base tip (sparse checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # (standard library only), run as the base branch has it, never the pull request's copy, so a
+            # pull request cannot loosen the gate that judges it (a change to the gate is first exercised
+            # by the pull request after it); it reads visual-review.config.json from the base tip (sparse
+            # checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
             # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
             # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
@@ -1097,4 +1111,13 @@ jobs:
 
             - name: Check visual changes were accepted
               if: github.event_name == 'pull_request'
-              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD
+              env:
+                  PR: ${{ github.event.pull_request.number }}
+              run: |
+                  gate="$RUNNER_TEMP/gate"
+                  mkdir -p "$gate"
+                  git archive HEAD^1 visual-review/trusted | tar -x -C "$gate"
+                  # The base branch's gate takes --pr once it checks passkeys; one from before that does not.
+                  pr=()
+                  if grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then pr=(--pr "$PR"); fi
+                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD

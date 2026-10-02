@@ -54,7 +54,7 @@
  * asynchronous graph-ready poll.
  */
 
-import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
+import { type DataTableColumn, type DataTableSort, PopoutRegion } from "@graphty/compact-mantine";
 import type { AccelerationPolicy, GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
@@ -160,8 +160,18 @@ export interface CanvasDrawerConfig<TRow extends object> {
     readonly tab: DataDrawerTab;
     /** Tab change. */
     readonly onTabChange: (tab: DataDrawerTab) => void;
-    /** The rows. */
+    /** The rows: every row, or with `rowCount` a window of them. */
     readonly rows: readonly TRow[];
+    /** How many rows there are in all, when `rows` is a window from `rowOffset`. */
+    readonly rowCount?: number;
+    /** Where `rows[0]` sits among all of them. */
+    readonly rowOffset?: number;
+    /** The rows the table is drawing, as positions. */
+    readonly onRangeChange?: (start: number, end: number) => void;
+    /** The sort, held by the caller. */
+    readonly sorting?: readonly DataTableSort[];
+    /** A header asked for a new sort. */
+    readonly onSortingChange?: (sorting: DataTableSort[]) => void;
     /** The columns. */
     readonly columns: readonly DataTableColumn<TRow>[];
     /** A stable id per row; the row selection IS the canvas selection. */
@@ -498,6 +508,11 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                                     tab={drawer.tab}
                                     onTabChange={drawer.onTabChange}
                                     rows={drawer.rows}
+                                    rowCount={drawer.rowCount}
+                                    rowOffset={drawer.rowOffset}
+                                    onRangeChange={drawer.onRangeChange}
+                                    sorting={drawer.sorting}
+                                    onSortingChange={drawer.onSortingChange}
                                     columns={drawer.columns}
                                     getRowId={drawer.getRowId}
                                     showLabel={drawer.showLabel}

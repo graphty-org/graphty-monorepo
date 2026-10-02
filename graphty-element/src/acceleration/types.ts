@@ -497,14 +497,48 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // Above the render ceiling: 0.29x to 0.55x at 50,000 nodes with 100,000 edges, 1.6x to 3.9x at
         // 100,000. Was 132,000.
         connectedComponents: 100_000,
-        // Wins by at most 2 ms inside the render ceiling and loses at 50,000 nodes with 100,000
-        // edges (0.81x to 0.92x); 2.6x to 4.3x at 100,000 nodes.
-        triangleCount: 100_000,
+        // No node floor: the triangle count is floored on its edges instead, in
+        // ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY.
         // Wins 1.1x to 2.8x at 5,000 to 20,000 nodes and loses at 50,000 nodes with 100,000 edges
-        // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000.
+        // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000. An edge
+        // floor was measured for it on 2026-10-01 and does not separate the wins from the losses:
+        // its CPU cost is arcs times passes, and the passes, which nothing knows before the run,
+        // decide it (a 100-edge-a-node graph converges in a few passes and loses at 70,000 edges).
         labelPropagation: 100_000,
     },
 );
+
+/**
+ * For a capability whose cost follows its edges, the smallest (edges x edges per node), that is
+ * edges squared over nodes, at which the device beat the CPU port. A capability listed here has
+ * no node floor: this one decides alone, and like the node floors it applies only while the
+ * consumer has not set `acceleration.minNodes` and not under `acceleration="required"`.
+ *
+ * The triangle count is the one capability it serves (the clustering coefficient runs on it). Its
+ * device call costs 6 to 10 ms almost whatever the graph inside the element's ceiling, while the
+ * CPU port's cost grows with the edges and with how many neighbours each node has to intersect,
+ * so a node floor had to sit above the 50,000-node ceiling to keep sparse graphs off the device
+ * (two edges a node lost at 50,000 nodes) and so kept dense graphs that win off it too.
+ *
+ * Measured 2026-10-01, RTX 4070 SUPER, headless Chromium, the method of the node floors: both arms
+ * through `@graphty/algorithms`' dispatcher, seeded uniform random graphs of 2, 3, 5, 10, 12, 15,
+ * 20, 25, 30, 40, 60 and 100 edges a node from 300 to 50,000 nodes, at most 100,000 edges, plus
+ * two R-MAT (skewed-degree) shapes; medians of 15 rounds (9 above 20,000 nodes), five sweeps at
+ * load averages 10 to 30. Every graph at or above 1,000,000 won in every sweep (1.07x to 8.5x);
+ * the largest that lost anywhere was 800,000 (20 edges a node on 2,000 nodes, 0.95x; 40 a node on
+ * 500, 0.86x). Neither the edge count alone (two edges a node lose at 100,000 edges, twenty win at
+ * 60,000) nor a wedge count from the degrees separates them. Skewed-degree graphs win below the
+ * floor (1.5x to 2x around 220,000 to 370,000); the floor leaves those on the CPU port, which is
+ * a few milliseconds lost, never a slower run. The table is in
+ * `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section "Edge-aware floors".
+ */
+export const ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        triangleCount: 1_000_000,
+    });
+
+/** Where and when the edge floors above were measured, as the plan's reason quotes it. */
+export const ACCELERATION_MIN_EDGES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-10-01";
 
 /**
  * For a run that searches from a set of sources, the smallest (sources x edges) at which the

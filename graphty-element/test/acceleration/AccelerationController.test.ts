@@ -3,6 +3,8 @@ import { assert, describe, it, vi } from "vitest";
 import { type AcceleratedWork, AccelerationController } from "../../src/acceleration/AccelerationController";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import {
+    ACCELERATION_MIN_EDGES_MEASUREMENT,
+    ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_MEASUREMENT,
@@ -528,6 +530,62 @@ describe("AccelerationController: the source-edge floor of a sampled search", ()
         const set = new AccelerationController({ registry: registryWith(searcher()), minNodes: 0 });
         await set.start();
         assert.isTrue(set.plan({ capability: "betweennessCentrality", nodeCount: 1, sourceEdges: 1 }).accelerated);
+        set.dispose();
+    });
+});
+
+describe("AccelerationController: the edge floor of the triangle count", () => {
+    const counter = (): GraphAccelerator =>
+        fakeAccelerator({ members: { forceAtlas2: (): string => "gpu", triangleCount: (): string => "gpu" } });
+    const floor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY.triangleCount ?? NaN;
+
+    it("is the triangle count's only floor, and reachable inside the element's limits", () => {
+        assert.isUndefined(ACCELERATION_MIN_NODES_BY_CAPABILITY.triangleCount);
+        // A graph the element holds can clear it: the edge limit over a node count it allows.
+        const n = 1_000;
+        assert.isAtLeast((DEFAULT_LIMITS.edgesDrawn * DEFAULT_LIMITS.edgesDrawn) / n, floor);
+    });
+
+    it("keeps a large sparse graph on the CPU path and sends a dense one to the accelerator", async () => {
+        const controller = new AccelerationController({ registry: registryWith(counter()) });
+        await controller.start();
+
+        // Two edges a node at the element's limits: 50,000 nodes, 100,000 edges. Measured 0.92x to 0.97x.
+        const sparse = controller.plan({ capability: "triangleCount", nodeCount: 50_000, edgeCount: 100_000 });
+        assert.isFalse(sparse.accelerated);
+        const reason = sparse.accelerated ? "" : sparse.reason;
+        assert.include(reason, "triangleCount");
+        assert.include(reason, String(floor));
+        assert.include(reason, ACCELERATION_MIN_EDGES_MEASUREMENT);
+        assert.include(reason, "acceleration.minNodes");
+        // Twenty edges a node on 5,000 nodes: far fewer nodes, measured 1.8x to 2.5x.
+        assert.isTrue(controller.plan({ capability: "triangleCount", nodeCount: 5_000, edgeCount: 100_000 }).accelerated);
+        controller.dispose();
+    });
+
+    it("routes at the floor and not one edge below it", async () => {
+        const controller = new AccelerationController({ registry: registryWith(counter()) });
+        await controller.start();
+        // 100,000 edges on 10,000 nodes is exactly 1,000,000.
+        const n = (100_000 * 100_000) / floor;
+
+        assert.isTrue(controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: 100_000 }).accelerated);
+        assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: 99_999 }).accelerated);
+        // A work description with no edge count is read as no edges, never as a dense graph.
+        assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: n }).accelerated);
+        assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: 0, edgeCount: 0 }).accelerated);
+        controller.dispose();
+    });
+
+    it("does not apply under required or with a threshold the consumer set", async () => {
+        const required = new AccelerationController({ policy: "required", registry: registryWith(counter()) });
+        await required.ready();
+        assert.isTrue(required.plan({ capability: "triangleCount", nodeCount: 50_000, edgeCount: 1 }).accelerated);
+        required.dispose();
+
+        const set = new AccelerationController({ registry: registryWith(counter()), minNodes: 0 });
+        await set.start();
+        assert.isTrue(set.plan({ capability: "triangleCount", nodeCount: 50_000, edgeCount: 1 }).accelerated);
         set.dispose();
     });
 });

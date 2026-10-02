@@ -167,11 +167,13 @@ losses and format rules, in addition to the table:
   Dynamic attribute values become `temporal:<node|edge>:<name>` extension tables; `viz:color` is an
   f32 x4 rgba column in 0..1, `viz:position` an f32 x3 column; XML-derived column names (`label`,
   `parent`, `start`, ...) are reserved, a declared attribute with such a title is renamed
-  `<title>#<id>`. Node ids that are non-integer numbers read back as text and string ids of integer
-  text as numbers (`W_ID_TEXT_TYPE`; the importer reads ids by the canonical rule whatever `idtype`
-  says, `ids: "string"` keeps the texts). A dict column without declared options gains one from
-  its dictionary (`W_OPTIONS_GAINED`); text with a character XML 1.0 forbids is refused
-  (`E_XML_ILLEGAL_CHAR`, `export()` throws).
+  `<title>#<id>`. An attribute id declared twice in one class keeps the first declaration and is
+  reported with the shared `W_DUPLICATE_ATTRIBUTE` (`GEXF_ISSUE.DUPLICATE_ATTRIBUTE`; formerly
+  `W_GEXF_DUPLICATE_ATTRIBUTE`). Node ids that are non-integer numbers read back as text and
+  string ids of integer text as numbers (`W_ID_TEXT_TYPE`; the importer reads ids by the canonical
+  rule whatever `idtype` says, `ids: "string"` keeps the texts). A dict column without declared
+  options gains one from its dictionary (`W_OPTIONS_GAINED`); text with a character XML 1.0
+  forbids is refused (`E_XML_ILLEGAL_CHAR`, `export()` throws).
 - **GraphML**: parsed by the shared streaming XML tokenizer (no whole-document tree). `key for="all"`
   is declared in the node, edge and graph tables; a key's `name` / `type` are read when `attr.name`
   / `attr.type` are absent; yFiles trees are kept as `json` columns (structure preserved, not

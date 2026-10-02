@@ -1,7 +1,7 @@
 import { type Column, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { XML_SYNTAX_CODE } from "../../../src/common/codes.js";
+import { DUPLICATE_ATTRIBUTE_CODE as SHARED_DUPLICATE_ATTRIBUTE_CODE, XML_SYNTAX_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -30,6 +30,7 @@ import {
     VIZ_VALUE_CODE,
     WEIGHT_IGNORED_CODE,
 } from "../../../src/formats/gexf/importer.js";
+import { GEXF_ISSUE } from "../../../src/formats/gexf/index.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
 import {
     corpusFiles,
@@ -112,6 +113,12 @@ describe("gexfImporter: identity", () => {
         expect(gexfImporter.sniff?.(readCorpusBytes("gexf", "lesmiserables.gexf").subarray(0, 200))).toBe(1);
         expect(gexfImporter.sniff?.(new Uint8Array([0xff, 0xfe, 0x00]))).toBe(0);
         expect(gexfImporter.sniff?.(enc.encode('{ "nodes": [{ "id": "a", "label": "<gexf >" }] }'))).toBe(0);
+    });
+
+    it("reports a twice-declared attribute with the shared W_DUPLICATE_ATTRIBUTE code", () => {
+        expect(DUPLICATE_ATTRIBUTE_CODE).toBe("W_DUPLICATE_ATTRIBUTE");
+        expect(DUPLICATE_ATTRIBUTE_CODE).toBe(SHARED_DUPLICATE_ATTRIBUTE_CODE);
+        expect(GEXF_ISSUE.DUPLICATE_ATTRIBUTE).toBe(SHARED_DUPLICATE_ATTRIBUTE_CODE);
     });
 });
 

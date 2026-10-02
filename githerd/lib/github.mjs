@@ -74,6 +74,8 @@ function ghExec(args, { input, timeoutMs }) {
                 });
             },
         );
+        // gh may exit before reading its input; the write's EPIPE must not crash the daemon.
+        child.stdin.on("error", () => {});
         child.stdin.end(input ?? "");
     });
 }

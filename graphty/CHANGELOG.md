@@ -1,3 +1,18 @@
+## 0.8.28 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty:** draw the Graphty story graph larger, labelled and with thick edges ([5684802b](https://github.com/graphty-org/graphty-monorepo/commit/5684802b))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.21
+- Updated graphty-element to 3.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.27 (2026-10-02)
 
 ### 🚀 Features

@@ -1,3 +1,13 @@
+## 3.1.5 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** settle synchronous label propagation on paths and cycles ([#652](https://github.com/graphty-org/graphty-monorepo/issues/652))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.4 (2026-10-02)
 
 ### 🧱 Updated Dependencies

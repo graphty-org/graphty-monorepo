@@ -1,3 +1,17 @@
+## 0.6.21 (2026-10-02)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** give the benchmark group selector forward-slash paths on windows ([2e3a10d2](https://github.com/graphty-org/graphty-monorepo/commit/2e3a10d2))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.20 (2026-10-02)
 
 ### 🩹 Fixes

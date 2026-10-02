@@ -1,3 +1,21 @@
+## 3.4.1 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** classify the layout manager's graph-writes-waiting hook in the door list ([11171693](https://github.com/graphty-org/graphty-monorepo/commit/11171693))
+- **graphty-element:** start a seeded layout over once per run of queued graph writes ([16cfdaa8](https://github.com/graphty-org/graphty-monorepo/commit/16cfdaa8))
+- **graphty-element:** keep an explicitly placed camera instead of auto-framing over it ([7cda8df4](https://github.com/graphty-org/graphty-monorepo/commit/7cda8df4))
+- **graphty-element:** restart a seeded layout when data arrives in a later write ([#650](https://github.com/graphty-org/graphty-monorepo/issues/650))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.21
+- Updated algorithms to 3.1.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.0 (2026-10-02)
 
 ### 🚀 Features

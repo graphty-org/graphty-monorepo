@@ -595,6 +595,15 @@ describe("cxImporter: collections (design section 1.2)", () => {
         expect(codes((await failure(COLLECTION, { graphName: "Nope" })).report)).toEqual([CX_ISSUE.GRAPH_NOT_FOUND]);
     });
 
+    it("keeps a subnetwork's members under every ids option", async () => {
+        // membership lists hold the ids as written; a coerced id must still find its subnetwork
+        for (const ids of ["string", "number", "keep"] as const) {
+            const byName = await load(COLLECTION, { graphName: "First", ids });
+            expect(byName.snapshot.nodeCount, ids).toBe(2);
+            expect(byName.snapshot.edgeCount, ids).toBe(1);
+        }
+    });
+
     it("reads every subnetwork with importAll()", async () => {
         const all = await importAllGraphs(COLLECTION, { format: "cx" });
         expect(all.map((r) => r.snapshot.nodeCount)).toEqual([2, 2, 3]);

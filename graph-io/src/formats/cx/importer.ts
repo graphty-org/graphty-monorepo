@@ -1705,7 +1705,8 @@ class CxReader {
                 report.counts.skippedNodes++;
                 continue;
             }
-            if (!this.inGraph(id)) {
+            // membership lists hold CX ids as written, before the ids option coerces them
+            if (!this.inGraph(refId(value["@id"]) ?? id)) {
                 continue;
             }
             let row = this.nodeRows.get(id);
@@ -2088,7 +2089,7 @@ class CxReader {
                 report.counts.skippedEdges++;
                 continue;
             }
-            if (members !== null && !members.has(id)) {
+            if (members !== null && !members.has(refId(value["@id"]) ?? id)) {
                 continue;
             }
             if (value.s === undefined || value.s === null || value.t === undefined || value.t === null) {

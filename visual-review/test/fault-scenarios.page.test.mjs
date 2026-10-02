@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { chromium } from "playwright";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { withRetries } from "../trusted/lib/github.mjs";
 import { startApp, world } from "./faults.mjs";
@@ -20,6 +20,13 @@ const CM_ITEMS = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.
 const BUTTON = "button--primary.dark.png";
 const BUTTON_BASELINE = join(FIXTURE, "compact-mantine/baselines", BUTTON);
 const BUTTON_BASELINE_HASH = CM_ITEMS.find((i) => i.file === BUTTON).baseline;
+
+// Each scenario starts a server on a new repository, opens a Chromium tab and walks the page to
+// the screen it tests: about 0.5 to 1 s unloaded and 1.5 s on a CI runner before the scenario's
+// own steps, some of which wait on purpose (3.5 s for a late render, 60 items for the image
+// cache). Measured on one CPU shared with a busy loop, the scenarios take 3 to 6 s; Vitest's
+// default 5 s is sized for unit tests.
+vi.setConfig({ testTimeout: 20000 });
 
 let browser;
 let s;
@@ -230,10 +237,17 @@ describe("review page: stale caches", () => {
         await page.goto(`${s.origin}/#token=${TOKEN}`);
         await review();
         await openStory(1);
+        // Each step waits for the page to show item n with its box count, checked every frame:
+        // expect.poll's 50 ms interval alone would make the 59 steps take about 3 s.
         for (let n = 2; n <= items.length; n++) {
             await page.keyboard.press("j");
-            await expect.poll(() => page.locator("#position").textContent()).toMatch(new RegExp(`^${n} of `));
-            await expect.poll(boxCount).toMatch(/^box/);
+            await page.waitForFunction((n) => {
+                const { document } = globalThis;
+                return (
+                    document.getElementById("position").textContent.startsWith(`${n} of `) &&
+                    document.getElementById("box-count").textContent.startsWith("box")
+                );
+            }, n);
         }
         expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(items.length);
     });
@@ -362,13 +376,29 @@ describe("review page: rendering and routing", () => {
         await review();
         await openStory(2);
         const before = await page.evaluate(() => globalThis.history.length);
+        // The pull request lists the two routes wait on, asked and answered.
+        let asked = 0;
+        let answered = 0;
+        page.on("request", (req) => req.url().includes("/api/prs") && asked++);
+        const done = (req) => req.url().includes("/api/prs") && answered++;
+        page.on("requestfinished", done);
+        page.on("requestfailed", done);
         slow = true;
         // Back twice, without waiting for the first to land: story -> grid -> targets.
         await page.evaluate(() => {
             globalThis.history.back();
             setTimeout(() => globalThis.history.back(), 50);
         });
-        await sleep(3500);
+        // Both routes have their answer and the targets screen is shown; a superseded route that
+        // went on would now show the grid and push an entry, within a moment of its answer. The
+        // wait is counted from the answers, not from the presses, so a slow machine waits longer
+        // instead of running out of the test's time.
+        await expect
+            .poll(async () => asked >= 2 && answered === asked && (await page.locator(".card").count()) > 0, {
+                timeout: 8000,
+            })
+            .toBe(true);
+        await sleep(500);
         const after = await page.evaluate(() => ({
             length: globalThis.history.length,
             hash: globalThis.location.hash,

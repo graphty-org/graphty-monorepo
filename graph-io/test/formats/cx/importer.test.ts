@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { GraphBuilder, type GraphBuilderOptions, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
@@ -593,6 +597,43 @@ describe("cxImporter: collections (design section 1.2)", () => {
         expect(third.snapshot.meta.name).toBe("Third");
         expect(point(third.snapshot, "position", 3)).toEqual([30, -30, 0]);
         expect(codes((await failure(COLLECTION, { graphName: "Nope" })).report)).toEqual([CX_ISSUE.GRAPH_NOT_FOUND]);
+    });
+
+    it('reads every aspect that names a node or an edge under ids: "string" as under the default', async () => {
+        // layouts, groups, attributes, visual properties and links name elements by their CX id;
+        // each must find the element the ids option renamed
+        const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "conformance", "fixtures", "cx");
+        const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")) as {
+            fixtures: { file: string; expected: { outcome: string } }[];
+        };
+        const setCells = (s: GraphSnapshot): Record<string, number> => {
+            const out: Record<string, number> = {};
+            for (const [table, columns, count] of [
+                ["node", s.nodes, s.nodeCount],
+                ["edge", s.edges, s.edgeCount],
+            ] as const) {
+                for (const column of columns) {
+                    let n = 0;
+                    for (let row = 0; row < count; row++) {
+                        n += column.isSet(row) ? 1 : 0;
+                    }
+                    out[`${table}:${column.meta.name}`] = n;
+                }
+            }
+            return out;
+        };
+        let compared = 0;
+        for (const { file, expected } of manifest.fixtures) {
+            if (expected.outcome !== "pass") {
+                continue;
+            }
+            const bytes = new Uint8Array(readFileSync(join(dir, file)));
+            const plain = await load(bytes);
+            const text = await load(bytes, { ids: "string" });
+            expect(setCells(text.snapshot), file).toEqual(setCells(plain.snapshot));
+            compared++;
+        }
+        expect(compared).toBeGreaterThan(10);
     });
 
     it("keeps a subnetwork's members under every ids option", async () => {

@@ -127,8 +127,8 @@ describe("normalizeConfig", () => {
                 caps: { backlog: { turns: 80, budgetUsd: 5, timeoutMinutes: 60 } },
             },
         });
-        expect(c.runs.model).toEqual({ default: "sonnet", "master-red": "opus" });
-        expect(Object.keys(c.runs.caps).sort()).toEqual(["backlog", "default"]);
+        expect(c.runs.model).toEqual({ default: "sonnet", "backlog-high": "opus", "master-red": "opus" });
+        expect(Object.keys(c.runs.caps).sort()).toEqual(["backlog", "backlog-high", "default"]);
     });
 
     it("validates graphty's real file", () => {

@@ -49,6 +49,7 @@ import { pagesFor } from "./paging.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
+import { NEXT, SKIP } from "./queue.mjs";
 import { createRetriage } from "./retriage.mjs";
 import { authenticate, runTools } from "./run-tools.mjs";
 import { admit, createRunner, ownerIdentity, recoverRuns, writeRunGitconfig } from "./runner.mjs";
@@ -70,6 +71,8 @@ const MAX_BODY = 1024 * 1024;
 const ISSUES_START = "1970-01-01T00:00:00Z";
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
+/** The owner's override labels; honored only when the owner applied them. */
+const OVERRIDES = [NEXT, SKIP];
 /** The session tools a judgment run also gets. */
 const RUN_SESSION_TOOLS = new Set(["githerd_status", "githerd_claim", "githerd_release", "githerd_escalate"]);
 /** How far back a run's `githerd_ledger` reads. */
@@ -813,6 +816,7 @@ export async function startDaemon({
 
             const issues = await pollIssues(gh, repo, state.issues, ISSUES_START);
             state.issues = { since: issues.since, byNumber: issues.byNumber };
+            await checkOverrides();
         }
 
         // No owner, no runs: every run kind acts only on the owner's items.
@@ -822,6 +826,34 @@ export async function startDaemon({
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
         return null;
+    }
+
+    /**
+     * Records which of the owner's override labels (`githerd:next`, `githerd:skip`) on an open
+     * issue or PR the owner applied, from the issue's events: a label anyone else added is
+     * ignored (design section 10.2). Read again only when the record changed.
+     */
+    async function checkOverrides() {
+        const records = [
+            ...Object.entries(state.prs ?? {}).map(([n, r]) => [n, r, r.lastActivityAt]),
+            ...Object.entries(state.issues.byNumber)
+                .filter(([, i]) => i.state === "open")
+                .map(([n, i]) => [n, i, i.updatedAt]),
+        ];
+        for (const [n, rec, stamp] of records) {
+            const labels = (rec.labels ?? []).filter((/** @type {string} */ l) => OVERRIDES.includes(l));
+            if (!labels.length) {
+                delete rec.ownerLabels;
+                continue;
+            }
+            if (rec.ownerLabelsFor === stamp) continue;
+            const { items } = await pages(`repos/${config.repo}/issues/${n}/events?per_page=100`, 10);
+            rec.ownerLabels = labels.filter((/** @type {string} */ l) => {
+                const last = items.filter((e) => e.event === "labeled" && e.label?.name === l).at(-1);
+                return board.byOwner(state, last?.actor?.login);
+            });
+            rec.ownerLabelsFor = stamp;
+        }
     }
 
     /**
@@ -935,7 +967,18 @@ export async function startDaemon({
                 return { ok: false, reason: /** @type {Error} */ (err).message };
             }
         }
-        const started = run.start({ kind, event: why, target, prompt, batch, greenSha, incident, cwd, worktree });
+        const started = run.start({
+            kind,
+            profile: item.profile,
+            event: why,
+            target,
+            prompt,
+            batch,
+            greenSha,
+            incident,
+            cwd,
+            worktree,
+        });
         if (!started.ok) {
             if (worktree) await removeWorktree({ root, state, dir: worktree.dir, ledger, now });
             return started;

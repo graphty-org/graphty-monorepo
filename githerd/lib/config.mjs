@@ -38,11 +38,15 @@ export const DEFAULTS = Object.freeze({
         maxConcurrent: 2,
         dailyBudgetUsd: 15,
         dryRunDailyBudgetUsd: 5,
-        model: { default: "sonnet" },
-        caps: { default: { turns: 30, budgetUsd: 1.5, timeoutMinutes: 15 } },
+        // An effort:high issue's backlog run: the larger model and caps, never the owner's call.
+        model: { default: "sonnet", "backlog-high": "opus" },
+        caps: {
+            default: { turns: 30, budgetUsd: 1.5, timeoutMinutes: 15 },
+            "backlog-high": { turns: 200, budgetUsd: 8, timeoutMinutes: 120 },
+        },
         writesPerRun: 10,
     },
-    backlog: { wipCap: 1, efforts: [] },
+    backlog: { wipCap: 3, agingDays: 60 },
     refresh: { everyHours: 24, maxIssuesPerRun: 15, minDaysBetween: 14 },
     retriage: { intervalDays: 7, startHourUtc: 9, batchSize: 25, runsPerHour: 2, budgetUsd: 25 },
     staleDays: 14,
@@ -95,7 +99,7 @@ const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
  *   runs: { maxConcurrent: number, dailyBudgetUsd: number, dryRunDailyBudgetUsd: number,
  *     model: Record<string, string>, caps: Record<string, RunCap>, writesPerRun: number },
- *   backlog: { wipCap: number, efforts: string[] },
+ *   backlog: { wipCap: number, agingDays: number },
  *   refresh: { everyHours: number, maxIssuesPerRun: number, minDaysBetween: number },
  *   retriage: { intervalDays: number, startHourUtc: number, batchSize: number, runsPerHour: number,
  *     budgetUsd: number },
@@ -334,9 +338,6 @@ export function normalizeConfig(input) {
         fail("grace.closeIssueShownDays cannot be more than grace.closeIssueDays");
     }
 
-    const backlogRaw = raw.backlog === undefined ? {} : object(raw.backlog, "backlog");
-    onlyKeys(backlogRaw, ["wipCap", "efforts"], "backlog.");
-
     const notifyRaw = raw.notify === undefined ? {} : object(raw.notify, "notify");
     onlyKeys(notifyRaw, ["command", "maxPerHour"], "notify.");
 
@@ -366,11 +367,7 @@ export function normalizeConfig(input) {
         actions,
         grace,
         runs: runs(raw.runs),
-        backlog: {
-            wipCap:
-                backlogRaw.wipCap === undefined ? DEFAULTS.backlog.wipCap : number(backlogRaw.wipCap, "backlog.wipCap"),
-            efforts: backlogRaw.efforts === undefined ? [] : strings(backlogRaw.efforts, "backlog.efforts"),
-        },
+        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { wipCap: { min: 0 } }),
         refresh: numbers(raw.refresh, DEFAULTS.refresh, "refresh"),
         retriage: numbers(raw.retriage, DEFAULTS.retriage, "retriage", {
             startHourUtc: { min: 0, max: 23 },

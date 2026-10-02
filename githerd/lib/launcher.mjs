@@ -542,7 +542,7 @@ export async function ensureDaemon(ctx) {
 }
 
 /**
- * The static tools a session sees before the daemon answers: the six session tools' names,
+ * The static tools a session sees before the daemon answers: the seven session tools' names,
  * descriptions and schemas. Their calls are forwarded, never run here.
  * @returns {import("./mcp.mjs").Tool[]} the tools
  */

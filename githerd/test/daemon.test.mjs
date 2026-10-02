@@ -100,7 +100,10 @@ let configFile;
 let notifyLog;
 /** @type {Date} */
 let clock;
-/** @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null}} */
+/**
+ * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
+ *   events?: Record<string, any[]>}}
+ */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
 let gh;
@@ -166,6 +169,8 @@ function respond({ args, input }) {
         });
     }
     if (path.includes("/commits?sha=master")) return ok(scene.commits);
+    const events = /\/issues\/(\d+)\/events\?/.exec(path);
+    if (events) return ok(scene.events?.[events[1]] ?? []);
     if (path.includes("/issues?")) return ok(scene.issues ?? []);
     if (/\/pulls\/\d+\/commits\?/.test(path)) return ok([{ commit: { message: "fix(x): a fix" } }]);
     if (/\/pulls\/\d+\/files\?/.test(path)) return ok([{ filename: "src/a.ts" }]);
@@ -340,7 +345,7 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
-    it("lists the six session tools on /rpc", async () => {
+    it("lists the seven session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {
             method: "POST",
@@ -350,6 +355,7 @@ describe("HTTP endpoints", () => {
         const names = (await res.json()).result.tools.map((t) => t.name);
         expect(names).toEqual([
             "githerd_status",
+            "githerd_next",
             "githerd_claim",
             "githerd_release",
             "githerd_report",
@@ -658,6 +664,61 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
         expect(daemon.state.prs["7"]).toMatchObject({ ownerRejected: true });
+    });
+
+    it("honors githerd:next and githerd:skip only when the owner applied them", async () => {
+        writeConfig({
+            labels: { types: ["bug"], priorities: ["priority:high", "priority:low"], efforts: ["effort:low"] },
+        });
+        const item = (/** @type {number} */ number, /** @type {string} */ label, /** @type {string} */ updated) => ({
+            number,
+            state: "open",
+            user: { login: "owner" },
+            created_at: "2026-09-01T00:00:00Z",
+            updated_at: updated,
+            labels: ["bug", "priority:low", "effort:low", label].map((name) => ({ name })),
+        });
+        const labeled = (/** @type {string} */ name, /** @type {string} */ login) => ({
+            event: "labeled",
+            label: { name },
+            actor: { login },
+        });
+        scene.issues = [
+            item(5, "githerd:skip", "2026-10-02T10:00:00Z"),
+            item(6, "githerd:skip", "2026-10-02T10:00:00Z"),
+            item(7, "githerd:next", "2026-10-02T10:00:00Z"),
+        ];
+        scene.events = {
+            5: [labeled("githerd:skip", "owner")],
+            6: [labeled("githerd:skip", "owner"), labeled("githerd:skip", "stranger")],
+            7: [labeled("githerd:next", "stranger")],
+        };
+        const daemon = await start();
+        const queue = async () => {
+            const res = await fetch(`${daemon.url}/rpc`, {
+                method: "POST",
+                headers: { "x-githerd-session": "wt-1" },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "tools/call",
+                    params: { name: "githerd_status", arguments: { section: "queue", format: "json" } },
+                }),
+            });
+            const text = (await res.json()).result.content[0].text;
+            return JSON.parse(text).queue.items.map((/** @type {any} */ i) => i.target);
+        };
+        const eventReads = () => gh.calls.filter((c) => c.args.some((a) => a.includes("/events?"))).length;
+        await poll(daemon);
+        expect(await queue()).toEqual(["issue:6", "issue:7"]);
+        expect(eventReads()).toBe(3);
+        await poll(daemon);
+        expect(eventReads()).toBe(3);
+        // The owner applies githerd:next to issue 7 itself: it moves to the front.
+        scene.issues = [item(7, "githerd:next", "2026-10-02T11:00:00Z")];
+        scene.events[7].push(labeled("githerd:next", "owner"));
+        await poll(daemon);
+        expect(await queue()).toEqual(["issue:7", "issue:6"]);
     });
 });
 

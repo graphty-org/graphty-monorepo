@@ -728,8 +728,66 @@ export function runTools(ctx) {
                     },
                 );
                 for (const k of failed) retries[k] = (retries[k] ?? 0) + 1;
+                // A named mechanism makes the next failure of these jobs a quick rerun in the queue.
+                state.flakes ??= {};
+                for (const k of failed) state.flakes[k.slice(0, k.lastIndexOf("@"))] = { at: now.toISOString() };
                 await ctx.save();
                 return `${done}: rerun of ${failed.join(", ")}`;
+            },
+        });
+    }
+
+    if (kind === "backlog") {
+        tools.push({
+            name: "githerd_split_issue",
+            description:
+                "Split this run's issue into smaller issues when it is several pieces of work. Each new issue gets the parent's type, priority and effort labels and a link back to it, and the parent gets a comment listing them. Then implement nothing else in this run.",
+            inputSchema: {
+                type: "object",
+                required: ["parts", "reason"],
+                properties: {
+                    parts: {
+                        type: "array",
+                        minItems: 2,
+                        maxItems: 6,
+                        items: {
+                            type: "object",
+                            required: ["title", "body"],
+                            properties: {
+                                title: { type: "string", maxLength: 120 },
+                                body: { type: "string", maxLength: 4000 },
+                            },
+                            additionalProperties: false,
+                        },
+                    },
+                    reason: { type: "string", maxLength: 300 },
+                },
+                additionalProperties: false,
+            },
+            handler: async (args) => {
+                const { type, number } = parseTarget(run.target);
+                if (type !== "issue") throw new Error("only an issue is split");
+                const sets = new Set([
+                    ...(config.labels?.types ?? []),
+                    ...(config.labels?.priorities ?? []),
+                    ...(config.labels?.efforts ?? []),
+                ]);
+                const labels = (state.issues?.byNumber?.[number]?.labels ?? []).filter(
+                    (/** @type {string} */ l) => sets.has(l) && !ACTOR_LABELS.has(l),
+                );
+                /** @type {[string, string, unknown][]} */
+                const writes = args.parts.map((/** @type {{title: string, body: string}} */ p) => {
+                    const body = `${p.body}\n\nSplit from #${number}.\n\n${marker}`;
+                    outgoing(p.title, "title");
+                    outgoing(body, "body");
+                    return ["POST", `repos/${repo}/issues`, { title: p.title, body, labels }];
+                });
+                const titles = args.parts.map((/** @type {{title: string}} */ p) => `- ${p.title}`).join("\n");
+                const comment = `Split into ${args.parts.length} issues (${args.reason}):\n\n${titles}\n\n${marker}`;
+                outgoing(comment, "comment");
+                writes.push(["POST", `repos/${repo}/issues/${number}/comments`, { body: comment }]);
+                const done = await perform("runWrites", writes, { target: run.target, reason: args.reason });
+                return `${done}: ${run.target} split into ${args.parts.length} issues labeled ${labels.join(", ") || "nothing"}`;
             },
         });
     }

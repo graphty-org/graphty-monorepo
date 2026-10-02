@@ -162,6 +162,20 @@ describe("pure parts", () => {
         expect(ro[ro.indexOf("--model") + 1]).toBe("sonnet");
     });
 
+    it("gives an effort:high backlog run the larger model and caps of the backlog-high profile", () => {
+        const at = (/** @type {string[]} */ argv, /** @type {string} */ flag) => argv[argv.indexOf(flag) + 1];
+        const high = runArgv({ kind: "backlog", profile: "backlog-high", config: CONFIG, runDir: "/r", prompt: "P" });
+        expect([at(high, "--model"), at(high, "--max-turns"), at(high, "--max-budget-usd")]).toEqual([
+            "opus",
+            "200",
+            "8",
+        ]);
+        expect(at(high, "--tools")).toBe("Read Edit Write Grep Glob Bash mcp__githerd");
+        const plain = runArgv({ kind: "backlog", config: CONFIG, runDir: "/r", prompt: "P" });
+        expect(at(plain, "--model")).toBe("sonnet");
+        expect(Number(at(plain, "--max-turns"))).toBeLessThan(200);
+    });
+
     it("builds the environment from the allowlist only", () => {
         const env = runEnv(
             { PATH: "/bin", HOME: "/h", GH_TOKEN: "t", PUSHOVER_USER: "u", GITHERD_NAME: "n", GPG_TTY: "/dev/pts/1" },

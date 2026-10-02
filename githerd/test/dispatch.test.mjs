@@ -19,7 +19,7 @@ const CONFIG = normalizeConfig({
         priorities: ["priority:high", "priority:low"],
         efforts: ["effort:high", "effort:low"],
     },
-    backlog: { wipCap: 1, efforts: ["effort:low"] },
+    backlog: { wipCap: 1 },
     runs: {
         maxConcurrent: 2,
         dailyBudgetUsd: 15,
@@ -652,7 +652,7 @@ describe("dispatch: triage, refresh and release", () => {
         state.issues.byNumber[7] = issue({ labels: ["bug", "priority:low", "effort:high"] });
         const h = harness(state, { issueTexts: async (ns) => ns.map((n) => ({ number: n, title: "unrelated" })) });
         await h.pass();
-        expect(h.launched).toEqual([]);
+        expect(h.launched.filter((l) => l.kind === "refresh")).toEqual([]);
         expect(state.merged.pendingPaths).toEqual({});
     });
 
@@ -677,13 +677,13 @@ describe("dispatch: backlog", () => {
         expect(agentReady(4, issue(), ctx(state))).toBe(true);
     });
 
-    it("excludes blocked and needs-* labels, the wrong effort, a missing label, and a referencing PR", () => {
+    it("excludes blocked and needs-* labels, a missing label, and a referencing PR, but not high effort", () => {
         const state = baseState();
         const base = ["bug", "priority:low", "effort:low"];
         for (const extra of ["blocked", "needs-decision", "needs-info", "needs-anything", "research", "in-progress"]) {
             expect(agentReady(4, issue({ labels: [...base, extra] }), ctx(state))).toBe(false);
         }
-        expect(agentReady(4, issue({ labels: ["bug", "priority:low", "effort:high"] }), ctx(state))).toBe(false);
+        expect(agentReady(4, issue({ labels: ["bug", "priority:low", "effort:high"] }), ctx(state))).toBe(true);
         expect(agentReady(4, issue({ labels: ["bug", "effort:low"] }), ctx(state))).toBe(false);
         state.prs[9] = pr({ title: "fix: closes #4" });
         expect(agentReady(4, issue(), ctx(state))).toBe(false);
@@ -719,5 +719,52 @@ describe("dispatch: backlog", () => {
         const h = harness(state);
         await h.pass();
         expect(h.launched.map((l) => l.kind)).toEqual(["pr-fix"]);
+    });
+});
+
+describe("dispatch: the work queue's order", () => {
+    it("starts a stuck release before a PR fix: finish before starting", async () => {
+        const state = baseState();
+        state.prs[5] = pr();
+        state.escalations["release-stalled:x"] = { key: "release-stalled:x", kind: "release-stalled" };
+        const h = harness(state);
+        await h.pass();
+        expect(h.launched.map((l) => l.kind)).toEqual(["release", "pr-fix"]);
+    });
+
+    it("fixes PRs oldest first, holds a stacked PR for its base, and leaves the owner's PRs alone", async () => {
+        const state = baseState();
+        state.prs[4] = pr({ createdAt: ago(2 * DAY), headRef: "fix/four" });
+        state.prs[9] = pr({ createdAt: ago(20 * DAY), headRef: "fix/nine", required: {}, conflictSightings: 2 });
+        state.prs[6] = pr({ createdAt: ago(30 * DAY), headRef: "fix/six", baseRef: "fix/four", stackedOn: 4 });
+        state.prs[7] = pr({ createdAt: ago(40 * DAY), headRef: "fix/seven", breaking: true });
+        const h = harness(state);
+        const r = await h.pass();
+        expect(h.launched.map((l) => [l.kind, l.target])).toEqual([
+            ["pr-conflict", "pr:9"],
+            ["pr-fix", "pr:4"],
+        ]);
+        expect(r.waiting.find((w) => w.item.target === "pr:6").reason).toBe("stacked: waits for #4");
+        expect(r.waiting.find((w) => w.item.target === "pr:7")).toBeUndefined();
+    });
+
+    it("gives an effort:high issue the backlog-high model and caps, and asks the owner nothing", async () => {
+        const state = baseState();
+        state.issues.byNumber[3] = issue({ labels: ["bug", "priority:high", "effort:high"] });
+        const h = harness(state);
+        await h.pass();
+        expect(h.launched).toHaveLength(1);
+        expect(h.launched[0]).toMatchObject({ kind: "backlog", target: "issue:3", profile: "backlog-high" });
+        expect(h.launched[0].reason).toBe("high-priority bug, age unknown, effort:high");
+        expect(Object.keys(state.escalations)).toEqual([]);
+    });
+
+    it("lets a high-effort run that can never fit the dry-run budget wait without stopping the pass", async () => {
+        const state = baseState();
+        state.issues.byNumber[3] = issue({ labels: ["bug", "priority:high", "effort:high"] });
+        const r = await harness(state).pass({ mode: "dry-run" });
+        expect(r.started).toEqual([]);
+        expect(r.waiting[0].reason).toBe("a $8 backlog-high run never fits the $5 day");
+        expect(r.slotsFull).toBe(false);
     });
 });

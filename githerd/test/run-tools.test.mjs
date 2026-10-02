@@ -548,3 +548,43 @@ describe("githerd_propose and githerd_finish_branch", () => {
         expect(handed[0][1]).toMatchObject({ openPr: false, body: "b\n\n<!-- githerd run=run-1 -->" });
     });
 });
+
+describe("githerd_split_issue", () => {
+    const parts = [
+        { title: "feat(x): part one", body: "The first half." },
+        { title: "feat(x): part two", body: "The second half." },
+    ];
+
+    it("in dry-run records the new issues, with the parent's labels and a link, and the comment as would-do", async () => {
+        const state = stateWith({ kind: "backlog" });
+        state.issues.byNumber[12] = { labels: ["bug", "priority:high", "effort:low", "githerd:next"] };
+        const s = setup({ kind: "backlog" }, { state });
+        expect(setup({ kind: "triage" }).names).not.toContain("githerd_split_issue");
+        const { text, isError } = await s.call("githerd_split_issue", { parts, reason: "two separate fixes" });
+        expect(isError).toBe(false);
+        expect(text).toBe("would-do: issue:12 split into 2 issues labeled bug, priority:high, effort:low");
+        expect(s.github.calls).toEqual([]);
+        const lines = s.written.filter((e) => e.kind === "would-do");
+        expect(lines.map((e) => e.op)).toEqual(["POST issues", "POST issues", "POST issues/12/comments"]);
+        expect(lines[0].body).toEqual({
+            title: "feat(x): part one",
+            body: "The first half.\n\nSplit from #12.\n\n<!-- githerd run=run-1 -->",
+            labels: ["bug", "priority:high", "effort:low"],
+        });
+        expect(lines[2].body.body).toContain("- feat(x): part two");
+        expect(state.runs["run-1"].writes).toBe(3);
+    });
+
+    it("in acting mode with runWrites on, creates the issues and comments", async () => {
+        const state = stateWith({ kind: "backlog" });
+        state.issues.byNumber[12] = { labels: ["enhancement", "priority:low", "effort:low"] };
+        const config = { ...CONFIG, actions: { ...CONFIG.actions, runWrites: true } };
+        const s = setup({ kind: "backlog" }, { state, mode: "acting", config });
+        await s.call("githerd_split_issue", { parts, reason: "two separate fixes" });
+        expect(s.github.calls.map((c) => `${c[0]} ${c[1]}`)).toEqual([
+            `POST repos/${REPO}/issues`,
+            `POST repos/${REPO}/issues`,
+            `POST repos/${REPO}/issues/12/comments`,
+        ]);
+    });
+});

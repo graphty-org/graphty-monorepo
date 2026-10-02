@@ -1,6 +1,6 @@
 /**
- * The six tools every session gets (design section 7.1): githerd_status, githerd_claim,
- * githerd_release, githerd_report, githerd_escalate and githerd_resolve.
+ * The seven tools every session gets (design section 7.1): githerd_status, githerd_next,
+ * githerd_claim, githerd_release, githerd_report, githerd_escalate and githerd_resolve.
  *
  * They are pure functions over the daemon's state object. `sessionTools(ctx)` returns MCP tools
  * bound to one request's context; the write tools change `ctx.state` in place through
@@ -13,6 +13,7 @@
  */
 
 import * as board from "./board.mjs";
+import { takenBy, workQueue } from "./queue.mjs";
 import { assertAscii } from "./text.mjs";
 
 /** The prefix on text a judgment run wrote. */
@@ -21,7 +22,7 @@ export const RUN_TEXT = "[run text]";
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
 
-const SECTIONS = ["all", "master", "prs", "claims", "owner", "proposals", "runs", "issues"];
+const SECTIONS = ["all", "master", "prs", "queue", "claims", "owner", "proposals", "runs", "issues"];
 
 /**
  * One request's view of the daemon.
@@ -212,6 +213,17 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             .sort(([a], [b]) => Number(a) - Number(b))
             .map(([n, p]) => prData(n, p, owned(p.author), false));
     }
+    if (want("queue")) {
+        const q = workQueue({ state, config, now });
+        const show = (/** @type {import("./queue.mjs").QueueItem} */ i) => ({
+            target: i.target,
+            kind: i.kind,
+            reason: i.reason,
+            waiting: i.waiting ?? null,
+            takenBy: takenBy(state, i.target, now, startedAt),
+        });
+        out.queue = { items: q.items.map(show), ownerWaiting: q.ownerWaiting.map(show) };
+    }
     if (want("claims")) {
         out.claims = Object.values(state.claims ?? {})
             .filter((c) => Date.parse(c.expiresAt) > now.getTime())
@@ -376,6 +388,20 @@ function statusText(data, now) {
             }
         }
     }
+    if (data.queue) {
+        const { items, ownerWaiting } = data.queue;
+        lines.push(`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`);
+        for (const i of items) {
+            const notes = [...(i.waiting ? [i.waiting] : []), ...(i.takenBy ? [`taken by ${i.takenBy}`] : [])];
+            lines.push(`  ${i.target} -- ${i.reason}${notes.length ? ` [${notes.join("; ")}]` : ""}`);
+        }
+        if (ownerWaiting.length) {
+            const list = ownerWaiting.map(
+                (i) => `${i.target.replace("pr:", "#")} ${i.reason.replace("waiting on owner: ", "")}`,
+            );
+            lines.push(`PRS WAITING ON OWNER (${ownerWaiting.length}): ${list.join("; ")}`);
+        }
+    }
     if (data.claims) {
         const claims = data.claims.map(
             (c) => `${c.target} -> ${c.holderName ?? c.holder} (until ${hhmm(c.expiresAt)})`,
@@ -438,7 +464,7 @@ function claimResult(result) {
 }
 
 /**
- * Builds the six session tools bound to one request.
+ * Builds the seven session tools bound to one request.
  * @param {ToolContext} ctx the request context
  * @returns {import("./mcp.mjs").Tool[]} the tools
  */
@@ -485,6 +511,50 @@ export function sessionTools(ctx) {
                 const { banner, ...data } = statusData(state, ctx, args);
                 if (args.format === "json") return { result: JSON.stringify({ banner, ...data }, null, 2), bare: true };
                 return { result: statusText(data, now) };
+            }),
+        },
+        {
+            name: "githerd_next",
+            description:
+                "Take the next piece of work: the top item of githerd's work queue that nobody holds, claimed for you in the same call so no other session gets it. Returns {ok:true, target, kind, reason, claim} or {ok:false, reason}. Release the claim when you finish.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    holderName: {
+                        type: "string",
+                        maxLength: 80,
+                        description: "Your ListAgents name, so others can message you.",
+                    },
+                    ttlMinutes: { type: "integer", minimum: 5, maximum: 480, default: 120 },
+                },
+                additionalProperties: false,
+            },
+            handler: handler((args) => {
+                // Synchronous from the queue to the claim: the daemon is one Node process, so two
+                // sessions asking at once can never take the same item.
+                for (const item of workQueue({ state, config: ctx.config, now }).items) {
+                    if (item.waiting || takenBy(state, item.target, now, startedAt)) continue;
+                    const purpose = `githerd_next: ${item.reason}`.slice(0, 200);
+                    const result = board.claim(
+                        state,
+                        { target: item.target, purpose, ttlMinutes: args.ttlMinutes, holderName: args.holderName },
+                        caller,
+                        now,
+                        startedAt,
+                    );
+                    if (!result.ok) continue;
+                    const { target, kind, reason } = item;
+                    return {
+                        result: JSON.stringify({ ok: true, target, kind, reason, claim: result.claim }),
+                        entry: { kind: "claim", target, holder: by, purpose, renewed: false, via: "githerd_next" },
+                    };
+                }
+                return {
+                    result: JSON.stringify({
+                        ok: false,
+                        reason: "nothing to take: the queue is empty, waiting or held",
+                    }),
+                };
             }),
         },
         {

@@ -4,9 +4,11 @@
  * It is level-triggered. Every poll it reads the daemon state and works out which runs the state
  * calls for, so events on one target within a poll merge into one item, and a target with a run in
  * flight gets at most one follow-up: the item the state still calls for when that run ends. Items
- * start in priority order (master red, failing PRs, conflicts, release, triage, refresh, backlog,
- * re-triage); the first one admission refuses for budget or concurrency stops the pass, so a lower
- * kind never overtakes a higher one that is waiting for room.
+ * start in priority order (master red, release, PRs, triage, refresh, backlog, re-triage), and
+ * within PRs and the backlog in the order of the work queue (`queue.mjs`, design section 10.2);
+ * the first one admission refuses for budget or concurrency stops the pass, so a lower kind never
+ * overtakes a higher one that is waiting for room. A run whose budget can never fit the day's
+ * limit waits without stopping the pass.
  *
  * Which row of the event table starts which run:
  *
@@ -14,13 +16,13 @@
  * |---|---|---|
  * | 1 | open incident, 15 minute hold over, no live session claims `master`, no owner's PR opened after the red | master-red |
  * | 6 | open `release-failed`, `release-stalled` or `lane-stuck:` escalation with no run yet | release |
- * | 8 | the owner's non-draft PR with a failing required check, master green, not in the owner gate | pr-fix |
+ * | 8 | the owner's non-draft PR with a failing required check, master green, not waiting on the owner, not stacked | pr-fix |
  * | 9 | the same while master is red | none |
  * | 10 | the owner's non-draft PR conflicting on two sightings, master green | pr-conflict |
  * | 12 | the owner rejected the PR's images | pr-fix with the reject block |
  * | 16 | the owner's open issue missing a type, priority or effort label, changed since its last triage | triage, up to 10, one run per 30 minutes |
  * | 17 | merged PRs changed paths, refresh due | refresh, the top issues by `rankForRefresh` |
- * | 23 | nothing else queued, master not red, under the WIP cap, an agent-ready issue | backlog |
+ * | 23 | nothing else queued, master not red, under the WIP cap, an agent-ready issue | backlog; effort:high gets the `backlog-high` model and caps |
  *
  * Every other row is deterministic and belongs to the daemon or the actor. Re-triage items come
  * from the re-triage module through `extra`.
@@ -32,15 +34,16 @@
 
 import { byOwner, escalate, holderAlive, resolve } from "./board.mjs";
 import { rankForRefresh } from "./merged.mjs";
+import { missingLabels, NOT_READY, openPrFor, workQueue } from "./queue.mjs";
 import { admit, consumesAttempt } from "./runner.mjs";
 import { RUN_TEXT } from "./tools.mjs";
 
 /** Start order when several runs are wanted. */
 const PRIORITY = Object.freeze([
     "master-red",
+    "release",
     "pr-fix",
     "pr-conflict",
-    "release",
     "triage",
     "refresh",
     "backlog",
@@ -60,8 +63,6 @@ const BACKLOG_EVERY_MS = 7 * DAY;
 /** Section 10.1: runs per PR of each kind until its limits reset, and runs per PR per 24 hours. */
 const PR_LIMITS = { "pr-fix": 3, "pr-conflict": 2 };
 const PR_RUNS_PER_DAY = 4;
-/** Labels that keep an issue out of the backlog, besides every `needs-*` label. */
-const NOT_READY = ["blocked", "research", "in-progress"];
 
 /**
  * @typedef {object} Item a run the state calls for; the daemon turns it into a runner request
@@ -73,6 +74,9 @@ const NOT_READY = ["blocked", "research", "in-progress"];
  * @property {string[]} [failingJobs] the incident's failing jobs when the run was wanted (master-red)
  * @property {boolean} [rejected] the owner rejected the PR's images: give the run the reject block
  * @property {string} [branch] the branch the run works on (backlog)
+ * @property {string} [profile] the `runs.model` and `runs.caps` key when not the kind
+ *   (`backlog-high` for an effort:high issue)
+ * @property {string} [reason] the work queue's one-line reason (backlog)
  * @property {string} [escalation] the escalation the run answers (release)
  * @property {Record<string, number[]>} [paths] the changed paths and their PRs (refresh)
  */
@@ -182,20 +186,9 @@ function syncAttempts(state, number, rec, now) {
 }
 
 /**
- * The labels an issue is missing: one of each configured set it has none of.
- * @param {string[]} labels the issue's labels
- * @param {import("./config.mjs").Config} config the normalized config
- * @returns {boolean} true when a type, priority or effort label is missing
- */
-function missingLabels(labels, config) {
-    const { types, priorities, efforts } = config.labels;
-    return [types, priorities, efforts].some((set) => set.length > 0 && !labels.some((l) => set.includes(l)));
-}
-
-/**
  * Whether an issue is agent-ready (section 10, row 23). Only the issue's author counts as trust:
  * githerd's own labels are made as the owner, so who labeled it proves nothing, and the author must
- * be the owner.
+ * be the owner. Every effort is ready: an effort:high issue gets a larger run, not the owner.
  * @param {number} number the issue number
  * @param {any} issue the issue record
  * @param {{state: any, config: import("./config.mjs").Config, now: Date}} ctx the state, config
@@ -206,21 +199,14 @@ export function agentReady(number, issue, { state, config, now }) {
     const labels = issue.labels ?? [];
     const { types, priorities, efforts } = config.labels;
     const has = (/** @type {string[]} */ set) => labels.some((l) => set.includes(l));
-    const referenced = Object.values(state.prs ?? {}).some(
-        (/** @type {any} */ p) =>
-            (p.references ?? []).includes(number) ||
-            new RegExp(`#${number}(?!\\d)`).test(p.title ?? "") ||
-            p.headRef === `githerd/issue-${number}`,
-    );
     return (
         issue.state === "open" &&
         byOwner(state, issue.author) &&
         has(types) &&
         has(priorities) &&
         has(efforts) &&
-        has(config.backlog.efforts) &&
         !labels.some((l) => NOT_READY.includes(l) || l.startsWith("needs-")) &&
-        !referenced &&
+        openPrFor(state, number) === null &&
         !state.claims?.[`issue:${number}`] &&
         !(issue.lastBacklogAt && now.getTime() - Date.parse(issue.lastBacklogAt) < BACKLOG_EVERY_MS)
     );
@@ -233,9 +219,10 @@ export function agentReady(number, issue, { state, config, now }) {
  * @param {(args: any) => void} raise raises an escalation
  * @param {string[]} unhandled collects incidents no run will handle
  * @param {DispatchResult["waiting"]} waiting collects items not wanted yet, and why
+ * @param {ReturnType<typeof workQueue>} queue the work queue, whose order the PR runs follow
  * @returns {Item[]} the items
  */
-function wanted(ctx, raise, unhandled, waiting) {
+function wanted(ctx, raise, unhandled, waiting, queue) {
     const { state, config, now, startedAt } = ctx;
     const t = now.getTime();
     /** @type {Item[]} */
@@ -273,19 +260,24 @@ function wanted(ctx, raise, unhandled, waiting) {
         }
     }
 
-    // Rows 8, 10 and 12: pull requests. Row 9: nothing while master is red.
-    for (const [number, rec] of Object.entries(state.prs ?? {})) {
-        const attempts = syncAttempts(state, number, rec, now);
-        if (verdict !== "green" || rec.draft || !byOwner(state, rec.author)) continue;
-        /** @type {Item | null} */
-        let item = null;
+    // Rows 8, 10 and 12: pull requests, in the work queue's order. The queue leaves out drafts,
+    // other authors' PRs and PRs waiting on the owner, and holds stacked PRs and every PR while
+    // master is red (row 9).
+    for (const [number, rec] of Object.entries(state.prs ?? {})) syncAttempts(state, number, rec, now);
+    for (const q of queue.items) {
+        if (q.kind !== "pr") continue;
+        const number = q.target.slice(3);
+        const rec = state.prs[number];
+        const attempts = rec.attempts;
         const failing = Object.values(rec.required ?? {}).includes("FAILURE");
-        if (rec.ownerRejected)
-            item = { kind: "pr-fix", event: "owner-rejected", target: `pr:${number}`, rejected: true };
-        else if (failing && !rec.ownerGate) item = { kind: "pr-fix", event: "pr-check-failed", target: `pr:${number}` };
-        else if (rec.conflictSightings >= 2)
-            item = { kind: "pr-conflict", event: "pr-conflicting", target: `pr:${number}` };
-        if (!item) continue;
+        /** @type {Item} */
+        let item = { kind: "pr-conflict", event: "pr-conflicting", target: q.target };
+        if (rec.ownerRejected) item = { kind: "pr-fix", event: "owner-rejected", target: q.target, rejected: true };
+        else if (failing && !rec.ownerGate) item = { kind: "pr-fix", event: "pr-check-failed", target: q.target };
+        if (q.waiting) {
+            if (verdict !== "red") waiting.push({ item, reason: q.waiting });
+            continue;
+        }
 
         const runs = attempts.runs.filter((/** @type {any} */ r) => counts(state, r.id));
         const limit = PR_LIMITS[/** @type {"pr-fix" | "pr-conflict"} */ (item.kind)];
@@ -380,30 +372,29 @@ async function refreshItem(ctx) {
 }
 
 /**
- * The backlog run (row 23), when capacity is free: master not red, nothing else queued, fewer open
- * githerd PRs and running backlog runs than `backlog.wipCap`. Highest priority first, then oldest.
+ * The backlog run (row 23), when capacity is free: the first agent-ready issue of the work queue
+ * that is not waiting (master not red, githerd's open PRs and backlog runs under
+ * `backlog.wipCap`). An effort:high issue gets the `backlog-high` model and caps.
  * @param {DispatchContext} ctx the context
+ * @param {ReturnType<typeof workQueue>} queue the work queue
  * @returns {Item | null} the item, or null
  */
-function backlogItem(ctx) {
-    const { state, config } = ctx;
-    if ((state.master?.verdict ?? "unknown") === "red") return null;
-    const wip =
-        Object.values(state.prs ?? {}).filter((/** @type {any} */ p) => p.headRef?.startsWith("githerd/issue-"))
-            .length +
-        Object.values(state.runs ?? {}).filter((/** @type {any} */ r) => r.kind === "backlog" && r.status === "running")
-            .length;
-    if (wip >= config.backlog.wipCap) return null;
-    const rank = (/** @type {string[]} */ labels) => {
-        const i = config.labels.priorities.findIndex((p) => labels.includes(p));
-        return i === -1 ? config.labels.priorities.length : i;
+function backlogItem(ctx, queue) {
+    const issues = ctx.state.issues?.byNumber ?? {};
+    const q = queue.items.find(
+        (i) =>
+            i.kind === "issue" && !i.waiting && agentReady(Number(i.target.slice(6)), issues[i.target.slice(6)], ctx),
+    );
+    if (!q) return null;
+    const n = q.target.slice(6);
+    return {
+        kind: "backlog",
+        event: "capacity-free",
+        target: q.target,
+        branch: `githerd/issue-${n}`,
+        reason: q.reason,
+        ...(q.effort === "high" ? { profile: "backlog-high" } : {}),
     };
-    const ready = Object.entries(state.issues?.byNumber ?? {})
-        .filter(([n, i]) => agentReady(Number(n), i, ctx))
-        .sort(([a, x], [b, y]) => rank(x.labels) - rank(y.labels) || Number(a) - Number(b));
-    if (ready.length === 0) return null;
-    const n = ready[0][0];
-    return { kind: "backlog", event: "capacity-free", target: `issue:${n}`, branch: `githerd/issue-${n}` };
 }
 
 /**
@@ -464,15 +455,18 @@ export async function dispatch(ctx) {
         result.slotsFull = true;
         return result;
     }
-    const items = wanted(ctx, raise, result.masterRedUnhandled, result.waiting);
+    const queue = workQueue(ctx);
+    const items = wanted(ctx, raise, result.masterRedUnhandled, result.waiting, queue);
     const refresh = await refreshItem(ctx);
     if (refresh) items.push(refresh);
     items.push(...(ctx.extra ?? []));
     if (!items.some((i) => !i.kind.startsWith("retriage-"))) {
-        const backlog = backlogItem(ctx);
+        const backlog = backlogItem(ctx, queue);
         if (backlog) items.push(backlog);
     }
-    items.sort((a, b) => PRIORITY.indexOf(a.kind) - PRIORITY.indexOf(b.kind));
+    // PR fixes and conflicts share one place, so the queue's oldest-first order holds across both.
+    const rank = (/** @type {string} */ kind) => PRIORITY.indexOf(kind === "pr-conflict" ? "pr-fix" : kind);
+    items.sort((a, b) => rank(a.kind) - rank(b.kind));
 
     // Targets with a run in flight: their follow-up waits for that run to end.
     const busy = new Set(
@@ -488,13 +482,17 @@ export async function dispatch(ctx) {
             result.waiting.push({ item, reason: "a run on this target is in flight" });
             continue;
         }
-        const admitted = stopped ? null : admit(state, config, mode, item.kind, now);
-        if (admitted && !admitted.ok) {
-            stopped = /** @type {{reason: string}} */ (admitted).reason;
+        const admitted = stopped ? null : admit(state, config, mode, item.kind, now, item.profile);
+        const refused = /** @type {{ok: false, reason: string, never?: boolean} | null} */ (
+            admitted && !admitted.ok ? admitted : null
+        );
+        // A run that can never fit the day's limit waits without holding up the rest.
+        if (refused && !refused.never) {
+            stopped = refused.reason;
             result.slotsFull = true;
         }
         if (!admitted?.ok) {
-            result.waiting.push({ item, reason: /** @type {string} */ (stopped) });
+            result.waiting.push({ item, reason: /** @type {string} */ (refused?.never ? refused.reason : stopped) });
             if (item.kind === "master-red" && !held) {
                 result.masterRedUnhandled.push(/** @type {string} */ (item.incident));
             }

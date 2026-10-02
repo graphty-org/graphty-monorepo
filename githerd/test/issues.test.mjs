@@ -25,6 +25,7 @@ describe("applyIssues", () => {
         expect(r.changed).toEqual([643]);
         expect(r.byNumber[643]).toEqual({
             updatedAt: "2026-10-01T04:09:29Z",
+            createdAt: null,
             state: "open",
             labels: ["bug"],
             author: "apowers313",

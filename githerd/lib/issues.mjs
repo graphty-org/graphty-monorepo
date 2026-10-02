@@ -56,6 +56,7 @@ export function applyIssues(saved, items) {
             closeVetoed: false,
             ...old,
             updatedAt: item.updated_at,
+            createdAt: item.created_at ?? null,
             state: item.state,
             labels: (item.labels ?? []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name)),
             author: item.user?.login ?? null,

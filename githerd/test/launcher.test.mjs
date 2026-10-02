@@ -247,6 +247,7 @@ describe("startup", () => {
         const tools = (await launcher.reply(2)).result.tools.map((/** @type {any} */ t) => t.name);
         expect(tools).toEqual([
             "githerd_status",
+            "githerd_next",
             "githerd_claim",
             "githerd_release",
             "githerd_report",

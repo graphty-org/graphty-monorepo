@@ -103,27 +103,30 @@ export function toolsFor(kind) {
 }
 
 /**
- * A kind's caps: `runs.caps[kind] ?? runs.caps.default`.
+ * A kind's caps: `runs.caps[profile] ?? runs.caps[kind] ?? runs.caps.default`. The profile is
+ * the kind itself, or `backlog-high` for a backlog run on an effort:high issue.
  * @param {any} config the normalized config
  * @param {string} kind the run kind
+ * @param {string} [profile] the caps and model key, when not the kind
  * @returns {{turns: number, budgetUsd: number, timeoutMinutes: number}} the caps
  */
-function capsFor(config, kind) {
-    return config.runs.caps[kind] ?? config.runs.caps.default;
+function capsFor(config, kind, profile = kind) {
+    return config.runs.caps[profile] ?? config.runs.caps[kind] ?? config.runs.caps.default;
 }
 
 /**
  * The command line of design section 9.3, after the `claude` command itself.
- * @param {{kind: string, config: any, runDir: string, prompt: string}} run the run
+ * @param {{kind: string, profile?: string, config: any, runDir: string, prompt: string}} run the
+ *   run; `profile` picks the model and caps when it is not the kind
  * @returns {string[]} the arguments
  */
-export function runArgv({ kind, config, runDir, prompt }) {
-    const caps = capsFor(config, kind);
+export function runArgv({ kind, profile = kind, config, runDir, prompt }) {
+    const caps = capsFor(config, kind, profile);
     return [
         "-p",
         prompt,
         "--model",
-        config.runs.model[kind] ?? config.runs.model.default,
+        config.runs.model[profile] ?? config.runs.model[kind] ?? config.runs.model.default,
         "--permission-mode",
         "auto",
         "--permission-prompts",
@@ -329,15 +332,17 @@ const isRetriage = (kind) => kind.startsWith("retriage-");
  * running, and the day's spend plus every running run's budget plus this one's within the limit.
  * The limit is the day's budget for master-red and the day's budget minus one master-red budget
  * for every other kind, so one master-red run always fits. Re-triage kinds draw on their own
- * weekly budget and skip the daily check.
+ * weekly budget and skip the daily check. A run whose budget is over the limit even on an idle day
+ * is refused with `never`, so it does not hold up the runs behind it.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {string} mode the effective mode
  * @param {string} kind the run kind
  * @param {Date} now the current time
- * @returns {{ok: true} | {ok: false, reason: string}} the answer
+ * @param {string} [profile] the caps key, when not the kind (`backlog-high`)
+ * @returns {{ok: true} | {ok: false, reason: string, never?: boolean}} the answer
  */
-export function admit(state, config, mode, kind, now) {
+export function admit(state, config, mode, kind, now, profile = kind) {
     if (mode === "paused") return { ok: false, reason: "paused" };
     const running = Object.values(state.runs ?? {}).filter((r) => r.status === "running");
     if (running.length >= config.runs.maxConcurrent) return { ok: false, reason: `${running.length} runs running` };
@@ -349,7 +354,10 @@ export function admit(state, config, mode, kind, now) {
     const committed =
         (state.spend?.[now.toISOString().slice(0, 10)] ?? 0) +
         running.filter((r) => !isRetriage(r.kind)).reduce((sum, r) => sum + (r.budgetUsd ?? 0), 0);
-    const budget = capsFor(config, kind).budgetUsd;
+    const budget = capsFor(config, kind, profile).budgetUsd;
+    if (budget > limit + 1e-9) {
+        return { ok: false, reason: `a $${budget} ${profile} run never fits the $${limit} day`, never: true };
+    }
     if (committed + budget > limit + 1e-9) {
         return { ok: false, reason: `$${committed.toFixed(2)} committed + $${budget} exceeds $${limit} today` };
     }
@@ -447,6 +455,7 @@ function inside(dir, path) {
  * @property {string} event what started it
  * @property {string} target the target, for example `pr:704` or `master`
  * @property {string} prompt the prompt text (`buildPrompt`)
+ * @property {string} [profile] the `runs.model` and `runs.caps` key when not the kind
  * @property {string} [cwd] the githerd-owned worktree of a code-editing kind, or the green SHA's
  *   tree (`readTree`) a read-only kind reads; a read-only kind without one works in the empty
  *   `runs/<id>/work/`
@@ -529,9 +538,10 @@ export function createRunner({
         const cfg = config();
         const at = now();
         state.runs ??= {};
-        const admitted = admit(state, cfg, mode(), req.kind, at);
+        const profile = req.profile ?? req.kind;
+        const admitted = admit(state, cfg, mode(), req.kind, at, profile);
         if (!admitted.ok) return /** @type {{ok: false, reason: string}} */ (admitted);
-        const caps = capsFor(cfg, req.kind);
+        const caps = capsFor(cfg, req.kind, profile);
         const id = newId(at);
         const runDir = join(stateDir, "runs", id);
         const cwd = req.cwd ?? (CODE_EDITING.has(req.kind) ? undefined : join(runDir, "work"));
@@ -578,7 +588,7 @@ export function createRunner({
         });
         writeFileSync(join(runDir, "env.json"), JSON.stringify(childEnv, null, 2));
 
-        const argv = [...claude, ...runArgv({ kind: req.kind, config: cfg, runDir, prompt: req.prompt })];
+        const argv = [...claude, ...runArgv({ kind: req.kind, profile, config: cfg, runDir, prompt: req.prompt })];
         const child = spawn(argv[0], argv.slice(1), {
             cwd,
             env: childEnv,
@@ -588,6 +598,7 @@ export function createRunner({
         const record = {
             id,
             kind: req.kind,
+            profile,
             event: req.event,
             target: req.target,
             cwd,

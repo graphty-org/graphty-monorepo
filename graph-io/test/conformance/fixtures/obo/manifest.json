@@ -35,6 +35,15 @@
             "column": "relation",
             "value": "is_a"
           }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "alt_id",
+            "value": [
+              "X:7"
+            ]
+          }
         ]
       }
     },
@@ -103,6 +112,20 @@
         "edges": 0,
         "warnings": [
           "W_OBO_SYNONYM_SCOPE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "s1",
+                "scope": null,
+                "type": "WRONG",
+                "xrefs": []
+              }
+            ]
+          }
         ]
       },
       "oracleDisagrees": "fastobo rejects the file; ROBOT reads it; graph-io keeps the synonym with scope null and the word as its type"
@@ -362,6 +385,13 @@
         "edges": 0,
         "labels": [
           "a\nb ! c {d}   e"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "def",
+            "value": "q \"x\" y"
+          }
         ]
       },
       "oracleDisagrees": "fastobo reads \\W as the letter W, as the 1.4 BNF does; the 1.0 to 1.4 guides define \\W as a space, and the files' writers followed the guides (design 4.1)"
@@ -584,6 +614,22 @@
           "X:4",
           "X:2",
           "X:3"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "X:2"
+              },
+              {
+                "relation": "part_of",
+                "target": "X:3"
+              }
+            ]
+          }
         ]
       }
     },
@@ -627,6 +673,53 @@
             "id": "GO:0000001",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "GO:0000001",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "e",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [
+                  "A:1"
+                ]
+              },
+              {
+                "text": "r",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "n",
+                "scope": "NARROW",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "b",
+                "scope": "BROAD",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "GO:0000001",
+            "column": "xref",
+            "value": [
+              "B:1",
+              "C:1"
+            ]
+          },
+          {
+            "id": "GO:0000001",
+            "column": "consider",
+            "value": [
+              "GO:0000002"
+            ]
           }
         ],
         "warnings": [
@@ -880,6 +973,32 @@
         "directed": true,
         "nodeIds": [
           "X:1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "IAO:0000589",
+                "value": "label",
+                "datatype": "xsd:string"
+              },
+              {
+                "relation": "seeAlso",
+                "value": "X:2",
+                "datatype": null
+              },
+              {
+                "relation": "foo",
+                "value": "1.5",
+                "datatype": "xsd:decimal",
+                "qualifiers": {
+                  "q": "1"
+                }
+              }
+            ]
+          }
         ]
       }
     },
@@ -893,7 +1012,18 @@
       "expected": {
         "outcome": "pass",
         "nodes": 3,
-        "edges": 3
+        "edges": 3,
+        "edgeAttrs": [
+          {
+            "source": "X:1",
+            "target": "X:3",
+            "column": "qualifiers",
+            "value": {
+              "a": "1",
+              "b": "x, y"
+            }
+          }
+        ]
       },
       "oracleDisagrees": "fastobo rejects two blocks in a row and a missing space after the comma, which the 1.2 examples and owlapi's writer produce"
     },
@@ -931,6 +1061,16 @@
             "target": "X:2",
             "column": "relation",
             "value": "part_of"
+          },
+          {
+            "source": "X:1",
+            "target": "X:2",
+            "column": "qualifiers",
+            "value": {
+              "cardinality": "2",
+              "gci_relation": "part_of",
+              "gci_filler": "T:1"
+            }
           }
         ],
         "outcome": "pass",
@@ -1129,6 +1269,18 @@
         "nodeIds": [
           "X:1",
           "X:2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "X:2"
+              }
+            ]
+          }
         ]
       }
     },
@@ -1147,6 +1299,48 @@
           "W_OBO_SYNONYM_SCOPE",
           "W_OBO_DEPRECATED_TAG",
           "W_OBO_UNDECLARED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "s1",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "s2",
+                "scope": "BROAD",
+                "type": "UK_SPELLING",
+                "xrefs": [
+                  "A:1",
+                  "B:2"
+                ]
+              },
+              {
+                "text": "s3",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "s4",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "X:1",
+            "column": "xref.descriptions",
+            "value": {
+              "B:2": "desc"
+            }
+          }
         ]
       },
       "oracleDisagrees": "fastobo requires a synonym scope (1.4 BNF); the scope is optional in 1.2 and the file is read with RELATED and a warning in a 1.4 file"
@@ -1165,6 +1359,32 @@
         "forbidCodes": [
           "W_OBO_SYNONYM_SCOPE",
           "W_OBO_UNDECLARED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "a",
+                "scope": "EXACT",
+                "type": "systematic",
+                "xrefs": []
+              },
+              {
+                "text": "c",
+                "scope": "EXACT",
+                "type": "systematic",
+                "xrefs": []
+              },
+              {
+                "text": "d",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          }
         ]
       },
       "oracleDisagrees": "fastobo requires a scope on every synonym (1.4 BNF); 1.2 makes it optional and this file says 1.2"
@@ -1206,6 +1426,15 @@
         "directed": true,
         "nodeIds": [
           "X:1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "X:1",
+            "column": "xref",
+            "value": [
+              "CL:0000001"
+            ]
+          }
         ]
       }
     },
@@ -1483,6 +1712,16 @@
             "source": "X:1",
             "target": "X:2"
           }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "X:1",
+            "target": "X:2",
+            "column": "qualifiers",
+            "value": {
+              "source": "PMID:1"
+            }
+          }
         ]
       },
       "oracleDisagrees": "fastobo requires quoted qualifier values (1.4 BNF); the 1.2 guide's own examples are unquoted, and ROBOT reads them"
@@ -1623,6 +1862,91 @@
             "id": "GO:0000278",
             "column": "namespace",
             "value": "biological_process"
+          },
+          {
+            "id": "GO:0000228",
+            "column": "def",
+            "value": "A chromosome that encodes the nuclear genome and is found in the nucleus of a eukaryotic cell during the cell cycle phases when the nucleus is intact."
+          },
+          {
+            "id": "GO:0000228",
+            "column": "def.xrefs",
+            "value": [
+              "GOC:dph",
+              "GOC:mah"
+            ]
+          },
+          {
+            "id": "GO:0000228",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "nuclear interphase chromosome",
+                "scope": "NARROW",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "GO:0000278",
+            "column": "xref",
+            "value": [
+              "Reactome:R-HSA-69278",
+              "Wikipedia:Mitosis"
+            ]
+          },
+          {
+            "id": "GO:0000278",
+            "column": "xref.descriptions",
+            "value": {
+              "Reactome:R-HSA-69278": "Cell Cycle, Mitotic"
+            }
+          },
+          {
+            "id": "GO:0000228",
+            "column": "subset",
+            "value": [
+              "goslim_chembl",
+              "goslim_generic"
+            ]
+          },
+          {
+            "id": "GO:0000278",
+            "column": "alt_id",
+            "value": [
+              "GO:0007067"
+            ]
+          },
+          {
+            "id": "GO:0000228",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "GO:0005694"
+              },
+              {
+                "relation": "part_of",
+                "target": "GO:0005634"
+              }
+            ]
+          },
+          {
+            "id": "GO:0003774",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "term_tracker_item",
+                "value": "https://github.com/geneontology/go-ontology/issues/19590",
+                "datatype": "xsd:anyURI"
+              },
+              {
+                "relation": "term_tracker_item",
+                "value": "https://github.com/geneontology/go-ontology/issues/21756",
+                "datatype": "xsd:anyURI"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -1694,6 +2018,47 @@
             "id": "TAXRANK:0000001",
             "column": "namespace",
             "value": "taxonomic_rank"
+          },
+          {
+            "id": "TAXRANK:0000000",
+            "column": "def",
+            "value": "A level of depth of a taxon in a taxonomic hierarchy."
+          },
+          {
+            "id": "TAXRANK:0000000",
+            "column": "def.xrefs",
+            "value": []
+          },
+          {
+            "id": "TAXRANK:0000001",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "division",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "TAXRANK:0000001",
+            "column": "xref",
+            "value": [
+              "http://rs.tdwg.org/ontology/voc/TaxonRank#Phylum",
+              "NCBITaxon:phylum"
+            ]
+          },
+          {
+            "id": "TAXRANK:0001001",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "IAO:0000112",
+                "value": "Azotobacter chroococcum (strain mcd 1) (NCBITaxon:355) has rank strain",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -1760,6 +2125,200 @@
             "id": "RO:0002310",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "BFO:0000002",
+            "column": "def",
+            "value": "An entity that exists in full at any time in which it exists at all, persists through time while maintaining its identity and has no temporal parts."
+          },
+          {
+            "id": "BFO:0000002",
+            "column": "def.xrefs",
+            "value": []
+          },
+          {
+            "id": "CL:0000540",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "nerve cell",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "CL:0000000",
+            "column": "xref",
+            "value": [
+              "CALOHA:TS-2035",
+              "FMA:68646",
+              "GO:0005623",
+              "KUPO:0000002",
+              "MESH:D002477",
+              "VHOG:0001533",
+              "WBbt:0004017",
+              "XAO:0003012"
+            ]
+          },
+          {
+            "id": "GO:0004842",
+            "column": "xref.descriptions",
+            "value": {
+              "Reactome:R-HSA-1234163": "Cytosolic VBC complex ubiquitinylates hydroxyprolyl-HIF-alpha",
+              "Reactome:R-HSA-1234172": "Nuclear VBC complex ubiquitinylates HIF-alpha",
+              "Reactome:R-HSA-1253282": "ERBB4 ubiquitination by WWP1/ITCH",
+              "Reactome:R-HSA-1358789": "Self-ubiquitination of RNF41",
+              "Reactome:R-HSA-1358790": "RNF41 ubiquitinates ERBB3",
+              "Reactome:R-HSA-1358792": "RNF41 ubiquitinates activated ERBB3",
+              "Reactome:R-HSA-1363331": "Ubiquitination of p130 (RBL2) by SCF (Skp2)",
+              "Reactome:R-HSA-168915": "K63-linked ubiquitination of RIP1 bound to the activated TLR complex",
+              "Reactome:R-HSA-173542": "SMURF2 ubiquitinates SMAD2",
+              "Reactome:R-HSA-173545": "Ubiquitin-dependent degradation of the SMAD complex terminates TGF-beta signaling",
+              "Reactome:R-HSA-174057": "Multiubiquitination of APC/C-associated Cdh1",
+              "Reactome:R-HSA-174104": "Ubiquitination of Cyclin A by APC/C:Cdc20 complex",
+              "Reactome:R-HSA-174144": "Ubiquitination of Securin by phospho-APC/C:Cdc20 complex",
+              "Reactome:R-HSA-174159": "Ubiquitination of Emi1 by SCF-beta-TrCP",
+              "Reactome:R-HSA-174195": "Ubiquitination of cell cycle proteins targeted by the APC/C:Cdh1complex",
+              "Reactome:R-HSA-174227": "Ubiquitination of Cyclin B by phospho-APC/C:Cdc20 complex",
+              "Reactome:R-HSA-179417": "Multiubiquitination of Nek2A",
+              "Reactome:R-HSA-180540": "Multi-ubiquitination of APOBEC3G",
+              "Reactome:R-HSA-180597": "Ubiquitination of CD4 by Vpu:CD4:beta-TrCP:SKP1 complex",
+              "Reactome:R-HSA-182986": "CBL-mediated ubiquitination of CIN85",
+              "Reactome:R-HSA-182993": "Ubiquitination of stimulated EGFR (CBL)",
+              "Reactome:R-HSA-183051": "CBL ubiquitinates Sprouty",
+              "Reactome:R-HSA-183084": "CBL escapes CDC42-mediated inhibition by down-regulating the adaptor molecule Beta-Pix",
+              "Reactome:R-HSA-183089": "CBL binds and ubiquitinates phosphorylated Sprouty",
+              "Reactome:R-HSA-1852623": "Ubiquitination of NICD1 by FBWX7",
+              "Reactome:R-HSA-187575": "Ubiquitination of phospho-p27/p21",
+              "Reactome:R-HSA-1912357": "ITCH ubiquitinates DTX",
+              "Reactome:R-HSA-1912386": "Ubiquitination of NOTCH1 by ITCH in the absence of ligand",
+              "Reactome:R-HSA-1918092": "CHIP (STUB1) mediates ubiquitination of ERBB2",
+              "Reactome:R-HSA-1918095": "CUL5 mediates ubiquitination of ERBB2",
+              "Reactome:R-HSA-1977296": "NEDD4 ubiquitinates ERBB4jmAcyt1s80 dimer",
+              "Reactome:R-HSA-1980074": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH1",
+              "Reactome:R-HSA-1980118": "ARRB mediates NOTCH1 ubiquitination",
+              "Reactome:R-HSA-201425": "Ubiquitin-dependent degradation of the Smad complex terminates BMP2 signalling",
+              "Reactome:R-HSA-202453": "Auto-ubiquitination of TRAF6",
+              "Reactome:R-HSA-202534": "Ubiquitination of NEMO by TRAF6",
+              "Reactome:R-HSA-205118": "TRAF6 polyubiquitinates NRIF",
+              "Reactome:R-HSA-209063": "Beta-TrCP ubiquitinates NFKB p50:p65:phospho IKBA complex",
+              "Reactome:R-HSA-211734": "Ubiquitination of PAK-2p34",
+              "Reactome:R-HSA-2169050": "SMURFs/NEDD4L ubiquitinate phosphorylated TGFBR1 and SMAD7",
+              "Reactome:R-HSA-2172172": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH2",
+              "Reactome:R-HSA-2179276": "SMURF2 monoubiquitinates SMAD3",
+              "Reactome:R-HSA-2186747": "Ubiquitination of SKI/SKIL by RNF111/SMURF2",
+              "Reactome:R-HSA-2186785": "RNF111 ubiquitinates SMAD7",
+              "Reactome:R-HSA-2187368": "STUB1 (CHIP) ubiquitinates SMAD3",
+              "Reactome:R-HSA-2213017": "Auto-ubiquitination of TRAF3",
+              "Reactome:R-HSA-264444": "Autoubiquitination of phospho-COP1(Ser-387 )",
+              "Reactome:R-HSA-2682349": "RAF1:SGK:TSC22D3:WPP ubiquitinates SCNN channels",
+              "Reactome:R-HSA-2730904": "Auto-ubiquitination of TRAF6",
+              "Reactome:R-HSA-2737728": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH1 HD domain mutants",
+              "Reactome:R-HSA-2769007": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH1 PEST domain mutants",
+              "Reactome:R-HSA-2900765": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH1 HD+PEST domain mutants",
+              "Reactome:R-HSA-3000335": "SCF-beta-TrCp1/2 ubiquitinates phosphorylated BORA",
+              "Reactome:R-HSA-3134804": "STING ubiquitination by TRIM32 or TRIM56",
+              "Reactome:R-HSA-3134946": "DDX41 ubiquitination by TRIM21",
+              "Reactome:R-HSA-3249386": "DTX4 ubiquitinates p-S172-TBK1 within NLRP4:DTX4:dsDNA:ZBP1:TBK1",
+              "Reactome:R-HSA-3780995": "NHLRC1 mediated ubiquitination of EPM2A (laforin) and PPP1RC3 (PTG) associated with glycogen-GYG2",
+              "Reactome:R-HSA-3781009": "NHLRC1 mediated ubiquitination of EPM2A and PPP1RC3 associated with glycogen-GYG1",
+              "Reactome:R-HSA-3788724": "Cdh1:APC/C ubiquitinates EHMT1 and EHMT2",
+              "Reactome:R-HSA-3797226": "Defective NHLRC1 does not ubiquitinate EPM2A (laforin) and PPP1R3C (PTG) (type 2B disease)",
+              "Reactome:R-HSA-4332236": "CBL neddylates TGFBR2",
+              "Reactome:R-HSA-446877": "TRAF6 is K63 poly-ubiquitinated",
+              "Reactome:R-HSA-450358": "Activated TRAF6 synthesizes unanchored polyubiquitin chains upon TLR stimulation",
+              "Reactome:R-HSA-451418": "Pellino ubiquitinates IRAK1",
+              "Reactome:R-HSA-5357757": "BIRC(cIAP1/2) ubiquitinates RIPK1",
+              "Reactome:R-HSA-5362412": "SYVN1 ubiquitinates Hh C-terminal fragments",
+              "Reactome:R-HSA-5483238": "Hh processing variants are ubiquitinated",
+              "Reactome:R-HSA-5607725": "SCF-beta-TRCP ubiquitinates p-7S-p100:RELB in active NIK:p-176,S180-IKKA dimer:p-7S-p100:SCF-beta-TRCP",
+              "Reactome:R-HSA-5607728": "beta-TRCP ubiquitinates IkB-alpha in p-S32,33-IkB-alpha:NF-kB complex",
+              "Reactome:R-HSA-5607756": "TRAF6 oligomer autoubiquitinates",
+              "Reactome:R-HSA-5607757": "K63polyUb-TRAF6 ubiquitinates TAK1",
+              "Reactome:R-HSA-5610742": "SCF(beta-TrCP) ubiquitinates p-GLI1",
+              "Reactome:R-HSA-5610745": "SCF(beta-TrCP) ubiquitinates p-GLI2",
+              "Reactome:R-HSA-5610746": "SCF(beta-TrCP) ubiquitinates p-GLI3",
+              "Reactome:R-HSA-5652009": "RAD18:UBE2B or RBX1:CUL4:DDB1:DTL monoubiquitinates PCNA",
+              "Reactome:R-HSA-5655170": "RCHY1 monoubiquitinates POLH",
+              "Reactome:R-HSA-5660753": "SIAH1:UBE2L6:Ubiquitin ubiquitinates SNCA",
+              "Reactome:R-HSA-5667107": "SIAH1, SIAH2 ubiquitinate SNCAIP",
+              "Reactome:R-HSA-5667111": "PARK2 K63-Ubiquitinates SNCAIP",
+              "Reactome:R-HSA-5668454": "K63polyUb-cIAP1,2 ubiquitinates TRAF3",
+              "Reactome:R-HSA-5668534": "cIAP1,2 ubiquitinates NIK in cIAP1,2:TRAF2::TRAF3:NIK",
+              "Reactome:R-HSA-5675470": "BIRC2/3 (cIAP1/2) is autoubiquitinated",
+              "Reactome:R-HSA-5684250": "SCF betaTrCP ubiquitinates NFKB p105 within p-S927, S932-NFkB p105:TPL2:ABIN2",
+              "Reactome:R-HSA-5691108": "SKP1:FBXL5:CUL1:NEDD8 ubiquitinylates IREB2",
+              "Reactome:R-HSA-5693108": "TNFAIP3 (A20) ubiquitinates RIPK1 with K48-linked Ub chains",
+              "Reactome:R-HSA-68712": "The geminin component of geminin:Cdt1 complexes is ubiquitinated, releasing Cdt1",
+              "Reactome:R-HSA-69598": "Ubiquitination of phosphorylated CDC25A",
+              "Reactome:R-HSA-741386": "RIP2 induces K63-linked ubiquitination of NEMO",
+              "Reactome:R-HSA-75824": "Ubiquitination of Cyclin D1",
+              "Reactome:R-HSA-870449": "TRIM33 monoubiquitinates SMAD4",
+              "Reactome:R-HSA-8948709": "DTX4 ubiquitinates p-S172-TBK1 within NLRP4:DTX4:STING:TBK1:IRF3",
+              "Reactome:R-HSA-8956106": "VHL:EloB,C:NEDD8-CUL2:RBX1 complex ubiquitinylates HIF-alpha",
+              "Reactome:R-HSA-9013069": "Ubiquitination of DLL/JAG ligands upon binding to NOTCH3",
+              "Reactome:R-HSA-9013974": "Auto-ubiquitination of TRAF3 within activated TLR3 complex",
+              "Reactome:R-HSA-9014342": "K63-linked ubiquitination of RIP1 bound to the activated TLR complex",
+              "Reactome:R-HSA-918224": "DDX58 is K63 polyubiquitinated",
+              "Reactome:R-HSA-936412": "RNF125 mediated ubiquitination of DDX58, IFIH1 and MAVS",
+              "Reactome:R-HSA-936942": "Auto ubiquitination of oligo-TRAF6 bound to p-IRAK2",
+              "Reactome:R-HSA-936986": "Activated TRAF6 synthesizes unanchored polyubiquitin chains",
+              "Reactome:R-HSA-9628444": "Activated TRAF6 synthesizes unanchored polyubiquitin chains upon TLR3 stimulation",
+              "Reactome:R-HSA-9645394": "Activated TRAF6 synthesizes unanchored polyubiquitin chains upon ALPK1:ADP-heptose stimulation",
+              "Reactome:R-HSA-9645414": "Auto ubiquitination of TRAF6 bound to ALPK1:ADP-heptose:TIFA oligomer",
+              "Reactome:R-HSA-9688831": "STUB1 ubiquitinates RIPK3 at K55, K363",
+              "Reactome:R-HSA-9701000": "BRCA1:BARD1 heterodimer autoubiquitinates",
+              "Reactome:R-HSA-9750946": "TRAF2,6 ubiquitinates NLRC5",
+              "Reactome:R-HSA-975118": "TRAF6 ubiquitinqtes IRF7 within the activated TLR7/8 or 9 complex",
+              "Reactome:R-HSA-975147": "Auto ubiquitination of oligo-TRAF6 bound to p-IRAK2 at endosome membrane",
+              "Reactome:R-HSA-9758604": "Ubiquitination of IKBKG by TRAF6",
+              "Reactome:R-HSA-9766227": "MDM2 mediates CDH1 ubiquitination",
+              "Reactome:R-HSA-9793444": "ITCH polyubiquitinates MLKL at K50",
+              "Reactome:R-HSA-9793485": "PRKN polyubiquitinates RIPK3",
+              "Reactome:R-HSA-9793679": "LUBAC ubiquitinates RIPK1 at K627",
+              "Reactome:R-HSA-9796346": "MIB2 ubiquitinates RIPK1 at K377, K604, K634",
+              "Reactome:R-HSA-9796387": "STUB1 ubiquitinates RIPK1 at K571, K604, K627",
+              "Reactome:R-HSA-9796626": "MIB2 ubiquitinates CFLAR",
+              "Reactome:R-HSA-9815507": "MIB2 ubiquitinates CYLD at K338, K530",
+              "Reactome:R-HSA-9817362": "SPATA2:CYLD-bound LUBAC ubiquitinates RIPK1 at K627 within the TNFR1 signaling complex",
+              "Reactome:R-HSA-983140": "Transfer of Ub from E2 to substrate and release of E2",
+              "Reactome:R-HSA-983153": "E1 mediated ubiquitin activation",
+              "Reactome:R-HSA-983156": "Polyubiquitination of substrate",
+              "Reactome:R-HSA-9833155": "Ubiquitination of STAT2",
+              "Reactome:R-HSA-9834070": "PRKN ubiquitinates MOM substrates",
+              "Reactome:R-HSA-9861563": "CTLH E3 ligase ubiquitinates LDHA",
+              "Reactome:R-HSA-9861640": "CTLH E3 ligase ubiquitinates PKM-1",
+              "Reactome:R-HSA-9929350": "Ubiquitination of CD274 by BTRC-SCF E3-ligase complex",
+              "Reactome:R-HSA-9934753": "CBLL1 ubiquitinates CDH1",
+              "Reactome:R-HSA-9948301": "ZNF598 K63 polyubiquitinates RPS10 (eS10) and RPS20 (uS10) of the 40S ribosomal subunit",
+              "Reactome:R-HSA-9954721": "NEDD8-K699-CUL2:ELOB:ELOC:RBX1:KLHDC10 K48 polyubiquitinates alanine-tailed nascent peptide",
+              "Reactome:R-HSA-9955146": "S.flexneri ipaH9.8 ubiquitinates GBPs",
+              "Reactome:R-HSA-9970191": "RBBP6 activates CPSF complex"
+            }
+          },
+          {
+            "id": "UBERON:0000061",
+            "column": "subset",
+            "value": [
+              "common_anatomy",
+              "human_reference_atlas",
+              "human_subset",
+              "mouse_subset",
+              "upper_level"
+            ]
+          },
+          {
+            "id": "BFO:0000040",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "IAO:0000116",
+                "value": "Elucidation: An independent continuant that is spatially extended whose identity is independent of that of other entities and can be maintained through time.",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -1794,6 +2353,14 @@
             "target": "BFO:0000141",
             "column": "relation",
             "value": "is_a"
+          },
+          {
+            "source": "BFO:0000004",
+            "target": "BFO:0000004",
+            "column": "qualifiers",
+            "value": {
+              "all_only": "true"
+            }
           }
         ]
       },
@@ -1865,6 +2432,92 @@
             "id": "ECO:0000026",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "ECO:0000000",
+            "column": "def",
+            "value": "A type of information that is used to support an assertion."
+          },
+          {
+            "id": "ECO:0000000",
+            "column": "def.xrefs",
+            "value": [
+              "ECO:MCC"
+            ]
+          },
+          {
+            "id": "ECO:0000000",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "evidence code",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "evidence_code",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "ECO:0000005",
+            "column": "xref",
+            "value": [
+              "MI:0415"
+            ]
+          },
+          {
+            "id": "ECO:0000005",
+            "column": "xref.descriptions",
+            "value": {
+              "MI:0415": "enzymatic study"
+            }
+          },
+          {
+            "id": "ECO:0000006",
+            "column": "subset",
+            "value": [
+              "go_groupings"
+            ]
+          },
+          {
+            "id": "ECO:0000002",
+            "column": "alt_id",
+            "value": [
+              "ECO:0005006"
+            ]
+          },
+          {
+            "id": "ECO:0000030",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "ECO:0000206"
+              },
+              {
+                "relation": "used_in",
+                "target": "ECO:0000218"
+              }
+            ]
+          },
+          {
+            "id": "ECO:0000008",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "IAO:0000112",
+                "value": "The 10 previously identified GlnR-regulated genes were all confirmed to be under GlnR control during nitrogen stress (i.e. differential expression in the wild type compared to the DeltaglnR mutant), but in addition a total of 392 genes were significantly up-regulated and 291 significantly down regulated (Additional file 1: Table S1). This indicates that GlnR mediates (directly or indirectly) the expression of over 680 genes.",
+                "datatype": "xsd:string",
+                "qualifiers": {
+                  "xref": "PMID:23642041"
+                }
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -1899,6 +2552,14 @@
             "target": "ECO:0000002",
             "column": "relation",
             "value": "is_a"
+          },
+          {
+            "source": "ECO:0000030",
+            "target": "ECO:0005560",
+            "column": "qualifiers",
+            "value": {
+              "is_inferred": "true"
+            }
           }
         ]
       }
@@ -1944,6 +2605,87 @@
             "id": "MI:0021",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "MI:0000",
+            "column": "def",
+            "value": "Controlled vocabularies originally created for protein protein interactions, extended to other molecules interactions."
+          },
+          {
+            "id": "MI:0000",
+            "column": "def.xrefs",
+            "value": [
+              "PMID:14755292"
+            ]
+          },
+          {
+            "id": "MI:0000",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "mi",
+                "scope": "EXACT",
+                "type": "PSI-MI-short",
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "MI:0244",
+            "column": "xref",
+            "value": [
+              "id-validation-regexp:",
+              "search-url:"
+            ]
+          },
+          {
+            "id": "MI:0244",
+            "column": "xref.descriptions",
+            "value": {
+              "id-validation-regexp:": "REACT_[0-9]{1,5}\\.[0-9]{1,3}|[0-9]+",
+              "search-url:": "http://www.reactome.org/cgi-bin/eventbrowser?ID=${ac}"
+            }
+          },
+          {
+            "id": "MI:0000",
+            "column": "subset",
+            "value": [
+              "Drugable",
+              "PSI-MI_slim"
+            ]
+          },
+          {
+            "id": "MI:0809",
+            "column": "alt_id",
+            "value": [
+              "MI:0229"
+            ]
+          },
+          {
+            "id": "MI:0208",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "isDefinedBy",
+                "value": "A genetic interaction refers to an unexpected phenotype not easily explained by combining the effects of individual genetic variants (7).",
+                "datatype": "xsd:string"
+              },
+              {
+                "relation": "isDefinedBy",
+                "value": "A quantitative genetic interaction definition has two components: a quantitative phenotypic measure and a neutrality function that predicts the phenotype of an organism carrying two noninteracting mutations. Interaction is then defined by deviation of a double-mutant organism's phenotype from the expected neutral phenotype.",
+                "datatype": "xsd:string"
+              },
+              {
+                "relation": "isDefinedBy",
+                "value": "More generally, a genetic interaction can be defined as the difference between an experimentally measured double-mutant phenotype and an expected double-mutant phenotype, the latter of which is predicted from the combination of the single-mutant effects, assuming the mutations act independently.",
+                "datatype": "xsd:string"
+              },
+              {
+                "relation": "isDefinedBy",
+                "value": "Two genes A and B 'genetically interact' when the phenotype generated as the result of mutations in both genes (double mutant ab) is unexpectedly not just a combination of the phenotypes of the two single mutants a and b.",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -2025,6 +2767,44 @@
             "id": "FAO:0000005",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "FAO:0000001",
+            "column": "def",
+            "value": "An anatomical structure that forms all or part of a fungus."
+          },
+          {
+            "id": "FAO:0000001",
+            "column": "def.xrefs",
+            "value": [
+              "FAO:mah"
+            ]
+          },
+          {
+            "id": "FAO:0000001",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "fungal structure ontology",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "FAO:0000001",
+            "column": "xref",
+            "value": [
+              "BTO:0001494"
+            ]
+          },
+          {
+            "id": "FAO:0000012",
+            "column": "alt_id",
+            "value": [
+              "FAO:0001024"
+            ]
           }
         ],
         "edgeChecks": [
@@ -2059,6 +2839,14 @@
             "target": "FAO:0000001",
             "column": "relation",
             "value": "is_a"
+          },
+          {
+            "source": "FAO:0001025",
+            "target": "FAO:0000011",
+            "column": "qualifiers",
+            "value": {
+              "source": "BTO:0000890"
+            }
           }
         ]
       }
@@ -2101,6 +2889,66 @@
             "id": "PATO:0000000",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "PATO:0000001",
+            "column": "def",
+            "value": "The properties, attributes, or modifiers used to describe an entity or process or some aspect of an entity or process."
+          },
+          {
+            "id": "PATO:0000001",
+            "column": "def.xrefs",
+            "value": [
+              "https://github.com/pato-ontology/pato/issues/602"
+            ]
+          },
+          {
+            "id": "PATO:0000001",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "quality",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [
+                  "OBO:legacy"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "PATO:0000638",
+            "column": "xref",
+            "value": [
+              "GO:0006915"
+            ]
+          },
+          {
+            "id": "PATO:0000004",
+            "column": "subset",
+            "value": [
+              "attribute_slim",
+              "disposition_slim",
+              "scalar_slim"
+            ]
+          },
+          {
+            "id": "PATO:0000001",
+            "column": "alt_id",
+            "value": [
+              "PATO:0000072"
+            ]
+          },
+          {
+            "id": "PATO:0000122",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "seeAlso",
+                "value": "https://github.com/pato-ontology/pato/issues/337",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -2182,6 +3030,83 @@
             "id": "MS:1000009",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "NCIT:C25330",
+            "column": "def",
+            "value": "The period of time during which something continues."
+          },
+          {
+            "id": "NCIT:C25330",
+            "column": "def.xrefs",
+            "value": []
+          },
+          {
+            "id": "NCIT:C21514",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "Temporal Qualifier",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [],
+                "qualifiers": {
+                  "http://purl.obolibrary.org/obo/NCIT_P383": "PT",
+                  "http://purl.obolibrary.org/obo/NCIT_P384": "NCI"
+                }
+              },
+              {
+                "text": "Temporal Qualifier",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [],
+                "qualifiers": {
+                  "http://purl.obolibrary.org/obo/NCIT_P383": "PT",
+                  "http://purl.obolibrary.org/obo/NCIT_P384": "NICHD"
+                }
+              }
+            ]
+          },
+          {
+            "id": "MS:1000514",
+            "column": "xref",
+            "value": [
+              "binary-data-type:MS:1000521",
+              "binary-data-type:MS:1000523"
+            ]
+          },
+          {
+            "id": "MS:1000514",
+            "column": "xref.descriptions",
+            "value": {
+              "binary-data-type:MS:1000521": "32-bit float",
+              "binary-data-type:MS:1000523": "64-bit float"
+            }
+          },
+          {
+            "id": "NCIT:C25330",
+            "column": "subset",
+            "value": [
+              "NCIT"
+            ]
+          },
+          {
+            "id": "UO:0000003",
+            "column": "alt_id",
+            "value": [
+              "UO:0000149"
+            ]
+          },
+          {
+            "id": "MS:1002820",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "ionMass:",
+                "value": "M + 1.007276",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -2252,6 +3177,59 @@
             "id": "GO:0033942",
             "column": "namespace",
             "value": "molecular_function"
+          },
+          {
+            "id": "CL:0000096",
+            "column": "def",
+            "value": "bla bla .\""
+          },
+          {
+            "id": "CL:0000096",
+            "column": "def.xrefs",
+            "value": [
+              "GOC:add",
+              "GOC:tfm",
+              "http://www.cap.org",
+              "MESH:A.11.118.637.415.583"
+            ]
+          },
+          {
+            "id": "GO:0033942",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "4-alpha-D-{(1->4)-alpha-D-glucano}trehalose glucanohydrolase (trehalose-producing) activity",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [
+                  "EC:3.2.1.141"
+                ]
+              },
+              {
+                "text": "malto-oligosyltrehalose trehalohydrolase activity",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [
+                  "EC:3.2.1.141"
+                ]
+              },
+              {
+                "text": "maltooligosyl trehalose trehalohydrolase activity",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": [
+                  "EC:3.2.1.141"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "GO:0033942",
+            "column": "xref",
+            "value": [
+              "EC:3.2.1.141",
+              "MetaCyc:3.2.1.141-RXN"
+            ]
           }
         ],
         "edgeChecks": [
@@ -2485,6 +3463,16 @@
             "target": "X:3",
             "column": "relation",
             "value": "has_part"
+          },
+          {
+            "source": "X:1",
+            "target": "X:2",
+            "column": "qualifiers",
+            "value": {
+              "gci_relation": "part_of",
+              "gci_filler": "TAX:1",
+              "source": "abc"
+            }
           }
         ]
       }
@@ -2511,6 +3499,86 @@
         "labels": [
           "pharyngeal arch",
           "anatomical line"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "UBERON:0002539",
+            "column": "def",
+            "value": "One of a series of bony or cartilaginous arches that develop in the walls of the mouth cavity and pharynx of the embryo. The pharyngeal arches are separated by endodermal outpocketings, the pharyngeal pouches"
+          },
+          {
+            "id": "UBERON:0002539",
+            "column": "def.xrefs",
+            "value": [
+              "NLM:branchial+arch",
+              "Wikipedia:Pharyngeal_arch",
+              "PMID:16313389"
+            ]
+          },
+          {
+            "id": "UBERON:0002539",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "pharyngeal arches",
+                "scope": "EXACT",
+                "type": "PLURAL",
+                "xrefs": []
+              },
+              {
+                "text": "visceral arch",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "branchial arch",
+                "scope": "NARROW",
+                "type": null,
+                "xrefs": [
+                  "MP:0002884",
+                  "BTO:0001785"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "UBERON:0002539",
+            "column": "xref",
+            "value": [
+              "OG:0000155",
+              "MAT:0000242",
+              "MIAA:0000242",
+              "TAO:0001306",
+              "XAO:0000096",
+              "ZFA:0001306",
+              "ncithesaurus:Pharyngeal_Arch",
+              "EFO:0000959",
+              "BTO:0001785",
+              "AAO:0010359",
+              "http://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Gray41.png/200px-Gray41.png",
+              "EMAPA:16117",
+              "MESH:A.16.254.160",
+              "GAID:1292",
+              "EHDAA:571",
+              "VAO:0000149"
+            ]
+          },
+          {
+            "id": "UBERON:0002539",
+            "column": "subset",
+            "value": [
+              "uberon_slim",
+              "vertebrate_core"
+            ]
+          },
+          {
+            "id": "UBERON:0002539",
+            "column": "alt_id",
+            "value": [
+              "UBERON:MIAA_0000242-XAO_0000096-ZFA_0001306"
+            ]
+          }
         ]
       }
     },
@@ -2564,6 +3632,29 @@
             "target": "TEST:0101",
             "column": "relation",
             "value": "is_a"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "TEST:0000",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "TEST:0100",
+                "qualifiers": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "relation": "rel",
+                "target": "TEST:0200",
+                "qualifiers": {
+                  "cardinality": "2",
+                  "foo": "bar"
+                }
+              }
+            ]
           }
         ]
       }
@@ -2624,6 +3715,18 @@
             "column": "relation",
             "value": "part_of"
           }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "UBERON:0002398",
+            "column": "def",
+            "value": "."
+          },
+          {
+            "id": "UBERON:0002398",
+            "column": "def.xrefs",
+            "value": []
+          }
         ]
       }
     },
@@ -2660,6 +3763,100 @@
             "id": "GO:0005622",
             "column": "namespace",
             "value": "cellular_component"
+          },
+          {
+            "id": "GO:0005575",
+            "column": "def",
+            "value": "The part of a cell or its extracellular environment in which a gene product is located. A gene product may be located in one or more parts of a cell and its location may be as specific as a particular macromolecular complex, that is, a stable, persistent association of macromolecules that function together."
+          },
+          {
+            "id": "GO:0005575",
+            "column": "def.xrefs",
+            "value": [
+              "GOC:go_curators",
+              "NIF_Subcellular:sao-1337158144"
+            ]
+          },
+          {
+            "id": "GO:0005575",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "cell or subcellular entity",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              },
+              {
+                "text": "cellular component",
+                "scope": "EXACT",
+                "type": "systematic_synonym",
+                "xrefs": []
+              },
+              {
+                "text": "subcellular entity",
+                "scope": "RELATED",
+                "type": null,
+                "xrefs": [
+                  "NIF_Subcellular:nlx_subcell_100315"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "GO:0005575",
+            "column": "xref",
+            "value": [
+              "NIF_Subcellular:sao-1337158144",
+              "NIF_Subcellular:sao1337158144"
+            ]
+          },
+          {
+            "id": "GO:0005575",
+            "column": "subset",
+            "value": [
+              "goslim_aspergillus",
+              "goslim_candida",
+              "goslim_chembl",
+              "goslim_generic",
+              "goslim_metagenomics",
+              "goslim_pir",
+              "goslim_plant",
+              "goslim_yeast",
+              "gosubset_prok"
+            ]
+          },
+          {
+            "id": "GO:0005575",
+            "column": "alt_id",
+            "value": [
+              "GO:0008372"
+            ]
+          },
+          {
+            "id": "GO:0044424",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "GO:0005575"
+              },
+              {
+                "relation": "part_of",
+                "target": "GO:0005622"
+              }
+            ]
+          },
+          {
+            "id": "GO:0005623",
+            "column": "property_value",
+            "value": [
+              {
+                "relation": "IAO:0000589",
+                "value": "cell and encapsulating structures",
+                "datatype": "xsd:string"
+              }
+            ]
           }
         ],
         "edgeChecks": [
@@ -2757,6 +3954,73 @@
             "target": "NCIT:C3088",
             "column": "relation",
             "value": "is_a"
+          },
+          {
+            "source": "Orphanet:263413",
+            "target": "Orphanet:3394",
+            "column": "qualifiers",
+            "value": {
+              "source": "Orphanet",
+              "comments": "test comments"
+            }
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "DOID:0001816",
+            "column": "def",
+            "value": "A malignant Vascular tumor that results_in rapidly proliferating, extensively infiltrating anaplastic cells derived_from blood vessels and derived_from the lining of irregular blood-filled spaces."
+          },
+          {
+            "id": "DOID:0001816",
+            "column": "def.xrefs",
+            "value": [
+              "url:http://emedicine.medscape.com/article/276512-overview",
+              "url:http://en.wikipedia.org/wiki/Hemangiosarcoma",
+              "url:http://www.ncbi.nlm.nih.gov/pubmed/23327728"
+            ]
+          },
+          {
+            "id": "DOID:0001816",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "hemangiosarcoma",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "DOID:0001816",
+            "column": "xref",
+            "value": [
+              "MESH:D006394",
+              "NCIT:C3088",
+              "NCIT:C9275",
+              "Orphanet:263413",
+              "SCTID:33176006",
+              "SCTID:39000009",
+              "SCTID:403977003",
+              "UMLS:C0018923",
+              "UMLS:C0854893"
+            ]
+          },
+          {
+            "id": "DOID:0001816",
+            "column": "subset",
+            "value": [
+              "NCIthesaurus"
+            ]
+          },
+          {
+            "id": "DOID:0001816",
+            "column": "alt_id",
+            "value": [
+              "DOID:267",
+              "DOID:4508"
+            ]
           }
         ]
       }
@@ -2817,6 +4081,32 @@
             "column": "relation",
             "value": "part_of"
           }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "UBERON:0002398",
+            "column": "def",
+            "value": "."
+          },
+          {
+            "id": "UBERON:0002398",
+            "column": "def.xrefs",
+            "value": []
+          },
+          {
+            "id": "UBERON:0002398",
+            "column": "intersection_of",
+            "value": [
+              {
+                "relation": null,
+                "target": "UBERON:0002470"
+              },
+              {
+                "relation": "part_of",
+                "target": "UBERON:0002102"
+              }
+            ]
+          }
         ]
       }
     },
@@ -2857,6 +4147,13 @@
             "id": "X:2",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "Y:1",
+            "column": "alt_id",
+            "value": [
+              "Y:2"
+            ]
           }
         ]
       }
@@ -2899,6 +4196,44 @@
             "id": "UO:0000001",
             "column": "namespace",
             "value": "unit.ontology"
+          },
+          {
+            "id": "UO:0000000",
+            "column": "def",
+            "value": "A unit of measurement is a standardized quantity of a physical quality."
+          },
+          {
+            "id": "UO:0000000",
+            "column": "def.xrefs",
+            "value": [
+              "Wikipedia:Wikipedia"
+            ]
+          },
+          {
+            "id": "UO:0000003",
+            "column": "synonym",
+            "value": [
+              {
+                "text": "time derived unit",
+                "scope": "EXACT",
+                "type": null,
+                "xrefs": []
+              }
+            ]
+          },
+          {
+            "id": "UO:0000001",
+            "column": "subset",
+            "value": [
+              "unit_group_slim"
+            ]
+          },
+          {
+            "id": "UO:0000003",
+            "column": "alt_id",
+            "value": [
+              "UO:0000149"
+            ]
           }
         ],
         "edgeChecks": [
@@ -2972,6 +4307,18 @@
             "id": "BTO:0000311",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "BTO:0000000",
+            "column": "def",
+            "value": "A structured controlled vocabulary for the source of an enzyme. It comprises terms of tissues, cell lines, cell types and cell cultures from uni- and multicellular organisms."
+          },
+          {
+            "id": "BTO:0000000",
+            "column": "def.xrefs",
+            "value": [
+              "curators:mgr"
+            ]
           }
         ]
       }
@@ -3066,6 +4413,32 @@
             "id": "MS:1000009",
             "column": "is_obsolete",
             "value": true
+          },
+          {
+            "id": "MS:0000000",
+            "column": "def",
+            "value": "Proteomics Standards Initiative Mass Spectrometry Vocabularies."
+          },
+          {
+            "id": "MS:0000000",
+            "column": "def.xrefs",
+            "value": [
+              "PSI:MS"
+            ]
+          },
+          {
+            "id": "MS:1000001",
+            "column": "xref",
+            "value": [
+              "value-type:xsd:string"
+            ]
+          },
+          {
+            "id": "MS:1000001",
+            "column": "xref.descriptions",
+            "value": {
+              "value-type:xsd:string": "The allowed value-type for this CV term."
+            }
           }
         ],
         "edgeChecks": [

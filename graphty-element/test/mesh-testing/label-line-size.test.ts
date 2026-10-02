@@ -53,3 +53,29 @@ describe("RichTextLabel size with several lines", () => {
         assert.isAbove(planeHeight("one\ntwo\nthree", 2.5), planeHeight("one\ntwo\nthree") * 1.5);
     });
 });
+
+describe("RichTextLabel size with a blank first line", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.dispose();
+    });
+
+    test("a padded label that opens with a blank line is sized from its first line of words", () => {
+        // A blank line has no height of its own, so sizing from it measured one line as the
+        // padding alone and blew the label up to several times its height.
+        const height = (text: string): number => {
+            const mesh = RichTextLabel.createLabel(scene, { text, backgroundPadding: 8 }).labelMesh;
+            assert.isNotNull(mesh);
+            const box = mesh.getBoundingInfo().boundingBox;
+
+            return box.maximum.y - box.minimum.y;
+        };
+
+        assert.closeTo(height("\nwords"), height("words"), 1e-9);
+    });
+});

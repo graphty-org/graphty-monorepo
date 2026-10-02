@@ -398,7 +398,8 @@ export class RichTextLabel {
         // to anything more. Without this a three-line label squeezed its canvas into one line's
         // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
         // letters instead of spreading the lines.
-        const firstLine = this.parsedContent[0];
+        // The first line WITH WORDS: a blank line has no height of its own to measure.
+        const firstLine = this.parsedContent.find((line) => line.length > 0);
         if (firstLine === undefined) {
             this.heightInLines = 1;
         } else {

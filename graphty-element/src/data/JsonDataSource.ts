@@ -25,11 +25,19 @@ const JsonEdgeConfig = z
     .prefault({});
 
 export const JsonDataSourceConfig = z.object({
-    data: z.string().optional(),
+    data: z
+        .union([
+            z.string(),
+            z.custom<Uint8Array | ArrayBuffer>((value) => value instanceof Uint8Array || value instanceof ArrayBuffer),
+        ])
+        .optional(),
     file: z.instanceof(File).optional(),
     url: z.string().optional(),
     chunkSize: z.number().optional(),
     errorLimit: z.number().optional(),
+    // Kept unchecked here so that DataSource.graphChoice checks them, as it does for every reader.
+    graphIndex: z.unknown().optional(),
+    graphName: z.unknown().optional(),
     nodeIdPath: z.string().optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
@@ -126,17 +134,21 @@ export class JsonDataSource extends DataSource {
         // JsonDataSource has special handling for 'data' field:
         // If data starts with http/https/data:, treat it as URL
         // Otherwise treat it as inline JSON
+        const { data } = this.opts;
         const isUrl =
-            (this.opts.data?.startsWith("http://") ?? false) ||
-            (this.opts.data?.startsWith("https://") ?? false) ||
-            (this.opts.data?.startsWith("data:") ?? false);
+            typeof data === "string" &&
+            (data.startsWith("http://") || data.startsWith("https://") || data.startsWith("data:"));
 
         return {
-            data: isUrl ? undefined : this.opts.data,
+            data: isUrl ? undefined : data,
             file: this.opts.file,
-            url: isUrl ? this.opts.data : this.opts.url,
+            url: isUrl ? data : this.opts.url,
             chunkSize: this.opts.chunkSize,
             errorLimit: this.opts.errorLimit,
+            ...({ graphIndex: this.opts.graphIndex, graphName: this.opts.graphName } as Pick<
+                BaseDataSourceConfig,
+                "graphIndex" | "graphName"
+            >),
         };
     }
 

@@ -129,7 +129,7 @@ export interface ImportedGraph {
  * `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose `cause` is the
  * importer's `ImportError`.
  * @param importer - the graph-io importer for the format
- * @param text - the whole document
+ * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options; `ids` defaults to "string", so ids stay the text the file wrote
  * @param fatal - issue codes that make even a recognisable document unreadable, or "any"
  * @param policy - how the scratch builder treats what the importer pushes
@@ -137,7 +137,7 @@ export interface ImportedGraph {
  */
 export async function importDocument<Opts>(
     importer: GraphImporter<Opts>,
-    text: string,
+    text: string | Uint8Array,
     options: Opts & CommonImportOptions,
     fatal: readonly string[] | "any" = [],
     policy: ScratchPolicy = {},
@@ -151,7 +151,8 @@ export async function importDocument<Opts>(
             throw error;
         }
 
-        const recognised = importer.sniff?.(new TextEncoder().encode(text.slice(0, 4096))) ?? 0;
+        const head = typeof text === "string" ? new TextEncoder().encode(text.slice(0, 4096)) : text.subarray(0, 4096);
+        const recognised = importer.sniff?.(head) ?? 0;
         if (fatal === "any" || recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
             throw parseFailed(importer, error);
         }
@@ -185,7 +186,7 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
  * naming the line of the last error, so the graph on screen stays as it was. The importer's
  * errors reach the aggregator either way.
  * @param importer - the graph-io importer for the format
- * @param text - the whole document
+ * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options
  * @param errors - the data source's aggregator
  * @param policy - how the scratch builder treats what the importer pushes
@@ -194,7 +195,7 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
  */
 export async function importWhole<Opts>(
     importer: GraphImporter<Opts>,
-    text: string,
+    text: string | Uint8Array,
     options: Opts & CommonImportOptions,
     errors: ErrorAggregator,
     policy: ScratchPolicy = {},

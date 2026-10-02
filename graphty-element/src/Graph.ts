@@ -77,6 +77,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
+import { sampleOf } from "./data/source-bytes";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -1842,6 +1843,9 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -1852,6 +1856,8 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -1873,8 +1879,9 @@ export class Graph implements GraphContext {
             format = detected;
         }
 
-        // Read full file content
-        const content = await file.text();
+        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+        // declaration), and a binary format such as a zip would not survive a text read.
+        const content = new Uint8Array(await file.arrayBuffer());
 
         // Load using appropriate DataSource
         const { replace: _replace, ...sourceOptions } = options ?? {};
@@ -1905,6 +1912,8 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -1926,13 +1935,15 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
-        let fetchedContent: string | undefined;
+        let fetchedContent: Uint8Array | undefined;
 
         if (!format) {
             // First try extension-based detection (no fetch needed)
@@ -1947,10 +1958,11 @@ export class Graph implements GraphContext {
                     throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
                 }
 
-                fetchedContent = await response.text();
+                // Bytes, decoded by the importer: see loadFromFile.
+                fetchedContent = new Uint8Array(await response.arrayBuffer());
                 this.dataManager.throwIfSuperseded(load.generation, url);
 
-                const sample = fetchedContent.slice(0, 2048);
+                const sample = sampleOf(fetchedContent);
                 const detectedFromContent = detectFormat(url, sample);
 
                 if (!detectedFromContent) {
@@ -1972,6 +1984,8 @@ export class Graph implements GraphContext {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...(edgeSource === null ? {} : { edgeSource }),
             ...(edgeTarget === null ? {} : { edgeTarget }),
+            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
+            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch

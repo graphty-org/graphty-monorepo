@@ -108,7 +108,7 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
  */
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
-export type { RegisteredFormat } from "./src/catalog/formatRegistry";
+export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
 export type { FormatDescriptor, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
@@ -135,7 +135,9 @@ export { ErrorAggregator } from "./src/data/ErrorAggregator";
 export type { GraphSink } from "@graphty/graph-format";
 export type {
     CommonImportOptions,
+    GraphChoiceOptions,
     GraphImporter,
+    GraphListing,
     ImportReport as ImporterReport,
     ImportInput,
     ImportIssue,

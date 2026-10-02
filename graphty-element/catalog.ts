@@ -50,9 +50,11 @@ export {
     layoutIdForEngine,
     UNSERVED_LAYOUT_IDS,
 } from "./src/catalog/layouts";
+export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { GraphListing } from "@graphty/graph-io";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value
 // each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether

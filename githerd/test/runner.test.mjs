@@ -165,16 +165,17 @@ describe("pure parts", () => {
     it("builds the environment from the allowlist only", () => {
         const env = runEnv(
             { PATH: "/bin", HOME: "/h", GH_TOKEN: "t", PUSHOVER_USER: "u", GITHERD_NAME: "n", GPG_TTY: "/dev/pts/1" },
-            { gitconfig: "/g", run: { GITHERD_RUN_ID: "r" } },
+            { gitconfig: "/g", npmrc: "/n", run: { GITHERD_RUN_ID: "r" } },
         );
         expect(env).toEqual({
             PATH: "/bin",
             HOME: "/h",
             GPG_TTY: "/dev/pts/1",
             GIT_CONFIG_GLOBAL: "/g",
+            NPM_CONFIG_USERCONFIG: "/n",
             GITHERD_RUN_ID: "r",
         });
-        expect(() => runEnv({}, { gitconfig: "/g", run: { GH_TOKEN: "x" } })).toThrow(/GITHERD_/);
+        expect(() => runEnv({}, { gitconfig: "/g", npmrc: "/n", run: { GH_TOKEN: "x" } })).toThrow(/GITHERD_/);
     });
 
     it("writes settings with the guard, deny rules, attribution and memory off, sandbox for code kinds", () => {
@@ -183,8 +184,15 @@ describe("pure parts", () => {
         );
         expect(s.hooks.PreToolUse[0].matcher).toBe("Bash|Edit|Write");
         expect(s.hooks.PreToolUse[0].hooks[0].command).toBe("'/n o/node' /g.mjs");
-        expect(s.permissions.deny).toContain("Read(~/.config/gh/**)");
-        expect(s.permissions.deny).toContain("Edit(~/.ssh/**)");
+        for (const p of ["~/.config", "~/.npmrc", "~/.claude.json", "~/.docker", "~/.ssh"]) {
+            expect(s.permissions.deny).toContain(`Read(${p})`);
+            expect(s.permissions.deny).toContain(`Read(${p}/**)`);
+            expect(s.permissions.deny).toContain(`Edit(${p}/**)`);
+        }
+        expect(s.permissions.deny).toContain("Read(**/.env*)");
+        const withState = /** @type {any} */ (runSettings({ kind: "triage", guard: ["node"], stateDir: "/r/.githerd" }));
+        expect(withState.permissions.deny).toContain("Read(//r/.githerd/runs/*/mcp.json)");
+        expect(withState.permissions.deny).toContain("Edit(//r/.githerd/**)");
         expect(s.includeCoAuthoredBy).toBe(false);
         expect(s.attribution).toEqual({ commit: "", pr: "" });
         expect(s.autoMemoryEnabled).toBe(false);
@@ -316,9 +324,12 @@ describe("runs against fake-claude", () => {
                 "GNUPGHOME",
                 "HOME",
                 "LANG",
+                "NPM_CONFIG_USERCONFIG",
                 "PATH",
             ].sort(),
         );
+        expect(seen.env.NPM_CONFIG_USERCONFIG).toBe(join(env.dir, "run-npmrc"));
+        expect(readFileSync(seen.env.NPM_CONFIG_USERCONFIG, "utf8")).toBe("");
         expect(seen.env.GH_TOKEN).toBeUndefined();
         expect(Object.keys(seen.env).some((k) => k.startsWith("PUSHOVER_"))).toBe(false);
         expect(seen.cwd).toBe(join(runDir, "work"));

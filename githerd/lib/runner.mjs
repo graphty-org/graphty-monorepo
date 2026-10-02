@@ -13,7 +13,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { accessSync, appendFileSync, constants, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join, relative, isAbsolute } from "node:path";
+import { delimiter, join, relative, resolve, isAbsolute } from "node:path";
 
 import { escalate, releaseRun } from "./board.mjs";
 import { bootId as currentBootId, identify, sameProcess } from "./proc.mjs";
@@ -36,8 +36,12 @@ const KILL_GRACE_MS = 10_000;
 
 /** Reads the guard denies to Bash (through the sandbox) and to the file tools. */
 const SECRET_PATHS = [
-    "~/.config/gh",
+    // gh, servherd and other tools keep their credentials under ~/.config.
+    "~/.config",
     "~/.git-credentials",
+    "~/.npmrc",
+    "~/.claude.json",
+    "~/.docker",
     "~/.ssh",
     "~/.claude/.credentials.json",
     "~/.bashrc",
@@ -147,17 +151,19 @@ export function runArgv({ kind, config, runDir, prompt }) {
  * The run's environment: an allowlist, never the daemon's. No GitHub token, no notifier
  * credential, no inherited `GITHERD_*`.
  * @param {Record<string, string | undefined>} env the daemon's environment
- * @param {{gitconfig: string, run: Record<string, string>}} extra the run git config and the
- *   run's own `GITHERD_*` variables
+ * @param {{gitconfig: string, npmrc: string, run: Record<string, string>}} extra the run git
+ *   config, the empty npm user config and the run's own `GITHERD_*` variables
  * @returns {Record<string, string>} the child environment
  */
-export function runEnv(env, { gitconfig, run }) {
+export function runEnv(env, { gitconfig, npmrc, run }) {
     /** @type {Record<string, string>} */
     const out = {};
     for (const name of ["PATH", "HOME", "LANG", "TERM", "TMPDIR", "GNUPGHOME", "GPG_TTY"]) {
         if (env[name] !== undefined) out[name] = /** @type {string} */ (env[name]);
     }
     out.GIT_CONFIG_GLOBAL = gitconfig;
+    // npm and pnpm never load the owner's ~/.npmrc, which holds the publish token.
+    out.NPM_CONFIG_USERCONFIG = npmrc;
     for (const [name, value] of Object.entries(run)) {
         if (!name.startsWith("GITHERD_")) throw new Error(`${name}: a run gets only GITHERD_* variables`);
         out[name] = value;
@@ -168,12 +174,17 @@ export function runEnv(env, { gitconfig, run }) {
 /**
  * The run's `settings.json`: the guard on Bash, Edit and Write; for code-editing kinds the Bash
  * sandbox; deny rules for the secret paths; attribution and auto-memory off.
- * @param {{kind: string, guard: string[], gpgAgentSocket?: string | null}} options the kind, the
- *   guard's command, and the gpg-agent socket a sandboxed commit may use
+ * @param {{kind: string, guard: string[], gpgAgentSocket?: string | null, stateDir?: string | null}} options
+ *   the kind, the guard's command, the gpg-agent socket a sandboxed commit may use, and githerd's
+ *   state directory (absolute)
  * @returns {object} the settings
  */
-export function runSettings({ kind, guard, gpgAgentSocket = null }) {
+export function runSettings({ kind, guard, gpgAgentSocket = null, stateDir = null }) {
     const deny = SECRET_PATHS.flatMap((p) => [`Read(${p}/**)`, `Read(${p})`, `Edit(${p}/**)`, `Edit(${p})`]);
+    // The repository's .env files hold API keys; another run's mcp.json holds its run token.
+    // A leading `//` makes a rule path absolute.
+    deny.push("Read(**/.env*)");
+    if (stateDir) deny.push(`Read(/${stateDir}/runs/*/mcp.json)`, `Edit(/${stateDir}/**)`);
     /** @type {any} */
     const settings = {
         hooks: {
@@ -471,6 +482,9 @@ export function createRunner({
 }) {
     /** @type {Map<string, {kill: (why: string) => void, done: Promise<any>}>} */
     const live = new Map();
+    const npmrc = join(stateDir, "run-npmrc");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(npmrc, "");
 
     /**
      * A fresh run id, `run-YYYYMMDD-NNNN-xx`.
@@ -532,7 +546,7 @@ export function createRunner({
         const guard = [process.execPath, join(packageDir, "bin", "githerd-guard.mjs")];
         writeFileSync(
             join(runDir, "settings.json"),
-            JSON.stringify(runSettings({ kind: req.kind, guard, gpgAgentSocket }), null, 2),
+            JSON.stringify(runSettings({ kind: req.kind, guard, gpgAgentSocket, stateDir: resolve(stateDir) }), null, 2),
         );
         writeFileSync(join(runDir, "result.schema.json"), JSON.stringify(RESULT_SCHEMA, null, 2));
         writeFileSync(join(runDir, "prompt.md"), req.prompt);
@@ -543,6 +557,7 @@ export function createRunner({
         );
         const childEnv = runEnv(env, {
             gitconfig,
+            npmrc,
             run: { GITHERD_RUN_ID: id, GITHERD_RUN_DIR: runDir, GITHERD_RUN_KIND: req.kind },
         });
         writeFileSync(join(runDir, "env.json"), JSON.stringify(childEnv, null, 2));

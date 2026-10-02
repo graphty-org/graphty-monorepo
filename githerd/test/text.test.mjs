@@ -29,6 +29,11 @@ describe("checkOutgoing", () => {
         ["github_pat_11ABCDEF", "GitHub fine-grained token"],
         ["sk-ant-api03-xyz", "Anthropic API key"],
         ["-----BEGIN OPENSSH PRIVATE KEY-----", "PEM key block"],
+        [`npm_${"a1B2".repeat(9)}`, "npm access token"],
+        [`sk-proj-${"x9".repeat(12)}`, "sk- secret key"],
+        [`AIza${"Sy".repeat(18)}`, "Google API key"],
+        [["xoxb", "1234567890", "abcdef"].join("-"), "Slack token"],
+        ["AKIAIOSFODNN7EXAMPLE", "AWS access key id"],
     ])("refuses the secret pattern in %s", (secret, label) => {
         expect(checkOutgoing(`log line: ${secret} end`, env)).toEqual([`contains a ${label}`]);
     });
@@ -78,6 +83,11 @@ describe("checkOutgoing", () => {
         } finally {
             delete process.env[name];
         }
+    });
+
+    it("does not take ordinary words for the new credential prefixes", () => {
+        const text = "task-list risk-free desk-top npm_config_registry AKIA xoxb- sk-short AIza";
+        expect(checkOutgoing(text, env)).toEqual([]);
     });
 
     it("reports every match", () => {

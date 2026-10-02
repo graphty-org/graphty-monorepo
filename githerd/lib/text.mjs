@@ -14,6 +14,11 @@ const SECRET_PATTERNS = [
     ["GitHub app token", /ghs_/],
     ["GitHub fine-grained token", /github_pat_/],
     ["Anthropic API key", /sk-ant-/],
+    ["npm access token", /\bnpm_[A-Za-z0-9]{30,}/],
+    ["sk- secret key", /\bsk-(?!ant-)[A-Za-z0-9_-]{20,}/],
+    ["Google API key", /\bAIza[0-9A-Za-z_-]{30,}/],
+    ["Slack token", /\bxox[bap]-[0-9A-Za-z-]{10,}/],
+    ["AWS access key id", /\bAKIA[0-9A-Z]{16}\b/],
     ["PEM key block", /-----BEGIN/],
 ];
 

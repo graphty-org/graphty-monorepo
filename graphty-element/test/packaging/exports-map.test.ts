@@ -369,4 +369,10 @@ describe("the data entry points carry data, not objects", () => {
         assert.typeOf(schema.defaultNodeStyle, "object");
         assert.match(schema.MISSING_DATA_COLOR, /^#[0-9a-f]{6}$/i);
     });
+
+    it("publishes the color reader a color control uses instead of building hex by hand", () => {
+        assert.strictEqual(catalog.toColorValue({ r: 300, g: -5, b: 127.6, a: 1 })?.hex, "#ff0080");
+        assert.strictEqual(catalog.toColorValue("red")?.hex, "#ff0000");
+        assert.isNull(catalog.toColorValue("not a color"));
+    });
 });

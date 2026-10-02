@@ -62,6 +62,12 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
 export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// The one color reader a channel uses: a hex string, any CSS colour the element understands, or
+// Rgba components in, a clamped and rounded colour with its `#rrggbb[aa]` hex out (null when the
+// value is not a color). A color control reads a layer's value through this rather than
+// building hex by hand.
+export type { ColorValue } from "./src/session/styles/channels";
+export { toColorValue } from "./src/session/styles/channels";
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and the one validator for it

@@ -5,10 +5,25 @@
  * recorded as a `would-do` ledger line and nothing is pushed.
  *
  * The push is never forced, never to the default branch, and always an explicit refspec.
+ *
+ * Every git command runs in the main checkout, never in the run's worktree: the run can write that
+ * worktree's `.git` file and hook directories, and git would run what they name with the daemon's
+ * privileges. The run's head is read from its local branch, which createWorktree named.
  */
 import { escalate } from "../board.mjs";
 import { checkOutgoing } from "../text.mjs";
-import { git, run as exec } from "../worktrees.mjs";
+import { git as gitIn, run as exec } from "../worktrees.mjs";
+
+/** No hook and no file-system monitor runs while githerd reads or pushes a run's branch. */
+const SAFE = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"];
+
+/**
+ * Runs git in the main checkout with hooks and the file-system monitor off.
+ * @param {string} root the main checkout
+ * @param {string[]} args git's arguments
+ * @returns {Promise<string>} stdout, trimmed
+ */
+const git = (root, args) => gitIn(root, [...SAFE, ...args]);
 
 /**
  * Whether a path falls under one of the protected entries: a directory entry ends with `/`.
@@ -28,9 +43,10 @@ function isProtected(path, protectedPaths) {
 const lines = (out) => (out ? out.split("\n") : []);
 
 /**
- * Lists every reason the branch in `dir` must not be pushed.
+ * Lists every reason the run's branch must not be pushed.
  * @param {{
- *   dir: string,
+ *   root: string,
+ *   localBranch: string,
  *   branch: string,
  *   prBranch?: string | null,
  *   defaultBranch: string,
@@ -40,14 +56,16 @@ const lines = (out) => (out ? out.split("\n") : []);
  *   state: any,
  *   protectedPaths: string[],
  *   env?: Record<string, string | undefined>,
- * }} options `branch` is the remote branch the push would update; `prBranch` the target pull
+ * }} options `root` is the main checkout and `localBranch` the run's branch there (its worktree's
+ *   branch); `branch` is the remote branch the push would update; `prBranch` the target pull
  *   request's head branch; `base` the head the run started from (for a pull request) or the green
  *   SHA it was given (for a new branch)
  * @returns {Promise<{head: string, commits: string[], reasons: string[]}>} the head, the run's own
  *   commits (newest first) and the reasons; no reasons means the branch may be pushed
  */
 async function checkBranch({
-    dir,
+    root: dir,
+    localBranch,
     branch,
     prBranch = null,
     defaultBranch,
@@ -59,7 +77,7 @@ async function checkBranch({
     env = process.env,
 }) {
     const reasons = [];
-    const head = await git(dir, ["rev-parse", "HEAD"]);
+    const head = await git(dir, ["rev-parse", "--verify", `refs/heads/${localBranch}^{commit}`]);
 
     if (branch === defaultBranch) reasons.push(`the branch is the default branch ${defaultBranch}`);
     else if (!branch.startsWith("githerd/") && branch !== prBranch) {
@@ -67,7 +85,7 @@ async function checkBranch({
     }
     if (!prBranch && base !== greenSha)
         reasons.push(`a new branch must start at the green SHA ${greenSha}, not ${base}`);
-    if ((await exec("git", ["merge-base", "--is-ancestor", base, head], { cwd: dir })).code !== 0) {
+    if ((await exec("git", [...SAFE, "merge-base", "--is-ancestor", base, head], { cwd: dir })).code !== 0) {
         reasons.push(`the branch no longer contains its base ${base}`);
         return { head, commits: [], reasons };
     }
@@ -125,7 +143,7 @@ async function checkBranch({
 
 /**
  * Whether one of the run's commits is a merge whose second parent is the green SHA.
- * @param {string} dir the worktree
+ * @param {string} dir the main checkout
  * @param {string[]} commits the run's commits
  * @param {string} greenSha the green SHA
  * @returns {Promise<boolean>} true when the green SHA was merged
@@ -152,7 +170,8 @@ function isIncidentRun(state, run) {
 }
 
 /**
- * Checks the branch and pushes it with `--no-verify` and the refspec `HEAD:refs/heads/<branch>`.
+ * Checks the branch and pushes it from the main checkout with `--no-verify`, hooks off, and the
+ * refspec `<head sha>:refs/heads/<branch>`.
  * The pushed head is recorded in `state.pushedByGitherd`.
  * @param {Parameters<typeof checkBranch>[0] & {
  *   mode: string,
@@ -166,7 +185,7 @@ function isIncidentRun(state, run) {
  *   happened; `reasons` is empty unless the push was refused or failed
  */
 export async function pushRunBranch(options) {
-    const { dir, branch, run, state, mode, runWrites, remote = "origin", ledger, now = () => new Date() } = options;
+    const { root, branch, run, state, mode, runWrites, remote = "origin", ledger, now = () => new Date() } = options;
     const { head, commits, reasons } = await checkBranch(options);
     if (reasons.length === 0 && commits.length === 0) {
         await ledger({ kind: "push-skipped", run: run.id, target: run.target, branch, head, reason: "no new commits" });
@@ -178,7 +197,9 @@ export async function pushRunBranch(options) {
         await ledger({ kind: "would-do", op: `push ${head} to ${remote} ${branch}`, run: run.id, target: run.target });
         return { pushed: false, head, reasons: [], wouldDo: true };
     }
-    const r = await exec("git", ["push", "--no-verify", remote, `HEAD:refs/heads/${branch}`], { cwd: dir });
+    const r = await exec("git", [...SAFE, "push", "--no-verify", remote, `${head}:refs/heads/${branch}`], {
+        cwd: root,
+    });
     if (r.code !== 0) {
         return deny(state, ledger, run, branch, head, [`git push failed: ${(r.stderr || r.stdout).trim()}`], now());
     }

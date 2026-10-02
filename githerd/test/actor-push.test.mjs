@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { chmodSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -64,17 +64,18 @@ function remoteHead(branch) {
 /**
  * A worktree for a run on a new githerd branch from the green SHA.
  * @param {string} target the run's target
- * @returns {Promise<{dir: string, branch: string, base: string}>} the worktree
+ * @returns {Promise<{dir: string, root: string, localBranch: string, branch: string, base: string}>} the
+ *   worktree
  */
 async function newBranchWorktree(target) {
     const r = await createWorktree({ root: repo.root, state: {}, target, greenSha: green, ledger });
     if (!r.ok) throw new Error(r.reason);
-    return { dir: r.dir, branch: r.pushBranch, base: r.base };
+    return { dir: r.dir, root: repo.root, localBranch: r.branch, branch: r.pushBranch, base: r.base };
 }
 
 /**
  * The options of a push in acting mode with master green, for the given worktree.
- * @param {{dir: string, branch: string, base: string}} wt the worktree
+ * @param {{dir: string, root: string, localBranch: string, branch: string, base: string}} wt the worktree
  * @param {Record<string, unknown>} [over] fields to replace
  * @returns {any} the options
  */
@@ -229,6 +230,32 @@ describe("pushRunBranch on a new branch", () => {
         expect(r.reasons.join()).toMatch(/no longer contains its base/);
     });
 
+    it("never runs what the run put in its worktree's .git file or hook directory", async () => {
+        git(repo.root, "config", "core.hooksPath", ".husky/_");
+        const wt = await newBranchWorktree("issue:643");
+        put(join(wt.dir, "a.txt"), "a\n");
+        const head = commitAll(wt.dir, "fix: a");
+        const marker = join(repo.tmp, "ran");
+        const script = join(repo.tmp, "evil.sh");
+        put(script, `#!/bin/sh\ntouch ${marker}\n`);
+        chmodSync(script, 0o755);
+        for (const hook of ["reference-transaction", "pre-push", "post-checkout"]) {
+            put(join(wt.dir, ".husky/_", hook), `#!/bin/sh\ntouch ${marker}\n`);
+            chmodSync(join(wt.dir, ".husky/_", hook), 0o755);
+            put(join(repo.root, ".husky/_", hook), `#!/bin/sh\ntouch ${marker}\n`);
+            chmodSync(join(repo.root, ".husky/_", hook), 0o755);
+        }
+        const fake = join(wt.dir, "x");
+        put(join(fake, "HEAD"), "ref: refs/heads/master\n");
+        put(join(fake, "config"), `[core]\n\tfsmonitor = ${script}\n[gpg]\n\tprogram = ${script}\n`);
+        writeFileSync(join(wt.dir, ".git"), `gitdir: ${fake}\n`);
+
+        const r = await pushRunBranch(opts(wt));
+        expect(r).toEqual({ pushed: true, head, reasons: [] });
+        expect(remoteHead(wt.branch)).toBe(head);
+        expect(existsSync(marker)).toBe(false);
+    });
+
     it("turns a rejected push into a denied escalation", async () => {
         const wt = await newBranchWorktree("issue:643");
         put(join(wt.dir, "a.txt"), "a\n");
@@ -267,7 +294,7 @@ describe("pushRunBranch on a pull request branch", () => {
         });
         if (!r.ok) throw new Error(r.reason);
         const o = opts(
-            { dir: r.dir, branch: r.pushBranch, base: r.base },
+            { dir: r.dir, root: repo.root, localBranch: r.branch, branch: r.pushBranch, base: r.base },
             { prBranch: "feat/pr", run: { id: "run-2", kind, target: "pr:704" } },
         );
         return { o, old };

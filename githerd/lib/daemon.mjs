@@ -840,8 +840,14 @@ export async function startDaemon({
                 });
                 return { ok: false, reason };
             }
-            const ok = /** @type {{dir: string, pushBranch: string, base: string}} */ (wt);
-            worktree = { dir: ok.dir, pushBranch: ok.pushBranch, base: ok.base, prBranch: pr?.headRef ?? null };
+            const ok = /** @type {{dir: string, branch: string, pushBranch: string, base: string}} */ (wt);
+            worktree = {
+                dir: ok.dir,
+                branch: ok.branch,
+                pushBranch: ok.pushBranch,
+                base: ok.base,
+                prBranch: pr?.headRef ?? null,
+            };
         }
         const started = run.start({
             kind,
@@ -1025,7 +1031,8 @@ export async function startDaemon({
         const wt = run.worktree;
         if (!wt) return "recorded: this run has no githerd worktree to push from";
         const r = await pushRunBranch({
-            dir: wt.dir,
+            root,
+            localBranch: wt.branch,
             branch: wt.pushBranch,
             prBranch: wt.prBranch ?? null,
             defaultBranch: state.master.branch ?? "master",

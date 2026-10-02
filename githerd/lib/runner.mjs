@@ -431,7 +431,7 @@ function inside(dir, path) {
  * @property {string[]} [batch] further `issue:N` / `pr:N` targets the run's write tools may touch
  * @property {string} [greenSha] the verified green SHA the run was given
  * @property {string} [incident] the open incident, for a master-red run
- * @property {{dir: string, pushBranch: string, base: string, prBranch?: string | null}} [worktree]
+ * @property {{dir: string, branch: string, pushBranch: string, base: string, prBranch?: string | null}} [worktree]
  *   the githerd-owned worktree (`createWorktree`), which `githerd_finish_branch` pushes from
  */
 

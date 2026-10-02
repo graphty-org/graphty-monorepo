@@ -20,6 +20,13 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
 - Tests that spawn processes kill every process group they started in `afterEach` and assert that
   none is left. Assert timing by what was or was not called, never by wall-clock thresholds.
 - Never run git stash, reset, checkout of a file, clean or rebase, in code or in tests.
+- **Owner-only input.** The only trusted author is the account gh is logged in as, asked every
+  poll with `gh api user` (`state.trust.login`, null at every start). There is no `trustedAuthors`
+  setting; the config rejects it. Every run kind acts only on that account's issues and PRs, and
+  every path into a run (the run tools, the re-triage export, the owner gate's reject marker)
+  drops text by any other account, bots included, and counts what it dropped. Check new code that
+  reads GitHub content for a run with `byOwner` from `lib/board.mjs`. While the login is
+  unresolved, no run starts.
 - Supervision is pm2 autorestart plus the launcher's heartbeat restart. The container has no cron
   and no systemd; `githerd ensure` is a command the owner runs by hand.
 
@@ -34,11 +41,13 @@ Found by `scripts/smoke-runs.sh` (dry-run, real repository, $3 cap):
   kind and token, so a static list would hide them.
 - **The Bash sandbox does not run in this container.** bubblewrap (`bwrap`) and `socat` are not
   installed, and with them missing claude prints "Sandbox disabled" and runs Bash unsandboxed,
-  even with `allowUnsandboxedCommands: false`. So the runner refuses every code-editing kind
-  (master-red, pr-fix, pr-conflict, backlog) while either command is missing from PATH, and kills
-  one whose claude reports the sandbox disabled. Until the owner installs both, milestone 2 runs
-  read-only kinds only, and the sandbox checks (reading `~/.config/gh/hosts.yml`,
-  `git credential fill`, reaching `api.github.com`) are unverified.
+  even with `allowUnsandboxedCommands: false`. The sandbox is defense in depth, not the boundary:
+  the defense against malicious code is owner-only input plus githerd-checked pushes. So
+  code-editing kinds (master-red, pr-fix, pr-conflict, backlog) run without it; the runner logs
+  "Sandbox disabled" as a `sandbox-disabled` event and lets the run go on. The settings still ask
+  for the sandbox, so it turns on wherever both commands are installed. The sandbox checks
+  (reading `~/.config/gh/hosts.yml`, `git credential fill`, reaching `api.github.com`) are
+  unverified until then.
 - Read-only runs (triage, retriage-candidates) start with the expected tools and the githerd
   server connected, end with a structured result, have no permission denials, and record only
   `would-do` writes.
@@ -57,8 +66,8 @@ runner's `settings.json` and `--setting-sources project,local`, a scratch reposi
    that line is what keeps runs from doing it, and a run's reply is never shown to the owner.
 3. **Pending:** the sandbox checks need bubblewrap and socat (see above).
 4. **Pending:** whether `timeout 30 git commit -S` finishes within 10 seconds from a run spawned by
-   the servherd-managed daemon. It matters only for code-editing kinds, which are off until the
-   sandbox exists; run it then.
+   the servherd-managed daemon. It matters only for code-editing kinds; run it before the first
+   code-editing soak.
 5. **No Co-Authored-By line in a run's commit.** Asked to commit with a message of its own, the run
    wrote `docs: add line two to notes.txt` and no trailer. The owner's global CLAUDE.md, which also
    forbids the trailer, was loaded, so this does not isolate the attribution setting; the actor's

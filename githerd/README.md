@@ -14,6 +14,23 @@ repository turns it on with a `githerd.config.json` at its root on the default b
 The design is `design/githerd/githerd-design.md`; the build order is
 `design/githerd/githerd-plan.md`.
 
+## Whose input githerd acts on
+
+Only the repository owner's: the account `gh` is logged in as, which the daemon asks GitHub for
+every poll (`gh api user`). It is not configured anywhere, and `githerd.config.json` rejects a
+`trustedAuthors` key. Every judgment run, of every kind, considers only that account's issues and
+pull requests; issues and PRs by anyone else, Dependabot and other bots included, get no run. Even
+on the owner's own items, comments, reviews and review comments by other accounts never reach a
+run: the run tools return only the owner's text plus a count of what they hid. `githerd status`
+shows those counts on its TRUST line, so nothing disappears silently. If the login cannot be
+resolved, githerd starts no runs and raises a `login-unresolved` escalation.
+
+That, together with githerd's own code checking and pushing every branch a run produces, is the
+defense against a run being steered into writing malicious code. Claude Code's Bash sandbox is
+defense in depth: code-editing runs ask for it and get it wherever bubblewrap (`bwrap`) and `socat`
+are installed, and run without it elsewhere, with a `sandbox-disabled` note in the ledger. Runs
+never hold a GitHub credential either way.
+
 ## Commands
 
 `node githerd/bin/githerd.mjs <command>`, or `pnpm exec githerd <command>`:

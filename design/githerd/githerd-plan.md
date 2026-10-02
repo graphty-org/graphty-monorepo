@@ -160,10 +160,10 @@ hears about a red master once per incident and by the paging policy; nothing on 
 ### 1.11 Session tools and status text
 
 - Files: `githerd/lib/tools.mjs`: the six session tools of design section 7.1 as pure functions
-  over a state object; the status text, with untrusted-author items shown by number and author
+  over a state object; the status text, with items by authors other than the owner shown by number and author
   only, run text prefixed `[run text]`, and the PHONE ALERTS BROKEN banner; `format: "json"`.
 - Tests: `test/tools.test.mjs` -- each tool's happy path and refusals; the status example of design
-  section 7.1 from a fixture state; an untrusted PR title is not shown; the banner leads every tool
+  section 7.1 from a fixture state; another author's PR title is not shown; the banner leads every tool
   result while notifications are broken.
 - Done: tests pass.
 
@@ -250,7 +250,7 @@ digest shows a full re-triage pass; every write is recorded, not performed.
 ### 2.1 Runner and isolation
 
 - Files: `githerd/lib/runner.mjs`: the run directory (`mcp.json`, `settings.json` with the guard on
-  Bash, Edit and Write, the sandbox and deny rules, attribution off and auto-memory off;
+  Bash, Edit and Write, the sandbox request and deny rules, attribution off and auto-memory off;
   `run-gitconfig`; `result.schema.json`; `prompt.md`), the allowlisted environment, the argv of
   design section 9.3 with `--tools` per kind, detached spawn, `stream.jsonl`, the init check
   (mode, one server, tool list), immediate kill on backgrounding, timeout and process-group kill,
@@ -268,8 +268,9 @@ digest shows a full re-triage pass; every write is recorded, not performed.
   (3) a sandboxed Bash run cannot read `~/.config/gh/hosts.yml`, cannot run `git credential fill`
   successfully, and cannot reach `api.github.com`; (4) from a run spawned by the servherd-managed
   daemon, `timeout 30 git commit -S` in a scratch repository finishes within 10 seconds; (5) the
-  attribution setting keeps Co-Authored-By out of a run's commit. If (3) fails, code-editing kinds
-  stay off and milestone 2 ships with read-only runs only; if (4) fails, the same.
+  attribution setting keeps Co-Authored-By out of a run's commit. (3) is checked only where
+  bubblewrap and socat are installed: the sandbox is defense in depth, and code-editing kinds run
+  without it (design section 9.3). If (4) fails, code-editing kinds stay off.
 - Done: tests pass and the manual answers are recorded.
 
 ### 2.2 Guard hook
@@ -291,14 +292,14 @@ digest shows a full re-triage pass; every write is recorded, not performed.
 - Files: `githerd/lib/run-tools.mjs`: the tools of design section 7.2 with per-kind visibility, the
   token check, the write cap, the marker, `checkOutgoing`, batch-only targets for label, comment
   and propose, label sets limited to types, priorities and efforts, `githerd_gh_get` path and named
-  query rules, search qualifier stripping and pacing, run context text filtered to trusted authors
-  for code-editing kinds, ledger filtering of run-written fields, `githerd_finish_branch` handing
+  query rules, search qualifier stripping and pacing, every answer filtered to the owner's
+  text with a count of what was hidden (task 2.10), ledger filtering of run-written fields, `githerd_finish_branch` handing
   off to the actor.
 - Tests: `test/run-tools.test.mjs` -- hidden without a token, rejected with a wrong one; a
   code-editing kind does not see `githerd_gh_get` or search; `repos/other/x` and
   `repos/<repo>/actions/secrets` are refused; `repo:other/x` in a search is stripped; a label outside
   the three sets (`master-fix`, `gpu`, `blocked`) is refused; a target outside the batch is refused;
-  an untrusted comment is absent from a backlog run's context; a code-editing run's ledger slice has
+  another author's comment is absent from a backlog run's context; a code-editing run's ledger slice has
   no summaries; the eleventh write is refused; dry-run writes are `would-do`.
 - Done: tests pass.
 
@@ -336,7 +337,7 @@ digest shows a full re-triage pass; every write is recorded, not performed.
   master-red run starts only when the failing jobs change; 4 runs per PR per 24 hours; an
   outside push resets the PR limits and a githerd push does not; a PR whose head branch a live
   session reports gets no run; a master-red run is skipped when a session claims `master` during
-  the hold; an untrusted-author issue that a run labeled is never agent-ready; `blocked` and
+  the hold; another author's issue that a run labeled is never agent-ready; `blocked` and
   `needs-*` are excluded.
 - Done: tests pass.
 
@@ -355,12 +356,13 @@ digest shows a full re-triage pass; every write is recorded, not performed.
   issues, one `master-red` run replayed from a recorded red CI run, one `pr-conflict` run on a
   scratch PR fixture, and one re-triage batch of 10 issues.
 - Done: each run ends `done` or `escalated` with a valid result; `permission_denials` is empty; the
-  ledger shows only `would-do` writes; the sandbox check of 2.1 holds inside the master-red run;
+  ledger shows only `would-do` writes; where bubblewrap and socat are installed, the sandbox
+  check of 2.1 holds inside the master-red run;
   no `claude`, launcher or servherd leftover remains. A read-only run whose issues need nothing
   may end `nothing-to-do`, which is also a valid result.
-- On this container the Bash sandbox cannot run (no `bwrap` or `socat`), so the runner refuses
-  the code-editing kinds and the script reports the master-red and pr-conflict steps as skipped;
-  they and the sandbox check run once the owner installs both (`githerd/CLAUDE.md`).
+- On this container the Bash sandbox cannot run (no `bwrap` or `socat`). The code-editing steps
+  run anyway, unsandboxed, and the summary lists the missing commands; the sandbox check runs once
+  both are installed. The triage step picks only the owner's issues.
 
 ### 2.9 Dry-run soak, part two
 
@@ -368,6 +370,27 @@ digest shows a full re-triage pass; every write is recorded, not performed.
   on its weekly budget.
 - Done: no run ended `init-mismatch` or `backgrounded`; spend stayed under the caps; no limit in
   section 10.1 was exceeded; the digest lists the re-triage results and every escalation.
+
+### 2.10 Owner-only input
+
+The defense against malicious code is trusted input plus githerd-checked pushes, not the Bash
+sandbox (design sections 9.3 and 14).
+
+- Files: `githerd/lib/github.mjs` (`login()`: `gh api user`); `githerd/lib/daemon.mjs` (the login
+  asked every poll into `state.trust`, null at start, no runs and a `login-unresolved` escalation
+  while unresolved, the owner gate's reject marker from the owner's comments only);
+  `githerd/lib/board.mjs` (`byOwner`); `githerd/lib/dispatch.mjs`, `githerd/lib/prs.mjs` and
+  `githerd/lib/retriage.mjs` (only the owner's issues and PRs, only the owner's comments);
+  `githerd/lib/run-tools.mjs` (every answer filtered to the owner's text, with a `hidden` count);
+  `githerd/lib/tools.mjs` (the TRUST status line); `githerd/lib/config.mjs` (`trustedAuthors`
+  removed and rejected); `githerd/lib/runner.mjs` (no sandbox refusal; "Sandbox disabled" is a
+  logged note).
+- Tests: an issue and a PR by another author, a bot or a deleted account get no run of any kind;
+  another author's comment on the owner's issue never appears in a run tool's output or the
+  re-triage export; the login comes from the client, not the config, and `trustedAuthors` is
+  rejected; an unresolved login blocks every run and escalates; code-editing runs start without
+  bwrap or socat; the skipped and hidden counts appear in status.
+- Done: tests pass. The weekly digest (task 3.6) lists the same counts.
 
 ## Milestone 3: the actor and acting
 
@@ -388,7 +411,7 @@ acting step 1 can follow the first soak; the rest follow milestone 2.
 ### 3.2 Auto-merge, breaking hold, labels and branch updates
 
 - Files: `githerd/lib/actor/merge.mjs`: auto-merge with `expectedHeadOid` under the rules of design
-  section 8 (checked head, `noAutoMergePaths`, trusted author, stacked); breaking hold and the
+  section 8 (checked head, `noAutoMergePaths`, the owner's PR, stacked); breaking hold and the
   grouped `decision` escalation; `update-branch` only when master's head is `greenSha`, once per
   (head, green SHA), at most 3 per poll; label bootstrap.
 - Tests: `test/actor-merge.test.mjs` -- each rule and exclusion; a PR touching `githerd/` never gets
@@ -430,8 +453,9 @@ acting step 1 can follow the first soak; the rest follow milestone 2.
 
 ### 3.6 Weekly digest
 
-- Files: `githerd/lib/digest.mjs`: the contents of design section 12.1, a seeded sample, the file,
-  the `info` notice, `shownToOwnerAt` for listed proposals.
+- Files: `githerd/lib/digest.mjs`: the contents of design section 12.1 (including the skipped and
+  hidden counts of `state.trust`, as status shows them), a seeded sample, the file, the `info`
+  notice, `shownToOwnerAt` for listed proposals.
 - Tests: `test/digest.test.mjs` -- a recorded week produces the expected sections; the sample is
   stable; the notice is under 200 characters and `info`.
 - Done: tests pass.

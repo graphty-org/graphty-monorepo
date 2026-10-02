@@ -10,6 +10,8 @@
  * Node-safe: `./catalog` reaches this module through `listGraphs`.
  */
 
+import { headBytes } from "@graphty/graph-io";
+
 import { GraphtyError } from "../errors";
 
 /** Inline data as a caller may hand it: text, or the file's bytes. */
@@ -46,15 +48,16 @@ export function toSourceInput(data: SourceData | ArrayBufferView): SourceInput {
 }
 
 /**
- * The first characters of an input, for detection. Bytes are decoded leniently as UTF-8, which
- * keeps every ASCII signature (an XML prolog, a zip's first entry name) a sniffer looks for.
+ * The first characters of an input, for detection. Bytes are decoded leniently, through graph-io's
+ * `headBytes`, which transcodes a UTF-16 head with a byte-order mark (graph-io reads such a file,
+ * so detection must too); anything else is read as UTF-8, which keeps every ASCII signature (an
+ * XML prolog, a zip's first entry name) a sniffer looks for. A mark itself is dropped.
  * @param input - The input.
  * @returns At most {@link DETECTION_SAMPLE} characters.
  */
 export function sampleOf(input: SourceInput): string {
-    return typeof input === "string"
-        ? input.slice(0, DETECTION_SAMPLE)
-        : new TextDecoder().decode(input.subarray(0, DETECTION_SAMPLE));
+    const text = typeof input === "string" ? input : new TextDecoder().decode(headBytes(input));
+    return text.slice(0, DETECTION_SAMPLE);
 }
 
 /**

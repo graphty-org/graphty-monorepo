@@ -1868,7 +1868,7 @@ export class Graph implements GraphContext {
 
         if (!format) {
             // Read first 2KB for format detection
-            const sample = await file.slice(0, 2048).text();
+            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
             this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 

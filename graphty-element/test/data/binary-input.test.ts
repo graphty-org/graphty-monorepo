@@ -25,11 +25,26 @@ import {
     isGraphtyError,
 } from "../../extend";
 import { createGraphSession } from "../../session";
+import { builtInImporter } from "../../src/catalog/detect";
 
 /** An accented word, built from its code point so the source stays ASCII. */
 const CAFE = `Caf${String.fromCharCode(0xe9)}`;
 
 const encode = (text: string): Uint8Array<ArrayBuffer> => new TextEncoder().encode(text);
+
+/**
+ * Two Latin-1 letters whose bytes (C3 A9) are also valid UTF-8 for one letter: a reader that
+ * honours a Latin-1 declaration keeps both, one that guesses UTF-8 makes them one.
+ */
+const MOJI = `Caf${String.fromCharCode(0xc3, 0xa9)}`;
+
+/** UTF-16LE bytes with a byte-order mark. */
+const utf16le = (text: string): Uint8Array<ArrayBuffer> =>
+    Uint8Array.from([
+        0xff,
+        0xfe,
+        ...Array.from(text, (char) => [char.charCodeAt(0) & 0xff, char.charCodeAt(0) >> 8]).flat(),
+    ]);
 
 /** Latin-1 bytes: one byte per code point below 256. */
 const latin1 = (text: string): Uint8Array<ArrayBuffer> => Uint8Array.from(text, (char) => char.charCodeAt(0));
@@ -156,6 +171,36 @@ describe("bytes in, graph-io decodes", () => {
     it("a Latin-1 GraphML file keeps its accents, because the XML declaration is read", async () => {
         const { chunks } = await read("graphml", { data: latin1(LATIN1_GRAPHML) });
         assert.include(JSON.stringify(chunks), CAFE);
+    });
+
+    it("the XML declaration decides the encoding, even where the bytes are also valid UTF-8", async () => {
+        const { chunks } = await read("graphml", { data: latin1(LATIN1_GRAPHML.replace(CAFE, MOJI)) });
+        assert.include(JSON.stringify(chunks), MOJI);
+    });
+
+    it("a DOT charset declaration decides the encoding of a file", async () => {
+        const dot = `digraph { charset="latin1"; a [label="${MOJI}"]; a -> b }`;
+        const { chunks } = await read("dot", { file: new File([latin1(dot)], "cafe.dot") });
+        assert.include(JSON.stringify(chunks), MOJI);
+    });
+
+    it("a UTF-16 file with a byte-order mark is detected and read", async () => {
+        const session = createGraphSession();
+        await session.data.import({ config: { file: new File([utf16le(GRAPHML)], "download") } });
+        assert.strictEqual(session.data.source()?.type, "graphml");
+        assert.include(JSON.stringify(session.data.nodes()), CAFE);
+        session.dispose();
+    });
+
+    it("bytes that are not text fail as E_PARSE_FAILED, not as a bare decode error", async () => {
+        const broken = new Uint8Array([...encode(`{"nodes":[{"id":"${CAFE}`), 0xff, ...encode('"}]}')]);
+        try {
+            await read("json", { data: broken });
+            assert.fail("expected a refusal");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error), String(error));
+            assert.strictEqual((error as { code: string }).code, "E_PARSE_FAILED");
+        }
     });
 
     it("a Latin-1 GraphML File is read as bytes, not as UTF-8 text", async () => {
@@ -339,6 +384,19 @@ describe("choosing one graph", () => {
 
     it("both at once are refused", async () => {
         await refuses({ data: "SHELF", graphIndex: 0, graphName: "first" }, "E_OPTION_RANGE");
+    });
+
+    // A built-in reader that does not hand the choice to its importer must not claim a lister,
+    // and one that lists must load what it listed: the catalogue asks the importer, the load asks
+    // the reader. When graph-io gives an importer listGraphs, this fails until its reader declares
+    // `static listGraphs` and passes `graphChoice()` to the importer.
+    it("every built-in reader lists its graphs exactly when its importer does", () => {
+        for (const type of ["json", "graphml", "gexf", "csv", "gml", "dot", "pajek"]) {
+            const reader = DataSource.get(type, { data: "" });
+            assert.isNotNull(reader, type);
+            const readerLists = (reader.constructor as typeof DataSource).listGraphs !== undefined;
+            assert.strictEqual(readerLists, builtInImporter(type)?.listGraphs !== undefined, type);
+        }
     });
 
     it("a format whose file holds one graph refuses a choice of another, and accepts index 0", async () => {

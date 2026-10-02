@@ -957,17 +957,15 @@ function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
     return copy;
 }
 
-/** How many leading characters of a file a format is detected from. */
-
 /**
  * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
- * size and a way to read its text.
+ * size and a way to read its bytes.
  * @param value - The `file` option.
  * @returns The file, or null when the option holds none.
  */
 function fileOf(
     value: unknown,
-): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+): { name: string; size: number; slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> } } | null {
     if (typeof value !== "object" || value === null) {
         return null;
     }
@@ -1021,10 +1019,11 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     if (file !== null) {
+        // Twice the sample, so a UTF-16 file still yields DETECTION_SAMPLE characters.
         return file
-            .slice(0, DETECTION_SAMPLE)
-            .text()
-            .then((sample) => detect(sample));
+            .slice(0, DETECTION_SAMPLE * 2)
+            .arrayBuffer()
+            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
     }
 
     if (url !== undefined) {

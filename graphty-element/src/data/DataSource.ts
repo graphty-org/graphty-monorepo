@@ -487,10 +487,27 @@ export abstract class DataSource {
      * the file to a graph-io importer calls {@link getInput} instead, so the importer can read
      * an encoding declaration too.
      * @returns The text.
+     * @throws A `GraphtyError` with `E_PARSE_FAILED` when the bytes cannot be decoded.
      */
     protected async getContent(): Promise<string> {
         const input = await this.getInput();
-        return typeof input === "string" ? input : readText(input, new ImportReportBuilder(this.type, 0));
+        if (typeof input === "string") {
+            return input;
+        }
+
+        try {
+            return await readText(input, new ImportReportBuilder(this.type, 0));
+        } catch (error) {
+            // Bytes that are not text in any encoding the decoder could settle on (invalid UTF-8
+            // after valid non-ASCII UTF-8): the file cannot be read, and the caller is told so
+            // with a code, not graph-io's bare ImportError.
+            throw GraphtyError.wrap(error, {
+                code: "E_PARSE_FAILED",
+                source: "data",
+                message: `Failed to read the ${this.type} file as text: ${error instanceof Error ? error.message : String(error)}`,
+                details: { format: this.type },
+            });
+        }
     }
 
     /**

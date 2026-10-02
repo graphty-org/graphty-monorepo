@@ -11,6 +11,7 @@ import {
     type CommonImportOptions,
     formatF32,
     type GraphImporter,
+    headBytes,
     ImportError,
     type ImportInput,
     type ImportReport,
@@ -151,8 +152,7 @@ export async function importDocument<Opts>(
             throw error;
         }
 
-        const head = typeof text === "string" ? new TextEncoder().encode(text.slice(0, 4096)) : text.subarray(0, 4096);
-        const recognised = importer.sniff?.(head) ?? 0;
+        const recognised = importer.sniff?.(headBytes(text)) ?? 0;
         if (fatal === "any" || recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
             throw parseFailed(importer, error);
         }

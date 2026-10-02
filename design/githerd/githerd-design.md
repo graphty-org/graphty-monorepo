@@ -594,8 +594,8 @@ raises `release-stalled`. Both start a read-only `release` run (section 10, row 
 
 - A PR's check verdict reads only the required contexts from config, plus the individual failing
   check runs for diagnosis.
-- `UNKNOWN` mergeability is no data. `CONFLICTING` must be seen on two consecutive polls with no
-  `UNKNOWN` between them.
+- `UNKNOWN` mergeability is no data: it neither counts nor resets. `CONFLICTING` must be seen on
+  two polls with no `MERGEABLE` and no new head between them.
 - `ownerGate` is true when the only failing required context is the gate and the failed step
   matches `ownerGate.steps`. `ownerRejected` is true when a comment newer than the head carries a
   `<!-- visual-review-rejects ... -->` block (`ownerGate.rejectMarker`).

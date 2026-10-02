@@ -558,6 +558,14 @@ export class LayoutManager implements Manager {
      */
     replacing: () => boolean = () => false;
 
+    /**
+     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * data arriving does not start a seeded layout over: the last write of the run does, once, so
+     * `addEdge` in a loop rebuilds the layout once rather than once per add.
+     * @returns True while one is.
+     */
+    graphWritesWaiting: () => boolean = () => false;
+
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
@@ -1836,6 +1844,8 @@ export class LayoutManager implements Manager {
      * restore has, newcomers are placed around them. Only a SEEDED layout, which is the one that
      * promises a picture; an unseeded one keeps the graph the reader has been watching. Not while
      * pre-steps are owed, because the first frame spends them over everything there is by then.
+     * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
+     * another graph write waits, whose own pass starts the layout over once for the whole run.
      * A static or simulation layout reloads over the whole graph at every freeze already.
      * @returns True when the layout starts over.
      */
@@ -1844,6 +1854,8 @@ export class LayoutManager implements Manager {
         return (
             this.ownArrangement &&
             !this.preStepsOwed &&
+            !this.replacing() &&
+            !this.graphWritesWaiting() &&
             engine !== undefined &&
             !(engine instanceof StaticLayoutEngine) &&
             !(engine instanceof SimulationLayoutEngine) &&

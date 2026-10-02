@@ -119,4 +119,22 @@ describe("a seeded layout whose nodes and edges arrive in separate turns", () =>
             assert.deepEqual(positions(element), expected);
         });
     }
+
+    test("starts over once for a run of queued adds, not once per add", async () => {
+        const expected = await sameTurn(8000);
+        const element = mount(8000);
+        element.nodeData = NODES;
+        await element.waitForStableFrame();
+
+        let builds = 0;
+        element.graph.getEventManager().addListener("layout-initialized", () => {
+            builds++;
+        });
+        const adds = EDGES.map(async (edge) => element.graph.addEdges([edge]));
+        await Promise.all(adds);
+        await element.waitForStableFrame();
+
+        assert.strictEqual(builds, 1);
+        assert.deepEqual(positions(element), expected);
+    });
 });

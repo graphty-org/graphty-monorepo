@@ -197,7 +197,7 @@ describe("compared with Cytoscape's built-in algorithms", () => {
             }
         }
         expect(ids(ours.path("#a", "#d"))).toEqual(ids(theirs.path(cy.$("#a"), cy.$("#d"))));
-        expect(ours.hasNegativeCycle).toBe(false);
+        expect(ours.hasNegativeWeightCycle).toBe(false);
     });
 
     it("kruskalMST and primMST: the same tree as kruskal", () => {
@@ -282,7 +282,7 @@ describe("compared with Cytoscape's built-in algorithms", () => {
     it("breadthFirstSearch and depthFirstSearch: the same visit order as bfs and dfs", () => {
         const cy = graph(BARBELL);
         const theirs = cy.elements().bfs({ root: "#a" });
-        const ours = cy.elements().graphtyBreadthFirstSearch({ root: "#a", target: "#e" });
+        const ours = cy.elements().graphtyBreadthFirstSearch({ root: "#a", goal: "#e" });
         expect(ids(ours.path.nodes())).toEqual(ids(theirs.path.nodes()));
         expect(ids(ours.path)).toEqual(ids(theirs.path));
         expect(ids(ours.found)).toEqual(["e"]);
@@ -557,7 +557,7 @@ describe("structure", () => {
             ["a", "b", 1],
         ]);
         const r = cy.elements().graphtyMaxFlow({ source: "#s", sink: "#t", weight: "w", directed: true });
-        expect(r.maxFlow).toBe(5);
+        expect(r.value).toBe(5);
         expect(r.value).toBe(5);
         expect(r.flow("#e4")).toBe(1);
         expect(ids(r.partitionFirst)).toContain("s");

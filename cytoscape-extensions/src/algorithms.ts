@@ -189,7 +189,7 @@ export interface PathsResult {
 export interface SearchResult {
     /** The visited nodes in visit order, each after the tree edge that reached it. */
     readonly path: CollectionReturnValue;
-    /** The `target` node when it was reached, else empty. */
+    /** The `goal` node when it was reached, else empty. */
     readonly found: CollectionReturnValue;
     /** Hops from the root; undefined when not visited. */
     depth(node: ElementRef): number | undefined;
@@ -239,7 +239,7 @@ interface Ctx {
     readonly field: string | undefined;
     /** `weighted` for the algorithms that read the snapshot's weights only when asked. */
     readonly weighted: boolean;
-    /** The caller's options without the adapter's own: what goes to the algorithm unchanged. */
+    /** The caller's options without the adapter's own, over this package's pinned defaults (see DEFAULTS). */
     readonly rest: Record<string, unknown>;
     /**
      * Runs one of the algorithms the GPU can answer: synchronously on the CPU for the plain methods, through the
@@ -356,6 +356,23 @@ const UNWEIGHTED = new Set([
     "evaluateAdamicAdar",
     "compareAdamicAdarWithCommonNeighbors",
 ]);
+
+// This package's own defaults, passed explicitly to @graphty/algorithms (and through it to the GPU), so a change of
+// a library default does not change what a Cytoscape user gets. The README's "Defaults" table lists them; a caller's
+// option overrides them. `weighted` is pinned separately: it is true exactly when the caller passed `weight`.
+const POWER = { maxIterations: 100, tolerance: 1e-6 } as const;
+const PAGERANK = { ...POWER, dampingFactor: 0.85 } as const;
+const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    pageRank: PAGERANK,
+    personalizedPageRank: PAGERANK,
+    deltaPageRank: PAGERANK,
+    eigenvectorCentrality: POWER,
+    hits: POWER,
+    katzCentrality: { ...POWER, alpha: 0.1, beta: 1 },
+    labelPropagation: { maxIterations: 100 },
+    labelPropagationSynchronous: { maxIterations: 100 },
+    labelPropagationSemiSupervised: { maxIterations: 100 },
+};
 
 // Algorithms defined only for directed graphs: `directed` defaults to true.
 const DIRECTED = new Set(["topologicalSort", "stronglyConnectedComponents", "condensation", "deltaPageRank"]);
@@ -782,7 +799,7 @@ interface ApspResult {
     distance(from: ElementRef, to: ElementRef): number;
     /** The path; throws when the run was made with `paths: false`. */
     path(from: ElementRef, to: ElementRef): CollectionReturnValue;
-    readonly hasNegativeCycle: boolean;
+    readonly hasNegativeWeightCycle: boolean;
 }
 
 /**
@@ -804,7 +821,7 @@ function apsp(
         return i === undefined || j === undefined ? undefined : [i, j];
     };
     return {
-        hasNegativeCycle: r.hasNegativeCycle,
+        hasNegativeWeightCycle: r.hasNegativeCycle,
         distance: (a, b) => {
             const p = pair(a, b);
             return p === undefined ? Infinity : r.dist[p[0] * r.n + p[1]];
@@ -871,7 +888,7 @@ interface PointToPoint extends Rooted {
 
 interface WalkOptions extends Rooted {
     /** Stop when this node is reached; it is then `found`. */
-    readonly target?: NodeSelection;
+    readonly goal?: NodeSelection;
     readonly maxDepth?: number;
 }
 
@@ -948,7 +965,7 @@ function bestLevel(modularities: ArrayLike<number>): number {
 const IMPLS = {
     // Traversal and paths
     breadthFirstSearch: (c: Ctx, o: WalkOptions): MaybeAsync<SearchResult> => {
-        const target = indexOf(c.cs, o.target, `${c.name}: target`);
+        const target = indexOf(c.cs, o.goal, `${c.name}: goal`);
         return then(c.call("breadthFirstSearch", c.s, req(c, o.root, "root"), { ...c.rest, target }), (r) =>
             search(c, r, target),
         );
@@ -959,7 +976,7 @@ const IMPLS = {
         c: Ctx,
         o: Omit<WalkOptions, "maxDepth"> & { readonly order?: "pre" | "post" },
     ): SearchResult => {
-        const target = indexOf(c.cs, o.target, `${c.name}: target`);
+        const target = indexOf(c.cs, o.goal, `${c.name}: goal`);
         return search(c, depthFirstSearch(c.s, req(c, o.root, "root"), { ...c.rest, target }), target);
     },
     hasCycle: (c: Ctx, _o: AlgorithmOptions = {}): boolean => hasCycle(c.s),
@@ -1322,13 +1339,9 @@ const IMPLS = {
         const nodes = r.edges.length === 0 && start !== undefined ? nodesAt(c, [start]) : tree;
         return Object.assign(nodes.union(edgesAt(c, r.edges)), { totalWeight: r.totalWeight });
     },
-    maxFlow: (c: Ctx, o: FlowOptions): CutResult & { maxFlow: number; flow(edge: ElementRef): number | undefined } => {
+    maxFlow: (c: Ctx, o: FlowOptions): CutResult & { flow(edge: ElementRef): number | undefined } => {
         const r = maxFlow(c.s, req(c, o.source, "source"), req(c, o.sink, "sink"), c.rest);
-        return {
-            ...cutOf(c, r.sourceSide, r.cutEdges, r.maxFlow),
-            maxFlow: r.maxFlow,
-            flow: accessor(c, r.flow, true),
-        };
+        return { ...cutOf(c, r.sourceSide, r.cutEdges, r.maxFlow), flow: accessor(c, r.flow, true) };
     },
     minSTCut: (c: Ctx, o: FlowOptions): CutResult =>
         minCut(c, minSTCut(c.s, req(c, o.source, "source"), req(c, o.sink, "sink"), c.rest)),
@@ -1491,7 +1504,10 @@ function run(
         throw new Error(`${name}: this algorithm reads no edge weights; remove the weight option`);
     }
     const cs = toSnapshot(eles, { directed: options.directed ?? DIRECTED.has(key), weight: options.weight });
-    const rest = Object.fromEntries(Object.entries(options).filter(([k]) => !ADAPTER_KEYS.has(k)));
+    const rest = {
+        ...DEFAULTS[key],
+        ...Object.fromEntries(Object.entries(options).filter(([k, v]) => !ADAPTER_KEYS.has(k) && v !== undefined)),
+    };
     const c: Ctx = {
         name,
         cy: coreOf(eles),

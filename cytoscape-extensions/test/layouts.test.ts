@@ -153,14 +153,14 @@ describe("static layouts", () => {
         await run(cy, { name: "graphty-shell", nlist: ["#n0", cy.nodes().not("#n0")] });
         expectPlaced(cy);
 
-        await run(cy, { name: "graphty-bfs", start: "#n11" });
+        await run(cy, { name: "graphty-bfs", root: "#n11" });
         expectPlaced(cy);
     });
 
     it("throw on a selection that matches no node", () => {
         const cy = makeCy();
         expect(() =>
-            cy.layout({ name: "graphty-bfs", start: "#missing", boundingBox: BOX } as unknown as LayoutOptions).run(),
+            cy.layout({ name: "graphty-bfs", root: "#missing", boundingBox: BOX } as unknown as LayoutOptions).run(),
         ).toThrow(/matches no node/);
     });
 

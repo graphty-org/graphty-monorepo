@@ -94,9 +94,7 @@ export interface GraphtyLayoutOptions {
     readonly subsets?: string | readonly NodeSelection[];
     /** bipartite: the nodes of the first line. */
     readonly top?: NodeSelection;
-    /** bfs: the start node. */
-    readonly start?: NodeSelection;
-    /** radial: the centre node. */
+    /** bfs: the start node; radial: the centre node. */
     readonly root?: NodeSelection;
     readonly [option: string]: unknown;
 }
@@ -185,10 +183,17 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         }
         return bipartite(s, { ...o, top: mask });
     },
-    bfs: (s, o, cs) =>
-        bfs(s, { ...o, start: indexOf(cs, o.start as NodeSelection | undefined, "graphty layout: start") }),
+    bfs: (s, { root, ...o }, cs) =>
+        bfs(s, { ...o, start: indexOf(cs, root as NodeSelection | undefined, "graphty layout: root") }),
     radial: (s, o, cs) =>
         radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
+};
+
+// This package's own iteration budgets for the simulations, passed explicitly so a change of a @graphty/layout
+// default does not change what a Cytoscape user gets; the caller's option overrides them.
+const SIMULATION_DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    forceatlas2: { maxIter: 100 },
+    fruchtermanReingold: { iterations: 50 },
 };
 
 /** Registered name suffix -> @graphty/layout simulation type. */
@@ -398,7 +403,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     });
     const sim = createSimulation(
         type,
-        { ...graphtyOptions(o), scale: radius, center, iterationsPerStep: 1 },
+        { ...SIMULATION_DEFAULTS[type], ...graphtyOptions(o), scale: radius, center, iterationsPerStep: 1 },
         accelerator,
     );
     sim.load(s, pos);

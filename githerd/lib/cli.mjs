@@ -403,6 +403,7 @@ export async function runCli(argv, options = {}) {
                         `GITHERD_STATE_DIR=${devState}`,
                         "-e",
                         "GITHERD_DEV=1",
+                        ...(env.GITHERD_DEV_NOTIFY === "1" ? ["-e", "GITHERD_DEV_NOTIFY=1"] : []),
                         "--",
                         "node",
                         join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),

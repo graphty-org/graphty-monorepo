@@ -11,7 +11,9 @@
  *   vetoes a pending proposal.
  *
  * With `GITHERD_DEV` set (the development daemon of `githerd dev`), the mode never rises above
- * dry-run, whatever the config says.
+ * dry-run, whatever the config says, and pages go to the ledger only (as `delivered: false`), so
+ * a second daemon never duplicates the shared daemon's pages; `GITHERD_DEV_NOTIFY=1` delivers
+ * them, for testing the notifier. The `quiet` option (the one-poll check) does the same.
  *
  * Fencing: after binding, the daemon writes `daemon.json` with its process identity. Before every
  * poll and every state write it reads the file again; when the file names another live process,
@@ -194,6 +196,7 @@ function nextIncidentId(incidents, iso) {
  * @param {string} [options.stateDir] where state lives; `<root>/.githerd` by default
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
+ * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
  * @returns {Promise<Daemon>} the running daemon
  */
 export async function startDaemon({
@@ -206,6 +209,7 @@ export async function startDaemon({
     stateDir = join(root, ".githerd"),
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
+    quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
 }) {
     const startedAtDate = now();
     const startedAt = startedAtDate.toISOString();
@@ -377,7 +381,10 @@ export async function startDaemon({
     readConfig();
 
     const notifier = createNotifier({
-        notify: () => config?.notify ?? { command: null, maxPerHour: 6 },
+        notify: () => {
+            const notify = config?.notify ?? { command: null, maxPerHour: 6 };
+            return quiet ? { ...notify, command: null } : notify;
+        },
         state,
         ledger,
         now,

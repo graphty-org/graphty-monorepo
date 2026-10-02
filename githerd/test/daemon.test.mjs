@@ -427,6 +427,34 @@ describe("the poll loop", () => {
         ]);
     });
 
+    it("never runs the notify command for a development daemon unless GITHERD_DEV_NOTIFY=1", async () => {
+        const redTimeline = async (daemon) => {
+            await poll(daemon);
+            scene.head = B;
+            scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+            scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+            for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+                clock = new Date(at);
+                await poll(daemon);
+            }
+        };
+        const env = { GITHERD_CONFIG: configFile, PATH: process.env.PATH, GITHERD_DEV: "1" };
+        const daemon = await start({ env });
+        await redTimeline(daemon);
+        expect(daemon.state.master.verdict).toBe("red");
+        expect(existsSync(notifyLog)).toBe(false);
+        const notices = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "notify");
+        expect(notices.some((e) => e.message.startsWith("master red"))).toBe(true);
+        expect(notices.every((e) => e.delivered === false)).toBe(true);
+
+        await daemon.shutdown();
+        rmSync(join(dir, ".githerd"), { recursive: true });
+        clock = new Date("2026-10-02T12:00:00Z");
+        scene = { head: A, ci: [run(100, A, "success")], commits: [commit(A, null, "first")], prs: [] };
+        await redTimeline(await start({ env: { ...env, GITHERD_DEV_NOTIFY: "1" } }));
+        expect(pages().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
+    });
+
     it("keeps the last valid config when master's is invalid, and escalates once", async () => {
         const daemon = await start();
         await poll(daemon);

@@ -262,7 +262,10 @@ running daemon or run uses.
 
 **Developing githerd.** `githerd dev` runs the CLI's own working tree as a separate daemon under
 the servherd name `githerd-dev`, with state in `<worktree>/.githerd-dev/`, the config from
-`GITHERD_CONFIG`, and the mode forced to dry-run (`GITHERD_DEV=1` caps the daemon's mode). It never touches the shared daemon or its state.
+`GITHERD_CONFIG`, and the mode forced to dry-run (`GITHERD_DEV=1` caps the daemon's mode). Its
+pages go to its ledger only, so it never duplicates a page of the shared daemon; set
+`GITHERD_DEV_NOTIFY=1` to deliver them when testing the notifier. The one-poll check
+(`githerd-daemon.mjs --once`) never pages either. It never touches the shared daemon or its state.
 
 ## 4. Modes: dry-run and acting
 

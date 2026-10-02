@@ -5,10 +5,11 @@
  *
  * Environment: `PORT` (required), `GITHERD_CONFIG` (a config file instead of the default
  * branch's), `GITHERD_STATE_DIR` (instead of `<root>/.githerd`), `GITHERD_DEV` (the development
- * daemon: never above dry-run).
+ * daemon: never above dry-run, pages to the ledger only), `GITHERD_DEV_NOTIFY=1` (deliver the
+ * development daemon's pages anyway).
  *
  * `--once` runs one poll, prints the status text and exits: a check against the real repository
- * that touches nothing but its state directory.
+ * that touches nothing but its state directory, and never pages.
  */
 
 import { repoRoot } from "../lib/config.mjs";
@@ -36,6 +37,7 @@ const daemon = await startDaemon({
     root,
     port,
     autoPoll: !once,
+    ...(once ? { quiet: true } : {}),
     ...(process.env.GITHERD_STATE_DIR ? { stateDir: process.env.GITHERD_STATE_DIR } : {}),
 });
 if (daemon.fenced) process.exit(1);

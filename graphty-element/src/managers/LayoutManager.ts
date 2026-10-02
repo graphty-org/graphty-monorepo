@@ -493,6 +493,14 @@ export class LayoutManager implements Manager {
     private preStepsOwed = false;
 
     /**
+     * Set while the running layout's arrangement is the layout's own work: it was built, forward,
+     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
+     * While it holds, a seeded layout starts over when data arrives. See
+     * {@link LayoutManager.restartsForNewData}.
+     */
+    private ownArrangement = false;
+
+    /**
      * Set when a scoped layout was built over a graph with nothing in it: its members are taken
      * again when the first node arrives, which is when the layout really starts. A scope captured
      * over an empty graph holds nothing it names, so it would hold every node that arrives.
@@ -1184,8 +1192,10 @@ export class LayoutManager implements Manager {
                 // A restore: the `arrangement` hook writes the coordinates into the array and
                 // hands them to this engine next, so it publishes nothing and stays at rest.
                 this.preStepsOwed = false;
+                this.ownArrangement = false;
                 this.running = false;
             } else {
+                this.ownArrangement = true;
                 // Run layout pre-steps -- unless there is nothing to step yet, in which case they
                 // are owed to the first frame that has something. See `preStepsOwed`.
                 if (nodeArray.length === 0) {
@@ -1498,10 +1508,17 @@ export class LayoutManager implements Manager {
      * written while the view is 2D -- a script's `positions.set`, a restore -- is hidden by the
      * camera but drawn by the node's edges. The engine publishes the flattened row like any move.
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
+     * @param wrote - Whether anything was written into the lane, which forward is a
+     *     `positions.set`.
      */
-    loadArrangement(restoring: boolean): void {
+    loadArrangement(restoring: boolean, wrote = false): void {
         if (restoring) {
             this.#generation++;
+        }
+
+        // A consumer placed nodes: the arrangement is no longer the layout's alone to start over.
+        if (!restoring && wrote) {
+            this.ownArrangement = false;
         }
 
         const engine = this.layoutEngine;
@@ -1804,6 +1821,70 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether data that has just arrived starts the running layout over, built over the whole
+     * graph as it now stands.
+     *
+     * A SEEDED LAYOUT DRAWS ITS DATA, NOT THE ORDER IT ARRIVED IN. An incremental engine such as
+     * ngraph places newcomers from wherever the graph has got to, so a consumer that set
+     * `nodeData` after one fetch and `edgeData` after another got a different picture from one
+     * that set both together: the frames between had spent the pre-steps, and stepped, over the
+     * nodes alone (issue #650). How far the graph had got depends on how many frames ran, which
+     * is the consumer's timing and the machine's speed. Starting over gives the arrangement the
+     * same seed draws over the same data in one write.
+     *
+     * Only while the arrangement is the layout's own work: once a consumer has placed nodes, or a
+     * restore has, newcomers are placed around them. Only a SEEDED layout, which is the one that
+     * promises a picture; an unseeded one keeps the graph the reader has been watching. Not while
+     * pre-steps are owed, because the first frame spends them over everything there is by then.
+     * A static or simulation layout reloads over the whole graph at every freeze already.
+     * @returns True when the layout starts over.
+     */
+    private restartsForNewData(): boolean {
+        const engine = this.layoutEngine;
+        return (
+            this.ownArrangement &&
+            !this.preStepsOwed &&
+            engine !== undefined &&
+            !(engine instanceof StaticLayoutEngine) &&
+            !(engine instanceof SimulationLayoutEngine) &&
+            typeof (this.driverOptions as { seed?: unknown }).seed === "number"
+        );
+    }
+
+    /**
+     * Build the running layout again over the graph as it stands, spending its pre-steps there
+     * and then: see {@link LayoutManager.restartsForNewData}. Awaited inside the derivation pass
+     * that added the data, so every step it takes lands before that step seals, and counted as a
+     * build, so no frame steps the engine it replaces meanwhile. Pins survive, as they survive any
+     * rebuild (`replayPins`).
+     */
+    private async restart(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        const generation = this.#generation;
+        this.#building++;
+        const rebuild = this._setLayoutInternal(engine.type, this.driverOptions, {
+            dimension: this.engineDimension ?? 3,
+            restoring: false,
+            live: () => this.#generation === generation,
+            explicitScope: false,
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        try {
+            await rebuild;
+        } catch {
+            // Reported by `_setLayoutInternal`, which left the engine that was running in place; a
+            // restore that overtook the rebuild is not a failure. Thrown from here, it would abort
+            // the derivation pass that added the data.
+        } finally {
+            this.#building--;
+        }
+    }
+
+    /**
      * Take the members a scoped layout built over an empty graph owes, once nodes have arrived:
      * the layout starts now, over the nodes its scope names among them.
      */
@@ -1989,6 +2070,10 @@ export class LayoutManager implements Manager {
             });
 
             return Promise.resolve();
+        }
+
+        if (this.restartsForNewData()) {
+            return this.restart();
         }
 
         // `updatePositions` is declared on the base class and the element's ten blind steps are

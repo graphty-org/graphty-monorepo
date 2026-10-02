@@ -168,10 +168,7 @@ describe("ActionRow", () => {
         it("lets stateTitle override a plain-text reading", () => {
             renderRow(<ActionRow state="20 nodes" stateTitle="20 nodes, 34 edges, 2 components" />);
 
-            expect(screen.getByTestId("action-row-state")).toHaveAttribute(
-                "title",
-                "20 nodes, 34 edges, 2 components",
-            );
+            expect(screen.getByTestId("action-row-state")).toHaveAttribute("title", "20 nodes, 34 edges, 2 components");
         });
 
         it("offers no tooltip for markup with no stateTitle, rather than an invented one", () => {
@@ -354,7 +351,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "false");
-            expect(actions).toHaveStyle({ opacity: 0 });
+            expect(actions).toHaveStyle({ opacity: "0" });
         });
 
         it("reveals what acts on hover", () => {
@@ -364,7 +361,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("hides them again when the pointer leaves", () => {
@@ -460,20 +457,22 @@ describe("ActionRow", () => {
 
     describe("holding the actions open", () => {
         it("draws them with no hover and no focus when the caller asks", () => {
-            renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />,
-            );
+            renderRow(<ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />);
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets them be pressed while held open, which is the point of holding them", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" onClick={onClick} />} />,
+                <ActionRow
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" onClick={onClick} />}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: "Node options" }));
@@ -501,7 +500,7 @@ describe("ActionRow", () => {
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("holds them shut again once focus has left", async () => {
@@ -524,7 +523,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets a hidden action be pressed with no hover first", async () => {
@@ -555,7 +554,7 @@ describe("ActionRow", () => {
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("runs a hidden action from the keyboard", async () => {

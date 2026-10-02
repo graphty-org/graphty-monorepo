@@ -7,7 +7,7 @@ analyse and look at a graph, that no mock drew. For each one it gives the design
 gets there, what they see, the rows, the keys, what goes wrong), what graphty-element must
 provide, and the screen that draws it. The screens are 49 to 58 in
 `design/ui/object-first-ux/mocks/v2/`, generated from
-`tmp/object-first/gen/screens/screen-49.mjs` to `screen-58.mjs`.
+`design/ui/object-first-ux/gen/screens/screen-49.mjs` to `screen-58.mjs`.
 
 Written for an engineer, not a designer. Terms used throughout:
 
@@ -449,7 +449,7 @@ objects that cover the node (medium; new issue).
 
 | Screen | Shows | Spec |
 |---|---|---|
-| 49 | The right-click menu on BrighamYoung; the other menus listed in its caption | `tmp/object-first/gen/screens/screen-49.mjs` |
+| 49 | The right-click menu on BrighamYoung; the other menus listed in its caption | `design/ui/object-first-ux/gen/screens/screen-49.mjs` |
 | 50 | Find with "state": Objects (none), Nodes, Values in attributes; matches lit; the find bar; the table narrowed | `screen-50.mjs` |
 | 51 | 3D with the pill menu open: framings and keys; Hand orbiting | `screen-51.mjs` |
 | 52 | The minimap switch on the Canvas tab and the card's place and size | `screen-52.mjs` |
@@ -460,4 +460,4 @@ objects that cover the node (medium; new issue).
 | 57 | Group 2 focused, with the Rank tool armed inside it | `screen-57.mjs` |
 | 58 | The keyboard focus ring, the live caption and the canvas keys | `screen-58.mjs` |
 
-All of these are now drawn: dark menus at the pointer, the pill, the Views "..." and the node's "..." (49, 51, 53, 54), three right-click menus on screen 49, the find field in the Objects header (50), a tilted 3D camera (51), a zoomed canvas with the minimap (52), the camera following a node (54), the Focus re-fit and glyph (57), the pill's stop x (54), hidden nodes and the "Hidden by hand" system row (55), and the keyboard focus ring (58). The generator's keys are listed in `tmp/object-first/gen/README.md`.
+All of these are now drawn: dark menus at the pointer, the pill, the Views "..." and the node's "..." (49, 51, 53, 54), three right-click menus on screen 49, the find field in the Objects header (50), a tilted 3D camera (51), a zoomed canvas with the minimap (52), the camera following a node (54), the Focus re-fit and glyph (57), the pill's stop x (54), hidden nodes and the "Hidden by hand" system row (55), and the keyboard focus ring (58). The generator's keys are listed in `design/ui/object-first-ux/gen/README.md`.

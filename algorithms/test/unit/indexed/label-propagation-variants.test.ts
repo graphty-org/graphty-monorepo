@@ -212,6 +212,36 @@ describe("indexed.labelPropagationSemiSupervised", () => {
         s.validate({ checksum: true });
     });
 
+    it("keeps disjoint components apart with no seed, and takes 200,000 seeds without throwing (issue #565)", () => {
+        // 2.x numbered free nodes from Math.max(...seedValues) + 1: -Infinity for no seed, which put
+        // every node in one community, and a stack overflow for 200,000 seeds.
+        const pair = snapshotOf([
+            ["a", "b"],
+            ["c", "d"],
+        ]);
+        const none = labelPropagationSemiSupervised(pair, freeSeeds(pair.nodeCount));
+        expect([...none.labels]).toEqual([0, 0, 1, 1]);
+        expect(none.converged).toBe(true);
+        pair.validate({ checksum: true });
+
+        const n = 200_000;
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < n; i++) {
+            b.addEdge(`r${i}`, `r${(i + 1) % n}`);
+        }
+        const ring = b.freeze({ checksum: true });
+        const seeds = new Uint32Array(n);
+        for (let u = 0; u < n; u++) {
+            seeds[u] = u * 7;
+        }
+        const r = labelPropagationSemiSupervised(ring, seeds);
+        expect(r.count).toBe(n);
+        expect(r.converged).toBe(true);
+        // Renumbered to 0..count-1 in first-seen order, not the seed values.
+        expect(r.labels.every((label, u) => label === u)).toBe(true);
+        ring.validate({ checksum: true });
+    });
+
     it("leaves every node where it started at maxIterations 0, and says the queue did not empty", () => {
         const s = cliquePair(3, true);
         const seeds = freeSeeds(s.nodeCount);
@@ -284,6 +314,25 @@ describe("indexed.labelPropagationSynchronous", () => {
         // One pass that moves, then one quiet pass in each direction.
         expect(r.iterations).toBe(3);
         s.validate({ checksum: true });
+    });
+
+    it("settles bipartite components, which 2.x swapped for ever like the single edge (issue #564)", () => {
+        const k34: [string, string][] = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 4; j++) {
+                k34.push([`l${i}`, `r${j}`]);
+            }
+        }
+        const star = Array.from({ length: 49 }, (_, i): [string, string] => ["hub", `leaf${i}`]);
+        const cycle = Array.from({ length: 8 }, (_, i): [string, string] => [`c${i}`, `c${(i + 1) % 8}`]);
+        const path = Array.from({ length: 19 }, (_, i): [string, string] => [`p${i}`, `p${i + 1}`]);
+        for (const [name, edges] of Object.entries({ k34, star, cycle, path })) {
+            const s = snapshotOf(edges);
+            const r = labelPropagationSynchronous(s);
+            expect(r.converged, name).toBe(true);
+            expect(dominant(s, r.labels), name).toBe(true);
+            s.validate({ checksum: true });
+        }
     });
 
     it("puts each clique in one community", () => {

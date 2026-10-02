@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "unproven": true,
+  "pr": 511,
+  "subject": {
+    "builtMerge": "256eae60618f1eaf4f566a59eb39f65a334c568b",
+    "head": "6f8fd5159ec8e89e793f6ab83365dedf3880f1b3",
+    "runId": 36882730901,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "256eae60618f1eaf4f566a59eb39f65a334c568b"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--ui-glyphs.dark.png",
+      "from": "1750a06f21c5260705132c7e27bd2065c80ed65aa42c8728c7d27419b1aee7f3",
+      "to": "f256ba454a83351d85e0328ae42d8b32a4c5dd3b9a32f4ac7ab9de38d1bf1b7b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--ui-glyphs.light.png",
+      "from": "3beb0b77567e8ca60cc84a48535c7d46303dfd9b8a6005a6c0675fc7723abff3",
+      "to": "f0b9c85e0d2546e3c8320542413eb12a45c2958610c2018d8baba076b594307e",
+      "reason": null
+    }
+  ],
+  "reviewedAt": "2026-10-01T21:19:39.843Z"
+}

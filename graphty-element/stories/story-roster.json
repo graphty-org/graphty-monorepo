@@ -102,6 +102,7 @@
         "Sets/Kept Sets::LayoutOneSet",
         "Sets/Kept Sets::RuleSetFollowsData",
         "Sets/Kept Sets::ShortestPathAsASet",
+        "Styles/Edge::AnimationSpeed",
         "Styles/Edge::ArrowColor",
         "Styles/Edge::ArrowHead",
         "Styles/Edge::ArrowOpacity",

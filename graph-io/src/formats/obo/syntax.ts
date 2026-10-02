@@ -94,7 +94,9 @@ export function splitTagValue(line: string): TagValue | null {
 /**
  * Strip the hidden comment: an unescaped `!` outside quotes that starts the value or follows
  * whitespace begins a comment running to the end of the line. A `!` glued to the text before it
- * (`#!/`, `Hello!`) is text, so URLs and names are never cut.
+ * (`#!/`, `Hello!`) is text, so URLs and names are never cut. A quote opens a string only where a
+ * token starts, as tokenize() reads it, so the `"` of an unquoted `5" pipe` is text and does not
+ * hide the comment after it.
  * @param rest - the raw value
  * @returns the value before the comment, trailing whitespace removed
  */
@@ -106,9 +108,10 @@ export function stripComment(rest: string): string {
             i++;
             continue;
         }
-        if (ch === '"') {
+        const atStart = i === 0 || rest[i - 1] === " " || rest[i - 1] === "\t";
+        if (ch === '"' && (quoted || atStart)) {
             quoted = !quoted;
-        } else if (ch === "!" && !quoted && (i === 0 || rest[i - 1] === " " || rest[i - 1] === "\t")) {
+        } else if (ch === "!" && !quoted && atStart) {
             return rest.slice(0, i).trimEnd();
         }
     }
@@ -306,8 +309,21 @@ export function tokenize(value: string): Token[] {
         if (ch === '"') {
             const end = closingQuote(value, i + 1);
             const stop = end < 0 ? n : end;
-            tokens.push({ kind: "quoted", text: unescapeObo(value.slice(i + 1, stop)), unterminated: end < 0 });
-            i = stop + 1;
+            // a 1.4 language tag glued to the closing quote ("chat"@fr) is kept with the text, as an
+            // unquoted chat@fr is (research-obo.md 4.1: no language is split out)
+            let after = stop + 1;
+            if (end >= 0 && value[after] === "@") {
+                while (after < n && value[after] !== " " && value[after] !== "\t") {
+                    after++;
+                }
+            }
+            const suffix = end < 0 ? "" : value.slice(stop + 1, after);
+            tokens.push({
+                kind: "quoted",
+                text: unescapeObo(value.slice(i + 1, stop)) + suffix,
+                unterminated: end < 0,
+            });
+            i = after;
             continue;
         }
         if (ch === "[") {
@@ -424,20 +440,25 @@ export function parseXrefList(inner: string): Xref[] {
 }
 
 /**
- * Whether the raw value holds an unescaped `{` or `}` outside quotes (a brace mid-value that is
- * not a closing qualifier block is literal text the writer should have escaped).
+ * Whether the raw value holds an unescaped `{` or `}` outside quotes and outside a bracketed xref
+ * list (a brace mid-value that is not a closing qualifier block is literal text the writer should
+ * have escaped).
  * @param value - the raw value, qualifiers already split off
  * @returns true when a stray brace is present
  */
 export function hasStrayBrace(value: string): boolean {
     let quoted = false;
+    let listed = false;
     for (let i = 0; i < value.length; i++) {
         const ch = value[i];
         if (ch === "\\") {
             i++;
         } else if (ch === '"') {
             quoted = !quoted;
-        } else if (!quoted && (ch === "{" || ch === "}")) {
+        } else if (!quoted && (ch === "[" || ch === "]")) {
+            // inside an xref list a brace opens that xref's qualifiers (OBO 1.2)
+            listed = ch === "[";
+        } else if (!quoted && !listed && (ch === "{" || ch === "}")) {
             return true;
         }
     }

@@ -405,6 +405,33 @@ describe("oboImporter: the lexical rules on whole files (research 4.1, 6 rows 20
         ]);
     });
 
+    it("keeps the qualifiers of a boolean, a relation chain and each xref of a list (1.2)", async () => {
+        const text = `format-version: 1.2\n\n[Term]\nid: X:1\nis_obsolete: true {val1="one"} ! c\ndef: "d" [A:1 {q="1"}, B:2 "desc"]\nsynonym: "s" EXACT [C:3 {q="2"}]\n\n[Typedef]\nid: r\nholds_over_chain: a b {source="x"}\n`;
+        const { snapshot, report } = await load(text, { typedefs: "nodes" });
+        // a brace inside an xref list opens that xref's qualifiers; it is not a stray brace
+        expect(codes(report)).toEqual([]);
+        expect(cell(snapshot, "obo.qualifiers", "X:1")).toEqual({
+            is_obsolete: [{ value: "true", qualifiers: { val1: "one" } }],
+            "def.xrefs": [{ value: "A:1", qualifiers: { q: "1" } }],
+            "synonym.xrefs": [{ value: "C:3", qualifiers: { q: "2" } }],
+        });
+        expect(cell(snapshot, "def.xrefs", "X:1")).toEqual(["A:1", "B:2"]);
+        expect(cell(snapshot, "obo.qualifiers", "r")).toEqual({
+            holds_over_chain: [{ value: "a b", qualifiers: { source: "x" } }],
+        });
+    });
+
+    it("reads a quote inside an unquoted value as text and a comment's colon as no tag", async () => {
+        const text = `${HEAD}[Term]\nid: X:1\nname: 5" pipe ! a comment\nfoo bar ! a:b\ndef: "chat"@fr [A:1]\n`;
+        const { snapshot, report } = await load(text);
+        expect(cell(snapshot, "name", "X:1")).toBe('5" pipe');
+        expect(cell(snapshot, "obo.unrecognized", "X:1")).toBeUndefined();
+        // a language tag glued to the quote stays with the text, and the xref list is still found
+        expect(cell(snapshot, "def", "X:1")).toBe("chat@fr");
+        expect(cell(snapshot, "def.xrefs", "X:1")).toEqual(["A:1"]);
+        expect(report.issues.map((i) => `${i.code} ${i.element}`)).toEqual([`${OBO_ISSUE.SYNTAX} line`]);
+    });
+
     it("keeps non-ASCII text and HTML entities verbatim", async () => {
         const name = `caf${String.fromCharCode(0xe9)} ${String.fromCharCode(0x3b1)} &#243`;
         const { snapshot } = await load(new TextEncoder().encode(`${HEAD}[Term]\nid: X:1\nname: ${name}\n`));
@@ -509,7 +536,8 @@ describe("oboImporter: errors and warnings (research 6, design 4.3)", () => {
         const { snapshot, report } = await load(text);
         expect(snapshot.edgeCount).toBe(0);
         expect(cell(snapshot, "is_obsolete", "X:1")).toBeUndefined();
-        expect(codes(report)).toEqual([...Array<string>(5).fill(OBO_ISSUE.BAD_VALUE), OBO_ISSUE.CARDINALITY]);
+        // the skipped intersection_of leaves no operand to count, so no W_OBO_CARDINALITY
+        expect(codes(report)).toEqual(Array<string>(5).fill(OBO_ISSUE.BAD_VALUE));
         expect(report.issues[0]).toMatchObject({ severity: "error", line: 6, element: "X:1" });
     });
 
@@ -550,9 +578,13 @@ describe("oboImporter: errors and warnings (research 6, design 4.3)", () => {
         expect(codes(report)).toEqual(Array(4).fill(OBO_ISSUE.SYNTAX));
     });
 
-    it("reports a single intersection_of / union_of (fewer than two)", async () => {
+    it("reports a single intersection_of / union_of (fewer than two), counted after merging", async () => {
         const { report } = await load(`${HEAD}[Term]\nid: X:1\nintersection_of: X:2\nunion_of: X:3\n`);
         expect(codes(report)).toEqual([OBO_ISSUE.CARDINALITY, OBO_ISSUE.CARDINALITY]);
+        const merged = await load(
+            `${HEAD}[Term]\nid: X:1\nintersection_of: X:2\n\n[Term]\nid: X:1\nintersection_of: part_of X:3\n`,
+        );
+        expect(codes(merged.report)).toEqual([OBO_ISSUE.DUPLICATE_NODE]);
     });
 
     it("keeps but does not apply import, id-mapping and the treat-xrefs macros, once per tag", async () => {

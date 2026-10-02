@@ -402,7 +402,8 @@ class OboReader {
             this.startFrame(header[1].trim(), line);
             return;
         }
-        const tv = splitTagValue(t);
+        // the comment goes first, so a colon inside it never makes `foo ! a:b` a tag-value line
+        const tv = splitTagValue(stripComment(t));
         if (tv === null) {
             this.tally("parse-error", OBO_ISSUE.SYNTAX, "a line without a colon was skipped", "line", line);
             return;
@@ -532,7 +533,6 @@ class OboReader {
         if (record.kind === "Typedef") {
             record.raw.id ??= [id];
         }
-        this.checkPairs(frame.clauses);
     }
 
     /**
@@ -579,25 +579,6 @@ class OboReader {
         };
         map.set(id, record);
         return record;
-    }
-
-    /**
-     * Report fewer than two intersection_of / union_of clauses on one frame.
-     * @param clauses - the frame's clauses
-     */
-    private checkPairs(clauses: readonly Clause[]): void {
-        for (const tag of ["intersection_of", "union_of"]) {
-            const found = clauses.filter((c) => c.tag === tag);
-            if (found.length === 1) {
-                this.tally(
-                    "validation-error",
-                    OBO_ISSUE.CARDINALITY,
-                    "a single clause (a class expression needs two or more)",
-                    tag,
-                    found[0].line,
-                );
-            }
-        }
     }
 
     /**
@@ -669,6 +650,7 @@ class OboReader {
                 return;
             }
             this.single(record, tag, text === "true", clause.line);
+            this.extraQualifiers(record, tag, text, qualifiers);
             return;
         }
         const tokens = tokenize(value);
@@ -744,11 +726,17 @@ class OboReader {
                     return;
                 }
                 this.push(record, tag, [tokens[0].text, tokens[1].text]);
+                this.extraQualifiers(record, tag, `${tokens[0].text} ${tokens[1].text}`, qualifiers);
                 return;
             }
             case "def":
             case "expand_assertion_to":
             case "expand_expression_to": {
+                if (tag === "def" && record.values.has("def")) {
+                    // the second def of an id: reported, and none of its xrefs leak into the first's
+                    this.single(record, "def", null, clause.line);
+                    return;
+                }
                 const text = this.quotedWithXrefs(record, tag, value, tokens, clause.line);
                 if (tag === "def") {
                     this.single(record, "def", text.text, clause.line, () => {
@@ -845,6 +833,7 @@ class OboReader {
         }
         const xrefs = parseXrefList(list.text);
         this.describe(record, xrefs);
+        this.xrefQualifiers(record, tag, xrefs);
         return { text: tokens[0].text, xrefs: xrefs.map((x) => x.id) };
     }
 
@@ -948,6 +937,7 @@ class OboReader {
         }
         const xrefs = list === undefined ? [] : parseXrefList(list.text);
         this.describe(record, xrefs);
+        this.xrefQualifiers(record, "synonym", xrefs);
         this.push(
             record,
             "synonym",
@@ -1046,6 +1036,19 @@ class OboReader {
                 map[xref.id] ??= xref.description;
                 record.values.set("xref.descriptions", map);
             }
+        }
+    }
+
+    /**
+     * Keep the per-xref qualifiers of an xref list (OBO 1.2: `[A:1 {source="x"}]`) in
+     * `obo.qualifiers` under `<tag>.xrefs`.
+     * @param record - the record
+     * @param tag - the clause's tag
+     * @param xrefs - the list's xrefs
+     */
+    private xrefQualifiers(record: NodeRecord, tag: string, xrefs: readonly Xref[]): void {
+        for (const xref of xrefs) {
+            this.extraQualifiers(record, `${tag}.xrefs`, xref.id, xref.qualifiers);
         }
     }
 
@@ -1220,6 +1223,20 @@ function planGraph(
             );
         } else if (obo.typedefs === "nodes") {
             records.push(typedef);
+        }
+    }
+    // a class expression needs two or more operands, counted after merging (spec 4.1.1)
+    for (const record of [...reader.nodes.values(), ...reader.typedefs.values()]) {
+        for (const tag of ["intersection_of", "union_of"]) {
+            if (record.lists.get(tag)?.length === 1) {
+                reader.tally(
+                    "validation-error",
+                    OBO_ISSUE.CARDINALITY,
+                    "a single clause (a class expression needs two or more)",
+                    tag,
+                    record.line,
+                );
+            }
         }
     }
     const dropped = new Set<string>();

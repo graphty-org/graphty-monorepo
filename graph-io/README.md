@@ -278,7 +278,8 @@ losses and format rules, in addition to the table:
   `meta.extra.obo.header`. Every other tag fills the column of its name (`name` with the label
   role, `namespace`, `def` and `def.xrefs`, `synonym` as `{ text, scope, type, xrefs }` records,
   `xref`, `alt_id`, `subset`, `is_obsolete`, `property_value`, `intersection_of`, ...); an unknown
-  tag is kept in `obo.unrecognized`, qualifiers with no other home in `obo.qualifiers`, a frame of
+  tag is kept in `obo.unrecognized`, qualifiers with no other home in `obo.qualifiers` (those of
+  one xref of a `def` or `synonym` list under `def.xrefs` / `synonym.xrefs`), a frame of
   an unknown type in `meta.extra.obo.unknownFrames`. Frames that share an id are merged (lists
   take the union, a single value keeps the first). A target no frame declares becomes a placeholder node (`graphty.placeholder`; `addMissingNodes: false` drops
   the edge instead). Obsolete terms are kept (`obsolete: "drop"` leaves them and their edges out).

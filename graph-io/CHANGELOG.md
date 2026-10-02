@@ -1,3 +1,15 @@
+## 0.3.17 (2026-10-02)
+
+### 🚀 Features
+
+- **graph-io:** list the graphs of an input and choose one ([00ac9052](https://github.com/graphty-org/graphty-monorepo/commit/00ac9052))
+- **graph-io:** decode zip entry names in the shared input module ([29e314fe](https://github.com/graphty-org/graphty-monorepo/commit/29e314fe))
+- **graph-io:** shared issue codes for the Cytoscape and OBO importers ([83684a9f](https://github.com/graphty-org/graphty-monorepo/commit/83684a9f))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.16 (2026-10-02)
 
 ### 🧱 Updated Dependencies

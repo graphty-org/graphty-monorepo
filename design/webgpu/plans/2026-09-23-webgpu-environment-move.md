@@ -45,25 +45,25 @@ Meanwhile the default lane moved anyway, sideways and without a commit: `.github
 time. So every pull request has been judging kernels on Mesa 25.2.8 (LLVM 20.1.2) -- two major Mesa versions and
 five LLVM versions newer than anything signed off -- while every gate record in the repository said 23.2.1.
 
-That is the failure this phase closes, and the shape of it is why the plan's centre of gravity is *naming things*
+That is the failure this phase closes, and the shape of it is why the plan's centre of gravity is _naming things_
 rather than changing them: the environment moved precisely because no file had to change for it to move.
 
 ### 0.2 The measured facts this plan is built on
 
 All measured 2026-09-23. They are the reason the task order is what it is.
 
-| Machine | Image | glibc | libstdc++ | Software rasteriser | `libegl1` |
-| --- | --- | --- | --- | --- | --- |
-| Dev container | Ubuntu 22.04.5 LTS | 2.35 | GLIBCXX_3.4.30 | Mesa 23.2.1 (LLVM 15.0.7) | absent |
-| Default CI lane | `ubuntu-24.04` (`20260907.300`) | 2.39 | GLIBCXX_3.4.33 | Mesa 25.2.8 (LLVM 20.1.2) | -- |
-| GPU lane (machine.dev T4) | Ubuntu 22.04.5 LTS | 2.35 | GLIBCXX_3.4.30 | -- (NVIDIA 580.126.20) | present, 1.4.0-1 |
+| Machine                   | Image                           | glibc | libstdc++      | Software rasteriser       | `libegl1`        |
+| ------------------------- | ------------------------------- | ----- | -------------- | ------------------------- | ---------------- |
+| Dev container             | Ubuntu 22.04.5 LTS              | 2.35  | GLIBCXX_3.4.30 | Mesa 23.2.1 (LLVM 15.0.7) | absent           |
+| Default CI lane           | `ubuntu-24.04` (`20260907.300`) | 2.39  | GLIBCXX_3.4.33 | Mesa 25.2.8 (LLVM 20.1.2) | --               |
+| GPU lane (machine.dev T4) | Ubuntu 22.04.5 LTS              | 2.35  | GLIBCXX_3.4.30 | -- (NVIDIA 580.126.20)    | present, 1.4.0-1 |
 
 And the binaries, from `readelf -V` on each `dawn.node`:
 
-| `webgpu` | Needs at most | Loads on |
-| --- | --- | --- |
-| 0.4.0 | `GLIBC_2.34`, `GLIBCXX_3.4.30` | Ubuntu 22.04 and newer |
-| 0.6.1 | `GLIBC_2.38`, `GLIBCXX_3.4.32` | Ubuntu 24.04 and newer |
+| `webgpu` | Needs at most                  | Loads on               |
+| -------- | ------------------------------ | ---------------------- |
+| 0.4.0    | `GLIBC_2.34`, `GLIBCXX_3.4.30` | Ubuntu 22.04 and newer |
+| 0.6.1    | `GLIBC_2.38`, `GLIBCXX_3.4.32` | Ubuntu 24.04 and newer |
 
 The two do not overlap below 24.04. Upstream made that explicit: `webgpu` 0.5.0 moved its Linux build base to
 Ubuntu 24.04 (dawn-gpu/node-webgpu `a3d71016`, "bump ubuntu build to 24.04").

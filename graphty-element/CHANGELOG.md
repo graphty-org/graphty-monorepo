@@ -1,3 +1,17 @@
+## 3.5.1 (2026-10-02)
+
+### 🔥 Performance
+
+- **graphty-element:** tear a whole graph down in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.23
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.5.0 (2026-10-02)
 
 ### 🚀 Features

@@ -1,3 +1,13 @@
+## 0.6.23 (2026-10-02)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** record the SM clock of every benchmark group ([#703](https://github.com/graphty-org/graphty-monorepo/issues/703))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.22 (2026-10-02)
 
 ### 🚀 Features

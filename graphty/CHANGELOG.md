@@ -1,3 +1,22 @@
+## 0.8.31 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty:** stop exporting the notes section's props type ([#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** keep notes in graphty-element's session notes ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705), [#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** read one case note in the singular ([#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **compact-mantine:** accent text contrast, labelled segmented controls, one colour callback ([#135](https://github.com/graphty-org/graphty-monorepo/issues/135), [#136](https://github.com/graphty-org/graphty-monorepo/issues/136), [#141](https://github.com/graphty-org/graphty-monorepo/issues/141))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.23
+- Updated compact-mantine to 0.8.19
+- Updated graphty-element to 3.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.30 (2026-10-02)
 
 ### 🚀 Features

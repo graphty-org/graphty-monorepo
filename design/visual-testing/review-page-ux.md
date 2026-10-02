@@ -123,20 +123,23 @@ was started with `--master-run`.
 - It draws the server's cached list at once, with "Updated 40 s ago" and a **Refresh** button.
   `GET /api/prs` returns the cache immediately with its age, whether a refresh is running and the
   refresh's progress. The server starts a refresh only when the page asks (`?refresh=1`, sent by
-  Refresh and by the targets screen when the list is over a minute old). The page shows the
-  refresh's progress ("Checking pull requests: 5 of 18, 12 s") and redraws the cards when it ends.
-  Only the targets screen ever asks for a refresh.
-- The first load after the server starts has no cache: the page draws one outlined placeholder card
-  and the server's current step under it ("Listing pull requests", "Finding CI runs: 3 of 5",
-  "Fetching branches"), with the elapsed time.
+  Refresh and by the targets screen when the list is over a minute old), and on its own every two
+  minutes (section 4, "Loading"). The status row shows the refresh's progress ("Checking GitHub
+  for new CI runs", with "Finding CI runs: 5 of 18, 12 s" beside it) and the page redraws the cards
+  when it ends. Only the targets screen ever asks for a refresh.
+- The first load after the server's very first start has no list: the wait box (section 4) shows
+  the server's current step ("Listing pull requests", "Finding CI runs: 3 of 5", "Fetching
+  branches") with a bar, the elapsed time and any network retry, over one outlined placeholder
+  card. A restarted server shows the list it kept on disk at once.
 - Each card: the target's name and title link; one line "Captured d38dbde479 on feature, CI run
   1000 (attempt 1)" with the run as the link; any warning the server sent, in a warning line;
   "12 decisions not yet finished" when decisions wait for Finish; the project table; and Finish.
 - The project table's columns are **Project**, **Results** (count per status), **Decided**
-  ("12 of 40") and the action. A project still downloading shows a disabled **Downloading...**
-  button in the action column. The server marks such a project `downloading: true` (not a problem
+  ("12 of 40") and the action. A project still downloading shows **Downloading...** in the action
+  column; pressing it opens the wait box, which follows that download (it goes first) and opens
+  the grid when it lands. The server marks such a project `downloading: true` (not a problem
   string) and rebuilds that target in its cache the moment the download lands, so the page, which
-  asks again every 3 s while any project is downloading, fills the row in without a refresh. A
+  asks again every 0.7 s while anything is downloading, fills the row in without a refresh. A
   project with a problem shows the problem and, where one exists, a **Job log** link and a
   **Retry** button.
 - Projects with nothing to review collapse into one line ("3 projects unchanged: algorithms,
@@ -524,11 +527,11 @@ label; only the start, each step change and the end are announced.
 
 | Wait                                                                                             | Today                                                            | Redesigned                                                                                                                                                                                                                             | Needs the server                                                            |
 | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| First page load (2.6 to 3.3 s, 21 gh calls)                                                      | "Loading..."                                                     | A placeholder card and the server's step with the elapsed time: "Listing pull requests", "Finding CI runs: 3 of 5", "Fetching branches"                                                                                                | A progress field for the refresh                                            |
+| First page load (2.6 to 3.3 s, 21 gh calls)                                                      | "Loading..."                                                     | The wait box: the server's step with a bar and the elapsed time ("Listing pull requests", "Finding CI runs: 3 of 5", "Fetching branches"); a restarted server shows its kept list at once                                              | A progress field for the refresh                                            |
 | Every return to targets, Back, Forward, deep link, after Finish (1.7 to 2.3 s, 16 gh calls each) | A header line; the old screen stays live                         | No wait: the cached list. `route()` no longer awaits the target list for grid and story screens; `GET /api/pr` already carries its target. The targets screen refreshes in the background when the list is over a minute old           | Serve the cached list; refresh only on request                              |
 | A deep link to an unknown target on a cold server                                                | "Loading..."                                                     | The server must refresh for that one; the page shows the refresh's progress                                                                                                                                                            | The progress field                                                          |
-| Captures downloading (14 s here; tens of seconds per large artifact on GitHub)                   | "reload in a moment"; no Review button; "captured none", "0 / 0" | "Downloading (2 of 5 projects)" on the card; a disabled "Downloading..." per row; the page checks every 3 s and fills rows in                                                                                                          | `downloading: true` per project; rebuild the target when its download lands |
-| GitHub retrying (2, 5, then 15 s)                                                                | Nothing; only the server log says so                             | The step's elapsed time keeps counting, so a slow step shows as slow; a failed target gets Retry                                                                                                                                       | No                                                                          |
+| Captures downloading (14 s here; tens of seconds per large artifact on GitHub)                   | "reload in a moment"; no Review button; "captured none", "0 / 0" | "Downloading: 2 of 5 artifacts, 41 MB of 120 MB" on the card; "Downloading..." per row opens the wait box; the page checks every 0.7 s and fills rows in                                                                               | `downloading: true` per project; rebuild the target when its download lands |
+| GitHub retrying (2, 5, then 15 s)                                                                | Nothing; only the server log says so                             | The wait box (or the status row) says which call waits to retry and when; a failed target gets Retry                                                                                                                                   | No                                                                          |
 | Opening a project (0.1 to 0.2 s)                                                                 | "Loading..."                                                     | The grid bar and placeholder tiles drawn at once                                                                                                                                                                                       | No                                                                          |
 | Grid thumbnails (full-size images; one fast scroll fetched 570)                                  | Checkerboard and alt text; a failed tile only changes its alt    | Server-made thumbnails (section 2); a placeholder per tile; a fetch starts only when a tile is near the screen; at most 6 at once; "Failed -- tap to retry"                                                                            | `GET /thumb/...`, cached on disk                                            |
 | A story's images (0.25 to 1 s per item)                                                          | Empty stage; Accept grayed with no reason                        | Both panes drawn at once with "Loading baseline..." and "Loading new image..."; Side by side shows each image as it lands; Accept shows a spinner; the next two items prefetched; a failure shows its error with Retry inside the pane | No                                                                          |
@@ -537,7 +540,80 @@ label; only the start, each step change and the end are announced.
 | Accept all (0.24 s)                                                                              | Fine                                                             | The result uses the server's count                                                                                                                                                                                                     | No                                                                          |
 | Finish prepare before the sheet (under 1 s)                                                      | "Checking #201 before Finish..."                                 | A spinner on the Finish button                                                                                                                                                                                                         | `POST /api/finish-prepare`                                                  |
 | The passkey                                                                                      | -                                                                | Safari's own Face ID sheet; then "Confirming with your passkey" as the first step                                                                                                                                                      | Assertion check in `/api/finish`                                            |
-| Finish running (seconds to minutes)                                                              | One header line; then a 2.3 s refresh with a blank line          | The step list, a progress bar for the current count, the elapsed time; the result at once                                                                                                                                              | No (the steps exist)                                                        |
+| Finish running (seconds to minutes)                                                              | One header line; then a 2.3 s refresh with a blank line          | The wait box: the step list, a progress bar for the current count, the elapsed time; the result at once                                                                                                                                | No (the steps exist)                                                        |
+
+### The wait box
+
+A wait that blocks what the reader can do is a box in the middle of the screen, over the page (a
+modal `<dialog>`, so the page under it takes no taps or keys): the first list, opening a project,
+a project whose captures are still downloading, and Finish. It shows, in fixed places so nothing
+moves as they change: a title ("Downloading graphty-element captures for #519"), one sentence of
+what is happening, a bar with its count ("1 of 2 artifacts, 41 MB of 120 MB"; Finish's step
+list), the time spent, a network retry ("GitHub did not answer (Could not resolve host:
+api.github.com). Trying again in 4 s, try 2 of 4."), and **Cancel** where there is a screen to go
+back to (not for the first list, not for Finish, which runs on the server whatever the page
+does). A failure turns the same box into the error, in red, with **Retry** and **Close**. The box
+appears only after 300 ms, so a quick wait never flashes. A refresh or a download in the
+background never opens it: the status row says it, written only over an empty row or its own
+earlier line.
+
+### Loading: where the time went, and what changed
+
+Measured on 2026-10-01 against the live repository: 14 and 15 open pull requests, five projects
+each, 125 MB of captures in 43 to 51 artifacts, the largest project (#409 compact-mantine) with
+1298 items to decide. gh 2.4 on this machine, whose load average was 30 to 46 from other work, so
+single numbers vary by a factor of two; each before and after pair ran back to back
+(`tmp/visual-review-loading/measure.mjs` and `grid.mjs` in the branch's worktree).
+
+Where the time went before:
+
+- **A refresh asks GitHub three things per pull request, one after another**: its newest CI run
+  (0.5 to 0.7 s), that run's jobs (0.8 to 1.0 s) and its artifacts (0.35 s). With every pull
+  request in parallel that is 3 to 4 s per refresh, and a restarted server showed nothing until
+  it ended. A target rebuilt after its download landed asked for the jobs and artifacts again.
+- **Downloads**: about 1 s each even for a few kilobytes (gh's start and GitHub's redirect),
+  4 to 5 s for the 40 to 60 MB ones. A run's five projects downloaded one after another.
+- **Thumbnails**: 87 to 92 ms of CPU per capture, made on the server's only thread when a tile
+  asked. The first screen of the largest grid (36 tiles) took 3.9 to 7.5 s, and every other
+  request waited behind them (up to 0.5 s).
+- **gh itself**: a `gh api` call costs about 250 ms where a plain HTTPS request costs about
+  155 ms. Not changed: the calls run in parallel, so the saving would not show, and the server
+  would have to hold gh's token (gh 2.4 has no `gh auth token`).
+- **Unzip and hashing** are not visible: extraction is inside `gh run download`, and hashing a
+  capture takes under 0.1 ms.
+
+| Wait                                             | Before                                                                       | After                                                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Server restarted, captures on disk               | Nothing listed for 3.8 to 8.1 s                                              | The kept list at 0.2 s; the check with GitHub ends behind it at 3.7 to 4.0 s             |
+| GitHub calls per refresh (14 pull requests)      | 1 + 14 + 14 + 14 = 43, and 2 more per target rebuilt after its download      | 1 + 14, plus 2 per run not finished yet (5 in the measurement): 25                       |
+| Cold start, nothing on disk                      | List at 4.1 to 4.2 s, every capture on disk at 18.4 to 18.5 s                | List at 3.9 to 5.1 s, every capture on disk at 14.2 to 14.4 s                            |
+| A CI run that finished while the page was closed | Downloaded when the page next refreshed (over a minute old), then waited for | Downloaded within two minutes by the server's own check, before the owner opens it       |
+| Opening a project still downloading              | Not possible: the button was disabled                                        | The box; that project's download goes ahead of the queue                                 |
+| Largest grid, first 36 thumbnails                | 3.9 to 7.5 s; other requests waited up to 0.55 s                             | 55 to 63 ms once made in advance; 1.6 to 2.0 s if not yet made; other requests 1 to 8 ms |
+
+What was built:
+
+- **The list is kept on disk** (`<tmp>/state/list.json`, without the results, which are read again
+  from each capture), so a restarted server answers with it at once and refreshes behind it.
+- **The server checks GitHub every two minutes** and downloads the captures of every run that
+  finished, so a pull request is ready before it is opened.
+- **A finished run's jobs and artifacts are asked once** and kept beside its downloads (and
+  pruned with them); a refresh then asks only for the pull requests and their newest runs.
+- **A run's projects download at once**, at most eight `gh run download` across the server (each
+  download is mostly latency, so eight beat four by 3.5 s on a cold start); a project being opened
+  moves to the front of the queue.
+- **Thumbnails are made in advance**, as each capture lands, in up to four child processes, and
+  a tile on screen goes ahead of them. Child processes, not worker threads: threads share the
+  server's memory, which grew past 500 MB while scaling, and every git the server then started
+  took 20 ms instead of 2 to 3, because the fork copies the parent's page tables; that made the
+  check of the baselines after a refresh 7 s instead of 1.3 s. The advance thumbnails also skip
+  reading a file they just found missing, which with a thousand at once filled Node's file thread
+  pool and stalled every other read.
+- **Network retries are shown**: the server's newest gh call waiting to retry (its error, which
+  try, and when) is in `GET /api/prs` and in the 202 of a project still downloading, and the box
+  says it.
+- Not done: serving a thumbnail before the full image on the story screen. The full images come
+  from this machine (23 to 120 KB) in well under 0.1 s, and the next two items are prefetched.
 
 ## 5. Copy deck
 

@@ -69,7 +69,7 @@ interface DataWrites {
 }
 
 /** What a page of records reads beside the snapshot. */
-export interface PageSources {
+interface PageSources {
     /** The session's input tick: it moves whenever anything a page could show moves. */
     revision(): number;
     /**
@@ -564,7 +564,10 @@ export class SessionData implements SessionDataApi {
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
         for (let index = 0; index < count; index++) {
-            if (touching !== undefined && (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))) {
+            if (
+                touching !== undefined &&
+                (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
+            ) {
                 continue;
             }
 
@@ -582,7 +585,9 @@ export class SessionData implements SessionDataApi {
         }
 
         if (sort !== undefined) {
-            const values = rows.map((index) => this.sortValue(snapshot, target, index, sort.key, (edge) => space.idOf(edge)));
+            const values = rows.map((index) =>
+                this.sortValue(snapshot, target, index, sort.key, (edge) => space.idOf(edge)),
+            );
             const direction = sort.descending === true ? -1 : 1;
             const positions = rows.map((_row, position) => position);
             positions.sort((x, y) => {

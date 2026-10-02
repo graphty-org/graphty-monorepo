@@ -832,7 +832,10 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             edgePage: (page: EdgePageOptions = {}): RecordPage<EdgeRecord> =>
                 fakePage(
                     (options.records?.().edges ?? []).filter(
-                        (edge) => page.touching === undefined || edge.source === page.touching || edge.target === page.touching,
+                        (edge) =>
+                            page.touching === undefined ||
+                            edge.source === page.touching ||
+                            edge.target === page.touching,
                     ),
                     page,
                 ),

@@ -288,7 +288,8 @@ function DataTableInner<TRow extends object>(
                 // accented word after every unaccented one. This one reads the
                 // value through the column's own accessor and compares it with
                 // the collator for the active locale.
-                sortFn: (rowA, rowB) => compareValues(column.value(rowA.original), column.value(rowB.original), collator),
+                sortFn: (rowA, rowB) =>
+                    compareValues(column.value(rowA.original), column.value(rowB.original), collator),
             })),
         [columns, collator],
     );
@@ -578,13 +579,9 @@ function DataTableInner<TRow extends object>(
             return;
         }
 
-        const next = nextGridPosition(
-            position,
-            event.key,
-            { rowCount, columnCount, pageSize: pageSize() },
-            direction,
-            { jumpToEnd },
-        );
+        const next = nextGridPosition(position, event.key, { rowCount, columnCount, pageSize: pageSize() }, direction, {
+            jumpToEnd,
+        });
 
         if (next === undefined) {
             return;
@@ -756,7 +753,9 @@ function DataTableInner<TRow extends object>(
                 out loud rather than only drawn. */}
             <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
                 {shownText}
-                {isSelectable && selection.length > 0 ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}` : ""}
+                {isSelectable && selection.length > 0
+                    ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+                    : ""}
             </VisuallyHidden>
 
             <Box
@@ -953,8 +952,7 @@ function DataTableInner<TRow extends object>(
                                                     display: "flex",
                                                     alignItems: "center",
                                                     gap: PANEL_GRID.GUTTER / 2,
-                                                    justifyContent:
-                                                        config?.align === "end" ? "flex-end" : "flex-start",
+                                                    justifyContent: config?.align === "end" ? "flex-end" : "flex-start",
                                                     flex: "1 1 auto",
                                                     minWidth: 0,
                                                     height: "100%",
@@ -1021,8 +1019,7 @@ function DataTableInner<TRow extends object>(
                                 >
                                     {visibleColumns.map((column, index) => {
                                         const config = columnById.get(column.id);
-                                        const isFocused =
-                                            position.row === item.index && position.column === index;
+                                        const isFocused = position.row === item.index && position.column === index;
                                         const value = config?.value(row.original);
                                         const text = cellText(value, format);
                                         // A value the table writes itself is

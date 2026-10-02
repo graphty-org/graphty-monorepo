@@ -141,12 +141,7 @@ describe("DataTable geometry", () => {
             <DirectionProvider initialDirection="rtl" detectDirection={false}>
                 <MantineProvider theme={compactTheme}>
                     <div style={{ width: 400 }}>
-                        <DataTable
-                            columns={COLUMNS}
-                            data={NODES}
-                            getRowId={(node) => node.id}
-                            height={VIEWPORT}
-                        />
+                        <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />
                     </div>
                 </MantineProvider>
             </DirectionProvider>,
@@ -223,7 +218,10 @@ describe("DataTable over a window of the rows", () => {
      * @param props.onSort - Called with each sort the reader asks for
      * @returns The table
      */
-    function WindowedHost(props: { onRange: (start: number, end: number) => void; onSort?: () => void }): React.JSX.Element {
+    function WindowedHost(props: {
+        onRange: (start: number, end: number) => void;
+        onSort?: () => void;
+    }): React.JSX.Element {
         const [held, setHeld] = React.useState({ offset: 0, rows: windowOf(0, 40) });
 
         return (

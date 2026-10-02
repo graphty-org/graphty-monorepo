@@ -32,7 +32,9 @@ describe("reading records a page at a time", () => {
     it("reads one page of a 100,000-node graph without reading the other records", () => {
         const harness = makeSession();
         const nodeCount = 100_000;
-        harness.add(Array.from({ length: nodeCount }, (_unused, index) => ({ id: `n${String(index)}`, rank: index % 997 })));
+        harness.add(
+            Array.from({ length: nodeCount }, (_unused, index) => ({ id: `n${String(index)}`, rank: index % 997 })),
+        );
         const { session } = harness;
         const reads = vi.spyOn(harness.nodeAttributes, "get");
 

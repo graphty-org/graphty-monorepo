@@ -42,7 +42,14 @@
  * a muted tag rather than a control that silently does nothing.
  */
 
-import { DataTable, type DataTableColumn, type DataTableSort, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import {
+    DataTable,
+    type DataTableColumn,
+    type DataTableSort,
+    PANEL_GRID,
+    PANEL_INK,
+    UiGlyph,
+} from "@graphty/compact-mantine";
 import React, { useCallback, useRef } from "react";
 
 import { keyChipFor } from "../bindings";
@@ -208,9 +215,7 @@ const TABS: readonly { readonly value: DataDrawerTab; readonly label: string }[]
  * @param props - the dock state, the table contents and the handlers.
  * @returns the drawer element, or null when the drawer is closed.
  */
-export function DataTableDrawer<TRow extends object>(
-    props: DataTableDrawerProps<TRow>,
-): React.JSX.Element | null {
+export function DataTableDrawer<TRow extends object>(props: DataTableDrawerProps<TRow>): React.JSX.Element | null {
     const {
         canvasHeight,
         columns,

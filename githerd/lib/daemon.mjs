@@ -5,7 +5,9 @@
  *
  * HTTP, on 127.0.0.1 only:
  * - `GET /health`: the fields launchers use to decide whether this daemon is usable.
- * - `POST /rpc`: MCP JSON-RPC; `X-Githerd-Session` names the calling session.
+ * - `POST /rpc`: MCP JSON-RPC; `X-Githerd-Session` names the calling session. A judgment run sends
+ *   `Authorization: Bearer <run token>` instead; a token that names no running run is refused
+ *   with 401, and a valid one gets the run tools of its kind.
  * - `POST /heartbeat`: `{session, cwd, branch}` registers or refreshes a session.
  * - `POST /owner`: the owner's CLI. `{op: "ack", key}` clears an escalation, `{op: "veto", id}`
  *   vetoes a pending proposal.
@@ -27,18 +29,22 @@ import { createServer } from "node:http";
 import { basename, delimiter, join } from "node:path";
 import { homedir } from "node:os";
 
+import { pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
 import { effectiveMode, resolveConfig } from "./config.mjs";
 import { createGitHub } from "./github.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
+import { servherd as servherdData } from "./launcher.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { createNotifier } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
 import { identify, sameProcess } from "./proc.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
-import { appendLedger, loadState, saveState } from "./store.mjs";
+import { authenticate, runTools } from "./run-tools.mjs";
+import { createRunner, ownerIdentity, recoverRuns, writeRunGitconfig } from "./runner.mjs";
+import { appendLedger, loadState, readLedger, saveState } from "./store.mjs";
 import { sessionTools } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
 
@@ -55,6 +61,10 @@ const MAX_BODY = 1024 * 1024;
 const ISSUES_START = "1970-01-01T00:00:00Z";
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
+/** The session tools a judgment run also gets. */
+const RUN_SESSION_TOOLS = new Set(["githerd_status", "githerd_claim", "githerd_release", "githerd_escalate"]);
+/** How far back a run's `githerd_ledger` reads. */
+const RUN_LEDGER_DAYS = 30;
 
 /**
  * The open pull requests and the default branch's head (design section 6.1).
@@ -197,6 +207,8 @@ function nextIncidentId(incidents, iso) {
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
  * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
+ * @param {Partial<Parameters<typeof createRunner>[0]>} [options.runner] overrides for the judgment
+ *   runner (`claude`, `servherd`, `packageDir`, ...); tests pass the fakes here
  * @returns {Promise<Daemon>} the running daemon
  */
 export async function startDaemon({
@@ -210,6 +222,7 @@ export async function startDaemon({
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
+    runner: runnerOptions = {},
 }) {
     const startedAtDate = now();
     const startedAt = startedAtDate.toISOString();
@@ -249,6 +262,10 @@ export async function startDaemon({
     state.rate ??= {};
     state.github ??= { downSince: null, lastError: null };
     state.schedule ??= {};
+    state.runs ??= {};
+    const recovered = recoverRuns(state, { now: now() });
+    for (const id of recovered.lost) say("info", `run ${id} lost: the machine restarted since it started`);
+    for (const id of recovered.interrupted) say("info", `run ${id} interrupted by the restart`);
 
     let fenced = false;
     /** @type {Set<Promise<void>>} ledger appends not yet on disk */
@@ -823,7 +840,7 @@ export async function startDaemon({
                     },
                 ];
             }
-            return sessionTools({
+            const session = sessionTools({
                 state,
                 config,
                 caller,
@@ -838,8 +855,59 @@ export async function startDaemon({
                     await ledger(/** @type {any} */ (entry));
                 },
             });
+            if (!caller?.run) return session;
+            const t = now();
+            return [
+                ...session.filter((tool) => RUN_SESSION_TOOLS.has(tool.name)),
+                ...runTools({
+                    state,
+                    config,
+                    caller,
+                    now: t,
+                    mode: mode(),
+                    github: github(),
+                    readLedger: () =>
+                        readLedger(stateDir, { since: new Date(t.getTime() - RUN_LEDGER_DAYS * 86_400_000) }),
+                    ledger,
+                    save,
+                    finishBranch,
+                    env,
+                }),
+            ];
         },
     });
+
+    /**
+     * Hands a code-editing run's branch to the actor (design section 8.3): checked, then pushed in
+     * acting mode with `actions.runWrites` on, recorded as `would-do` otherwise.
+     * @param {string} id the run
+     * @returns {Promise<string>} what happened, for the run
+     */
+    async function finishBranch(id) {
+        const run = state.runs[id];
+        const wt = run.worktree;
+        if (!wt) return "recorded: this run has no githerd worktree to push from";
+        const r = await pushRunBranch({
+            dir: wt.dir,
+            branch: wt.pushBranch,
+            prBranch: wt.prBranch ?? null,
+            defaultBranch: state.master.branch ?? "master",
+            base: wt.base,
+            greenSha: run.greenSha,
+            run: { id, kind: run.kind, target: run.target },
+            state,
+            protectedPaths: config.protectedPaths,
+            env,
+            mode: mode(),
+            runWrites: Boolean(config.actions?.runWrites),
+            ledger,
+            now,
+        });
+        await save();
+        if (r.reasons.length) return `refused: ${r.reasons.join("; ")}`;
+        if (r.wouldDo) return `would push ${r.head} to ${wt.pushBranch} (dry-run)`;
+        return r.pushed ? `pushed ${r.head} to ${wt.pushBranch}` : "nothing new to push";
+    }
 
     /**
      * The /health answer (design section 3.2).
@@ -925,7 +993,15 @@ export async function startDaemon({
             if (req.method === "POST" && req.url === "/rpc") {
                 // A caller without a session header (the owner's CLI) is not registered as a session.
                 const session = req.headers["x-githerd-session"];
-                const reply = await mcp.handle(await body(req), session ? { session: String(session) } : {});
+                const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
+                /** @type {import("./board.mjs").Caller} */
+                let caller = session ? { session: String(session) } : {};
+                if (bearer) {
+                    const auth = authenticate(state, bearer);
+                    if (!auth.ok) return send(401, { error: /** @type {{error: string}} */ (auth).error });
+                    caller = { run: /** @type {{run: string}} */ (auth).run };
+                }
+                const reply = await mcp.handle(await body(req), caller);
                 return reply === null ? send(202) : send(200, reply);
             }
             if (req.method === "POST" && req.url === "/heartbeat") {
@@ -961,6 +1037,29 @@ export async function startDaemon({
     writeFileSync(tmp, `${JSON.stringify({ ...self, port: boundPort, root, codeHash, startedAt })}\n`);
     renameSync(tmp, daemonFile);
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
+
+    /** @type {ReturnType<typeof createRunner> | null} null when run commits have no identity */
+    let runner = null;
+    try {
+        runner = createRunner({
+            stateDir,
+            state,
+            config: () => config,
+            mode,
+            daemonUrl: `http://127.0.0.1:${boundPort}`,
+            gitconfig: writeRunGitconfig(stateDir, ownerIdentity(root)),
+            env,
+            servherd: (args) =>
+                servherdData(/** @type {any} */ ({ servherd: config.servherdCommand, root, env }), args),
+            ledger,
+            save,
+            log: say,
+            now,
+            ...runnerOptions,
+        });
+    } catch (err) {
+        say("error", `judgment runs are off: ${/** @type {Error} */ (err).message}`);
+    }
 
     const notifyProblem = notifyCommandProblem(config?.notify?.command ?? null, env);
     if (notifyProblem) {
@@ -1007,7 +1106,7 @@ export async function startDaemon({
     }
 
     /**
-     * The SIGTERM path (design section 3.2): stop the poll timer, mark running runs
+     * The SIGTERM path (design section 3.2): stop the poll timer, kill running runs and record them
      * `interrupted`, flush the state and close.
      * @returns {Promise<void>} resolves once the state is saved and the server closed
      */
@@ -1016,9 +1115,7 @@ export async function startDaemon({
         stopping = true;
         if (timer) clearTimeout(timer);
         timer = null;
-        for (const run of Object.values(state.runs ?? {})) {
-            if (run.status === "running") run.status = "interrupted";
-        }
+        await runner?.shutdown();
         await save();
         await halt({ reason: "shutdown" });
     }
@@ -1034,6 +1131,7 @@ export async function startDaemon({
         shutdown,
         rpc: (message, context = { session: "local" }) => mcp.handle(message, context),
         flushNotifications: () => notifier.flush(),
+        runner,
     };
 }
 
@@ -1050,4 +1148,6 @@ export async function startDaemon({
  * @property {() => Promise<void>} [shutdown] the SIGTERM path
  * @property {(message: unknown, context?: any) => Promise<any>} [rpc] answers one JSON-RPC message
  * @property {() => Promise<void>} [flushNotifications] delivers queued pages
+ * @property {ReturnType<typeof createRunner> | null} [runner] starts and stops judgment runs; null
+ *   when the repository has no git identity for run commits
  */

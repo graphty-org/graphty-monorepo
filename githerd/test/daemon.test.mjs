@@ -14,6 +14,7 @@ import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
+const FAKE_CLAUDE = fileURLToPath(new URL("helpers/fake-claude.mjs", import.meta.url));
 
 const A = "a".repeat(40);
 const B = "b".repeat(40);
@@ -743,6 +744,60 @@ describe("the notify command check", () => {
             params: { name: "githerd_status", arguments: {} },
         });
         expect(reply.result.content[0].text).toMatch(/^PHONE ALERTS BROKEN since/);
+    });
+});
+
+describe("judgment runs", () => {
+    it("refuses an unknown run token, gives a run its kind's tools, and interrupts runs on shutdown", async () => {
+        gitSync(dir, "init", "-q");
+        gitSync(dir, "config", "user.name", "Owner");
+        gitSync(dir, "config", "user.email", "o@example.com");
+        const scenarioFile = join(dir, "scenario.json");
+        writeFileSync(scenarioFile, JSON.stringify({ hang: true }));
+        const daemon = await start({
+            runner: {
+                claude: [process.execPath, FAKE_CLAUDE, scenarioFile],
+                servherd: async () => ({ servers: [] }),
+                killGraceMs: 200,
+            },
+        });
+        const list = (/** @type {string} */ token) =>
+            fetch(`${daemon.url}/rpc`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${token}` },
+                body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+            });
+        expect((await list("not-a-token")).status).toBe(401);
+
+        const res = daemon.runner.start({ kind: "triage", event: "issue-new", target: "issue:1", prompt: "hi" });
+        expect(res.ok).toBe(true);
+        const runDir = join(dir, ".githerd", "runs", res.id);
+        const token = JSON.parse(readFileSync(join(runDir, "mcp.json"), "utf8")).mcpServers.githerd.env
+            .GITHERD_RUN_TOKEN;
+        expect(JSON.parse(readFileSync(join(runDir, "guard.json"), "utf8"))).toMatchObject({
+            kind: "triage",
+            root: join(runDir, "work"),
+        });
+        const names = (await (await list(token)).json()).result.tools.map((/** @type {any} */ t) => t.name);
+        expect(names.slice(0, 4)).toEqual(["githerd_status", "githerd_claim", "githerd_release", "githerd_escalate"]);
+        expect(names).toContain("githerd_run_context");
+        expect(names).not.toContain("githerd_report");
+        expect(names).not.toContain("githerd_finish_branch");
+
+        const pgid = daemon.state.runs[res.id].process.pid;
+        await daemon.shutdown();
+        expect(daemon.state.runs[res.id].status).toBe("interrupted");
+        expect(saved().runs[res.id].status).toBe("interrupted");
+        const alive = () => {
+            try {
+                process.kill(-pgid, 0);
+                return true;
+            } catch {
+                return false;
+            }
+        };
+        for (let i = 0; i < 50 && alive(); i++) await new Promise((r) => setTimeout(r, 20));
+        expect(alive()).toBe(false);
     });
 });
 

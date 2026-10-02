@@ -110,10 +110,10 @@ import {
 import { zAsOption } from "../cx2/importer.js";
 
 /** The format name. */
-export const CX_FORMAT = "cx";
+const CX_FORMAT = "cx";
 
 /** The origin namespace of the per-element visual property columns. */
-export const CX_BYPASS_NAMESPACE = "cx.bypass";
+const CX_BYPASS_NAMESPACE = "cx.bypass";
 
 /** The format-specific options of the CX importer. */
 export interface CxImportOptions extends GraphChoiceOptions {

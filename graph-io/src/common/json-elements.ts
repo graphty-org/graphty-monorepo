@@ -55,7 +55,7 @@ const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
 const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
 
 /** What rewriteNumbers() found. */
-export interface RewrittenNumbers {
+interface RewrittenNumbers {
     /** The rewritten text. */
     readonly text: string;
     /** The non-standard tokens seen (only when they were allowed). */
@@ -725,10 +725,10 @@ async function* member(cur: ChunkCursor, block: number): AsyncGenerator<AspectEv
 // ============================================================ the CX id rule (design section 1.0.2)
 
 /** How an id was spelled, when it was not a plain safe integer. */
-export type CxIdNote = "text" | "precision" | null;
+type CxIdNote = "text" | "precision" | null;
 
 /** A CX id, decided per id: a safe integer is a number, a larger one its exact digits. */
-export interface CxId {
+interface CxId {
     /** The node or edge id. */
     readonly id: NodeId;
     /** "text": spelled as a string or a non-integer literal (W_ID_TEXT_TYPE); "precision": beyond 2^53 (W_PRECISION). */
@@ -798,7 +798,7 @@ export function inexactLiteral(text: string, key: string): boolean {
 export const POSITION_COLUMN = "position";
 
 /** The name of the stacking-order column (Cytoscape's NODE_Z_LOCATION). */
-export const Z_COLUMN = "z";
+const Z_COLUMN = "z";
 
 /**
  * The position column of a Cytoscape-family importer: f32 x3, y-up, 2 source dimensions.

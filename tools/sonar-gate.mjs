@@ -170,7 +170,7 @@ export function nosonarComment(text) {
     return m && balanced(text.slice(0, m.index)) ? text.slice(m.index) : null;
 }
 
-// NOSONAR comments on changed lines: the malformed ones (blocking) and the rule each good one names.
+// Suppression comments on changed lines: the malformed ones (blocking) and the rule each good one names.
 function checkNosonar(files) {
     const malformed = [];
     const named = new Map(); // `${path}:${line}` -> "S1234"

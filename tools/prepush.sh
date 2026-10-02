@@ -44,6 +44,7 @@ NC='\033[0m' # No Color
 FAILED=0
 TESTS_FAILED=0
 GRAPHTY_FAILED=0
+SONAR_FAILED=0
 
 run_step() {
     local name="$1"
@@ -78,8 +79,61 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
+# SonarQube (changed lines): tools/sonar-gate.mjs scans the files this push changes on the owner's
+# SonarQube server and fails the push on a NEW issue or security hotspot on a line the push adds or
+# changes; issues master already has never block. It passes with a boxed warning when the server
+# cannot be reached (off the owner's network), and blocks on any other setup problem (no token, an
+# admin token, no Java), saying how to fix it. It never runs in CI: the server is not reachable from
+# GitHub Actions. About 45-60 s for a typical push, so it runs in the BACKGROUND from the end of the
+# build until just before the summary, while lint and the tests run; it costs the gate almost no
+# wall-clock time. To push past a false positive: `// NOSONAR(<rule>): <reason>` on the line, a
+# reasoned path entry in sonar-project.properties, or -- emergencies only -- a
+# `Sonar-Bypass: <reason>` trailer on the HEAD commit. See design/sonarqube/design.md.
+#
+# Its own process group (setsid), killed by the EXIT trap, so a push that ends early (a failed step,
+# Ctrl-C, a tool timeout killing this script) takes the scanner and its JRE with it and frees the
+# scan lock. Its own flag, SONAR_FAILED, per the rule at the top of this file.
+SONAR_PGID=""
+SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
+mkdir -p "$(dirname "$SONAR_LOG")"
+start_sonar() {
+    echo -e "${YELLOW}> SonarQube (changed lines), in the background${NC}"
+    setsid node tools/sonar-gate.mjs >"$SONAR_LOG" 2>&1 &
+    SONAR_PGID=$!
+    trap '[ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null' EXIT
+    echo ""
+}
+join_sonar() {
+    echo -e "${YELLOW}> SonarQube (changed lines)${NC}"
+    if wait "$SONAR_PGID"; then
+        cat "$SONAR_LOG"
+        echo -e "${GREEN}[PASS] SonarQube (changed lines) passed${NC}"
+    else
+        cat "$SONAR_LOG"
+        echo -e "${RED}[FAIL] SonarQube (changed lines) failed${NC}"
+        FAILED=1
+        SONAR_FAILED=1
+    fi
+    SONAR_PGID=""
+    echo ""
+}
+# Under the summary: repeat a skipped check's warning so it does not scroll away, and say what to
+# do about a SonarQube failure.
+sonar_reminder() {
+    if grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
+        echo -e "${YELLOW}Reminder: SonarQube did NOT check this push (see its box above).${NC}"
+    fi
+    if [ "$SONAR_FAILED" -eq 1 ]; then
+        echo -e "${RED}SonarQube: fix each new finding listed above; a false positive takes a NOSONAR(<rule>) with its reason.${NC}"
+    fi
+}
+
 if [ -z "$PROJECT_LIST" ]; then
     echo -e "${GREEN}No package is affected by this push; no package to check.${NC}"
+    # A push that touches only tools/ or the root still gets the SonarQube step, in the foreground.
+    start_sonar
+    join_sonar
+    sonar_reminder
     exit "$FAILED"
 fi
 echo "Affected packages: $PROJECT_LIST"
@@ -106,6 +160,10 @@ BUILD_LIST="${BUILD_LIST#,}"
 if affected webgpu-graph-algorithms; then
     run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
 fi
+
+# Start the SonarQube step now that every dist/ and the bundle's .d.ts shims exist, so nothing
+# rewrites the types SonarJS reads while it reads them. It is joined just before the summary.
+start_sonar
 
 # Lint the affected packages
 run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
@@ -152,6 +210,11 @@ run_step "Element data sources on graph-io" "pnpm run check:data-source-migratio
 # The import reader of tools/count-migration-state.mjs, which prints the counts in
 # design/graph-format/STATUS.md. Reads nothing from the repository.
 run_step "Migration count script" "pnpm run check:migration-counts"
+
+# The SonarQube step's decisions (server down, no token, a new problem, only old problems, the
+# bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
+# Needs no server. A few seconds.
+run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
 
 # No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
 # layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
@@ -296,9 +359,12 @@ else
 fi
 echo ""
 
+join_sonar
+
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.
 echo "========================================"
+sonar_reminder
 if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0

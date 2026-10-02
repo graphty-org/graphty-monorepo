@@ -356,7 +356,11 @@ digest shows a full re-triage pass; every write is recorded, not performed.
   scratch PR fixture, and one re-triage batch of 10 issues.
 - Done: each run ends `done` or `escalated` with a valid result; `permission_denials` is empty; the
   ledger shows only `would-do` writes; the sandbox check of 2.1 holds inside the master-red run;
-  no `claude`, launcher or servherd leftover remains.
+  no `claude`, launcher or servherd leftover remains. A read-only run whose issues need nothing
+  may end `nothing-to-do`, which is also a valid result.
+- On this container the Bash sandbox cannot run (no `bwrap` or `socat`), so the runner refuses
+  the code-editing kinds and the script reports the master-red and pr-conflict steps as skipped;
+  they and the sandbox check run once the owner installs both (`githerd/CLAUDE.md`).
 
 ### 2.9 Dry-run soak, part two
 

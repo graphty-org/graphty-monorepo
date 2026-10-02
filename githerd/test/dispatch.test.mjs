@@ -484,6 +484,22 @@ describe("dispatch: priority and admission", () => {
         expect(state.prs[5].attempts.runs).toEqual([]);
     });
 
+    it("pages master red when its run cannot launch", async () => {
+        const state = baseState();
+        state.master.verdict = "red";
+        state.incidents["inc-1"] = incident();
+        const r = await dispatch({
+            state,
+            config: CONFIG,
+            mode: "acting",
+            now: NOW,
+            startedAt: STARTED,
+            launch: async () => ({ ok: false, reason: "code-editing runs are off" }),
+        });
+        expect(r.started).toEqual([]);
+        expect(r.masterRedUnhandled).toEqual(["inc-1"]);
+    });
+
     it("in dry-run, starts runs on the dry-run budget, where a $6 master-red run cannot fit", async () => {
         const state = baseState();
         state.master.verdict = "red";

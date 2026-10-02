@@ -903,7 +903,7 @@ claude -p "<contents of runs/<id>/prompt.md>"
   --permission-prompts none
   --output-format stream-json --verbose
   --max-turns <caps.turns> --max-budget-usd <caps.budgetUsd>
-  --json-schema runs/<id>/result.schema.json
+  --json-schema "<contents of runs/<id>/result.schema.json>"
   --strict-mcp-config --mcp-config runs/<id>/mcp.json
   --setting-sources project,local
   --settings runs/<id>/settings.json

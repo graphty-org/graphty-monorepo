@@ -587,10 +587,14 @@ export async function runLauncher({
     healthWaitMs,
     log = (line) => process.stderr.write(`githerd-mcp: ${line}\n`),
 }) {
-    const found = launcherContext({ cwd, env, now, pkgDir, healthWaitMs });
-    if (found.kind === "outside") return { ensured: null };
     const { version } = readVersion();
     const serverInfo = { name: NAME, version };
+    if (env.GITHERD_URL) {
+        await forwardRun({ input, write, env, serverInfo, session: `${basename(worktreeTop(cwd) ?? cwd)}-${ppid}` });
+        return { ensured: null };
+    }
+    const found = launcherContext({ cwd, env, now, pkgDir, healthWaitMs });
+    if (found.kind === "outside") return { ensured: null };
 
     if (found.kind === "unconfigured") {
         const reason = found.reason;
@@ -689,7 +693,6 @@ export async function runLauncher({
     }
 
     const beat = setInterval(async () => {
-        if (env.GITHERD_URL) return;
         if (upgradeWaiting) void ensure().catch(() => {});
         try {
             const target = daemonUrl ?? "http://127.0.0.1:1";
@@ -719,6 +722,57 @@ export async function runLauncher({
     });
     clearInterval(beat);
     return { ensured };
+}
+
+/**
+ * A judgment run's launcher: it talks only to the daemon that started the run. The run's tools
+ * depend on its kind and token, so `tools/list` goes to the daemon as well as `tools/call`; no
+ * config, servherd or heartbeat is involved.
+ * @param {object} options the streams, the environment, the server info and the session name
+ * @param {NodeJS.ReadableStream} options.input JSON-RPC lines from the client
+ * @param {(line: string) => void} options.write writes one line to the client
+ * @param {Record<string, string | undefined>} options.env `GITHERD_URL` and `GITHERD_RUN_TOKEN`
+ * @param {{name: string, version: string}} options.serverInfo answered to `initialize`
+ * @param {string} options.session the `x-githerd-session` header
+ * @returns {Promise<void>} resolves when the input ends
+ */
+async function forwardRun({ input, write, env, serverInfo, session }) {
+    const local = createMcpServer({ serverInfo, tools: () => [] });
+    const headers = {
+        "content-type": "application/json",
+        "x-githerd-session": session,
+        ...(env.GITHERD_RUN_TOKEN ? { authorization: `Bearer ${env.GITHERD_RUN_TOKEN}` } : {}),
+    };
+    await lines(input, async (line) => {
+        let msg;
+        try {
+            msg = JSON.parse(line);
+        } catch {
+            msg = null;
+        }
+        const remote = (msg?.method === "tools/list" || msg?.method === "tools/call") && Object.hasOwn(msg, "id");
+        let reply;
+        if (!remote) reply = await local.handle(line);
+        else {
+            try {
+                const res = await fetch(`${env.GITHERD_URL}/rpc`, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(msg),
+                    signal: AbortSignal.timeout(CALL_WAIT_MS),
+                });
+                reply = await res.json();
+            } catch (err) {
+                const reason = /** @type {any} */ (err).cause?.code ?? /** @type {Error} */ (err).message;
+                reply = {
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    error: { code: -32603, message: `githerd daemon not reachable: ${reason}` },
+                };
+            }
+        }
+        if (reply) write(JSON.stringify(reply));
+    });
 }
 
 /**

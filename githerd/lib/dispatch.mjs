@@ -494,6 +494,7 @@ export async function dispatch(ctx) {
         const launched = await ctx.launch(item);
         if (!launched.ok) {
             result.waiting.push({ item, reason: /** @type {{reason: string}} */ (launched).reason });
+            if (item.kind === "master-red") result.masterRedUnhandled.push(/** @type {string} */ (item.incident));
             continue;
         }
         for (const t of targets) busy.add(t);

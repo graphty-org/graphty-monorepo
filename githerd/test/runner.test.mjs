@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,7 @@ import {
     runArgv,
     runEnv,
     runSettings,
+    sandboxMissing,
     toolsFor,
     writeRunGitconfig,
 } from "../lib/runner.mjs";
@@ -153,6 +154,8 @@ describe("pure parts", () => {
         expect(at("--permission-mode")).toBe("auto");
         expect(at("--setting-sources")).toBe("project,local");
         expect(at("--mcp-config")).toBe("/r/mcp.json");
+        // claude reads --json-schema as the schema's JSON text, not a file path.
+        expect(JSON.parse(at("--json-schema")).required).toEqual(["outcome", "summary"]);
         expect(argv).toContain("--strict-mcp-config");
         const ro = runArgv({ kind: "triage", config: CONFIG, runDir: "/r", prompt: "P" });
         expect(ro[ro.indexOf("--tools") + 1]).toBe("Read Grep Glob mcp__githerd");
@@ -198,6 +201,8 @@ describe("pure parts", () => {
             tools: ["Read", "Grep", "Glob", "mcp__githerd__x"],
         };
         expect(checkInit(init, "triage")).toBeNull();
+        // claude adds StructuredOutput for --json-schema.
+        expect(checkInit({ ...init, tools: [...init.tools, "StructuredOutput"] }, "triage")).toBeNull();
         expect(checkInit({ ...init, permissionMode: "default" }, "triage")).toMatch(/permission mode/);
         expect(checkInit({ ...init, tools: [...init.tools, "Bash"] }, "triage")).toMatch(/read-only/);
         expect(checkInit({ ...init, tools: ["Read", "Grep"] }, "triage")).toMatch(/expected/);
@@ -466,11 +471,42 @@ describe("runs against fake-claude", () => {
     });
 
     it("uses the given worktree for a code-editing kind and refuses one without", async () => {
-        const env = setup({ result: ok });
+        const env = setup({ result: ok }, { sandboxMissing: () => [] });
         const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
         const { seen } = await finish(env, start(env.runner, { kind: "pr-fix", target: "pr:2", cwd: wt }));
         expect(seen.cwd).toBe(wt);
         expect(() => start(env.runner, { kind: "pr-fix", target: "pr:2" })).toThrow(/worktree/);
+    });
+});
+
+describe("the Bash sandbox", () => {
+    it("finds bwrap and socat on PATH and names the missing ones", () => {
+        const dir = mkdtempSync(join(tmpdir(), "githerd-path-"));
+        writeFileSync(join(dir, "bwrap"), "#!/bin/sh\n", { mode: 0o755 });
+        writeFileSync(join(dir, "socat"), "not executable", { mode: 0o644 });
+        expect(sandboxMissing(dir)).toEqual(["socat"]);
+        expect(sandboxMissing(undefined)).toEqual(["bwrap", "socat"]);
+        chmodSync(join(dir, "socat"), 0o755);
+        expect(sandboxMissing(`/nonexistent:${dir}`)).toEqual([]);
+    });
+
+    it("refuses a code-editing run without it, and still starts a read-only one", async () => {
+        const env = setup({ result: ok }, { sandboxMissing: () => ["bwrap"] });
+        const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
+        const res = start(env.runner, { kind: "master-red", target: "master", cwd: wt });
+        expect(res).toEqual({ ok: false, reason: expect.stringMatching(/code-editing runs are off.*bwrap/) });
+        expect(env.state.runs).toEqual({});
+        expect((await finish(env, start(env.runner, {}))).record.status).toBe("ended");
+    });
+
+    it("kills a code-editing run whose claude reports the sandbox disabled", async () => {
+        const env = setup(
+            { hang: true, stderr: "Sandbox disabled: dependencies are missing" },
+            { sandboxMissing: () => [] },
+        );
+        const wt = mkdtempSync(join(tmpdir(), "githerd-wt-"));
+        const { record } = await finish(env, start(env.runner, { kind: "pr-fix", target: "pr:2", cwd: wt }));
+        expect(record).toMatchObject({ status: "failed", outcome: "sandbox-disabled" });
     });
 });
 

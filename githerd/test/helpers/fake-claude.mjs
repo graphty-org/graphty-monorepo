@@ -8,6 +8,7 @@
  * - `lines`: stream lines written after init.
  * - `guardDenials`: lines appended to `$GITHERD_RUN_DIR/denials.jsonl`.
  * - `result`: the `result` line (omitted when null).
+ * - `stderr`: text written to stderr after the stream lines.
  * - `hang`: true keeps running (and starts a grandchild in the same process group) until killed.
  * - `exitCode`: the exit code (default 0).
  */
@@ -38,6 +39,7 @@ if (init !== null) {
     });
 }
 for (const line of scenario.lines ?? []) out(line);
+if (scenario.stderr) process.stderr.write(scenario.stderr);
 for (const d of scenario.guardDenials ?? []) appendFileSync(join(runDir, "denials.jsonl"), `${JSON.stringify(d)}\n`);
 if (scenario.hang) {
     const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });

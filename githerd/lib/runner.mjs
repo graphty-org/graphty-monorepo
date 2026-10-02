@@ -11,9 +11,9 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { accessSync, appendFileSync, constants, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, relative, isAbsolute } from "node:path";
+import { delimiter, join, relative, isAbsolute } from "node:path";
 
 import { escalate, releaseRun } from "./board.mjs";
 import { bootId as currentBootId, identify, sameProcess } from "./proc.mjs";
@@ -59,6 +59,30 @@ const RESULT_SCHEMA = {
     },
 };
 
+/** What Claude Code's Bash sandbox needs on Linux. Without them it runs commands unsandboxed. */
+const SANDBOX_COMMANDS = ["bwrap", "socat"];
+
+/**
+ * The sandbox commands missing from `path`. Claude Code only warns and runs Bash unsandboxed when
+ * they are missing, so a code-editing run must not start then (design section 9.3).
+ * @param {string | undefined} path the run's PATH
+ * @returns {string[]} the missing commands; empty when the sandbox can run
+ */
+export function sandboxMissing(path) {
+    const dirs = (path ?? "").split(delimiter).filter(Boolean);
+    return SANDBOX_COMMANDS.filter(
+        (cmd) =>
+            !dirs.some((d) => {
+                try {
+                    accessSync(join(d, cmd), constants.X_OK);
+                    return true;
+                } catch {
+                    return false;
+                }
+            }),
+    );
+}
+
 /**
  * The built-in tools a kind gets (`--tools`, without `mcp__githerd`).
  * @param {string} kind the run kind
@@ -102,8 +126,9 @@ export function runArgv({ kind, config, runDir, prompt }) {
         String(caps.turns),
         "--max-budget-usd",
         String(caps.budgetUsd),
+        // The schema itself: claude parses this argument as JSON, not as a path.
         "--json-schema",
-        join(runDir, "result.schema.json"),
+        JSON.stringify(RESULT_SCHEMA),
         "--strict-mcp-config",
         "--mcp-config",
         join(runDir, "mcp.json"),
@@ -229,7 +254,8 @@ export function checkInit(init, kind) {
     if (servers.length !== 1 || servers[0].name !== "githerd" || servers[0].status !== "connected") {
         return `MCP servers ${JSON.stringify(servers.map((s) => `${s.name}:${s.status}`))}`;
     }
-    const tools = (init.tools ?? []).filter((t) => !t.startsWith("mcp__"));
+    // StructuredOutput is how claude returns the --json-schema result; every run has it.
+    const tools = (init.tools ?? []).filter((t) => !t.startsWith("mcp__") && t !== "StructuredOutput");
     const foreign = (init.tools ?? []).filter((t) => t.startsWith("mcp__") && !t.startsWith("mcp__githerd__"));
     const want = toolsFor(kind);
     if (foreign.length) return `tools from other MCP servers: ${foreign.join(" ")}`;
@@ -419,6 +445,8 @@ function inside(dir, path) {
  * @param {(level: string, text: string) => void} [options.log] the daemon log
  * @param {() => Date} [options.now] the clock
  * @param {number} [options.killGraceMs] SIGTERM to SIGKILL delay
+ * @param {() => string[]} [options.sandboxMissing] the sandbox commands this machine lacks; a
+ *   code-editing run is refused while any is missing
  * @returns {{start: (req: RunRequest) => {ok: false, reason: string} | {ok: true, id: string,
  *   done: Promise<any>}, shutdown: () => Promise<void>, inFlight: () => string[]}} the runner
  */
@@ -439,6 +467,7 @@ export function createRunner({
     log = () => {},
     now = () => new Date(),
     killGraceMs = KILL_GRACE_MS,
+    sandboxMissing: missingSandbox = () => sandboxMissing(env.PATH),
 }) {
     /** @type {Map<string, {kill: (why: string) => void, done: Promise<any>}>} */
     const live = new Map();
@@ -465,6 +494,15 @@ export function createRunner({
         const cfg = config();
         const at = now();
         state.runs ??= {};
+        if (CODE_EDITING.has(req.kind)) {
+            const missing = missingSandbox();
+            if (missing.length) {
+                return {
+                    ok: false,
+                    reason: `code-editing runs are off: no Bash sandbox (${missing.join(", ")} not installed)`,
+                };
+            }
+        }
         const admitted = admit(state, cfg, mode(), req.kind, at);
         if (!admitted.ok) return /** @type {{ok: false, reason: string}} */ (admitted);
         const caps = capsFor(cfg, req.kind);
@@ -586,7 +624,11 @@ export function createRunner({
             pending = /** @type {string} */ (lines.pop());
             for (const l of lines) if (l.trim()) onLine(l);
         });
-        child.stderr.on("data", (chunk) => appendFileSync(streamFile, chunk));
+        child.stderr.on("data", (chunk) => {
+            appendFileSync(streamFile, chunk);
+            // Claude Code's own word that Bash will run unsandboxed.
+            if (CODE_EDITING.has(req.kind) && String(chunk).includes("Sandbox disabled")) kill("sandbox-disabled");
+        });
 
         const done = new Promise((resolve) => {
             child.on("error", (err) => {

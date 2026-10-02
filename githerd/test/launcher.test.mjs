@@ -532,14 +532,36 @@ describe("the session proxy", () => {
             pkgDir: "githerd",
         });
         input.end(
-            `${JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "githerd_status" } })}\n`,
+            [
+                { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+                { jsonrpc: "2.0", id: 2, method: "tools/list" },
+                { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "githerd_status" } },
+            ]
+                .map((m) => `${JSON.stringify(m)}\n`)
+                .join(""),
         );
         await running;
-        expect(JSON.parse(written[0]).result.content[0].text).toBe("ok");
+        const replies = written.map((l) => JSON.parse(l));
+        expect(replies.find((r) => r.id === 1).result.serverInfo.name).toBe("githerd");
+        // The run's tool list is the daemon's, per kind and token, never the static session list.
+        expect(seen.map((s) => s.body.method).sort()).toEqual(["tools/call", "tools/list"]);
+        expect(replies.find((r) => r.id === 3).result.content[0].text).toBe("ok");
         expect(seen[0].url).toBe("/rpc");
         expect(seen[0].headers.authorization).toBe("Bearer t0ken");
         expect(seen[0].headers["x-githerd-session"]).toBe("main-7");
         expect(await ensureDaemon(context())).toEqual({ url, action: "run" });
+        expect(calls()).toEqual([]);
+    });
+
+    it("answers a run's request with an error when its daemon is gone", async () => {
+        env.GITHERD_URL = "http://127.0.0.1:1";
+        /** @type {string[]} */
+        const written = [];
+        const input = new PassThrough();
+        const running = runLauncher({ input, write: (l) => written.push(l), cwd: root, env, pkgDir: "githerd" });
+        input.end(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
+        await running;
+        expect(JSON.parse(written[0]).error.message).toMatch(/githerd daemon not reachable/);
         expect(calls()).toEqual([]);
     });
 

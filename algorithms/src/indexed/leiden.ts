@@ -1,7 +1,8 @@
 import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
+import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
-import { exactEdgeWeights, mulberry32 } from "./label-propagation.js";
+import { exactEdgeWeights } from "./label-propagation.js";
 import { modularity } from "./modularity.js";
 
 /**

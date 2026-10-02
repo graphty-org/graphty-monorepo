@@ -1,3 +1,17 @@
+## 0.8.25 (2026-10-01)
+
+### 🚀 Features
+
+- **graphty-element:** draw the default force layout on an accelerator ([#439](https://github.com/graphty-org/graphty-monorepo/issues/439))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.24 (2026-10-01)
 
 ### 🩹 Fixes

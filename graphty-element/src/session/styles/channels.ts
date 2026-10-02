@@ -334,6 +334,9 @@ export interface ChannelDescriptor {
      * style where it states one, and otherwise what the renderer draws for an unset value. A
      * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
      * outline, no glow -- or when the renderer decides per element, as the pattern count does.
+     * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
+     * line's colour, so its default is the line's default and a layer that sets `edge.color`
+     * moves it too.
      */
     readonly default?: string | number | boolean;
     /** The kind of value it accepts. */

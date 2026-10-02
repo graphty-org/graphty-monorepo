@@ -218,16 +218,16 @@ for (const channel of channelsFor("edge")) {
 }
 ```
 
-| Field               | What it holds                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------ |
-| `plainName`         | the full name, "Arrow Head Size"                                                           |
-| `shortName`         | the name once the target is already said, in sentence case: "Head size"                    |
-| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge   |
-| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing` |
-| `values`            | every choice, for an `enum`                                                                |
-| `min`, `max`        | the bounds, for a `number`                                                                 |
-| `default`           | what the element draws when no layer sets the channel (absent when that is nothing)        |
-| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot         |
+| Field               | What it holds                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `plainName`         | the full name, "Arrow Head Size"                                                                                                   |
+| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                            |
+| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
+| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
+| `values`            | every choice, for an `enum`                                                                                                        |
+| `min`, `max`        | the bounds, for a `number`                                                                                                         |
+| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
+| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                 |
 
 ### Labels that would overlap
 

@@ -16,9 +16,27 @@ The design is `design/githerd/githerd-design.md`; the build order is
 
 ## Commands
 
+`node githerd/bin/githerd.mjs <command>`, or `pnpm exec githerd <command>`:
+
 ```bash
-node githerd/bin/githerd.mjs version    # or: pnpm exec githerd version
+githerd status [--json]          # the daemon's status, as githerd_status shows it
+githerd ledger --since 1d --kind run-end --target pr:704
+githerd runs --last 10           # recent judgment runs; githerd run <id> shows one
+githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
+githerd ack <key>                # clear an escalation
+githerd veto <proposal id>       # stop a pending close or revert
+githerd ensure                   # find or start the daemon, e.g. after a container restart
+githerd restart                  # servherd restart githerd
+githerd dev                      # this working tree as the githerd-dev daemon, dry-run only
+githerd doctor [--send-test]     # gh, servherd, daemon code, pm2 autorestart, notify, signing
 ```
+
+The container has no cron and no systemd: pm2 restarts a crashed daemon, an open session's
+launcher restarts a missing one, and after a container restart `githerd ensure` brings it back
+before any session opens. `mode acting` is refused; the mode is raised only by a
+`githerd.config.json` change merged to the default branch. `githerd dev` needs `GITHERD_CONFIG`
+and keeps its state in `<worktree>/.githerd-dev/`; point the other commands at it with
+`GITHERD_STATE_DIR=.githerd-dev`. Exit codes: 0 done, 1 failed, 2 usage or refused.
 
 ## The MCP server
 

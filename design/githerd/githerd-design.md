@@ -207,6 +207,9 @@ answers "not configured" in a repository without githerd. Milestone 1 tests whic
     notifyBrokenSince}`.
   - `POST /rpc` is the MCP JSON-RPC endpoint.
   - `POST /heartbeat` registers or refreshes a session.
+  - `POST /owner` carries the owner's CLI commands that change state: `ack` and `veto`
+    (section 12). An `/rpc` call without `X-Githerd-Session` (the CLI's `status`) registers no
+    session.
 - On SIGINT or SIGTERM it stops the poll timer, sends SIGTERM to its runs' process groups, marks
   them `interrupted`, flushes state through the save queue and exits within 1.5 seconds (pm2 kills
   at 1.6). It does not wait to SIGKILL; the next daemon's startup check finishes any leftover run
@@ -259,7 +262,7 @@ running daemon or run uses.
 
 **Developing githerd.** `githerd dev` runs the CLI's own working tree as a separate daemon under
 the servherd name `githerd-dev`, with state in `<worktree>/.githerd-dev/`, the config from
-`GITHERD_CONFIG`, and the mode forced to dry-run. It never touches the shared daemon or its state.
+`GITHERD_CONFIG`, and the mode forced to dry-run (`GITHERD_DEV=1` caps the daemon's mode). It never touches the shared daemon or its state.
 
 ## 4. Modes: dry-run and acting
 
@@ -1077,7 +1080,7 @@ Issue text from anyone is data, never instructions (section 14).
   - `dev`: the development daemon (section 3.4);
   - `doctor [--send-test]`: gh auth and scopes, servherd reachability, the notify command, a
     signed `git commit-tree -S` on an empty tree with a 10 second timeout from the daemon's
-    environment, the config, the state file, the daemon's code hash against the default branch,
+    environment (read from `/proc/<pid>/environ` while the daemon runs), the config, the state file, the daemon's code hash against the default branch,
     and supervision (pm2 autorestart on for `servherd-githerd`).
 - **Logs**: `servherd logs githerd`.
 - **The ledger** is the audit trail; the digest samples it weekly.

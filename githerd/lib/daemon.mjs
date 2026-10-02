@@ -7,6 +7,11 @@
  * - `GET /health`: the fields launchers use to decide whether this daemon is usable.
  * - `POST /rpc`: MCP JSON-RPC; `X-Githerd-Session` names the calling session.
  * - `POST /heartbeat`: `{session, cwd, branch}` registers or refreshes a session.
+ * - `POST /owner`: the owner's CLI. `{op: "ack", key}` clears an escalation, `{op: "veto", id}`
+ *   vetoes a pending proposal.
+ *
+ * With `GITHERD_DEV` set (the development daemon of `githerd dev`), the mode never rises above
+ * dry-run, whatever the config says.
  *
  * Fencing: after binding, the daemon writes `daemon.json` with its process identity. Before every
  * poll and every state write it reads the file again; when the file names another live process,
@@ -264,7 +269,11 @@ export async function startDaemon({
     let timer = null;
     let intervalFactor = 1;
 
-    const mode = () => (config ? effectiveMode(config, readOverride(stateDir)) : "dry-run");
+    const mode = () => {
+        if (!config) return "dry-run";
+        const local = effectiveMode(config, readOverride(stateDir));
+        return env.GITHERD_DEV ? effectiveMode({ mode: local }, "dry-run") : local;
+    };
 
     /**
      * Stops this daemon because another one owns the state directory.
@@ -852,6 +861,37 @@ export async function startDaemon({
         });
     }
 
+    /**
+     * The owner's CLI commands that change state: `ack` and `veto`.
+     * @param {any} cmd `{op: "ack", key}` or `{op: "veto", id}`
+     * @returns {{status: number, text: string, entry?: {kind: string} & Record<string, unknown>}} the
+     *   answer, and the ledger entry when something changed
+     */
+    function owner(cmd) {
+        if (cmd?.op === "ack") {
+            const result = board.resolve(state, { key: String(cmd.key) }, now());
+            if (!result.ok) return { status: 404, text: /** @type {any} */ (result).error };
+            return {
+                status: 200,
+                text: `resolved ${cmd.key}`,
+                entry: { kind: "escalation", key: cmd.key, resolved: true, by: "owner" },
+            };
+        }
+        if (cmd?.op === "veto") {
+            const proposal = state.proposals?.[String(cmd.id)];
+            if (!proposal) return { status: 404, text: `no proposal ${cmd.id}` };
+            if (proposal.status !== "pending") return { status: 409, text: `${cmd.id} is ${proposal.status}` };
+            proposal.status = "vetoed";
+            proposal.vetoedAt = now().toISOString();
+            return {
+                status: 200,
+                text: `vetoed ${cmd.id}: ${proposal.kind} of ${proposal.target}`,
+                entry: { kind: "veto", proposal: cmd.id, target: proposal.target, by: "owner" },
+            };
+        }
+        return { status: 400, text: "op must be ack or veto" };
+    }
+
     const server = createServer(async (req, res) => {
         const send = (/** @type {number} */ status, /** @type {unknown} */ value) => {
             res.writeHead(status, { "content-type": "application/json" });
@@ -860,8 +900,9 @@ export async function startDaemon({
         try {
             if (req.method === "GET" && req.url === "/health") return send(200, health());
             if (req.method === "POST" && req.url === "/rpc") {
-                const session = String(req.headers["x-githerd-session"] ?? "unknown");
-                const reply = await mcp.handle(await body(req), { session });
+                // A caller without a session header (the owner's CLI) is not registered as a session.
+                const session = req.headers["x-githerd-session"];
+                const reply = await mcp.handle(await body(req), session ? { session: String(session) } : {});
                 return reply === null ? send(202) : send(200, reply);
             }
             if (req.method === "POST" && req.url === "/heartbeat") {
@@ -871,6 +912,14 @@ export async function startDaemon({
                 board.heartbeat(state, { session: beat.session, cwd: beat.cwd, branch: beat.branch }, now());
                 await save();
                 return send(200, { ok: true });
+            }
+            if (req.method === "POST" && req.url === "/owner") {
+                const answer = owner(JSON.parse(await body(req)));
+                if (answer.entry) {
+                    await save();
+                    await ledger(answer.entry);
+                }
+                return send(answer.status, { ok: answer.status === 200, text: answer.text });
             }
             return send(404, { error: "not found" });
         } catch (err) {

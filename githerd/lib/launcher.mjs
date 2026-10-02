@@ -218,7 +218,7 @@ function readJson(path) {
  * @param {LauncherContext} ctx the context
  * @returns {Promise<{branch: string, hash: string, version: string}>} the target
  */
-async function targetCode(ctx) {
+export async function targetCode(ctx) {
     const branch = defaultBranch(ctx.root);
     if (branch === null) throw new Error("origin/HEAD is not set: cannot find the default branch");
     const opts = { cwd: ctx.root, env: ctx.env };
@@ -294,7 +294,7 @@ async function materialize(ctx, target) {
  * @returns {Promise<{record: any, health: any, error: string | null}>} the record, and the health
  *   answer or why there is none
  */
-async function probe(ctx) {
+export async function probe(ctx) {
     const record = readJson(join(ctx.stateDir, "daemon.json"));
     if (!record?.port) return { record, health: null, error: "no daemon.json" };
     try {
@@ -311,7 +311,7 @@ async function probe(ctx) {
  * @param {any} health the /health answer
  * @returns {boolean} true when it is ours
  */
-const ours = (ctx, health) => health?.name === NAME && health.root === ctx.root && health.protocol === PROTOCOL;
+export const ours = (ctx, health) => health?.name === NAME && health.root === ctx.root && health.protocol === PROTOCOL;
 
 /**
  * Whether the daemon's loop is ticking: its last tick is younger than 3 poll intervals plus 60 s.
@@ -383,7 +383,7 @@ function releaseLock(ctx) {
  * @returns {Promise<{health: any, error: string | null}>} the accepted answer, or the last reason
  *   there was none when the wait ran out
  */
-async function waitFor(ctx, ready) {
+export async function waitFor(ctx, ready) {
     const until = Date.now() + ctx.healthWaitMs;
     let last = "no answer";
     for (;;) {
@@ -401,7 +401,7 @@ async function waitFor(ctx, ready) {
  * @param {string[]} args the arguments after `--json`
  * @returns {Promise<any>} the data servherd reported
  */
-async function servherd(ctx, args) {
+export async function servherd(ctx, args) {
     const out = await run([...ctx.servherd, "--json", ...args], { cwd: ctx.root, env: ctx.env });
     let parsed;
     try {
@@ -411,6 +411,16 @@ async function servherd(ctx, args) {
     }
     if (!parsed.success) throw new Error(`servherd ${args[0]}: ${parsed.error?.message ?? "failed"}`);
     return parsed.data;
+}
+
+/**
+ * Where and how to run servherd's pm2. servherd keeps its pm2 in ~/.servherd/pm2 unless PM2_HOME
+ * says otherwise; pm2's own default, ~/.pm2, would start a second pm2 that servherd never sees.
+ * @param {LauncherContext} ctx the context
+ * @returns {{cwd: string, env: Record<string, string | undefined>}} the options for `run`
+ */
+export function pm2Options(ctx) {
+    return { cwd: ctx.root, env: { ...ctx.env, PM2_HOME: ctx.env.PM2_HOME || join(homedir(), ".servherd", "pm2") } };
 }
 
 /**
@@ -432,12 +442,7 @@ async function enableAutorestart(ctx, server) {
         log_date_format: "YYYY-MM-DDTHH:mm:ss.SSSZ",
     };
     writeFileSync(file, `${JSON.stringify({ apps: [app] }, null, 2)}\n`);
-    // servherd keeps its pm2 in ~/.servherd/pm2 unless PM2_HOME says otherwise; pm2's own default,
-    // ~/.pm2, would start a second pm2 that servherd never sees.
-    const opts = {
-        cwd: ctx.root,
-        env: { ...ctx.env, PM2_HOME: ctx.env.PM2_HOME || join(homedir(), ".servherd", "pm2") },
-    };
+    const opts = pm2Options(ctx);
     await run([...ctx.pm2, "delete", server.pm2Name], opts);
     await run([...ctx.pm2, "start", file], opts);
 }

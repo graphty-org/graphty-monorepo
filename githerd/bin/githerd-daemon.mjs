@@ -4,7 +4,8 @@
  * repository's main checkout as its working directory (design section 3.2).
  *
  * Environment: `PORT` (required), `GITHERD_CONFIG` (a config file instead of the default
- * branch's), `GITHERD_STATE_DIR` (instead of `<root>/.githerd`).
+ * branch's), `GITHERD_STATE_DIR` (instead of `<root>/.githerd`), `GITHERD_DEV` (the development
+ * daemon: never above dry-run).
  *
  * `--once` runs one poll, prints the status text and exits: a check against the real repository
  * that touches nothing but its state directory.

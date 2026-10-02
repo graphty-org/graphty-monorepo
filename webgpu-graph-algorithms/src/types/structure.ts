@@ -26,3 +26,21 @@ export interface GpuTriangleResult {
     /** The graph's transitivity, `3 x triangles / connected triples`; 0 when the graph has no connected triple. */
     readonly transitivity: number;
 }
+
+/**
+ * Boruvka's minimum spanning forest (design 3.3 line 808, 8.5): the result shape of design 3.3, `{ edges,
+ * totalWeight }`, which is the shape `@graphty/algorithms`' `kruskalMST` returns.
+ * @public
+ */
+export interface GpuMstResult {
+    /**
+     * The LOGICAL edge indices of the forest: one tree per connected component, so `nodeCount - components` edges.
+     * The forest is the one of the total edge order (weight, then edge index): on distinct weights it is THE minimum
+     * spanning forest, and on tied weights it is exactly the forest `kruskalMST` accepts, whose sort breaks ties by
+     * edge index too. The order of the array is not Kruskal's acceptance order: it is deterministic, grouped by the
+     * Boruvka round that chose each edge.
+     */
+    readonly edges: U32;
+    /** The sum of the forest's edge weights (1 per edge on an unweighted snapshot), summed in f64 on the host. */
+    readonly totalWeight: number;
+}

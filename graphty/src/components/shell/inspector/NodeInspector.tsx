@@ -18,20 +18,17 @@
 import {
     ActionRow,
     ControlSection,
-    DataRow,
     PANEL_GRID,
     PANEL_INK,
     PanelField,
     UiGlyph,
     useNumberFormatter,
 } from "@graphty/compact-mantine";
-import { ActionIcon, Box, Button, Checkbox, Group, Tabs, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Box, Button, Group, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useMemo, useState } from "react";
 
 import { DataAccordion } from "../../data-view/DataAccordion";
-import { keyChipFor } from "../bindings";
 import { TOOLTIP_DELAY_MS } from "../constants";
-import { ComingTag } from "./ComingTag";
 import { type InspectorAction, InspectorActions } from "./InspectorActions";
 import {
     ATTRIBUTE_FILTER_THRESHOLD,
@@ -45,6 +42,7 @@ import {
     NEIGHBOR_TYPE_CAP,
 } from "./inspectorConstants";
 import { InspectorMetricRow } from "./inspectorContext";
+import { type InspectorNote, InspectorNotes } from "./InspectorNotes";
 import { useInspectorSection } from "./sections";
 
 /**
@@ -118,29 +116,6 @@ export interface NodeComputedMetric {
 }
 
 /**
- * One note on this node.
- *
- * Built by the caller and handed in through {@link NodeInspectorProps.notes}.
- * @public
- */
-export interface NodeNote {
-    /** Stable id. */
-    readonly id: string;
-    /** Who wrote it. */
-    readonly author: string;
-    /** How long ago, e.g. "2 days ago". */
-    readonly relativeTime: string;
-    /** The full timestamp, which the relative time carries on hover. */
-    readonly timestamp: string;
-    /** The note's own text -- floor item 7. */
-    readonly text: string;
-    /** Whether it has been marked done. Done notes collapse under "N done". */
-    readonly done: boolean;
-    /** Free-text tags. */
-    readonly tags?: readonly string[];
-}
-
-/**
  * One edge type in a node's neighbour breakdown.
  *
  * Built by the caller and handed in through {@link NodeInspectorProps.neighborBreakdown}.
@@ -190,8 +165,8 @@ export interface NodeInspectorProps {
     readonly attributeCount: number;
     /** Every result that includes this node. */
     readonly metrics: readonly NodeComputedMetric[];
-    /** The node's notes, newest first. */
-    readonly notes: readonly NodeNote[];
+    /** The node's notes, newest first, as graphty-element's `session.notes` holds them. */
+    readonly notes: readonly InspectorNote[];
     /** How many neighbours the node has. */
     readonly neighborCount: number;
     /**
@@ -215,8 +190,8 @@ export interface NodeInspectorProps {
     readonly onUnpinFromCanvas?: () => void;
     /** Opens the whole attribute list. */
     readonly onShowAllAttributes: () => void;
-    /** Marks a note done, or not. */
-    readonly onToggleNoteDone: (noteId: string, done: boolean) => void;
+    /** Saves a new note on this node. */
+    readonly onAddNote: (text: string) => void;
     /** Deletes a note. */
     readonly onDeleteNote: (noteId: string) => void;
     /** Selects a neighbour. */
@@ -292,9 +267,13 @@ function buildNodeActions(
     // beside the control it warns about -- a menu row would put it behind a door. It
     // carries a cost, so the cap leaves it where it is put.
     if (overThreshold) {
-        resident.splice(1, 0, make("expandAllAnyway", "Expand all anyway", {
-            cost: `All ${formatted(neighborCount)} may slow the canvas down`,
-        }));
+        resident.splice(
+            1,
+            0,
+            make("expandAllAnyway", "Expand all anyway", {
+                cost: `All ${formatted(neighborCount)} may slow the canvas down`,
+            }),
+        );
     }
 
     const more: InspectorAction[] = [
@@ -341,7 +320,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
         onLocate,
         onUnpinFromCanvas,
         onShowAllAttributes,
-        onToggleNoteDone,
+        onAddNote,
         onDeleteNote,
         onSelectNeighbor,
         onNoteRelationship,
@@ -354,12 +333,10 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
     const formatted = (value: number): string => formatter.format(value);
 
     const metricsSection = useInspectorSection(INSPECTOR_SECTION_IDS.nodeMetrics, true);
-    const notesSection = useInspectorSection(INSPECTOR_SECTION_IDS.nodeNotes, true);
     const neighborsSection = useInspectorSection(INSPECTOR_SECTION_IDS.nodeNeighbors, true);
 
     const [attributeFilter, setAttributeFilter] = useState<string>("");
     const [neighborTab, setNeighborTab] = useState<string>("all");
-    const [showDone, setShowDone] = useState<boolean>(false);
 
     const filteredAttributes = useMemo<Record<string, unknown> | null>(() => {
         if (attributes === null) {
@@ -372,9 +349,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
             return attributes;
         }
 
-        return Object.fromEntries(
-            Object.entries(attributes).filter(([key]) => key.toLowerCase().includes(needle)),
-        );
+        return Object.fromEntries(Object.entries(attributes).filter(([key]) => key.toLowerCase().includes(needle)));
     }, [attributeFilter, attributes]);
 
     // Spec 03 section 5 item 5: the breakdown caps at the top five edge types and then
@@ -385,15 +360,12 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
     const moreTypes = hiddenTypeCount > 0 ? `, ${formatted(hiddenTypeCount)} more types` : "";
     const neighborSummary = `${formatted(neighborCount)}: ${breakdown}${moreTypes}`;
 
-    const openNotes = notes.filter((note) => !note.done);
-    const doneNotes = notes.filter((note) => note.done);
     const directionalNeighbors =
         directed === true && neighborTab !== "all"
             ? neighbors.filter((row) => row.direction === neighborTab)
             : neighbors;
     const shownNeighbors = directionalNeighbors.slice(0, NEIGHBOR_ROW_CAP);
     const { resident, more } = buildNodeActions(props, formatted);
-    const addNoteChip = keyChipFor("addNote");
 
     return (
         <>
@@ -558,86 +530,14 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
             )}
 
             {/* BLOCK 4 -- Notes. */}
-            {/* Not shipped: the note store belongs to graphty-element's session (issue #145),
-                and until it exists the input is drawn disabled rather than discarding text. */}
-            <ControlSection
-                label="Notes"
-                opened={notesSection.opened}
-                onOpenChange={notesSection.onOpenChange}
-                actions={<ComingTag subject="Notes" />}
-            >
-                {/* ControlSection already draws the panel's own 16 / 8 around its
-                    content, so nothing inside a section draws it again. */}
-                <Box>
-                    <Textarea
-                        autosize
-                        minRows={1}
-                        aria-label={addNoteChip === null ? "Add a note" : `Add a note (${addNoteChip})`}
-                        placeholder="Add a note..."
-                        data-testid="node-note-input"
-                        disabled
-                    />
-                </Box>
-
-                {openNotes.map((note) => (
-                    <ActionRow
-                        key={note.id}
-                        // The relative time is drawn and the full timestamp is the
-                        // row's title, which is what 5.4 asks of a note row.
-                        state={`${note.author}, ${note.relativeTime}: ${note.text}`}
-                        stateTitle={`${note.author}, ${note.timestamp}: ${note.text}`}
-                        residentActions={
-                            <Checkbox
-                                size="xs"
-                                aria-label={`Done: ${note.text}`}
-                                checked={note.done}
-                                onChange={(event) => {
-                                    onToggleNoteDone(note.id, event.currentTarget.checked);
-                                }}
-                            />
-                        }
-                        actions={
-                            <ActionIcon
-                                type="button"
-                                variant="subtle"
-                                color="gray"
-                                size={PANEL_GRID.TRAIL}
-                                aria-label={`Delete note: ${note.text}`}
-                                onClick={() => {
-                                    onDeleteNote(note.id);
-                                }}
-                            >
-                                <UiGlyph name="close" size={PANEL_GRID.CHEVRON} />
-                            </ActionIcon>
-                        }
-                    />
-                ))}
-
-                {doneNotes.length > 0 && (
-                    <Box>
-                        <UnstyledButton
-                            type="button"
-                            aria-expanded={showDone}
-                            data-testid="node-done-notes"
-                            onClick={() => {
-                                setShowDone(!showDone);
-                            }}
-                            style={{
-                                height: PANEL_GRID.CONTROL_HEIGHT,
-                                color: PANEL_INK.CHROME,
-                                fontSize: "var(--mantine-font-size-sm)",
-                            }}
-                        >
-                            {`${formatted(doneNotes.length)} done`}
-                        </UnstyledButton>
-
-                        {showDone &&
-                            doneNotes.map((note) => (
-                                <DataRow key={note.id} name={note.text} value={note.relativeTime} />
-                            ))}
-                    </Box>
-                )}
-            </ControlSection>
+            <InspectorNotes
+                sectionId={INSPECTOR_SECTION_IDS.nodeNotes}
+                defaultOpen
+                inputTestId="node-note-input"
+                notes={notes}
+                onAddNote={onAddNote}
+                onDeleteNote={onDeleteNote}
+            />
 
             {/* BLOCK 5 -- Neighbors. Guaranteed to reach the first screen. */}
             <ControlSection
@@ -716,7 +616,6 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
 
             {/* BLOCK 6 -- the actions block, in the sticky footer outside the scroll. */}
             <InspectorActions label="Actions" actions={resident} moreActions={more} />
-
         </>
     );
 }

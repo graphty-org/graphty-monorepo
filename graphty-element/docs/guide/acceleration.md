@@ -137,7 +137,7 @@ That is the label to show beside a value a reader might compare against a saved 
 | `betweenness`, `floyd-warshall`        | Yes, above a floor      | The CPU implementation                           |
 | `clustering-coefficient`               | Yes, above a floor      | The CPU implementation                           |
 | `label-propagation`                    | Yes, with one exception | The CPU implementation                           |
-| `kruskal`                              | Not yet                 | The CPU implementation                           |
+| `kruskal`                              | Yes, above a floor      | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
 The first row is the default layout, and its accelerated half is the fourth: `ngraph` and
@@ -150,16 +150,11 @@ step stops fitting inside a frame, measured: 2.6 ms at a thousand nodes, 12 ms a
 Asking for `spring-electrical` by name is the way to have the accelerated one at any size, and it
 is the one layout that fails rather than falling back.
 
-`kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
-with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
-`E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
-the member exists, with no change to your page.
-
 The algorithms in the last row are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
 An algorithm is accelerated only above a measured size: `floyd-warshall` from 300 nodes,
-`betweenness` from 400, `closeness` from 4,000, `pagerank` from 10,000, `hits` from 15,000,
+`betweenness` from 400, `closeness` from 4,000, `kruskal` from 5,000, `pagerank` from 10,000, `hits` from 15,000,
 and `katz`, `eigenvector`, `dijkstra`, `bfs`, `connected-components` and `label-propagation`
 from 100,000. An algorithm is one call, and on the device that call costs several round trips
 whatever the size, so below those counts the CPU has finished before the device has started --
@@ -190,6 +185,12 @@ stays faster on the CPU. The floors were measured on 2026-09-30 and 2026-10-01 b
 implementations against the GPU package in headless Chromium on one card. Raising the renderer's
 ceiling is what would put the six in reach; until then, `acceleration="required"` or your own
 `acceleration-min-nodes` is how to put them on the device deliberately.
+
+`kruskal` has a second floor. When every edge weighs the same -- a graph whose edges carry no
+`weight`, say -- the CPU implementation has nothing to sort and finishes five to ten times sooner,
+so such a run goes to the device only from 100,000 nodes, above what the renderer holds. On either
+path the tree is the same set of edges: the device breaks a tie between equal weights the way the
+CPU does, so only `caveats.precision` tells the two apart.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:

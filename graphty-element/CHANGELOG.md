@@ -1,3 +1,43 @@
+## 3.5.1 (2026-10-02)
+
+### 🔥 Performance
+
+- **graphty-element:** tear a whole graph down in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.23
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.5.0 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** route kruskal to the GPU above a measured floor ([252a19ed](https://github.com/graphty-org/graphty-monorepo/commit/252a19ed))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.22
+- Updated algorithms to 3.1.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.2 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** size a label from its first line of words, not a blank first line ([26eff59a](https://github.com/graphty-org/graphty-monorepo/commit/26eff59a))
+- **graphty-element:** fade labels from the camera's world position; grow multi-line labels ([52fd3d7e](https://github.com/graphty-org/graphty-monorepo/commit/52fd3d7e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.1 (2026-10-02)
 
 ### 🩹 Fixes

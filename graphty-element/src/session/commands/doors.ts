@@ -1320,6 +1320,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onDragEnd: GESTURE,
             setPositionDirect: GESTURE,
             getNode: READ,
+            sceneObservers: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
         },

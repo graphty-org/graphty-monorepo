@@ -562,6 +562,14 @@ describe("AccelerationController: the edge floor of the triangle count", () => {
         assert.isTrue(
             controller.plan({ capability: "triangleCount", nodeCount: 5_000, edgeCount: 100_000 }).accelerated,
         );
+        // The measured boundary: 15 edges a node on 4,500 nodes lost in a sweep (0.98x), 30 a node on
+        // 1,200 nodes won in every sweep, resident and cold.
+        assert.isFalse(
+            controller.plan({ capability: "triangleCount", nodeCount: 4_500, edgeCount: 67_500 }).accelerated,
+        );
+        assert.isTrue(
+            controller.plan({ capability: "triangleCount", nodeCount: 1_200, edgeCount: 36_000 }).accelerated,
+        );
         controller.dispose();
     });
 

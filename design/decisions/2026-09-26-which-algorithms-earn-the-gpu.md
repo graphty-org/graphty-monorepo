@@ -681,7 +681,7 @@ on those two: every loss it rests on also appears in a sweep that stayed under 3
 logs and table generator are in `tmp/edge-aware-floors/` of the main checkout
 (`zz-edge-floors.test.ts`, `sweep1.log` to `sweep7.log`, `analyze.py`).
 
-**Triangle count: floored on edges times edges per node, 1,050,000.** The device call costs 6 to
+**Triangle count: floored on edges times edges per node, 1,080,000.** The device call costs 6 to
 15 ms almost whatever the graph inside the ceiling. The CPU port's cost grows with the edges and
 with the neighbors each node intersects, so the measure that separates the two is edges times
 edges per node (edges squared over nodes). The edge count alone does not: two edges a node at
@@ -689,8 +689,12 @@ edges per node (edges squared over nodes). The edge count alone does not: two ed
 from the degrees does not either: the R-MAT graphs win with fewer wedges than uniform graphs that
 lose. Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x). Around 1,000,000 the
 graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.96x at 1,000,000, 0.98x at
-1,012,500), so the floor is 1,050,000, between the two. That routes a 100,000-edge graph of up to
-9,523 nodes, a 40,000-edge graph of up to 1,523, and the complete graph from 163 nodes. Skewed
+1,012,500), so the floor is 1,080,000: as for the node floors, the smallest measured value at and
+above which every graph won, since nothing between it and those losses was measured. Because it
+routes runs inside the ceiling, the first run on a freshly loaded graph (the cold call, which pays
+the upload) matters too, and it holds there as well: 1.06x to 10.7x at and above the floor. That
+routes a 100,000-edge graph of up to 9,259 nodes, a 40,000-edge graph of up to 1,481, and the
+complete graph from 164 nodes. Skewed
 graphs win below it (R-MAT 1.5x to 2x at 220,000 to 374,000); the floor leaves them on the CPU
 port, a few milliseconds not saved rather than a slower run. Only the edge and node counts are
 read, so the degree distribution is not needed. Rows from 170,000 up, ratios per sweep:

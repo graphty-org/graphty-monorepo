@@ -515,7 +515,7 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
  * consumer has not set `acceleration.minNodes` and not under `acceleration="required"`.
  *
  * The triangle count is the one capability it serves (the clustering coefficient runs on it). Its
- * device call costs 6 to 10 ms almost whatever the graph inside the element's ceiling, while the
+ * device call costs 6 to 15 ms almost whatever the graph inside the element's ceiling, while the
  * CPU port's cost grows with the edges and with how many neighbors each node has to intersect,
  * so a node floor had to sit above the 50,000-node ceiling to keep sparse graphs off the device
  * (two edges a node at 50,000 nodes is a toss-up, 0.92x to 1.30x) and so kept dense graphs that
@@ -526,8 +526,11 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
  * 20, 25, 30, 40, 60 and 100 edges a node from 300 to 50,000 nodes, at most 100,000 edges, plus
  * two R-MAT (skewed-degree) shapes; medians of 15 rounds (9 above 20,000 nodes), seven sweeps.
  * Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x); just below, around
- * 1,000,000, graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.98x at 1,012,500),
- * so the floor sits between the two. Neither the edge count alone (two edges a node lose at
+ * 1,000,000, graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.98x at 1,012,500).
+ * The floor is 1,080,000, the smallest measured value at and above which every graph won, the
+ * rule the node floors follow; nothing between it and the losses was measured. Unlike the node
+ * floors this one routes runs inside the ceiling, so it also had to hold for the first run on a
+ * freshly loaded graph, which pays the upload: it does (1.06x to 10.7x at and above it). Neither the edge count alone (two edges a node lose at
  * 100,000 edges, twenty win at 60,000) nor a wedge count from the degrees separates the wins from
  * the losses. Skewed-degree graphs win below the floor (1.5x to 2x around 220,000 to 370,000);
  * the floor leaves those on the CPU port, which is a few milliseconds lost, never a slower run.
@@ -536,7 +539,7 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
  */
 export const ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
     Object.freeze({
-        triangleCount: 1_050_000,
+        triangleCount: 1_080_000,
     });
 
 /** Where and when the edge floors above were measured, as the plan's reason quotes it. */

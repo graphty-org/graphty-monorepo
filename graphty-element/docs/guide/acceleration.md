@@ -171,8 +171,8 @@ on the device on purpose.
 
 `clustering-coefficient` is floored on its edges rather than its nodes, because what it costs on
 the CPU is the edges and how many neighbors each node has, not the node count. It is accelerated
-when the edges times the edges per node (edges squared over nodes) reach 1,050,000: 100,000
-edges on 9,523 nodes or fewer, 40,000 edges on 1,523 nodes or fewer, every pair of 163 nodes
+when the edges times the edges per node (edges squared over nodes) reach 1,080,000: 100,000
+edges on 9,259 nodes or fewer, 40,000 edges on 1,481 nodes or fewer, every pair of 164 nodes
 joined. A sparse graph stays on the CPU at any size the element holds -- two edges a node on
 50,000 nodes was no faster on the device, losing in three of seven runs -- and a dense one goes to the device, where it was measured 1.1 to 9 times
 faster.

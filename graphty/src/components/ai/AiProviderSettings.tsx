@@ -246,7 +246,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
     const [openProvider, setOpenProvider] = useState<ProviderType | null>(() => {
         const connected = AI_PROVIDERS.find((entry) => entry.requiresKey && hasKey(entry.type));
 
-        return (defaultProvider ?? connected?.type) ?? AI_PROVIDERS[0].type;
+        return defaultProvider ?? connected?.type ?? AI_PROVIDERS[0].type;
     });
 
     /* What is typed but not yet committed. A provider with no entry here is showing
@@ -342,29 +342,15 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
     );
 
     /**
-     * Turns remembering on or off.
-     *
-     * Enabling it re-writes every key the store is already holding, because the
-     * store's `enablePersistence` LOADS what is on disk and does not save what is in
-     * memory -- so a key typed before the box was ticked would be forgotten on
-     * reload, which is the opposite of what ticking the box asked for.
+     * Turns remembering on or off. Enabling it saves the keys already held too:
+     * graphty-element's `enablePersistence` writes what is in memory.
      * @param next - whether keys should be remembered.
      */
     const handleRememberChange = (next: boolean): void => {
-        if (!next) {
+        if (next) {
+            onEnablePersistence();
+        } else {
             onDisablePersistence(false);
-
-            return;
-        }
-
-        onEnablePersistence();
-
-        for (const entry of AI_PROVIDERS) {
-            const key = keyFor(entry.type).trim();
-
-            if (entry.requiresKey && key !== "") {
-                setKey(entry.type, key);
-            }
         }
     };
 
@@ -471,7 +457,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                             color: PANEL_INK.CHROME,
                                         }}
                                     >
-                                        <UiGlyph name={open ? "chevronDown" : "chevronRight"} size={PANEL_GRID.CHEVRON} />
+                                        <UiGlyph
+                                            name={open ? "chevronDown" : "chevronRight"}
+                                            size={PANEL_GRID.CHEVRON}
+                                        />
                                     </Box>
                                 )}
                                 <Box component="span" style={{ fontWeight: 500 }}>
@@ -564,11 +553,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                         autoComplete="off"
                                         data-1p-ignore
                                         data-lpignore="true"
-                                        /* Mantine's reveal control ships with no name at all, and
-                                           an icon-only control must have one. It keeps ONE name in
-                                           both states, which is the register's own convention for
-                                           a toggle ("a toggle never renames itself"), and it is
-                                           the name the artboard draws (Settings.dc.html:820). */
+                                        /* compact-mantine names the reveal toggle "Show the
+                                           password"; this field says "key" on purpose, because
+                                           that is the name the artboard draws
+                                           (Settings.dc.html:820). */
                                         visibilityToggleButtonProps={{
                                             "aria-label": "Show the key",
                                             title: "Show the key",
@@ -726,8 +714,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                         component="span"
                         style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}
                     >
-                        Keys are encrypted and stored in this browser only. They are sent to the provider you choose
-                        and nowhere else.
+                        Keys are encrypted and stored in this browser only. They are sent to the provider you choose and
+                        nowhere else.
                     </Box>
                 </Box>
             </Box>

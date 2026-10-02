@@ -14,7 +14,7 @@
  */
 
 import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { baseName, splitCommands } from "../lib/shellwords.mjs";
 import { checkOutgoing } from "../lib/text.mjs";
@@ -282,6 +282,13 @@ function check(input, config) {
         const file = params.file_path ?? params.notebook_path;
         if (typeof file !== "string") throw new Error(`${tool} input without a file path`);
         const rel = relative(config.root, resolve(cwd, file));
+        // The file tools are not sandboxed: outside the working tree they could reach githerd's
+        // state, the main checkout's git config or the owner's settings.
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+            deny(`${tool} ${file}: runs edit only files inside their working tree`);
+        }
+        // git and its hooks run with the daemon's privileges as well as the run's.
+        if (isProtected(rel, [".git", ".git/", ".husky/"])) deny(`${tool} ${rel}: runs never edit git or hook files`);
         if (isProtected(rel, config.protectedPaths)) deny(`${tool} ${rel}: protected paths are never edited by runs`);
     }
 }

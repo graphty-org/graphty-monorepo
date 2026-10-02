@@ -311,6 +311,28 @@ describe("guard: Edit and Write", () => {
         }
     });
 
+    it.each([
+        ["a relative path out of the tree", "../../.githerd/runs/x/guard.json"],
+        ["the main checkout's git config", "/abs/root/.git/config"],
+        ["the owner's settings", "/home/x/.claude/settings.json"],
+    ])("denies Edit and Write to %s", (_, file) => {
+        for (const tool of ["Edit", "Write"]) {
+            const r = guard(plain, { tool_name: tool, tool_input: { file_path: file, content: "x" } });
+            expect(r.status, `${tool} ${file}`).toBe(2);
+            expect(r.stderr).toMatch(/inside their working tree/);
+        }
+    });
+
+    it("denies Edit and Write to the tree's .git and .husky/", () => {
+        for (const file of [".git", ".git/config", ".husky/_/reference-transaction", ".husky/pre-push"]) {
+            const r = guard(plain, { tool_name: "Write", tool_input: { file_path: join(plain.root, file), content: "x" } });
+            expect(r.status, file).toBe(2);
+            expect(r.stderr).toMatch(/git or hook files/);
+        }
+        const ok = guard(plain, { tool_name: "Write", tool_input: { file_path: join(plain.root, ".gitignore") } });
+        expect(ok.status).toBe(0);
+    });
+
     it("allows tools it does not guard", () => {
         expect(
             guard(plain, { tool_name: "Read", tool_input: { file_path: join(plain.root, "CLAUDE.md") } }).status,

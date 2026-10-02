@@ -166,10 +166,12 @@ function prData(number, pr, trusted, full) {
         stuck: pr.stuck ?? [],
     };
     if (full) {
+        // A fork's own workflow names its checks, so an untrusted PR shows only how many fail.
+        const failing = pr.failingChecks ?? [];
         Object.assign(out, {
             headSha: pr.headSha ?? null,
             required: pr.required ?? {},
-            failingChecks: pr.failingChecks ?? [],
+            ...(trusted.has(pr.author) ? { failingChecks: failing } : { failingCheckCount: failing.length }),
             mergeable: pr.mergeable ?? null,
             breaking: pr.breaking ?? null,
         });
@@ -361,7 +363,8 @@ function statusText(data, now) {
             if (p.required) {
                 const req = Object.entries(p.required).map(([k, v]) => `${k}: ${v}`);
                 lines.push(`    required: ${req.length ? req.join(", ") : "none reported"}`);
-                if (p.failingChecks.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
+                if (p.failingChecks?.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
+                if (p.failingCheckCount) lines.push(`    failing: ${p.failingCheckCount} (names hidden: untrusted author)`);
             }
         }
     }

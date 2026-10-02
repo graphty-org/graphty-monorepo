@@ -42,3 +42,24 @@ Found by `scripts/smoke-runs.sh` (dry-run, real repository, $3 cap):
 - Read-only runs (triage, retriage-candidates) start with the expected tools and the githerd
   server connected, end with a structured result, have no permission denials, and record only
   `would-do` writes.
+
+Plan task 2.1's manual checks, run with a scratch `claude -p` (Claude Code 2.1.287, sonnet, the
+runner's `settings.json` and `--setting-sources project,local`, a scratch repository; $0.34 total;
+`tmp/githerd/blocking-fixes/manual-checks.mjs`):
+
+1. **`--settings` with `--setting-sources project,local` loads the guard, and it fires.** A Write
+   to a protected `CLAUDE.md` and the Bash command `gh --version` were both denied by the guard,
+   recorded in `denials.jsonl` and reported in the result's `permission_denials`.
+2. **The repository's CLAUDE.md loads into a run, and so does the owner's global
+   `~/.claude/CLAUDE.md`.** `--setting-sources` limits settings files, not memory files: the run
+   quoted a codeword from the scratch repository's CLAUDE.md and knew text that exists only in the
+   owner's global CLAUDE.md. Both tell sessions to end with "ACTION NEEDED"; the preamble's ban on
+   that line is what keeps runs from doing it, and a run's reply is never shown to the owner.
+3. **Pending:** the sandbox checks need bubblewrap and socat (see above).
+4. **Pending:** whether `timeout 30 git commit -S` finishes within 10 seconds from a run spawned by
+   the servherd-managed daemon. It matters only for code-editing kinds, which are off until the
+   sandbox exists; run it then.
+5. **No Co-Authored-By line in a run's commit.** Asked to commit with a message of its own, the run
+   wrote `docs: add line two to notes.txt` and no trailer. The owner's global CLAUDE.md, which also
+   forbids the trailer, was loaded, so this does not isolate the attribution setting; the actor's
+   push check refuses any such line either way.

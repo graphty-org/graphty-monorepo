@@ -239,6 +239,38 @@ describe("camera doors", () => {
         );
     }
 
+    for (const mode of ["3d", "2d"] as const) {
+        it(
+            `zoomToNodes frames a single node on the ${mode} camera, with the camera still in front of it`,
+            async () => {
+                const graph = await loadedGraph(mode);
+                const node = graph.getNode("n1");
+                assert.isDefined(node);
+                const at = node.getPosition();
+                await graph.zoomToNodes("n1");
+                const state = graph.getCameraState();
+                if (mode === "2d") {
+                    assert.isTrue(Number.isFinite(state.zoom), `2d: zoom ${state.zoom} is a number`);
+                    assert.approximately(state.pan?.x ?? Number.NaN, at.x, TOLERANCE, "2d: centred on x");
+                    assert.approximately(state.pan?.y ?? Number.NaN, at.y, TOLERANCE, "2d: centred on y");
+                    return;
+                }
+
+                const { position, target } = state;
+                assert.isDefined(position);
+                assert.isDefined(target);
+                for (const axis of ["x", "y", "z"] as const) {
+                    assert.approximately(target[axis], at[axis], TOLERANCE, `3d: target.${axis}`);
+                }
+
+                const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+                assert.isAbove(distance, 0, "3d: the camera stands back from the node");
+                assert.isTrue(Number.isFinite(distance), "3d: the distance is a number");
+            },
+            TEST_TIMEOUT_MS,
+        );
+    }
+
     it(
         "zoomToNodes with no node it knows leaves the camera where it is",
         async () => {

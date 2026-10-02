@@ -5460,7 +5460,7 @@ export class Graph implements GraphContext {
      * Works the same in 2D and 3D -- it is the `fitToGraph` view measured over these nodes only.
      * Ids that name no node are skipped; when none of them names a node the camera does not
      * move. The camera is view state, so this is not an undoable step.
-     * @param nodeIds - The nodes to frame.
+     * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
@@ -5470,12 +5470,14 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToNodes(
-        nodeIds: Iterable<string | number>,
+        nodeIds: (string | number) | readonly (string | number)[],
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         // Each id is looked up the way getNode looks it up, so either spelling of an integer id
         // frames the node, and the scope is handed the ids the graph itself holds.
-        const nodes = [...nodeIds].flatMap((id) => this.getNode(id)?.id ?? []);
+        // A lone id is not iterated: a string is iterable, and its characters name no node.
+        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
         if (nodes.length === 0) {
             return undefined;
         }

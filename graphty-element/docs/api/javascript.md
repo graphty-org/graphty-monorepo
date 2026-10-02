@@ -67,15 +67,15 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 
 ### Camera Control
 
-| Method                            | Parameters                                             | Returns         | Description             |
-| --------------------------------- | ------------------------------------------------------ | --------------- | ----------------------- |
-| `zoomToFit()`                     | -                                                      | `void`          | Fit all nodes in view   |
-| `zoomToNodes(ids, options?)`      | `Iterable<string \| number>`, `CameraAnimationOptions` | `Promise<void>` | Fit these nodes in view |
-| `zoomStep(direction, options?)`   | `"in" \| "out"`, `CameraAnimationOptions`              | `Promise<void>` | One zoom step in or out |
-| `getCameraState()`                | -                                                      | `CameraState`   | Get camera state        |
-| `setCameraState(state, options?)` | `CameraState`, `CameraAnimationOptions`                | `Promise<void>` | Set camera state        |
-| `setCameraPosition(pos)`          | `{x, y, z}`                                            | `void`          | Set camera position     |
-| `setCameraTarget(target)`         | `{x, y, z}`                                            | `void`          | Set camera target       |
+| Method                            | Parameters                                                           | Returns         | Description             |
+| --------------------------------- | -------------------------------------------------------------------- | --------------- | ----------------------- |
+| `zoomToFit()`                     | -                                                                    | `void`          | Fit all nodes in view   |
+| `zoomToNodes(ids, options?)`      | `string \| number \| (string \| number)[]`, `CameraAnimationOptions` | `Promise<void>` | Fit these nodes in view |
+| `zoomStep(direction, options?)`   | `"in" \| "out"`, `CameraAnimationOptions`                            | `Promise<void>` | One zoom step in or out |
+| `getCameraState()`                | -                                                                    | `CameraState`   | Get camera state        |
+| `setCameraState(state, options?)` | `CameraState`, `CameraAnimationOptions`                              | `Promise<void>` | Set camera state        |
+| `setCameraPosition(pos)`          | `{x, y, z}`                                                          | `void`          | Set camera position     |
+| `setCameraTarget(target)`         | `{x, y, z}`                                                          | `void`          | Set camera target       |
 
 ### Styling
 

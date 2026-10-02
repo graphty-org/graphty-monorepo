@@ -2236,7 +2236,7 @@ export class Graphty extends LitElement {
      *
      * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
      * node the camera does not move. The camera is view state, so this is not an undoable step.
-     * @param nodeIds - The nodes to frame.
+     * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
@@ -2246,7 +2246,7 @@ export class Graphty extends LitElement {
      * ```
      */
     async zoomToNodes(
-        nodeIds: Iterable<string | number>,
+        nodeIds: (string | number) | readonly (string | number)[],
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.zoomToNodes(nodeIds, options);

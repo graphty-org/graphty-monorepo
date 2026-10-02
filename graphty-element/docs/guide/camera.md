@@ -62,7 +62,7 @@ await graph.zoomStep("out");
 
 ### Zoom to Nodes
 
-Frame some of the nodes, in 2D or 3D. Ids that name no node are skipped, and when none of them
+Frame one node or several, in 2D or 3D. Ids that name no node are skipped, and when none of them
 names a node the camera stays where it is:
 
 ```typescript
@@ -228,7 +228,7 @@ graph.on("camera-state-changed", ({ state }) => {
 Animate the camera to frame a single node:
 
 ```typescript
-await graph.zoomToNodes([nodeId], { animate: true, duration: 500 });
+await graph.zoomToNodes(nodeId, { animate: true, duration: 500 });
 ```
 
 ## Orbit Animation

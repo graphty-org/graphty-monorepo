@@ -581,6 +581,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
                 "onGraphSettled",
                 "onSkyboxLoaded",
                 "xr",
+                "positionScale",
             ].includes(arg)
         ) {
             deepSet(setup, name, value);
@@ -598,6 +599,11 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         if (typeof value === "string") {
             g[property] = value;
         }
+    }
+
+    // How a file's saved coordinates map to scene units, also read as the rows arrive.
+    if (typeof args.positionScale === "number") {
+        g.positionScale = args.positionScale;
     }
 
     // Now add data - this will trigger data-add, which runs the algorithms the setup named

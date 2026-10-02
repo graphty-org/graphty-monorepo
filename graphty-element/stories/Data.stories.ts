@@ -4,6 +4,12 @@ import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import cxUrl from "../../graph-io/test/conformance/fixtures/cx/ndex/WP4742-ketogenesis.cx?url";
+import cx2Url from "../../graph-io/test/conformance/fixtures/cx2/ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2?url";
+import cysUrl from "../../graph-io/test/conformance/fixtures/cys/tutorials/galFiltered.cys?url";
+import oboGraphsUrl from "../../graph-io/test/conformance/fixtures/json/obographs/goslim_generic.json?url";
+import oboUrl from "../../graph-io/test/conformance/fixtures/obo/go/goslim_generic.obo?url";
+import xgmmlUrl from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?url";
 import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
 import {
     edgeData,
@@ -49,14 +55,22 @@ type Story = StoryObj<StoryArgs>;
  * @param story - Which importer this is, for the failure message.
  * @param nodes - The nodes the story's document declares.
  * @param edges - The edges it declares.
+ * @param distinct - Whether every node must sit at its own place; false for a saved drawing that
+ *     puts two nodes at one point.
  */
-const imported = async (canvasElement: HTMLElement, story: string, nodes: number, edges: number): Promise<void> => {
+const imported = async (
+    canvasElement: HTMLElement,
+    story: string,
+    nodes: number,
+    edges: number,
+    distinct = nodes > 1 && edges > 0,
+): Promise<void> => {
     await waitForGraphSettled(canvasElement);
 
     const scene = await drawn(canvasElement, `Data ${story}`);
 
     await assertGraphLoaded(scene, { nodes, edges });
-    await assertLayoutPlaced(scene, { distinct: nodes > 1 && edges > 0 });
+    await assertLayoutPlaced(scene, { distinct });
 };
 
 export const Basic: Story = {
@@ -1112,5 +1126,98 @@ export const GraphMLYFiles: Story = {
     },
     play: async ({ canvasElement }) => {
         await imported(canvasElement, "GraphMLYFiles", 6, 6);
+    },
+};
+
+/*
+ * The Cytoscape formats and OBO. Each story loads a real file, committed with graph-io's
+ * conformance fixtures under a license that allows it (graph-io/test/conformance/sources.md
+ * gives each file's origin, license and checksum), and checks the counts graph-io's independent
+ * oracles agree on. A file that holds a saved drawing is shown with the `fixed` layout, so the
+ * story draws the network as Cytoscape saved it, the right way up.
+ */
+
+// XGMML: an EFI-EST sequence similarity network (MIT, allie-walker/Natural-product-function)
+export const Xgmml: Story = {
+    args: {
+        dataSource: "xgmml",
+        dataSourceConfig: { url: xgmmlUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Xgmml", 105, 221);
+    },
+};
+
+// CX2: WikiPathways WP615, senescence and autophagy (CC0, NDEx 72288e93), in its saved drawing
+export const Cx2: Story = {
+    args: {
+        dataSource: "cx2",
+        dataSourceConfig: { url: cx2Url },
+        layout: "fixed",
+        // a pathway drawing is only a few hundred pixels across, so it is spread out further
+        positionScale: 0.06,
+    },
+    play: async ({ canvasElement }) => {
+        // the saved WikiPathways drawing puts eight anchor nodes exactly on the nodes they join
+        await imported(canvasElement, "Cx2", 161, 118, false);
+    },
+};
+
+// CX version 1: WikiPathways WP4742, ketogenesis and ketolysis (CC0, NDEx cc593864)
+export const Cx: Story = {
+    args: {
+        dataSource: "cx",
+        dataSourceConfig: { url: cxUrl },
+        layout: "fixed",
+        // a pathway drawing is only a few hundred pixels across, so it is spread out further
+        positionScale: 0.06,
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Cx", 58, 48);
+    },
+};
+
+// A Cytoscape session: galFiltered.cys, the yeast galactose network (CC0, cytoscape-tutorials)
+export const CytoscapeSession: Story = {
+    args: {
+        dataSource: "cys",
+        dataSourceConfig: { url: cysUrl },
+        layout: "fixed",
+        // Cytoscape saves coordinates in pixels; one scene unit per fifty pixels fits nodes of size one
+        positionScale: 0.02,
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "CytoscapeSession", 331, 362);
+    },
+};
+
+// OBO: the generic GO slim (CC BY 4.0, the Gene Ontology Consortium, release 2026-07-26)
+export const Obo: Story = {
+    args: {
+        dataSource: "obo",
+        dataSourceConfig: { url: oboUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Obo", 140, 64);
+    },
+};
+
+// OBO Graphs JSON: the same GO slim as JSON, read by the json format (CC BY 4.0, GO Consortium)
+export const JsonOntology: Story = {
+    args: {
+        dataSource: "json",
+        dataSourceConfig: { url: oboGraphsUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "JsonOntology", 140, 64);
     },
 };

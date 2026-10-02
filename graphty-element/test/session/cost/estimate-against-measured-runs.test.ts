@@ -270,7 +270,12 @@ const louvainRun = onSnapshot("undirected", (s) =>
 const ROWS: readonly Row[] = [
     {
         key: "degree",
-        sizes: [50_000, 100_000],
+        // Large enough that one run takes the 0.05 s or more the file header asks for (15 to 30 ms
+        // here, about twice that on CI). At 50,000 and 100,000 nodes a run took 1 to 9 ms: the same
+        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, as V8's young
+        // generation met the two objects built per node, and 6 ms on one CI runner, a ratio of 0.72
+        // where every other row held.
+        sizes: [400_000, 800_000],
         run: (data, nodes) => {
             // Each edge's source and target counted off the snapshot's edge list, as the degree
             // adapter does.

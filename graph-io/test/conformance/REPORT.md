@@ -72,7 +72,7 @@ rest of the format's expectations does something else.
 - obo (spec): fastobo requires a scope on every synonym (1.4 BNF); 1.2 makes it optional and this file says 1.2 (1 file)
 - obo (spec): fastobo rejects the file (2 files)
 - obo (spec): fastobo rejects a file whose last line has no line end (1 file)
-- obo (spec): fastobo, ROBOT, pronto and obonet reject the file; the guides say unrecognized frames must survive, so the frame is skipped with a warning rather than the file refused (1 file)
+- obo (spec): fastobo, ROBOT, pronto and obonet reject the file; the guides say unrecognized frames must survive, so the frame is kept as metadata with a warning rather than the file refused (1 file)
 - obo (spec): fastobo rejects an unknown tag; the 1.2 and 1.4 guides say an unknown tag is never fatal (RECORD / WARN_AND_RECORD), and ROBOT and obonet read it (1 file)
 - obo (spec): fastobo requires quoted qualifier values (1.4 BNF); the 1.2 guide's own examples are unquoted, and ROBOT reads them (1 file)
 - obo (spec): fastobo rejects the file; ROBOT reads it (1 file)

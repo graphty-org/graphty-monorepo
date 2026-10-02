@@ -362,8 +362,11 @@ class OboReader {
 
     private readonly tallies = new Map<string, Tally>();
 
-    /** The frame being read: its kind (null for an unknown frame, skipped) and clauses. */
-    private frame: { kind: FrameKind | null; line: number; clauses: Clause[] } | null = null;
+    /** The frame being read: its kind (null for an unknown frame type), name and clauses. */
+    private frame: { kind: FrameKind | null; name: string; line: number; clauses: Clause[] } | null = null;
+
+    /** The frames of an unknown type, raw, for `meta.extra.obo.unknownFrames`. */
+    readonly unknownFrames: { type: string; clauses: Record<string, string[]> }[] = [];
 
     private framesSinceCheck = 0;
 
@@ -407,7 +410,7 @@ class OboReader {
         const clause: Clause = { tag: tv.tag, value: stripComment(tv.rest), line };
         if (this.frame === null) {
             this.headerClause(clause);
-        } else if (this.frame.kind !== null) {
+        } else {
             this.frame.clauses.push(clause);
         }
     }
@@ -424,12 +427,12 @@ class OboReader {
             this.tally(
                 "validation-error",
                 OBO_ISSUE.UNKNOWN_ELEMENT,
-                "frames of an unknown type were skipped",
+                "frames of an unknown type are not nodes; kept in meta.extra.obo.unknownFrames",
                 `[${name}]`,
                 line,
             );
         }
-        this.frame = { kind, line, clauses: [] };
+        this.frame = { kind, name, line, clauses: [] };
     }
 
     /**
@@ -470,7 +473,16 @@ class OboReader {
     finishFrame(): void {
         const { frame } = this;
         this.frame = null;
-        if (frame === null || frame.kind === null) {
+        if (frame === null) {
+            return;
+        }
+        if (frame.kind === null) {
+            // the guides: an unrecognized frame must survive, so its clauses are kept, raw
+            const clauses: Record<string, string[]> = {};
+            for (const clause of frame.clauses) {
+                (clauses[clause.tag] ??= []).push(clause.value);
+            }
+            this.unknownFrames.push({ type: frame.name, clauses });
             return;
         }
         if (++this.framesSinceCheck >= ABORT_CHECK_INTERVAL) {
@@ -1621,7 +1633,11 @@ export const oboImporter: GraphImporter<OboImportOptions> = Object.freeze({
         for (const [id, record] of reader.typedefs) {
             typedefs[id] = record.raw;
         }
-        sink.setMeta({ ...reader.meta(), extra: { obo: { header: reader.headerRecord(), typedefs } } });
+        const extra: Record<string, unknown> = { header: reader.headerRecord(), typedefs };
+        if (reader.unknownFrames.length > 0) {
+            extra.unknownFrames = reader.unknownFrames;
+        }
+        sink.setMeta({ ...reader.meta(), extra: { obo: extra } });
         throwIfAborted(resolved.signal);
         return report.finish();
     },

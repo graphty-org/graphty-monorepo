@@ -527,6 +527,12 @@ describe("oboImporter: errors and warnings (research 6, design 4.3)", () => {
             OBO_ISSUE.UNKNOWN_ELEMENT,
         ]);
         expect(report.issues.map((i) => i.element)).toEqual(["foo_bar", "format-version", "[Annotation]"]);
+        expect(snapshot.meta.extra.obo).toMatchObject({
+            unknownFrames: [
+                { type: "Annotation", clauses: { id: ["A:1"], name: ["skipped"] } },
+                { type: "Annotation", clauses: { id: ["A:2"] } },
+            ],
+        });
     });
 
     it("keeps an unknown header tag silently (the BNF allows it)", async () => {

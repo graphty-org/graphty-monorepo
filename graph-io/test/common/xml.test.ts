@@ -284,3 +284,64 @@ describe("helpers", () => {
         expect(localName("node")).toBe("node");
     });
 });
+
+describe("repair hooks (off unless asked for; XGMML only)", () => {
+    async function repaired(
+        text: string,
+        chunkLength = text.length,
+    ): Promise<{ events: Event[]; ampersands: number[]; pairs: number[] }> {
+        const { events, handler } = recorder();
+        const ampersands: number[] = [];
+        const pairs: number[] = [];
+        await tokenizeXml(textChunksOf(text, chunkLength), handler, {
+            bareAmpersand: (line) => ampersands.push(line),
+            surrogatePair: (line) => pairs.push(line),
+        });
+        return { events, ampersands, pairs };
+    }
+
+    it("reads an & with no ; in the next 7 characters as &amp;, in attributes and text, per occurrence", async () => {
+        const doc = '<a x="&ABC" y="CDE&">\nR&D and &amp; &lt;</a>';
+        for (const size of [doc.length, 3, 1]) {
+            const { events, ampersands } = await repaired(doc, size);
+            expect(events[0]).toEqual(["start", "a", { x: "&ABC", y: "CDE&" }, 1]);
+            expect(events[1]).toEqual(["text", "\nR&D and & <", 1]);
+            expect(ampersands).toEqual([1, 1, 2]);
+        }
+    });
+
+    it("still rejects an unknown entity that does end in ; within 7 characters", async () => {
+        const { handler } = recorder();
+        await expect(
+            tokenizeXml(textChunksOf("<a>&nbsp;</a>", 13), handler, { bareAmpersand: () => undefined }),
+        ).rejects.toThrow(/unknown entity &nbsp;/);
+    });
+
+    it("joins two surrogate character references into one character, per pair", async () => {
+        const { events, pairs } = await repaired('<a v="&#xd83d;&#xde00;">&#55357;&#56832;</a>', 4);
+        const smile = String.fromCodePoint(0x1f600);
+        expect(events[0]).toEqual(["start", "a", { v: smile }, 1]);
+        expect(events[1]).toEqual(["text", smile, 1]);
+        expect(pairs).toEqual([1, 1]);
+    });
+
+    it("keeps a lone surrogate reference and a control character reference fatal", async () => {
+        const { handler } = recorder();
+        const hooks = { surrogatePair: (): void => undefined };
+        await expect(tokenizeXml(textChunksOf("<a>&#xd83d;x</a>", 16), handler, hooks)).rejects.toThrow(
+            /invalid character reference/,
+        );
+        await expect(tokenizeXml(textChunksOf("<a>&#xde00;</a>", 16), handler, hooks)).rejects.toThrow(
+            /invalid character reference/,
+        );
+        await expect(tokenizeXml(textChunksOf("<a>&#x1;</a>", 16), handler, hooks)).rejects.toThrow(
+            /invalid character reference/,
+        );
+    });
+
+    it("changes nothing without the hooks", async () => {
+        expect((await failure('<a x="&ABC"/>')).message).toMatch(/unterminated entity|unknown entity/);
+        expect((await failure("<a>&#xd83d;&#xde00;</a>")).message).toMatch(/invalid character reference/);
+        expect(decodeEntities("&amp;", 1)).toBe("&");
+    });
+});

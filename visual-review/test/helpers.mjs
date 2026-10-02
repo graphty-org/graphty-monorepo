@@ -218,6 +218,10 @@ export function fakeGh({
             posted.push({ path, body: JSON.parse(args.length > 2 ? (input ?? "{}") : "{}") });
             return "{}";
         }
+        if (path === "repos/{owner}/{repo}/pulls") {
+            posted.push({ path, body: JSON.parse(input ?? "{}") });
+            return JSON.stringify({ html_url: "https://gh/pull/650", number: 650 });
+        }
         if (args[0] === "run" && args[1] === "download") {
             const name = args[4];
             const project = /^visual-(.+)-\d+$/.exec(name)[1];

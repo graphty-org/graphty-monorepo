@@ -684,6 +684,25 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.
+- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
+  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
+  only when its items take each file from master's contents to the pull request's. Agents never
+  edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
+  `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
+  register a passkey; never merge a pull request past a failing gate; and never call the page's
+  passkey, register, Finish or finish-prepare routes. Only the owner registers keys and approves.
+- CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
+  request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
+  exercised by the pull request after it; test it with the package's own tests.
+- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
+  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+  `parameters.chromatic` instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
+  above it.
+- A gate line about a missing or invalid approval is fixed only by the owner reviewing again
+  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
+  record.
+- Never create a passkey or a virtual authenticator against a real review server; Chromium's
+  virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the

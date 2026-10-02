@@ -328,7 +328,7 @@ read-only and escalates. An older schema is migrated forward after writing
   "incidents": { "inc-20261002-1": { /* 5.4 */ } },
   "prs": { "519": { /* 5.2 */ } },
   "issues": { "since": "2026-10-02T16:10:00Z", "byNumber": { "643": { /* 5.2 */ } } },
-  "merged": { "lastScanAt": "...", "pendingPaths": { "graphty-element/src/Edge.ts": [718] } },
+  "merged": { "lastScanAt": "...", "pendingPaths": { "graphty-element/src/Edge.ts": [718] }, "closed": [712] },
   "sessions": { "githerd-2463873": { "cwd": "...", "branch": "feat/githerd", "lastSeen": "...",
                                      "doing": "...", "targets": ["pr:704"] } },
   "claims": { "pr:704": { /* 5.3 */ } },

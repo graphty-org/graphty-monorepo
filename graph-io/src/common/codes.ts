@@ -108,6 +108,64 @@ export const BAD_OPTIONS_CODE = "W_BAD_OPTIONS";
 /** A repeated edge id in a format whose edge ids are unique; the second edge is skipped. */
 export const DUPLICATE_EDGE_ID_CODE = "E_DUPLICATE_EDGE_ID";
 
+/** A value does not parse as its declared type; the cell is left unset. */
+export const BAD_VALUE_CODE = "E_BAD_VALUE";
+
+/**
+ * A column's dtype was widened (design section 5.1) because a later value did not fit: an i32
+ * column meeting a value above 2^31, two declared types for one attribute.
+ */
+export const WIDENED_CODE = "W_WIDENED";
+
+/**
+ * A reference that is not a containment link (an attribute's element id, a layout or bypass
+ * entry, a subnetwork member, a view's network, an undeclared target) names nothing; reported
+ * once per kind with the count.
+ */
+export const DANGLING_REFERENCE_CODE = "W_DANGLING_REFERENCE";
+
+/** The same attribute twice on one element; one value is kept (the later, unless the format's specification says the first). */
+export const DUPLICATE_ATTRIBUTE_CODE = "W_DUPLICATE_ATTRIBUTE";
+
+/** A containment link would close a parent cycle; that one link is dropped. */
+export const PARENT_CYCLE_CODE = "E_PARENT_CYCLE";
+
+/** A formula (Cytoscape's `=ABS($x)`) is kept as its text; it is never evaluated. */
+export const EQUATION_AS_TEXT_CODE = "W_EQUATION_AS_TEXT";
+
+/**
+ * The file's style rules (defaults, mappings, dependencies, visual property aspects) are not
+ * applied to the snapshot; recorded once per import, the message names what was not applied.
+ */
+export const STYLES_NOT_IMPORTED_CODE = "W_STYLES_NOT_IMPORTED";
+
+/** A CX array member that is not a one-key object holding an array or an object; the block is skipped. */
+export const BAD_ASPECT_BLOCK_CODE = "E_BAD_ASPECT_BLOCK";
+
+/** A CX aspect out of its place (after the post-metadata, a status that is not last, a block buffered for what it depends on). */
+export const ASPECT_ORDER_CODE = "W_ASPECT_ORDER";
+
+/** A declared element count disagrees with what was read. */
+export const COUNT_MISMATCH_CODE = "W_COUNT_MISMATCH";
+
+/** The producer marked the document as failed (CX `status.success: false`): it is incomplete (fatal). */
+export const STATUS_FAILED_CODE = "E_STATUS_FAILED";
+
+/** The producer marked the document as successful but attached an error text. */
+export const STATUS_WARNING_CODE = "W_STATUS_WARNING";
+
+/**
+ * The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than
+ * one string); the same string as graph-format's E_TOO_LARGE, recorded with category "unsupported".
+ */
+export const TOO_LARGE_CODE = "E_TOO_LARGE";
+
+/** `graphIndex` is beyond the graphs of the input, or `graphName` names none of them (fatal). */
+export const GRAPH_NOT_FOUND_CODE = "E_GRAPH_NOT_FOUND";
+
+/** `graphName` names more than one graph of the input; the message lists their indexes (fatal). */
+export const AMBIGUOUS_GRAPH_NAME_CODE = "E_AMBIGUOUS_GRAPH_NAME";
+
 // ============================================================ exporter loss notes
 
 /** A role column the format has no slot for is written as a plain attribute (the role is lost). */

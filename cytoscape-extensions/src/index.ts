@@ -1,14 +1,14 @@
 /**
- * The Cytoscape.js adapter (package "@graphty/cytoscape"): graphty layouts and algorithms as Cytoscape.js extensions.
+ * The Cytoscape.js adapter (package "@graphty/cytoscape-extensions"): graphty layouts and algorithms as Cytoscape.js extensions.
  *
  * ```ts
  * import cytoscape from "cytoscape";
- * import graphtyCytoscape from "@graphty/cytoscape";
+ * import graphtyCytoscape from "@graphty/cytoscape-extensions";
  * cytoscape.use(graphtyCytoscape);
  * cy.layout({ name: "graphty-forceatlas2" }).run();
  * cy.elements().graphtyPageRank().rank("#a");
  *
- * import "@graphty/cytoscape/webgpu"; // optional: the ...Async methods and the simulations then use WebGPU
+ * import "@graphty/cytoscape-extensions/webgpu"; // optional: the ...Async methods and the simulations then use WebGPU
  * const r = await cy.elements().graphtyPageRankAsync();
  * r.backend.ran; // "gpu" or "cpu", with r.backend.reason saying why
  * ```

@@ -1,6 +1,6 @@
 /**
  * The `...Async` methods and the simulations' GPU decision without a real GPU: the CPU path (no
- * "@graphty/cytoscape/webgpu" import), and the device lifecycle against a fake provider (reuse, loss, destroy,
+ * "@graphty/cytoscape-extensions/webgpu" import), and the device lifecycle against a fake provider (reuse, loss, destroy,
  * release, a refusal, a failure mid-run). The real device is exercised by gpu-device.test.ts.
  */
 
@@ -43,7 +43,7 @@ describe("the CPU path (WebGPU not enabled)", () => {
             };
             expect(r.backend).toEqual({
                 ran: "cpu",
-                reason: 'WebGPU is not enabled: import "@graphty/cytoscape/webgpu" to use it',
+                reason: 'WebGPU is not enabled: import "@graphty/cytoscape-extensions/webgpu" to use it',
                 device: null,
             });
             const want = c.read(method(cy, c.method)(c.options) as never, cy);

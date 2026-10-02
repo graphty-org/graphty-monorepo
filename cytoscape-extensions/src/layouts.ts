@@ -79,7 +79,7 @@ export interface GraphtyLayoutOptions {
     /** Simulations with `animate: true`: iterations per frame. Default 1. */
     readonly refresh?: number;
     /**
-     * Simulations: "auto" (default) runs on the core's GPU when "@graphty/cytoscape/webgpu" is imported and a device
+     * Simulations: "auto" (default) runs on the core's GPU when "@graphty/cytoscape-extensions/webgpu" is imported and a device
      * is available (the run is then asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when
      * `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran.
      */

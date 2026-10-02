@@ -1,5 +1,5 @@
 /**
- * The device provider both "@graphty/cytoscape/webgpu" builds (browser and Node) register: probe, request a
+ * The device provider both "@graphty/cytoscape-extensions/webgpu" builds (browser and Node) register: probe, request a
  * context, check that the device computes correctly, build the accelerator. Everything here happens before any
  * graph work, so a refusal is detection (the CPU runs and the result says why), never a fallback.
  */

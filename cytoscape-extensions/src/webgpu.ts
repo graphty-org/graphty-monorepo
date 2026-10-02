@@ -1,8 +1,8 @@
 /**
- * "@graphty/cytoscape/webgpu" in a browser: importing it is the whole WebGPU integration.
+ * "@graphty/cytoscape-extensions/webgpu" in a browser: importing it is the whole WebGPU integration.
  *
  * ```ts
- * import "@graphty/cytoscape/webgpu";
+ * import "@graphty/cytoscape-extensions/webgpu";
  * const r = await cy.elements().graphtyPageRankAsync();
  * r.backend; // { ran: "gpu", reason: null, device: "nvidia ..." } or { ran: "cpu", reason: "...", device: null }
  * ```

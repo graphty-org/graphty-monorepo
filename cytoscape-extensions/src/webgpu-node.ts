@@ -1,5 +1,5 @@
 /**
- * "@graphty/cytoscape/webgpu" under Node (the package's "node" export condition): the same integration as the
+ * "@graphty/cytoscape-extensions/webgpu" under Node (the package's "node" export condition): the same integration as the
  * browser build, on Dawn through the optional `webgpu` package. Without Dawn the probe declines and every run is
  * on the CPU, saying why.
  */

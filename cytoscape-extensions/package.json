@@ -1,5 +1,5 @@
 {
-    "name": "@graphty/cytoscape",
+    "name": "@graphty/cytoscape-extensions",
     "version": "0.0.0",
     "private": true,
     "description": "Graphty layouts and algorithms as Cytoscape.js extensions, over the @graphty/graph-format snapshot",
@@ -44,12 +44,14 @@
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm run test:run"
     },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
-        "directory": "cytoscape-adapter"
+        "directory": "cytoscape-extensions"
     },
     "keywords": [
         "graph",
@@ -64,7 +66,7 @@
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-adapter#readme",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-extensions#readme",
     "peerDependencies": {
         "@graphty/algorithms": "^3.0.0",
         "@graphty/graph-format": "^1.0.0",
@@ -80,13 +82,18 @@
     "devDependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
+        "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@storybook/addon-docs": "^9.0.11",
+        "@storybook/html-vite": "^9.0.11",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
         "cytoscape": "^3.34.3",
         "eslint": "^9.29.0",
+        "storybook": "^9.0.11",
         "typescript": "^5.9.3",
+        "vite": "^7.0.5",
         "vitest": "catalog:"
     }
 }

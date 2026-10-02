@@ -1,7 +1,7 @@
 {
-    "name": "cytoscape-adapter",
+    "name": "cytoscape-extensions",
     "$schema": "../node_modules/nx/schemas/project-schema.json",
-    "sourceRoot": "cytoscape-adapter/src",
+    "sourceRoot": "cytoscape-extensions/src",
     "projectType": "library",
     "tags": [],
     "targets": {
@@ -10,7 +10,15 @@
             "outputs": ["{projectRoot}/dist"],
             "options": {
                 "command": "npm run build",
-                "cwd": "cytoscape-adapter"
+                "cwd": "cytoscape-extensions"
+            },
+            "dependsOn": ["^build"]
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run build-storybook",
+                "cwd": "cytoscape-extensions"
             },
             "dependsOn": ["^build"]
         },
@@ -18,7 +26,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run test:run",
-                "cwd": "cytoscape-adapter"
+                "cwd": "cytoscape-extensions"
             },
             "dependsOn": ["^build"]
         },
@@ -26,7 +34,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run coverage",
-                "cwd": "cytoscape-adapter"
+                "cwd": "cytoscape-extensions"
             },
             "dependsOn": ["^build"]
         },
@@ -34,7 +42,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run lint",
-                "cwd": "cytoscape-adapter"
+                "cwd": "cytoscape-extensions"
             },
             "dependsOn": ["^build"]
         },
@@ -42,7 +50,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run typecheck",
-                "cwd": "cytoscape-adapter"
+                "cwd": "cytoscape-extensions"
             },
             "dependsOn": ["^build"]
         }

@@ -1,5 +1,5 @@
 /**
- * The `...Async` methods and the simulations on a real WebGPU device, through "@graphty/cytoscape/webgpu" under Node
+ * The `...Async` methods and the simulations on a real WebGPU device, through "@graphty/cytoscape-extensions/webgpu" under Node
  * (Dawn). Every result is compared with the synchronous CPU method within the tolerance the WebGPU package documents
  * for that algorithm.
  *

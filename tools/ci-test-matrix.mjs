@@ -95,11 +95,11 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage",
         "needs-browser": false,
     },
-    // cytoscape-adapter - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist
+    // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist
     {
-        shard: "cytoscape-adapter",
-        package: "cytoscape-adapter",
-        "test-command": "pnpm exec nx run cytoscape-adapter:coverage",
+        shard: "cytoscape-extensions",
+        package: "cytoscape-extensions",
+        "test-command": "pnpm exec nx run cytoscape-extensions:coverage",
         "needs-browser": false,
     },
     // algorithms - two shards (default and browser separated to avoid worker timeout)

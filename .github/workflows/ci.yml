@@ -221,7 +221,7 @@ jobs:
                       graph-samples/dist/
                       algorithms/dist/
                       layout/dist/
-                      cytoscape-adapter/dist/
+                      cytoscape-extensions/dist/
                       graphty/dist/
                       graphty-element/dist/
                       remote-logger/dist/
@@ -480,7 +480,7 @@ jobs:
                   if-no-files-found: ignore
 
             - name: Upload coverage (graph-format/graph-io/graph-samples/algorithms/layout/graphty/remote-logger/compact-mantine)
-              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || matrix.shard == 'cytoscape-adapter' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
+              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || matrix.shard == 'cytoscape-extensions' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

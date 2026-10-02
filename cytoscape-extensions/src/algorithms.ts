@@ -158,7 +158,7 @@ export interface AlgorithmOptions {
     /** Write each element's value (what `score` or `cluster` returns) into `data(field)`. */
     readonly field?: string;
     /**
-     * The `...Async` methods only: "auto" (default) runs on the GPU when "@graphty/cytoscape/webgpu" is imported and
+     * The `...Async` methods only: "auto" (default) runs on the GPU when "@graphty/cytoscape-extensions/webgpu" is imported and
      * a device is available, "off" runs on the CPU, "require" throws instead of running on the CPU when no device
      * is available. The synchronous methods always run on the CPU and reject "require".
      */

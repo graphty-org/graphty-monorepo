@@ -1,7 +1,7 @@
 /**
  * WebGPU acceleration: detection, device acquisition, reuse, device-loss recovery and disposal, per Cytoscape core.
  *
- * This module never imports @graphty/webgpu-graph-algorithms. The "@graphty/cytoscape/webgpu" entry imports it and
+ * This module never imports @graphty/webgpu-graph-algorithms. The "@graphty/cytoscape-extensions/webgpu" entry imports it and
  * registers a provider here, so a consumer who never imports that entry never resolves the optional peer and their
  * build works without it. Without a provider every method runs on the CPU and says so.
  *
@@ -50,7 +50,7 @@ export class GpuUnavailableError extends Error {
     }
 }
 
-/** What "@graphty/cytoscape/webgpu" registers: probe, construct and verify a device, or throw GpuUnavailableError. */
+/** What "@graphty/cytoscape-extensions/webgpu" registers: probe, construct and verify a device, or throw GpuUnavailableError. */
 export interface GpuProvider {
     acquire(): Promise<AcquiredGpu>;
 }
@@ -86,10 +86,10 @@ interface CoreGpu {
 let provider: GpuProvider | null = null;
 const cores = new WeakMap<Core, CoreGpu>();
 
-const NOT_ENABLED = 'WebGPU is not enabled: import "@graphty/cytoscape/webgpu" to use it';
+const NOT_ENABLED = 'WebGPU is not enabled: import "@graphty/cytoscape-extensions/webgpu" to use it';
 
 /**
- * Registers the provider "@graphty/cytoscape/webgpu" builds; each core disposes its device and decides again on
+ * Registers the provider "@graphty/cytoscape-extensions/webgpu" builds; each core disposes its device and decides again on
  * its next call.
  * @param p - the provider, or null to disable WebGPU
  */

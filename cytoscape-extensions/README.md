@@ -1,4 +1,4 @@
-# @graphty/cytoscape
+# @graphty/cytoscape-extensions
 
 Every layout in [@graphty/layout](https://graphty.app/docs/layout/api/generated/) as a
 [Cytoscape.js](https://js.cytoscape.org/) 3.x layout extension (thirteen static layouts and the
@@ -11,7 +11,7 @@ Not published yet (the package is private while its API settles).
 
 ```js
 import cytoscape from "cytoscape";
-import graphtyCytoscape from "@graphty/cytoscape";
+import graphtyCytoscape from "@graphty/cytoscape-extensions";
 
 cytoscape.use(graphtyCytoscape); // registers every "graphty-<name>" layout
 
@@ -171,7 +171,7 @@ WebGPU is optional. Install `@graphty/webgpu-graph-algorithms` (and, under Node,
 package, which is Dawn) and import one more module, once:
 
 ```ts
-import "@graphty/cytoscape/webgpu";
+import "@graphty/cytoscape-extensions/webgpu";
 
 const r = await cy.elements().graphtyPageRankAsync();
 r.rank("#a");
@@ -225,7 +225,7 @@ packages read `tolerance` differently for PageRank (the GPU stops at an L1 chang
 `tolerance` times the node count, the CPU below `tolerance`), so at the same options the GPU
 usually stops sooner.
 
-`enableWebGpu(options)` and `disableWebGpu()` are exported from `@graphty/cytoscape/webgpu`.
+`enableWebGpu(options)` and `disableWebGpu()` are exported from `@graphty/cytoscape-extensions/webgpu`.
 `enableWebGpu` takes `acceptSoftware` and, under Node, `adapter` (a substring of the Dawn adapter
 name, such as `"llvmpipe"`).
 
@@ -240,7 +240,7 @@ graph:
 
 ```js
 import { pageRank } from "@graphty/algorithms";
-import { toSnapshot, writeData } from "@graphty/cytoscape";
+import { toSnapshot, writeData } from "@graphty/cytoscape-extensions";
 
 const { snapshot, nodes } = toSnapshot(cy.elements());
 writeData(nodes, pageRank(snapshot).scores, "rank");

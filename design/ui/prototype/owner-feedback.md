@@ -177,3 +177,9 @@ Owner decisions stated here:
 
 Owner decisions stated here:
 - Before the next user study: a state matrix for the skeleton, a design that holds up with dozens of attributes per node and per edge, and a design for loading nested JSON (paths through several layers of sub-objects and arrays).
+
+## Priorities: the average first-time user first (2026-10-02)
+
+Verbatim: "we should prioritize the tasks that we are giving users -- first time users will need to focus on how to load data (and maybe they need sample data), run algorithms, create styles, add labels, etc. What are the most common needs across all users? what is our typical use case? how should we make sure this is functional for the average user before worrying about specialized features or functionality?"
+
+Applied from round 8: the study's tasks are tiered. Tier 1 is a first-time user's core path, tested from an empty app with no project open: bring in your own file or pick a sample, read what loaded, run an analysis (rank, find groups), color or size by a value, labels from a field, a readable layout, find a node, save a picture and the numbers, save and reopen the project, and one whole first session chained end to end. Tier 2 is common repeat work: filter, shortest chain, notes, several tables, weight at load, rerun on new data. Specialized work (combining sets, comparing results, recipes, very wide data, nested documents, the Assistant, no WebGPU) waits until tier 1 meets its bars. At least 60 percent of sessions go to tier 1, first-time personas take tier 1 first, and the studio's changes go to tier 1 problems until tier 1 passes. A sample-data picker on the start screen is part of tier 1.

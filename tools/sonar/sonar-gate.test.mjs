@@ -31,6 +31,11 @@ const gitEnv = {
     GIT_COMMITTER_EMAIL: "t@example.com",
 };
 for (const k of Object.keys(gitEnv)) if (k.startsWith("SONAR_")) delete gitEnv[k];
+// Inside a git hook git exports GIT_DIR and friends; left in, every git command below acts on the
+// real repository instead of the throwaway one (see tools/prepush.sh).
+for (const k of execFileSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).split("\n")) {
+    if (k) delete gitEnv[k];
+}
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, encoding: "utf8" }).trim();
 
 const BASE = ["export function a() {", "    return 1;", "}", "export const b = 2;", ""].join("\n");

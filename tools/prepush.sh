@@ -15,6 +15,12 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
+# git runs this hook with GIT_DIR and friends exported, pointing at the real repository. Any step
+# that runs git in a temporary directory -- a test building a throwaway repository -- would then act
+# on this repository instead: `git init` there has turned the checkout bare (twice), and test commits
+# landed on the branch being pushed. No step needs them; each runs from this directory.
+unset $(git rev-parse --local-env-vars)
+
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
 # (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
 # node_modules/.pnpm/lock.yaml, byte for byte.

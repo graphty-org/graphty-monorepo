@@ -272,6 +272,8 @@ describe("xgmmlImporter attributes", () => {
         expect(cell(snapshot, "nodes", "i", "b")).toBe(5);
         expect(cell(snapshot, "nodes", "r", "b")).toBeNaN();
         expect(cell(snapshot, "nodes", "b", "b")).toBe(true);
+        // NaN is a double exactly; only a finite spelling that overflows loses precision
+        expect(codes(report)).not.toContain(XGMML_ISSUE.PRECISION);
     });
 
     it("widens disagreeing declared types per 5.1 with W_WIDENED: int and real to f64, number and string to string", async () => {

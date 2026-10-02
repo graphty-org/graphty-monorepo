@@ -160,7 +160,8 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
                 return null;
             }
             const n = Number(t);
-            const overflow = !Number.isFinite(n) && !/Infinity/.test(t) ? "precision" : undefined;
+            // only a finite spelling that overflows (1e400) loses precision; NaN and the infinities are exact
+            const overflow = !Number.isFinite(n) && !/Infinity|NaN/.test(t) ? "precision" : undefined;
             return { value: n, overflow };
         }
         default: {

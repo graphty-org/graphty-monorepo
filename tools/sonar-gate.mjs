@@ -291,11 +291,15 @@ const findOnPath = (cmd) =>
         .map((dir) => join(dir, cmd))
         .find((p) => p !== cmd && isExecutable(p)) ?? null;
 
+// Printed width: the color codes take no columns, so they must not count toward the padding.
+const visibleLength = (l) => [RED, YELLOW, NC].reduce((t, c) => t.replaceAll(c, ""), l).length;
+
 function box(lines) {
-    const width = Math.max(...lines.map((l) => l.length)) + 4;
+    const width = Math.max(...lines.map(visibleLength)) + 4;
     const bar = `+${"-".repeat(width - 2)}+`;
     console.log(YELLOW + bar);
-    for (const l of lines) console.log(`| ${l.padEnd(width - 4)} |`);
+    for (const l of lines)
+        console.log(`${YELLOW}| ${NC}${l}${" ".repeat(width - 4 - visibleLength(l))}${YELLOW} |${NC}`);
     console.log(bar + NC);
 }
 
@@ -482,7 +486,8 @@ async function vulnerabilityNosonar(api, named) {
 }
 
 function verdictOutcome(verdict, host, bypass) {
-    const fmt = (f) => `  ${f.path}:${f.line}  ${f.rule}  ${f.message}`;
+    const fmt = (f) =>
+        `  ${f.path}:${f.line}  ${f.rule}  ${f.kind === "hotspot" ? "[security hotspot]  " : ""}${f.message}`;
     const lines = [];
     if (verdict.existing.length) {
         lines.push(

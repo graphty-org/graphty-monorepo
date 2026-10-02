@@ -161,12 +161,14 @@ if affected webgpu-graph-algorithms; then
     run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
 fi
 
-# Start the SonarQube step now that every dist/ and the bundle's .d.ts shims exist, so nothing
-# rewrites the types SonarJS reads while it reads them. It is joined just before the summary.
-start_sonar
-
 # Lint the affected packages
 run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
+
+# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
+# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
+# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
+# dist/. It is joined just before the summary.
+start_sonar
 
 # Run knip for dead code detection (blocks push if issues found)
 run_step "Knip (dead code detection)" "pnpm run lint:knip"

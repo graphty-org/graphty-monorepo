@@ -144,9 +144,10 @@ merged branches changed a median of 4 analyzable files (90th percentile 23), so 
 pays 45-60 s.
 
 The step costs the gate almost no wall-clock time, because it runs **in the background**. It
-starts right after "Bundle webgpu-graph-algorithms" (or after "Build" when that step does not
-run), once every package's `dist/` and the bundle's `.d.ts` shims exist, so nothing rewrites the
-types SonarJS reads while it reads them. It writes to a log file, and `tools/prepush.sh` waits
+starts right after "Lint", not before it: Lint runs with `--skip-nx-cache`, so it rebuilds the
+packages it depends on, and each build deletes its `dist/` first. A scan started earlier walked
+into a folder that vanished mid-walk and died with `NoSuchFileException`. No step after Lint
+rewrites a `dist/`. It writes to a log file, and `tools/prepush.sh` waits
 for it and prints its log just before the summary, after the tests (several minutes). So the scan
 finishes while the tests run.
 
@@ -336,7 +337,7 @@ gate needs fixing, not more bypasses.
   make the server's profile match it (creating it, setting the parent, deactivating the listed
   rules and reactivating any other). The baseline job restores it when it changes.
 - `tools/prepush.sh`: start `tools/sonar-gate.mjs` in the background (its own process group,
-  killed by an `EXIT` trap) after "Bundle webgpu-graph-algorithms", join it before the summary
+  killed by an `EXIT` trap) after "Lint", join it before the summary
   under its own flag (`SONAR_FAILED`), as the file's own rule about per-step flags requires. When
   no package is affected, the early exit runs the step in the foreground first, so a push that
   touches only `tools/` is still checked.

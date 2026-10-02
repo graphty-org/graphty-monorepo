@@ -380,7 +380,9 @@ function signal(pgid, sig) {
  * Settles the runs a previous daemon left `running` (design section 5.8). After a reboot (the
  * boot id changed) they are `lost` and nothing is killed. Otherwise a run whose process identity
  * still matches is killed by process group, and every one is `interrupted`. Neither consumes an
- * attempt; their claims are released.
+ * attempt; their claims are released. Each is charged its full budget on the day it started, as a
+ * run with no result line is (design section 9.6), so a daemon that restarts in a loop cannot spend
+ * past the day's or the re-triage budget.
  * @param {any} state the daemon state
  * @param {{now: Date, bootId?: string, killGraceMs?: number}} options the clock and the current
  *   boot id
@@ -403,9 +405,24 @@ export function recoverRuns(state, { now, bootId = currentBootId(), killGraceMs 
         }
         run.outcome = run.status;
         run.endedAt = now.toISOString();
+        run.costUsd = run.budgetUsd ?? 0;
+        charge(state, run.kind ?? "", String(run.startedAt ?? run.endedAt).slice(0, 10), run.costUsd);
         releaseRun(state, id);
     }
     return out;
+}
+
+/**
+ * Adds a run's cost to the day's spend: `spendRetriage` for re-triage kinds, `spend` otherwise.
+ * @param {any} state the daemon state
+ * @param {string} kind the run kind
+ * @param {string} day `YYYY-MM-DD`
+ * @param {number} usd the cost
+ */
+function charge(state, kind, day, usd) {
+    const bucket = isRetriage(kind) ? "spendRetriage" : "spend";
+    state[bucket] ??= {};
+    state[bucket][day] = Math.round(((state[bucket][day] ?? 0) + usd) * 1e6) / 1e6;
 }
 
 /**
@@ -673,10 +690,7 @@ export function createRunner({
             record.sessionId = result?.session_id ?? record.sessionId;
             record.structured = result?.structured_output ?? null;
             record.costUsd = typeof result?.total_cost_usd === "number" ? result.total_cost_usd : caps.budgetUsd;
-            const day = end.toISOString().slice(0, 10);
-            const bucket = isRetriage(req.kind) ? "spendRetriage" : "spend";
-            state[bucket] ??= {};
-            state[bucket][day] = Math.round(((state[bucket][day] ?? 0) + record.costUsd) * 1e6) / 1e6;
+            charge(state, req.kind, end.toISOString().slice(0, 10), record.costUsd);
 
             const guarded = readJsonLines(join(runDir, "denials.jsonl"));
             record.denials = [

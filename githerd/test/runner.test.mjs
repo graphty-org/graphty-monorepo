@@ -549,4 +549,25 @@ describe("recoverRuns", () => {
         expect(state.runs["run-20261002-0004-dd"].status).toBe("ended");
         await exited;
     });
+
+    it("charges each recovered run its full budget, so a restart cannot start a run admission refuses", () => {
+        const now = new Date("2026-10-02T12:00:00Z");
+        const at = "2026-10-02T11:00:00Z";
+        const state = {
+            spend: { "2026-10-02": 2 },
+            claims: {},
+            runs: {
+                a: { kind: "pr-fix", status: "running", startedAt: at, budgetUsd: 4, process: null },
+                b: { kind: "master-red", status: "running", startedAt: at, budgetUsd: 6, process: null },
+                c: { kind: "retriage-candidates", status: "running", startedAt: at, budgetUsd: 1.5, process: null },
+            },
+        };
+        recoverRuns(state, { now, bootId: "boot" });
+        expect(state.spend["2026-10-02"]).toBe(12);
+        expect(state.spendRetriage["2026-10-02"]).toBe(1.5);
+        expect(state.runs.a.costUsd).toBe(4);
+        // $12 spent + $4 is past the $20 day less the $6 master-red share; without the charge, $2 + $4 fits.
+        const acting = { ...CONFIG, runs: { ...CONFIG.runs, dailyBudgetUsd: 20 } };
+        expect(admit(state, acting, "acting", "pr-fix", now)).toMatchObject({ ok: false });
+    });
 });

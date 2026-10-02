@@ -12,6 +12,7 @@ import { ALGO_DEFINITIONS } from "./algo";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
 import { LAYOUT_DEFINITIONS } from "./layout";
+import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
 import { SET_DEFINITIONS } from "./sets";
 import { STYLE_DEFINITIONS } from "./style";
@@ -68,6 +69,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...STYLE_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
+    ...NOTE_DEFINITIONS,
     ...VIEW_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
     ...POSITIONS_DEFINITIONS,

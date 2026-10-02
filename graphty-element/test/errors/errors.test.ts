@@ -14,7 +14,8 @@ import { GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import * as errors from "../../src/errors/index";
 
 // The codes named by the API design, section 4.13, plus the acceleration state code from 4.12
-// and the transaction code from the undo design (design/undo/undo-design.md section 5.1).
+// and the transaction code from the undo design (design/undo/undo-design.md section 5.1), and
+// the two document codes notes are the first to read (design/documents/README.md).
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
@@ -38,6 +39,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
+    "E_BAD_DOCUMENT",
+    "E_UNSUPPORTED_VERSION",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -84,6 +87,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SELECTOR_EMPTY":
         case "E_UNSCOPED_RUN_ENCODING":
         case "E_OPTION_RANGE":
+        case "E_BAD_DOCUMENT":
+        case "E_UNSUPPORTED_VERSION":
             return "malformed";
         case "E_UNKNOWN_SCALE":
         case "E_UNKNOWN_CHANNEL":

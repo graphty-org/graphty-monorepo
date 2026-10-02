@@ -100,6 +100,11 @@ interface RuntimeProperties {
      * ordinary label does not, so a node or an edge nearer the camera passes in front of it.
      */
     onTop?: boolean;
+    /**
+     * Draw the text as its characters, every one of them, never as label markup (`<bold>`,
+     * `<color='...'>`). Set for words a style binding read from data, a result or a note.
+     */
+    plainText?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -116,6 +121,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "progress"
     | "attachTo"
     | "onTop"
+    | "plainText"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -337,7 +343,7 @@ export class RichTextLabel {
     }
 
     private _parseRichText(): void {
-        this.parsedContent = this.parser.parse(this.options.text);
+        this.parsedContent = this.parser.parse(this.options.text, this.options.plainText === true);
     }
 
     private _calculateDimensions(): void {
@@ -1185,6 +1191,15 @@ export class RichTextLabel {
      */
     public get labelMesh(): Mesh | null {
         return this.mesh;
+    }
+
+    /**
+     * The runs of text the label draws, one list per line, each with the style it is drawn in:
+     * what the markup in its text came to, or the text whole when it is plain text.
+     * @returns The runs.
+     */
+    public get textRuns(): readonly (readonly TextSegment[])[] {
+        return this.parsedContent;
     }
 
     /**

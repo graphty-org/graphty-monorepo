@@ -875,7 +875,9 @@ describe("review page: a running Finish", () => {
             .toMatch(/^Finish of #123 done\. Committed \w{10} to feature\. Status: Reviewed: 4 accepted/);
         expect(await page.locator(".finish-running").count()).toBe(0);
         expect(await page.getByRole("button", { name: /^Finish #123/ }).isDisabled()).toBe(true);
-    });
+        // The test's own budget covers the two slow polls above; the default 5 s cut it short
+        // whenever the commit, upload and push took longer than that on a busy machine.
+    }, 70_000);
 });
 
 describe("review page: renamed stories", () => {

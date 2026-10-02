@@ -176,6 +176,16 @@ export interface ElementPaint {
      */
     styleOf(target: SelectorTarget, index: number): ResolvedStyle;
     /**
+     * Whether one element's words in a text channel are drawn as plain text, every character as
+     * written, never as label markup: true where they came from a binding that reads a path (data,
+     * a result or a note), false for a literal the layer writes.
+     * @param target - Whether it is a node or an edge.
+     * @param index - Its dense index.
+     * @param channel - A text channel, such as `node.label`.
+     * @returns True when the words are plain text.
+     */
+    plainText(target: SelectorTarget, index: number, channel: Channel): boolean;
+    /**
      * Which source mesh one element is drawn from.
      * @param target - Whether it is a node or an edge.
      * @param index - Its dense index.
@@ -387,7 +397,16 @@ const MAX_GENERATION = 0x7fff_fffe;
 type ChannelColumn =
     | { readonly channel: Channel; readonly kind: "number"; values: Float64Array }
     | { readonly channel: Channel; readonly kind: "flag"; values: Uint8Array }
-    | { readonly channel: Channel; readonly kind: "ref"; values: unknown[] }
+    | {
+          readonly channel: Channel;
+          readonly kind: "ref";
+          values: unknown[];
+          /**
+           * For a text channel, 1 where the words came from a binding that reads a path and are
+           * drawn as plain text, never as label markup; null for any other channel.
+           */
+          plainText: Uint8Array | null;
+      }
     | { readonly channel: Channel; readonly kind: "merge"; values: unknown[] };
 
 /**
@@ -435,6 +454,11 @@ function makeColumn(channel: Channel, capacity: number): ChannelColumn {
         return { channel, kind, values: new Uint8Array(capacity) };
     }
 
+    if (kind === "ref") {
+        const plainText = channelDescriptor(channel)?.accepts === "text" ? new Uint8Array(capacity) : null;
+        return { channel, kind, values: new Array<unknown>(capacity), plainText };
+    }
+
     return { channel, kind, values: new Array<unknown>(capacity) };
 }
 
@@ -461,6 +485,12 @@ function growColumn(column: ChannelColumn, capacity: number): void {
         column.values = grown;
 
         return;
+    }
+
+    if (column.kind === "ref" && column.plainText !== null) {
+        const grown = new Uint8Array(capacity);
+        grown.set(column.plainText);
+        column.plainText = grown;
     }
 
     column.values.length = capacity;
@@ -497,8 +527,9 @@ function readColumn(column: ChannelColumn, index: number): unknown {
  * @param column - The column.
  * @param index - The element's dense index.
  * @param value - What the layer painted, already checked against the channel by the encoding.
+ * @param plainText - Whether text it painted is drawn as plain text.
  */
-function writeColumn(column: ChannelColumn, index: number, value: unknown): void {
+function writeColumn(column: ChannelColumn, index: number, value: unknown, plainText: boolean): void {
     if (column.kind === "number") {
         column.values[index] = typeof value === "number" ? value : Number.NaN;
 
@@ -533,6 +564,10 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown): void
         return;
     }
 
+    if (column.kind === "ref" && column.plainText !== null) {
+        column.plainText[index] = plainText ? 1 : 0;
+    }
+
     column.values[index] = value;
 }
 
@@ -552,6 +587,10 @@ function clearColumn(column: ChannelColumn, index: number): void {
         column.values[index] = FLAG_ABSENT;
 
         return;
+    }
+
+    if (column.kind === "ref" && column.plainText !== null) {
+        column.plainText[index] = 0;
     }
 
     column.values[index] = undefined;
@@ -673,6 +712,8 @@ interface PreparedChannel {
     readonly path: Path | null;
     /** The binding, prepared against the whole column exactly once. */
     readonly binding: PreparedBinding;
+    /** Whether it reads a path, whose values are drawn as plain text, never as markup. */
+    readonly plainText: boolean;
 }
 
 /** One layer, ready to paint. */
@@ -1073,6 +1114,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             channels.push({
                 column: columnFor(store, channel),
                 path,
+                // A value read from data, a result or a note is drawn as written; only a literal the
+                // layer itself writes is read as label markup.
+                plainText: path !== null,
                 binding: prepareBinding({
                     channel,
                     binding,
@@ -1360,7 +1404,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     // the layers below it painted stands. That is what stops an algorithm
                     // painting the elements it never measured.
                     if (painted !== undefined) {
-                        writeColumn(channel.column, index, painted);
+                        writeColumn(channel.column, index, painted, channel.plainText);
                     }
                 }
             }
@@ -1740,6 +1784,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
 
             return style;
+        },
+
+        plainText(target: SelectorTarget, index: number, channel: Channel): boolean {
+            const column = stores[target].columns.get(channel);
+
+            return column?.kind === "ref" && column.plainText !== null && column.plainText[index] === 1;
         },
 
         meshKeyOf(target: SelectorTarget, index: number): number {

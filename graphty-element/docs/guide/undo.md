@@ -32,6 +32,7 @@ A change is undoable when it changes something a project saves, and only then:
 | Algorithm runs and their results | A finished run, and removing one; the style layers a run applies come and go with it                                  |
 | Style layers                     | Adding, editing, moving and removing a layer; applying a template                                                     |
 | What is showing                  | A filter, the time window, whether context is shown                                                                   |
+| Notes                            | Adding, editing and removing a note; merging a saved notes document; the author setting                               |
 | Sets and saved camera views      | Creating, renaming, redefining, adding and removing members, removing and restoring a set; saving and removing a view |
 | The layout                       | Choosing a layout and what it runs over, switching between 2D and 3D, placing nodes, pinning and unpinning them       |
 | Where nodes came to rest         | The coordinates a layout settles on, recorded with the step that set it moving                                        |
@@ -384,3 +385,4 @@ session.dispose();
 - [Migrating to 3.0](./migrating-to-3): what changed for code written against 2.x
 - [JavaScript API](./javascript-api)
 - [Events](./events)
+- [Notes](./notes)

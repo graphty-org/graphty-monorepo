@@ -183,6 +183,14 @@ export interface ValidationResult {
      * a layer paints nothing instead of showing a confident empty screen.
      */
     readonly unresolvedPaths: readonly Path[];
+    /**
+     * The bare `graphty.` paths read where the data also has a column of that name.
+     *
+     * Not errors: every path starting `graphty.` reads a value graphty-element provides, never a
+     * column (`graphty.notes.count` is the note count). They are reported because the author may
+     * have meant the column, which reads as `data.graphty.<name>`.
+     */
+    readonly shadowedPaths: readonly Path[];
 }
 
 /**
@@ -980,6 +988,12 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         directory === undefined || target === null
             ? NO_PATHS
             : Object.freeze(log.paths.filter((path) => !directory.answers(path, target)));
+    const shadowedPaths =
+        directory === undefined || target === null
+            ? NO_PATHS
+            : Object.freeze(
+                  log.paths.filter((path) => path.startsWith("graphty.") && directory.answers(`data.${path}`, target)),
+              );
 
     if (log.problems.length > 0 || compiled === null || target === null) {
         return {
@@ -987,13 +1001,14 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 ok: false,
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
+                shadowedPaths,
             }),
             layer: null,
         };
     }
 
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths }),
+        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }

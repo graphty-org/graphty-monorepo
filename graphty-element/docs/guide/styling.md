@@ -139,6 +139,44 @@ await element.session.styles.add({
 });
 ```
 
+### Values the element provides
+
+A path that starts `graphty.` reads a value the element itself provides, not a column of your
+data. Today those are the three note values:
+
+| Path                       | Value on a node or an edge                    |
+| -------------------------- | --------------------------------------------- |
+| `graphty.notes.count`      | How many notes name it; no value when none do |
+| `graphty.notes.latest`     | The text of the newest of those notes         |
+| `graphty.notes.latestTime` | The `time` of the newest of those notes       |
+
+They work in a layer's `selector` and in a binding's `by`. See [Notes](./notes#notes-in-styles).
+
+### Label text is drawn as written
+
+A label or tooltip whose words come from a binding -- a data column, a result or a note -- is
+drawn as literal text: a value reading `<bold>x</bold>` shows the tags, never bold text, so data
+can never restyle its own label. Label markup (`<bold>`, `<italic>`, `<color='...'>` and the rest)
+is read only in a literal label the layer itself writes:
+
+```typescript
+await session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "ids", nodes: ["hub"] },
+    set: { "node.label": "<bold>Hub</bold>" }, // drawn bold
+});
+```
+
+A binding's `map`, `missing` and `other` values are part of the binding, so they are drawn as
+written too.
+
+The whole `graphty.` root is reserved for the element, now and in later releases. A data column
+whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and
+`session.styles.validate(spec)` lists a bare `graphty.` path that a column of the same name would
+have answered in `shadowedPaths`. A `graphty.` path this release does not know has no value, and
+the layer is reported unbound rather than painting anything.
+
 ## Channels
 
 A channel is one visual property with one name. These are all of them:

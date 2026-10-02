@@ -103,6 +103,27 @@ every one of them addresses a layer by the id the element minted for it:
 A write verb returns a `Run` rather than resolving to a value, so a layer edit on a large graph
 can report progress and be cancelled. The stack moves only once the repaint has succeeded.
 
+### Notes
+
+Notes are the session's too, on `graph.getSession().notes` (`element.session.notes`). Reads are
+synchronous; every write is one undoable step:
+
+| Method                         | Returns                   | Description                                                 |
+| ------------------------------ | ------------------------- | ----------------------------------------------------------- |
+| `list(options?)`               | `readonly Note[]`         | Notes, newest first, filtered by target, kind, cite, author |
+| `get(id)`                      | `Note \| undefined`       | One note                                                    |
+| `status(id)`                   | `NoteStatus`              | What each target and cite points at now                     |
+| `authors()`                    | `readonly string[]`       | The distinct authors                                        |
+| `counts()`                     | `{ notes, nodes, edges }` | How many notes, and how many nodes and edges have one       |
+| `add(input)`                   | `NoteId`                  | Write a note                                                |
+| `update(id, patch)`            | `void`                    | Change one                                                  |
+| `remove(id)`                   | `void`                    | Delete one                                                  |
+| `toDocument(options?)`         | `NotesDocument`           | The notes as a `graphty-notes` document, ready to save      |
+| `mergeDocument(doc, options?)` | `NotesReport`             | Add a saved document's notes; never deletes one             |
+
+See the [notes guide](../guide/notes) and the generated
+[`NotesApi`](./generated/index/interfaces/NotesApi.md) reference.
+
 ### Events
 
 | Method                | Parameters           | Returns | Description             |

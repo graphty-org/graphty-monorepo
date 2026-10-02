@@ -33,6 +33,8 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
+    // After sets and runs, which a note names; before styles, which will read the notes.
+    "notes",
     "styles",
     "visibility",
     "views",
@@ -72,6 +74,7 @@ function snapshot(state: ProjectState): ProjectState {
         runs: new Map(state.runs),
         sets: new Map(state.sets),
         views: new Map(state.views),
+        notes: new Map(state.notes),
     });
 }
 

@@ -110,6 +110,27 @@ export {
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
 
+// Notes: text people write about the graph, as `element.session.notes`
+export type {
+    Note,
+    NoteChange,
+    NoteCite,
+    NoteCiteStatus,
+    NoteId,
+    NoteInput,
+    NoteListOptions,
+    NoteMergeOptions,
+    NotePatch,
+    NotesApi,
+    NotesDocument,
+    NotesReport,
+    NoteStatus,
+    NoteTarget,
+    NoteTargetInput,
+    NoteTargetStatus,
+    Problem,
+} from "./src/session/notes/types";
+
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
 
@@ -276,6 +297,7 @@ export type {
     GraphtyErrorJson,
     GraphtyErrorSource,
     GraphtyErrorTarget,
+    GraphtyWarningCode,
 } from "./src/errors";
 export {
     ACCELERATION_ERROR_CODES,

@@ -5738,11 +5738,16 @@ export class Graph implements GraphContext {
      * per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
+     * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note
+     * names gets the `graphty.notes.count` and `graphty.notes.text` columns. Either way an export
+     * of a session holding notes reports `W_GRAPHTY_NOTES`.
+     *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
      * "neo4j" })`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
-     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
+     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
+     * and the element's `notes`.
      * @returns The loss notes, and the document as text or as UTF-8 chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
      * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not

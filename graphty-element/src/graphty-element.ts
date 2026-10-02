@@ -98,6 +98,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchNotes: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -400,6 +401,16 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        // A note written from a panel, a console or an undo: plain values, as the other mirrors.
+        this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-note-change", {
+                    detail: { id, change, fields, cause },
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -515,6 +526,8 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchNotes?.();
+        this.#unwatchNotes = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -2573,7 +2586,9 @@ export class Graphty extends LitElement {
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
-     *     admin-import file
+     *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
+     *     `graphty.notes.text` columns (notes are left out by default, and reported as
+     *     `W_GRAPHTY_NOTES`)
      * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
      * @since 3.0.0
      * @example

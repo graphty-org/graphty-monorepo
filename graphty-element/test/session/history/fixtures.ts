@@ -90,6 +90,18 @@ async function withFixtureSet(session: GraphSession): Promise<void> {
     });
 }
 
+/** The note the note fixtures edit: its id is minted, so it is known once `withFixtureNote` ran. */
+const FIXTURE_NOTE = { id: "" };
+
+/**
+ * Write the fixture note, about node `n1`, as a step of its own.
+ * @param session - The session.
+ */
+async function withFixtureNote(session: GraphSession): Promise<void> {
+    FIXTURE_NOTE.id = session.notes.add({ text: "Fixture note", targets: [{ node: "n1" }] });
+    await Promise.resolve();
+}
+
 /** A 5 by 5 PNG a skybox can be built from without a network. */
 export const SKYBOX_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
@@ -406,6 +418,84 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "set.restore", id: FIXTURE_SET },
     },
     {
+        name: "note.add",
+        tags: ["session"],
+        before: async (session) => {
+            await session.config.set({ author: "Fixture author" });
+            await session.runs.start("degree", undefined, { as: "deg", style: false });
+        },
+        command: {
+            op: "note.add",
+            note: {
+                text: "A fixture note\nover two lines",
+                targets: [
+                    { node: "n1" },
+                    { edge: { source: "n1", target: "n2", ordinal: 0, among: 1 } },
+                    { graph: true },
+                ],
+                cites: [{ result: "deg" }],
+                mediaType: "text/markdown",
+                extensions: { "com.example.fixture": { done: true } },
+            },
+        },
+    },
+    {
+        name: "note.update",
+        tags: ["session"],
+        before: withFixtureNote,
+        command: {
+            op: "note.update",
+            get id() {
+                return FIXTURE_NOTE.id;
+            },
+            patch: { text: "Edited fixture note", targets: [{ node: "n2" }], mediaType: "text/plain" },
+        },
+    },
+    {
+        name: "note.remove",
+        tags: ["session"],
+        before: withFixtureNote,
+        command: {
+            op: "note.remove",
+            get id() {
+                return FIXTURE_NOTE.id;
+            },
+        },
+    },
+    {
+        name: "note.merge",
+        tags: ["session"],
+        before: withFixtureNote,
+        command: {
+            op: "note.merge",
+            // A getter, because the held fixture note's id is minted when the fixture runs; the
+            // document it returns is plain JSON, as mergeDocument requires.
+            get document() {
+                return {
+                    kind: "graphty-notes",
+                    version: 1,
+                    name: "Fixture notes",
+                    notes: [
+                        {
+                            id: "note_fixture-merged",
+                            time: "2026-10-01T09:00:00.000Z",
+                            targets: [{ node: "n1" }, { filterStep: "s1" }],
+                            text: "A merged fixture note",
+                            author: "Someone else",
+                        },
+                        // The held fixture note's id with other content: kept both, under a new id.
+                        {
+                            id: FIXTURE_NOTE.id,
+                            time: "2026-10-01T09:00:00.000Z",
+                            targets: [{ node: "n2" }],
+                            text: "Another version",
+                        },
+                    ],
+                };
+            },
+        },
+    },
+    {
         name: "view.save",
         tags: ["session"],
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },
@@ -462,6 +552,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "selectionStyle",
         tags: BOTH,
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
+    },
+    {
+        name: "config.set author",
+        variant: "author",
+        tags: BOTH,
+        command: { op: "config.set", values: { author: "Fixture author" } },
     },
     {
         name: "config.set layoutBehavior.preSteps",

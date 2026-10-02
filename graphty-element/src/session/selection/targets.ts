@@ -32,6 +32,8 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { NoteMembers } from "../notes/select";
+import type { NoteId } from "../notes/types";
 import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import type { ScopeResolver } from "../scope/ScopeApi";
@@ -131,7 +133,13 @@ export type SelectionTarget =
     /** The edges whose endpoints are both selected. Names no nodes. */
     | { readonly edgesBetween: true }
     /** Everything that is not selected, in both halves. */
-    | { readonly invert: true };
+    | { readonly invert: true }
+    /**
+     * What a note is about: its node, edge, set and item targets, or only the one at `target`.
+     * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
+     * `result` target names no elements.
+     */
+    | { readonly note: NoteId; readonly target?: number };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver reads
@@ -202,6 +210,13 @@ export interface TargetContext {
      * @returns The elements found.
      */
     readonly find?: (text: string, mode: SelectionTextMode) => Iterable<SelectionSearchHit>;
+    /**
+     * What a note's targets select. Absent refuses a `note` target.
+     * @param id - The note.
+     * @param target - One target's position, or undefined for every target.
+     * @returns The rows, the scopes and the skipped count.
+     */
+    readonly note?: (id: NoteId, target: number | undefined) => NoteMembers;
 }
 
 /** The elements one target named. */
@@ -214,6 +229,8 @@ export interface TargetMembers {
     readonly unmatched: readonly string[];
     /** The paths this session cannot answer. */
     readonly unresolvedPaths: readonly Path[];
+    /** A note target's targets that are not in the graph. Absent for every other target. */
+    readonly skipped?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -247,7 +264,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { note }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -626,6 +643,46 @@ function resolveRanked(
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
 
+/**
+ * The elements a note's targets name.
+ * @param id - The note.
+ * @param only - One target's position, or undefined for every target.
+ * @param context - What the resolution reads.
+ * @returns The two masks and how many targets were skipped.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no notes or no scope resolver are attached.
+ */
+function resolveNote(id: NoteId, only: number | undefined, context: TargetContext): TargetMembers {
+    if (context.note === undefined) {
+        throw unsupported("a note", "a notes register");
+    }
+
+    const members = context.note(id, only);
+    const { nodes, edges } = emptyMasks(context);
+    let { skipped } = members;
+    for (const row of members.nodeRows) {
+        nodes.add(row);
+    }
+
+    for (const row of members.edgeRows) {
+        edges.add(row);
+    }
+
+    for (const { scope, emptyIsSkipped } of members.scopes) {
+        if (context.scope === undefined) {
+            throw unsupported("a note's set or item", "a scope resolver");
+        }
+
+        const resolved = context.scope.resolveNow(admitted(context.scope, scope));
+        addIds(nodes, resolved.nodes);
+        addIds(edges, resolved.edges);
+        if (emptyIsSkipped && resolved.nodeCount === 0 && resolved.edgeCount === 0) {
+            skipped++;
+        }
+    }
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS, skipped };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
@@ -664,6 +721,10 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
             unmatched: EMPTY_STRINGS,
             unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
         };
+    }
+
+    if ("note" in target) {
+        return resolveNote(target.note, target.target, context);
     }
 
     if ("text" in target) {

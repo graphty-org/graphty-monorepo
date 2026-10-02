@@ -32,6 +32,7 @@ import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService } from "../commands/data";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
+import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
@@ -89,6 +90,7 @@ interface CommandServices {
     styles?: StyleService;
     visibility?: VisibilityService;
     sets?: SetService;
+    notes?: NoteService;
     camera?: CameraService;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
     layout?: LayoutService;
@@ -1390,7 +1392,7 @@ export class Dispatcher {
      * @param derived - The per-domain changes, one per step.
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
-        if (change.slices.includes("graph") || change.slices.includes("runs") || change.slices.includes("sets")) {
+        if (["graph", "runs", "sets", "notes"].some((slice) => change.slices.includes(slice))) {
             // What run results and their id indexes cost depends on which snapshot is resident.
             const { token } = this.store.state.graph;
             const seen = new WeakSet();

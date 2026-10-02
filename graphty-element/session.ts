@@ -238,6 +238,30 @@ export type {
 } from "./src/session/sets/types";
 
 // ---------------------------------------------------------------------------------------------
+// Notes: text people write about the graph and what is in it, as `session.notes`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    Note,
+    NoteChange,
+    NoteCite,
+    NoteCiteStatus,
+    NoteId,
+    NoteInput,
+    NoteListOptions,
+    NoteMergeOptions,
+    NotePatch,
+    NotesApi,
+    NotesDocument,
+    NotesReport,
+    NoteStatus,
+    NoteTarget,
+    NoteTargetInput,
+    NoteTargetStatus,
+    Problem,
+} from "./src/session/notes/types";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 
@@ -394,6 +418,7 @@ export type {
     GraphtyErrorJson,
     GraphtyErrorSource,
     GraphtyErrorTarget,
+    GraphtyWarningCode,
 } from "./src/errors";
 export {
     ACCELERATION_ERROR_CODES,

@@ -13,22 +13,33 @@ import { join } from "node:path";
 // git hook does not see what ~/.bashrc exports when the push comes from a non-login shell).
 const KEYS = ["SONAR_HOST_URL", "SONAR_PROJECT_KEY", "SONAR_TOKEN", "SONAR_SCANNER_JAVA_EXE_PATH"];
 
-/** Read one KEY=value from .env text, without running or exporting anything else in it. */
-export function parseEnvFile(text, key) {
-    for (const raw of text.split(/\r?\n/)) {
-        const m = raw.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/);
-        if (!m || m[1] !== key) continue;
-        let v = m[2].trim();
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-        else v = v.replace(/\s+#.*$/, "");
-        return v;
+// Read one KEY=value from .env text, without running or exporting anything else in it.
+function parseEnvFile(text, key) {
+    for (const raw of text.split("\n")) {
+        const eq = raw.indexOf("=");
+        if (
+            eq < 0 ||
+            raw
+                .slice(0, eq)
+                .trim()
+                .replace(/^export /, "")
+                .trim() !== key
+        )
+            continue;
+        const v = raw.slice(eq + 1).trim();
+        const quoted = v.length > 1 && (v[0] === '"' || v[0] === "'") && v.endsWith(v[0]);
+        if (quoted) return v.slice(1, -1);
+        const comment = v.indexOf(" #");
+        return (comment < 0 ? v : v.slice(0, comment)).trim();
     }
     return undefined;
 }
 
 /**
- * The settings and where the token came from. `root` is the repository root holding `.env`.
- * @returns {{host?: string, projectKey?: string, token?: string, tokenSource?: string, java?: string}}
+ * The settings, from the environment first, then the repository's .env.
+ * @param root - The repository root holding `.env`.
+ * @param env - The environment to read first.
+ * @returns `{ host, projectKey, token, tokenSource, java }`, each undefined when unset.
  */
 export function loadConfig(root, env = process.env) {
     let text = "";
@@ -52,7 +63,7 @@ export function loadConfig(root, env = process.env) {
         }
     }
     return {
-        host: out.SONAR_HOST_URL?.replace(/\/+$/, ""),
+        host: withoutTrailingSlash(out.SONAR_HOST_URL),
         projectKey: out.SONAR_PROJECT_KEY,
         token: out.SONAR_TOKEN,
         tokenSource: src.SONAR_TOKEN,
@@ -60,24 +71,45 @@ export function loadConfig(root, env = process.env) {
     };
 }
 
-/** process.env (or `env`) with SONAR_TOKEN removed: for every child that is not the scanner. */
+const withoutTrailingSlash = (url) => {
+    let u = url;
+    while (u?.endsWith("/")) u = u.slice(0, -1);
+    return u;
+};
+
+/**
+ * An environment for every child that is not the scanner.
+ * @param env - The environment to copy.
+ * @returns A copy of `env` without SONAR_TOKEN.
+ */
 export function envWithoutToken(env = process.env) {
-    const { SONAR_TOKEN: _drop, ...rest } = env;
+    const rest = { ...env };
+    delete rest.SONAR_TOKEN;
     return rest;
 }
 
+/** A Web API answer with a non-2xx status; `status` is the HTTP status. */
 export class ApiError extends Error {
+    /**
+     * Describe the failed call.
+     * @param status - The HTTP status.
+     * @param path - The API path called.
+     * @param body - The answer's body, of which the first 300 characters go into the message.
+     */
     constructor(status, path, body) {
-        super(`SonarQube ${path} answered HTTP ${status}${body ? `: ${body.slice(0, 300)}` : ""}`);
+        const detail = body ? `: ${body.slice(0, 300)}` : "";
+        super(`SonarQube ${path} answered HTTP ${status}${detail}`);
         this.status = status;
         this.path = path;
     }
 }
 
 /**
- * api/system/status with no token. Resolves to the parsed answer, or null when nothing answers UP
- * within `timeoutMs`, retrying inside that budget: the host name lookup fails now and then on this
- * machine (EAI_AGAIN), and that is not the server being away.
+ * Ask api/system/status, with no token, retrying inside the budget: the host name lookup fails now
+ * and then on this machine (EAI_AGAIN), and that is not the server being away.
+ * @param host - The server's base URL.
+ * @param timeoutMs - The whole budget.
+ * @returns The parsed answer (`{ id, version, status }`), or null when nothing answered UP in time.
  */
 export async function serverStatus(host, timeoutMs = 3000) {
     const end = Date.now() + timeoutMs;
@@ -95,10 +127,12 @@ export async function serverStatus(host, timeoutMs = 3000) {
 }
 
 /**
- * Take an exclusive flock(1) on `file`, waiting up to `waitSeconds` (0: do not wait). The lock is
- * taken by a short-lived `flock <fd>` child on a descriptor this process holds open, so it stays
- * held until `release()` or until this process dies -- no lock outlives the push. Resolves to
- * `release` or null when the lock was not obtained in time.
+ * Take an exclusive flock(1) on a file. A short-lived `flock <fd>` child locks a descriptor this
+ * process holds open, so the lock stays held until `release()` or until this process dies -- no lock
+ * outlives the push.
+ * @param file - The lock file (created if missing).
+ * @param waitSeconds - How long to wait; 0 does not wait.
+ * @returns `release`, or null when the lock was not obtained in time.
  */
 export async function acquireLock(file, waitSeconds) {
     const fd = openSync(file, "a");
@@ -119,10 +153,8 @@ export async function acquireLock(file, waitSeconds) {
     };
 }
 
-/**
- * fetch, tried up to three times when no answer arrives at all (a network or name lookup error, not
- * an HTTP status): on this machine a first lookup of the host fails now and then with EAI_AGAIN.
- */
+// fetch, tried up to three times when no answer arrives at all (a network or name lookup error, not
+// an HTTP status): on this machine a first lookup of the host fails now and then with EAI_AGAIN.
 async function fetchRetrying(url, init, timeoutMs) {
     for (let attempt = 1; ; attempt++) {
         try {
@@ -135,9 +167,15 @@ async function fetchRetrying(url, init, timeoutMs) {
 }
 
 /**
- * A Web API client bound to one host and token. `call(path, params, {method})` returns parsed
- * JSON (or text for non-JSON answers) and throws ApiError on a non-2xx answer. GET puts params in
- * the query string, POST in a form body; the token is only ever in the Authorization header.
+ * A Web API client bound to one host and token. `call(path, params, { method })` returns parsed JSON
+ * and throws ApiError on a non-2xx answer; `all(path, params, field)` concatenates every page of a
+ * paged search. GET puts params in the query string, POST in a form body; the token is only ever in
+ * the Authorization header.
+ * @param host - The server's base URL.
+ * @param token - The SonarQube token.
+ * @param options - Client options.
+ * @param options.timeoutMs - The timeout of each request.
+ * @returns `{ call, all }`.
  */
 export function client(host, token, { timeoutMs = 30000 } = {}) {
     async function call(path, params = {}, { method = "GET" } = {}) {
@@ -145,7 +183,8 @@ export function client(host, token, { timeoutMs = 30000 } = {}) {
         for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) qs.append(k, String(v));
         const headers = { Authorization: `Bearer ${token}` };
         const get = method === "GET";
-        const url = `${host}/${path}${get && [...qs].length ? `?${qs}` : ""}`;
+        const query = get && qs.size > 0 ? "?" + qs.toString() : "";
+        const url = `${host}/${path}${query}`;
         const body = get ? undefined : qs;
         const res = await fetchRetrying(url, { method, headers, body }, timeoutMs);
         const text = await res.text();
@@ -157,7 +196,7 @@ export function client(host, token, { timeoutMs = 30000 } = {}) {
             return text;
         }
     }
-    /** Every page of a paged search, concatenating `field`. */
+    // Every page of a paged search, concatenating `field`.
     async function all(path, params, field) {
         const out = [];
         for (let p = 1; ; p++) {
@@ -171,9 +210,17 @@ export function client(host, token, { timeoutMs = 30000 } = {}) {
 }
 
 /**
- * The scanner command: `sonar-scanner-npm` from node_modules, or SONAR_GATE_SCANNER (tests point it
- * at a fake). The token goes into this one child's environment and nowhere else; the scanner is
- * never run in debug or verbose mode, because a debug log can print environment values.
+ * Start the scanner: `sonar-scanner-npm` from node_modules, or SONAR_GATE_SCANNER (the tests point it
+ * at a fake). The token goes into this one child's environment and nowhere else, and its output is
+ * redacted; the scanner never runs in debug or verbose mode, because a debug log can print
+ * environment values.
+ * @param root - The directory to scan from (the repository root).
+ * @param args - `-D` arguments.
+ * @param options - Scanner options.
+ * @param options.token - The token, for the scanner's environment only.
+ * @param options.env - The base environment (SONAR_TOKEN in it is replaced).
+ * @param options.onOutput - Called with each chunk of the scanner's output, the token redacted.
+ * @returns `{ child, done }`; `done` resolves to `{ code, error }`.
  */
 export function startScanner(root, args, { token, env = process.env, onOutput } = {}) {
     const cmd = env.SONAR_GATE_SCANNER || join(root, "node_modules/.bin/sonar-scanner-npm");
@@ -194,7 +241,10 @@ export function startScanner(root, args, { token, env = process.env, onOutput } 
     return { child, done };
 }
 
-/** Stop the scanner and everything it started (its JRE): SIGTERM to the whole tree, SIGKILL 2 s later. */
+/**
+ * Stop the scanner and everything it started (its JRE): SIGTERM to the whole tree, SIGKILL 2 s later.
+ * @param child - The scanner's ChildProcess.
+ */
 export function stopScanner(child) {
     const kids = new Map();
     try {

@@ -550,7 +550,7 @@ describe("AccelerationController: the edge floor of the triangle count", () => {
         const controller = new AccelerationController({ registry: registryWith(counter()) });
         await controller.start();
 
-        // Two edges a node at the element's limits: 50,000 nodes, 100,000 edges. Measured 0.92x to 0.97x.
+        // Two edges a node at the element's limits: 50,000 nodes, 100,000 edges. 0.92x to 1.30x: a toss-up.
         const sparse = controller.plan({ capability: "triangleCount", nodeCount: 50_000, edgeCount: 100_000 });
         assert.isFalse(sparse.accelerated);
         const reason = sparse.accelerated ? "" : sparse.reason;
@@ -558,19 +558,26 @@ describe("AccelerationController: the edge floor of the triangle count", () => {
         assert.include(reason, String(floor));
         assert.include(reason, ACCELERATION_MIN_EDGES_MEASUREMENT);
         assert.include(reason, "acceleration.minNodes");
-        // Twenty edges a node on 5,000 nodes: far fewer nodes, measured 1.8x to 2.5x.
-        assert.isTrue(controller.plan({ capability: "triangleCount", nodeCount: 5_000, edgeCount: 100_000 }).accelerated);
+        // Twenty edges a node on 5,000 nodes: far fewer nodes, measured 1.8x to 2.5x in every sweep.
+        assert.isTrue(
+            controller.plan({ capability: "triangleCount", nodeCount: 5_000, edgeCount: 100_000 }).accelerated,
+        );
         controller.dispose();
     });
 
     it("routes at the floor and not one edge below it", async () => {
         const controller = new AccelerationController({ registry: registryWith(counter()) });
         await controller.start();
-        // 100,000 edges on 10,000 nodes is exactly 1,000,000.
-        const n = (100_000 * 100_000) / floor;
+        // The fewest edges on 1,000 nodes whose edges times edges per node reach the floor.
+        const n = 1_000;
+        const edges = Math.ceil(Math.sqrt(floor * n));
+        assert.isAtLeast((edges * edges) / n, floor);
+        assert.isBelow(((edges - 1) * (edges - 1)) / n, floor);
 
-        assert.isTrue(controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: 100_000 }).accelerated);
-        assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: 99_999 }).accelerated);
+        assert.isTrue(controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: edges }).accelerated);
+        assert.isFalse(
+            controller.plan({ capability: "triangleCount", nodeCount: n, edgeCount: edges - 1 }).accelerated,
+        );
         // A work description with no edge count is read as no edges, never as a dense graph.
         assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: n }).accelerated);
         assert.isFalse(controller.plan({ capability: "triangleCount", nodeCount: 0, edgeCount: 0 }).accelerated);

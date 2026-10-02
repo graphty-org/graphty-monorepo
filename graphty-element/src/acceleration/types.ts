@@ -516,25 +516,27 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
  *
  * The triangle count is the one capability it serves (the clustering coefficient runs on it). Its
  * device call costs 6 to 10 ms almost whatever the graph inside the element's ceiling, while the
- * CPU port's cost grows with the edges and with how many neighbours each node has to intersect,
+ * CPU port's cost grows with the edges and with how many neighbors each node has to intersect,
  * so a node floor had to sit above the 50,000-node ceiling to keep sparse graphs off the device
- * (two edges a node lost at 50,000 nodes) and so kept dense graphs that win off it too.
+ * (two edges a node at 50,000 nodes is a toss-up, 0.92x to 1.30x) and so kept dense graphs that
+ * win off it too.
  *
  * Measured 2026-10-01, RTX 4070 SUPER, headless Chromium, the method of the node floors: both arms
  * through `@graphty/algorithms`' dispatcher, seeded uniform random graphs of 2, 3, 5, 10, 12, 15,
  * 20, 25, 30, 40, 60 and 100 edges a node from 300 to 50,000 nodes, at most 100,000 edges, plus
- * two R-MAT (skewed-degree) shapes; medians of 15 rounds (9 above 20,000 nodes), five sweeps at
- * load averages 10 to 30. Every graph at or above 1,000,000 won in every sweep (1.07x to 8.5x);
- * the largest that lost anywhere was 800,000 (20 edges a node on 2,000 nodes, 0.95x; 40 a node on
- * 500, 0.86x). Neither the edge count alone (two edges a node lose at 100,000 edges, twenty win at
- * 60,000) nor a wedge count from the degrees separates them. Skewed-degree graphs win below the
- * floor (1.5x to 2x around 220,000 to 370,000); the floor leaves those on the CPU port, which is
- * a few milliseconds lost, never a slower run. The table is in
- * `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section "Edge-aware floors".
+ * two R-MAT (skewed-degree) shapes; medians of 15 rounds (9 above 20,000 nodes), seven sweeps.
+ * Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x); just below, around
+ * 1,000,000, graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.98x at 1,012,500),
+ * so the floor sits between the two. Neither the edge count alone (two edges a node lose at
+ * 100,000 edges, twenty win at 60,000) nor a wedge count from the degrees separates the wins from
+ * the losses. Skewed-degree graphs win below the floor (1.5x to 2x around 220,000 to 370,000);
+ * the floor leaves those on the CPU port, which is a few milliseconds lost, never a slower run.
+ * The table is in `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section
+ * "Edge-aware floors (2026-10-01)".
  */
 export const ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
     Object.freeze({
-        triangleCount: 1_000_000,
+        triangleCount: 1_050_000,
     });
 
 /** Where and when the edge floors above were measured, as the plan's reason quotes it. */

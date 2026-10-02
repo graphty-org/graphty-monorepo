@@ -170,12 +170,12 @@ with your own), and `acceleration="required"` ignores them, so a benchmark can p
 on the device on purpose.
 
 `clustering-coefficient` is floored on its edges rather than its nodes, because what it costs on
-the CPU is the edges and how many neighbours each node has, not the node count. It is accelerated
-when the edges times the edges per node (edges squared over nodes) reach 1,000,000: 100,000 edges
-on 10,000 nodes or fewer, 40,000 edges on 1,600 nodes or fewer, 12,720 edges on 160 nodes. A
-sparse graph stays on the CPU at any size the element holds -- two edges a node on 50,000 nodes
-lost -- and a dense one goes to the device from a few thousand nodes, where it was measured 1.1
-to 8.5 times faster.
+the CPU is the edges and how many neighbors each node has, not the node count. It is accelerated
+when the edges times the edges per node (edges squared over nodes) reach 1,050,000: 100,000
+edges on 9,523 nodes or fewer, 40,000 edges on 1,523 nodes or fewer, every pair of 163 nodes
+joined. A sparse graph stays on the CPU at any size the element holds -- two edges a node on
+50,000 nodes was no faster on the device, losing in three of seven runs -- and a dense one goes to the device, where it was measured 1.1 to 9 times
+faster.
 
 Six of the node floors are above the 50,000 nodes this renderer will draw, so `katz`,
 `eigenvector`, `dijkstra`, `bfs`, `connected-components` and `label-propagation` take the CPU path

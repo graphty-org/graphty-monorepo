@@ -66,7 +66,7 @@ export function endsWithContinuation(line: string): boolean {
 }
 
 /** A tag-value line split at its first unescaped colon. */
-export interface TagValue {
+interface TagValue {
     /** The tag, unescaped and trimmed. */
     readonly tag: string;
     /** The raw text after the colon, leading whitespace removed. */
@@ -119,7 +119,7 @@ export function stripComment(rest: string): string {
 export type Qualifiers = Record<string, string | string[]>;
 
 /** A value with its trailing qualifier blocks split off. */
-export interface QualifiedValue {
+interface QualifiedValue {
     /** The raw value without the blocks, trimmed. */
     readonly value: string;
     /** The qualifiers, or null when the value has none. */

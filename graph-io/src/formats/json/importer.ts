@@ -315,7 +315,7 @@ const PATH_DIALECTS: ReadonlySet<JsonImportDialect> = new Set<JsonImportDialect>
 ]);
 
 /** The resolved format-specific options. */
-export interface ResolvedJsonOptions {
+interface ResolvedJsonOptions {
     readonly dialect: JsonImportDialect | "auto";
     readonly nodeIdKey: string | null;
     readonly edgesKey: string | null;

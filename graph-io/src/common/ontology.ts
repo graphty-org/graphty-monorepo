@@ -75,7 +75,7 @@ export const OBO_NODE_COLUMNS: Readonly<Record<string, OboColumnSpec>> = Object.
 });
 
 /** The edge columns of the OBO vocabulary. */
-export const OBO_EDGE_COLUMNS: Readonly<Record<string, OboColumnSpec>> = Object.freeze({
+const OBO_EDGE_COLUMNS: Readonly<Record<string, OboColumnSpec>> = Object.freeze({
     relation: { dtype: "dict", role: "kind" },
     qualifiers: { dtype: "json" },
     meta: { dtype: "json" },
@@ -106,10 +106,10 @@ export function oboColumnDecl(domain: "node" | "edge", name: string): ColumnDecl
 }
 
 /** The OBO PURL base every OBO Foundry IRI starts with. */
-export const OBO_PURL = "http://purl.obolibrary.org/obo/";
+const OBO_PURL = "http://purl.obolibrary.org/obo/";
 
 /** The oboInOwl namespace of the OBO-to-OWL mapping's annotation properties. */
-export const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
+const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
 
 /**
  * An IRI as the identifier the `.obo` file writes (the OBO 1.4 mapping, section 5.9, read

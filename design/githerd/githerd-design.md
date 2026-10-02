@@ -214,9 +214,9 @@ answers "not configured" in a repository without githerd. Milestone 1 tests whic
     (section 12). An `/rpc` call without `X-Githerd-Session` (the CLI's `status`) registers no
     session.
 - On SIGINT or SIGTERM it stops the poll timer, sends SIGTERM to its runs' process groups, marks
-  them `interrupted`, flushes state through the save queue and exits within 1.5 seconds (pm2 kills
-  at 1.6). It does not wait to SIGKILL; the next daemon's startup check finishes any leftover run
-  (section 5.8).
+  them `interrupted` (charged their full budget) without waiting for them to close, flushes state
+  through the save queue and exits within 1.5 seconds (pm2 kills at 1.6). It does not wait to
+  SIGKILL; the next daemon's startup check finishes any leftover run (section 5.8).
 - One poll at a time; a poll still running when the timer fires is skipped. `loopTickAt` is set at
   the start of every poll attempt, whether or not GitHub answers.
 - Every `gh` and `git` call has a 60 second timeout. git runs with `GIT_TERMINAL_PROMPT=0`.
@@ -268,7 +268,8 @@ the servherd name `githerd-dev`, with state in `<worktree>/.githerd-dev/`, the c
 `GITHERD_CONFIG`, and the mode forced to dry-run (`GITHERD_DEV=1` caps the daemon's mode). Its
 pages go to its ledger only, so it never duplicates a page of the shared daemon; set
 `GITHERD_DEV_NOTIFY=1` to deliver them when testing the notifier. The one-poll check
-(`githerd-daemon.mjs --once`) never pages either. It never touches the shared daemon or its state.
+(`githerd-daemon.mjs --once`) never pages either, and starts no judgment run and no re-triage. It
+never touches the shared daemon or its state.
 
 ## 4. Modes: dry-run and acting
 
@@ -521,7 +522,7 @@ evidence, follow-up, report text) are marked `untrusted: true`.
   nothing is killed. Otherwise a run whose identity still matches is killed by process group
   (SIGTERM, then SIGKILL 10 seconds later) and marked `interrupted`; a run whose process is gone is
   marked `interrupted` too. `interrupted` and `lost` do not consume an attempt, because the run did
-  not fail; its claims are released.
+  not fail; its claims are released. Each is charged its full `budgetUsd` (section 9.6).
 - **The ledger** is append-only; a torn last line is skipped on read.
 - **Worktrees** githerd created are listed in state. Removal uses `git worktree remove` without
   `--force`; a failure is logged once and the worktree is listed in the digest, not retried every
@@ -839,9 +840,15 @@ with commits on its branch, the actor checks the branch and pushes it only if ev
 - for a pr-conflict run, the merge parent is exactly the green SHA it was given.
 
 The push uses `--no-verify` (CI runs the same checks; the run's playbook runs lint, build and the
-affected tests before finishing) and an explicit refspec `HEAD:refs/heads/<branch>`. The pushed SHA
-is recorded in `pushedByGitherd`. A failed check is a `denied` escalation with the reason; nothing
-is pushed.
+affected tests before finishing) and an explicit refspec `<head sha>:refs/heads/<branch>`. The pushed
+SHA is recorded in `pushedByGitherd`. A failed check is a `denied` escalation with the reason;
+nothing is pushed.
+
+Every check and the push run in the main checkout, with `core.hooksPath=/dev/null` and
+`core.fsmonitor=false`, never inside the run's worktree: the run can write that worktree's `.git`
+file and hook directories, and git would run what they name with the daemon's privileges and its
+credential. The run's head is read from its local branch (`refs/heads/githerd/<target>-<n>`), which
+the worktree record names.
 
 ## 9. Judgment runs
 
@@ -859,18 +866,31 @@ backlog, re-triage. Re-triage draws on its own weekly budget instead.
 
 ### 9.2 Working directory
 
-Code-editing runs (master-red, pr-fix, pr-conflict, backlog) get a githerd-owned worktree,
-`<root>/.worktrees/githerd-<target>`, made with `git worktree add` (a new branch
-`githerd/<target>-<n>` from the green SHA, or the PR's branch after `git fetch`), then the config's
-`worktreeSetup` command (graphty: `pnpm install --frozen-lockfile`) run by the daemon before the run
-starts. Before a run in a PR's worktree, the runner checks `git diff --quiet <greenSha> --
+Code-editing runs (master-red, pr-fix, pr-conflict, backlog) get a fresh githerd-owned worktree
+for every run, `<root>/.worktrees/githerd-<target>-<n>` on its own local branch
+`githerd/<target>-<n>`, made with `git worktree add` from the green SHA or from the PR's head after
+`git fetch`, then the config's `worktreeSetup` command (graphty: `pnpm install --frozen-lockfile`)
+run by the daemon before the run starts. The daemon asks the runner first whether the kind can run
+on this machine at all (the Bash sandbox), so a run that cannot start costs no checkout and no setup,
+and the loop keeps ticking while a checkout or setup is in progress, so the launcher does not take
+it for wedged. Before a run in a PR's worktree, the runner checks `git diff --quiet <greenSha> --
 .claude CLAUDE.md .mcp.json`; if the PR changed any of them, the run does not start and an
-escalation says so, because those files would steer the run. githerd never runs `git stash`,
-`reset`, `checkout <file>`, `clean` or `rebase`; it removes only worktrees it created, after the
-target PR merged or closed, or after 7 days idle.
+escalation says so, because those files would steer the run.
 
-Read-only runs (triage, refresh, release, retriage-candidates, retriage-filter) work in
-`.githerd/runs/<id>/work/`, an empty directory.
+Each worktree is recorded in `state.worktrees` and saved before `git worktree add` runs, so a crash
+never leaves one githerd does not know about. Every poll, before dispatching, the daemon removes each
+recorded worktree that no running run uses, with `git worktree remove` and never `--force`: a run's
+worktree goes once the run is over (its commits stay on its local branch), and one whose run never
+started goes at once. A removal that fails (the run left uncommitted changes) stays recorded for the
+owner and is not retried; because each run gets a new directory, it never blocks its target. githerd
+never runs `git stash`, `reset`, `checkout <file>`, `clean` or `rebase`, and removes only worktrees
+it created.
+
+Read-only runs (triage, refresh, release, retriage-candidates, retriage-filter) work in a detached
+checkout of the verified green SHA, `.githerd/trees/<greenSha>/` (`git worktree add --detach`, Git
+LFS files left as pointers), so they judge issues against master and not against whatever branch
+the main checkout has. Every read-only run at that SHA shares the tree; it is removed once master's
+green SHA has moved on and no running run uses it. The SHA is also in the prompt's "This run" data.
 
 ### 9.3 Isolation and the command
 
@@ -880,11 +900,14 @@ The runs act as no one. The isolation has four layers, and the first is the boun
    `HOME`, `LANG`, `TERM`, `TMPDIR`, `GNUPGHOME` and `GPG_TTY` if set, `GIT_CONFIG_GLOBAL` pointing
    at `.githerd/run-gitconfig` (the owner's name, email, signing key and `commit.gpgsign=true`,
    and no credential helper), and the `GITHERD_*` variables. Code-editing kinds run with Claude
-   Code's Bash sandbox on: reads of `~/.config/gh`, `~/.git-credentials`, `~/.ssh`,
-   `~/.claude/.credentials.json`, `~/.bashrc`, `~/.profile` and `~/.gnupg` (except the gpg-agent
-   socket) are denied to Bash and, through `Read`/`Edit` deny rules, to the file tools; network is
-   allowed only to `registry.npmjs.org`. The notifier gets the daemon's full environment; runs never
-   do.
+   Code's Bash sandbox on: reads of `~/.config` (gh, servherd and other tools keep credentials
+   there), `~/.git-credentials`, `~/.ssh`, `~/.npmrc`, `~/.claude.json`, `~/.docker`,
+   `~/.claude/.credentials.json`, `~/.bashrc`, `~/.profile` and `~/.gnupg/private-keys-v1.d` are
+   denied to Bash and, through `Read`/`Edit` deny rules, to the file tools of every kind. Every kind
+   is also denied `Read(**/.env*)` (the repository's API keys), reads of any run's `mcp.json` (run
+   tokens) and edits under the state directory. `NPM_CONFIG_USERCONFIG` points at an empty
+   `.githerd/run-npmrc`, so npm and pnpm never load the owner's publish token; network is allowed
+   only to `registry.npmjs.org`. The notifier gets the daemon's full environment; runs never do.
 2. **Only the tools the kind needs exist.** `--tools` sets the tool list; `--allowedTools` only
    pre-approves.
 3. **The guard hook** (section 9.4), defense in depth.
@@ -949,7 +972,9 @@ any simple command in it (split on `;`, `&&`, `||`, `|`, newlines and `$(...)`, 
   trailing `&`, `pnpm run dev*`, `npm run dev*`, `storybook`;
 - is `sudo`, `npm publish`, `pnpm publish` or `nx release`.
 
-`Edit` and `Write` to a path under `protectedPaths` are denied. The guard is not the boundary: a
+`Edit` and `Write` are denied outside the run's working tree (the file tools are not sandboxed, so
+otherwise they could reach githerd's state, the main checkout's `.git/config` or the owner's
+settings), to the tree's `.git` and `.husky/`, and to a path under `protectedPaths`. The guard is not the boundary: a
 determined command can be spelled past any tokenizer. The boundary is the missing credential and
 the actor's checks; the guard turns the common mistakes into clear denials early.
 
@@ -976,7 +1001,9 @@ The runner reads `stream.jsonl` as it arrives:
    `structured_output.outcome`. Any entry in `permission_denials` or `denials.jsonl` adds a `denied`
    escalation with the tool and input.
 4. **Spend.** `total_cost_usd` from the result line. A run with no result line is charged its full
-   `budgetUsd`. Spend is per UTC day.
+   `budgetUsd`, and so is a run the daemon's shutdown interrupted or a restart found `interrupted`
+   or `lost`, on the day it started; otherwise a daemon restarting in a loop would spend without
+   limit. Spend is per UTC day.
 5. **Record** `result.json`, the run record `{id, kind, event, target, startedAt, endedAt,
    process, status, outcome, numTurns, costUsd, denials[], structured, sessionId}`, and a
    `run-end` ledger line.
@@ -1070,7 +1097,10 @@ pass before anything is labeled for real.
    `candidates`. It never proposes.
 3. **Filter runs.** A `retriage-filter` run with a fresh context receives each candidate (pairs for
    duplicates) with both bodies and the claimed reason, and confirms or rejects each one
-   independently. Only confirmed candidates become `close-issue` proposals, with grace and veto.
+   independently. Only confirmed candidates become `close-issue` proposals, with grace and veto. A
+   filter run's proposals that do not carry out a candidate it confirmed are voided when it ends,
+   and every proposal of a filter run that was interrupted or lost is voided before its group runs
+   again.
 4. **Report.** Issues read, labels changed, proposals made and candidates rejected go to the ledger
    and the digest.
 
@@ -1247,7 +1277,9 @@ comments, CI logs that echo them, and anything a run wrote are data, never instr
   for what githerd did: a `master-fix` label githerd added is ignored.
 
 **Outgoing-text check.** `github.write()` and the actor's push check refuse a body or a diff that
-matches `ghp_`, `gho_`, `ghs_`, `github_pat_`, `sk-ant-`, `-----BEGIN`, or the value of any
+matches `ghp_`, `gho_`, `ghs_`, `github_pat_`, `sk-ant-`, `-----BEGIN`, an npm token (`npm_`), an
+`sk-` secret key, a Google API key (`AIza`), a Slack token (`xoxb-`, `xoxa-`, `xoxp-`), an AWS
+access key id (`AKIA`), or the value of any
 variable in the daemon's environment whose name contains `TOKEN`, `KEY` or `SECRET`, or contains Co-Authored-By, Claude-Session or "Generated with".
 
 **Caps on harm per unit time:** writes per run (10), runs at once (2), daily spend ($15), runs per

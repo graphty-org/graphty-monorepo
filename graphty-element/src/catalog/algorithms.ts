@@ -191,7 +191,7 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
 const MODULARITY_INTERPRETATION: FieldInterpretation = {
     summary: "Modularity scores how separated the groups are. Above 0.3 counts as well separated.",
     source:
-        "Above 0.3: M. E. J. Newman and M. Girvan, \"Finding and evaluating community structure in " +
+        'Above 0.3: M. E. J. Newman and M. Girvan, "Finding and evaluating community structure in ' +
         "networks\", Phys. Rev. E 69, 026113 (2004). Below 0.1: graphty-element's convention for a " +
         "partition barely better than a random one.",
     bands: [

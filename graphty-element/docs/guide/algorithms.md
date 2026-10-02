@@ -84,11 +84,11 @@ const band = result.band("modularity");
 console.log(band?.id, band?.plainName); // "clear" "Clearly separated"
 ```
 
-| Band id  | Modularity                 | Plain name        |
-| -------- | -------------------------- | ----------------- |
-| `clear`  | above 0.3                  | Clearly separated |
-| `weak`   | 0.1 to 0.3, both included  | Weakly separated  |
-| `barely` | below 0.1                  | Barely separated  |
+| Band id  | Modularity                | Plain name        |
+| -------- | ------------------------- | ----------------- |
+| `clear`  | above 0.3                 | Clearly separated |
+| `weak`   | 0.1 to 0.3, both included | Weakly separated  |
+| `barely` | below 0.1                 | Barely separated  |
 
 The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
 Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely

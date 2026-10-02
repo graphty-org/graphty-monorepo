@@ -963,7 +963,8 @@ class Result implements RunResult {
 
         return interpretation.bands.find(
             (band) =>
-                (band.above === undefined || value > band.above) && (band.atLeast === undefined || value >= band.atLeast),
+                (band.above === undefined || value > band.above) &&
+                (band.atLeast === undefined || value >= band.atLeast),
         );
     }
 

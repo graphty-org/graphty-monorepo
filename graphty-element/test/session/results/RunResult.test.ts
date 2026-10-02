@@ -553,9 +553,21 @@ describe("a path result", () => {
             runId: "shortest-path",
             shape: "path",
             fields: [
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "node", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "node",
+                    type: "boolean",
+                }),
                 field({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "edge", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "edge",
+                    type: "boolean",
+                }),
             ],
             measured: { nodes: 4, edges: 3 },
             nodes: [
@@ -698,7 +710,11 @@ describe("the fields a shape declares", () => {
 
 describe("the top of a ranking, cut only between tie groups", () => {
     /** The cat fixture's degrees: 3 nodes of degree 4, 12 of degree 3 and 5 of degree 2. */
-    const CAT_DEGREES = [...Array.from({ length: 3 }, () => 4), ...Array.from({ length: 12 }, () => 3), ...Array.from({ length: 5 }, () => 2)];
+    const CAT_DEGREES = [
+        ...Array.from({ length: 3 }, () => 4),
+        ...Array.from({ length: 12 }, () => 3),
+        ...Array.from({ length: 5 }, () => 2),
+    ];
 
     it("takes a tie group only when the whole group fits inside n", () => {
         const top = metricResult(CAT_DEGREES).top("value", 5);

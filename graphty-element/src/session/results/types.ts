@@ -235,7 +235,7 @@ export const RESULT_FIELD_CONTRACT = {
         types: ["integer"],
     },
     normalization: {
-        meaning: "How the values were scaled before publication: \"max\", \"min-max\" or \"none\".",
+        meaning: 'How the values were scaled before publication: "max", "min-max" or "none".',
         scope: "graph",
         types: ["string"],
     },

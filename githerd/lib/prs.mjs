@@ -27,7 +27,7 @@
  *   the commit that ended the last incident was made
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, author: string | null,
- *   title: string, labels: string[], headChangedAt: string, headCommittedAt: string | null,
+ *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
  *   touchesProtected: boolean, touchesNoAutoMerge: boolean,
  *   autoMerge: boolean, mergeable: string | null, conflictSightings: number,
@@ -141,6 +141,8 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
             draft: node.isDraft,
             author: node.author?.login ?? null,
             title: node.title,
+            createdAt: node.createdAt ?? null,
+            references: (node.closingIssuesReferences?.nodes ?? []).map((i) => i.number),
             labels: (node.labels?.nodes ?? []).map((l) => l.name),
             headChangedAt: sameHead ? prev.headChangedAt : now,
             headCommittedAt: checks.committedAt,

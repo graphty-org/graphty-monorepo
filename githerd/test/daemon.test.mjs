@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
@@ -58,7 +58,7 @@ let configFile;
 let notifyLog;
 /** @type {Date} */
 let clock;
-/** @type {{head: string, ci: any[], commits: any[], prs: any[]}} */
+/** @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[]}} */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
 let gh;
@@ -105,6 +105,9 @@ function respond({ args, input }) {
             });
         }
         if (input?.includes("search(")) return ok({ data: { search: { issueCount: 0, nodes: [] } } });
+        if (input?.includes("issues(states: OPEN")) {
+            return ok({ data: { repository: { issues: { pageInfo: { hasNextPage: false }, nodes: [] } } } });
+        }
     }
     const path = args[args.length - 1];
     if (path.includes("/actions/workflows/ci.yml/runs?")) return ok({ workflow_runs: scene.ci });
@@ -117,7 +120,7 @@ function respond({ args, input }) {
         });
     }
     if (path.includes("/commits?sha=master")) return ok(scene.commits);
-    if (path.includes("/issues?")) return ok([]);
+    if (path.includes("/issues?")) return ok(scene.issues ?? []);
     if (/\/pulls\/\d+\/commits\?/.test(path)) return ok([{ commit: { message: "fix(x): a fix" } }]);
     if (/\/pulls\/\d+\/files\?/.test(path)) return ok([{ filename: "src/a.ts" }]);
     if (/\/actions\/jobs\/\d+$/.test(path)) {
@@ -206,6 +209,9 @@ function sleeper() {
     children.push(child);
     return child;
 }
+
+// Without a git identity in the test's directory, judgment runs stay off unless a test makes one.
+beforeAll(() => isolateGit());
 
 beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "githerd-daemon-"));
@@ -798,6 +804,39 @@ describe("judgment runs", () => {
         };
         for (let i = 0; i < 50 && alive(); i++) await new Promise((r) => setTimeout(r, 20));
         expect(alive()).toBe(false);
+    });
+});
+
+describe("dispatching", () => {
+    it("starts the run the state calls for with its prompt", async () => {
+        gitSync(dir, "init", "-q");
+        gitSync(dir, "config", "user.name", "Owner");
+        gitSync(dir, "config", "user.email", "o@example.com");
+        const scenarioFile = join(dir, "scenario.json");
+        writeFileSync(scenarioFile, JSON.stringify({ hang: true }));
+        scene.issues = [
+            { number: 7, updated_at: "2026-10-02T11:00:00Z", state: "open", labels: [], user: { login: "owner" } },
+        ];
+        writeConfig({ labels: { types: ["bug"], priorities: ["priority:high"], efforts: ["effort:low"] } });
+        const daemon = await start({
+            runner: {
+                claude: [process.execPath, FAKE_CLAUDE, scenarioFile],
+                servherd: async () => ({ servers: [] }),
+                killGraceMs: 200,
+            },
+        });
+        await poll(daemon);
+
+        const runs = Object.values(daemon.state.runs);
+        expect(runs).toMatchObject([{ kind: "triage", target: "issue:7", greenSha: A, status: "running" }]);
+        const prompt = readFileSync(join(dir, ".githerd", "runs", runs[0].id, "prompt.md"), "utf8");
+        expect(prompt).toContain('"target": "issue:7"');
+        expect(daemon.state.issues.byNumber[7].lastTriagedAt).toBe(clock.toISOString());
+
+        const pgid = runs[0].process.pid;
+        await daemon.shutdown();
+        for (let i = 0; i < 50 && groupAlive(pgid); i++) await new Promise((r) => setTimeout(r, 20));
+        expect(groupAlive(pgid)).toBe(false);
     });
 });
 

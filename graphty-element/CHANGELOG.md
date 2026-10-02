@@ -1,3 +1,14 @@
+## 3.4.2 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** size a label from its first line of words, not a blank first line ([26eff59a](https://github.com/graphty-org/graphty-monorepo/commit/26eff59a))
+- **graphty-element:** fade labels from the camera's world position; grow multi-line labels ([52fd3d7e](https://github.com/graphty-org/graphty-monorepo/commit/52fd3d7e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.4.1 (2026-10-02)
 
 ### 🩹 Fixes

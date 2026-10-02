@@ -123,18 +123,19 @@ track stays the darker light-scheme shade in both schemes.
 
 ### Components the theme restyles
 
-Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
-and you get Mantine's usual sizes back.
+Pass no `size` prop and these render compact. Pass a size token and they step
+along a compact scale: an input field is 20, 24, 30, 36 and 44px tall at `xs`,
+`sm` (the default), `md`, `lg` and `xl`.
 
-| Group          | Components                                                                                                                                        |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs (12)    | TextInput, NumberInput, Select, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton |
-| Buttons (3)    | Button, ActionIcon, CloseButton                                                                                                                   |
-| Controls (6)   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                    |
-| Display (7)    | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill                                                                                              |
-| Navigation (6) | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                |
-| Feedback (3)   | Loader, Progress, RingProgress                                                                                                                    |
-| Overlays (4)   | Menu, Tooltip, Popover, HoverCard                                                                                                                 |
+| Group          | Components                                                                                                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs (14)    | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
+| Buttons (3)    | Button, ActionIcon, CloseButton                                                                                                                                             |
+| Controls (6)   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                              |
+| Display (7)    | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill                                                                                                                        |
+| Navigation (6) | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                                          |
+| Feedback (3)   | Loader, Progress, RingProgress                                                                                                                                              |
+| Overlays (4)   | Menu, Tooltip, Popover, HoverCard                                                                                                                                           |
 
 ### Making it your own
 
@@ -219,7 +220,6 @@ examples, and every prop is documented in your editor.
 | `GradientEditor`    | a multi-stop linear gradient: colours, positions, angle. Needs a `PopoutManager`.                                                                                                                         |
 | `StyleNumberInput`  | a number that has a sensible default, and you want the panel to show at a glance whether the reader has overridden it. `undefined` means "not set" and shows the default in italics with no reset button. |
 | `StyleSelect`       | the same idea for a dropdown.                                                                                                                                                                             |
-| `SegmentedControl`  | Mantine's `SegmentedControl`, outside a panel row. Put it inside an `Input.Wrapper` and it takes the wrapper's label and description as its accessible name and description; Mantine's own does not.      |
 | `ToggleWithContent` | a feature is a yes or no that brings its own settings with it. Turning it off takes its settings off the screen.                                                                                          |
 
 ### Showing data

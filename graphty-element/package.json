@@ -191,7 +191,6 @@
         "ai": "^5.0.270",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
-        "encrypt-storage": "^2.14.7",
         "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",
         "fast-check": "^4.2.0",
@@ -220,7 +219,6 @@
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@mlc-ai/web-llm": ">=0.2.0",
         "ai": "^5.0.104",
-        "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
     },
     "peerDependenciesMeta": {
@@ -240,9 +238,6 @@
             "optional": true
         },
         "ai": {
-            "optional": true
-        },
-        "encrypt-storage": {
             "optional": true
         }
     },

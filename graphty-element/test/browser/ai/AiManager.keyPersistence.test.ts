@@ -79,7 +79,7 @@ describe("AiManager key persistence", () => {
             manager.dispose();
         });
 
-        it("should use sessionStorage when specified", () => {
+        it("should use sessionStorage when specified", async () => {
             const manager = new AiManager();
             manager.init(mockGraph, {
                 provider: "openai",
@@ -92,6 +92,8 @@ describe("AiManager key persistence", () => {
                 },
             });
 
+            await manager.getApiKeyManager().ready();
+
             // Check that key is stored in sessionStorage (encrypted)
             const storedValue = sessionStorage.getItem(`${testPrefix}:keys`);
             assert.ok(storedValue !== null, "key should be stored in sessionStorage");
@@ -103,7 +105,7 @@ describe("AiManager key persistence", () => {
             manager.dispose();
         });
 
-        it("should use custom storage prefix", () => {
+        it("should use custom storage prefix", async () => {
             const customPrefix = "@my-custom-app-prefix";
             const manager = new AiManager();
             manager.init(mockGraph, {
@@ -115,6 +117,8 @@ describe("AiManager key persistence", () => {
                     prefix: customPrefix,
                 },
             });
+
+            await manager.getApiKeyManager().ready();
 
             // Verify prefix is used
             const storedValue = localStorage.getItem(`${customPrefix}:keys`);
@@ -142,7 +146,7 @@ describe("AiManager key persistence", () => {
     });
 
     describe("cross-instance persistence", () => {
-        it("should load persisted keys on re-init", () => {
+        it("should load persisted keys on re-init", async () => {
             // First init with persistence - save a key
             const manager1 = new AiManager();
             manager1.init(mockGraph, {
@@ -154,6 +158,7 @@ describe("AiManager key persistence", () => {
                     prefix: testPrefix,
                 },
             });
+            await manager1.getApiKeyManager().ready();
             manager1.dispose();
 
             // Second init should load persisted key (without providing apiKey)
@@ -168,12 +173,13 @@ describe("AiManager key persistence", () => {
             });
 
             const keyManager = manager2.getApiKeyManager();
+            await keyManager.ready();
             assert.strictEqual(keyManager.getKey("openai"), "sk-persisted-key");
 
             manager2.dispose();
         });
 
-        it("should not decrypt with wrong encryption key", () => {
+        it("should not decrypt with wrong encryption key", async () => {
             // Save with one key
             const manager1 = new AiManager();
             manager1.init(mockGraph, {
@@ -185,6 +191,7 @@ describe("AiManager key persistence", () => {
                     prefix: testPrefix,
                 },
             });
+            await manager1.getApiKeyManager().ready();
             manager1.dispose();
 
             // Try to load with wrong key
@@ -199,6 +206,7 @@ describe("AiManager key persistence", () => {
             });
 
             const keyManager = manager2.getApiKeyManager();
+            await keyManager.ready();
             // Should not have the key (decryption failed silently)
             assert.strictEqual(keyManager.hasKey("openai"), false);
 

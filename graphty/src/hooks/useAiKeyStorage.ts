@@ -29,7 +29,7 @@ interface UseAiKeyStorageResult {
     defaultProvider: ProviderType | null;
     /** Choose the reader's default provider */
     setDefaultProvider: (provider: ProviderType | null) => void;
-    /** Enable persistence, with the element's built-in encryption key unless one is given */
+    /** Enable persistence, with the element's built-in key unless a passphrase is given (keys are then only obscured) */
     enablePersistence: (encryptionKey?: string) => void;
     /** Disable persistence */
     disablePersistence: (clearStorage?: boolean) => void;
@@ -72,20 +72,24 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
 
         let cancelled = false;
 
-        void getApiKeyManager().then(
-            (ApiKeyManagerClass) => {
+        void getApiKeyManager()
+            .then(async (ApiKeyManagerClass) => {
                 if (cancelled) {
                     return;
                 }
 
-                keyManagerRef.current = new ApiKeyManagerClass();
-                refresh();
-                setIsReady(true);
-            },
-            (err: unknown) => {
+                const manager = new ApiKeyManagerClass();
+                keyManagerRef.current = manager;
+                // The manager restores an earlier page's keys asynchronously
+                await manager.ready();
+                if (!cancelled) {
+                    refresh();
+                    setIsReady(true);
+                }
+            })
+            .catch((err: unknown) => {
                 console.error("[useAiKeyStorage] Failed to load ApiKeyManager:", err);
-            },
-        );
+            });
 
         return () => {
             cancelled = true;
@@ -128,8 +132,12 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
     const enablePersistence = useCallback(
         (encryptionKey?: string) => {
             const trimmed = encryptionKey?.trim();
-            keyManagerRef.current?.enablePersistence({ encryptionKey: trimmed === "" ? undefined : trimmed });
+            const loaded = keyManagerRef.current?.enablePersistence({
+                encryptionKey: trimmed === "" ? undefined : trimmed,
+            });
             refresh();
+            // Stored keys arrive once they are decrypted
+            void loaded?.then(refresh);
         },
         [refresh],
     );

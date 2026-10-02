@@ -5891,6 +5891,8 @@ export class Graph implements GraphContext {
         this.aiManager?.dispose();
         this.aiManager = new AiManager();
         this.aiManager.init(this, config);
+        // Persisted keys load and save asynchronously; resolve once they have
+        await this.aiManager.getApiKeyManager().ready();
     }
 
     /**
@@ -6062,24 +6064,24 @@ export class Graph implements GraphContext {
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
-     * ASYNCHRONOUS, AND THE REASON IS THE BUNDLE. The key store encrypts what it persists, so it
-     * imports `encrypt-storage`. This method used to construct one directly, which made that a
-     * STATIC import of `Graph` -- and `Graph` is what the root entry point pulls in. The result
-     * was that an encryption library shipped to every consumer who drew a graph and never touched
-     * the AI layer, which is exactly what the separate `./ai` entry point exists to prevent. The
-     * entry point's own comment claimed no such cost; for the three LLM SDKs that was true, and
-     * for this one it was not.
+     * Asynchronous for two reasons. The key store lives behind the `./ai` entry point, so this
+     * method imports it dynamically rather than making it a static import of `Graph`, which the
+     * root entry point pulls in for every consumer who draws a graph. And the store restores keys
+     * an earlier page saved with Web Crypto, which is asynchronous: the returned manager has
+     * finished that restore.
      *
      * A consumer who wants it synchronously imports `ApiKeyManager` from
-     * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
-     * because they are then choosing to load the encryption library.
+     * `@graphty/graphty-element/ai`, constructs it, and awaits `ready()` before reading keys.
+     *
+     * Keys saved without an `encryptionKey` are only obscured, not encrypted: anyone with access
+     * to the page or the browser profile can read them. Pass a passphrase the user supplies.
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
      * // In a settings UI component
      * const keyManager = await Graph.createApiKeyManager();
-     * keyManager.enablePersistence({
-     *   encryptionKey: userSecret,
+     * await keyManager.enablePersistence({
+     *   encryptionKey: userPassphrase, // typed by the user; without it keys are only obscured
      *   storage: 'localStorage',
      * });
      * keyManager.setKey('openai', apiKey);
@@ -6087,8 +6089,9 @@ export class Graph implements GraphContext {
      */
     static async createApiKeyManager(): Promise<ApiKeyManager> {
         const { ApiKeyManager: KeyManager } = await import("./ai/keys");
-
-        return new KeyManager();
+        const manager = new KeyManager();
+        await manager.ready();
+        return manager;
     }
 
     // ===========================================

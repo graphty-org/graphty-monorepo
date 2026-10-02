@@ -935,7 +935,8 @@ still reviews every Bash command.
 
 `bin/githerd-guard.mjs` reads the PreToolUse input on stdin. Its whole body is one try/catch: any
 internal error, malformed input or unreadable file exits 2 (deny) with the reason, and appends a
-line to `$GITHERD_RUN_DIR/denials.jsonl`. It makes no network calls. It denies a Bash command when
+line to `$GITHERD_RUN_DIR/denials.jsonl`. It makes no network calls. Besides the hook input it reads
+only `$GITHERD_RUN_DIR/guard.json`, which the runner writes: `{kind, root, protectedPaths}`. It denies a Bash command when
 any simple command in it (split on `;`, `&&`, `||`, `|`, newlines and `$(...)`, honoring quotes):
 
 - is `git push`, `gh`, `curl`/`wget` to `github.com` or `api.github.com`, `ssh`, or `git credential`;

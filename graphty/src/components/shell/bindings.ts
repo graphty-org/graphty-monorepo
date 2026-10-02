@@ -796,9 +796,9 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         action: "Add a note to the selection",
         scope: "global",
         owner: "dispatcher",
-        shipped: false,
+        shipped: true,
         preventDefault: false,
-        note: "Focuses the inspector input; on iPad opens the inspector overlay; with nothing selected opens the case note. NOT SHIPPED: Notes have not shipped.",
+        note: "Focuses the inspector input; with nothing selected opens the case notes.",
     },
     {
         id: "toggleNotesLayer",
@@ -807,7 +807,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: Notes have not shipped.",
+        note: "NOT SHIPPED: graphty-element draws no notes layer on the canvas.",
         preventDefault: false,
     },
     {
@@ -1034,11 +1034,7 @@ export function keyChipFor(id: ShellCommandId, apple: boolean = isApplePlatform(
 /**
  * One rung of the Escape ladder.
  */
-export type EscapeRungId =
-    | "cancelDragOrMarquee"
-    | "clearSelection"
-    | "closeTopmostTransient"
-    | "pauseTimelinePlayback";
+export type EscapeRungId = "cancelDragOrMarquee" | "clearSelection" | "closeTopmostTransient" | "pauseTimelinePlayback";
 
 /**
  * The Escape ladder: one rung per press, first match wins. The last rung ("nothing") is

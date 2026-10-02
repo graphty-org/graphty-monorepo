@@ -478,6 +478,9 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             nodeCount: snapshot.nodeCount,
             edgeCount: snapshot.edgeCount,
             forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
+            // A graph whose edges all weigh the same (one with no weight attribute reads 1 everywhere)
+            // is unweighted as far as the floors are concerned.
+            weighted: snapshot.weights?.some((weight, _, all) => weight !== all[0]) ?? false,
             ...(options?.sources === undefined
                 ? {}
                 : { sourceEdges: Math.min(options.sources, snapshot.nodeCount) * snapshot.edgeCount }),

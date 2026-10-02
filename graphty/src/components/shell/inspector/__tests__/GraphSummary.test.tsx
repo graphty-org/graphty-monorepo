@@ -389,6 +389,12 @@ describe("GraphSummary", () => {
             expect(screen.getByRole("button", { name: "Add a case note" })).toBeInTheDocument();
         });
 
+        it("reads one case note in the singular", () => {
+            renderSummary({ caseNoteCount: 1 });
+
+            expect(screen.getByRole("button", { name: "1 case note" })).toBeInTheDocument();
+        });
+
         it("reads N case notes above zero", () => {
             renderSummary({ caseNoteCount: 3 });
 

@@ -1,3 +1,24 @@
+## 0.8.30 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** route kruskal to the GPU above a measured floor ([252a19ed](https://github.com/graphty-org/graphty-monorepo/commit/252a19ed))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.22
+- Updated graphty-element to 3.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.29 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.4.2
+
 ## 0.8.28 (2026-10-02)
 
 ### 🩹 Fixes

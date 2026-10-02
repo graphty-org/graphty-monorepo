@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph PUBLIC "-//John Punin//DTD graph description//EN" "http://www.cs.rpi.edu/~puninj/XGMML/xgmml.dtd">
+<graph id="4" label="Subgraphs">
+  <node id="1" label="cluster 1">
+    <att><graph id="g1" label="inside 1">
+      <node id="11" label="11"/><node id="12" label="12"/>
+      <edge source="11" target="12"/>
+    </graph></att>
+  </node>
+  <node id="2" label="cluster 2">
+    <att><graph id="g2" label="inside 2"><node id="21" label="21"/></graph></att>
+  </node>
+  <edge source="12" target="21"/>
+  <edge source="1" target="2"/>
+</graph>

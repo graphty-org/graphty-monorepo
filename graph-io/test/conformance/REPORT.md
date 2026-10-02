@@ -22,6 +22,7 @@ the expectation today; the reference points into
 | neo4j | 45 | 25 | 20 | 24 | 0 |
 | obo | 102 | 102 | 0 | 0 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
+| xgmml | 77 | 77 | 0 | 75 | 0 |
 
 ## networkx differential
 
@@ -120,6 +121,22 @@ rest of the format's expectations does something else.
 - obo (obonet-1.3.0): fastobo and ROBOT reject the unquoted literal; graph-io reads it as the value (1 file)
 - obo (spec): fastobo rejects the Typedef tag after its frame's clauses; obonet keeps the spaces before a ! comment in an id and makes FBbt:00005106 and 'FBbt:00005106 ' two nodes (16); the hidden comment and its whitespace are not part of the value (1 file)
 - obo (spec): fastobo and obonet reject the escaped colon; the guides' \: is a literal colon (1 file)
+- xgmml (spec): Cytoscape 3.10 creates no column for an untyped empty list (its element type is unknown); graph-io keeps it as an empty list of strings and says so, so the attribute is not dropped silently (1 file)
+- xgmml (spec): Cytoscape remaps *.SUID values to the SUIDs of the new session and drops unresolvable ones; SUIDs mean nothing outside the session that wrote them, so graph-io keeps the values as written with extra.suidReference (1 file)
+- xgmml (spec): Cytoscape's file filter refuses a root graph without the namespace or an xgmml.dtd DOCTYPE; the content is unambiguous XGMML, so graph-io reads it and warns (1 file)
+- xgmml (spec): Cytoscape shows a collapsed group as its group node only (2 nodes, 1 edge in the visible network); graph-io's snapshot holds every node of the document and records the group as parent containment (1 file)
+- xgmml (spec): Cytoscape hides an expanded group's own node (3 nodes in the visible network); graph-io keeps the group node as the parent of its members (1 file)
+- xgmml (spec): Cytoscape shows the collapsed outer group only (3 nodes, 3 edges); graph-io flattens every node and keeps the nesting as parent containment (1 file)
+- xgmml (spec): Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected (5 files)
+- xgmml (spec): Cytoscape turns every id that Long.valueOf(trim) accepts into a long, so 1, 01 and ' 1 ' collapse into one node; the ids are distinct texts and graph-io keeps them (1 file)
+- xgmml (spec): Cytoscape 3.10 aborts the whole file here (a SAXParseException or a NullPointerException, research-xgmml.md 5); graph-io imports with a per-element error, as every graph-io importer does (4 files)
+- xgmml (spec): Cytoscape 3 creates both edges; edge ids are unique in XGMML (the DTD's ID type) and in graph-io's id column (1 file)
+- xgmml (spec): Cytoscape's file filter refuses a root graph without the namespace or an xgmml.dtd DOCTYPE; the content is unambiguous, so graph-io reads it and warns (1 file)
+- xgmml (spec): Cytoscape's state machine ignores the unknown tag but keeps descending, so it reads the node inside the wrapper; an element XGMML does not define has no meaning to read into, so graph-io skips the subtree and says so (1 file)
+- xgmml (spec): Cytoscape reads any boolean text other than 1, true or yes as false, so 2 becomes false silently; graph-io does not guess and reports it (1 file)
+- xgmml (spec): Cytoscape types the list by its first item and fails to convert x to an integer; design 5.1 widens to the type every item fits (1 file)
+- xgmml (spec): Cytoscape reads G1 and G2 as groups from the session's hidden __isGroup table, which a network file alone does not carry; read on its own, the file's node-nested graphs are nested-network pointers (the .cys importer supplies the group bookkeeping) (1 file)
+- xgmml (spec): Cytoscape finds the embedded graph; graph-io reads XGMML documents, whose root is graph (design section 1.1) (1 file)
 
 ## csv
 
@@ -417,6 +434,10 @@ No known failures.
 
 No known failures.
 
+## xgmml
+
+No known failures.
+
 ## Generative round trips
 
 fast-check graphs (seed 20260923, 300 per configuration; generative.ts) are
@@ -439,6 +460,7 @@ announced an E_ code (a documented refusal).
 | json cytoscape | 300 | 300 | 0 | 0 | direction, negativeZero, nonFiniteUnset |
 | json graphology | 300 | 300 | 0 | 0 | negativeZero, nonFiniteUnset |
 | cx2 | 300 | 300 | 0 | 0 | direction, nonFiniteUnset |
+| xgmml | 300 | 289 | 11 (E_XML_ILLEGAL_CHAR) | 0 | idText |
 
 The documented losses (a check() note code and the difference it allows):
 

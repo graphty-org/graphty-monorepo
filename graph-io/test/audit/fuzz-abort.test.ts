@@ -36,6 +36,7 @@ const FILES: Readonly<Record<CorpusFormat, string>> = {
     neo4j: "karate-neo4j.csv",
     obo: "taxrank.obo",
     pajek: "football.net",
+    xgmml: "karate.xgmml",
 };
 
 interface TrackedStream {

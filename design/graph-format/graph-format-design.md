@@ -3755,6 +3755,16 @@ export interface CommonImportOptions {
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
     encoding?: string | undefined;
 }
+export interface GraphChoiceOptions {
+    graphIndex?: number | undefined;
+    graphName?: string | undefined;
+}
+export interface GraphListing {
+    readonly index: number;
+    readonly name: string | null;
+    readonly nodes: number | null;
+    readonly edges: number | null;
+}
 export interface GraphImporter<Opts = unknown> {
     readonly format: string;
     readonly extensions: readonly string[];
@@ -3766,6 +3776,7 @@ export interface GraphImporter<Opts = unknown> {
         sinkFor: (index: number) => GraphSink,
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
+    listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly GraphListing[]>;
 }
 export interface ExportCapabilities {
     readonly mixedDirection: boolean;

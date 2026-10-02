@@ -128,7 +128,10 @@ the two correctly.
   bytes that are not UTF-8 while everything before them was ASCII are read as windows-1252 with
   `W_ENCODING_FALLBACK`. Never decode bytes anywhere else.
 - A format that can hold several graphs (DOT, Pajek `.paj`, GML, JGF) implements `importAll()`;
-  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped.
+  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped. A new
+  importer of such a format also implements `listGraphs()` (a `GraphListing` per graph, cheaply)
+  and takes `graphIndex` / `graphName` (`GraphChoiceOptions`), resolved by `chooseGraph()` in
+  `common/options.ts`; the registry's `listGraphs()` answers null for an importer without it.
 
 ## Adding a format
 

@@ -172,9 +172,12 @@ describe("audit: issue and loss code tables", () => {
                 }
             }
         }
+        // a version is always the format's own (a CX2 descriptor's, a session marker's), so its
+        // code names the format: E_CX2_VERSION and E_CYS_VERSION are two concepts, not one
+        const formatOwn: ReadonlySet<string> = new Set(["VERSION"]);
         const divergent: string[] = [];
         for (const [key, codes] of byKey) {
-            if (codes.size > 1 && new Set(codes.values()).size > 1) {
+            if (!formatOwn.has(key) && codes.size > 1 && new Set(codes.values()).size > 1) {
                 divergent.push(`${key}: ${[...codes].map(([fmt, code]) => `${fmt}=${code}`).join(" ")}`);
             }
         }

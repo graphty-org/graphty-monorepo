@@ -1,3 +1,50 @@
+## 0.6.21 (2026-10-02)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** give the benchmark group selector forward-slash paths on windows ([2e3a10d2](https://github.com/graphty-org/graphty-monorepo/commit/2e3a10d2))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.20 (2026-10-02)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** report a Bellman-Ford negative cycle when candidates race ([#470](https://github.com/graphty-org/graphty-monorepo/issues/470))
+- **webgpu-graph-algorithms:** upload a released snapshot again before Katz binds the reverse view ([#623](https://github.com/graphty-org/graphty-monorepo/issues/623))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.6
+- Updated algorithms to 3.1.4
+- Updated layout to 2.0.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.19 (2026-10-02)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** scale the all-pairs big fixture on lavapipe ([78e89989](https://github.com/graphty-org/graphty-monorepo/commit/78e89989))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.5
+- Updated algorithms to 3.1.3
+- Updated layout to 2.0.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.18 (2026-10-01)
 
 ### 🧱 Updated Dependencies

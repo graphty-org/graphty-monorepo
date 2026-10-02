@@ -16,11 +16,10 @@
  * wrong because of that, and both are recorded below under "where the element disagreed".
  *
  * WHAT STAYS, and why it is not element work. {@link edgeEndpointId} and
- * {@link edgeEndpoints} read an ENDPOINT OFF AN APP RECORD: the `{...edge.data, id,
- * source, target}` bag `Graphty.tsx` builds for the data table and the node inspector.
- * That is a fact about the app's own record shape rather than about the graph, and the
- * inspector's neighbour list is its only remaining caller -- it is here rather than in
- * the element because the element's data surface still publishes no neighbour verb.
+ * {@link edgeEndpoints} print the ENDPOINTS OF AN EDGE RECORD the element handed over
+ * (`session.data.edgePage`), for a table row and an inspector line. Which edges touch a
+ * node is the element's answer (`edgePage({ touching })`); these only read the two ids
+ * off each record.
  *
  * WHERE THE ELEMENT DISAGREED WITH THE PASS THIS REPLACES, and which answer won:
  *
@@ -172,7 +171,7 @@ export function edgeEndpointId(value: unknown): string | null {
  *
  * `source` and `target`, and nothing else. Those are the only two names the element ever
  * writes: every importer publishes that pair, the element resolves whatever an input file
- * spelled its endpoints before the record is built, and `GraphtyHandle.getData` copies the
+ * spelled its endpoints before the record is built, and the element writes the
  * resolved pair onto the record after the attribute spread, so a source file that happens
  * to carry a key called `src` cannot displace it.
  *
@@ -182,13 +181,9 @@ export function edgeEndpointId(value: unknown): string | null {
  * that happens to share the name. A record naming neither now reads as naming no node,
  * which is the honest answer and the one the element itself gives.
  *
- * WHY THIS IS STILL THE APP'S. It reads the app's own record bag, not the graph: the ids
- * it returns are printed forms for a table row and an inspector line. The one thing built
- * on top of it that IS a graph question -- who a node's neighbours are -- is here only
- * because the element's data surface has no neighbour verb yet; its own documentation
- * says neighbour pages are asynchronous by construction and not part of that surface.
- * When they arrive, the inspector's neighbour list is the element's and this file keeps
- * only the record reader.
+ * WHY THIS IS STILL THE APP'S. It reads one record, not the graph: the ids it returns are
+ * printed forms for a table row and an inspector line. Which edges touch a node is asked
+ * of the element (`session.data.edgePage({ touching })`).
  * @param edge - one edge record.
  * @returns both endpoint ids, either of which may be null.
  * @public

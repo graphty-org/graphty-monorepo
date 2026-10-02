@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/drafts/graphty-annotations/v1.json",
     "title": "graphty annotations, version 1",
-    "description": "Normative for what a conforming writer produces. A reader validates notes one by one; a note that fails is kept verbatim, unbound, and written back (annotations.md); only a failure of the top level refuses the document.",
+    "description": "Superseded by notes.md; kept as the record of the evidence-chain ideas. Normative for what a conforming writer produces. A reader validates notes one by one; a note that fails is kept verbatim, unbound, and written back (annotations.md); only a failure of the top level refuses the document.",
     "type": "object",
     "required": ["kind", "version", "notes"],
     "properties": {

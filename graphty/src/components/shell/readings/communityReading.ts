@@ -20,7 +20,7 @@
  * Two clauses are conditional on FACTS rather than on taste:
  *
  * - The banded modularity clause is dropped entirely when the method reported no
- *   modularity. An unbanded number is not one of the three legal phrasings, and
+ *   modularity, or graphty-element put it in no band. An unbanded number is not one of the three legal phrasings, and
  *   GroupProfilePopout.dc.html:767 and StyleFromAnalysis.dc.html:1404 both draw the
  *   short form ("6 groups found. The largest has 118 members. Colors show groups."),
  *   so the shape is attested rather than invented.
@@ -36,7 +36,9 @@
  * being sorted here.
  */
 
-import { formatCount, formatModularity, formatPercent, modularityBand, modularityBandPhrase } from "./readingFormat";
+import type { FieldBand } from "@graphty/graphty-element/catalog";
+
+import { formatCount, formatModularity, formatPercent, modularityBandPhrase } from "./readingFormat";
 
 /**
  * One group and its size.
@@ -62,6 +64,8 @@ export interface CommunityStatistics {
     readonly largestGroupSize: number;
     /** Modularity, when the method reported it. Absent omits the whole banded clause. */
     readonly modularity?: number;
+    /** The band graphty-element put the modularity in. Absent omits the whole banded clause. */
+    readonly modularityBand?: FieldBand;
     /** Nodes the run covered. */
     readonly nodeCount: number;
     /** Every group, largest first. */
@@ -97,7 +101,7 @@ function pluralise(count: number, singular: string): string {
  * @returns the reading.
  */
 function fewGroupsReading(statistics: CommunityStatistics): string {
-    const { groupCount, largestGroupSize, modularity } = statistics;
+    const { groupCount, largestGroupSize, modularity, modularityBand } = statistics;
     const sentences = [`${formatCount(groupCount)} ${pluralise(groupCount, "group")} found.`];
 
     /* The second sentence is the one fact that is NOT already on screen. Modularity is
@@ -105,9 +109,9 @@ function fewGroupsReading(statistics: CommunityStatistics): string {
        on, so it wins the slot whenever the method reported it; the largest group's size
        takes the slot only when it did not, because the result body already lists every
        group with its size. See the sentence budget note on `communityReading`. */
-    if (modularity !== undefined && Number.isFinite(modularity)) {
+    if (modularity !== undefined && Number.isFinite(modularity) && modularityBand !== undefined) {
         sentences.push(
-            `The groups are ${modularityBandPhrase(modularityBand(modularity))} (modularity ${formatModularity(modularity)}).`,
+            `The groups are ${modularityBandPhrase(modularityBand)} (modularity ${formatModularity(modularity)}).`,
         );
     } else {
         sentences.push(`The largest has ${formatCount(largestGroupSize)} ${pluralise(largestGroupSize, "member")}.`);

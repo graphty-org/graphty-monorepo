@@ -1,3 +1,60 @@
+## 0.8.28 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty:** draw the Graphty story graph larger, labelled and with thick edges ([5684802b](https://github.com/graphty-org/graphty-monorepo/commit/5684802b))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.21
+- Updated graphty-element to 3.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.27 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** save and open notes with toDocument and mergeDocument ([e2ac4893](https://github.com/graphty-org/graphty-monorepo/commit/e2ac4893))
+
+### 🩹 Fixes
+
+- **graphty-element:** set the triangle edge floor at the smallest measured all-win value ([#678](https://github.com/graphty-org/graphty-monorepo/issues/678))
+- **graphty-element:** save a loaded edge's note by its position at save time ([7f009140](https://github.com/graphty-org/graphty-monorepo/commit/7f009140))
+- **graphty-element:** save a note about a session-added edge by its position ([b681820e](https://github.com/graphty-org/graphty-monorepo/commit/b681820e))
+- **graphty-element:** keep the notes reader out of the extend entry point ([51567728](https://github.com/graphty-org/graphty-monorepo/commit/51567728))
+- **graphty-element:** read a notes file once, and bind its session edge ids to nothing ([06cd19a6](https://github.com/graphty-org/graphty-monorepo/commit/06cd19a6))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.20
+- Updated compact-mantine to 0.8.18
+- Updated graphty-element to 3.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.26 (2026-10-02)
+
+### 🩹 Fixes
+
+- **deps:** patch the open uuid, vitest mocker, ip-address and low-severity advisories ([a5a5109c](https://github.com/graphty-org/graphty-monorepo/commit/a5a5109c))
+- **graphty-element:** paint runs beneath a partial user layer instead of suppressing them ([#551](https://github.com/graphty-org/graphty-monorepo/issues/551))
+- **compact-mantine:** inputs follow the size scale and the password toggle has a name ([#7](https://github.com/graphty-org/graphty-monorepo/issues/7), [#137](https://github.com/graphty-org/graphty-monorepo/issues/137), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.19
+- Updated compact-mantine to 0.8.17
+- Updated graphty-element to 3.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.25 (2026-10-01)
 
 ### 🚀 Features

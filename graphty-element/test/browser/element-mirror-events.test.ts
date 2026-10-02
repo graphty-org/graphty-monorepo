@@ -1,5 +1,5 @@
 /**
- * @file The three element events that had no document, no test and no story.
+ * @file The element events that had no document, no test and no story, and the note event.
  *
  * `<graphty-element>` mirrors four of its own facts onto the DOM. The node pointer events are
  * documented in the events guide and tested; `graphty-run-change`, `graphty-selection-change`
@@ -102,5 +102,18 @@ describe("the element's own mirrors on the DOM", () => {
 
         assert.include(phases, "start", "a run announced that it had started");
         assert.include(phases, "end", "and that it had finished");
+    });
+
+    test("graphty-note-change arrives with plain values and no record", async () => {
+        const element = await mountWithGraph();
+        const seen: unknown[] = [];
+        element.addEventListener("graphty-note-change", (event) => {
+            seen.push((event as CustomEvent).detail);
+        });
+
+        const id = element.session.notes.add({ text: "about a", targets: [{ node: "a" }] });
+
+        assert.deepEqual(seen, [{ id, change: "created", fields: [], cause: "command" }]);
+        assert.doesNotThrow(() => structuredClone(seen[0]), "the detail carries plain values");
     });
 });

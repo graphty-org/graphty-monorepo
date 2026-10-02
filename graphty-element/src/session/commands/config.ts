@@ -5,7 +5,7 @@
  * path: every leaf of the zod `DataConfig` schema under `data.` (the id, label, weight and time
  * paths, the repeated-edge policy, the position scale, the id coercion, the on-load algorithms and
  * the direction), whether the on-load algorithms run, the background, the selection style, and
- * three layout-behaviour keys. The `DataConfig` leaves are read from the schema when this module
+ * three layout-behaviour keys, and the author stamped on notes. The `DataConfig` leaves are read from the schema when this module
  * loads, so a field added there joins the slice without an edit here.
  *
  * The slice holds only what has been set, as the caller gave it; a key that is absent reads as
@@ -33,7 +33,7 @@ export interface ConfigSetCommand {
 }
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
-type ConfigGroup = "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior";
+type ConfigGroup = "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author";
 
 /** One key of the `config` slice. */
 interface ConfigKey {
@@ -86,6 +86,14 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
     ]),
+    // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
+    [
+        "author",
+        {
+            group: "author",
+            schema: z.string().refine((name) => Array.from(name).length <= 256, "An author is at most 256 characters."),
+        },
+    ],
 ]);
 
 /**
@@ -126,7 +134,12 @@ function badPatch(message: string, details: Readonly<Record<string, unknown>>, c
  */
 function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
     const leaves: [string, unknown][] = [];
-    const visit = (value: unknown, path: string): void => {
+    const visit = (given: unknown, path: string): void => {
+        // `null` clears the author, and a name that is empty or only white space is no name.
+        const value =
+            path === "author" && (given === null || (typeof given === "string" && !/\S/u.test(given)))
+                ? undefined
+                : given;
         const key = CONFIG_KEYS.get(path);
         if (key !== undefined) {
             if (value !== undefined) {
@@ -235,6 +248,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     }
 
     Object.freeze(data.knownFields);
+    const author = slice.get("author");
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
         runAlgorithmsOnLoad: read("runAlgorithmsOnLoad") as boolean,
@@ -245,6 +259,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
+        ...(typeof author === "string" ? { author } : {}),
     });
 }
 

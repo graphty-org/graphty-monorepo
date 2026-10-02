@@ -71,6 +71,35 @@ Find clusters of related nodes:
 await graph.runAlgorithm("graphty", "louvain");
 ```
 
+#### Is the grouping meaningful?
+
+A community run publishes its modularity, and the run says how to read it. `band("modularity")`
+returns which band of the score's scale the value falls in, so a consumer never hard-codes the
+thresholds:
+
+```typescript
+const result = await element.run("louvain");
+const band = result.band("modularity");
+
+console.log(band?.id, band?.plainName); // "clear" "Clearly separated"
+```
+
+| Band id  | Modularity                | Plain name        |
+| -------- | ------------------------- | ----------------- |
+| `clear`  | above 0.3                 | Clearly separated |
+| `weak`   | 0.1 to 0.3, both included | Weakly separated  |
+| `barely` | below 0.1                 | Barely separated  |
+
+The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
+Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely
+better than a random one. The same scale, with a one-sentence description per band and the
+citation, is on the modularity field of the algorithm's catalogue entry
+(`fields[].interpretation`), so it can be shown before anything has run. `band()` returns
+`undefined` for a field with no scale or no finite value.
+
+The result's own sentence, `result.reading()`, names the band too, for example "Modularity is
+0.447 (clearly separated)."
+
 ### Component Analysis
 
 Find connected subgraphs:

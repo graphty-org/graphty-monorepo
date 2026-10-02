@@ -103,6 +103,7 @@ pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-cl
 pnpm run bench:compare      # the regression check: a median AND a minimum above 1.35x AND 2.5 ms over the pinned best of benchmarks/results/<runner-class>.json
 pnpm run bench:readme       # regenerate the README's target tables after changing targets.json or a results file
 pnpm run bench:ab --base <rev>   # the paired check of a pull request: base and candidate alternated on one card (ABBA), per-row ratio with a 95% interval; fails when the lower bound is above 1.08
+git diff --name-only <rev> HEAD | node scripts/bench-groups.js --base <rev>   # the benchmark groups a change can move ("all", a list, or nothing), with the reason per file on stderr
 pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to the baseline (refuses software / incomplete / duplicate sessions)
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end exact-tier layout; exit 1 on a non-finite position or an unfinished run
 pnpm run gpu:report         # node scripts/gpu-report.js (after build:all): adapter report, policy exit code
@@ -160,6 +161,17 @@ class>.json` (`nvidia-lovelace-driver0.json` on the dev box: Chromium redacts th
 Node class file. The absolute targets live in `benchmarks/results/targets.json`: `bench:compare` prints met / missed /
 recorded per row and fails a run on a gating class (`gpu-linux-t4`) that misses a target not listed as that class's
 known miss, and `pnpm run bench:readme` regenerates the README tables from it (issue #277).
+
+The paired benchmark on the GPU lane (`gpu.yml`, pull requests that change `src/`) runs only the groups the change can
+move. `scripts/bench-groups.js` maps each group to the `src/` files its benchmark reaches through imports, transitively,
+from the group's bench file and `benchmarks/run.ts` (type-only imports count; the kernel registry `src/kernels.ts` is
+followed by kernel id: a file naming `"bfs-fused"` reaches that kernel's WGSL module, not all of them), and selects the
+groups that reach a changed file. A changed file in its `AFFECTS_EVERY_GROUP` list (device setup, the WGSL prelude,
+`src/constants.ts`, and the files no benchmark loads) or one the scan cannot place selects every group; that full run
+gets 75 minutes, a subset the original 40. `test/bench-groups.test.ts` fails when a file under `src/` is in no group's
+set and not in the list, so a new file must be reached by a benchmark or listed. The scan works per file: two groups
+defined in one bench file share a set. Every group is compared once a week by `gpu-weekly-paired.yml`, master's tip
+against the latest `webgpu-graph-algorithms@<version>` tag; a regression fails that run and files or rewrites one issue.
 
 `exactMaxNodes` (`EXACT_MAX_NODES` in `src/constants.ts`) is re-fixed from the ladder by the spec 7.8 rule, coded once as
 `exactMaxNodesFromLadder` in `benchmarks/layout-exact.bench.ts`: the largest rung with <= 4 ms per iteration, rounded down

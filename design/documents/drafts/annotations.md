@@ -1,5 +1,7 @@
 # Annotations
 
+> **Superseded by [../notes.md](../notes.md); kept as the record of the evidence-chain ideas.**
+
 > **Draft -- not part of version 1.** Version 1 of the graphty document formats is the style and
 > recipe documents in one JSON container ([../README.md](../README.md)). This page is kept as the
 > starting point for a later version and is not a specification anyone implements today. It was

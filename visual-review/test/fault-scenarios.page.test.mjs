@@ -69,8 +69,8 @@ async function tab(hash = "") {
             for (const d of document.querySelectorAll("dialog.ask[open]:not([data-seen])")) {
                 d.dataset.seen = "";
                 globalThis
-                    .asked(d.firstChild.textContent)
-                    .then((yes) => d.querySelectorAll("button")[yes ? 1 : 0].click());
+                    .asked(d.querySelector(".ask-text").innerText)
+                    .then((yes) => d.querySelectorAll(".actions button")[yes ? 1 : 0].click());
             }
         }).observe(document, { childList: true, subtree: true, attributes: true });
     });
@@ -104,13 +104,16 @@ async function review(n = 0, p = page) {
     await p.locator(".component").first().waitFor();
 }
 
-// The grid's order: 1 menu--open (failed), 2 button--primary.dark (changed), 3 slider--sizes
+// Item numbers: 1 menu--open (failed), 2 button--primary.dark (changed), 3 slider--sizes
 // (changed), 4 badge--default.light (new), 5 tooltip--hover (unstable), 6 card--legacy (removed).
 async function openStory(number, p = page) {
-    await p.locator("#goto").fill(String(number));
-    await p.locator("#goto").press("Enter");
-    await expect.poll(() => p.locator("#position").textContent()).toMatch(new RegExp(`^${number} of `));
+    await p.locator("#find").fill(String(number));
+    await p.locator("#find").press("Enter");
+    await expect.poll(() => p.locator(".itemline .number").textContent()).toBe(`#${number}`);
 }
+
+// The item's images have been on screen long enough for a decision to count.
+const ready = (p = page) => p.locator("#stage[data-ready]").waitFor();
 
 const decisions = async (project = "compact-mantine", id = "123") =>
     (await s.api("GET", `/api/pr/${id}/${project}`)).body.decisions;
@@ -140,16 +143,21 @@ describe("review page: stale caches", () => {
         await open(r, w);
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
         const fetched = [];
-        page.on("request", (req) => req.url().includes(`/capture/${BUTTON}`) && fetched.push(req.url()));
-        // Another tab (or the iPad) loads the list: the server moves to run 1001.
+        page.on(
+            "request",
+            (req) =>
+                req.url().includes(`/api/img/`) && req.url().includes(`/capture/${BUTTON}`) && fetched.push(req.url()),
+        );
+        // Another tab (or the iPad) refreshes the list: the server moves to run 1001.
         runWithoutButtonChange(w, r.head);
+        await s.api("GET", "/api/prs");
         await page.locator("#home").click();
         await page.locator(".card").first().waitFor();
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
         expect(fetched.length).toBeGreaterThan(0);
     });
 
@@ -163,14 +171,14 @@ describe("review page: stale caches", () => {
         await review(0);
         await openStory(2);
         await page.keyboard.press("s");
-        await expect.poll(boxCount).toMatch(/^box 1 of/);
+        await expect.poll(boxCount).toMatch(/^1 of/);
         await page.locator("#home").click();
         await page.locator(".card").first().waitFor();
         // #124's first Review: its compact-mantine.
         await review(2);
         await openStory(2);
         await expect.poll(boxCount).not.toBe("");
-        expect(await boxCount()).toBe("no changed box at this threshold");
+        expect(await boxCount()).toBe("No changed area at this threshold");
     });
 
     // A failed image load is dropped from the cache, so the next visit retries it.
@@ -188,12 +196,12 @@ describe("review page: stale caches", () => {
         });
         await review();
         await openStory(2);
-        // The failure reads as text, and Accept waits for both images.
-        await expect.poll(() => page.locator("#stage p.error").textContent()).toMatch(/\S/);
-        expect(await page.locator("button.accept").isDisabled()).toBe(true);
+        // The failure reads as text with a Retry, and Accept waits for both images.
+        await expect.poll(() => page.locator("#stage p.error").textContent()).toMatch(/\S.*Retry$/);
+        expect(await page.locator("#accept").getAttribute("class")).toContain("loading");
         await page.keyboard.press("j");
         await page.keyboard.press("k");
-        await expect.poll(() => page.locator('#stage img[alt^="capture of"]').count(), { timeout: 3000 }).toBe(1);
+        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count(), { timeout: 3000 }).toBe(1);
     });
 
     // Only the most recently used images and diffs are kept; older object URLs are revoked.
@@ -245,11 +253,17 @@ describe("review page: stale caches", () => {
                 const { document } = globalThis;
                 return (
                     document.getElementById("position").textContent.startsWith(`${n} of `) &&
-                    document.getElementById("box-count").textContent.startsWith("box")
+                    /^\d+ of/.test(document.getElementById("box-count").textContent)
                 );
             }, n);
         }
-        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(items.length);
+        // At most the 50 images kept, plus the grid's thumbnails (one per tile it loaded).
+        const thumbs = await page.evaluate(
+            () =>
+                globalThis.performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/thumb/"))
+                    .length,
+        );
+        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(50 + thumbs);
     });
 });
 
@@ -261,8 +275,9 @@ describe("review page: decisions", () => {
         await review();
         await openStory(2);
         // Accept waits for both images.
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
-        const box = await page.locator("button.accept").boundingBox();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
+        await ready();
+        const box = await page.locator("#accept").boundingBox();
         const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
         await page.mouse.click(x, y);
         await sleep(150);
@@ -277,7 +292,7 @@ describe("review page: decisions", () => {
         await open(r, world(r));
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await ready();
         await page.keyboard.down("a");
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
         // The key is still held: the browser repeats it.
@@ -298,9 +313,8 @@ describe("review page: decisions", () => {
         await review(0, other);
         await other.getByRole("button", { name: /^All/ }).click();
         await other.locator(`.decision[data-file="${BUTTON}"]`).waitFor();
-        const undoAll = page.locator(".toolbar .undo-all");
-        await undoAll.click();
-        await undoAll.click();
+        await page.locator("details.menu > summary").click();
+        await page.getByRole("button", { name: "Undo all decisions..." }).click();
         await expect.poll(async () => Object.keys(await decisions()).length).toBe(0);
         await other.locator(`.tile[data-file="${BUTTON}"]`).click();
         await other.locator("#position").waitFor();
@@ -308,21 +322,24 @@ describe("review page: decisions", () => {
         expect(await decisions()).toEqual({});
     });
 
-    // Moving to another item forgets an abandoned Exclude: Enter rejects.
+    // Moving to another item forgets an abandoned Exclude, and Enter alone decides nothing.
     it("Enter in the reason box can run an earlier, abandoned Exclude", async () => {
         const r = makeRepo();
         await open(r, world(r));
         await review();
         await openStory(2);
+        await ready();
         await page.keyboard.press("e");
-        await expect.poll(() => page.locator("#status").textContent()).toContain("needs a reason");
+        await expect
+            .poll(() => page.locator("#status").textContent())
+            .toBe("Type the reason, then press Enter to exclude.");
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
-        await page.locator("#reason").fill("too tall");
-        await page.locator("#reason").press("Enter");
-        await expect.poll(async () => (await decisions())["slider--sizes.png"]?.decision ?? null).not.toBeNull();
+        await page.locator("#note").fill("too tall");
+        await page.locator("#note").press("Enter");
+        await sleep(300);
         expect(dialogs.filter((d) => d.startsWith("Exclude"))).toEqual([]);
-        expect((await decisions())["slider--sizes.png"].decision).toBe("reject");
+        expect(await decisions()).toEqual({});
     });
 
     // The confirm says how many of the items are removals.
@@ -352,49 +369,57 @@ describe("review page: rendering and routing", () => {
         });
         await review();
         await openStory(2);
-        await expect.poll(boxCount).toBe("no changed box at this threshold");
+        await expect.poll(boxCount).toBe("No changed area at this threshold");
         await page.keyboard.press("j");
         await page.keyboard.press("k");
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^2 of /);
         // Item 3's two images arrive one after the other, a second each.
         await sleep(3500);
-        expect(await boxCount()).toBe("no changed box at this threshold");
+        expect(await boxCount()).toBe("No changed area at this threshold");
     });
 
     // A superseded route stops after its wait, and no route pushes a history entry.
     it("Fast Back/Forward presses race on the shared `routing` flag and can leave the address and the screen out of step", async () => {
         const r = makeRepo();
         const w = world(r);
-        let slow = false;
-        const gh = async (args, input) => {
-            if (slow && args[1]?.includes("/pulls?")) {
-                await sleep(700);
-            }
-            return w.gh(args, input);
-        };
-        await open(r, w, { gh });
+        await open(r, w);
         await review();
         await openStory(2);
         const before = await page.evaluate(() => globalThis.history.length);
-        // The pull request lists the two routes wait on, asked and answered.
+        // The targets screen waits on the page's own read of the target list (the server answers it
+        // from its cache, never asking GitHub), so that read is the one slowed. A decision from
+        // another tab lands during the wait, so the answer differs from the list the page holds and
+        // a route that went on would redraw the targets. Counted asked and answered, to know when
+        // the superseded route has had its answer.
         let asked = 0;
         let answered = 0;
-        page.on("request", (req) => req.url().includes("/api/prs") && asked++);
-        const done = (req) => req.url().includes("/api/prs") && answered++;
-        page.on("requestfinished", done);
-        page.on("requestfailed", done);
-        slow = true;
-        // Back twice, without waiting for the first to land: story -> grid -> targets.
+        await page.route("**/api/prs?*", async (route) => {
+            asked++;
+            await sleep(700);
+            const decided = await s.api("POST", "/api/decide", {
+                id: "123",
+                project: "compact-mantine",
+                file: BUTTON,
+                decision: "reject",
+                reason: "from another tab",
+            });
+            expect(decided.status).toBe(200);
+            await route.continue().catch(() => {});
+            answered++;
+        });
+        // Back twice and Forward once, without waiting for any to land: story -> grid -> targets,
+        // whose route waits, -> grid again before that wait ends.
         await page.evaluate(() => {
             globalThis.history.back();
             setTimeout(() => globalThis.history.back(), 50);
+            setTimeout(() => globalThis.history.forward(), 150);
         });
-        // Both routes have their answer and the targets screen is shown; a superseded route that
-        // went on would now show the grid and push an entry, within a moment of its answer. The
-        // wait is counted from the answers, not from the presses, so a slow machine waits longer
-        // instead of running out of the test's time.
+        // The grid is shown and the targets route has its answer; a superseded route that went on
+        // would now draw the targets or push an entry, within a moment of its answer. The wait is
+        // counted from the answer, not from the presses, so a slow machine waits longer instead of
+        // running out of the test's time.
         await expect
-            .poll(async () => asked >= 2 && answered === asked && (await page.locator(".card").count()) > 0, {
+            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0, {
                 timeout: 8000,
             })
             .toBe(true);
@@ -404,8 +429,11 @@ describe("review page: rendering and routing", () => {
             hash: globalThis.location.hash,
         }));
         expect(after.length).toBe(before);
-        expect(new URLSearchParams(after.hash.slice(1)).has("target")).toBe(false);
-        expect(await page.locator(".component").count()).toBe(0);
+        const address = new URLSearchParams(after.hash.slice(1));
+        expect(address.get("target")).toBe("123");
+        expect(address.has("item")).toBe(false);
+        expect(await page.locator(".component").count()).toBeGreaterThan(0);
+        expect(await page.locator(".card[data-target]").count()).toBe(0);
     });
 
     // The targets screen, with the project's problem, instead of an empty page.

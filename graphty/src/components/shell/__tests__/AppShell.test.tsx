@@ -19,6 +19,7 @@ import {
     type AccelerationStatus,
     createGraphSession,
     type DataSourceInput,
+    type FieldBand,
     type GraphSession,
     type GraphStatistics,
     type Histogram,
@@ -490,7 +491,7 @@ interface StubNode {
     data: Record<string, unknown>;
 }
 
-/** One edge as the stand-in holds it, which is how `GraphtyHandle.getData` reads it too. */
+/** One edge as the stand-in holds it, which is how `session.data.edgePage` reads it too. */
 interface StubEdge {
     /** The element-assigned edge id. */
     id: string;
@@ -792,6 +793,8 @@ function fixtureResult(input: {
     readonly count: number;
     /** The graph-level fields, for a run that publishes any. */
     readonly graph?: Readonly<Record<string, unknown>>;
+    /** The band each graph-level field is in. Canned: where the bands lie is graphty-element's call. */
+    readonly bands?: Readonly<Record<string, FieldBand>>;
     /** The groups, largest first, for a run that partitions. */
     readonly groups?: readonly { readonly group: number; readonly size: number }[];
     /**
@@ -851,6 +854,7 @@ function fixtureResult(input: {
         histogram: () => fixtureHistogram(ascending),
         top: () => ({ entries: [], leftOut: null, reason: input.topReason ?? null }),
         graph: input.graph ?? {},
+        band: (field: string) => input.bands?.[field],
     } as unknown as RunResult;
 }
 
@@ -998,7 +1002,7 @@ function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
  * Stands a graph on the mounted host that answers the whole novice path.
  *
  * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in the
- * two Maps `GraphtyHandle.getData` reads, and it PUBLISHES A RESULT per run -- a ranking, a
+ * two Maps `session.data` pages read, and it PUBLISHES A RESULT per run -- a ranking, a
  * summary and a distribution for each of the three node metrics, and a group per node with a
  * modularity beside it for the grouping run. What these boards test is that the shell starts
  * the right passes, in the right order, and turns what comes back into the right sentence.
@@ -1090,6 +1094,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
                 values: communityAssignment(),
                 count: nodes.size,
                 graph: { modularity: STUB_MODULARITY },
+                bands: { modularity: { id: "clear", plainName: "Clearly separated", description: "", above: 0.3 } },
                 groups: STUB_GROUP_SIZES.map((size, group) => ({ group, size })),
             });
         }
@@ -1763,6 +1768,34 @@ describe("AppShell", () => {
                one-button model; 5.2 line 448's promise that the drawer never covers either
                sidebar is kept by INSETTING the drawer instead. */
             expect(screen.getByTestId("activity-panel")).toBeInTheDocument();
+        });
+    });
+
+    describe("the data table drawer", () => {
+        it("reads a page of records around the rows on screen, never the whole graph", async () => {
+            const nodeCount = 20_000;
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            const graph = installNovicePathGraph(container, { synthetic: { nodeCount, edgeCount: 100 } });
+            const { data } = graph.styles.session;
+            const pages = vi.spyOn(data, "nodePage");
+            const everyNode = vi.spyOn(data, "nodes");
+
+            await loadCatSample(container);
+            fireEvent.keyDown(window, { key: "T", shiftKey: true });
+
+            const grid = await screen.findByRole("grid", { name: "Data table" });
+
+            await waitFor(() => {
+                expect(grid).toHaveAttribute("aria-rowcount", String(nodeCount + 1));
+            });
+            expect(within(grid).getAllByTestId("data-table-row").length).toBeLessThan(100);
+            expect(everyNode).not.toHaveBeenCalled();
+            expect(pages).toHaveBeenCalled();
+            for (const [options] of pages.mock.calls) {
+                expect(options?.limit ?? 100).toBeLessThanOrEqual(200);
+            }
         });
     });
 
@@ -2490,7 +2523,9 @@ describe("AppShell", () => {
                itself and hand over a `value >= cut` expression. */
             expect(added[0].selector).toMatchObject({ match: "top", n: 5 });
             expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
-            expect(added[0].encode).toHaveProperty("node.label");
+            /* It switches labels on and leaves the words to graphty-element, which draws each
+               node's id. */
+            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true } });
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
             for (const layer of added) {
@@ -4672,12 +4707,14 @@ describe("AppShell", () => {
 
             const [busiest] = [...counts.entries()].sort((one, two) => two[1].size - one[1].size);
 
-            reportSelection(container, busiest[0]);
+            /* The element reports a selected node by the id it holds, so a numeric-id graph
+               reports a number, and the node's edges are looked up by exactly that id. */
+            reportSelection(container, numericIds ? Number(busiest[0]) : busiest[0]);
 
             return { neighborCount: busiest[1].size };
         }
 
-        it("reads the node's REAL link count from the source/target spelling getData writes", async () => {
+        it("reads the node's REAL link count from the source/target spelling the element writes", async () => {
             const { neighborCount } = await selectBusiestNode(false);
 
             expect(neighborCount).toBeGreaterThan(0);

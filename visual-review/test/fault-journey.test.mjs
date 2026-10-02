@@ -243,13 +243,7 @@ async function journey(seed, faults = {}, length = 9) {
             problem !== null,
             quiet,
         );
-        if (git(r.remote, "rev-parse", "feature") !== r.head) {
-            for (const [k, d] of mine) {
-                if (d.decision !== "reject") {
-                    model.delete(k);
-                }
-            }
-        }
+        // What Finish pushed stays shown, marked finished, until a new CI run replaces the capture.
         return { status: res.status, error: j.error };
     }
 
@@ -263,10 +257,10 @@ async function journey(seed, faults = {}, length = 9) {
         }
         if ([...model.keys()].some((k) => k.startsWith("123|"))) {
             let out = await finishOnce();
-            steps.push(`finish ${out.status} ${out.error ?? ""}`.trim());
+            steps.push(`finish ${out.status} ${(out.error ?? "").replaceAll(r.dir, "<dir>")}`.trim());
             if (out.error) {
                 out = await finishOnce();
-                steps.push(`finish again ${out.status} ${out.error ?? ""}`.trim());
+                steps.push(`finish again ${out.status} ${(out.error ?? "").replaceAll(r.dir, "<dir>")}`.trim());
             }
         }
         steps.push(`load ${await act.load()}`);

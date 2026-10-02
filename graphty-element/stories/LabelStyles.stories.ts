@@ -45,6 +45,9 @@ const CAT_NETWORK = {
     layoutConfig: { seed: 42 },
 } as const;
 
+/** How many nodes and edges the cat network has. */
+const CAT_NETWORK_SIZE = { nodes: 20, edges: 29 };
+
 /** The cats that live indoors, which is the half of the network the two-layer stories single out. */
 /**
  * The font a label with the element's default style is drawn in: its default weight, 48px and
@@ -255,7 +258,11 @@ const meta: Meta = {
             table: { category: "Overflow" },
             name: "node.labelStyle.maxNumber",
         },
-        labelOverflowSuffix: { control: "text", table: { category: "Overflow" }, name: "node.labelStyle.overflowSuffix" },
+        labelOverflowSuffix: {
+            control: "text",
+            table: { category: "Overflow" },
+            name: "node.labelStyle.overflowSuffix",
+        },
     },
     parameters: {
         controls: {
@@ -291,10 +298,11 @@ type Story = StoryObj<StoryArgs>;
  * on it -- are both answerable directly, for a fraction of a millisecond each.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name it in a failure message.
+ * @param size - How many nodes and edges the story's data declares.
  * @returns What the story drew.
  */
-const labelled = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
-    const scene = await loaded(canvasElement, story);
+const labelled = async (canvasElement: HTMLElement, story: string, size = CAT_NETWORK_SIZE): Promise<Drawn> => {
+    const scene = await loaded(canvasElement, story, size);
 
     await assertLabelsDrawn(scene);
 
@@ -308,14 +316,15 @@ const labelled = async (canvasElement: HTMLElement, story: string): Promise<Draw
  * over part of the graph, which is the thing `assertLabelsDrawn` exists to forbid everywhere else.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name it in a failure message.
+ * @param size - How many nodes and edges the story's data declares.
  * @returns What the story drew.
  */
-const loaded = async (canvasElement: HTMLElement, story: string): Promise<Drawn> => {
+const loaded = async (canvasElement: HTMLElement, story: string, size = CAT_NETWORK_SIZE): Promise<Drawn> => {
     await waitForGraphSettled(canvasElement);
 
     const scene = await drawn(canvasElement, `Styles/Label ${story}`);
 
-    await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+    await assertGraphLoaded(scene, size);
 
     return scene;
 };
@@ -600,7 +609,10 @@ export const CornerRadius: Story = {
         const scene = await labelled(canvasElement, "CornerRadius");
         const square = labelGeometry(scene).filter(
             (label) =>
-                label.corners.topLeft || label.corners.topRight || label.corners.bottomLeft || label.corners.bottomRight,
+                label.corners.topLeft ||
+                label.corners.topRight ||
+                label.corners.bottomLeft ||
+                label.corners.bottomRight,
         );
 
         await holds(
@@ -760,14 +772,33 @@ export const AttachOffset: Story = {
 /**
  * How far apart the lines of a multi-line label sit.
  *
- * MEASURED AS THE BLANK BANDS BETWEEN THEM. Three lines pushed apart by a line height of two and
- * a half leave wide empty rows between the words; the element's own 1.2 leaves almost none.
+ * TWO LABELS SIDE BY SIDE, CLOSE ENOUGH TO READ. The right one is drawn at a line height of 2.5,
+ * the left one at the element's own 1.2, so the picture shows the spacing against the default
+ * rather than asking a reviewer to remember it. Measured as the blank bands between the lines:
+ * 2.5 leaves wide empty rows between the words, 1.2 leaves almost none.
  */
 export const LineHeight: Story = {
     args: {
-        ...CAT_NETWORK,
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: [
+            { id: "default", text: "Line 1\nLine 2\nLine 3", position: { x: -4, y: 0, z: 0 } },
+            { id: "spaced", text: "Line 1\nLine 2\nLine 3", position: { x: 4, y: 0, z: 0 } },
+        ],
+        edgeData: [{ src: "default", dst: "spaced" }],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
         setup: storySetup({
-            node: { "node.label": "Line 1\nLine 2\nLine 3", "node.labelStyle": { lineHeight: 2.5 } },
+            node: { "node.labelStyle": { lineHeight: 2.5 } },
+            nodeEncode: { "node.label": { by: "data.text", scale: "passthrough" } },
+            layers: [
+                {
+                    name: "the left label at the default line height",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'default'" },
+                    set: { "node.labelStyle": { lineHeight: 1.2 } },
+                },
+            ],
         }),
     },
     parameters: {
@@ -776,15 +807,21 @@ export const LineHeight: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        const scene = await labelled(canvasElement, "LineHeight");
-        const crowded = labelGeometry(scene).filter((label) => label.blankRows < 0.4);
+        const scene = await labelled(canvasElement, "LineHeight", { nodes: 2, edges: 1 });
+        const blank = new Map(labelGeometry(scene).map((label) => [label.id, label.blankRows]));
+        const spaced = blank.get("spaced") ?? 0;
+        const plain = blank.get("default") ?? 1;
 
         await holds(
-            crowded.length === 0,
+            spaced >= 0.4,
             `Styles/Label LineHeight: three lines at a line height of 2.5 should leave most of the label blank ` +
-                `between them, and on ${String(crowded.length)} labels the lines are still crowded together -- ${crowded
-                    .map((label) => `${label.id} is ${(label.blankRows * 100).toFixed(0)}% blank`)
-                    .join(", ")}`,
+                `between them, and the right label is only ${(spaced * 100).toFixed(0)}% blank`,
+        );
+
+        await holds(
+            spaced - plain >= 0.2,
+            `Styles/Label LineHeight: the right label at 2.5 should be far more spread out than the left one at ` +
+                `the default 1.2, and they are ${(spaced * 100).toFixed(0)}% and ${(plain * 100).toFixed(0)}% blank`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -944,7 +981,9 @@ export const Border: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
-            node: { "node.labelStyle": { background: "rgba(255, 255, 255, 0.9)", borderWidth: 2, borderColor: "#6366F1" } },
+            node: {
+                "node.labelStyle": { background: "rgba(255, 255, 255, 0.9)", borderWidth: 2, borderColor: "#6366F1" },
+            },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     },
@@ -1016,11 +1055,7 @@ export const BackgroundGradient: Story = {
     },
     parameters: {
         controls: {
-            include: [
-                "node.labelStyle.gradient",
-                "node.labelStyle.gradientType",
-                "node.labelStyle.gradientDirection",
-            ],
+            include: ["node.labelStyle.gradient", "node.labelStyle.gradientType", "node.labelStyle.gradientDirection"],
         },
         chromatic: {
             diffIncludeAntiAliasing: true,
@@ -1197,7 +1232,10 @@ export const Badge: Story = {
         // sized to a circle whatever the words are, so the canvas is square.
         const square = labels.filter(
             (label) =>
-                label.corners.topLeft || label.corners.topRight || label.corners.bottomLeft || label.corners.bottomRight,
+                label.corners.topLeft ||
+                label.corners.topRight ||
+                label.corners.bottomLeft ||
+                label.corners.bottomRight,
         );
 
         await holds(
@@ -1250,9 +1288,11 @@ export const SmartOverflow: Story = {
         await holds(
             wrong.length === 0,
             `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
-                `${String(wrong.length)} read otherwise -- ${ 
-                wrong
-                    .map(({ label, read }) => `${label.id} reads ${read.best || "nothing"} ${JSON.stringify(read.errors)}`)
+                `${String(wrong.length)} read otherwise -- ${wrong
+                    .map(
+                        ({ label, read }) =>
+                            `${label.id} reads ${read.best || "nothing"} ${JSON.stringify(read.errors)}`,
+                    )
                     .join("; ")}`,
         );
 
@@ -1340,8 +1380,12 @@ export const OverflowSuffix: Story = {
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "OverflowSuffix");
         const labels = labelGeometry(scene);
-        const onePlus = Math.max(...labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.ink.width));
-        const twoPlus = Math.min(...labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.ink.width));
+        const onePlus = Math.max(
+            ...labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.ink.width),
+        );
+        const twoPlus = Math.min(
+            ...labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.ink.width),
+        );
 
         await holds(
             twoPlus > onePlus,
@@ -1388,28 +1432,49 @@ export const TextAlign: Story = {
     },
 };
 
+/** Where the DepthFade story's labels start to fade, and where they are gone, in world units. */
+const DEPTH_FADE_NEAR = 65;
+const DEPTH_FADE_FAR = 105;
+
+/** Eight nodes on a diagonal running straight away from the camera, ten units deeper each. */
+const RECEDING = Array.from({ length: 8 }, (_, step) => ({
+    id: `depth ${String(step * 10)}`,
+    position: { x: step * 10 - 35, y: 0, z: step * 10 },
+}));
+
 /**
  * Labels that fade out with distance.
  *
- * The plane's own material carries the fade, so the reading is its alpha: with the near and far
- * distances straddling the graph, the labels nearest the camera are drawn solid and the ones
- * furthest away are drawn faint.
+ * THE SCENE SPANS THE WHOLE FADE. The nodes run away from the camera, and the near and far
+ * distances sit inside that run: the nearest labels are drawn solid, the ones past the far
+ * distance are not drawn at all, and the ones between thin out step by step.
+ *
+ * The plane's own material carries the fade, so the reading is its alpha against the label's
+ * real distance from the camera.
  */
 export const DepthFade: Story = {
     args: {
-        ...CAT_NETWORK,
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: RECEDING,
+        edgeData: RECEDING.slice(1).map((node, step) => ({ src: RECEDING[step].id, dst: node.id })),
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
         setup: storySetup({
-            node: { "node.labelStyle": { depthFade: true, depthFadeNear: 10, depthFadeFar: 200 } },
+            node: {
+                "node.labelStyle": {
+                    sizePx: 96,
+                    depthFade: true,
+                    depthFadeNear: DEPTH_FADE_NEAR,
+                    depthFadeFar: DEPTH_FADE_FAR,
+                },
+            },
             nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     },
     parameters: {
         controls: {
-            include: [
-                "node.labelStyle.depthFade",
-                "node.labelStyle.depthFadeNear",
-                "node.labelStyle.depthFadeFar",
-            ],
+            include: ["node.labelStyle.depthFade", "node.labelStyle.depthFadeNear", "node.labelStyle.depthFadeFar"],
         },
         chromatic: {
             diffIncludeAntiAliasing: true,
@@ -1417,22 +1482,51 @@ export const DepthFade: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        const scene = await labelled(canvasElement, "DepthFade");
-        const alphas = labelGeometry(scene).map((label) => label.alpha);
-        const faintest = Math.min(...alphas);
-        const strongest = Math.max(...alphas);
+        const scene = await labelled(canvasElement, "DepthFade", {
+            nodes: RECEDING.length,
+            edges: RECEDING.length - 1,
+        });
+        const camera = scene.graph.scene.activeCamera;
+
+        await holds(camera !== null, "Styles/Label DepthFade: the scene has no active camera");
+
+        const eye = camera?.getWorldMatrix().getTranslation() ?? Vector3.Zero();
+        const alphaOf = new Map(labelGeometry(scene).map((label) => [label.id, label.alpha]));
+        const labels = scene.graph
+            .getNodes()
+            .map((node) => ({
+                id: String(node.id),
+                distance: Vector3.Distance(eye, node.label?.labelMesh?.getAbsolutePosition() ?? Vector3.Zero()),
+                alpha: alphaOf.get(String(node.id)) ?? -1,
+            }))
+            .sort((a, b) => a.distance - b.distance);
+        const readings = labels
+            .map((l) => `${l.id} at ${l.distance.toFixed(0)} units is ${l.alpha.toFixed(2)}`)
+            .join(", ");
+        const nearest = labels[0];
+        const farthest = labels[labels.length - 1];
 
         await holds(
-            faintest < 0.95,
-            `Styles/Label DepthFade: the labels are asked to fade between ten and two hundred units from the ` +
-                `camera ` +
-                `and the faintest of the twenty is still drawn at ${faintest.toFixed(3)}`,
+            nearest.distance < DEPTH_FADE_NEAR && nearest.alpha >= 0.999,
+            `Styles/Label DepthFade: the nearest label should sit inside ${String(DEPTH_FADE_NEAR)} units and be ` +
+                `drawn solid -- ${readings}`,
         );
 
         await holds(
-            strongest - faintest > 0.05,
-            `Styles/Label DepthFade: the cats are spread through the scene, so the near ones should be drawn ` +
-                `more solidly than the far ones; every label is at ${faintest.toFixed(3)}`,
+            farthest.distance > DEPTH_FADE_FAR && farthest.alpha <= 0.001,
+            `Styles/Label DepthFade: the farthest label should sit past ${String(DEPTH_FADE_FAR)} units and be ` +
+                `gone -- ${readings}`,
+        );
+
+        await holds(
+            labels.filter((l) => l.alpha > 0.1 && l.alpha < 0.9).length >= 2,
+            `Styles/Label DepthFade: at least two labels between the near and far distances should be part-faded -- ${readings}`,
+        );
+
+        await holds(
+            labels.every((l, i) => i === 0 || l.alpha <= labels[i - 1].alpha),
+            `Styles/Label DepthFade: a label farther from the camera should never be drawn more solidly than a ` +
+                `nearer one -- ${readings}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -1574,7 +1668,10 @@ export const Declutter: Story = {
                 .map((b) => `${a.id} / ${b.id}`),
         );
 
-        await holds(crossing.length === 0, `Styles/Label Declutter: the words of drawn labels overlap: ${crossing.join(", ")}`);
+        await holds(
+            crossing.length === 0,
+            `Styles/Label Declutter: the words of drawn labels overlap: ${crossing.join(", ")}`,
+        );
         await holds(hidden > 0, "Styles/Label Declutter: 128-pixel labels on twenty cats hid none");
         await holds(shown.length > 1, `Styles/Label Declutter: only ${String(shown.length)} label is drawn`);
         await assertDistinctPicture(scene, "Styles/Label");

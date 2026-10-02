@@ -373,6 +373,9 @@ const css = `
 }
 .cm-data-row-value { flex: none; color: var(--cm-text-secondary); }
 .cm-data-row:not([data-trailing]) .cm-data-row-value { padding-inline-end: 8px; }
+/* A stat row (VOCAB.md): the name is the label, the value the reading the reader came for. */
+.cm-data-row[data-stat] .cm-data-row-name { color: var(--cm-text-secondary); font-weight: 400; }
+.cm-data-row[data-stat] .cm-data-row-value { color: var(--cm-text); font-weight: 500; }
 
 .cm-data-row-header {
     box-sizing: border-box;

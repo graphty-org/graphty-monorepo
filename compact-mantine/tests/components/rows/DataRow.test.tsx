@@ -468,6 +468,66 @@ describe("DataRow", () => {
     });
 });
 
+describe("DataRow stat mode", () => {
+    it("formats a numeric value for the reader's locale", () => {
+        const { unmount } = renderInLocale(<DataRow stat name="Nodes" value={1000000} />, "en-US");
+        expect(screen.getByTestId("data-row-value")).toHaveTextContent("1,000,000");
+        unmount();
+
+        renderInLocale(<DataRow stat name="Nodes" value={1000000} />, "de-DE");
+        expect(screen.getByTestId("data-row-value")).toHaveTextContent("1.000.000");
+    });
+
+    it("keeps every fraction digit it is given, rather than rounding the reading", () => {
+        renderInLocale(<DataRow stat name="Density" value={0.123456} />, "en-US");
+
+        expect(screen.getByTestId("data-row-value")).toHaveTextContent("0.123456");
+    });
+
+    it("draws a string value exactly as given", () => {
+        renderRow(<DataRow stat name="Density" value="0.12" />);
+
+        expect(screen.getByTestId("data-row-value")).toHaveTextContent("0.12");
+    });
+
+    it("exposes the name and the value as one group named by the name", () => {
+        renderInLocale(<DataRow stat name="Nodes" value={1000000} />, "en-US");
+
+        // WCAG 1.3.1: the pairing is programmatic, so a screen reader reads
+        // "Nodes, 1,000,000" as one unit rather than two unrelated runs of text.
+        const group = screen.getByRole("group", { name: "Nodes" });
+        expect(group).toHaveTextContent("1,000,000");
+        expect(group).toHaveAttribute("aria-labelledby", screen.getByTestId("data-row-name").id);
+    });
+
+    it("keeps the group when the row also opens something", () => {
+        renderRow(<DataRow stat name="Edges" value={12} onClick={vi.fn()} />);
+
+        expect(screen.getByRole("group", { name: "Edges" })).toContainElement(screen.getByRole("button"));
+    });
+
+    it("draws the name in the secondary ink at 400 and the value in the primary ink at 500", () => {
+        renderRow(<DataRow stat name="Nodes" value={4} />);
+
+        // design/ui/mockups/system/VOCAB.md, stat row: label #7a828e at 400, value #d5d7da at 500.
+        expect(screen.getByTestId("data-row")).toHaveAttribute("data-stat");
+        expect(treeCss).toMatch(
+            /\.cm-data-row\[data-stat\] \.cm-data-row-name \{[^}]*color: var\(--cm-text-secondary\);[^}]*font-weight: 400;/,
+        );
+        expect(treeCss).toMatch(
+            /\.cm-data-row\[data-stat\] \.cm-data-row-value \{[^}]*color: var\(--cm-text\);[^}]*font-weight: 500;/,
+        );
+    });
+
+    it("leaves a list row as it was: no group, no stat ink", () => {
+        renderRow(<DataRow name="Mr_Whiskers" value="4" />);
+
+        expect(screen.queryByRole("group")).toBeNull();
+        expect(screen.getByTestId("data-row")).not.toHaveAttribute("data-stat");
+        expect(screen.getByTestId("data-row-name")).not.toHaveAttribute("id");
+    });
+});
+
 describe("DataRowHeader", () => {
     it("names the column", () => {
         renderRow(<DataRowHeader label="Most connected" unit="links" />);

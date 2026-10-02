@@ -239,6 +239,26 @@ describe("dispatch: one row of the event table each", () => {
     }
 });
 
+describe("dispatch: who gets a code-editing run", () => {
+    it("gives no run to a failing PR from an author outside trustedAuthors, and does not queue it", async () => {
+        const state = baseState();
+        state.prs[5] = pr({ author: "stranger" });
+        const h = harness(state);
+        const result = await h.pass();
+        expect(h.launched).toEqual([]);
+        expect(result.waiting.filter((w) => w.item.target === "pr:5")).toEqual([]);
+    });
+
+    it("gives no run to a conflicting draft PR, and does not queue it", async () => {
+        const state = baseState();
+        state.prs[6] = pr({ required: {}, conflictSightings: 2, draft: true });
+        const h = harness(state);
+        const result = await h.pass();
+        expect(h.launched).toEqual([]);
+        expect(result.waiting.filter((w) => w.item.target === "pr:6")).toEqual([]);
+    });
+});
+
 describe("dispatch: attempt limits", () => {
     it("stops at 3 pr-fix runs when every run leaves a new githerd head, then escalates once", async () => {
         const state = baseState();

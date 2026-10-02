@@ -125,6 +125,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
+| `@graphty/cytoscape` (and the `@graphty/cytoscape/webgpu` subpath), in `cytoscape-adapter/` | **cytoscape-adapter** | "the adapter", "cytoscape" (that is the third-party library) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -139,6 +140,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/cytoscape` | `cytoscape-adapter/` | 0.0.0 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call; optional WebGPU acceleration through `@graphty/cytoscape/webgpu` (private, not yet published) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -155,6 +157,7 @@ graphty-monorepo/
 |-- graph-io/             # @graphty/graph-io package (depends on graph-format)
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
+|-- cytoscape-adapter/    # @graphty/cytoscape: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
 |-- graphty-element/      # @graphty/graphty-element package
@@ -240,6 +243,7 @@ pnpm run coverage:preview:graph-format
 pnpm run coverage:preview:graph-io
 pnpm run coverage:preview:webgpu-graph-algorithms
 pnpm run coverage:preview:graph-samples
+pnpm run coverage:preview:cytoscape-adapter
 ```
 
 Each package also has its own `npm run coverage:preview`.
@@ -353,6 +357,9 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
+**cytoscape-adapter:**
+- Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
+
 **webgpu-graph-algorithms:**
 - `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
 - `node-limits` - the GPU lane only (real device limits)
@@ -444,11 +451,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 23 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
 - `graph-samples`
+- `cytoscape-adapter`
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`

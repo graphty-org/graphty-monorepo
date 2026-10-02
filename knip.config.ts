@@ -73,8 +73,10 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "test/**/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             // An OPTIONAL peer imported only by the "./webgpu" entry, which is what an optional peer is for; knip
-            // reports every referenced optional peer, so it is ignored by name (as graphty-element does)
-            ignoreDependencies: ["@graphty/webgpu-graph-algorithms"],
+            // reports every referenced optional peer, so it is ignored by name (as graphty-element does). `cytoscape`
+            // is a required peer that src imports for types only (the consumer hands its own cytoscape to
+            // `cytoscape.use()`), and --production drops type imports, so lint:knip:prod would call it unused
+            ignoreDependencies: ["@graphty/webgpu-graph-algorithms", "cytoscape"],
         },
 
         // graph-samples package: the root, generators and every dataset subpath are entries

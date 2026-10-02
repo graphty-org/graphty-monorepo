@@ -379,7 +379,7 @@ function hashUnit(h: number): number {
  * @param dim - 2 or 3
  * @returns the unit direction as [x, y, z]
  */
-function kickDir(i: number, j: number, dim: 2 | 3): readonly [number, number, number] {
+export function kickDir(i: number, j: number, dim: 2 | 3): readonly [number, number, number] {
     const h = pairHash(i, j);
     const phi = 6.283185307179586 * hashUnit(h);
     let d: [number, number, number];

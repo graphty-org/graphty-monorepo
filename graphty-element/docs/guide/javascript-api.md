@@ -151,6 +151,42 @@ const everyEdge = session.data.edges(); // [{ id, source, target, ... }, ...]
 rather than every frame. Every record is read-only; change the graph through `session.data`'s
 verbs, each of which is one undoable step.
 
+### Reading records a page at a time
+
+A table that shows thirty rows of a 100,000-node graph should read thirty records, not copy the
+graph. `nodePage` and `edgePage` answer one window of the records, the total, and a revision:
+
+```typescript
+const page = session.data.nodePage({ offset: 0, limit: 30 });
+page.records; // the 30 records, read-only
+page.total; // how many there are in all, for the scrollbar
+page.revision; // changes whenever any record, the selection or a set changes
+
+// Sorted by an attribute, over any scope:
+session.data.nodePage({ offset: 30, limit: 30, sort: { key: "weight", descending: true } });
+session.data.nodePage({ scope: "selection" });
+
+// The edges at one node:
+session.data.edgePage({ touching: "alice", limit: Infinity });
+
+// Read the page again when the graph changes (and, for a "selection" scope, the selection):
+const reread = () => {
+    if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
+        // read the page again and redraw
+    }
+};
+session.on("project:changed", reread);
+session.on("selection:changed", reread);
+```
+
+Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
+`scope` to `"graph"`. Without `sort`, records come in the order they were added, and an edit
+never reorders them: an updated record stays where it was, a removed one leaves a gap that
+closes, an added one goes last. With `sort`, numbers come before text, text sorts naturally
+("2" before "10"), a record without the key comes last either way, and records that sort equal
+keep the order they were added in. The order is computed once per revision, so paging through
+it costs only the records on each page.
+
 "The edge between two nodes" is plural, because a graph may hold more than one:
 
 ```typescript

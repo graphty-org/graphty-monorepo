@@ -50,6 +50,7 @@ import type {
     CostEstimate,
     DataSourceDescriptor,
     DataSourceInput,
+    EdgePageOptions,
     EdgeRecord,
     GraphSession,
     GraphStatistics,
@@ -62,10 +63,83 @@ import type {
     NodeId,
     NodeRecord,
     ProjectSlice,
+    RecordPage,
+    RecordPageOptions,
     RunId,
     RunResult,
     SessionCommand,
 } from "@graphty/graphty-element/session";
+
+/** Counts page reads, so every fake page carries a revision of its own. */
+let fakeRevision = 0;
+
+/**
+ * One window of a record list, sorted the way the element sorts when asked: present values
+ * before missing ones, numbers by value, everything else as text.
+ * @param records - every record.
+ * @param page - the window and the order.
+ * @returns the page.
+ */
+function fakePage<TRecord extends Readonly<Record<string, unknown>>>(
+    records: readonly TRecord[],
+    page: RecordPageOptions,
+): RecordPage<TRecord> {
+    const { offset = 0, sort } = page;
+    const ordered =
+        sort === undefined
+            ? records
+            : [...records].sort((a, b) => {
+                  const x = a[sort.key];
+                  const y = b[sort.key];
+
+                  if (x === undefined || y === undefined) {
+                      return Number(x === undefined) - Number(y === undefined);
+                  }
+
+                  const order =
+                      typeof x === "number" && typeof y === "number"
+                          ? x - y
+                          : JSON.stringify(x).localeCompare(JSON.stringify(y));
+
+                  return sort.descending === true ? -order : order;
+              });
+
+    fakeRevision += 1;
+
+    return {
+        records: ordered.slice(offset, offset + (page.limit ?? 100)),
+        offset,
+        total: ordered.length,
+        revision: `fake-${String(fakeRevision)}`,
+    };
+}
+
+/**
+ * The attribute keys the records carry, as `session.data.attributes()` names them.
+ * @param records - every node and edge record.
+ * @param records.nodes - the node records.
+ * @param records.edges - the edge records.
+ * @returns one entry per key and kind.
+ */
+function fakeAttributes(records: {
+    readonly nodes: readonly NodeRecord[];
+    readonly edges: readonly EdgeRecord[];
+}): readonly { readonly name: string; readonly kind: "node" | "edge" }[] {
+    const named = new Map<string, { readonly name: string; readonly kind: "node" | "edge" }>();
+
+    for (const [kind, list] of [
+        ["node", records.nodes],
+        ["edge", records.edges],
+    ] as const) {
+        for (const record of list) {
+            for (const name of Object.keys(record)) {
+                named.set(`${kind}:${name}`, { name, kind });
+            }
+        }
+    }
+
+    return [...named.values()];
+}
 
 /** One run, as the fake session records it. */
 interface FakeRun {
@@ -752,6 +826,22 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             statistics: statisticsNow,
             nodes: () => options.records?.().nodes ?? [],
             edges: () => options.records?.().edges ?? [],
+            /* A window of the same records, as the element pages them. The revision is read
+               fresh each time, so a holder of an older page always re-reads. */
+            nodePage: (page: RecordPageOptions = {}): RecordPage<NodeRecord> =>
+                fakePage(options.records?.().nodes ?? [], page),
+            edgePage: (page: EdgePageOptions = {}): RecordPage<EdgeRecord> =>
+                fakePage(
+                    (options.records?.().edges ?? []).filter(
+                        (edge) =>
+                            page.touching === undefined ||
+                            edge.source === page.touching ||
+                            edge.target === page.touching,
+                    ),
+                    page,
+                ),
+            /* Every key the records carry, as the element lists its attributes. */
+            attributes: () => fakeAttributes(options.records?.() ?? { nodes: [], edges: [] }),
             /* Where the graph came from, as the last load named it; history does not move it here. */
             source: () => loadedFrom,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {

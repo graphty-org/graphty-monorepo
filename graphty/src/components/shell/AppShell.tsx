@@ -79,6 +79,7 @@
 
 import {
     type DataTableColumn,
+    type DataTableSort,
     PANEL_INK,
     PopoutManager,
     PopoutRegion,
@@ -437,24 +438,48 @@ function drawerColumn(key: string): DataTableColumn<Record<string, unknown>> {
 }
 
 /**
- * The drawer's columns for a set of rows: every key any of the rows carries, in the
- * order the rows first mention them.
- * @param rows - the rows the drawer is about to draw.
+ * The drawer's columns for one tab: the record's own keys first, then every attribute the
+ * element says that kind of record carries, in the order it first saw them.
+ * @param records - where the records are read, or null with no graph.
+ * @param tab - which records the drawer shows.
  * @returns one column per key.
  */
-function drawerColumns(rows: readonly Record<string, unknown>[]): readonly DataTableColumn<Record<string, unknown>>[] {
-    const keys: string[] = [];
+function drawerColumns(
+    records: GraphRecords | null,
+    tab: DataDrawerTab,
+): readonly DataTableColumn<Record<string, unknown>>[] {
+    const kind = tab === "nodes" ? "node" : "edge";
+    const keys = new Set(kind === "node" ? ["id"] : ["id", "source", "target"]);
 
-    for (const row of rows) {
-        for (const key of Object.keys(row)) {
-            if (!keys.includes(key)) {
-                keys.push(key);
-            }
+    for (const attribute of records?.data.attributes() ?? []) {
+        if (attribute.kind === kind) {
+            keys.add(attribute.name);
         }
     }
 
-    return keys.map(drawerColumn);
+    return [...keys].map(drawerColumn);
 }
+
+/** Where the shell reads records, and the revision they were last read at. */
+interface GraphRecords {
+    /** The element's data surface. */
+    readonly data: GraphSession["data"];
+    /** The element's record revision when the graph last changed. */
+    readonly revision: string;
+}
+
+/** How many rows the drawer reads beyond the ones on screen, each way, so a scroll rarely waits. */
+const DRAWER_PAGE_MARGIN = 50;
+
+/** The rows the drawer asks the element for: a window around the ones on screen. */
+interface DrawerWindow {
+    /** The first row's position. */
+    readonly offset: number;
+    /** How many rows. */
+    readonly limit: number;
+}
+
+const FIRST_DRAWER_WINDOW: DrawerWindow = { offset: 0, limit: 2 * DRAWER_PAGE_MARGIN };
 
 /** How many bytes make one kilobyte, as a file size is printed. */
 const BYTES_PER_KB = 1024;
@@ -585,18 +610,6 @@ function selectedNodeSelectionKind(
 
     return hasResult ? "algorithm-result" : "none";
 }
-
-/**
- * The graph data the shell holds on to: what `GraphtyHandle.getData` last reported.
- */
-interface ShellGraphData {
-    /** The node records. */
-    readonly nodes: Record<string, unknown>[];
-    /** The edge records. */
-    readonly edges: Record<string, unknown>[];
-}
-
-const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
 
 /**
  * The layers a dataset boundary sweeps: the shell's own defaults, whose selector names a run
@@ -978,14 +991,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        document and draws it. `null` and `"probing"` both draw nothing. */
     const [acceleration, setAcceleration] = useState<AccelerationStatus | null>(null);
     const [loadedSummary, setLoadedSummary] = useState<LoadedDataSummary | undefined>(undefined);
-    const [graphData, setGraphData] = useState<ShellGraphData>(NO_GRAPH_DATA);
     /*
-     * The graph's shape, as graphty-element last reported it.
-     *
-     * Held beside the records rather than derived from them, because it is not derivable
-     * from them: the element measures the snapshot it froze, and the records are a copy
-     * the shell keeps for its data table. Both are re-read together in `refreshGraphData`,
-     * on the element's own data events, so the two can never describe different graphs.
+     * Where the data table and the inspector read records, and the element's record revision
+     * when the graph last changed. They read a page at a time from the element; a new value
+     * here is what makes them read again. Null before a graph and after a close.
+     */
+    const [graphRecords, setGraphRecords] = useState<GraphRecords | null>(null);
+    /*
+     * The graph's shape, as graphty-element last reported it. Re-read with the record
+     * revision in `refreshGraphData`, on the element's own data events, so the counts and
+     * the table never describe different graphs.
      */
     const [graphStatistics, setGraphStatistics] = useState<GraphStatistics>(EMPTY_GRAPH_STATISTICS);
     /*
@@ -1626,7 +1641,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const refreshGraphData = useCallback(() => {
-        const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
         const session = graphtyRef.current?.session ?? null;
         const statistics = readGraphStatistics(session);
 
@@ -1635,7 +1649,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            field of the same object. They are the nodes and edges the element actually froze,
            which is not always the length of the record lists: an edge naming a node no record
            declared is still an edge of the graph. */
-        setGraphData({ nodes: data.nodes, edges: data.edges });
+        setGraphRecords(
+            session === null ? null : { data: session.data, revision: session.data.nodePage({ limit: 0 }).revision },
+        );
         setGraphStatistics(statistics);
         setMetricEstimates(metricCosts(session));
         setElementMetrics(readMetricAvailability(session));
@@ -3446,7 +3462,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
                         setDataLoaded(false);
                         setDatasetName(null);
-                        setGraphData(NO_GRAPH_DATA);
+                        setGraphRecords(null);
                         setLoadedSummary(undefined);
                         /* The WHOLE shape goes, not just the two counts. Every field of it
                            describes the dataset being closed -- the density, the parts, the
@@ -3748,11 +3764,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @returns one row per DISTINCT neighbour, in edge-record order.
      */
     const neighborsOf = useCallback(
-        (nodeId: string): readonly NeighborRow[] => {
+        (elementId: string | number): readonly NeighborRow[] => {
             const rows: NeighborRow[] = [];
             const seen = new Set<string>();
+            const nodeId = String(elementId);
+            /* The element answers which edges touch the node; every edge of the node, and
+               none of the rest of the graph. */
+            const edges = graphRecords?.data.edgePage({ touching: elementId, limit: Infinity }).records ?? [];
 
-            for (const edge of graphData.edges) {
+            for (const edge of edges) {
                 const { source, target } = edgeEndpoints(edge);
                 let other: string | null = null;
 
@@ -3778,7 +3798,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
             return rows;
         },
-        [graphData.edges],
+        [graphRecords],
     );
 
     /**
@@ -4074,7 +4094,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        const neighbors = neighborsOf(selectedNode.id);
+        const neighbors = neighborsOf(selectedNode.elementId);
         const { attributes } = selectedNode;
 
         return {
@@ -4534,8 +4554,36 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* The canvas region's own configuration                                   */
     /* ---------------------------------------------------------------------- */
 
-    const drawerRows = drawerTab === "nodes" ? graphData.nodes : graphData.edges;
-    const drawerColumnDefs = useMemo(() => drawerColumns(drawerRows), [drawerRows]);
+    /* The data table reads a page of records from the element around the rows on screen,
+       never the whole graph: the drawer says which rows it is drawing, and the element
+       sorts. Re-read when the graph's revision moves. */
+    const [drawerWindow, setDrawerWindow] = useState<DrawerWindow>(FIRST_DRAWER_WINDOW);
+    const [drawerSort, setDrawerSort] = useState<readonly DataTableSort[]>([]);
+    const drawerPage = useMemo(() => {
+        const sortBy = drawerSort[0];
+        const options = {
+            ...drawerWindow,
+            ...(sortBy === undefined ? {} : { sort: { key: sortBy.id, descending: sortBy.desc } }),
+        };
+        const data = graphRecords?.data;
+
+        if (data === undefined) {
+            return { records: [], offset: 0, total: 0 };
+        }
+
+        return drawerTab === "nodes" ? data.nodePage(options) : data.edgePage(options);
+    }, [graphRecords, drawerTab, drawerWindow, drawerSort]);
+    const drawerColumnDefs = useMemo(() => drawerColumns(graphRecords, drawerTab), [graphRecords, drawerTab]);
+    const onDrawerRange = useCallback((start: number, end: number) => {
+        setDrawerWindow((held) =>
+            start >= held.offset && end <= held.offset + held.limit
+                ? held
+                : {
+                      offset: Math.max(0, start - DRAWER_PAGE_MARGIN),
+                      limit: end - start + 2 * DRAWER_PAGE_MARGIN,
+                  },
+        );
+    }, []);
 
     /* ---------------------------------------------------------------------- */
     /* The Insights strip (7.3)                                                */
@@ -4698,11 +4746,16 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         drawer: {
             tab: drawerTab,
             onTabChange: setDrawerTab,
-            rows: drawerRows,
+            rows: drawerPage.records,
+            rowCount: drawerPage.total,
+            rowOffset: drawerPage.offset,
+            onRangeChange: onDrawerRange,
+            sorting: drawerSort,
+            onSortingChange: setDrawerSort,
             columns: drawerColumnDefs,
             showLabel: "All",
-            showCount: drawerRows.length.toLocaleString(),
-            showTotal: `of ${drawerRows.length.toLocaleString()}`,
+            showCount: drawerPage.total.toLocaleString(),
+            showTotal: `of ${drawerPage.total.toLocaleString()}`,
             onHeightChange: (height: number) => {
                 setCanvasLayout((current) => ({ ...current, drawerHeight: height }));
             },

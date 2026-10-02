@@ -1806,11 +1806,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
-    const data = new SessionData(store.store, records, readData, {
-        dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
-        importer: () => dispatcher.capturedDispatch(),
-        slice,
-    });
+    const data = new SessionData(
+        store.store,
+        records,
+        readData,
+        {
+            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            importer: () => dispatcher.capturedDispatch(),
+            slice,
+        },
+        {
+            revision: () => inputs.tick.value,
+            // Read through a call: the resolver is built below.
+            resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+        },
+    );
     // A session that holds a store of its own kind writes it through its own ingest; the element
     // hands its data manager's in instead.
     if (store.store instanceof GraphStore) {

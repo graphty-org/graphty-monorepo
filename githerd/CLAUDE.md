@@ -27,6 +27,11 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   drops text by any other account, bots included, and counts what it dropped. Check new code that
   reads GitHub content for a run with `byOwner` from `lib/board.mjs`. While the login is
   unresolved, no run starts.
+- **One work queue.** What githerd and the sessions work on next comes from `lib/queue.mjs`
+  (design section 10.2): deterministic rules, no weighted score, and a one-line reason on every
+  item. The dispatcher and `githerd_next` follow it; a new kind of work gets a place in it, not a
+  separate order. Effort never gates work or reaches the owner: effort:high gets the
+  `backlog-high` model and caps, and a run may split the issue with `githerd_split_issue`.
 - Supervision is pm2 autorestart plus the launcher's heartbeat restart. The container has no cron
   and no systemd; `githerd ensure` is a command the owner runs by hand.
 

@@ -31,6 +31,28 @@ defense in depth: code-editing runs ask for it and get it wherever bubblewrap (`
 are installed, and run without it elsewhere, with a `sandbox-disabled` note in the ledger. Runs
 never hold a GitHub credential either way.
 
+## What gets worked on next
+
+One deterministic work queue orders everything, and every item carries a one-line reason
+("high-priority bug, 41 days old, effort:low"); `githerd status` shows the whole queue. Across
+kinds, githerd finishes before it starts: a red master, then a stuck release, then the owner's
+open PRs that need work, then issues, unlabeled ones first so they can be triaged. PRs go oldest
+first, with quick unblockers (a branch update from green master, a rerun of a known flake) ahead;
+a stacked PR waits for its base, and a PR waiting on the owner (visual review, a held major, a
+decision) is listed on the owner's waiting list and not worked. Issues go by priority, then bugs
+first, then age, then lower effort; an issue gains one priority level per 60 untouched days, never
+above high. `blocked`, `needs-*`, breaking and other authors' issues are left out. New issue work
+starts only while githerd has fewer than 3 PRs or backlog runs open (`backlog.wipCap`).
+
+effort:high issues are worked like the rest, on opus with larger caps, and a run may split one
+into smaller issues itself; size is never a question for the owner. The owner can steer with two
+labels: `githerd:next` puts an issue or PR first in its kind, `githerd:skip` takes it out. Both
+count only when the owner added them.
+
+A session picks up work with `githerd_next`, which returns the top free item with its reason and
+claims it in the same call, so two sessions never take the same item. The rules are in design
+section 10.2.
+
 ## Commands
 
 `node githerd/bin/githerd.mjs <command>`, or `pnpm exec githerd <command>`:

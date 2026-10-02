@@ -799,11 +799,13 @@ Several agents often work in this repository at once. They share one disk and on
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
 
-**githerd.** Before starting a piece of work, call `githerd_status` and claim the work with
-`githerd_claim` (a PR, an issue, `master`, a branch or a path). If someone else holds it, do
-something else or message the holder. Before any push or merge, call `githerd_status` again: if
-master is red, do not push or merge anything except the fix for master, and claim `master` with
-the fix PR's number (`fixPr`) if you are the one fixing it. Release your claim when you finish.
+**githerd.** To pick up work, call `githerd_next`: it gives you the top unclaimed item of the
+work queue with the reason it is next, already claimed for you. To work on something specific
+instead, call `githerd_status` and claim it with `githerd_claim` (a PR, an issue, `master`, a
+branch or a path). If someone else holds it, do something else or message the holder. Before any
+push or merge, call `githerd_status` again: if master is red, do not push or merge anything except
+the fix for master, and claim `master` with the fix PR's number (`fixPr`) if you are the one
+fixing it. Release your claim when you finish.
 Record owner questions with `githerd_escalate` so other sessions see them, and still end your
 reply with ACTION NEEDED as usual.
 
@@ -811,9 +813,10 @@ reply with ACTION NEEDED as usual.
 
 githerd is the repository's pipeline daemon: it watches master, pull requests and issues, pages
 the owner when master is red, and gives every Claude session the `githerd_*` MCP tools
-(`githerd_status`, `githerd_claim`, `githerd_release`, `githerd_report`, `githerd_escalate`,
-`githerd_resolve`) through the server in `.mcp.json`. Commands, the MCP server and the owner's
-one-time prerequisites are in `githerd/README.md`.
+(`githerd_status`, `githerd_next`, `githerd_claim`, `githerd_release`, `githerd_report`,
+`githerd_escalate`, `githerd_resolve`) through the server in `.mcp.json`. `githerd_next` hands out
+work in the order of githerd's work queue (section 10.2 of `design/githerd/githerd-design.md`).
+Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History
 

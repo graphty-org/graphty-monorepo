@@ -48,7 +48,7 @@ the daemon checks their work and does every GitHub write.
 | Pull requests are shepherded | Gives every open PR a "why stuck" reason; updates PRs from master only from a verified green commit; fixes real failures and conflicts within fixed per-PR limits; keeps auto-merge on for non-breaking PRs and holds breaking ones. |
 | Outdated issues are refreshed | After merges, ranks open issues by overlap with the changed paths and has a run comment on what changed or propose closing with evidence. |
 | Periodic full re-triage | Once a week, re-reads every open issue for relevance, duplicates, obsolescence and labels, in rate-limited batches, with a separate filter step before anything is proposed for closing. |
-| A large backlog is managed efficiently | Every issue gets one type, one priority and one effort label; agent-ready issues by the owner are worked under a work-in-progress cap; every action is batched and budgeted. |
+| A large backlog is managed efficiently | Every issue gets one type, one priority and one effort label; one deterministic work queue (section 10.2) orders all work with a one-line reason per item; agent-ready issues by the owner are worked under a cap on githerd's open PRs; every action is batched and budgeted. |
 | Parallel sessions are coordinated | One shared daemon holds claims with expiry and a "what I am doing" board; every session reads it through MCP tools, and the repo's CLAUDE.md requires a check before starting work, pushing or merging. |
 | Nothing gets stuck | Every loop has a terminal state: done, or one item on the owner's list. Every run has turn, budget and time caps. Every attempt counter has a limit that a new commit cannot reset (section 10.1). |
 
@@ -127,7 +127,7 @@ Registered in `.mcp.json`:
 ```
 
 **MCP startup never waits for the daemon.** The launcher answers `initialize` and `tools/list` at
-once from its static list of the six session tools, and runs `ensureDaemon()` in the background.
+once from its static list of the seven session tools, and runs `ensureDaemon()` in the background.
 A `tools/call` waits up to 45 seconds for the daemon, then returns `isError` with "githerd daemon
 not reachable: <reason>". A session therefore always has the tools, and a slow cold start shows up
 as a clear error instead of a missing server.
@@ -382,9 +382,10 @@ a restart the first request of each URL is a full read and a 304 never arrives w
   "lastActivityAt": "..."
 }
 // issues.byNumber["643"]
-{ "updatedAt": "...", "state": "open", "labels": ["enhancement", "priority:low", "effort:high"],
+{ "updatedAt": "...", "createdAt": "...", "state": "open", "labels": ["enhancement", "priority:low", "effort:high"],
   "author": "apowers313", "lastTriagedAt": "...", "lastRefreshedAt": "...", "proposal": null,
-  "closeVetoed": false }
+  "closeVetoed": false,
+  "ownerLabels": ["githerd:next"], "ownerLabelsFor": "<updatedAt>" }   // section 10.2
 ```
 
 Issue bodies and comments are not stored; the daemon fetches them when a run needs them.
@@ -653,14 +654,15 @@ phone must be plain ASCII and pass the outgoing-text check (section 14).
 
 ### 7.1 Tools for every session
 
-**githerd_status**: master state and since when, the PR queue with why-stuck, claims, sessions,
-the owner's list, pending proposals, runs and spend.
+**githerd_status**: master state and since when, the PR queue with why-stuck, the work queue with
+each item's reason (section 10.2), claims, sessions, the owner's list, pending proposals, runs and
+spend.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "section": { "type": "string", "enum": ["all", "master", "prs", "claims", "owner", "proposals", "runs", "issues"], "default": "all" },
+    "section": { "type": "string", "enum": ["all", "master", "prs", "queue", "claims", "owner", "proposals", "runs", "issues"], "default": "all" },
     "pr": { "type": "integer", "minimum": 1, "description": "Only this pull request, with its full check list." },
     "format": { "type": "string", "enum": ["text", "json"], "default": "text" }
   },
@@ -680,6 +682,11 @@ PRS (9):
   #519 ...                       -- conflicting [auto-merge on]
   #702 ...                       -- waiting on owner: visual review
   #731 (author: someone-else)    -- checks pending
+QUEUE (3):
+  master -- master is red since 15:26 UTC (inc-20261002-1) [taken by run-20261002-0009-x9]
+  pr:519 -- conflicting, open PR, 5 days old [held: master is red; taken by graphty-monorepo-bc]
+  pr:704 -- required check failing: All Checks Pass, open PR, 2 days old [held: master is red]
+PRS WAITING ON OWNER (1): #702 visual review, 9 days old
 CLAIMS: master -> run-20261002-0009-x9 (until 16:40); pr:519 -> graphty-monorepo-bc (until 18:00)
 SESSIONS: graphty-monorepo-bc (feat/x, "resolving #519 conflict"), githerd-2463873 (feat/githerd)
 WAITING ON OWNER (2): 2 PRs await visual review: https://...; decide: npm name for @graphty/foo (#655)
@@ -695,6 +702,14 @@ account gh is logged in as, section 14); others show the number and author only.
 wrote it: open issues and PRs by other authors, and the comments by other accounts that a run's
 tools left out. While the login is unresolved it says so, with the reason, and that no run starts. Text that a run wrote is prefixed `[run text]`, marking it
 as data.
+
+**githerd_next**: take the next piece of work. Returns the top item of the work queue (section
+10.2) that is not waiting and that no live claim, running run or session on the PR's branch already
+has, with its one-line reason, and claims it for the caller in the same call: `{ok:true, target,
+kind, reason, claim}`, or `{ok:false, reason}` when nothing is free. The queue is read and the claim
+written in one synchronous step of the daemon's single process, so two sessions asking at once
+never get the same item. Arguments: `holderName?` and `ttlMinutes?`, as for `githerd_claim`.
+Sessions only; runs do not get it.
 
 **githerd_claim**: claim a target before working on it.
 
@@ -760,7 +775,8 @@ against the run's write cap (default 10).
 | `githerd_comment` | read-only kinds | `target` (`issue:N` or `pr:N`, inside the batch), `body` (max 4000) | Posts a comment. |
 | `githerd_label` | read-only kinds | `target` (inside the batch), `add[]`, `remove[]` | Adds or removes only labels in `labels.types`, `labels.priorities` and `labels.efforts`. |
 | `githerd_propose` | read-only kinds, master-red | `kind` (`close-issue`, `revert`), `target` (inside the batch, or the incident's suspect), `closeAs?`, `reason`, `evidence[]` (1-10 of `{pr?, commit?, path?}`, at least one `pr` or `commit` for a close), `duplicateOf?` | Creates a proposal; the actor carries it out after grace (section 8.2). |
-| `githerd_rerun_failed` | pr-fix | `runId`, `mechanism` (min 20 chars) | Re-runs failed jobs of the target PR's workflow run; at most 3 per check per head. |
+| `githerd_rerun_failed` | pr-fix | `runId`, `mechanism` (min 20 chars) | Re-runs failed jobs of the target PR's workflow run; at most 3 per check per head. Records each job in `state.flakes`, so its next failure is a quick unblocker (section 10.2). |
+| `githerd_split_issue` | backlog | `parts` (2-6 of `{title, body}`), `reason` | Splits the run's issue when it is several pieces of work: one new issue per part with the parent's type, priority and effort labels and "Split from #N", and a comment on the parent listing them. Through the `runWrites` group: in dry-run, `would-do` lines. |
 | `githerd_finish_branch` | code-editing kinds | `title`, `body`, `draft?` | Hands the run's local commits to the actor for checking and pushing (section 8.3). For a backlog or master-red run, also asks for a PR. |
 | `githerd_escalate` | all | as above | Pages by the kind table. |
 
@@ -950,6 +966,7 @@ claude -p "<contents of runs/<id>/prompt.md>"
 | master-red | `Read Edit Write Grep Glob Bash mcp__githerd` | 80 | $6 | 60 min | opus |
 | pr-fix, pr-conflict | `Read Edit Write Grep Glob Bash mcp__githerd` | 60 | $4 | 45 min | sonnet |
 | backlog | `Read Edit Write Grep Glob Bash mcp__githerd` | 80 | $5 | 60 min | sonnet |
+| backlog on an effort:high issue (profile `backlog-high`) | `Read Edit Write Grep Glob Bash mcp__githerd` | 200 | $8 | 120 min | opus |
 | triage, refresh, release, retriage-candidates, retriage-filter | `Read Grep Glob mcp__githerd` | 30 | $1.50 | 15 min | sonnet |
 
 Bash, Edit and Write are left to auto mode's classifier rather than pre-approved, so the classifier
@@ -1048,7 +1065,7 @@ A failed or partial run consumes an attempt; `interrupted` and `lost` runs do no
 | 5 | Master head moved | merged-PR scan; queue changed paths for refresh; release eligibility; `git fetch`; re-read config | none | n/a |
 | 6 | Release run failed, release stalled > 6 h, or a lane run stuck | list-only escalation | release (read-only): checks the npm 409 "previously staged version" case (waits 8 minutes, then `npm view` through the daemon), a first publish of a new package (escalate `credential` with the exact `npm login` and OTP steps), and a red GPU or Hosts lane (treat as master red) | escalates `decision` or `credential` only when the owner must act |
 | 7 | PR head changed | read commits and files for the new head; decide breaking; post the status; reset the PR's attempt counters only if the head was not pushed by githerd | none | n/a |
-| 8 | PR required check failed, master green, not owner gate, not draft, author is the owner | none | pr-fix (diagnose; fix commit, or rerun with a mechanism, or escalate) | limits in 10.1; then escalate `blocked` |
+| 8 | PR required check failed, master green, not waiting on the owner (section 10.2), not stacked on an open PR, not draft, author is the owner | none | pr-fix (diagnose; fix commit, or rerun with a mechanism, or escalate) | limits in 10.1; then escalate `blocked` |
 | 9 | PR required check failed while master red | none (the status holds it) | none | row 4's refire |
 | 10 | PR conflicting (two sightings), master green, author is the owner | none | pr-conflict (merge the green SHA it is given, never `master` and never rebase; take that SHA's side of protected-path conflicts with `git checkout MERGE_HEAD -- <paths>`) | limits in 10.1; then escalate `blocked` |
 | 11 | PR enters the owner gate | review server and batched `visual-review` escalation (section 8.1) | none | clears when the gate passes or the PR merges |
@@ -1063,7 +1080,7 @@ A failed or partial run consumes an attempt; `interrupted` and `lost` runs do no
 | 20 | `githerd_escalate` called | add to owner list; page by section 5.5 | none | clears on resolve |
 | 21 | Run failed, timed out, denied or backgrounded | list-only `run-failed` or `denied` escalation | none | terminal |
 | 22 | Claim expired or holder gone | release; ledger line | none | n/a |
-| 23 | Capacity free (no red master, queue empty, under WIP cap) | pick the next agent-ready issue | backlog (branch `githerd/issue-<n>`, implement, finish the branch) | `backlog.wipCap` open githerd PRs (1 at first); 1 run per issue per 7 days |
+| 23 | Capacity free (no red master, queue empty, under WIP cap) | pick the first agent-ready issue of the work queue (section 10.2) | backlog (branch `githerd/issue-<n>`, implement, finish the branch, or split the issue); effort:high gets the `backlog-high` profile | `backlog.wipCap` open githerd PRs and backlog runs (3); 1 run per issue per 7 days |
 | 24 | Weekly re-triage due | export and batch | retriage-candidates, then retriage-filter (section 11) | one pass per week |
 | 25 | Digest due | write digest; `info` notice | none | n/a |
 | 26 | GitHub unreachable or `gh` auth failing for 30 minutes (from `githubDownSince`) | escalate `credential` (pages) or `blocked` once | none | clears on the next good poll |
@@ -1076,9 +1093,9 @@ branch's commits, which are data whoever wrote them. While the owner's login is 
 starts a run.
 
 "Agent-ready" (row 23): open; **author** is the owner (who labeled it does not count,
-because githerd's own labels are made as the owner); has type, priority and effort labels; effort
-in `backlog.efforts`; not labeled `blocked`, `needs-decision`, `needs-info`, `research` or
-`in-progress`; no open PR that references it; not claimed. Highest priority first, then oldest.
+because githerd's own labels are made as the owner); has type, priority and effort labels, of any
+effort; not labeled `blocked`, `needs-decision`, `needs-info`, `research` or `in-progress`; no open
+PR that references it; not claimed. The order is the work queue's (section 10.2).
 
 Debounce: events on the same target within one poll are merged; a target with a run in flight
 queues at most one follow-up.
@@ -1096,6 +1113,78 @@ pushes a new head (the head is not in `pushedByGitherd`).
 | An issue | 1 triage per update, 1 refresh per 14 days, 1 backlog run per 7 days |
 | The day | `runs.dailyBudgetUsd`, with the master-red share described in section 9.1 |
 | The week | `retriage.budgetUsd` for re-triage |
+
+### 10.2 Prioritization
+
+One deterministic order, the **work queue** (`lib/queue.mjs`), decides what githerd works on next
+and what `githerd_next` hands a session. There is no weighted score: every position follows from a
+short list of rules, so each item carries a one-line reason that explains it, for example
+"high-priority bug, 41 days old, effort:low". `githerd_status` shows the whole queue with those
+reasons (section `queue`). Only the owner's issues and PRs are in it.
+
+**Across kinds of work, finish before starting:**
+
+1. a red master (`master`);
+2. a stuck release (`task:release`): master green but not publishing, a failed release run, or a
+   stuck lane run;
+3. the owner's open PRs that need work;
+4. issues: unlabeled ones first (`triage`), since they cannot be ranked until labeled, then the
+   ranked ones.
+
+New issue work starts only while githerd's own open work (its open `githerd/` PRs plus its running
+backlog runs) is below `backlog.wipCap` (default 3); at the cap, every ranked issue waits with
+"landing PRs first" and githerd works on PRs instead of opening more. While master is red, PRs and
+ranked issues are listed but held.
+
+**PRs** are in the queue when they need something: a failing required check outside the owner
+gate, a conflict seen twice, or images the owner rejected. A PR that is landing on its own (checks
+pending, auto-merge on) is not work. Order:
+
+- oldest first by creation time;
+- a quick unblocker goes ahead of slower work: a failure that predates the commit that ended the
+  last incident, so a branch update from the verified-green master clears it, or failing checks
+  that a pr-fix run already re-ran with a named mechanism (`state.flakes`);
+- a stacked PR (its base is another open PR's branch) waits for its base, whatever its age;
+- a PR waiting on the owner (in the visual-review gate, breaking and held for a major, or the
+  target of an open `decision` escalation) is not worked: status lists it under "PRS WAITING ON
+  OWNER", oldest first.
+
+**Issues** are ordered by:
+
+1. priority label, critical first, in the order of `labels.priorities`;
+2. within a priority, type: `bug` first, then everything else;
+3. age, oldest first by creation time;
+4. effort, only as the last tiebreaker, lower effort first (`labels.efforts` is listed largest
+   first).
+
+- **Aging.** An issue moves up one priority level for every `backlog.agingDays` (default 60) days
+  since it was last updated, but never above the second level (high): only a person makes
+  something critical. The reason says so: "high-priority bug (aged up from low, 130 days
+  untouched), 400 days old, effort:low".
+- **Always left out:** issues labeled `blocked`, `research`, `in-progress` or any `needs-*` (so
+  `needs-decision` and `needs-info`); breaking changes (`breaking`, `breaking-change`,
+  `breaking-hold`), which are grouped for the next major; issues by anyone but the owner; closed
+  issues. An issue claimed by a session stays in the list marked "taken by", and neither
+  `githerd_next` nor a backlog run takes it; an issue with an open PR for it waits.
+- **High effort is not gated and not sent to the owner.** An effort:high issue is ranked like any
+  other. Its backlog run uses the `backlog-high` profile: `runs.model["backlog-high"]` (opus) and
+  `runs.caps["backlog-high"]` (200 turns, $8, 120 minutes). A run that judges the issue to be
+  several pieces of work splits it with `githerd_split_issue` (section 7.2), which creates the
+  parts with the parent's labels and a link back, through the run write path (in dry-run, `would-do`
+  lines), and finishes without code. Size alone is never a question for the owner; the playbook
+  escalates only an unclear issue or a one-way-door decision. A profile whose budget can never fit
+  the day's limit (the $5 dry-run budget) waits with that reason without holding up the runs
+  behind it.
+
+**The owner's override labels.** `githerd:next` moves an issue or PR to the front of its kind, and
+`githerd:skip` removes it from the queue. Both count only when the owner applied them: whenever an
+open issue or PR carrying one changes, the daemon reads its events
+(`GET issues/<n>/events`) through the read-only client and keeps, in `ownerLabels`, the override
+labels whose latest `labeled` event's actor is the owner. A label another account added is ignored.
+
+**The dispatcher** follows the queue: run kinds start in the order master-red, release, PR runs
+(pr-fix and pr-conflict together, in the queue's PR order), triage, refresh, backlog, re-triage;
+the backlog run takes the first agent-ready issue of the queue that is not waiting.
 
 ## 11. Weekly full re-triage
 
@@ -1209,17 +1298,18 @@ Graphty's file:
         "maxConcurrent": 2,
         "dailyBudgetUsd": 15,
         "dryRunDailyBudgetUsd": 5,
-        "model": { "master-red": "opus", "default": "sonnet" },
+        "model": { "master-red": "opus", "backlog-high": "opus", "default": "sonnet" },
         "caps": {
             "master-red": { "turns": 80, "budgetUsd": 6, "timeoutMinutes": 60 },
             "pr-fix": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
             "pr-conflict": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
             "backlog": { "turns": 80, "budgetUsd": 5, "timeoutMinutes": 60 },
+            "backlog-high": { "turns": 200, "budgetUsd": 8, "timeoutMinutes": 120 },
             "default": { "turns": 30, "budgetUsd": 1.5, "timeoutMinutes": 15 }
         },
         "writesPerRun": 10
     },
-    "backlog": { "wipCap": 1, "efforts": ["effort:low", "effort:medium"] },
+    "backlog": { "wipCap": 3, "agingDays": 60 },
     "refresh": { "everyHours": 24, "maxIssuesPerRun": 15, "minDaysBetween": 14 },
     "retriage": { "intervalDays": 7, "startHourUtc": 9, "batchSize": 25, "runsPerHour": 2, "budgetUsd": 25 },
     "staleDays": 14,
@@ -1231,8 +1321,13 @@ Graphty's file:
 }
 ```
 
-- **Lookups** are `runs.caps[kind] ?? runs.caps.default` and `runs.model[kind] ??
-  runs.model.default`.
+- **Lookups** are `runs.caps[profile] ?? runs.caps[kind] ?? runs.caps.default` and
+  `runs.model[profile] ?? runs.model[kind] ?? runs.model.default`. The profile is the kind, or
+  `backlog-high` for a backlog run on an effort:high issue; the package defaults include
+  `backlog-high` (opus; 200 turns, $8, 120 minutes).
+- **`backlog`**: `wipCap` (default 3) caps githerd's open PRs plus running backlog runs before new
+  issue work starts; `agingDays` (default 60) is the aging step of section 10.2. There is no effort
+  filter: every effort is worked.
 - **Generic defaults** in the package: `mode: "dry-run"`, every `actions` group false,
   `servherdCommand: ["npx", "-y", "servherd"]`, no lanes (at least one is required),
   `protectedPaths` and `noAutoMergePaths` both `["githerd.config.json", ".mcp.json", ".claude/",
@@ -1441,7 +1536,7 @@ Coverage thresholds follow the repository: 80% lines, functions and statements, 
    clears the conflicting auto-merge and stale-branch stalls the owner already handles by hand.
 3. **Milestone 2 lands** (runs, prompts, re-triage) in dry-run with the $5 dry-run budget. The first
    weekly digest shows a full re-triage pass and every run's would-do lines.
-4. **Acting step 2:** `runWrites` with `backlog.wipCap` 1.
+4. **Acting step 2:** `runWrites` with `backlog.wipCap` 3.
 5. **Acting step 3:** `proposals` (closing still waits out its grace).
 6. **Acting step 4:** `incidents`.
 7. **Making the gate required.** After supervision is in place and the watchdog workflow
@@ -1483,7 +1578,8 @@ green SHA you were given, never rebase; take that SHA's side of protected-path c
 `git checkout MERGE_HEAD -- <paths>`; run the affected tests; finish the branch), `release` (read
 the failed job, match the known causes, escalate only when the owner must act), `triage`,
 `refresh`, `retriage-candidates`, `retriage-filter`, `backlog` (implement the smallest change, run
-lint, build and the affected tests, finish the branch).
+lint, build and the affected tests, finish the branch; split an issue that is several pieces of
+work with `githerd_split_issue`; never ask the owner about size, only about a one-way door).
 
 Graphty's `runRulesFile` (`.claude/githerd-rules.md`) carries the owner's standing rules that are
 not in the repository's CLAUDE.md, since `--setting-sources project,local` does not load the global
@@ -1499,9 +1595,10 @@ defects are fixed in graphty-element.
 
 Added to the repository's CLAUDE.md, under "Parallel agents":
 
-> **githerd.** Before starting a piece of work, call `githerd_status` and claim the work with
-> `githerd_claim` (a PR, an issue, `master`, a branch or a path). If someone else holds it, do
-> something else or message the holder. Before any push or merge, call `githerd_status` again: if
+> **githerd.** To pick up work, call `githerd_next`: it gives you the top unclaimed item of the
+> work queue with the reason it is next, already claimed for you. To work on something specific
+> instead, call `githerd_status` and claim it with `githerd_claim` (a PR, an issue, `master`, a
+> branch or a path). If someone else holds it, do something else or message the holder. Before any push or merge, call `githerd_status` again: if
 > master is red, do not push or merge anything except the fix for master, and claim `master` with
 > the fix PR's number (`fixPr`) if you are the one fixing it. Release your claim when you finish.
 > Record owner questions with `githerd_escalate` so other sessions see them, and still end your

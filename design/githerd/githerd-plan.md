@@ -392,6 +392,38 @@ sandbox (design sections 9.3 and 14).
   bwrap or socat; the skipped and hidden counts appear in status.
 - Done: tests pass. The weekly digest (task 3.6) lists the same counts.
 
+### 2.11 Prioritization
+
+The owner's work-prioritization strategy (design section 10.2): one deterministic queue, each
+position explainable in one line, no weighted score.
+
+- Files: `githerd/lib/queue.mjs` (the work queue: cross-kind order, PRs oldest first with quick
+  unblockers ahead, stacked PRs waiting for their base, the owner's waiting list, issues by
+  priority, bug, age and effort, aging capped at high, unlabeled issues triaged first, the skips,
+  the open-PR cap, the owner-applied `githerd:next` and `githerd:skip`); `githerd/lib/dispatch.mjs`
+  (release before PR runs, PR runs and the backlog run in queue order, the `backlog-high` profile
+  for effort:high, a run that can never fit the day waits without stopping the pass);
+  `githerd/lib/runner.mjs` (model and caps by profile); `githerd/lib/config.mjs`
+  (`backlog.wipCap` default 3, `backlog.agingDays`, `backlog.efforts` removed, `backlog-high`
+  defaults); `githerd/lib/tools.mjs` (`githerd_next`, the `queue` status section);
+  `githerd/lib/daemon.mjs` (override labels checked against the issue's events);
+  `githerd/lib/issues.mjs` (`createdAt`); `githerd/lib/run-tools.mjs` (`githerd_split_issue`, the
+  flake record); `githerd/prompts/playbooks/backlog.md` (split, never ask the owner about size);
+  the coordination rule in the repository's CLAUDE.md.
+- Tests: `test/queue.test.mjs` -- the cross-kind order; PRs oldest first, a stacked PR waits for
+  its base, owner-waiting PRs listed and not worked, quick unblockers first; the issue order
+  (priority, then bug, then age, then effort); aging capped at high; unlabeled issues triaged
+  first; the skips; the open-PR cap; overrides only with `ownerLabels`. `test/dispatch.test.mjs`
+  -- a stuck release starts before a PR fix; PR runs oldest first; effort:high gets the
+  `backlog-high` profile and no escalation; a never-fitting run does not stop the pass.
+  `test/runner.test.mjs` -- `backlog-high` gives opus and the larger caps. `test/tools.test.mjs` --
+  two concurrent `githerd_next` calls get different items, each claimed; taken and held items are
+  skipped; status shows the queue with reasons. `test/run-tools.test.mjs` -- `githerd_split_issue`
+  in dry-run records `would-do` lines and in acting mode writes. `test/daemon.test.mjs` -- the
+  override labels count only when the owner applied them, and the events are read again only when
+  the record changes.
+- Done: tests pass.
+
 ## Milestone 3: the actor and acting
 
 Outcome: githerd acts, one `actions` group at a time. Tasks 3.1 and 3.2 land before milestone 2 so

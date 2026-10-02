@@ -399,6 +399,36 @@ describe("choosing one graph", () => {
         }
     });
 
+    it("a JSON graphs array is read through graph-io, which loads the graph the caller chose", async () => {
+        const doc = JSON.stringify({
+            graphs: [
+                { id: "a", directed: true, nodes: [{ id: "1" }], edges: [] },
+                { id: "b", directed: false, nodes: [{ id: "x" }, { id: "y" }], edges: [{ source: "x", target: "y" }] },
+            ],
+        });
+        assert.deepEqual(
+            ((await listGraphs({ type: "json", config: { data: doc } })) ?? []).map((g) => g.name),
+            ["a", "b"],
+        );
+        for (const choice of [{ graphIndex: 1 }, { graphName: "b" }]) {
+            const { chunks } = await read("json", { data: doc, ...choice });
+            assert.deepEqual(
+                chunks.flatMap((c) => c.nodes.map((n) => n.id)),
+                ["x", "y"],
+            );
+            assert.strictEqual(chunks.flatMap((c) => c.edges).length, 1);
+        }
+
+        const plain = await read("json", { data: '{"nodes":[{"id":1}],"edges":[]}', graphIndex: 0 });
+        assert.strictEqual(plain.chunks[0].nodes.length, 1);
+        try {
+            await read("json", { data: '{"nodes":[{"id":1}],"edges":[]}', graphIndex: 1 });
+            assert.fail("expected a refusal");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_OPTION_RANGE");
+        }
+    });
+
     it("a format whose file holds one graph refuses a choice of another, and accepts index 0", async () => {
         const graph = DataSource.get("graphml", { data: GRAPHML, graphIndex: 1 });
         assert.isNotNull(graph);

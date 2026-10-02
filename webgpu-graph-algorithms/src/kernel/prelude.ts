@@ -15,6 +15,7 @@ import {
     APSP_TILE,
     EXACT_TILES_PER_PASS,
     F32_INF_BITS,
+    F32_SIGN_BIT,
     FA2_COINCIDENT_SQ,
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
@@ -57,6 +58,7 @@ export const PRELUDE_WGSL: string = /* wgsl */ `// ---- prelude: constants, stan
 const INVALID_INDEX: u32 = ${INVALID_INDEX}u;
 const U32_MAX: u32 = ${U32_MAX}u;
 const F32_INF_BITS: u32 = ${F32_INF_BITS}u;
+const F32_SIGN_BIT: u32 = ${F32_SIGN_BIT}u;
 const MAX_WORKGROUPS_PER_DIM: u32 = ${MAX_WORKGROUPS_PER_DIM}u;
 const EXACT_TILES_PER_PASS: u32 = ${EXACT_TILES_PER_PASS}u;
 const FA2_DIST_FLOOR: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR)};
@@ -95,6 +97,11 @@ fn lowbias32(x0: u32) -> u32 {
 fn mask_bit(w: u32, i: u32) -> bool { return ((w >> (i & 31u)) & 1u) == 1u; }
 fn unpack_u8(w: u32, i: u32) -> u32 { return (w >> (8u * (i & 3u))) & 0xFFu; }
 fn pair_hash(i: u32, j: u32) -> u32 { return lowbias32((min(i, j) * 0x9E3779B9u) ^ max(i, j)); }
+fn order_key(w: f32) -> u32 {
+    let raw = bitcast<u32>(w);
+    let bits = select(raw, 0u, raw == F32_SIGN_BIT);
+    return select(bits | F32_SIGN_BIT, ~bits, (bits & F32_SIGN_BIT) != 0u);
+}
 fn hash_unit(h: u32) -> f32 { return f32(h >> 8u) * (1.0 / 16777216.0); }
 fn hash_dir(h: u32, dim: u32) -> vec3f {
     let phi = 6.283185307179586 * hash_unit(h);

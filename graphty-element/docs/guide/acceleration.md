@@ -125,6 +125,7 @@ That is the label to show beside a value a reader might compare against a saved 
 
 | Work                                   | On an accelerator       | Without one                                      |
 | -------------------------------------- | ----------------------- | ------------------------------------------------ |
+| `ngraph` layout (the default)          | Yes, from 2,000 nodes   | ngraph itself, on the CPU                        |
 | `forceatlas2` layout                   | Yes                     | The CPU simulation                               |
 | `spring` layout (Fruchterman-Reingold) | Yes                     | The CPU simulation                               |
 | `spring-electrical` layout             | Yes                     | Nothing -- `setLayout` throws `E_NO_ACCELERATOR` |
@@ -136,41 +137,60 @@ That is the label to show beside a value a reader might compare against a saved 
 | `betweenness`, `floyd-warshall`        | Yes, above a floor      | The CPU implementation                           |
 | `clustering-coefficient`               | Yes, above a floor      | The CPU implementation                           |
 | `label-propagation`                    | Yes, with one exception | The CPU implementation                           |
-| `kruskal`                              | Not yet                 | The CPU implementation                           |
+| `kruskal`                              | Yes, above a floor      | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
-`kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
-with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
-`E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
-the member exists, with no change to your page.
+The first row is the default layout, and its accelerated half is the fourth: `ngraph` and
+`spring-electrical` are one force model with two implementations, so on a graph of two thousand
+nodes or more, with an accelerator attached that computes it, the element draws `ngraph`'s
+arrangement on the accelerator and draws it with ngraph otherwise. You choose nothing and call
+nothing, and `layoutType` answers `ngraph` either way. Two thousand nodes is where ngraph's own
+step stops fitting inside a frame, measured: 2.6 ms at a thousand nodes, 12 ms at two thousand and
+1.8 seconds at a hundred thousand, against 0.72 ms for an accelerated iteration at ten thousand.
+Asking for `spring-electrical` by name is the way to have the accelerated one at any size, and it
+is the one layout that fails rather than falling back.
 
 The algorithms in the last row are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
-An algorithm is accelerated only above a measured node count: `floyd-warshall` from 300 nodes,
-`betweenness` from 400, `closeness` from 4,000, `pagerank` from 10,000, `hits` from 15,000,
-and `katz`, `eigenvector`, `dijkstra`, `bfs`, `connected-components`,
-`clustering-coefficient` and `label-propagation` from 100,000. An algorithm
-is one call, and on the device that call costs several round trips whatever the size, so below
-those counts the CPU has finished before the device has started -- and a traversal, which is one
-round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
-`caveats.precision` reads `"f64"`, and the state stays `idle`. The numbers were measured on one
-card (see `acceleration-min-nodes` below for how to replace them with your own), and
-`acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
-purpose.
+An algorithm is accelerated only above a measured size: `floyd-warshall` from 300 nodes,
+`betweenness` from 400, `closeness` from 4,000, `kruskal` from 5,000, `pagerank` from 10,000, `hits` from 15,000,
+and `katz`, `eigenvector`, `dijkstra`, `bfs`, `connected-components` and `label-propagation`
+from 100,000. An algorithm is one call, and on the device that call costs several round trips
+whatever the size, so below those counts the CPU has finished before the device has started --
+and a traversal, which is one round trip per level, stays behind for longest. Under the floor
+the run takes the CPU path, `caveats.precision` reads `"f64"`, and the state stays `idle`. The
+numbers were measured on one card (see `acceleration-min-nodes` below for how to replace them
+with your own), and `acceleration="required"` ignores them, so a benchmark can put a small graph
+on the device on purpose.
 
-Seven of those floors are above the 50,000 nodes this renderer will draw, so `katz`, `eigenvector`,
-`dijkstra`, `bfs`, `connected-components`, `clustering-coefficient` and `label-propagation` take
-the CPU path at every size the element will hold today. That is the measurement, not caution: an
-accelerated call costs several readbacks of roughly 2 milliseconds each whatever the size, and on
-a graph of 50,000 nodes and 100,000 edges the CPU implementations of those seven finish inside that,
-or -- for `clustering-coefficient` and `label-propagation`, which do win on denser graphs of
-10,000 to 20,000 nodes, and `katz`, which wins on 50,000 nodes with one edge each but loses on a
-grid -- lose at that shape, and a floor has to hold at every size above it. The
-floors were measured on 2026-09-30 by timing the CPU implementations against the GPU package in
-headless Chromium on one card. Raising the renderer's ceiling is what would put the seven in reach;
-until then, `acceleration="required"` or your own `acceleration-min-nodes` is how to put them on the
-device deliberately.
+`clustering-coefficient` is floored on its edges rather than its nodes, because what it costs on
+the CPU is the edges and how many neighbors each node has, not the node count. It is accelerated
+when the edges times the edges per node (edges squared over nodes) reach 1,080,000: 100,000
+edges on 9,259 nodes or fewer, 40,000 edges on 1,481 nodes or fewer, every pair of 164 nodes
+joined. A sparse graph stays on the CPU at any size the element holds -- two edges a node on
+50,000 nodes was no faster on the device, losing in three of seven runs -- and a dense one goes to the device, where it was measured 1.1 to 9 times
+faster.
+
+Six of the node floors are above the 50,000 nodes this renderer will draw, so `katz`,
+`eigenvector`, `dijkstra`, `bfs`, `connected-components` and `label-propagation` take the CPU path
+at every size the element will hold today. That is the measurement, not caution: an accelerated
+call costs several readbacks of roughly 2 milliseconds each whatever the size, and on a graph of
+50,000 nodes and 100,000 edges the CPU implementations of those six finish inside that, or -- for
+`label-propagation`, which wins on some graphs of 5,000 to 20,000 nodes, and `katz`, which wins on
+50,000 nodes with one edge each but loses on a grid -- lose at that shape, and a floor has to hold
+at every size above it. `label-propagation` was also measured against an edge floor, and none
+holds: how many passes it runs decides its cost, and a very dense graph settles in a few passes and
+stays faster on the CPU. The floors were measured on 2026-09-30 and 2026-10-01 by timing the CPU
+implementations against the GPU package in headless Chromium on one card. Raising the renderer's
+ceiling is what would put the six in reach; until then, `acceleration="required"` or your own
+`acceleration-min-nodes` is how to put them on the device deliberately.
+
+`kruskal` has a second floor. When every edge weighs the same -- a graph whose edges carry no
+`weight`, say -- the CPU implementation has nothing to sort and finishes five to ten times sooner,
+so such a run goes to the device only from 100,000 nodes, above what the renderer holds. On either
+path the tree is the same set of edges: the device breaks a tie between equal weights the way the
+CPU does, so only `caveats.precision` tells the two apart.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:
@@ -236,8 +256,9 @@ Three knobs, none of which you need to touch to get a working graph.
 **`acceleration-min-nodes`** -- the node count at or above which accelerated work actually uses
 the accelerator. Below it the element takes the CPU path even with hardware attached, and the
 state reads `idle`. Unset, the layouts use the hardware whenever there is any (a threshold of 0,
-measured for the accelerated layout, which was never slower than the CPU at any size) and each
-algorithm keeps the built-in floor listed above. Set to any number, including 0, it is
+measured for the accelerated layout, which was never slower than the CPU at any size) except the
+default layout, which has the floor of 2,000 nodes above; each algorithm keeps the built-in floor
+listed above. Set to any number, including 0, it is
 your number for every layout and every algorithm, and the built-in floors no longer apply. Set
 it when you have measured the machine your graphs are drawn on: the crossover is a property of
 that machine's CPU and device, and the built-in floors come from one card.

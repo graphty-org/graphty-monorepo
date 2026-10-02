@@ -189,6 +189,28 @@ export interface DataTableProps<TRow extends object> {
      */
     data: readonly TRow[];
     /**
+     * How many rows there are in all, when `data` holds only a window of them.
+     *
+     * Set it to show a list too large to hand over whole -- the records of a
+     * large graph, a server-side query. The table then scrolls the length of
+     * `rowCount` rows, draws `data[0]` at position `rowOffset`, and calls
+     * `onRangeChange` as rows come into view so the caller can hand over the
+     * window that holds them. Sorting and searching become the caller's: the
+     * table reports `onSortingChange` and `onFilterChange` and draws `data` in
+     * the order given, and Control+A and Shift ranges select within `data`.
+     *
+     * Left out, `data` is every row and the table sorts and searches it itself.
+     */
+    rowCount?: number;
+    /** Where `data[0]` sits among all `rowCount` rows. Defaults to `0`. */
+    rowOffset?: number;
+    /**
+     * Called with the rows the table is drawing, as positions among all of
+     * them: `start` inclusive, `end` exclusive. With `rowCount`, hand over a
+     * window that covers them.
+     */
+    onRangeChange?: (start: number, end: number) => void;
+    /**
      * The columns, in their natural order.
      *
      * The order here is the order a reader sees until `columnOrder` says

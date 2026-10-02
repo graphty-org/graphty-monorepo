@@ -1,0 +1,359 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-notes/v1.json",
+    "title": "graphty notes member, version 1",
+    "description": "People's notes about one graph: its nodes, edges, kept sets, results, result items and the graph itself (notes.md). Normative for what a writer produces. A note's text is an uninterpreted string: graphty-element never parses, renders, sanitizes or trims it, and a consumer that interprets it does so under its own rules and MUST treat it as untrusted. The member and each note are open objects: a reader keeps a field it does not know and writes it back. Each target and each cite is checked on its own: one that matches none of the named forms matches the fallback form, reads as unsupported, is never bound by ignoring part of it, and is written back as read. A writer MUST produce only the named forms. String lengths count Unicode code points. Each note, saved as JSON, is at most 262,144 bytes (a rule this schema cannot express). The limits are fixed for version 1.",
+    "type": "object",
+    "required": ["kind", "version", "notes"],
+    "properties": {
+        "kind": {
+            "const": "graphty-notes"
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "notes": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+                "$ref": "#/$defs/note"
+            },
+            "description": "Written oldest first: by time, then by id. A reader does not depend on the order."
+        },
+        "extensions": {
+            "$ref": "#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            },
+            "description": "Data for other software, under reverse-domain names, as container.md 'Extensions' defines.",
+            "maxProperties": 256
+        },
+        "noteId": {
+            "type": "string",
+            "pattern": "^note_[0-9A-Za-z_-]{1,64}$",
+            "description": "Globally unique. graphty-element mints note_ followed by a 26-character ULID; any other writer MUST mint an id no other writer will (a ULID or a UUID after note_). Opaque to every reader: compare for equality only."
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
+            "description": "RFC 3339 with an explicit offset. graphty-element writes UTC as Date.prototype.toISOString() does (2026-10-01T09:12:03.120Z), keeps any other valid spelling it reads verbatim, and compares times as instants. A reader skips a note whose time is not a real date (2026-02-30) even when it matches this pattern. Seconds run 00 to 59: a leap second (:60) is not a time JavaScript dates can hold."
+        },
+        "nodeId": {
+            "type": ["string", "number"],
+            "description": "A node's id as the data loaded it. Readers compare node ids by their text (11 and \"11\" name the same node), preferring a node whose id has the same type when the graph holds both."
+        },
+        "edgeMember": {
+            "type": "object",
+            "description": "An edge: its two ends plus exactly one of id, or ordinal with among. A form with other members (key, for instance) matches the fallback target instead.",
+            "required": ["source", "target"],
+            "additionalProperties": false,
+            "properties": {
+                "source": {
+                    "$ref": "#/$defs/nodeId"
+                },
+                "target": {
+                    "$ref": "#/$defs/nodeId"
+                },
+                "id": {
+                    "type": ["string", "number"]
+                },
+                "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "among": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "oneOf": [
+                {
+                    "required": ["id"],
+                    "not": {
+                        "anyOf": [
+                            {
+                                "required": ["ordinal"]
+                            },
+                            {
+                                "required": ["among"]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "required": ["ordinal", "among"],
+                    "not": {
+                        "required": ["id"]
+                    }
+                }
+            ]
+        },
+        "resultId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A result's id: the id of the run that first produced it. Inside a document that also carries a recipe, a recipe command's as is rewritten to the namespaced run id on reading (container.md, 'Applying a file' rule 3)."
+        },
+        "runToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "One run of a result, as the element's ResultItem.run holds it. Opaque; compare for equality only. A token from another session never matches a run of this one, so the reference reads as an earlier run."
+        },
+        "graphTarget": {
+            "type": "object",
+            "required": ["graph"],
+            "additionalProperties": false,
+            "properties": {
+                "graph": {
+                    "const": true
+                }
+            },
+            "description": "The whole graph."
+        },
+        "nodeTarget": {
+            "type": "object",
+            "required": ["node"],
+            "additionalProperties": false,
+            "properties": {
+                "node": {
+                    "$ref": "#/$defs/nodeId"
+                }
+            },
+            "description": "One node, by the id it was loaded with."
+        },
+        "edgeTarget": {
+            "type": "object",
+            "required": ["edge"],
+            "additionalProperties": false,
+            "properties": {
+                "edge": {
+                    "$ref": "#/$defs/edgeMember"
+                }
+            },
+            "description": "One edge, by its stable identity; never by a session edge id."
+        },
+        "setTarget": {
+            "type": "object",
+            "required": ["set"],
+            "additionalProperties": false,
+            "properties": {
+                "set": {
+                    "type": "string",
+                    "pattern": "^set_.+$",
+                    "maxLength": 256
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "The set's name when the note was saved; for display only, never used to bind."
+                }
+            },
+            "description": "A kept set: a group kept as a set, a kept selection, or a path. Read from a file, it binds only when the same file carries the set; otherwise it reads missing."
+        },
+        "resultTarget": {
+            "type": "object",
+            "required": ["result"],
+            "additionalProperties": false,
+            "properties": {
+                "result": {
+                    "$ref": "#/$defs/resultId"
+                }
+            },
+            "description": "A result as a whole (a run, a measure such as PageRank). Follows the result across reruns."
+        },
+        "itemTarget": {
+            "type": "object",
+            "required": ["item"],
+            "additionalProperties": false,
+            "properties": {
+                "item": {
+                    "type": "object",
+                    "required": ["result", "run", "key"],
+                    "additionalProperties": false,
+                    "properties": {
+                        "result": {
+                            "$ref": "#/$defs/resultId"
+                        },
+                        "run": {
+                            "$ref": "#/$defs/runToken"
+                        },
+                        "key": {
+                            "type": "object",
+                            "required": ["field", "value"],
+                            "additionalProperties": false,
+                            "properties": {
+                                "field": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                },
+                                "value": {
+                                    "type": ["string", "number", "boolean"]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "description": "One item of one run of a result (community 3 of a Louvain run, the path of a shortest-path run): graphty-element's ResultItem, always pinned to the run it was written against."
+        },
+        "target": {
+            "description": "What a note is about. A writer produces one of the named forms; a reader accepts any non-empty object and reads one that matches no named form as unsupported.",
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/graphTarget"
+                },
+                {
+                    "$ref": "#/$defs/nodeTarget"
+                },
+                {
+                    "$ref": "#/$defs/edgeTarget"
+                },
+                {
+                    "$ref": "#/$defs/setTarget"
+                },
+                {
+                    "$ref": "#/$defs/resultTarget"
+                },
+                {
+                    "$ref": "#/$defs/itemTarget"
+                },
+                {
+                    "type": "object",
+                    "minProperties": 1,
+                    "maxProperties": 64,
+                    "not": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/$defs/graphTarget"
+                            },
+                            {
+                                "$ref": "#/$defs/nodeTarget"
+                            },
+                            {
+                                "$ref": "#/$defs/edgeTarget"
+                            },
+                            {
+                                "$ref": "#/$defs/setTarget"
+                            },
+                            {
+                                "$ref": "#/$defs/resultTarget"
+                            },
+                            {
+                                "$ref": "#/$defs/itemTarget"
+                            }
+                        ]
+                    },
+                    "description": "Any other non-empty object: a target kind or form this version does not name (a later {filterStep}, a typed {node, type}). Kept, read as unsupported, written back as read. Reserved keys for later kinds: filterStep, note, where, layer, point."
+                }
+            ]
+        },
+        "knownCite": {
+            "type": "object",
+            "required": ["result", "run"],
+            "additionalProperties": false,
+            "properties": {
+                "result": {
+                    "$ref": "#/$defs/resultId"
+                },
+                "run": {
+                    "$ref": "#/$defs/runToken"
+                }
+            },
+            "description": "A result the note's claim rests on, pinned to the run it was written against. Read from a file, it binds only when the same file's recipe makes the result."
+        },
+        "cite": {
+            "description": "A cite. A writer produces the named form; any other non-empty object is kept and read as unsupported.",
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/knownCite"
+                },
+                {
+                    "type": "object",
+                    "minProperties": 1,
+                    "maxProperties": 64,
+                    "not": {
+                        "$ref": "#/$defs/knownCite"
+                    }
+                }
+            ]
+        },
+        "note": {
+            "type": "object",
+            "required": ["id", "time", "targets", "text"],
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/noteId"
+                },
+                "time": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "When the note was written. Required."
+                },
+                "targets": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 64,
+                    "items": {
+                        "$ref": "#/$defs/target"
+                    },
+                    "description": "What the note is about: one or more targets. Required."
+                },
+                "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "\\S",
+                    "description": "The note itself. An uninterpreted string: line breaks and every other character are kept exactly. Never markup to graphty-element. Always the complete readable form of the note: a later richer body is an extra field, and text stays its fallback."
+                },
+                "mediaType": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*( *;[\\x20-\\x7E]*)?$",
+                    "description": "The writer's hint of how it meant text to be read: type/subtype, optionally with parameters in visible ASCII (text/markdown; variant=GFM). Stored and written back verbatim; graphty-element never acts on it. A reader compares type and subtype without regard to case and ignores parameters. Absent: the writer said nothing. The graphty app writes text/markdown."
+                },
+                "author": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "\\S",
+                    "description": "Who wrote the note, as the writing application's author setting said. A claim, never an authenticated identity. Absent when no name was set; never empty and never a placeholder."
+                },
+                "edited": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "When the note's text, targets, cites, mediaType or extensions last changed. Absent when it never changed."
+                },
+                "cites": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 64,
+                    "items": {
+                        "$ref": "#/$defs/cite"
+                    }
+                },
+                "extensions": {
+                    "$ref": "#/$defs/extensions",
+                    "description": "Other applications' data about the note, under reverse-domain keys. Plain JSON, at most 32 levels deep and 65,536 bytes serialized. Kept and written back untouched; graphty-element never reads it."
+                }
+            },
+            "description": "One note. Open: a reader keeps fields it does not know and writes them back. A later version 1 field MUST stay valid when text, targets or cites change without it. Reserved field names for later: inReplyTo, tags.",
+            "maxProperties": 64
+        }
+    }
+}

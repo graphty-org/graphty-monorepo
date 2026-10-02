@@ -139,6 +139,19 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_LAYER"
     /**
+     * A saved document's content is malformed: not the kind it claims, a required member missing
+     * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
+     * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
+     * it again fails the same way. (design/documents/README.md, "Error and warning codes")
+     */
+    | "E_BAD_DOCUMENT"
+    /**
+     * A saved document, or a member of one, has a `version` this release does not read.
+     * `details` are `{ kind, found, reads }`. Nothing in the session changed. The caller opens it
+     * with a release that reads that version; it is never guessed at.
+     */
+    | "E_UNSUPPORTED_VERSION"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -340,6 +353,16 @@ export type GraphtyErrorCode =
     | "E_INTERNAL";
 
 /**
+ * A notice that stops nothing: a report entry, never thrown. OPEN UNION: codes may be added in a
+ * minor release (design/documents/README.md, "Error and warning codes").
+ */
+export type GraphtyWarningCode =
+    /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
+    | "W_UNKNOWN_MEMBER"
+    /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
+    | "W_FUTURE_TIME";
+
+/**
  * Every code, as a lookup table.
  *
  * The `satisfies` clause is what keeps this table and the union above from drifting: a code
@@ -366,6 +389,8 @@ const CODE_TABLE = {
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
+    E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
+    E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

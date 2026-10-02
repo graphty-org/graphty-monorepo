@@ -1,4 +1,4 @@
-import { Checkbox, MantineProvider, type MantineThemeComponent } from "@mantine/core";
+import { Checkbox, MantineProvider, type MantineThemeComponent, type MantineThemeComponents } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -50,7 +50,7 @@ describe("Public API", () => {
     });
 
     it("component extensions are mergeable", () => {
-        const customComponents = {
+        const customComponents: MantineThemeComponents = {
             ...compactTheme.components,
             CustomWidget: {
                 defaultProps: { size: "sm" },

@@ -1,3 +1,32 @@
+## 2.0.6 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.14
+- Updated graph-format to 1.2.6
+
+## 2.0.5 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.13
+- Updated graph-format to 1.2.5
+
+## 2.0.4 (2026-10-01)
+
+### 🩹 Fixes
+
+- **layout:** draw the arf and 3D kamadaKawai seeded start in float64 as layout 1.x did ([0964b8b3](https://github.com/graphty-org/graphty-monorepo/commit/0964b8b3))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.12
+- Updated graph-format to 1.2.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.3 (2026-10-01)
 
 ### 🧱 Updated Dependencies

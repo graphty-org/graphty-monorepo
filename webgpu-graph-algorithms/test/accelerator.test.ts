@@ -8,6 +8,7 @@ import { breadthFirstSearch } from "../src/algorithms/bfs.js";
 import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
 import { labelPropagation } from "../src/algorithms/label-propagation.js";
+import { minimumSpanningTree } from "../src/algorithms/mst.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
 import { sssp } from "../src/algorithms/sssp.js";
@@ -41,7 +42,7 @@ import { acquire, requireGpu } from "./setup/gpu.js";
 
 /**
  * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14), the four P8 traversal members (P8-T13 PD-16), the two
- * betweenness members, all-pairs shortest paths and the two P11 members, in the order AlgorithmAccelerator declares them.
+ * betweenness members, all-pairs shortest paths and the three P11 members, in the order AlgorithmAccelerator declares them.
  */
 const ALGORITHM_MEMBERS = [
     "pageRank",
@@ -60,6 +61,7 @@ const ALGORITHM_MEMBERS = [
     "allPairsShortestPath",
     "triangleCount",
     "labelPropagation",
+    "minimumSpanningTree",
 ] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
@@ -634,6 +636,27 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         for (const member of ["triangleCount", "labelPropagation"] as const) {
             await expect(callMember(acc, member, snapshot, mass), member).rejects.toMatchObject({ code: "E_DISPOSED" });
         }
+    });
+
+    it("carries minimumSpanningTree, delegating to its driver; the seam's weights override is refused", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-mst" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES.map(([u, v], e) => [u, v, (e * 37) % 101] as const));
+        const injected: AlgorithmAccelerator = acc;
+        expect(typeof acc.minimumSpanningTree).toBe("function");
+        expect(injected.minimumSpanningTree).toBe(acc.minimumSpanningTree);
+        const mst = await acc.minimumSpanningTree(snapshot);
+        const direct = await minimumSpanningTree(ctx, snapshot);
+        expectBitwiseEqual(mst.edges, direct.edges, "minimumSpanningTree.edges");
+        expect(mst.totalWeight).toBe(direct.totalWeight);
+        expect(mst.edges.length).toBe(33);
+        await expect(
+            acc.minimumSpanningTree(snapshot, { weights: new Float32Array(snapshot.arcCount) }),
+        ).rejects.toMatchObject({ code: "E_UNSUPPORTED", details: { option: "weights" } });
+        acc.release(snapshot);
+        acc.dispose();
+        await expect(acc.minimumSpanningTree(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
     });
 
     it("release and dispose delegate to the context", async (t) => {

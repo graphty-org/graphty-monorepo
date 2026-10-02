@@ -1,3 +1,136 @@
+## 0.8.31 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty:** stop exporting the notes section's props type ([#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** keep notes in graphty-element's session notes ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705), [#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **graphty:** read one case note in the singular ([#188](https://github.com/graphty-org/graphty-monorepo/issues/188))
+- **compact-mantine:** accent text contrast, labelled segmented controls, one colour callback ([#135](https://github.com/graphty-org/graphty-monorepo/issues/135), [#136](https://github.com/graphty-org/graphty-monorepo/issues/136), [#141](https://github.com/graphty-org/graphty-monorepo/issues/141))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.23
+- Updated compact-mantine to 0.8.19
+- Updated graphty-element to 3.5.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.30 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** route kruskal to the GPU above a measured floor ([252a19ed](https://github.com/graphty-org/graphty-monorepo/commit/252a19ed))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.22
+- Updated graphty-element to 3.5.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.29 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.4.2
+
+## 0.8.28 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty:** draw the Graphty story graph larger, labelled and with thick edges ([5684802b](https://github.com/graphty-org/graphty-monorepo/commit/5684802b))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.21
+- Updated graphty-element to 3.4.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.27 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** save and open notes with toDocument and mergeDocument ([e2ac4893](https://github.com/graphty-org/graphty-monorepo/commit/e2ac4893))
+
+### 🩹 Fixes
+
+- **graphty-element:** set the triangle edge floor at the smallest measured all-win value ([#678](https://github.com/graphty-org/graphty-monorepo/issues/678))
+- **graphty-element:** save a loaded edge's note by its position at save time ([7f009140](https://github.com/graphty-org/graphty-monorepo/commit/7f009140))
+- **graphty-element:** save a note about a session-added edge by its position ([b681820e](https://github.com/graphty-org/graphty-monorepo/commit/b681820e))
+- **graphty-element:** keep the notes reader out of the extend entry point ([51567728](https://github.com/graphty-org/graphty-monorepo/commit/51567728))
+- **graphty-element:** read a notes file once, and bind its session edge ids to nothing ([06cd19a6](https://github.com/graphty-org/graphty-monorepo/commit/06cd19a6))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.20
+- Updated compact-mantine to 0.8.18
+- Updated graphty-element to 3.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.26 (2026-10-02)
+
+### 🩹 Fixes
+
+- **deps:** patch the open uuid, vitest mocker, ip-address and low-severity advisories ([a5a5109c](https://github.com/graphty-org/graphty-monorepo/commit/a5a5109c))
+- **graphty-element:** paint runs beneath a partial user layer instead of suppressing them ([#551](https://github.com/graphty-org/graphty-monorepo/issues/551))
+- **compact-mantine:** inputs follow the size scale and the password toggle has a name ([#7](https://github.com/graphty-org/graphty-monorepo/issues/7), [#137](https://github.com/graphty-org/graphty-monorepo/issues/137), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.19
+- Updated compact-mantine to 0.8.17
+- Updated graphty-element to 3.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.25 (2026-10-01)
+
+### 🚀 Features
+
+- **graphty-element:** draw the default force layout on an accelerator ([#439](https://github.com/graphty-org/graphty-monorepo/issues/439))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.24 (2026-10-01)
+
+### 🩹 Fixes
+
+- **graphty:** initialize Sentry in Storybook only when a DSN is built in ([db61153d](https://github.com/graphty-org/graphty-monorepo/commit/db61153d))
+- **graphty:** fit the Graphty stories to the viewport and skip Sentry without a DSN ([f902075c](https://github.com/graphty-org/graphty-monorepo/commit/f902075c))
+- **graphty:** draw a small graph in the Graphty component stories ([849dd5a3](https://github.com/graphty-org/graphty-monorepo/commit/849dd5a3))
+- **graphty:** let the CopyButton and DataAccordion stories follow light mode ([29e81db9](https://github.com/graphty-org/graphty-monorepo/commit/29e81db9))
+- **graphty:** keep the Storybook eruda button top-right after a resize ([a35f8eac](https://github.com/graphty-org/graphty-monorepo/commit/a35f8eac))
+- **graphty:** declare the colorScheme global the capture modes set ([72ae6970](https://github.com/graphty-org/graphty-monorepo/commit/72ae6970))
+- **graphty:** render the light visual mode in light ([05d31bff](https://github.com/graphty-org/graphty-monorepo/commit/05d31bff))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.18
+- Updated compact-mantine to 0.8.16
+- Updated graphty-element to 3.1.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.23 (2026-10-01)
 
 ### 🧱 Updated Dependencies

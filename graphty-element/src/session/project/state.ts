@@ -1,7 +1,7 @@
 /**
  * @file Project state: the fixed list of slices that make up a project, and nothing else.
  *
- * Everything a project file would save lives in one of the ten slices below, and a change to a
+ * Everything a project file would save lives in one of the eleven slices below, and a change to a
  * slice is undoable. Anything outside them (camera, hover, selection, a run still computing) is
  * exempt. See design/undo/undo-design.md section 3.
  *
@@ -13,6 +13,7 @@
 
 import type { CameraState } from "../../camera/types";
 import type { EdgeId, LayoutId, NodeId, RunId, Scope, SetId } from "../../catalog/types";
+import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
 import type { RunRecord } from "../runs/types";
@@ -117,6 +118,20 @@ export interface VisibilityState {
     readonly showContext: boolean;
 }
 
+/** One note, as the `notes` slice keeps it: the record, and where it was opened from. */
+export interface NoteEntry {
+    /** The frozen record: exactly what is saved with the note. */
+    readonly note: Note;
+    /** The file it was opened from, when it was; session-only, never written into a notes file. */
+    readonly source?: NoteStatus["source"];
+    /**
+     * Set when the note was opened from a file: its set, result and item targets, or its cites,
+     * name what the file named, not what this session holds, so they bind to nothing here
+     * (design/documents/notes.md, "Binding" rule 3). Cleared for whichever an edit rewrites.
+     */
+    readonly unbound?: { readonly targets: boolean; readonly cites: boolean };
+}
+
 /** The whole project, as readers see it. */
 export interface ProjectState {
     readonly graph: GraphSlice;
@@ -136,6 +151,8 @@ export interface ProjectState {
     readonly sets: ReadonlyMap<SetId, ElementSet>;
     /** Saved camera views, by name. */
     readonly views: ReadonlyMap<string, CameraState>;
+    /** The notes, by id. */
+    readonly notes: ReadonlyMap<NoteId, NoteEntry>;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -173,5 +190,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         visibility: init.visibility ?? Object.freeze({ filter: null, window: null, showContext: false }),
         sets: new Map(init.sets),
         views: new Map(init.views),
+        notes: new Map(init.notes),
     };
 }

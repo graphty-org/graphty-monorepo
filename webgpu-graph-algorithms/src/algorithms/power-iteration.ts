@@ -124,6 +124,9 @@ export function coreOf(ctx: GpuContext, s: GraphSnapshot, algorithm: string): Co
  * @returns the reverse core
  */
 export function reverseOf(ctx: GpuContext, s: GraphSnapshot): CoreBinding {
+    // core() is what records (or re-records, after a release) the snapshot in the residency; Katz binds only this
+    // view, so without it a released snapshot is E_RELEASED instead of uploaded again (issue #623)
+    ctx.residency.core(s, ["rowPtr"]);
     const view = ctx.residency.view(s, "reverse");
     return coreOfView(view, view.scalars.arcCount[0]);
 }

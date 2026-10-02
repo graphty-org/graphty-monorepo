@@ -128,6 +128,9 @@ export function MultiSelectionInspector(props: MultiSelectionInspectorProps): Re
                 />
             )}
 
+            {/* Still Coming. graphty-element's notes take one to 64 targets, so a note cannot name
+                every member of a larger selection; a note on a selection is a note on a kept set
+                (`{ set }` target), which needs Keep selection as a set first. */}
             <ControlSection
                 label="Notes"
                 opened={notesSection.opened}

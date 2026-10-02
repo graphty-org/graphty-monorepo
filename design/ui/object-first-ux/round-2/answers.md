@@ -39,7 +39,7 @@ px for one permanently pressed button, and at the 1280 px window the 725 px tool
 **Where to look.** Every app screen, 1 to 10 and 12 to 15, has the identical chrome: the
 measured audit finds the file header, the section headers, the framing pill, Export, the
 toolbar, the dock handle and the status bar at the same box on all of them, because one
-generator (`/home/apowers/Projects/graphty-monorepo/tmp/object-first/gen/render.mjs`) draws
+generator (`design/ui/object-first-ux/gen/render.mjs`) draws
 every screen from one spec.
 
 ### 2. "if using the left rail, do layout, camera, etc. actually have enough content to fill out a panel?"

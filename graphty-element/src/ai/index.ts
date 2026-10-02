@@ -70,7 +70,7 @@ export {
 } from "./providers";
 
 // Keys (Phase 7)
-export type { PersistenceConfig } from "./keys";
+export type { ApiKeyManagerOptions, PersistenceConfig } from "./keys";
 export { ApiKeyManager } from "./keys";
 
 // Prompt Builder (Phase 3)

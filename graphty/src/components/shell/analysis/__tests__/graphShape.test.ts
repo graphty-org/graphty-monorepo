@@ -156,7 +156,7 @@ describe("edgeEndpointId", () => {
 
 describe("edgeEndpoints", () => {
     /**
-     * The spelling `GraphtyHandle.getData` writes, which is the spelling every one of the
+     * The spelling the element writes on an edge record, which is the spelling every one of the
      * element's importers now produces. It used to write `src`/`dst`, so a reader that knew only
      * `source`/`target` found neither on a GML load and the inspector drew "Expand 0 neighbors"
      * for a node whose own card said 17 links.

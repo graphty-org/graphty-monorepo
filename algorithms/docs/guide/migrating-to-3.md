@@ -201,7 +201,11 @@ graphs named:
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
   graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
   throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels.
-  `labelPropagationSynchronous` adds a swap guard, so a single edge settles in two passes.
+  `labelPropagationSynchronous` adds a swap guard, so a single edge settles in two passes. In every release after
+  3.1.4 it breaks a tie by a fixed scramble of each label rather than by the lowest label, so its partitions differ
+  from 3.0.0 through 3.1.4 on any graph with tied votes: a path or a cycle now settles in a few passes into short runs
+  of nodes, where it used to need about two passes per node (949 communities and `converged: false` at the default cap
+  on a 1,000-node path) and then end as one community.
 - **All-pairs shortest paths** (`floydWarshall`, `floydWarshallPath`, `transitiveClosure`): the cheapest of parallel
   edges sets the distance; a node's distance to itself is 0 even with a positive self-loop; under a negative cycle every
   distance is NaN and no path is returned; a negative undirected edge is a negative cycle; a NaN or infinite weight
@@ -218,6 +222,9 @@ graphs named:
 - **Self-loops in community detection.** On an undirected graph with a self-loop, `girvanNewman` counts the loop twice
   in its node's degree where 2.x counted it once, so each level's modularity differs and the best level can be another
   one; `grsbm` gives another root modularity (on one small graph with a loop, 0 where 2.x gave 0.0586).
+- **Seeded `grsbm` and `syncClustering`.** Both draw from mulberry32 in every release after 3.1.2. 2.x and 3.0.0
+  through 3.1.2 drew from a linear congruential generator whose float64 product lost its low bits above 2^53 and which could return exactly 1, so
+  the same `seed` now gives other bisections, clusters and embeddings.
 - **Flow and cuts.** `maxFlow` reports the net flow of two opposite edges on the edge it runs along, each within its
   capacity; `minSTCut` reports cut edges on graphs with numeric ids (2.x reported none); `stoerWagner` adds the weights
   of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result, and on a graph of three or

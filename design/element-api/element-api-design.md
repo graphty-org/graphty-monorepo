@@ -1773,8 +1773,10 @@ the bands without rewriting the sentence, and the locale is a parameter.
 #### 4.4.5 Auto-apply: one policy, every route
 
 On a run's **first** completion the element applies the derived encoding layer, never again;
-suppressed when a user-authored layer already drives that channel; once per batch, so six runs
-never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
+suppressed when a user-authored layer already drives that channel on every element (a
+`match: "everything"` selector); an authored layer naming only some elements does not suppress it,
+and the derived layer is placed beneath it so the hand-made choice still wins on those elements;
+once per batch, so six runs never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
 `{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field,
 through the same `encode()` and the same batch coalescing (keyed by channel); it is the one-flag
 form of `encode({ run, channel: "node.size", range })`.

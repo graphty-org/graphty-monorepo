@@ -352,7 +352,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("still lets a caller force the actions hidden", () => {
@@ -376,7 +376,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "false");
-            expect(actions).toHaveStyle({ opacity: 0 });
+            expect(actions).toHaveStyle({ opacity: "0" });
         });
 
         it("reveals what acts on hover", () => {
@@ -386,7 +386,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("hides them again when the pointer leaves", () => {
@@ -506,7 +506,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets them be pressed while held open, which is the point of holding them", async () => {
@@ -556,7 +556,7 @@ describe("ActionRow", () => {
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("holds them shut again once focus has left", async () => {
@@ -584,7 +584,7 @@ describe("ActionRow", () => {
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets a hidden action be pressed with no hover first", async () => {
@@ -621,7 +621,7 @@ describe("ActionRow", () => {
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("runs a hidden action from the keyboard", async () => {

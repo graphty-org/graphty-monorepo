@@ -101,6 +101,23 @@ function seedsKeepTheirLabels(seeds: ArrayLike<number>, labels: ArrayLike<number
     return true;
 }
 
+/** The murmur3 32-bit finalizer, written out independently of the port's copy. */
+function scramble(x: number): number {
+    let h = x >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return (h ^ (h >>> 16)) >>> 0;
+}
+
+/** A small seeded generator for the planted-partition graphs. */
+function lcg(seed: number): () => number {
+    let x = seed >>> 0;
+    return () => {
+        x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+        return x / 4294967296;
+    };
+}
+
 // ------------------------------------------------------------------ semi-supervised
 
 describe("indexed.labelPropagationSemiSupervised", () => {
@@ -212,6 +229,36 @@ describe("indexed.labelPropagationSemiSupervised", () => {
         s.validate({ checksum: true });
     });
 
+    it("keeps disjoint components apart with no seed, and takes 200,000 seeds without throwing (issue #565)", () => {
+        // 2.x numbered free nodes from Math.max(...seedValues) + 1: -Infinity for no seed, which put
+        // every node in one community, and a stack overflow for 200,000 seeds.
+        const pair = snapshotOf([
+            ["a", "b"],
+            ["c", "d"],
+        ]);
+        const none = labelPropagationSemiSupervised(pair, freeSeeds(pair.nodeCount));
+        expect([...none.labels]).toEqual([0, 0, 1, 1]);
+        expect(none.converged).toBe(true);
+        pair.validate({ checksum: true });
+
+        const n = 200_000;
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < n; i++) {
+            b.addEdge(`r${i}`, `r${(i + 1) % n}`);
+        }
+        const ring = b.freeze({ checksum: true });
+        const seeds = new Uint32Array(n);
+        for (let u = 0; u < n; u++) {
+            seeds[u] = u * 7;
+        }
+        const r = labelPropagationSemiSupervised(ring, seeds);
+        expect(r.count).toBe(n);
+        expect(r.converged).toBe(true);
+        // Renumbered to 0..count-1 in first-seen order, not the seed values.
+        expect(r.labels.every((label, u) => label === u)).toBe(true);
+        ring.validate({ checksum: true });
+    });
+
     it("leaves every node where it started at maxIterations 0, and says the queue did not empty", () => {
         const s = cliquePair(3, true);
         const seeds = freeSeeds(s.nodeCount);
@@ -284,6 +331,25 @@ describe("indexed.labelPropagationSynchronous", () => {
         // One pass that moves, then one quiet pass in each direction.
         expect(r.iterations).toBe(3);
         s.validate({ checksum: true });
+    });
+
+    it("settles bipartite components, which 2.x swapped for ever like the single edge (issue #564)", () => {
+        const k34: [string, string][] = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 4; j++) {
+                k34.push([`l${i}`, `r${j}`]);
+            }
+        }
+        const star = Array.from({ length: 49 }, (_, i): [string, string] => ["hub", `leaf${i}`]);
+        const cycle = Array.from({ length: 8 }, (_, i): [string, string] => [`c${i}`, `c${(i + 1) % 8}`]);
+        const path = Array.from({ length: 19 }, (_, i): [string, string] => [`p${i}`, `p${i + 1}`]);
+        for (const [name, edges] of Object.entries({ k34, star, cycle, path })) {
+            const s = snapshotOf(edges);
+            const r = labelPropagationSynchronous(s);
+            expect(r.converged, name).toBe(true);
+            expect(dominant(s, r.labels), name).toBe(true);
+            s.validate({ checksum: true });
+        }
     });
 
     it("puts each clique in one community", () => {
@@ -369,7 +435,7 @@ describe("indexed.labelPropagationSynchronous", () => {
         s.validate({ checksum: true });
     });
 
-    it("keeps a label while it is dominant, even when a lower label ties it", () => {
+    it("keeps a label while it is dominant, whatever the priority of a label that ties it", () => {
         // A path of four in the order 2-0-3-1: two pairs, each node's label tied with the other pair's.
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < 4; i++) {
@@ -385,8 +451,10 @@ describe("indexed.labelPropagationSynchronous", () => {
         s.validate({ checksum: true });
     });
 
-    it("takes the lowest of the tied labels", () => {
-        // The centre of a two-leaf star sees labels 1 and 2 once each; after one pass it holds 1.
+    it("takes the tied label of lowest priority, not the lowest label (issue #652)", () => {
+        // The centre of a two-leaf star sees labels 1 and 2 once each. The first pass moves only to a
+        // label of higher priority than the centre's own 0 (whose priority, scramble(0), is 0), so it
+        // takes whichever of 1 and 2 scrambles lower.
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < 3; i++) {
             b.addNode(i);
@@ -394,34 +462,33 @@ describe("indexed.labelPropagationSynchronous", () => {
         b.addEdge(0, 1);
         b.addEdge(0, 2);
         const s = b.freeze({ checksum: true });
-        expect([...labelPropagationSynchronous(s, { maxIterations: 1 }).labels]).toEqual([0, 0, 1]);
+        const pick = scramble(1) < scramble(2) ? 1 : 2;
+        const raw = [pick, 1, 2];
+        const want = raw.map((l) => raw.indexOf(l));
+        expect([...labelPropagationSynchronous(s, { maxIterations: 1 }).labels]).toEqual(want);
         s.validate({ checksum: true });
     });
 
     it("stops on a two-pass cycle with converged false, whatever the pass cap above it", () => {
-        // Nodes 6 and 8 climb on every up pass and fall back on every down pass.
+        // Found by a seeded search: under the scrambled priority, some nodes climb on every up pass
+        // and fall back on every down pass.
         const g = new Graph({ directed: false });
         for (let i = 0; i < 9; i++) {
             g.addNode(i);
         }
         const edges = [
-            [0, 2, 3],
-            [0, 3, 5],
-            [1, 8, 2],
-            [1, 7, 3],
-            [1, 5, 4],
-            [2, 4, 1],
-            [2, 8, 4],
-            [2, 3, 2],
-            [3, 4, 1],
-            [3, 7, 2],
-            [3, 8, 2],
-            [4, 6, 2],
-            [4, 7, 3],
-            [5, 8, 3],
-            [5, 6, 4],
-            [6, 8, 3],
-            [6, 7, 3],
+            [0, 1, 2],
+            [0, 2, 4],
+            [0, 6, 4],
+            [0, 7, 3],
+            [0, 8, 1],
+            [1, 3, 5],
+            [1, 7, 4],
+            [2, 7, 3],
+            [3, 7, 1],
+            [4, 7, 5],
+            [5, 8, 1],
+            [6, 8, 4],
         ];
         for (const [u, v, w] of edges) {
             g.addEdge(u, v, w);
@@ -435,6 +502,94 @@ describe("indexed.labelPropagationSynchronous", () => {
             expect([...again.labels]).toEqual([...r.labels]);
             expect(again.iterations).toBe(r.iterations);
         }
+        s.validate({ checksum: true });
+    });
+
+    // Issue #652: ranked by raw label, a path or cycle numbered in order settled one node per two
+    // passes -- 1,998 passes for 1,000 nodes, 949 communities at the default cap -- and ended as one
+    // community. Under the scrambled priority it settles in a few passes into short runs, as FLPA does.
+    it("settles a 1,000-node path and cycle numbered in order within a few passes, into short runs like labelPropagation's", () => {
+        for (const closed of [false, true]) {
+            const b = new GraphBuilder({ directed: false });
+            for (let i = 0; i < 1000; i++) {
+                b.addNode(i);
+            }
+            for (let i = 0; i < (closed ? 1000 : 999); i++) {
+                b.addEdge(i, (i + 1) % 1000);
+            }
+            const s = b.freeze({ checksum: true });
+            const r = labelPropagationSynchronous(s);
+            const name = closed ? "cycle" : "path";
+            expect(r.converged, name).toBe(true);
+            expect(r.iterations, name).toBeLessThanOrEqual(20);
+            expect(dominant(s, r.labels), name).toBe(true);
+            // Every community is one run of consecutive nodes (on the cycle the last run may join the
+            // first); dominance makes each at least two long.
+            let end = 1000;
+            while (closed && r.labels[end - 1] === r.labels[0]) {
+                end--;
+            }
+            for (let i = 1; i < end; i++) {
+                if (r.labels[i] !== r.labels[i - 1]) {
+                    expect(r.labels[i], `${name} run at ${i}`).toBe(Math.max(...r.labels.subarray(0, i)) + 1);
+                }
+            }
+            const flpa = labelPropagation(s).count;
+            expect(r.count, name).toBeGreaterThan(flpa / 2);
+            expect(r.count, name).toBeLessThan(flpa * 2);
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("puts a 200-leaf star in one community", () => {
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i <= 200; i++) {
+            b.addNode(i);
+        }
+        for (let i = 1; i <= 200; i++) {
+            b.addEdge(0, i);
+        }
+        const s = b.freeze({ checksum: true });
+        const r = labelPropagationSynchronous(s);
+        expect(r.converged).toBe(true);
+        expect(r.count).toBe(1);
+        s.validate({ checksum: true });
+    });
+
+    it("recovers four planted communities of 50 on ten seeds, as labelPropagation does", () => {
+        for (let seed = 1; seed <= 10; seed++) {
+            const rand = lcg(seed);
+            const b = new GraphBuilder({ directed: false });
+            for (let i = 0; i < 200; i++) {
+                b.addNode(i);
+            }
+            for (let u = 0; u < 200; u++) {
+                for (let v = u + 1; v < 200; v++) {
+                    if (rand() < (Math.floor(u / 50) === Math.floor(v / 50) ? 0.3 : 0.005)) {
+                        b.addEdge(u, v);
+                    }
+                }
+            }
+            const s = b.freeze({ checksum: true });
+            const r = labelPropagationSynchronous(s);
+            expect(r.converged, `seed ${seed}`).toBe(true);
+            expect(r.count, `seed ${seed}`).toBe(4);
+            for (let u = 0; u < 200; u++) {
+                expect(r.labels[u], `seed ${seed} node ${u}`).toBe(r.labels[u - (u % 50)]);
+            }
+            expect(labelPropagation(s).count, `seed ${seed}`).toBe(4);
+            s.validate({ checksum: true });
+        }
+    });
+
+    it("gives the same labels and passes on every run, and the same partition when the cap is raised past them", () => {
+        const s = checksummedSnapshot(gnm(500, 1500, false, 652));
+        const r = labelPropagationSynchronous(s);
+        expect(r.converged).toBe(true);
+        const again = labelPropagationSynchronous(s);
+        expect([...again.labels]).toEqual([...r.labels]);
+        expect(again.iterations).toBe(r.iterations);
+        expect([...labelPropagationSynchronous(s, { maxIterations: 1000 }).labels]).toEqual([...r.labels]);
         s.validate({ checksum: true });
     });
 

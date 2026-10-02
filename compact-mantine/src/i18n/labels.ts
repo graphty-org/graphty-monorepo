@@ -271,6 +271,16 @@ export interface CompactMantineLabels {
     /** Shown in `QuickActions` when nothing matches the search. */
     noResults: string;
 
+    // PasswordInput (the theme's extension of Mantine's)
+
+    /**
+     * Accessible name of the eye button inside a password field that shows or
+     * hides what was typed. One name in both states: the button reports whether
+     * the text is showing through its pressed state, not by renaming itself.
+     * Never drawn; the button shows only the eye glyph.
+     */
+    passwordReveal: string;
+
     // Ordinals
 
     /**
@@ -357,6 +367,8 @@ export const defaultLabels: CompactMantineLabels = {
     quickActions: "Quick actions",
     searchActions: "Search actions",
     noResults: "No results",
+
+    passwordReveal: "Show the password",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

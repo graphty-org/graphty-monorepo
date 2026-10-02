@@ -295,9 +295,14 @@ export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
  * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
  * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
  * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
- * Declared ahead of the minimum-spanning-tree driver, which reads it when it lands.
+ * `src/algorithms/mst.ts` reads it.
  */
 export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
+/**
+ * The sign bit of an f32 bit pattern; interpolated into the prelude as `F32_SIGN_BIT` for `order_key`, the
+ * order-preserving u32 key of an f32 that Boruvka's `atomicMin` over edge weights runs on (P11 PD-6).
+ */
+export const F32_SIGN_BIT = 0x80000000;
 /** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
 export const GROUP_ROW_THREAD_MAX = 32;
 /** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */

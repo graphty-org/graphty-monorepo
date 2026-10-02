@@ -2,7 +2,7 @@
  * Audit (design sections 12.4, 8.2 and 13.1): the public surface of @graphty/graph-io.
  *
  * Pins, without the design document at hand:
- * - the eleven io contract names of section 12.4 (their shapes transcribed verbatim into local
+ * - the thirteen io contract names of section 12.4 (their shapes transcribed verbatim into local
  *   types and compared with expectTypeOf, so a drift in either direction fails `tsc` in lint);
  * - the registry, sniffing and children surfaces of section 8.2 / 13.1;
  * - the eight per-format subpath exports of section 8.2 with `types` first (13.2) and the
@@ -41,8 +41,10 @@ import {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
+    type GraphListing,
     ImportError,
     type ImportInput,
     type ImportIssue,
@@ -72,6 +74,16 @@ interface DesignCommonImportOptions {
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
     encoding?: string | undefined;
 }
+interface DesignGraphChoiceOptions {
+    graphIndex?: number | undefined;
+    graphName?: string | undefined;
+}
+interface DesignGraphListing {
+    readonly index: number;
+    readonly name: string | null;
+    readonly nodes: number | null;
+    readonly edges: number | null;
+}
 interface DesignGraphImporter<Opts = unknown> {
     readonly format: string;
     readonly extensions: readonly string[];
@@ -83,6 +95,7 @@ interface DesignGraphImporter<Opts = unknown> {
         sinkFor: (index: number) => GraphSink,
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
+    listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly DesignGraphListing[]>;
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;
@@ -120,7 +133,13 @@ interface DesignGraphExporter<Opts = unknown> {
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
 type DesignIssueCategory =
-    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
+    | "parse-error"
+    | "missing-value"
+    | "validation-error"
+    | "unsupported"
+    | "precision"
+    | "coercion"
+    | "merged";
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";
@@ -154,6 +173,8 @@ describe("design 12.4: the io contract types are exported with the listed shapes
         expectTypeOf<GraphImporter<{ delimiter?: string }>>().toEqualTypeOf<
             DesignGraphImporter<{ delimiter?: string }>
         >();
+        expectTypeOf<GraphListing>().toEqualTypeOf<DesignGraphListing>();
+        expectTypeOf<GraphChoiceOptions>().toEqualTypeOf<DesignGraphChoiceOptions>();
         expectTypeOf<ExportCapabilities>().toEqualTypeOf<DesignExportCapabilities>();
         expectTypeOf<LossNote>().toEqualTypeOf<DesignLossNote>();
         expectTypeOf<CommonExportOptions>().toEqualTypeOf<DesignCommonExportOptions>();

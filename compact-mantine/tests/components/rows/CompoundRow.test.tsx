@@ -2,7 +2,7 @@ import { MantineProvider } from "@mantine/core";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
@@ -39,7 +39,7 @@ function colorAndOpacity(): React.ComponentProps<typeof CompoundRow>["segments"]
     ];
 }
 
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<(...args: unknown[]) => void>;
 
 beforeEach(() => {
     warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);

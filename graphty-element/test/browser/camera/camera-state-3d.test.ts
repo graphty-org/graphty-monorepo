@@ -1,7 +1,7 @@
 import { afterEach, assert, test } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
-import { Graph } from "../../../src/Graph.js";
+import { Graph, operationQueueOf } from "../../../src/Graph.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -121,4 +121,25 @@ test("setCameraState keeps a distance beyond the zoom-out ceiling, immediately a
     await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 50 });
     await graph.setCameraState({ target: { x: 0, y: 0, z: 0 }, cameraDistance: 1e6 }, { animate: true, duration: 100 });
     assert.strictEqual(graph.getCameraState().cameraDistance, 1e6);
+});
+
+test("a placed camera stays placed when a framing request was still outstanding", async () => {
+    graph = await createTestGraph();
+    await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    await operationQueueOf(graph).waitForCompletion();
+
+    // A framing request not yet answered, as a slow machine leaves the one a data load or a new
+    // layout raises: placing the camera must answer it, not be undone by it a frame later.
+    graph.zoomToFit();
+    await graph.setCameraState({ position: { x: 900, y: 900, z: 900 }, target: { x: 0, y: 0, z: 0 } });
+
+    for (let frame = 0; frame < 10; frame++) {
+        await new Promise<void>((resolve) => graph.scene.onAfterRenderObservable.addOnce(() => resolve()));
+    }
+
+    const state = graph.getCameraState();
+    assert.ok(state.position);
+    assert.closeTo(state.position.x, 900, 0.5, "the camera is still where it was placed");
+    assert.closeTo(state.position.y, 900, 0.5);
+    assert.closeTo(state.position.z, 900, 0.5);
 });

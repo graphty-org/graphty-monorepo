@@ -280,6 +280,12 @@ const css = `
     display: flex;
     align-items: center;
 }
+/* The text box beside the pills is one pill tall, so the field holds its size's height (the
+   scale's padding leaves 20 inside at every size) until the pills wrap. Mantine draws it 1.6em,
+   which overflowed every size above sm. Hidden and unfocused auto boxes are out of flow anyway. */
+.cm-pills-field :is(.cm-input-pills-field, .mantine-PillsInputField-field) {
+    height: 20px;
+}
 .cm-input-pills {
     column-gap: 4px;
     row-gap: 2px;

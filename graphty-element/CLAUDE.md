@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (50 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (52 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -298,14 +298,19 @@ arrives only through the `./webgpu` entry point.
 
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
-accelerator when the controller planned one and the CPU simulation when it did not; the
+accelerator when the controller planned one and the CPU simulation when it did not -- and the
+DEFAULT layout does too, without being named differently: `ngraph` and `spring-electrical` are one
+force model with two implementations, and `LayoutManager.forceDriver` chooses between them by
+accelerator and graph size, so a consumer who asks for nothing gets the accelerated arrangement on
+a graph big enough to need it; the
 algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector, HITS,
 Katz, betweenness, closeness, Floyd-Warshall, the clustering coefficient, label propagation,
 k-core and Louvain route through `@graphty/algorithms`' `accelerated()` and label the result's
 `caveats.precision` with the arithmetic that produced it. Only the members listed in
 `src/acceleration/narrow.ts` are ever offered to the device, each above its measured floor in
 `ACCELERATION_MIN_NODES_BY_CAPABILITY` and, for a search from sources, in
-`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
+`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY`, and for a graph whose edges all weigh the same, in
+`ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
 measured); k-core and Louvain are not offered, so they always take the CPU port and
 `acceleration="required"` does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and

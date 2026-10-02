@@ -106,6 +106,12 @@ import {
     type ViewMasks,
 } from "./managers";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import {
+    openWebGPUEngine,
+    RENDERER_REQUESTS,
+    type RendererRequest,
+    type RendererStatus,
+} from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -287,6 +293,13 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+
+    /**
+     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
+     * the element last asked to frame the graph for a load or a new layout. The first-settlement
+     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     */
+    #cameraPlaced = false;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -362,6 +375,16 @@ export class Graph implements GraphContext {
     readonly eventManager: EventManager;
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
+    /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
+    private readonly managers: Map<string, Manager>;
+    /** Whether input is mocked, kept so the input manager can be rebuilt on the renderer chosen at init. */
+    private readonly useMockInput: boolean;
+    /** Which renderer {@link Graph.init} opens; see {@link Graph.setRenderer}. */
+    #rendererRequest: RendererRequest = "webgl";
+    /** Which renderer is drawing, set by {@link Graph.init}; null before it. */
+    #rendererStatus: RendererStatus | null = null;
+    /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
+    #rendererChosen = false;
     private dataManager: DataManager;
     private layoutManager: LayoutManager;
     private statsManager: StatsManager;
@@ -411,6 +434,7 @@ export class Graph implements GraphContext {
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      */
     constructor(element: Element | string, useMockInput = false) {
+        this.useMockInput = useMockInput;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -447,14 +471,7 @@ export class Graph implements GraphContext {
         this.element.innerHTML = "";
 
         // get a canvas element for rendering
-        this.canvas = document.createElement("canvas");
-        this.canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
-        this.canvas.setAttribute("touch-action", "none");
-        this.canvas.setAttribute("autofocus", "true");
-        this.canvas.setAttribute("tabindex", "0");
-        this.canvas.style.width = "100%";
-        this.canvas.style.height = "100%";
-        this.canvas.style.touchAction = "none";
+        this.canvas = this.createCanvas();
         this.element.appendChild(this.canvas);
 
         // Initialize RenderManager
@@ -607,7 +624,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring);
+                this.layoutManager.loadArrangement(restoring, wrote);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -719,6 +736,7 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -837,27 +855,7 @@ export class Graph implements GraphContext {
         this.setupBackgroundClickHandler();
 
         // Initialize InputManager
-        const inputConfig: InputManagerConfig = {
-            useMockInput: useMockInput,
-            touchEnabled: true,
-            keyboardEnabled: true,
-            pointerLockEnabled: false,
-            recordInput: false,
-            // Mod+Z and Shift+Mod+Z on the focused canvas move this graph's history.
-            history: {
-                undo: () => this.session.undo(),
-                redo: () => this.session.redo(),
-            },
-        };
-        this.inputManager = new InputManager(
-            {
-                scene: this.scene,
-                engine: this.engine,
-                canvas: this.canvas,
-                eventManager: this.eventManager,
-            },
-            inputConfig,
-        );
+        this.inputManager = this.createInputManager();
 
         // Initialize GraphContext
         const contextConfig: GraphContextConfig = {
@@ -907,7 +905,7 @@ export class Graph implements GraphContext {
         });
 
         // Setup lifecycle manager
-        const managers = new Map<string, Manager>([
+        const managers = (this.managers = new Map<string, Manager>([
             ["event", this.eventManager],
             ["queue", this.operationQueue],
             ["stats", this.statsManager],
@@ -918,7 +916,7 @@ export class Graph implements GraphContext {
             ["algorithm", this.algorithmManager],
             ["input", this.inputManager],
             ["selection", this.selectionManager],
-        ]);
+        ]));
         this.lifecycleManager = new LifecycleManager(managers, this.eventManager, [
             "event",
             "queue",
@@ -1199,6 +1197,176 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Chooses the renderer {@link Graph.init} opens. Read once, by `init`: a graph already drawing
+     * keeps its renderer, and a change after that is refused.
+     * @param request - `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU where the
+     *     browser has it. Where it does not, WebGL draws and {@link Graph.rendererStatus} says why.
+     */
+    setRenderer(request: RendererRequest): void {
+        if (!RENDERER_REQUESTS.includes(request)) {
+            throw new TypeError(`renderer must be "webgl", "webgpu" or "auto", not ${JSON.stringify(request)}`);
+        }
+
+        if (this.#rendererChosen && request !== this.#rendererRequest) {
+            throw new Error(
+                `the renderer is chosen once, when the graph is first drawn; "${this.#rendererRequest}" was ` +
+                    `asked for and it cannot become "${request}" now`,
+            );
+        }
+
+        this.#rendererRequest = request;
+    }
+
+    /**
+     * The renderer asked for through {@link Graph.setRenderer}.
+     * @returns The request; `"webgl"` unless something else was set.
+     */
+    get rendererRequest(): RendererRequest {
+        return this.#rendererRequest;
+    }
+
+    /**
+     * Which renderer is drawing, and why when it is not the one asked for.
+     * @returns The status once {@link Graph.init} has chosen; null before.
+     */
+    get rendererStatus(): RendererStatus | null {
+        return this.#rendererStatus;
+    }
+
+    /**
+     * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
+     * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
+     * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
+     * before the managers are initialised, so nothing has drawn or attached yet.
+     */
+    private async openRenderer(): Promise<void> {
+        const requested = this.#rendererRequest;
+        this.#rendererChosen = true;
+        if (requested === "webgl") {
+            this.#rendererStatus = { requested, active: "webgl", reason: null };
+            return;
+        }
+
+        // NO NODE OR EDGE IS BUILT UNTIL THE RENDERER IS KNOWN. Opening WebGPU takes hundreds of
+        // milliseconds (an adapter, a device, and the shader compiler fetched from Babylon's CDN),
+        // and data assigned before the element was attached arrives in that window. Built then,
+        // every mesh went onto the WebGL scene, was disposed with it, and was built again on the
+        // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
+        // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
+        // instead, and take their turn once the scene they will be drawn on exists.
+        const queue = this.operationQueue;
+        const holdQueue = !queue.getStats().isPaused;
+        if (holdQueue) {
+            queue.pause();
+        }
+
+        try {
+            await this.openWebGPU(requested);
+        } finally {
+            if (holdQueue) {
+                queue.resume();
+            }
+        }
+    }
+
+    /**
+     * Opens a WebGPU engine and moves the graph onto it, or records why WebGL stays.
+     * @param requested - What was asked for: `"webgpu"` or `"auto"`.
+     */
+    private async openWebGPU(requested: RendererRequest): Promise<void> {
+        const canvas = this.createCanvas();
+        const opened = await openWebGPUEngine(canvas);
+        // Shut down while the engine was opening: nothing will ever dispose it but this.
+        if (this.#teardown.signal.aborted) {
+            if (typeof opened !== "string") {
+                opened.dispose();
+            }
+
+            return;
+        }
+
+        if (typeof opened === "string") {
+            this.#rendererStatus = { requested, active: "webgl", reason: opened };
+            return;
+        }
+
+        const background = this.scene.clearColor;
+        this.renderManager.dispose();
+        this.inputManager.dispose();
+        this.canvas.replaceWith(canvas);
+        this.canvas = canvas;
+        // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
+        opened.resize();
+
+        this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.engine = this.renderManager.engine;
+        this.scene = this.renderManager.scene;
+        this.camera = this.renderManager.camera;
+        this.scene.clearColor = background;
+        this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
+        this.updateManager.rebindScene(this.camera);
+        this.inputManager = this.createInputManager();
+        this.graphContext = new DefaultGraphContext(
+            () => this.styles,
+            this.dataManager,
+            this.layoutManager,
+            this.dataManager.meshCache,
+            this.scene,
+            this.statsManager,
+            this.graphContext.getConfig(),
+            this.needRays,
+        );
+        this.setupBackgroundClickHandler();
+        this.managers.set("render", this.renderManager);
+        this.managers.set("input", this.inputManager);
+        this.#rendererStatus = { requested, active: "webgpu", reason: null };
+    }
+
+    /**
+     * Builds the canvas the graph draws on, not yet in the document.
+     * @returns The canvas.
+     */
+    private createCanvas(): HTMLCanvasElement {
+        const canvas = document.createElement("canvas");
+        canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
+        canvas.setAttribute("touch-action", "none");
+        canvas.setAttribute("autofocus", "true");
+        canvas.setAttribute("tabindex", "0");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.touchAction = "none";
+        return canvas;
+    }
+
+    /**
+     * Builds the input manager over the current scene and canvas.
+     * @returns The input manager.
+     */
+    private createInputManager(): InputManager {
+        const inputConfig: InputManagerConfig = {
+            useMockInput: this.useMockInput,
+            touchEnabled: true,
+            keyboardEnabled: true,
+            pointerLockEnabled: false,
+            recordInput: false,
+            // Mod+Z and Shift+Mod+Z on the focused canvas move this graph's history.
+            history: {
+                undo: () => this.session.undo(),
+                redo: () => this.session.redo(),
+            },
+        };
+        return new InputManager(
+            {
+                scene: this.scene,
+                engine: this.engine,
+                canvas: this.canvas,
+                eventManager: this.eventManager,
+            },
+            inputConfig,
+        );
+    }
+
+    /**
      * Initializes the graph instance, setting up managers, styles, and rendering pipeline.
      */
     async init(): Promise<void> {
@@ -1207,6 +1375,13 @@ export class Graph implements GraphContext {
         }
 
         try {
+            // The renderer is chosen before anything is drawn, and never again.
+            await this.openRenderer();
+            // Shut down while the renderer was opening: there is nothing left to initialise.
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
+
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
                 this.statsManager.enableProfiling();
@@ -1309,8 +1484,12 @@ export class Graph implements GraphContext {
                         // should NOT trigger zoom to fit - the user's camera position should be preserved.
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
-                            // Force a final zoom to fit after layout has truly settled
-                            this.autoFrame();
+                            // Force a final zoom to fit after layout has truly settled, unless the
+                            // camera was placed since the load asked for framing: that placement
+                            // is the answer, and a slow machine settles after it as often as before.
+                            if (!this.#cameraPlaced) {
+                                this.autoFrame();
+                            }
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -3290,6 +3469,7 @@ export class Graph implements GraphContext {
      * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
+        this.#cameraPlaced = false;
         if (this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
         }
@@ -4450,6 +4630,13 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
+        // An explicit placement answers any framing the element still owes on its own initiative
+        // (a data load, a new layout, the first settlement). Left outstanding, that request is
+        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
+        // one -- and moves the camera off the state just placed. A later load or layout asks again.
+        this.updateManager.disableZoomToFit();
+        this.#cameraPlaced = true;
+
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
@@ -5315,6 +5502,37 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D -- it is the `fitToGraph` view measured over these nodes only.
+     * Ids that name no node are skipped; when none of them names a node the camera does not
+     * move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - One node id, or several.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await graph.zoomToNodes(["n1", "n2"]);
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: (string | number) | readonly (string | number)[],
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        // Each id is looked up the way getNode looks it up, so either spelling of an integer id
+        // frames the node, and the scope is handed the ids the graph itself holds.
+        // A lone id is not iterated: a string is iterable, and its characters name no node.
+        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
+        if (nodes.length === 0) {
+            return undefined;
+        }
+
+        return this.applyCameraView("fitToGraph", { ...options, scope: { nodes } });
+    }
+
+    /**
      * Get default camera state for current camera type
      * Lazily captures the initial state on first use, or returns captured state
      * @returns The default camera state
@@ -5540,11 +5758,16 @@ export class Graph implements GraphContext {
      * per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
+     * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note
+     * names gets the `graphty.notes.count` and `graphty.notes.text` columns. Either way an export
+     * of a session holding notes reports `W_GRAPHTY_NOTES`.
+     *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
      * "neo4j" })`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
-     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
+     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
+     * and the element's `notes`.
      * @returns The loss notes, and the document as text or as UTF-8 chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
      * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not
@@ -6029,9 +6252,12 @@ export class Graph implements GraphContext {
             handTracking: xrConfig.input.handTracking,
         });
 
-        // Determine which modes are available by actually checking device support
-        const vrAvailable = xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
-        const arAvailable = xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
+        // Determine which modes are available by actually checking device support. WebXR draws
+        // through an XRWebGLLayer and has no WebGPU binding in any shipping browser, so under
+        // WebGPU both modes are reported unavailable rather than offered and failing on entry.
+        const webgl = this.#rendererStatus?.active !== "webgpu";
+        const vrAvailable = webgl && xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
+        const arAvailable = webgl && xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
 
         // Create XR UI manager
         this.xrUIManager = new XRUIManager(this.element as HTMLElement, vrAvailable, arAvailable, xrConfig.ui);

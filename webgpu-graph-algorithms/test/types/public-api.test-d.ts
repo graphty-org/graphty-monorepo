@@ -53,6 +53,7 @@ import {
     type GpuLabelResult,
     type GpuLayoutSimulation,
     type GpuLayoutTuning,
+    type GpuMstResult,
     type GpuPageRankResult,
     type GpuRunOptions,
     type GpuScoresResult,
@@ -77,6 +78,8 @@ import {
     type LimitPolicy,
     MAX_1D_ITEMS,
     MAX_WORKGROUPS_PER_DIM,
+    minimumSpanningTree,
+    type MstOptions,
     type MstResultLike,
     pageRank,
     type PageRankOptions,
@@ -385,6 +388,15 @@ expectTypeOf<keyof LabelPropagationOptions>().toEqualTypeOf<"maxIterations" | "w
 expectTypeOf<GpuAccelerator["triangleCount"]>().returns.resolves.toEqualTypeOf<GpuTriangleResult>();
 expectTypeOf<GpuAccelerator["labelPropagation"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
 expectTypeOf<GpuAccelerator["labelPropagation"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
+// ---- P11: Boruvka's minimum spanning forest (design 3.3 line 808, 8.5)
+expectTypeOf(minimumSpanningTree).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(minimumSpanningTree).parameter(2).toEqualTypeOf<GpuRunOptions | undefined>();
+expectTypeOf(minimumSpanningTree).returns.resolves.toEqualTypeOf<GpuMstResult>();
+expectTypeOf<keyof GpuMstResult>().toEqualTypeOf<"edges" | "totalWeight">();
+expectTypeOf<GpuMstResult["edges"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuMstResult>().toMatchTypeOf<MstResultLike>();
+expectTypeOf<GpuAccelerator["minimumSpanningTree"]>().parameter(1).toEqualTypeOf<MstOptions | undefined>();
+expectTypeOf<GpuAccelerator["minimumSpanningTree"]>().returns.resolves.toEqualTypeOf<GpuMstResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();

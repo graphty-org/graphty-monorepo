@@ -2,8 +2,8 @@ import { expandEdges, type GraphSnapshot, maskTest, type NodeMask } from "@graph
 import { describe, expect, it, vi } from "vitest";
 
 import type { MinCutResult } from "../../../src/indexed/flow.js";
-import { mulberry32 } from "../../../src/indexed/label-propagation.js";
 import { kargerMinCut, stoerWagner } from "../../../src/indexed/min-cut.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";

@@ -1,10 +1,10 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, createColorStop, GradientEditor, PopoutManager } from "../../src";
+import { type ColorStop, compactTheme, createColorStop, GradientEditor, PopoutManager } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
 
 /**
@@ -561,7 +561,7 @@ describe("GradientEditor", () => {
         it("the hex field commits on Enter as one complete gesture", async () => {
             const user = userEvent.setup();
             const order: string[] = [];
-            const onChange = vi.fn(() => order.push("change"));
+            const onChange = vi.fn((_stops: ColorStop[]) => order.push("change"));
             renderGradientEditor(
                 <GradientEditor
                     defaultStops={defaultStops}

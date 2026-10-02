@@ -11,6 +11,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -97,6 +98,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchNotes: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -399,6 +401,16 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        // A note written from a panel, a console or an undo: plain values, as the other mirrors.
+        this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-note-change", {
+                    detail: { id, change, fields, cause },
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -514,6 +526,8 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchNotes?.();
+        this.#unwatchNotes = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -2231,6 +2245,27 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
+     * node the camera does not move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - One node id, or several.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await element.zoomToNodes(["n1", "n2"], { animate: true });
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: (string | number) | readonly (string | number)[],
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.zoomToNodes(nodeIds, options);
+    }
+
+    /**
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now
@@ -2551,7 +2586,9 @@ export class Graphty extends LitElement {
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
-     *     admin-import file
+     *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
+     *     `graphty.notes.text` columns (notes are left out by default, and reported as
+     *     `W_GRAPHTY_NOTES`)
      * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
      * @since 3.0.0
      * @example
@@ -3687,6 +3724,70 @@ export class Graphty extends LitElement {
         // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
         this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * Which renderer draws the graph: `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU
+     * where the browser has it.
+     *
+     * Read once, when the element is first drawn; set it in markup or before the element is
+     * connected. Where WebGPU is asked for and the browser cannot open it, the graph is drawn
+     * with WebGL and {@link rendererStatus} says why -- the choice is made before the first
+     * frame, never by switching mid-run.
+     * @remarks
+     * WebGL stays the default because WebXR has no WebGPU binding in any shipping browser: under
+     * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
+     * else differs and the measured frame times.
+     * @returns What the consumer asked for. `"webgl"` unless it was set.
+     * @since 3.1.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element renderer="auto"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "renderer", reflect: true })
+    get renderer(): RendererRequest {
+        return this.#graph.rendererRequest;
+    }
+    /**
+     * Sets the renderer the element opens when it is first drawn.
+     *
+     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
+     * `attributeChangedCallback`, and a throw there would leave the element unrendered.
+     */
+    set renderer(value: RendererRequest) {
+        const oldValue = this.#graph.rendererRequest;
+
+        try {
+            this.#graph.setRenderer(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * Which renderer is drawing, and why when it is not the one asked for.
+     *
+     * `active` is `"webgl"` or `"webgpu"`; `reason` is set only when WebGPU was asked for and
+     * WebGL is drawing instead (no `navigator.gpu`, or no adapter or device could be opened).
+     * Null until the element has initialised its renderer, which it does once connected; the
+     * `render-initialized` event fires after.
+     * @returns The status, or null before the renderer has been chosen.
+     * @since 3.1.0
+     * @example
+     * ```typescript
+     * await element.updateComplete;
+     * const { active, reason } = element.rendererStatus ?? {};
+     * ```
+     */
+    get rendererStatus(): RendererStatus | null {
+        return this.#graph.rendererStatus;
     }
 
     /**

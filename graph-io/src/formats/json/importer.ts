@@ -43,6 +43,7 @@ import {
 
 import { uniqueColumnName } from "../../common/attributes.js";
 import {
+    BAD_VALUE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
@@ -157,7 +158,7 @@ export const JSON_ISSUE = Object.freeze({
     /** An index endpoint is not an integer below the node count, or names a skipped node. */
     BAD_INDEX: "E_BAD_INDEX",
     /** A declared field has the wrong JSON type (JGF label / relation / metadata, Cytoscape position / classes). */
-    BAD_VALUE: "E_BAD_VALUE",
+    BAD_VALUE: BAD_VALUE_CODE,
     /** A graph-level flag (`directed`, `multigraph`, graphology `options`) has the wrong type; the default is used. */
     BAD_FLAG: "W_BAD_FLAG",
     /** A Cytoscape `data.parent` names an unknown node. */

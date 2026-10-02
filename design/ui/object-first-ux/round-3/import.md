@@ -9,7 +9,7 @@ between, the floating toolbar, the bottom dock, the file menu behind the dataset
 status bar.
 
 Mocks: `design/ui/object-first-ux/mocks/v2/screen-N.png`, generated from
-`tmp/object-first/gen/screens/screen-N.mjs`. This document changes screens 1 and 14 and adds
+`design/ui/object-first-ux/gen/screens/screen-N.mjs`. This document changes screens 1 and 14 and adds
 screens 22 to 32.
 
 ## Terms used below

@@ -18,7 +18,9 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
+    SIMULATION_CAPABILITY,
     type SimulationEngineInit,
     type SimulationEngineOptions,
     SimulationLayoutEngine,
@@ -70,6 +72,53 @@ const SIMULATION_OPTION_SCHEMAS: Readonly<Record<SimulationType, OptionsSchema>>
  * layouts, which publish a unit ball times their own `scalingFactor` of 100.
  */
 const DEFAULT_SCALING_FACTOR = 100;
+
+/**
+ * The engine that draws the default force arrangement on the processor: `ngraph.forcelayout`.
+ *
+ * It is the element's default layout, so it is the arrangement a reader who chooses nothing sees.
+ */
+const FORCE_CPU_ENGINE = NGraphEngine.type;
+
+/**
+ * The engine that draws the same arrangement on an accelerator.
+ *
+ * ONE ARRANGEMENT, TWO DRIVERS. `spring-electrical` IS ngraph's force model -- ngraph's option
+ * names and defaults, Coulomb repulsion, Hooke springs, ngraph's drag and its semi-implicit Euler
+ * step -- computed on hardware, and its oracle is cross-checked against `ngraph.forcelayout`
+ * itself. Until this routing existed the two did not know about each other: the default layout was
+ * ngraph and therefore never reached an accelerator, and `spring-electrical` could only be had by
+ * a consumer who knew to ask for it by name, which is the consumer writing hardware detection the
+ * element is supposed to own.
+ */
+const FORCE_ACCELERATED_ENGINE = SpringElectricalLayout.type;
+
+/** The accelerator member the accelerated driver needs, which is what the controller plans over. */
+const FORCE_ACCELERATED_CAPABILITY = SIMULATION_CAPABILITY[SpringElectricalLayout.simulationType];
+
+/**
+ * The graph size from which the default force arrangement is worth handing to an accelerator.
+ *
+ * MEASURED, on this repository's `ngraph.forcelayout` at the element's own settings, as the
+ * minimum over 15-40 steps of one `step()` (the full table is in
+ * `design/decisions/2026-09-27-the-default-force-layout-has-two-drivers.md`): 0.13 ms at 100
+ * nodes, 0.5-0.7 ms at 300, 2.6-3.8 ms at 1,000, 7.2-9.1 ms at 2,000, 16-29 ms at 5,000, 47-75 ms
+ * at 10,000 and 1.8-2.4 s at 100,000. An accelerated layout iteration of the same size costs
+ * 0.72 ms at 10,000 nodes and 5.4 ms at a million, so the accelerator is ahead from about a
+ * thousand nodes and further ahead at every size above it.
+ *
+ * Two thousand rather than a thousand, because a rebuild and a graph upload are not free and
+ * because below this the CPU driver still fits a frame: at 2,000 nodes ngraph's median step is
+ * 12-13 ms, which no longer does. It also keeps the DEFAULT PICTURE unchanged for every graph
+ * small enough to look at closely -- the two drivers agree to within a quarter on the edge-length
+ * distribution of a 150-node graph, which is close but not identical, and a reader who never
+ * asked for hardware should not have their small graph redrawn by it.
+ *
+ * The `required` policy ignores it, for the reason `AccelerationController.plan` ignores its own
+ * per-capability floors under that policy: the consumer has said hardware or nothing, and a
+ * benchmark of the small end of the curve has to be able to reach the device.
+ */
+const FORCE_ACCELERATED_MIN_NODES = 2000;
 
 /**
  * Every option any of the three simulation layouts publishes, once Zod has applied its defaults.
@@ -444,6 +493,14 @@ export class LayoutManager implements Manager {
     private preStepsOwed = false;
 
     /**
+     * Set while the running layout's arrangement is the layout's own work: it was built, forward,
+     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
+     * While it holds, a seeded layout starts over when data arrives. See
+     * {@link LayoutManager.restartsForNewData}.
+     */
+    private ownArrangement = false;
+
+    /**
      * Set when a scoped layout was built over a graph with nothing in it: its members are taken
      * again when the first node arrives, which is when the layout really starts. A scope captured
      * over an empty graph holds nothing it names, so it would hold every node that arrives.
@@ -455,6 +512,28 @@ export class LayoutManager implements Manager {
      * does not rebuild the layout. See {@link LayoutManager.apply}.
      */
     private engineDimension?: 2 | 3;
+
+    /**
+     * The engine the running layout is actually drawn by, which is not always the one that was
+     * asked for: see {@link LayoutManager.forceDriver}. Compared against the current decision on
+     * every transition that can change it, by {@link LayoutManager.rerouteDriver}.
+     */
+    private runningDriver?: string;
+
+    /**
+     * Set while a driver rebuild is in flight, which is asynchronous.
+     *
+     * Without it a second transition arriving during the rebuild -- the probe settling a microtask
+     * after an accelerator is injected, say -- reads the driver that is still running, decides the
+     * same rebuild a second time, and builds two simulations for one decision.
+     */
+    private rerouting = false;
+
+    /**
+     * The consumer's options for the running layout, which a driver rebuild builds it from again.
+     * The `layout` slice holds them too, but a layout set through `setLayout` has no slice value.
+     */
+    private driverOptions: object = {};
 
     private logger: Logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
@@ -478,6 +557,14 @@ export class LayoutManager implements Manager {
      * @returns True while one is.
      */
     replacing: () => boolean = () => false;
+
+    /**
+     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * data arriving does not start a seeded layout over: the last write of the run does, once, so
+     * `addEdge` in a loop rebuilds the layout once rather than once per add.
+     * @returns True while one is.
+     */
+    graphWritesWaiting: () => boolean = () => false;
 
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
@@ -660,6 +747,13 @@ export class LayoutManager implements Manager {
      * next transition that attaches an accelerator brings it back.
      */
     private onAccelerationChange(): void {
+        // FIRST, because an accelerator arriving or leaving can change WHICH ENGINE draws the
+        // default force arrangement, and that is a rebuild rather than a new simulation inside the
+        // engine that is running. Below it, the engine stays and only its simulation moves.
+        if (this.rerouteDriver(this.dataManager.nodes.size)) {
+            return;
+        }
+
         const controller = this.acceleration;
         const engine = this.layoutEngine;
         if (
@@ -680,10 +774,148 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Which engine draws the layout a consumer asked for, over a graph this size, right now.
+     *
+     * The element has one arrangement with two drivers -- see {@link FORCE_ACCELERATED_ENGINE} --
+     * and this is where it chooses between them, so that a consumer who installs the element and
+     * the optional accelerator package and does nothing else gets the accelerated force layout,
+     * and one with no hardware gets ngraph. Nobody outside the element writes a probe, reads a
+     * capability or picks an engine by name to make that happen.
+     *
+     * Every other layout answers itself: a consumer who names an engine gets that engine, and
+     * `spring-electrical` asked for by name still refuses to run without hardware rather than
+     * quietly arranging the graph some other way
+     * (`design/decisions/2026-09-21-spring-electrical-fails-loudly-on-set.md`).
+     *
+     * NOTHING HERE IS A FALLBACK AFTER A FAILURE. The accelerator is feature-tested and the
+     * controller is asked to plan the work BEFORE any of it starts, which is capability detection.
+     * A batch that fails once a simulation is running is reported and stops the layout; it does not
+     * arrive here.
+     * @param requested - The engine name the consumer asked for, after a catalogue id is resolved.
+     * @param nodeCount - The graph the layout will be run over.
+     * @returns The engine to build.
+     */
+    private forceDriver(requested: string, nodeCount: number): string {
+        const controller = this.acceleration;
+        if (requested !== FORCE_CPU_ENGINE || controller === null) {
+            return requested;
+        }
+
+        // FEATURE-TESTED BEFORE THE PLAN IS ASKED FOR, because under the `required` policy `plan()`
+        // throws for an accelerator that cannot do the work -- and this is the DEFAULT layout,
+        // which must keep laying the graph out on the processor whatever the hardware is. An
+        // accelerator that does not implement this layout is not a failure here; it is an answer.
+        const { accelerator } = controller;
+        if (accelerator === null || typeof accelerator[FORCE_ACCELERATED_CAPABILITY] !== "function") {
+            return requested;
+        }
+
+        if (nodeCount < FORCE_ACCELERATED_MIN_NODES && controller.policy !== "required") {
+            return requested;
+        }
+
+        // The consumer's own `acceleration.minNodes`, the policy and the device's health are all
+        // this call's to weigh, and it is the same call the bridge makes at every load.
+        return controller.plan({ capability: FORCE_ACCELERATED_CAPABILITY, nodeCount }).accelerated
+            ? FORCE_ACCELERATED_ENGINE
+            : requested;
+    }
+
+    /**
+     * Rebuild the running layout on its other driver when the decision has changed.
+     *
+     * Called from the two places an input to {@link LayoutManager.forceDriver} can change: a
+     * controller transition and a freeze. A swap onto the accelerated driver keeps the arrangement
+     * -- the bridge adopts the coordinates already in the element's position array -- and a swap
+     * back to ngraph does not, because ngraph places the bodies it is given itself.
+     *
+     * The layout is stopped before the rebuild, which is asynchronous, so no frame steps a
+     * simulation over the snapshot the freeze that triggered this is about to release.
+     * `_setLayoutInternal` starts it again once the new driver is in, and reports its own failures.
+     * @param nodeCount - The graph the layout will be run over.
+     * @returns True when a rebuild was started, so the caller leaves the engine alone.
+     */
+    private rerouteDriver(nodeCount: number): boolean {
+        if (!this.driverChanged(nodeCount)) {
+            return false;
+        }
+
+        if (this.rerouting) {
+            // One is already on its way, and it asks this question again when it lands -- so the
+            // last word belongs to the state of the world after the rebuild rather than to whichever
+            // transition happened to arrive while it was in flight.
+            return true;
+        }
+
+        this.rerouting = true;
+        this.running = false;
+
+        // QUEUED BEHIND EVERY BUILD ALREADY ASKED FOR, as `apply` queues them, so a rebuild never
+        // races a `layout.set` -- and counted as a build, so the frame loop steps nothing until the
+        // new driver is in. A restore of the arrangement drops it, as it drops any build.
+        const generation = this.#generation;
+        this.#building++;
+        const rebuild = this.#applying.then(async () => {
+            const engine = this.layoutEngine;
+            if (engine === undefined || !this.driverChanged(this.dataManager.nodes.size)) {
+                // A build that ran ahead of this one already chose the driver for the graph as it is.
+                this.running = !this.restoring();
+                return;
+            }
+
+            await this._setLayoutInternal(engine.type, this.driverOptions, {
+                dimension: this.engineDimension ?? 3,
+                restoring: this.restoring(),
+                live: () => this.#generation === generation,
+                explicitScope: false,
+            });
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        void rebuild
+            .finally(() => {
+                this.#building--;
+                this.rerouting = false;
+            })
+            .then(
+                () => {
+                    this.rerouteDriver(this.dataManager.nodes.size);
+                },
+                () => {
+                    // A FAILED REBUILD IS NOT RETRIED HERE, and that is what keeps this from spinning:
+                    // the failure has been reported and the layout that was running has been
+                    // restored, so asking the same question again would decide the same rebuild,
+                    // fail it again and report it again, for ever. The next real transition may try
+                    // again.
+                },
+            );
+        return true;
+    }
+
+    /**
+     * Whether the engine drawing the running layout is not the one {@link LayoutManager.forceDriver}
+     * would choose for a graph this size now.
+     * @param nodeCount - The graph the layout will be run over.
+     * @returns True when the running layout should move to its other driver.
+     */
+    private driverChanged(nodeCount: number): boolean {
+        const engine = this.layoutEngine;
+        const running = this.runningDriver;
+        return engine !== undefined && running !== undefined && this.forceDriver(engine.type, nodeCount) !== running;
+    }
+
+    /**
      * Hand a running simulation the snapshot that has just replaced the one it was laying out.
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
+        // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
+        // the size at which the default force arrangement is worth accelerating, in either
+        // direction. See `rerouteDriver`.
+        if (this.rerouteDriver(event.next.nodeCount)) {
+            return;
+        }
+
         const engine = this.layoutEngine;
 
         // A FREEZE RENUMBERS THE ROWS the hold mask indexes, so it is rebuilt from the captured
@@ -759,6 +991,7 @@ export class LayoutManager implements Manager {
 
         this.engine = undefined;
         this.onRest = null;
+        this.runningDriver = undefined;
         this.running = false;
     }
 
@@ -781,6 +1014,18 @@ export class LayoutManager implements Manager {
             throw unknownLayout(type);
         }
 
+        // WHICH ENGINE DRAWS IT, which is the one the consumer named for every layout but the
+        // default force arrangement: see `forceDriver`. Everything below builds, configures and
+        // steps the DRIVER, while everything the consumer sees -- the layout type the element
+        // reports, the `layout-changed` event, a failure message -- names what they asked for, so a
+        // swap between the two drivers of one arrangement is not a layout change to anybody
+        // outside.
+        const driver = this.forceDriver(type, this.dataManager.nodes.size);
+        const driverClass = driver === type ? engineClass : LayoutEngine.getClass(driver);
+        if (!driverClass) {
+            throw unknownLayout(driver);
+        }
+
         // Which engines accept a scope is a fact of the class. Only a scope named in THIS call is
         // refused; a carried one is inactive under an engine that cannot hold nodes still.
         const scoped = engineClass.scoped === true;
@@ -801,7 +1046,7 @@ export class LayoutManager implements Manager {
 
         // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them.
         const { dimension } = how;
-        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(type, dimension);
+        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(driver, dimension);
 
         if (dimensionOpts) {
             // Merge dimension options, but don't override user-provided options
@@ -815,18 +1060,18 @@ export class LayoutManager implements Manager {
         // A layout the element drives through `@graphty/layout`'s simulation seam declares which
         // simulation it is, and is the one kind of engine `LayoutEngine.get` cannot build: it
         // needs the graph's acceleration controller, which a registered class is never handed.
-        const { simulationType } = engineClass as { simulationType?: SimulationType };
+        const { simulationType } = driverClass as { simulationType?: SimulationType };
 
         let engine: LayoutEngine | null;
         try {
             if (simulationType === undefined) {
-                engine = LayoutEngine.get(type, layoutOpts);
+                engine = LayoutEngine.get(driver, layoutOpts);
             } else {
                 if (this.acceleration === null) {
                     throw new GraphtyError({
                         code: "E_INTERNAL",
                         message:
-                            `the layout "${type}" runs on the graph's acceleration controller, and this layout ` +
+                            `the layout "${driver}" runs on the graph's acceleration controller, and this layout ` +
                             "manager has no graph context to read one from",
                         source: "layout",
                         details: { layoutType: type },
@@ -899,6 +1144,12 @@ export class LayoutManager implements Manager {
         const previousEngine = this.layoutEngine;
         const previousDimension = this.engineDimension;
         const previousMembers = this.members;
+        const previousDriver = this.runningDriver;
+        const previousDriverOptions = this.driverOptions;
+
+        // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
+        // again from these, and the element re-derives the dimension options itself.
+        this.driverOptions = callerOpts;
 
         try {
             // Add all existing nodes and edges to the new engine
@@ -909,6 +1160,11 @@ export class LayoutManager implements Manager {
 
             this.engine = engine;
             this.engineDimension = dimension;
+
+            // BEFORE `init()`, which freezes a snapshot and therefore re-enters
+            // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
+            // had changed and start this rebuild over again.
+            this.runningDriver = driver;
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
@@ -944,8 +1200,10 @@ export class LayoutManager implements Manager {
                 // A restore: the `arrangement` hook writes the coordinates into the array and
                 // hands them to this engine next, so it publishes nothing and stays at rest.
                 this.preStepsOwed = false;
+                this.ownArrangement = false;
                 this.running = false;
             } else {
+                this.ownArrangement = true;
                 // Run layout pre-steps -- unless there is nothing to step yet, in which case they
                 // are owed to the first frame that has something. See `preStepsOwed`.
                 if (nodeArray.length === 0) {
@@ -998,6 +1256,8 @@ export class LayoutManager implements Manager {
             this.engine = previousEngine;
             this.engineDimension = previousDimension;
             this.members = previousMembers;
+            this.runningDriver = previousDriver;
+            this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
 
             // Cancelled or overtaken is not a failure: nothing is reported.
@@ -1256,10 +1516,17 @@ export class LayoutManager implements Manager {
      * written while the view is 2D -- a script's `positions.set`, a restore -- is hidden by the
      * camera but drawn by the node's edges. The engine publishes the flattened row like any move.
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
+     * @param wrote - Whether anything was written into the lane, which forward is a
+     *     `positions.set`.
      */
-    loadArrangement(restoring: boolean): void {
+    loadArrangement(restoring: boolean, wrote = false): void {
         if (restoring) {
             this.#generation++;
+        }
+
+        // A consumer placed nodes: the arrangement is no longer the layout's alone to start over.
+        if (!restoring && wrote) {
+            this.ownArrangement = false;
         }
 
         const engine = this.layoutEngine;
@@ -1562,6 +1829,74 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether data that has just arrived starts the running layout over, built over the whole
+     * graph as it now stands.
+     *
+     * A SEEDED LAYOUT DRAWS ITS DATA, NOT THE ORDER IT ARRIVED IN. An incremental engine such as
+     * ngraph places newcomers from wherever the graph has got to, so a consumer that set
+     * `nodeData` after one fetch and `edgeData` after another got a different picture from one
+     * that set both together: the frames between had spent the pre-steps, and stepped, over the
+     * nodes alone (issue #650). How far the graph had got depends on how many frames ran, which
+     * is the consumer's timing and the machine's speed. Starting over gives the arrangement the
+     * same seed draws over the same data in one write.
+     *
+     * Only while the arrangement is the layout's own work: once a consumer has placed nodes, or a
+     * restore has, newcomers are placed around them. Only a SEEDED layout, which is the one that
+     * promises a picture; an unseeded one keeps the graph the reader has been watching. Not while
+     * pre-steps are owed, because the first frame spends them over everything there is by then.
+     * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
+     * another graph write waits, whose own pass starts the layout over once for the whole run.
+     * A static or simulation layout reloads over the whole graph at every freeze already.
+     * @returns True when the layout starts over.
+     */
+    private restartsForNewData(): boolean {
+        const engine = this.layoutEngine;
+        return (
+            this.ownArrangement &&
+            !this.preStepsOwed &&
+            !this.replacing() &&
+            !this.graphWritesWaiting() &&
+            engine !== undefined &&
+            !(engine instanceof StaticLayoutEngine) &&
+            !(engine instanceof SimulationLayoutEngine) &&
+            typeof (this.driverOptions as { seed?: unknown }).seed === "number"
+        );
+    }
+
+    /**
+     * Build the running layout again over the graph as it stands, spending its pre-steps there
+     * and then: see {@link LayoutManager.restartsForNewData}. Awaited inside the derivation pass
+     * that added the data, so every step it takes lands before that step seals, and counted as a
+     * build, so no frame steps the engine it replaces meanwhile. Pins survive, as they survive any
+     * rebuild (`replayPins`).
+     */
+    private async restart(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        const generation = this.#generation;
+        this.#building++;
+        const rebuild = this._setLayoutInternal(engine.type, this.driverOptions, {
+            dimension: this.engineDimension ?? 3,
+            restoring: false,
+            live: () => this.#generation === generation,
+            explicitScope: false,
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        try {
+            await rebuild;
+        } catch {
+            // Reported by `_setLayoutInternal`, which left the engine that was running in place; a
+            // restore that overtook the rebuild is not a failure. Thrown from here, it would abort
+            // the derivation pass that added the data.
+        } finally {
+            this.#building--;
+        }
+    }
+
+    /**
      * Take the members a scoped layout built over an empty graph owes, once nodes have arrived:
      * the layout starts now, over the nodes its scope names among them.
      */
@@ -1747,6 +2082,10 @@ export class LayoutManager implements Manager {
             });
 
             return Promise.resolve();
+        }
+
+        if (this.restartsForNewData()) {
+            return this.restart();
         }
 
         // `updatePositions` is declared on the base class and the element's ten blind steps are

@@ -335,6 +335,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutRegion",
     "StyleNumberInput",
     "StyleSelect",
+    "SegmentedControl",
     "ToggleWithContent",
 
     // Buttons, chrome, color, inputs, overlays, selection, tree
@@ -523,6 +524,10 @@ describe("Package exports", () => {
 
             it("exports StyleNumberInput", () => {
                 expect(mainExports.StyleNumberInput).toBeDefined();
+            });
+
+            it("exports SegmentedControl", () => {
+                expect(mainExports.SegmentedControl).toBeDefined();
             });
 
             it("exports StyleSelect", () => {

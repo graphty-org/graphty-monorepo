@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { syncClustering } from "../../../src/indexed/sync.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
@@ -8,6 +9,13 @@ import type { NodeId, SynCConfig } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
+
+// The golden records were taken with 2.x's generator, so this suite replays it in place of
+// mulberry32 to check the arithmetic and the order of the draws against them.
+vi.mock("../../../src/utils/math-utilities.js", async () => {
+    const { legacySeededRandom } = await import("../../helpers/legacy-random.js");
+    return { mulberry32: vi.fn(legacySeededRandom) };
+});
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];
 
@@ -56,6 +64,12 @@ describe("indexed.syncClustering", () => {
             "Invalid number of clusters: 1.5. Must be between 1 and 6",
         );
         expect(() => syncClustering(toSnapshot(g), { numClusters: NaN })).toThrow("Invalid number of clusters: NaN");
+    });
+
+    it("draws from the package generator, seeded with the seed option", () => {
+        vi.mocked(mulberry32).mockClear();
+        syncClustering(toSnapshot(undirectedFixtures()[2].graph), { numClusters: 2, seed: 7 });
+        expect(vi.mocked(mulberry32)).toHaveBeenCalledWith(7);
     });
 
     it("leaves Math.random alone", () => {

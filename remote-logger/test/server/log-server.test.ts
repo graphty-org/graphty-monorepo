@@ -322,7 +322,7 @@ describe("Log Server", () => {
         const certPath = path.join(tmpDir, `test-cert-${Date.now()}.pem`);
         const keyPath = path.join(tmpDir, `test-key-${Date.now()}.pem`);
 
-        const { cert, key } = generateSelfSignedCert("127.0.0.1");
+        const { cert, key } = await generateSelfSignedCert("127.0.0.1");
         fs.writeFileSync(certPath, cert);
         fs.writeFileSync(keyPath, key);
 
@@ -432,7 +432,7 @@ describe("Log Server", () => {
         const certPath = path.join(tmpDir, `test-cert2-${Date.now()}.pem`);
         const keyPath = path.join(tmpDir, `test-key2-${Date.now()}.pem`);
 
-        const { cert, key } = generateSelfSignedCert("127.0.0.1");
+        const { cert, key } = await generateSelfSignedCert("127.0.0.1");
         fs.writeFileSync(certPath, cert);
         fs.writeFileSync(keyPath, key);
 

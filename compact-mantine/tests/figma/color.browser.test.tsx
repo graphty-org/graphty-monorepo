@@ -6,7 +6,6 @@
  * them; positions are compared relative to the component's own origin.
  */
 import { DirectionProvider, HueSlider } from "@mantine/core";
-import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 

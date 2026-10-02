@@ -34,6 +34,7 @@ import {
     compactTextareaScale,
 } from "../styles/inputs";
 import { type CompactSizeScale, type CompactVars, compactVarsForSize } from "../styles/size-scale";
+import { PasswordToggleIcon } from "./PasswordToggleIcon";
 
 /**
  * Theme extensions for the input family (design/figma-spec.md 6).
@@ -245,7 +246,15 @@ export const inputComponentExtensions = {
     }),
 
     PasswordInput: PasswordInput.extend({
-        defaultProps: { size: "sm", variant: "filled" },
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+            // Mantine hides the reveal toggle from assistive technology unless
+            // this is truthy; the icon supplies the toggle's name. A field that
+            // passes its own props (an aria-label, say) replaces this object.
+            visibilityToggleButtonProps: {},
+            visibilityToggleIcon: PasswordToggleIcon,
+        },
         vars: (_theme, props) => ({
             root: { "--psi-button-size": "24px", "--psi-icon-size": "12px" },
             wrapper: compactVarsForSize(compactInputScale, props?.size),

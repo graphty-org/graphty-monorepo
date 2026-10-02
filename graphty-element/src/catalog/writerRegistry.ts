@@ -28,8 +28,9 @@ export interface FormatWriterRegistration {
      */
     readonly descriptor: FormatDescriptor;
     /**
-     * The options the writer accepts beside graph-io's common ones (`sanitizeIds`,
-     * `onMixedDirection`). An export naming any other option is refused with `E_UNKNOWN_OPTION`.
+     * The options the writer accepts beside the common ones (graph-io's `sanitizeIds` and
+     * `onMixedDirection`, and the element's `notes`). An export naming any other option is refused
+     * with `E_UNKNOWN_OPTION`.
      */
     readonly writerOptions?: readonly OptionDescriptor[];
     /** The graph-io exporter that does the writing. Its `format` must equal `descriptor.id`. */
@@ -37,7 +38,11 @@ export interface FormatWriterRegistration {
     readonly exporter: GraphExporter<Record<string, unknown> & CommonExportOptions>;
 }
 
-/** The options every writer takes from graph-io, whatever the format. */
+/**
+ * The options every writer takes, whatever the format: graph-io's `sanitizeIds` and
+ * `onMixedDirection`, and the element's own `notes`, which the element reads and never hands to
+ * the exporter.
+ */
 export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     {
         name: "sanitizeIds",
@@ -63,6 +68,17 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             { value: "undirected", label: "Write every edge as undirected" },
         ],
         description: "What to do with a graph of directed and undirected edges in a format that holds one kind.",
+    },
+    {
+        name: "notes",
+        plainName: "Include Notes",
+        technicalName: "notes",
+        type: "boolean",
+        default: false,
+        description:
+            "Write the graphty.notes.count and graphty.notes.text columns on the nodes and edges notes " +
+            "name. Off by default, so notes are never shared by accident; every export of a session " +
+            "holding notes reports W_GRAPHTY_NOTES either way.",
     },
 ];
 

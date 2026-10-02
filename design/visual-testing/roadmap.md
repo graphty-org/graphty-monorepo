@@ -185,6 +185,12 @@ label is documented as a rollback only.
 
 ## Milestone 3: owner-only approval (this week)
 
+**Status.** Built and in review: the pull request "feat(visual-review): require the owner's
+passkey approval for every accept". The gate enforces nothing until the owner does the two owner
+actions below. Owner decisions still open: a host that serves only the review page (today any
+server on `dev.ato.ms` can ask for the passkey), and a ruleset-required workflow so a pull request
+cannot drop the gate step from `ci.yml`.
+
 **Delivers.** P0: Register passkey and Face ID at Finish on the review page; the gate verifies each
 accept's assertion against the registered passkey, and an accept without a valid one does not
 count.

@@ -67,6 +67,7 @@ const COO_TEST = "test/primitives/coo-to-csr.test.ts";
 const GROUP_TEST = "test/primitives/group-by-key.test.ts";
 const TRIANGLES_TEST = "test/algorithms/triangles.test.ts";
 const LPA_TEST = "test/algorithms/label-propagation.test.ts";
+const MST_TEST = "test/algorithms/mst.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1339,8 +1340,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     "bf-relax": Object.freeze([
         {
             // the compare-exchange result is ignored: a lane whose exchange failed gives up as if it had changed
-            // something; the next round repairs the lost update, so dist never misses -- the witness is the retry
-            // bound, which the real kernel's losing lanes exhaust under maxRetries 1 and this mutant never reaches
+            // something; on the descending fan the one round before the decision round loses every candidate but
+            // one per SIMD group, so the decision round's repair reads as a negative cycle (flag and dist miss)
             name: "exchange-result-ignored",
             find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }",
             replace: "{ atomicStore(&flags[0], 1u); break; }",
@@ -1910,6 +1911,66 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: LPA_TEST,
         },
     ]),
+    "mst-best": Object.freeze([
+        {
+            // the raw bit pattern instead of the order-preserving key: every negative weight sorts above the positives
+            name: "raw-bit-pattern",
+            find: "let k = order_key(w);",
+            replace: "let k = bitcast<u32>(w);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the tie-break tail dropped for one endpoint: its component takes its lowest-indexed edge, whatever it weighs
+            name: "tie-break-dropped",
+            find: "if (k == atomicLoad(&bestKey[cu])) { atomicMin(&bestEdge[cu], e); }",
+            replace: "atomicMin(&bestEdge[cu], e);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the different-component guard removed: a self-loop or an edge inside a component competes to be its best
+            name: "component-guard-removed",
+            find: "if (cu == cv) { return; }",
+            replace: "if (cu == cv && cu == U32_MAX) { return; }",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // a plain read of the atomic minimum: mixed atomic and plain access, which no runtime compiles
+            name: "tie-pass-plain-read",
+            find: "k == atomicLoad(&bestKey[cv])",
+            replace: "k == bestKey[cv]",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+    ]),
+    "mst-link": Object.freeze([
+        {
+            // the two-cycle never broken: both roots hook onto each other and both record the edge
+            name: "two-cycle-unbroken",
+            find: "let keep = bestEdge[other] == e && c <= other;",
+            replace: "let keep = other == c;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the lower root of a two-cycle records the edge as well: every mutual merge lands in the forest twice
+            name: "lower-records-too",
+            find: "if (!keep) { treeEdge[c] = e;",
+            replace: "if (other != c) { treeEdge[c] = e;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the recorded edges never counted: the run stops after one submit, before a deep path has merged
+            name: "edges-uncounted",
+            find: "atomicAdd(&added, 1u);",
+            replace: "atomicAdd(&added, 0u);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+    ]),
 });
 
 /**
@@ -2436,7 +2497,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts; Boruvka's mst-best and mst-link: 7 rows, measured by test/sabotage/mst.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
     "P1",
     "P2",

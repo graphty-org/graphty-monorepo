@@ -19,7 +19,7 @@ import {
     useTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useCollator, useLocale, useNumberFormatter } from "../../i18n";
@@ -137,6 +137,9 @@ function DataTableInner<TRow extends object>(
     useCompactStyles();
     const {
         data,
+        rowCount: windowRowCount,
+        rowOffset = 0,
+        onRangeChange,
         columns,
         getRowId,
         label,
@@ -316,11 +319,19 @@ function DataTableInner<TRow extends object>(
     // the resulting state arriving.
     const sortEventRef = useRef<React.SyntheticEvent | undefined>(undefined);
 
+    // A windowed table holds only some of the rows, so their order and their
+    // search are the caller's: sorting or filtering a window would reorder the
+    // rows on show and nothing else.
+    const windowed = windowRowCount !== undefined;
+    const offset = windowed ? rowOffset : 0;
+
     const table = useTable<DataTableFeatures, TRow>({
         features: dataTableFeatures,
         data: rowsData,
         columns: columnDefs,
         getRowId,
+        manualSorting: windowed,
+        manualFiltering: windowed,
         enableRowSelection: selectionMode !== "none",
         enableMultiRowSelection: selectionMode === "multiple",
         // Every column is a candidate for the search; which of them the search
@@ -368,7 +379,7 @@ function DataTableInner<TRow extends object>(
 
     const { rows } = table.getRowModel();
     const visibleColumns = table.getVisibleLeafColumns();
-    const rowCount = rows.length;
+    const rowCount = windowRowCount ?? rows.length;
     const columnCount = visibleColumns.length;
 
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
@@ -381,9 +392,18 @@ function DataTableInner<TRow extends object>(
         getScrollElement: () => scrollRef.current,
         estimateSize: () => rowHeight,
         gap: GRID_GAP,
-        getItemKey: (index) => rowIds[index] ?? index,
+        getItemKey: (index) => rowIds[index - offset] ?? index,
         overscan,
     });
+
+    const virtualItems = virtualizer.getVirtualItems();
+    const rangeStart = virtualItems[0]?.index ?? 0;
+    const rangeEnd = (virtualItems.at(-1)?.index ?? -1) + 1;
+    useEffect(() => {
+        onRangeChange?.(rangeStart, rangeEnd);
+        // Reported when the range moves, not when a caller hands over a new
+        // callback on every render.
+    }, [rangeStart, rangeEnd]);
 
     // Roving tabindex, as the ARIA Authoring Practices ask of a grid: exactly
     // one cell is in the tab order at a time, Tab moves into and out of the
@@ -465,7 +485,7 @@ function DataTableInner<TRow extends object>(
         commitSelection(
             applySelectionGesture({
                 ids: rowIds,
-                index,
+                index: index - offset,
                 selected: selection,
                 anchor: anchorRef.current,
                 modifiers,
@@ -482,7 +502,7 @@ function DataTableInner<TRow extends object>(
      * @param meta - Whether it came from a pointer or from the keyboard
      */
     const activateRow = (index: number, event: ActivationEvent, meta: ActivationMeta): void => {
-        const row = rows[index];
+        const row = rows[index - offset];
         if (row === undefined) {
             return;
         }
@@ -623,7 +643,8 @@ function DataTableInner<TRow extends object>(
     };
 
     const isSelectable = selectionMode !== "none";
-    const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(data.length));
+    const allRows = windowRowCount ?? data.length;
+    const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(allRows));
 
     /**
      * What to draw in place of the rows when there are none.
@@ -634,7 +655,7 @@ function DataTableInner<TRow extends object>(
             return empty;
         }
 
-        return data.length === 0 ? labels.noRows : labels.noMatchingRows;
+        return allRows === 0 ? labels.noRows : labels.noMatchingRows;
     };
 
     return (
@@ -656,7 +677,6 @@ function DataTableInner<TRow extends object>(
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>
                     <TextInput
                         data-testid="data-table-search"
-                        size="xs"
                         type="search"
                         // The box's own value is not its name, so a name has to
                         // come from somewhere: there is no visible label beside
@@ -858,8 +878,8 @@ function DataTableInner<TRow extends object>(
                     </Table.Thead>
 
                     <Table.Tbody style={{ display: "block", position: "relative", height: virtualizer.getTotalSize() }}>
-                        {virtualizer.getVirtualItems().map((item) => {
-                            const row = rows[item.index];
+                        {virtualItems.map((item) => {
+                            const row = rows[item.index - offset];
                             if (row === undefined) {
                                 return null;
                             }

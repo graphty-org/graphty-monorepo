@@ -1,4 +1,4 @@
-import { StandardMaterial } from "@babylonjs/core";
+import { StandardMaterial, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -237,6 +237,76 @@ describe("Edge 2D Patterns Integration", () => {
         assert.isAbove(edge.drawnPattern.length, 0, "the dashed line is drawn again in 2D");
         for (const element of edge.drawnPattern) {
             assert(element.batchMesh?.material instanceof StandardMaterial, "and drawn flat");
+        }
+
+        graph.dispose();
+    });
+    // Issue #620: a 2D pattern element used to be laid flat in the XY plane and never turned, so a
+    // dash on a vertical edge was drawn horizontal, across its line instead of along it.
+    for (const [name, target] of [
+        ["vertical", { x: 0, y: 5 }],
+        ["diagonal", { x: 4, y: 3 }],
+    ] as const) {
+        for (const style of ["dash", "zigzag"] as const) {
+            test(`a 2D ${style} on a ${name} edge is drawn along its line`, async () => {
+                const graph = new Graph(container);
+
+                await graph.setViewMode("2d");
+                await graph.setLayout("fixed");
+                await styleEveryEdge(graph, { "edge.style": style, "edge.color": "darkgrey" });
+                await graph.addNode(asData({ id: "a", position: { x: 0, y: 0, z: 0 } }));
+                await graph.addNode(asData({ id: "b", position: { x: target.x, y: target.y, z: 0 } }));
+                await graph.addEdge(asData({ source: "a", target: "b" }), { source: "source", target: "target" });
+                await operationQueueOf(graph).waitForCompletion();
+                graph.getUpdateManager().stepFrames(2);
+
+                const edge = edgeBetween(graph, "a", "b");
+                assert(edge, "Edge should exist");
+                const elements = edge.drawnPattern;
+                assert.isAtLeast(elements.length, 2, "the line is drawn as a run of elements");
+
+                // The line as drawn: from the first element to the last.
+                const along = elements[elements.length - 1].position.subtract(elements[0].position).normalize();
+                assert.isAbove(Math.abs(along.y), 0.5, "the edge is drawn steeper than horizontal");
+
+                // Every shape is built along its own X axis, so its slot turns that axis onto the line.
+                for (const [index, element] of elements.entries()) {
+                    const axis = Vector3.TransformNormal(Vector3.Right(), element.transform).normalize();
+                    assert.closeTo(
+                        Vector3.Dot(axis, along),
+                        1,
+                        1e-3,
+                        `element ${String(index)} points along its line, not at (${axis.x.toFixed(2)}, ${axis.y.toFixed(2)})`,
+                    );
+                }
+
+                graph.dispose();
+            });
+        }
+    }
+
+    // Issue #619: a 3D patterned line's batch was forced into the opaque queue, so its opacity
+    // reached the fragment's alpha and nothing blended it: a half-transparent dash was drawn solid.
+    test("a 3D patterned edge at half opacity is drawn blended, like a solid one", async () => {
+        const graph = new Graph(container);
+
+        await graph.setViewMode("3d");
+        await styleEveryEdge(graph, { "edge.style": "dash", "edge.color": "darkgrey", "edge.opacity": 0.5 });
+        await graph.addNode(asData({ id: "a", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "b", x: 5, y: 0, z: 0 }));
+        await graph.addEdge(asData({ source: "a", target: "b" }), { source: "source", target: "target" });
+        await operationQueueOf(graph).waitForCompletion();
+        graph.getUpdateManager().stepFrames(2);
+
+        const edge = edgeBetween(graph, "a", "b");
+        assert(edge, "Edge should exist");
+        assert.isAbove(edge.drawnPattern.length, 0, "the dashed line is drawn");
+
+        for (const element of edge.drawnPattern) {
+            const mesh = element.batchMesh;
+            assert(mesh?.material, "the element is drawn by a batch with a material");
+            assert.closeTo(element.visibility, 0.5, 1e-6, "the element is drawn at the line's opacity");
+            assert.isTrue(mesh.material.needAlphaBlendingForMesh(mesh), "and in the alpha-blended queue");
         }
 
         graph.dispose();

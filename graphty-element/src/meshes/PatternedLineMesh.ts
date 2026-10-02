@@ -337,20 +337,16 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Put every element where it goes along the line, pointing along it in 3D.
+     * Put every element where it goes along the line, pointing along it.
      * @param start - Starting point of the line
      * @param end - Ending point of the line
      */
     private placeElements(start: Vector3, end: Vector3): void {
         const positions = this.calculatePositions(start, end);
         for (let i = 0; i < this.elements.length; i++) {
-            if (this.is2DMode) {
-                this.elements[i].placeFlat(positions[i]);
-            } else {
-                // The billboard shader faces the element to the camera about this direction, as
-                // it does an arrowhead.
-                this.elements[i].place(positions[i], this.lineDirection);
-            }
+            // In 3D the billboard shader faces the element to the camera about this direction; in
+            // 2D its slot turns it along the line (issue #620). Either way, as an arrowhead is.
+            this.elements[i].place(positions[i], this.lineDirection);
         }
     }
 

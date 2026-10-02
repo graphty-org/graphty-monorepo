@@ -683,16 +683,6 @@ export class ArrowCap {
     }
 
     /**
-     * Put this shape at a point lying flat in the XY plane, unturned: how a 2D pattern element is
-     * drawn. Unlike a 2D cap it does not turn to follow its line, which is how the per-element
-     * meshes this replaced were drawn too.
-     * @param position - Where the shape's origin sits.
-     */
-    placeFlat(position: Vector3): void {
-        this.batch?.placeOriented(this.slot, position, INTO_XY_PLANE, this.size);
-    }
-
-    /**
      * Cut this shape off past a point along its own X axis.
      * @param clipX - Where to cut, in the shape's own units, or -1 to draw it whole.
      */

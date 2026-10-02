@@ -162,8 +162,8 @@ describe("CSS Variable Regression Tests", () => {
     });
 
     describe("compactMultiValueStyles", () => {
-        it("input has min height of 24px", () => {
-            expect(compactMultiValueStyles.input.minHeight).toBe(24);
+        it("input's min height follows the size scale's --input-height", () => {
+            expect(compactMultiValueStyles.input.minHeight).toBe("var(--input-height)");
         });
 
         it("input has auto height", () => {
@@ -587,10 +587,7 @@ describe("Feedback Component CSS Variable Regression Tests", () => {
         });
 
         it("styles object has label fontSize 9", () => {
-            const styles = feedbackComponentExtensions.Progress.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
+            const styles = feedbackComponentExtensions.Progress.styles as Record<string, Record<string, unknown>>;
             expect(styles.label.fontSize).toBe(9);
         });
     });

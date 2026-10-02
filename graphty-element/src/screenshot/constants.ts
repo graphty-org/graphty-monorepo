@@ -43,4 +43,11 @@ export const VIDEO_CONSTANTS = {
      * How often to report progress during video capture.
      */
     PROGRESS_INTERVAL_MS: 100,
+
+    /**
+     * How long a realtime recording may take to produce its first data before it is called failed.
+     * The browser's encoder takes a while to start -- about 700 ms on a two-core machine -- and
+     * the recording's duration is counted from when it has.
+     */
+    RECORDER_START_TIMEOUT_MS: 10_000,
 } as const;

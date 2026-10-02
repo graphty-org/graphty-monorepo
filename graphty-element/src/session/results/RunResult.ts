@@ -19,7 +19,7 @@
  * published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
+import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Caveats } from "../runs/types";
 import { defaultReading } from "./reading";
@@ -944,6 +944,28 @@ class Result implements RunResult {
      */
     reading(options?: ReadingOptions): string {
         return this.#reading(this, options ?? {});
+    }
+
+    /**
+     * Which band of its interpretation scale a graph-level field's value falls in.
+     * @param field - The graph-level field, such as "modularity".
+     * @returns The band, or undefined when the field has no interpretation or no finite value.
+     */
+    band(field: string): FieldBand | undefined {
+        const value = this.graph[field];
+        const interpretation = this.fields.find(
+            (candidate) => candidate.name === field && candidate.kind === "graph",
+        )?.interpretation;
+
+        if (interpretation === undefined || typeof value !== "number" || !Number.isFinite(value)) {
+            return undefined;
+        }
+
+        return interpretation.bands.find(
+            (band) =>
+                (band.above === undefined || value > band.above) &&
+                (band.atLeast === undefined || value >= band.atLeast),
+        );
     }
 
     /**

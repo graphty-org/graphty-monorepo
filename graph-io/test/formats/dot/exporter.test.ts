@@ -198,6 +198,19 @@ describe("dot exporter: capabilities and shape", () => {
 });
 
 describe("dot exporter: clusters", () => {
+    it("notes a parent that is a plain node: it reads back marked as a cluster", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("g");
+        b.addNode("m");
+        b.declareNodeColumn({ name: "parent", dtype: "u32", role: "parent", refersTo: "node", nullable: true });
+        b.setNodeValue("parent", 1, 0);
+        const snapshot = b.freeze();
+        const note = dotExporter.check(snapshot).find((n) => n.code === DOT_LOSS.CLUSTER_MARKED);
+        expect(note?.column).toBe(CLUSTER_COLUMN);
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.nodes.get(CLUSTER_COLUMN)?.value(0)).toBe(true);
+    });
+
     it("emits a cluster block for a container node with its attributes and nested members", async () => {
         const snapshot = await imported(
             'digraph { subgraph cluster_0 { label="one"; a; subgraph cluster_1 { b } } c; subgraph cluster_0 { c } }',

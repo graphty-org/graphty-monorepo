@@ -8,8 +8,8 @@
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
 JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
-Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format)
-and OBO, the ontology format of the Gene Ontology (read only).
+Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format;
+its version 1, CX, is read only) and OBO, the ontology format of the Gene Ontology (read only).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -315,6 +315,21 @@ losses and format rules, in addition to the table:
   refuses non-integer node ids unless `sanitizeIds: "mangle"`, which keeps the original in a
   `graphty:originalId` attribute the importer turns back into the id; NaN and the infinities are
   written as null (`W_CX2_NONFINITE_AS_NULL`), nested values as JSON text (`W_CX2_JSON_AS_STRING`).
+
+- **CX** (version 1, `@graphty/graph-io/cx`, `.cx`; read only -- CX2 is what NDEx and Cytoscape
+  write today): aspect fragments in any order, read element by element. Ids follow the CX2 rule;
+  `n` is the `name` label, `r` is `represents`, `i` is `interaction`; attributes are typed by their
+  `d` with Cytoscape's value rule (`""` and `"null"` are unset, `"NaN"` is NaN in a double), several
+  types for one name widen (`W_WIDENED`). A collection (several `cySubNetworks`) is one graph per
+  subnetwork: `listGraphs()` lists them, `import()` reads the one `graphIndex` / `graphName` picks
+  (the first by default, `W_MULTIPLE_GRAPHS`), `importAll()` reads them all; a subnetwork's own
+  values (`s`) beat the shared ones. Positions come from the subnetwork's view (y negated to y-up,
+  other views as `position@2`, ...); `cyGroups` give `parent` or `parents` (a group whose id is
+  not a node gets one, `W_CX_GROUP_NODE_ADDED`); per-element `cyVisualProperties` are one column
+  per property (origin namespace `cx.bypass`) and style rules are kept in `meta.extra.cx`
+  (`W_STYLES_NOT_IMPORTED`); citations and supports become the extension tables `cx:citations` /
+  `cx:supports`. Old aspect names (`visualProperties`, `subNetworks`, ...) are read with
+  `W_CX_OLD_ASPECT_NAME`; a CX2 document is refused naming the CX2 importer (`E_CX_NOT_CX`).
 
 ## Format detection
 

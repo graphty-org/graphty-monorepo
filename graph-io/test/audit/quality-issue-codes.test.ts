@@ -31,6 +31,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import * as csv from "../../src/formats/csv/index.js";
+import * as cx from "../../src/formats/cx/index.js";
 import * as cx2 from "../../src/formats/cx2/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
@@ -84,7 +85,11 @@ const SUBPATHS: Readonly<Record<string, Record<string, unknown>>> = {
     JSON: json,
     NEO4J: neo4j,
     CX2: cx2,
+    CX: cx,
 };
+
+/** The subpaths of formats graph-io reads but does not write: no <FMT>_LOSS table. */
+const READ_ONLY: ReadonlySet<string> = new Set(["CX"]);
 
 function isCodeTable(value: unknown): value is CodeTable {
     return (
@@ -123,7 +128,7 @@ describe("audit: issue and loss code tables", () => {
         const missing: string[] = [];
         for (const [fmt, subpath] of Object.entries(SUBPATHS)) {
             const names = Object.keys(tablesOf(subpath)).sort();
-            for (const wanted of [`${fmt}_ISSUE`, `${fmt}_LOSS`]) {
+            for (const wanted of READ_ONLY.has(fmt) ? [`${fmt}_ISSUE`] : [`${fmt}_ISSUE`, `${fmt}_LOSS`]) {
                 if (!names.includes(wanted)) {
                     missing.push(`${fmt}: has ${names.join(", ")}; no ${wanted}`);
                 }

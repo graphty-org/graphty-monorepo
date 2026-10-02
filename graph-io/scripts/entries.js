@@ -19,6 +19,7 @@ export const ENTRIES = Object.freeze({
     json: "src/formats/json/index.ts",
     neo4j: "src/formats/neo4j/index.ts",
     cx2: "src/formats/cx2/index.ts",
+    cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
 });
 

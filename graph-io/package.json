@@ -52,15 +52,20 @@
             "import": "./dist/neo4j.js",
             "default": "./dist/neo4j.js"
         },
-        "./obo": {
-            "types": "./dist/obo.d.ts",
-            "import": "./dist/obo.js",
-            "default": "./dist/obo.js"
-        },
         "./cx2": {
             "types": "./dist/cx2.d.ts",
             "import": "./dist/cx2.js",
             "default": "./dist/cx2.js"
+        },
+        "./cx": {
+            "types": "./dist/cx.d.ts",
+            "import": "./dist/cx.js",
+            "default": "./dist/cx.js"
+        },
+        "./obo": {
+            "types": "./dist/obo.d.ts",
+            "import": "./dist/obo.js",
+            "default": "./dist/obo.js"
         }
     },
     "sideEffects": false,

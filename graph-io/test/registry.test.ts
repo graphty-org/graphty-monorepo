@@ -45,10 +45,10 @@ function edges(s: GraphSnapshot): string[] {
 }
 
 /** The built-in formats graph-io reads but does not write. */
-const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["obo"]);
+const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cx", "obo"]);
 
 describe("FormatRegistry", () => {
-    it("holds the eight built-in formats in GRAPH_FORMATS order, importers and exporters alike", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read, all but the read-only ones are written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);

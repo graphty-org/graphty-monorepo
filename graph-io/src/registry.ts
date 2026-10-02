@@ -19,6 +19,7 @@ import {
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
+import { cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
 import { gexfExporter, gexfImporter } from "./formats/gexf/index.js";
@@ -377,6 +378,7 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(neo4jExporter)
         .registerImporter(cx2Importer)
         .registerExporter(cx2Exporter)
+        .registerImporter(cxImporter)
         .registerImporter(oboImporter);
 }
 

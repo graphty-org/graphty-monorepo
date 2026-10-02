@@ -76,6 +76,7 @@ export {
     csvImporter,
     type CsvImportOptions,
 } from "./formats/csv/index.js";
+export { CX_ISSUE, cxImporter, type CxImportOptions } from "./formats/cx/index.js";
 export {
     CX2_CAPABILITIES,
     CX2_ISSUE,

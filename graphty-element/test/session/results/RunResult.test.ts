@@ -801,6 +801,11 @@ describe("a quality score's band", () => {
         assert.isUndefined(louvainResult(0.5).band("nope"));
     });
 
+    it("says the band in the result's own reading, so a consumer of reading() gets it too", () => {
+        assert.include(louvainResult(0.447).reading(), "Modularity is 0.447 (clearly separated).");
+        assert.include(louvainResult(0.05).reading(), "(barely separated).");
+    });
+
     it("publishes the scale in the catalogue as plain JSON with its source", () => {
         const interpretation = louvain?.fields.find((entry) => entry.name === "modularity")?.interpretation;
 

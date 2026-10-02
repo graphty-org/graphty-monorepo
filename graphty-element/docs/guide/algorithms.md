@@ -97,6 +97,9 @@ citation, is on the modularity field of the algorithm's catalogue entry
 (`fields[].interpretation`), so it can be shown before anything has run. `band()` returns
 `undefined` for a field with no scale or no finite value.
 
+The result's own sentence, `result.reading()`, names the band too, for example "Modularity is
+0.447 (clearly separated)."
+
 ### Component Analysis
 
 Find connected subgraphs:

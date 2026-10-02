@@ -1,3 +1,9 @@
+## 3.5.2 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.17
+
 ## 3.5.1 (2026-10-02)
 
 ### 🔥 Performance

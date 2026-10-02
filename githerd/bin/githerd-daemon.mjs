@@ -9,7 +9,7 @@
  * development daemon's pages anyway).
  *
  * `--once` runs one poll, prints the status text and exits: a check against the real repository
- * that touches nothing but its state directory, and never pages.
+ * that touches nothing but its state directory, never pages, and starts no judgment run.
  */
 
 import { repoRoot } from "../lib/config.mjs";
@@ -37,7 +37,7 @@ const daemon = await startDaemon({
     root,
     port,
     autoPoll: !once,
-    ...(once ? { quiet: true } : {}),
+    ...(once ? { quiet: true, runs: false } : {}),
     ...(process.env.GITHERD_STATE_DIR ? { stateDir: process.env.GITHERD_STATE_DIR } : {}),
 });
 if (daemon.fenced) process.exit(1);

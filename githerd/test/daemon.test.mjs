@@ -843,6 +843,29 @@ describe("dispatching", () => {
     });
 });
 
+describe("the one-poll check", () => {
+    it("starts no run and no re-triage, even when the state calls for a triage run", async () => {
+        gitSync(dir, "init", "-q");
+        gitSync(dir, "config", "user.name", "Owner");
+        gitSync(dir, "config", "user.email", "o@example.com");
+        const scenarioFile = join(dir, "scenario.json");
+        writeFileSync(scenarioFile, JSON.stringify({ hang: true }));
+        scene.issues = [
+            { number: 7, updated_at: "2026-10-02T11:00:00Z", state: "open", labels: [], user: { login: "owner" } },
+        ];
+        writeConfig({ labels: { types: ["bug"], priorities: ["priority:high"], efforts: ["effort:low"] } });
+        const daemon = await start({
+            runs: false,
+            runner: { claude: [process.execPath, FAKE_CLAUDE, scenarioFile], servherd: async () => ({ servers: [] }) },
+        });
+        await poll(daemon);
+        expect(daemon.runner).toBeNull();
+        expect(daemon.state.runs).toEqual({});
+        expect(daemon.state.retriage).toBeUndefined();
+        expect(existsSync(join(dir, ".githerd", "runs"))).toBe(false);
+    });
+});
+
 describe("the daemon process", () => {
     it("leaves a valid state file on SIGTERM", async () => {
         isolateGit();

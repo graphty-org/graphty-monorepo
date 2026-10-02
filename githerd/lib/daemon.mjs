@@ -225,6 +225,8 @@ function nextIncidentId(incidents, iso) {
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
  * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
+ * @param {boolean} [options.runs] false starts no judgment run and no re-triage (the one-poll
+ *   check); true by default
  * @param {Partial<Parameters<typeof createRunner>[0]>} [options.runner] overrides for the judgment
  *   runner (`claude`, `servherd`, `packageDir`, ...); tests pass the fakes here
  * @returns {Promise<Daemon>} the running daemon
@@ -240,6 +242,7 @@ export async function startDaemon({
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
+    runs: runsOn = true,
     runner: runnerOptions = {},
 }) {
     const startedAtDate = now();
@@ -1185,22 +1188,23 @@ export async function startDaemon({
     /** @type {ReturnType<typeof createRunner> | null} null when run commits have no identity */
     let runner = null;
     try {
-        runner = createRunner({
-            stateDir,
-            state,
-            config: () => config,
-            mode,
-            daemonUrl: `http://127.0.0.1:${boundPort}`,
-            gitconfig: writeRunGitconfig(stateDir, ownerIdentity(root)),
-            env,
-            servherd: (args) =>
-                servherdData(/** @type {any} */ ({ servherd: config.servherdCommand, root, env }), args),
-            ledger,
-            save,
-            log: say,
-            now,
-            ...runnerOptions,
-        });
+        if (runsOn)
+            runner = createRunner({
+                stateDir,
+                state,
+                config: () => config,
+                mode,
+                daemonUrl: `http://127.0.0.1:${boundPort}`,
+                gitconfig: writeRunGitconfig(stateDir, ownerIdentity(root)),
+                env,
+                servherd: (args) =>
+                    servherdData(/** @type {any} */ ({ servherd: config.servherdCommand, root, env }), args),
+                ledger,
+                save,
+                log: say,
+                now,
+                ...runnerOptions,
+            });
     } catch (err) {
         say("error", `judgment runs are off: ${/** @type {Error} */ (err).message}`);
     }

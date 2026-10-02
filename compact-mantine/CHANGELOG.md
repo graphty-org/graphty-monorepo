@@ -1,3 +1,14 @@
+## 0.8.17 (2026-10-02)
+
+### 🩹 Fixes
+
+- **compact-mantine:** type the CompoundRow warning spy so the test type-check passes ([42b0086e](https://github.com/graphty-org/graphty-monorepo/commit/42b0086e))
+- **compact-mantine:** inputs follow the size scale and the password toggle has a name ([#7](https://github.com/graphty-org/graphty-monorepo/issues/7), [#137](https://github.com/graphty-org/graphty-monorepo/issues/137), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.16 (2026-10-01)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

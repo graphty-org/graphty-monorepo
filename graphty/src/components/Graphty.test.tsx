@@ -60,16 +60,6 @@ describe("Graphty", () => {
         expect(ref.current?.session).toBe(element.session);
     });
 
-    it("lists the graph's records through the session", () => {
-        const ref = createRef<GraphtyHandle>();
-        render(<Graphty ref={ref} layers={[]} />);
-
-        expect(ref.current?.getData()).toEqual({
-            nodes: [{ id: 1, label: "one" }],
-            edges: [{ id: "0", source: 1, target: 1 }],
-        });
-    });
-
     it("turns on the element's label declutter", async () => {
         const { container } = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector("graphty-element") as unknown as {

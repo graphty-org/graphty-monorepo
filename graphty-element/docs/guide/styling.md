@@ -183,7 +183,18 @@ A channel is one visual property with one name. These are all of them:
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
 
-Writing `node.label` or `edge.label` is what switches a label on.
+Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
+without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
+with its own id.
+
+```typescript
+await element.session.styles.add({
+    name: "Labels",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.labelStyle": { enabled: true } },
+});
+```
 
 The five `...Style` channels merge field by field across layers instead of replacing each other.
 A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
@@ -192,6 +203,31 @@ at 24 px, and each field takes the value from the highest layer that set it.
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
 pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
 on every node, gives up instancing for the glowing nodes.
+
+### Drawing a style editor
+
+`CHANNEL_DESCRIPTORS`, from `@graphty/graphty-element/catalog`, describes every channel as plain
+data, so an editor can draw a row per channel without restating anything the element knows:
+
+```typescript
+import { channelsFor } from "@graphty/graphty-element/catalog";
+
+for (const channel of channelsFor("edge")) {
+    // e.g. "Head size", "arrows", 1
+    console.log(channel.shortName, channel.group, channel.default);
+}
+```
+
+| Field               | What it holds                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `plainName`         | the full name, "Arrow Head Size"                                                                                                   |
+| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                            |
+| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
+| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
+| `values`            | every choice, for an `enum`                                                                                                        |
+| `min`, `max`        | the bounds, for a `number`                                                                                                         |
+| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
+| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                 |
 
 ### Labels that would overlap
 
@@ -282,8 +318,7 @@ await element.session.styles.add({
 Two things are worth knowing before writing one. A caption hangs from a cap, so an end drawn with
 no arrow carries none -- an edge's tail has no cap until a layer asks for one, which is why the
 example above sets `edge.arrowTail`. And the WORDS are what switch a caption on, so a layer that
-writes only a `...TextStyle` draws nothing, exactly as `node.labelStyle` draws nothing without
-`node.label`.
+writes only a `...TextStyle` draws nothing.
 
 A label is sized to the words in it, and there is no automatic wrapping: to draw a label on two
 lines, put a newline in the words. The parser measures, aligns and draws each line on its own, so

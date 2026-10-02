@@ -3,7 +3,10 @@
 # job waits for this workflow's run on the released commit and refuses to publish unless it succeeded (owner
 # decision, 2026-09-18). The lane runs on every master push, and on a pull request of this repository labelled
 # `gpu`; there is NO nightly cron (owner decision, 2026-09-19 -- the gate already runs it on everything that
-# reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner).
+# reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner). A pull request's
+# paired benchmark runs only the groups its change can move (scripts/bench-groups.js); every group is compared once a
+# week instead, master's tip against the latest release, by gpu-weekly-paired.yml -- a workflow of its own so that
+# its result never becomes the run release.yml's gate reads for a commit.
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
 # is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
 # 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
@@ -57,7 +60,13 @@ jobs:
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 100 # the steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663), and the paired benchmark may take its own 40; 75 could not hold both, so that run was cancelled after every test had passed. Each step that can hang keeps its own, tighter limit
+        # The steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663). The
+        # paired benchmark runs 40 minutes at most when it selects a subset of the groups, 75 when a change selects all
+        # of them: one full pass of every group is about 7.7 minutes on the T4 and the paired run makes eight (4 ABBA
+        # rounds x 2 builds), about 65 minutes with the base build -- run 36882775800 (PR #663) hit the old 40-minute
+        # step limit after about 5 of the 8 passes. 47 + 75 = 122, plus setup and the artifact upload: 130. Each step
+        # that can hang keeps its own, tighter limit.
+        timeout-minutes: 130
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -128,18 +137,35 @@ jobs:
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             # The paired check (issue #276): the base commit and this pull request alternated on the same card, so
             # clock and thermal drift cancel and the threshold can be tight (scripts/bench-ab.js). Pull requests
-            # only, and only when they change webgpu-graph-algorithms/src. The checkout is the merge commit at
-            # depth 1; deepening it to 2 brings in its first parent, the base branch tip the merge was made on.
-            - name: Paired benchmark against the base commit (pull requests that change src)
+            # only, and only the benchmark groups the change can move: scripts/bench-groups.js maps every group to
+            # the src files its benchmark reaches through imports and selects the groups that reach a changed file.
+            # A change to a file every group depends on (device setup, the WGSL prelude, shared constants), or to a
+            # file no benchmark reaches, selects all of them; a change outside src selects none and skips the step.
+            # The checkout is the merge commit at depth 1; deepening it to 2 brings in its first parent, the base
+            # branch tip the merge was made on.
+            - name: Choose the paired benchmark's groups from the files the pull request changed
+              id: select
               if: github.event_name == 'pull_request'
-              timeout-minutes: 40
               run: |
                   git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
                   base=$(git rev-parse HEAD^1)
-                  if git diff --quiet "$base" HEAD -- src; then
+                  groups=$(git diff --name-only "$base" HEAD | node scripts/bench-groups.js --base "$base")
+                  if [ -z "$groups" ]; then
                       echo "no change under webgpu-graph-algorithms/src since $base: paired benchmark skipped"
+                  fi
+                  # a subset fits the step's original 40 minutes; every group needs about 65 (see the job's timeout)
+                  if [ "$groups" = all ]; then timeout=75; else timeout=40; fi
+                  { echo "base=$base"; echo "groups=$groups"; echo "timeout=$timeout"; } >> "$GITHUB_OUTPUT"
+            - name: Paired benchmark against the base commit (the groups chosen above)
+              if: github.event_name == 'pull_request' && steps.select.outputs.groups != ''
+              timeout-minutes: ${{ steps.select.outputs.timeout && fromJSON(steps.select.outputs.timeout) || 40 }}
+              env: { BASE: "${{ steps.select.outputs.base }}", BENCH_GROUPS: "${{ steps.select.outputs.groups }}" }
+              run: |
+                  echo "groups: $BENCH_GROUPS (base $BASE)"
+                  if [ "$BENCH_GROUPS" = all ]; then
+                      pnpm run bench:ab --base "$BASE" # no group names: each build runs its own, so a group new in this change still runs
                   else
-                      pnpm run bench:ab --base "$base"
+                      pnpm run bench:ab --base "$BASE" $BENCH_GROUPS # word splitting intended: one argument per group
                   fi
             - uses: actions/upload-artifact@v4
               if: ${{ !cancelled() }}

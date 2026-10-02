@@ -73,7 +73,7 @@ describe("theme merge", () => {
         it.each(["Select", "TextInput", "NumberInput", "PasswordInput", "Autocomplete"])(
             "%s resolves a 24px box",
             (name) => {
-                const {wrapper} = varsAtDefaultSize(name);
+                const { wrapper } = varsAtDefaultSize(name);
 
                 expect(wrapper["--input-height"]).toBe("24px");
                 expect(wrapper["--input-size"]).toBe("24px");
@@ -91,14 +91,14 @@ describe("theme merge", () => {
 
     describe("controls the library sizes keep their compact metrics", () => {
         it("Switch is 28x16", () => {
-            const {root} = varsAtDefaultSize("Switch");
+            const { root } = varsAtDefaultSize("Switch");
 
             expect(root["--switch-width"]).toBe("28px");
             expect(root["--switch-height"]).toBe("16px");
         });
 
         it("Button is 24px tall at 11px", () => {
-            const {root} = varsAtDefaultSize("Button");
+            const { root } = varsAtDefaultSize("Button");
 
             expect(root["--button-height"]).toBe("24px");
             expect(root["--button-fz"]).toBe("11px");
@@ -129,12 +129,12 @@ describe("theme merge", () => {
         });
     });
 
-    describe("the two inputs the app still extends itself", () => {
-        // NativeSelect and ColorInput are the only inputs the library publishes no
-        // extension for, so they are the app's job -- and unconditional, so a call site
-        // that passes no size gets the same 24px box as everything else.
+    describe("NativeSelect and ColorInput, which the library now extends", () => {
+        // The app used to extend these two itself, at one frozen size. They come from
+        // compact-mantine now, so a call site that passes no size gets the same 24px
+        // box as every other field.
         it.each(["NativeSelect", "ColorInput"])("%s resolves a 24px box with both height vars", (name) => {
-            const {wrapper} = varsAtDefaultSize(name);
+            const { wrapper } = varsAtDefaultSize(name);
 
             expect(wrapper["--input-height"]).toBe("24px");
             expect(wrapper["--input-size"]).toBe("24px");
@@ -145,7 +145,7 @@ describe("theme merge", () => {
         it.each(["NativeSelect", "ColorInput"])("%s keeps a paintable focus border", (name) => {
             // `transparent`, never `none`: `1px solid none` is an invalid declaration, so
             // the focus border could not paint at all.
-            const {wrapper} = varsAtDefaultSize(name);
+            const { wrapper } = varsAtDefaultSize(name);
 
             expect(wrapper["--input-bd"]).not.toBe("none");
             expect(wrapper["--input-bd-focus"]).toContain("primary-color");

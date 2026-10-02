@@ -9,8 +9,10 @@
  *    {@link formatCount} is the exact form the Counts rows use and
  *    {@link formatProseCount} is the rounded form a sentence uses. A reading that
  *    reaches for the wrong one is the defect this split exists to prevent.
- * 2. **Modularity is banded, never bare.** "above 0.3 'clearly separated', 0.1 to 0.3
- *    'weakly separated; treat with caution', below 0.1 'barely separated; the
+ * 2. **Modularity is banded, never bare.** Which band a value is in is graphty-element's
+ *    call: the band, its thresholds and their source come from the run
+ *    (`result.band("modularity")`). This module only owns the words: "'clearly
+ *    separated', 'weakly separated; treat with caution', 'barely separated; the
  *    grouping may not be meaningful'" (spec 2544-2550). The three phrases below are
  *    those words and nothing else: a paraphrase changes what the reading claims.
  *
@@ -22,17 +24,13 @@
  * ("1,104,206 events", ExplorerLargeGraph.dc.html:3328).
  */
 
+import type { FieldBand } from "@graphty/graphty-element/catalog";
+
 /** Below this, a prose count is exact; at or above it, three significant figures (spec 5853). */
 const PROSE_EXACT_CEILING = 100000;
 
 /** "three significant figures" (spec 5853). */
 const PROSE_SIGNIFICANT_FIGURES = 3;
-
-/** Above this modularity the groups are "clearly separated" (spec 2546). */
-const MODULARITY_CLEAR_FLOOR = 0.3;
-
-/** At or above this, and at or below {@link MODULARITY_CLEAR_FLOOR}, "weakly separated" (spec 2546). */
-const MODULARITY_WEAK_FLOOR = 0.1;
 
 /** How many decimals a modularity value is drawn to (ExplorerAfterCard.dc.html:938, "0.447"). */
 const MODULARITY_DECIMALS = 3;
@@ -123,36 +121,10 @@ export function formatModularity(value: number): string {
 }
 
 /**
- * The three bands spec 7.5 names, and no fourth: a band a reading cannot phrase is a
- * band a reading may not claim.
- * @public
+ * The band's words, exactly as spec 2546 writes them, keyed by the band ids
+ * graphty-element publishes for modularity.
  */
-export type ModularityBand = "barely" | "clear" | "weak";
-
-/**
- * Which band a modularity value falls in. Above 0.3 is "clear"; 0.1 to 0.3 inclusive
- * of both ends is "weak"; below 0.1 is "barely" (spec 2546). The boundaries are
- * exactly where the spec puts them: 0.3 itself is "weak", not "clear".
- * @param value - the modularity the grouping method reported.
- * @returns the band its phrase is read from.
- */
-export function modularityBand(value: number): ModularityBand {
-    if (value > MODULARITY_CLEAR_FLOOR) {
-        return "clear";
-    }
-
-    if (value >= MODULARITY_WEAK_FLOOR) {
-        return "weak";
-    }
-
-    return "barely";
-}
-
-/**
- * The band's words, exactly as spec 2546 writes them. A lookup rather than a switch so
- * a new band cannot compile without its phrase.
- */
-const MODULARITY_BAND_PHRASES: Readonly<Record<ModularityBand, string>> = {
+const MODULARITY_BAND_PHRASES: Readonly<Record<string, string>> = {
     barely: "barely separated; the grouping may not be meaningful",
     clear: "clearly separated",
     weak: "weakly separated; treat with caution",
@@ -160,24 +132,11 @@ const MODULARITY_BAND_PHRASES: Readonly<Record<ModularityBand, string>> = {
 
 /**
  * The band's exact words. Never paraphrased: the phrase carries the caution, and a
- * softer wording would make a weak grouping read as a finding.
- * @param band - the band from {@link modularityBand}.
+ * softer wording would make a weak grouping read as a finding. A band the spec does not
+ * name -- one a newer element adds -- reads as the element's own plain name for it.
+ * @param band - the band graphty-element put the modularity in.
  * @returns the phrase the reading drops after "The groups are ".
  */
-export function modularityBandPhrase(band: ModularityBand): string {
-    return MODULARITY_BAND_PHRASES[band];
+export function modularityBandPhrase(band: FieldBand): string {
+    return MODULARITY_BAND_PHRASES[band.id] ?? band.plainName.toLowerCase();
 }
-
-/**
- * The scale sentence 6.7 puts behind the info circle beside every modularity value,
- * in the reading and in the result body alike (spec 2547-2551).
- *
- * It ships unused by design. `ResultInspector`'s `reading` prop is typed `string`, so
- * a mid-sentence info circle would mean widening a built presentation component's prop
- * to `ReactNode`; the band word and the number are in the sentence instead, which is
- * what the W14 comprehension criterion needs (spec 7.6). Whoever draws the circle
- * reads its title from here -- the string the artboards already carry
- * (ExplorerAfterCard.dc.html:938).
- */
-export const MODULARITY_SCALE_EXPLANATION =
-    "Modularity scores how separated the groups are. Above 0.3 counts as well separated.";

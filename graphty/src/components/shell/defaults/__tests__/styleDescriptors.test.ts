@@ -1,12 +1,7 @@
 import { resultPath } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
-import {
-    DEFAULT_LABEL_ATTRIBUTE_PATH,
-    METRIC_VALUE_FIELD,
-    SHELL_DEFAULTS_TEMPLATE_ID,
-    topDegreeLabelLayer,
-} from "../styleDescriptors";
+import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "../styleDescriptors";
 
 /** A run id shaped as the session mints one, hyphen and all, so the paths below read as the real thing. */
 const RUN = "degree-1";
@@ -30,19 +25,12 @@ describe("topDegreeLabelLayer", () => {
         expect(layer.selector).toEqual({ match: "top", path: resultPath(RUN, METRIC_VALUE_FIELD), n: 7 });
     });
 
-    it("draws the node's own id when the caller names no attribute", () => {
+    /* The element draws each node's own id when a layer switches labels on without naming the
+       words, so the shell names no attribute and the element's own label style is what draws. */
+    it("switches labels on and leaves the words and their look to the element", () => {
         const layer = topDegreeLabelLayer({ degreeRunId: RUN, labelCount: 5 });
 
-        expect(layer.encode?.["node.label"]).toEqual({ by: DEFAULT_LABEL_ATTRIBUTE_PATH, scale: "passthrough" });
-    });
-
-    it("draws the attribute the caller names", () => {
-        const layer = topDegreeLabelLayer({ degreeRunId: RUN, labelCount: 5, labelAttribute: "data.name" });
-
-        expect(layer.encode?.["node.label"]).toEqual({ by: "data.name", scale: "passthrough" });
-    });
-
-    it("sets no literal value at all, so the element's own label style is what draws", () => {
-        expect(topDegreeLabelLayer({ degreeRunId: RUN, labelCount: 5 }).set).toBeUndefined();
+        expect(layer.set).toEqual({ "node.labelStyle": { enabled: true } });
+        expect(layer.encode).toBeUndefined();
     });
 });

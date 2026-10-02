@@ -71,8 +71,9 @@ Correct:
 
 ### Tree 4. The lab's color scheme on your data
 
-Prompt: "A colleague sent you a file holding their lab's colors and settings, but none of their
-data. Where would you use it on the network you have open?"
+Prompt: "A colleague emailed you their lab's colors and settings, saved from their own copy of
+graphty, with none of their data in it. Where would you put them to use on the network you have
+open?"
 
 Tests: Apply recipe or style file... in the project-name menu; round 6 decided every file intake
 recognizes a recipe, so Open... and Sources + also count (decision log, Round 6, "Replace and
@@ -111,7 +112,7 @@ Correct:
 ### Tree 7. A bigger number means a closer tie
 
 Prompt: "In your door-swipe spreadsheet, a person and a building that appear together 40 times
-should count as more tightly tied than a pair that appears once, in every analysis from now on.
+should be treated as more tightly tied than a pair that appears once, in every analysis from now on.
 Where do you tell graphty that?"
 
 Tests: weight chosen when the data is loaded, as a column's role on the Data page (owner,
@@ -179,10 +180,10 @@ Correct:
 - Header > Local only (privacy) -- `settings/privacy`
 - Header > Main menu > Settings... > Privacy -- `settings/privacy`
 
-### Tree 13. Next month's file, same analysis
+### Tree 13. Next month's numbers, same analysis
 
-Prompt: "April's file has arrived. You want everything you built on March -- the groups, the
-rankings, the colors -- to run again on April's file instead. Where do you start?"
+Prompt: "April's export has arrived. You want everything you built on March -- the groups, the
+rankings, the colors -- to run again on April's numbers in place of March's. Where do you start?"
 
 Tests: Replace with file... on the source row in Data > Sources (spec 15, top task 12).
 
@@ -216,10 +217,10 @@ Correct:
 
 Counted as a wrong answer that matters: Rail > Data > Filters (it removes them from every count).
 
-### Tree 16. A number column that reads as words
+### Tree 16. Numbers that came in as words
 
-Prompt: "Your scores column came in as words, so graphty will not let you size people by it.
-Where do you tell it the column holds numbers?"
+Prompt: "Your scores came in as words, so graphty will not let you size people by them.
+Where do you tell it they are numbers?"
 
 Tests: Read as on an attribute (Data > Attributes and the attribute's inspector); roles stay on
 the Data page (spec 5.2 and 7).

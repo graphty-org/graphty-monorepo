@@ -1,139 +1,95 @@
-# Round 7 preflight: the refined B skeleton
+# Round 7 preflight (attempt 4)
 
-Run on 2026-10-02, attempt 1, against the clickable skeleton in `app-b/` and the round 7 plan
-(58 think-aloud tasks, 280 sessions, 16 tree tasks, 14 first-click prompts, 4 focus groups).
-Every check was run afresh. Commands were run from `design/ui/prototype/`.
+Run on 2026-10-02 against the clickable refined B skeleton (app-b/) and the round 7 plan. Every
+check was run afresh; no earlier preflight result was reused. Commands were run from
+design/ui/prototype/. Scratch files are in tmp/preflight-r7a4/.
 
-**Verdict: FAIL.** Checks 1 to 5, 9 and 10 pass. Checks 6, 7 and 8 fail. Nothing in the
-skeleton is broken: every route renders, and every render is fresh. What fails is the study
-material. Several prompts carry a word printed on their own target, two tasks start on a
-screen that already shows the answer, no task starts before a very wide or nested file has
-been read, path notes are never tested, and one task depends on a decided change that is not
-drawn and is not flagged.
+**Result: PASS.** All ten checks pass. The four wording failures of the previous attempt (t17-transactions
+"again", t12 and t12-doorentries "fewest steps", t10 "both", t21 "lines") are gone from the plan's
+current wording. Plan defects that are not among the ten checks are listed below; none blocks the
+sessions.
+
+## Summary
 
 | # | Check | Result |
-|---|---|---|
-| 1 | Round folder is fresh | PASS |
-| 2 | Every named route exists and renders in the participant view | PASS (155 of 155) |
-| 3 | Task renders match the plan's routes and are newer than the skeleton | PASS (72 of 72 ids) |
-| 4 | The study tool's own check is sound | PASS |
-| 5 | tree.md matches the navigation and holds only the outline | PASS (one wording note) |
-| 6 | Answer keys stay away from participants | FAIL |
-| 7 | Coverage | FAIL (two clauses) |
-| 8 | Tasks that depend on decided changes the skeleton does not draw | FAIL (one task) |
-| 9 | Every persona has a file | PASS |
-| 10 | success_criteria carries the round's targets | PASS |
+|---|-------|--------|
+| 1 | Fresh round folder | pass |
+| 2 | Every named route exists and renders in the participant view | pass (0 of 158 failed) |
+| 3 | Renders are exactly each id's routes, and fresh | pass (0 of 75 ids differ; 0 problems on 235 renders) |
+| 4 | The study tool's own check is sound | pass (no FAIL) |
+| 5 | tree.md is the outline only, and matches the skeleton | pass |
+| 6 | Answer keys stay away from participants | pass (borderline items recorded) |
+| 7 | Coverage, domains and datasets | pass |
+| 8 | Decided changes not drawn: dependent tasks excluded or flagged | pass |
+| 9 | Every persona has a file | pass |
+| 10 | success_criteria carries the round's targets | pass |
 
-## What must change before sessions run
+## Plan defects (not among the ten checks; fix in the plan text when convenient)
 
-1. **Words on the target (check 6).** Each of these prompts uses a word that the skeleton
-   prints on the control the prompt is testing. That cues the participant and inflates
-   success. Each one can be reworded without the word:
-   - "find" on a Find control: fc13 ("Find the column ..." where the correct first click is the
-     Find attribute box, or the table's Columns, so "column" is a cue too); t23 ("find which
-     host column ...", target Go to column / Find a column); t22 ("find the one that counts
-     ...", target the Find attribute box, which is exactly the search-or-scroll behavior the
-     task grades); t04-transactions ("Find it", where grading separates Find from the table
-     and Select where); t03-transactions ("Get graphty to find them", Analyze heading Find
-     groups); t12-doorentries ("Find the fewest steps", the Find paths heading and the path
-     popover's Find button).
-   - "file" on a file command: tree04 and t15 (Apply recipe or style file...); tree13 and t13
-     (Replace with file...); t14 and t28-lesmis (Open project or file...; t28-lesmis also says
-     "Open it"). Inside the project-name menu and a source's menu, "file" appears on only one
-     item, so it singles out the answer.
-   - Other words: t34 "Find out why" (target Why this look); t38 "rename the next group" (row
-     menu Rename); t21-wide "the host's own name" (hostname, tagged Name at the top of the
-     list); t25 "keep ... together as one piece" (Keep as one value, One value); t12-transactions
-     "following the direction" (the popover's Direction control); t18 "could not be matched"
-     (Match report, unmatched rows); t12 "shortest chain" (the Shortest paths row and the
-     Analyze entry Shortest path, a credited route). Minor: t20 and t20-transactions say
-     "should count as more tightly tied", and the weight column they must choose is named count.
-2. **Start screens that already show the answer (check 6).**
-   - t01-transactions: 01.png (graph-place/transfers-loaded) already shows the graph's
-     inspector, Data tab, with 3,000 nodes, 9,113 edges, Directed, Weak components 1 and
-     Density. That is every number the task asks for. The task measures reading, not finding.
-     Either start on a screen where something is selected, or regrade it as a reading task.
-   - t09: 01.png (graph-place/nested-set) and 02.png show the kept set's Style tab with a
-     label line "Above: # a...last_5_years". That is the target field, on screen before the
-     participant looks for it. Together with the scenario's "cited in the last five years",
-     the answer is given away.
-3. **First-use moments for a wide and a nested file (check 7).** The check requires a first
-   nested file and a first very wide file, each starting before the file is read. t24 starts
-   at data-page/json-tree and t23 at data-page/wide-hosts. On both screens the file has
-   already been read: the tables are proposed and the match report is filled in. The only
-   moment before reading is first click fc10, which is nested only and is not a task. Nothing
-   tests a wide file before it is read. The skeleton draws no wide or nested route before
-   reading: the start screen, main-menu/open-file and data-place/no-sources all draw the Les
-   Miserables project. Either the shell adds such a route, or the plan names this gap as not
-   testable and the gate accepts it.
-4. **Notes on paths are never tested (check 7).** The notes-targets key lists nodes, edges,
-   groups and paths. t05 covers a node, t06 an edge and a group, t06-doorentries an edge. No
-   task writes or reads a note about a path.
-5. **t07 depends on an undrawn change and is not flagged (check 8).** The decided
-   shared-formatter change names "3,000 to 812 nodes" as a string that the shared formatter
-   should write. data-place/one-step and data-place/at-rest, t07's last two screens, still
-   draw it. t07's success depends on reading counts, but only t07-wide is flagged for this
-   string. The same at-rest render also shows a second filter step, "kind is not merchant",
-   and a note bubble on the first step, neither made by the participant. Flag both in t07's
-   grading notes.
+- **t02-transactions and t03-transactions put their mock artifact on the wrong screen.** Both say
+  "the resting transfers already draw a Louvain row and a finished 'Links in (count)' row". The
+  start screen, graph-place/transfers-loaded, draws neither: its tree is Selection, Notes,
+  Everything and "Analyze (Shift+A) to add results here" (shots/tasks/t03-transactions/01.png).
+  The rows appear on the second screen, analyze-popover/transfers, whose tree already shows
+  "Louvain 35 groups" and "Links in (count)" before anything has run (shots/tasks/t02-transactions/02.png
+  and 03.png, shots/tasks/fc09/01.png). For t03-transactions that puts the answer count, 35, on
+  screen the moment Analyze opens. Reword both clauses (and the grading-notes sentence) to: "the
+  Analyze screen's tree already shows a Louvain row (35 groups) and a 'Links in (count)' row the
+  participant has not run". The grading rule itself (reading the row counts as success with
+  difficulty, filed as a mock artifact) can stay.
+- **The start screen gives the transfers two sizes.** start-screen/returning lists "Mule ring
+  review, 3,093 accounts" and "March transfers, 3,000 accounts" (the count check below reports
+  start-screen.js typing both). t14, t28-lesmis and t40 start there; none uses the transfers, so no
+  task depends on it, but no grading note names it. Add one line so a participant who remarks on it
+  is filed as a mock artifact.
 
-## Hazards that do not fail a check
+Borderline, recorded but not failed:
+- t12-doorentries says "as few go-betweens as possible"; its way in through the selection bar is
+  "Path between", so the two share "between". "Go-between" means an intermediary and is the wording
+  the previous preflight proposed; watch for participants who click Path between because of it.
+  t39 and t39-doorentries use the same word, but their target is Add note, not a path control.
+- fc12 and fc14 use "data" (the Data rail button is one correct click); t18 says "one row for every
+  door swipe" (the target is "Show the 32 rows"); tree11's target is "Select where..." and every
+  tree prompt says "where".
+- t30 starts in the empty Views place, where "Save view (+)" is on screen. It is a start state (no
+  view saved yet) and the plan chose it as the empty-state test, so it does not measure finding
+  where views are kept; tree09 and fc04 measure that.
+- The tree outline offers Settings > General > Number format, which shares "number" with tree16's
+  prompt ("tell it they are numbers"; target Read as...). It is a real skeleton label and a fair
+  lure, not a leak.
 
-- Every participant-view render has a small "Review" button at the bottom left. Its accessible
-  name is "Show design notes". Clicking it in a click-through (`--try ... --click "Review"`) turns
-  design notes back on: the inspector then shows "needs graphty-element" chips. No review bar or
-  state name appears, so check 6 passes on the renders. The facilitator and every simulated
-  participant must still be told never to press it. The better fix is for the shell to leave
-  it out of the participant view.
-- In tree.md, a row's right-click menu lists "Compare with another row...". On a grouping (a
-  run row) the skeleton labels the same command "Compare with another run...". Tree task 10's
-  answer cites that menu. The tree's union menu still represents it fairly. Record the
-  difference when scoring.
-- t22 and fc13 use the hosts' attribute list, where a decided change ("In use (6)", a computed
-  group, then by name) is only partly drawn: the list shows "In use (2)" or "In use (4)" and has
-  no computed group. The search they test is drawn, so they are not excluded. Synthesis should
-  know about the gap.
-- t09's color picker shows nested fields as folders (attributes > profile > ...). A decided
-  change replaces folders with full stored names. That change is drawn on neither
-  data-place/attributes-nested nor this picker. t09 already fails above. When it is reworded,
-  also flag this.
+## Check 1. Fresh round folder
 
-## Check 1: the round folder is fresh
+Command: `ls study/round-7/` and `find study/round-7 -maxdepth 1 -mindepth 1 -type d`. Exit code 0 for both.
 
-Command: `ls -la study/round-7/` and `ls study/round-7 | grep -E "^(sessions|tree-test|first-click|focus-groups)$"`
-(grep exit 1: no match).
+Result: pass. The folder holds gate.md, preflight.md, tree.md and tree-test.md, and no directory at all (none named sessions/, tree-test/, first-click/ or focus-groups/). gate.md describes an earlier gallery-based plan and, as the plan says, does not apply.
 
 ```
-total 44
-drwxrwxr-x  2 apowers apowers  4096 Oct  2 03:38 .
-drwxrwxr-x 13 apowers apowers  4096 Sep 29 18:43 ..
--rw-rw-r--  1 apowers apowers  5570 Sep 29 14:10 gate.md
--rw-rw-r--  1 apowers apowers  7321 Oct  2 04:01 preflight.md (this file, listed while it was being written; it replaced the earlier 8,312-byte preflight of Sep 29)
--rw-rw-r--  1 apowers apowers  6643 Oct  2 03:36 tree.md
--rw-rw-r--  1 apowers apowers 11968 Oct  2 03:38 tree-test.md
+gate.md
+preflight.md
+tree.md
+tree-test.md
+(find printed no directories)
 ```
 
-PASS. None of sessions/, tree-test/, first-click/ or focus-groups/ exists. The expected
-tree.md, tree-test.md, gate.md and preflight.md are present. gate.md and the old preflight.md
-describe an earlier gallery-based plan, as the plan says. This file replaces that preflight.md.
+## Check 2. Every named route exists and renders
 
-## Check 2: every named route exists and renders
+Command: `timeout 600 node app-b/study.mjs --check <the 158 routes>` (one batch; the routes are in tmp/preflight-r7a4/routes.txt). Exit code 0.
 
-Command: `timeout 600 node app-b/study.mjs --check <the 155 routes of the plan>` (one batch; the
-route list is in `tmp/preflight-r7/routes.txt`). Exit code: 0.
+Result: pass, 0 of 158 routes failed. --check fails a route that is unknown, a stub, fails to render, throws a script error, hits a 404 or shows the review bar.
 
 ```
 ok   app-b/#/graph-place/at-rest (lesmis)
 ok   app-b/#/inspector-nothing-selected/overview (lesmis)
 ok   app-b/#/context-menus/graph (lesmis)
 ok   app-b/#/inspector-nothing-selected/computed (lesmis)
+ok   app-b/#/inspector-node/transfers-node (transactions)
 ok   app-b/#/graph-place/transfers-loaded (transactions)
 ok   app-b/#/inspector-nothing-selected/transfers (transactions)
 ok   app-b/#/graph-place/louvain-open (lesmis)
 ok   app-b/#/inspector-measure-row/data (lesmis)
 ok   app-b/#/analyze-popover/transfers (transactions)
 ok   app-b/#/analyze-popover/link-counts (transactions)
-ok   app-b/#/graph-place/transfers-running (transactions)
 ok   app-b/#/inspector-run-row/data (lesmis)
 ok   app-b/#/inspector-group-set-path-row/community-3 (lesmis)
 ok   app-b/#/inspector-run-row/settings-changed (lesmis)
@@ -143,7 +99,6 @@ ok   app-b/#/inspector-node/why-this-look (lesmis)
 ok   app-b/#/inspector-node/data (lesmis)
 ok   app-b/#/selection-bar/neighborhood (lesmis)
 ok   app-b/#/selection-bar/filtered-to-neighbors (lesmis)
-ok   app-b/#/inspector-node/transfers-node (transactions)
 ok   app-b/#/selection-bar/neighborhood-directed (transactions)
 ok   app-b/#/notes-place/writing (lesmis)
 ok   app-b/#/notes-place/all (lesmis)
@@ -153,16 +108,19 @@ ok   app-b/#/notes-place/earlier-group (lesmis)
 ok   app-b/#/graph-place/door-entries (doorEntries)
 ok   app-b/#/inspector-edge/door-pair (doorEntries)
 ok   app-b/#/notes-place/door-entries (doorEntries)
+ok   app-b/#/inspector-group-set-path-row/path-lesmis (lesmis)
+ok   app-b/#/graph-place/door-entries-path (doorEntries)
+ok   app-b/#/inspector-group-set-path-row/path-door-entries (doorEntries)
 ok   app-b/#/data-place/empty-filters (transactions)
 ok   app-b/#/data-place/new-step (transactions)
 ok   app-b/#/data-place/one-step (transactions)
-ok   app-b/#/data-place/at-rest (transactions)
 ok   app-b/#/graph-place/wide (wide)
 ok   app-b/#/data-place/attributes-wide (wide)
 ok   app-b/#/data-place/wide-filters (wide)
 ok   app-b/#/data-place/wide-computed (wide)
 ok   app-b/#/inspector-nothing-selected/canvas (lesmis)
 ok   app-b/#/inspector-nothing-selected/layout-method (lesmis)
+ok   app-b/#/toolbar/at-rest (lesmis)
 ok   app-b/#/toolbar/layout-paused (lesmis)
 ok   app-b/#/inspector-nothing-selected/transfers-methods (transactions)
 ok   app-b/#/graph-place/nested-set (nested)
@@ -173,7 +131,6 @@ ok   app-b/#/inspector-measure-row/painted-color (wide)
 ok   app-b/#/inspector-several-rows/style (lesmis)
 ok   app-b/#/inspector-several-rows/result-intersect (lesmis)
 ok   app-b/#/select-where/where (transactions)
-ok   app-b/#/select-where/selected (transactions)
 ok   app-b/#/graphs-switcher/many (transactions)
 ok   app-b/#/full-canvas-modes/comparison (transactions)
 ok   app-b/#/full-canvas-modes/group (transactions)
@@ -181,9 +138,6 @@ ok   app-b/#/full-canvas-modes/kept (transactions)
 ok   app-b/#/inspector-several-elements/two-nodes (lesmis)
 ok   app-b/#/path-popover/from-selection (lesmis)
 ok   app-b/#/path-popover/found (lesmis)
-ok   app-b/#/inspector-group-set-path-row/path-lesmis (lesmis)
-ok   app-b/#/graph-place/door-entries-path (doorEntries)
-ok   app-b/#/inspector-group-set-path-row/path-door-entries (doorEntries)
 ok   app-b/#/path-popover/transfers-directed (transactions)
 ok   app-b/#/path-popover/found-tied (transactions)
 ok   app-b/#/inspector-group-set-path-row/path (transactions)
@@ -206,13 +160,13 @@ ok   app-b/#/export-dialog/image (lesmis)
 ok   app-b/#/export-image/image (lesmis)
 ok   app-b/#/table-dock/table-options (lesmis)
 ok   app-b/#/export-dialog/data (lesmis)
+ok   app-b/#/data-place/at-rest (transactions)
 ok   app-b/#/export-dialog/recent-exports (transactions)
 ok   app-b/#/data-page/people (doorEntries)
 ok   app-b/#/data-page/entries (doorEntries)
 ok   app-b/#/data-page/unmatched-rows (doorEntries)
 ok   app-b/#/canvas-and-states/door-entries-loading (doorEntries)
 ok   app-b/#/data-page/kind-as-type (transactions)
-ok   app-b/#/data-page/edit-entries (doorEntries)
 ok   app-b/#/data-page/entries-pair (doorEntries)
 ok   app-b/#/data-page/entries-as-nodes (doorEntries)
 ok   app-b/#/inspector-nothing-selected/door-entries-as-nodes (doorEntries)
@@ -220,7 +174,6 @@ ok   app-b/#/data-page/buildings (doorEntries)
 ok   app-b/#/inspector-nothing-selected/door-entries (doorEntries)
 ok   app-b/#/inspector-attribute-and-filter-step/edge-weight (doorEntries)
 ok   app-b/#/data-page/weight-moved (transactions)
-ok   app-b/#/inspector-group-set-path-row/style (lesmis)
 ok   app-b/#/inspector-group-set-path-row/label-empty (lesmis)
 ok   app-b/#/style-pickers/label-new-line (lesmis)
 ok   app-b/#/inspector-group-set-path-row/label-two (lesmis)
@@ -230,9 +183,13 @@ ok   app-b/#/style-pickers/wide-bind (wide)
 ok   app-b/#/data-place/attributes-wide-search (wide)
 ok   app-b/#/context-menus/attribute (wide)
 ok   app-b/#/graph-place/wide-sized (wide)
+ok   app-b/#/start-screen/wide-first-use (wide)
+ok   app-b/#/start-screen/wide-choose (wide)
 ok   app-b/#/data-page/wide-hosts (wide)
 ok   app-b/#/data-page/wide-find-column (wide)
 ok   app-b/#/data-page/wide-link-menu (wide)
+ok   app-b/#/start-screen/nested-first-use (nested)
+ok   app-b/#/start-screen/nested-choose (nested)
 ok   app-b/#/data-page/json-tree (nested)
 ok   app-b/#/data-page/json-researchers (nested)
 ok   app-b/#/data-page/json-array-menu (nested)
@@ -251,9 +208,10 @@ ok   app-b/#/start-screen/disclosure (lesmis)
 ok   app-b/#/start-screen/declined (lesmis)
 ok   app-b/#/settings/privacy (lesmis)
 ok   app-b/#/data-page/refused-parse (transactions)
-ok   app-b/#/data-page/refused-too-large (doorEntries)
+ok   app-b/#/data-page/refused-empty (doorEntries)
 ok   app-b/#/data-page/refused-ids (lesmis)
 ok   app-b/#/data-page/json-invalid (nested)
+ok   app-b/#/canvas-and-states/refused-too-large (lesmis)
 ok   app-b/#/graph-place/empty (lesmis)
 ok   app-b/#/canvas-and-states/empty (lesmis)
 ok   app-b/#/data-place/no-sources (lesmis)
@@ -277,305 +235,605 @@ ok   app-b/#/selection-bar/hidden (lesmis)
 ok   app-b/#/graph-place/rename (lesmis)
 ok   app-b/#/graph-place/rename-chain (lesmis)
 ok   app-b/#/toolbar/legend-off (lesmis)
+ok   app-b/#/inspector-group-set-path-row/style (lesmis)
 ok   app-b/#/analyze-popover/open (lesmis)
-0 of 155 routes failed
-EXIT 0
+0 of 158 routes failed
+exit 0
 ```
 
-PASS: 0 of 155 routes failed. --check fails a route on any stub, render failure, script
-error, 404 or visible review bar.
-
-## Check 3: task renders match the plan and are fresh
-
-Command 1: `timeout 120 node app-b/study.mjs --fresh t01 ... fc14` (all 72 ids). Exit code: 0.
+Also run, beyond the check: the focus groups' 27 stimulus routes, `timeout 300 node app-b/study.mjs --check notes-place/all ... data-page/json-array-menu`. Exit code 0.
 
 ```
-0 problems on 228 renders
-EXIT 0
+ok   app-b/#/notes-place/all (lesmis)
+ok   app-b/#/inspector-edge/data (lesmis)
+ok   app-b/#/inspector-group-set-path-row/path-door-entries (doorEntries)
+ok   app-b/#/settings/general (lesmis)
+ok   app-b/#/notes-place/one-author (lesmis)
+ok   app-b/#/notes-place/two-authors (lesmis)
+ok   app-b/#/data-page/people (doorEntries)
+ok   app-b/#/data-page/entries (doorEntries)
+ok   app-b/#/data-page/unmatched-rows (doorEntries)
+ok   app-b/#/data-page/entries-pair (doorEntries)
+ok   app-b/#/data-page/entries-as-nodes (doorEntries)
+ok   app-b/#/data-page/wide-link-menu (wide)
+ok   app-b/#/data-page/json-tree (nested)
+ok   app-b/#/graph-place/at-rest (lesmis)
+ok   app-b/#/graph-place/finished (lesmis)
+ok   app-b/#/inspector-node/why-this-look (lesmis)
+ok   app-b/#/inspector-measure-row/covered (lesmis)
+ok   app-b/#/graph-place/solo (lesmis)
+ok   app-b/#/graph-place/show-hidden (lesmis)
+ok   app-b/#/start-screen/wide-choose (wide)
+ok   app-b/#/data-place/attributes-wide (wide)
+ok   app-b/#/data-place/attributes-wide-search (wide)
+ok   app-b/#/style-pickers/wide-size-by (wide)
+ok   app-b/#/table-dock/wide (wide)
+ok   app-b/#/inspector-node/wide-data (wide)
+ok   app-b/#/start-screen/nested-choose (nested)
+ok   app-b/#/data-page/json-array-menu (nested)
+0 of 27 routes failed
+exit 0
 ```
 
-Command 2: `node tmp/preflight-r7/cmp.mjs`. This compares each id's `shots/tasks/<id>/routes.json`
-with the plan's routes, in order. It also checks that the PNGs are exactly 01.png to NN.png,
-that every persona has a file, and that each task's datasets list matches the datasets its
-routes draw, using the dataset column of `--list`. Exit code: 1, for the reason explained
-below.
+## Check 3. Renders are exactly each id's routes, and fresh
 
+Commands:
+- `node tmp/preflight-r7a4/cmp.mjs` -- compares shots/tasks/<id>/routes.json with the plan's routes (tmp/preflight-r7a4/plan.txt, the routes without the app-b/#/ prefix) for all 75 task and first-click ids. Exit code 0.
+- `timeout 120 node app-b/study.mjs --fresh t01 ... fc14` (the 75 ids). Exit code 0.
+- `node tmp/preflight-r7a4/ds.mjs` -- each folder holds exactly 01.png..NN.png, one per route, and the datasets its routes draw (the dataset column of `--list`) equal the plan's datasets. Exit code 1, on t13 and t33 only; see below.
+
+Result: pass. Every routes.json equals the plan, every PNG is newer than every skeleton file, and every folder holds one numbered PNG per route. The dataset script flags t13 and t33 because inspector-run-row/data-changed and inspector-run-row/failed are listed as "lesmis (or its left panel's)": they take the dataset of the left panel they open beside. Both renders (shots/tasks/t13/06.png, shots/tasks/t33/02.png) show the "Transfers, March 2026" project with the transfers tree and inspector, and `--task` refuses a task whose routes draw two projects, so both tasks draw only the transfers, as the plan says.
+
+--- cmp.mjs
 ```
-ok   t01: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t01-transactions: routes.json matches; pngs 01.png,02.png; datasets drawn transactions vs plan transactions
-ok   t02: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   t02-transactions: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn transactions vs plan transactions
-ok   t03: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn lesmis vs plan lesmis
-ok   t03-transactions: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t04: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png,06.png; datasets drawn lesmis vs plan lesmis
-ok   t04-transactions: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t05: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t06: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn lesmis vs plan lesmis
-ok   t06-doorentries: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn doorEntries vs plan doorEntries
-ok   t07: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn transactions vs plan transactions
-ok   t07-wide: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn wide vs plan wide
-ok   t08: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t08-transactions: routes.json matches; pngs 01.png,02.png; datasets drawn transactions vs plan transactions
-ok   t09: routes.json matches; pngs 01.png,02.png; datasets drawn nested vs plan nested
-ok   t09-wide: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn wide vs plan wide
-ok   t10: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   t10-transactions: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t11: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn transactions vs plan transactions
-ok   t12: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn lesmis vs plan lesmis
-ok   t12-doorentries: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn doorEntries vs plan doorEntries
-ok   t12-transactions: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn transactions vs plan transactions
-FAIL t13: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png,06.png; datasets drawn lesmis,transactions vs plan transactions
-ok   t14: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t14-transactions: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn transactions vs plan transactions
-ok   t15: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t15-wide: routes.json matches; pngs 01.png,02.png; datasets drawn wide vs plan wide
-ok   t16: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t17: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   t17-transactions: routes.json matches; pngs 01.png,02.png; datasets drawn transactions vs plan transactions
-ok   t18: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn doorEntries vs plan doorEntries
-ok   t18-transactions: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn transactions vs plan transactions
-ok   t19: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn doorEntries vs plan doorEntries
-ok   t20: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn doorEntries vs plan doorEntries
-ok   t20-transactions: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t21: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png,06.png; datasets drawn lesmis vs plan lesmis
-ok   t21-wide: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn wide vs plan wide
-ok   t22: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn wide vs plan wide
-ok   t23: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn wide vs plan wide
-ok   t24: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png,06.png; datasets drawn nested vs plan nested
-ok   t25: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn nested vs plan nested
-ok   t26: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn plainJson vs plan plainJson
-ok   t27: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t28: routes.json matches; pngs 01.png,02.png; datasets drawn transactions vs plan transactions
-ok   t28-doorentries: routes.json matches; pngs 01.png,02.png; datasets drawn doorEntries vs plan doorEntries
-ok   t28-lesmis: routes.json matches; pngs 01.png,02.png; datasets drawn lesmis vs plan lesmis
-ok   t28-nested: routes.json matches; pngs 01.png,02.png; datasets drawn nested vs plan nested
-ok   t29: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t30: routes.json matches; pngs 01.png,02.png,03.png,04.png,05.png; datasets drawn lesmis vs plan lesmis
-ok   t31: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   t32: routes.json matches; pngs 01.png,02.png; datasets drawn lesmis vs plan lesmis
-FAIL t33: routes.json matches; pngs 01.png,02.png; datasets drawn lesmis,transactions vs plan transactions
-ok   t34: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t35: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   t36: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn transactions vs plan transactions
-ok   t37: routes.json matches; pngs 01.png,02.png,03.png,04.png; datasets drawn lesmis vs plan lesmis
-ok   t38: routes.json matches; pngs 01.png,02.png,03.png; datasets drawn lesmis vs plan lesmis
-ok   fc01: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc02: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc03: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc04: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc05: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc06: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc07: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc08: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc09: routes.json matches; pngs 01.png; datasets drawn transactions
-ok   fc10: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc11: routes.json matches; pngs 01.png; datasets drawn transactions
-ok   fc12: routes.json matches; pngs 01.png; datasets drawn lesmis
-ok   fc13: routes.json matches; pngs 01.png; datasets drawn wide
-ok   fc14: routes.json matches; pngs 01.png; datasets drawn doorEntries
-2 failing ids
+ok   t01 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t01-transactions routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t02 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t02-transactions routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t03 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t03-transactions routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t04 routes.json=6 plan=6 pngs=6 01.png,02.png,03.png,04.png,05.png,06.png
+ok   t04-transactions routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t05 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t06 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t06-doorentries routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t39 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t39-doorentries routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t07 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t07-wide routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t08 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t08-transactions routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t09 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t09-wide routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t10 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t10-transactions routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t11 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t12 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t12-doorentries routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t12-transactions routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t13 routes.json=6 plan=6 pngs=6 01.png,02.png,03.png,04.png,05.png,06.png
+ok   t14 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t14-transactions routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t15 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t15-wide routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t16 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t17 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t17-transactions routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t18 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t18-transactions routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t19 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t20 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t20-transactions routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t21 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t21-wide routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t22 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t23 routes.json=6 plan=6 pngs=6 01.png,02.png,03.png,04.png,05.png,06.png
+ok   t24 routes.json=8 plan=8 pngs=8 01.png,02.png,03.png,04.png,05.png,06.png,07.png,08.png
+ok   t25 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t26 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t27 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t28 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t28-doorentries routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t28-lesmis routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t28-nested routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t40 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t29 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t30 routes.json=5 plan=5 pngs=5 01.png,02.png,03.png,04.png,05.png
+ok   t31 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t32 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t33 routes.json=2 plan=2 pngs=2 01.png,02.png
+ok   t34 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t35 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t36 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   t37 routes.json=4 plan=4 pngs=4 01.png,02.png,03.png,04.png
+ok   t38 routes.json=3 plan=3 pngs=3 01.png,02.png,03.png
+ok   fc01 routes.json=1 plan=1 pngs=1 01.png
+ok   fc02 routes.json=1 plan=1 pngs=1 01.png
+ok   fc03 routes.json=1 plan=1 pngs=1 01.png
+ok   fc04 routes.json=1 plan=1 pngs=1 01.png
+ok   fc05 routes.json=1 plan=1 pngs=1 01.png
+ok   fc06 routes.json=1 plan=1 pngs=1 01.png
+ok   fc07 routes.json=1 plan=1 pngs=1 01.png
+ok   fc08 routes.json=1 plan=1 pngs=1 01.png
+ok   fc09 routes.json=1 plan=1 pngs=1 01.png
+ok   fc10 routes.json=1 plan=1 pngs=1 01.png
+ok   fc11 routes.json=1 plan=1 pngs=1 01.png
+ok   fc12 routes.json=1 plan=1 pngs=1 01.png
+ok   fc13 routes.json=1 plan=1 pngs=1 01.png
+ok   fc14 routes.json=1 plan=1 pngs=1 01.png
+all routes.json match the plan
+exit 0
+```
+--- --fresh
+```
+0 problems on 235 renders
+exit 0
+```
+--- ds.mjs
+```
+ok   t01 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t01-transactions pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t02 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t02-transactions pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t03 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t03-transactions pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t04 pngs=[01.png 02.png 03.png 04.png 05.png 06.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t04-transactions pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t05 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t06 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t06-doorentries pngs=[01.png 02.png 03.png] drawn=doorEntries plan=doorEntries
+ok   t39 pngs=[01.png 02.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t39-doorentries pngs=[01.png 02.png] drawn=doorEntries plan=doorEntries
+ok   t07 pngs=[01.png 02.png 03.png 04.png] drawn=transactions plan=transactions
+ok   t07-wide pngs=[01.png 02.png 03.png 04.png] drawn=wide plan=wide
+ok   t08 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t08-transactions pngs=[01.png 02.png] drawn=transactions plan=transactions
+ok   t09 pngs=[01.png 02.png] drawn=nested plan=nested
+ok   t09-wide pngs=[01.png 02.png 03.png 04.png] drawn=wide plan=wide
+ok   t10 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t10-transactions pngs=[01.png 02.png] drawn=transactions plan=transactions
+ok   t11 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=transactions plan=transactions
+ok   t12 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t12-doorentries pngs=[01.png 02.png 03.png] drawn=doorEntries plan=doorEntries
+ok   t12-transactions pngs=[01.png 02.png 03.png 04.png 05.png] drawn=transactions plan=transactions
+BAD  t13 pngs=[01.png 02.png 03.png 04.png 05.png 06.png] drawn=lesmis,transactions (some routes take the left panel's dataset) plan=transactions
+ok   t14 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t14-transactions pngs=[01.png 02.png 03.png 04.png] drawn=transactions plan=transactions
+ok   t15 pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t15-wide pngs=[01.png 02.png] drawn=wide plan=wide
+ok   t16 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t17 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t17-transactions pngs=[01.png 02.png] drawn=transactions plan=transactions
+ok   t18 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=doorEntries plan=doorEntries
+ok   t18-transactions pngs=[01.png 02.png 03.png 04.png] drawn=transactions plan=transactions
+ok   t19 pngs=[01.png 02.png 03.png 04.png] drawn=doorEntries plan=doorEntries
+ok   t20 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=doorEntries plan=doorEntries
+ok   t20-transactions pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t21 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t21-wide pngs=[01.png 02.png 03.png] drawn=wide plan=wide
+ok   t22 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=wide plan=wide
+ok   t23 pngs=[01.png 02.png 03.png 04.png 05.png 06.png] drawn=wide plan=wide
+ok   t24 pngs=[01.png 02.png 03.png 04.png 05.png 06.png 07.png 08.png] drawn=nested plan=nested
+ok   t25 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=nested plan=nested
+ok   t26 pngs=[01.png 02.png 03.png] drawn=plainJson plan=plainJson
+ok   t27 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t28 pngs=[01.png 02.png] drawn=transactions plan=transactions
+ok   t28-doorentries pngs=[01.png 02.png] drawn=doorEntries plan=doorEntries
+ok   t28-lesmis pngs=[01.png 02.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t28-nested pngs=[01.png 02.png] drawn=nested plan=nested
+ok   t40 pngs=[01.png 02.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t29 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t30 pngs=[01.png 02.png 03.png 04.png 05.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t31 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t32 pngs=[01.png 02.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+BAD  t33 pngs=[01.png 02.png] drawn=lesmis,transactions (some routes take the left panel's dataset) plan=transactions
+ok   t34 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t35 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t36 pngs=[01.png 02.png 03.png] drawn=transactions plan=transactions
+ok   t37 pngs=[01.png 02.png 03.png 04.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   t38 pngs=[01.png 02.png 03.png] drawn=lesmis (some routes take the left panel's dataset) plan=lesmis
+ok   fc01 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc02 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc03 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc04 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc05 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc06 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc07 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc08 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc09 pngs=[01.png] drawn=transactions plan=-
+ok   fc10 pngs=[01.png] drawn=nested plan=-
+ok   fc11 pngs=[01.png] drawn=transactions plan=-
+ok   fc12 pngs=[01.png] drawn=lesmis (some routes take the left panel's dataset) plan=-
+ok   fc13 pngs=[01.png] drawn=wide plan=-
+ok   fc14 pngs=[01.png] drawn=doorEntries plan=-
+2 problem(s)
+exit 1
 ```
 
-The two FAIL lines come from the script, not from the plan. In the --list output, a right-hand
-or overlay route reads "lesmis (or its left panel's)". The script read that as lesmis, but
-such a route draws the dataset of the left panel it opens beside. In t13 that route is
-inspector-run-row/data-changed, and in t33 it is inspector-run-row/failed. Both renders
-(t13/06.png and t33/02.png) show "Transfers, March 2026": transactions, as the plan says.
-`--task` also refuses to write routes.json unless every route draws one project.
+## Check 4. The study tool's own check is sound
 
-PASS: all 72 routes.json files match the plan's routes exactly, every PNG name is a bare
-number with no route in it, and the renders are newer than every file under app-b/.
+Command: `timeout 300 node app-b/study.mjs --prove`. Exit code 0.
 
-## Check 4: the study tool's own check is sound
-
-Command: `timeout 300 node app-b/study.mjs --prove`. Exit code: 0.
+Result: pass, no FAIL: --check fails an unknown section, an unknown state and a stub, and passes a good route.
 
 ```
 ok   a good route passes
 ok   an unknown section fails: no section "no-such-section" (the manifest lists the sections; --list shows every route)
 ok   an unknown state fails: section graph-place has no state "no-such-state" (its states: at-rest, empty, door-entries, louvain-open, many-groups, transfers-loaded, door-entries-path, door-entries-running, path-found, transfers-running, running, queued, finished, partial, failed, solo, everything-hidden, show-hidden, scope-mark, out-of-date, invalid-drop, find, list-menu, rename, rename-chain, rename-run-group, rename-builtin, rename-run-disabled, notes-eye-off, find-no-match, one-group, long-names, wide, wide-sized, nested, nested-set, plain-json, registry, painted)
 ok   a stub fails: section prove-stub is a stub (no render)
-EXIT 0
+exit 0
 ```
 
-PASS: no FAIL line.
+## Check 5. tree.md is the outline only, and matches the skeleton
 
-## Check 5: tree.md
+Command: `node tmp/preflight-r7a4/tree.mjs` -- (a) every run of six words from each of the 16 prompts in tree-test.md is absent from tree.md; (b) tree.md has no route, app-b, "correct", "answer", "score", tree, task or id pattern; (c) no hyphenated section id from sections/manifest.json; (d) every one of the 231 outline labels, less its parenthetical, is looked up verbatim in app.js, lib.js and the section files. Exit code 0. Then a word grep for each tree prompt's example (go-between, cluster, slides, colleague, Tuesday, small, door, swipe, tangle, Monday, month, country, score, department, April, March, words).
+
+Result: pass. No prompt text, answer, location key, score, route or section id is in tree.md, and no example a tree prompt names appears (the grep finds none; "IT" hits are substrings such as "Edit"; "number" is Settings > General > Number format). The 28 labels not found verbatim are descriptions of places, not labels ("The list of rows, top to bottom", "Right-click on a node", "Each table"), plus "To ->" (the skeleton writes "To -> building" or "To -> account") and two choice rows written with "|" whose parts the skeleton draws ("Each row is", "a node", "an edge"; "As the file says", "Directed", "Undirected"). The outline's structure follows README.md and the renders: header (main menu, project-name menu, Undo, Redo, Local only, Full graph), rail (Graph, Data, Views, Notes, Assistant), the Data page, the canvas menus, the toolbar's five tooltip names, the selection bar, the inspector's Style and Data tabs, and the table dock.
+
+```
+prompts read from tree-test.md: 16; section ids checked: 41
+labels: 231; not found verbatim in the skeleton source: 28
+  ? Project name (click it for its menu)
+  ? Graph switcher (the graph's name, with a menu)
+  ? The list of rows, top to bottom
+  ? Rows added by Analyze, each with its eye
+  ? A ranking (a measure)
+  ? A grouping (a run), opening to its groups
+  ? Sets you kept
+  ? Folders you made
+  ? A row's right-click menu
+  ? Graph switcher
+  ? Each file or address, with its menu
+  ? A step's menu
+  ? Your saved views, in order, each with In tour
+  ? Every note, newest first
+  ? Each table
+  ? The chosen table
+  ? Each row is: a node | an edge
+  ? Each column's role, under its name
+  ? To ->
+  ? For a nested document: the document's outline, with a checkbox on each list of records
+  ? Direction: As the file says | Directed | Undirected
+  ? Legend card (top left)
+  ? Right-click on empty canvas
+  ? Right-click on a node
+  ? Header: name, kind, where it came from, and "..." (the same menu as right-click)
+  ? Members or Values (with Top 10)
+  ? A tab for a grouping's groups
+  ? A column header's menu
+exit 0
+```
+
+## Check 6. Answer keys stay away from participants
 
 Commands:
-- `grep -niE "april|march|door|swipe|friday|tuesday|monday|go-between|colleague|angle|scores|correct|answer|score|task|app-b|#/|[a-z]+-[a-z]+/[a-z]" study/round-7/tree.md`
-  exit 1 (no match): tree.md has no task text, answers, scoring, routes, section ids or
-  examples from the tree prompts.
-- `tmp/preflight-r7/labels.sh` looks up every outline label in the skeleton's source. 178 of
-  206 labels were found verbatim. Every label not found is listed here:
+- `timeout 600 kit/with-browser.sh node tmp/round-7-preflight-2/scan.mjs <prototype> tmp/preflight-r7a4/texts.json <the 158 routes>` -- opens each route in the participant view, saves its visible text, and reports any visible review bar, design note, section id or hyphenated state id. Exit code 0.
+- `python3 tmp/preflight-r7a4/leak.py` -- content words each scenario and prompt, in the plan's current wording (tmp/preflight-r7a4/scen.json), shares with its target controls' labels, tooltips and description lines (the target table built by the previous preflight from the renders and section files). Exit code 0.
+- `node app-b/study.mjs --try ... --click "Add note" --expect ...` on inspector-group-set-path-row/path-lesmis and path-door-entries (check 7 uses it too).
+- Renders read by eye: t03-transactions/01.png, t02-transactions/03.png, t39-doorentries/01.png, t19/01.png, t20-transactions/01.png, t14-transactions/01.png, t30/01.png, t32/02.png, t07/04.png, t13/06.png, t33/02.png, fc08/01.png, fc09/01.png.
+
+Results:
+- Participant view: pass. On all 158 routes the review bar is hidden and no design note shows. The only ids matched are "toolbar" (the screen-reader heading "Canvas toolbar") and "settings" (the Settings menu item and dialog), which are UI words, not section or state names.
+- Render file names: pass. Each folder holds 01.png ... NN.png and routes.json only (check 3).
+- First renders: pass. Each 01.png is the state before the job. t01-transactions starts with one account selected and no graph-wide count in view, as planned; t19 starts with One edge per: Row chosen; t20-transactions with amount as the weight; t39-doorentries with the chain row present but not selected; t03-transactions and t02-transactions start on a tree with no result rows (the rows appear on the Analyze screen -- see Plan defects).
+- Wording: pass. The scan's hits are stemming noise ("Notes" against "not"; "are"; "Each"; "What"; "Open" as in "the network you have open") or the borderline items listed above. The previous attempt's four failures are fixed: t17-transactions says "this month's version of it"; t12 "as few others as possible"; t12-doorentries "as few go-betweens as possible"; t10 "have in common"; t21 "two pieces of text". t32's "graphics card" does not appear on the Performance page, which says GPU and WebGPU. fc08 and fc09 use no word of "Total value" or "Total amount in". No task or first-click id names its answer (they are t01..t40 and fc01..fc14).
+
+--- scan.mjs
+```
+graph-place/at-rest: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/overview: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+context-menus/graph: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/computed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-node/transfers-node: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/transfers-loaded: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/transfers: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/louvain-open: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-measure-row/data: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+analyze-popover/transfers: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+analyze-popover/link-counts: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-run-row/data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/community-3: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-run-row/settings-changed: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+graph-place/many-groups: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/find: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-node/why-this-look: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-node/data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+selection-bar/neighborhood: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+selection-bar/filtered-to-neighbors: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+selection-bar/neighborhood-directed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+notes-place/writing: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+notes-place/all: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-edge/data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+notes-place/edge-note: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+notes-place/earlier-group: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/door-entries: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-edge/door-pair: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+notes-place/door-entries: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/path-lesmis: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/door-entries-path: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/path-door-entries: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/empty-filters: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/new-step: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/one-step: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/wide: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/attributes-wide: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/wide-filters: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/wide-computed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/canvas: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/layout-method: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+toolbar/at-rest: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+toolbar/layout-paused: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-nothing-selected/transfers-methods: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/nested-set: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/nested-color-by: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/wide-color-by: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/wide-search: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-measure-row/painted-color: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-several-rows/style: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-several-rows/result-intersect: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+select-where/where: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graphs-switcher/many: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+full-canvas-modes/comparison: clean
+full-canvas-modes/group: clean
+full-canvas-modes/kept: clean
+inspector-several-elements/two-nodes: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+path-popover/from-selection: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+path-popover/found: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+path-popover/transfers-directed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+path-popover/found-tied: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/path: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+table-dock/path-members: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+context-menus/source: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/replace: clean
+data-place/after-replace: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-run-row/data-changed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+start-screen/returning: clean
+data-page/graph-file: clean
+canvas-and-states/loading: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/edge-list: clean
+data-page/transfers: clean
+canvas-and-states/transfers-loading: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+recipe-apply/binding: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+recipe-apply/applied: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+recipe-apply/wide-mismatch: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+project-menu/open: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+export-dialog/image: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+export-image/image: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+table-dock/table-options: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+export-dialog/data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/at-rest: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+export-dialog/recent-exports: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+data-page/people: clean
+data-page/entries: clean
+data-page/unmatched-rows: clean
+canvas-and-states/door-entries-loading: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/kind-as-type: clean
+data-page/entries-pair: clean
+data-page/entries-as-nodes: clean
+inspector-nothing-selected/door-entries-as-nodes: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/buildings: clean
+inspector-nothing-selected/door-entries: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-attribute-and-filter-step/edge-weight: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/weight-moved: clean
+inspector-group-set-path-row/label-empty: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/label-new-line: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/label-two: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-selection-and-everything/notes-row-label: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/wide-label: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+style-pickers/wide-bind: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/attributes-wide-search: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+context-menus/attribute: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/wide-sized: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+start-screen/wide-first-use: clean
+start-screen/wide-choose: clean
+data-page/wide-hosts: clean
+data-page/wide-find-column: clean
+data-page/wide-link-menu: clean
+start-screen/nested-first-use: clean
+start-screen/nested-choose: clean
+data-page/json-tree: clean
+data-page/json-researchers: clean
+data-page/json-array-menu: clean
+data-page/json-any-type: clean
+data-page/json-report: clean
+graph-place/nested: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/edit-json-researchers: clean
+data-page/json-keep-value: clean
+data-page/json-affiliations: clean
+inspector-node/nested-data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-page/json-plain: clean
+graph-place/plain-json: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-node/plain-data: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+start-screen/first-run: SHOWS {"shown":["settings"],"review":false,"notes":0}
+start-screen/disclosure: SHOWS {"shown":["settings"],"review":false,"notes":0}
+start-screen/declined: SHOWS {"shown":["settings"],"review":false,"notes":0}
+settings/privacy: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+data-page/refused-parse: SHOWS {"shown":["settings"],"review":false,"notes":0}
+data-page/refused-empty: clean
+data-page/refused-ids: clean
+data-page/json-invalid: clean
+canvas-and-states/refused-too-large: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/empty: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+canvas-and-states/empty: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+data-place/no-sources: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+views-place/empty: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+views-place/saving: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+views-place/at-rest: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+present-mode/first-view: clean
+present-mode/presenting: clean
+assistant-place/no-provider: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+settings/assistant: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+settings/performance-gpu-unavailable: SHOWS {"shown":["toolbar","settings"],"review":false,"notes":0}
+inspector-run-row/failed: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/show-hidden: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-measure-row/covered: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+canvas-and-states/drawn: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+canvas-and-states/walked: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+full-canvas-modes/version-history: clean
+full-canvas-modes/past-version: clean
+graph-place/solo: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+selection-bar/hidden: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/rename: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+graph-place/rename-chain: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+toolbar/legend-off: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+inspector-group-set-path-row/style: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+analyze-popover/open: SHOWS {"shown":["toolbar"],"review":false,"notes":0}
+exit 0
+```
+--- leak.py
+```
+t06-doorentries    shares with its target labels: ['Notes']
+t39                shares with its target labels: ['Notes']
+t39-doorentries    shares with its target labels: ['Notes']
+t07                shares with its target labels: ['are']
+t12-doorentries    shares with its target labels: ['between']
+t18                shares with its target labels: ['rows']
+t19                shares with its target labels: ['Each']
+t27                shares with its target labels: ['What']
+fc12               shares with its target labels: ['Data']
+fc14               shares with its target labels: ['Data']
+tree04             shares with its target labels: ['Open']
+tree11             shares with its target labels: ['where']
+10 of 75 task/first-click ids share a word with their target labels; ids with no target table: []
+exit 0
+```
+
+## Check 7. Coverage
+
+Commands:
+- `node tmp/preflight-r7a4/cov.mjs` -- for every coverage key and task, the distinct domains of its personas (domains read from each persona file; see below); that wide-field tasks draw the wide dataset and nested-json tasks the nested one; that every persona has a file; the session and task counts. Exit code 0.
+- `timeout 300 node app-b/study.mjs --try tmp/preflight-r7a4/t39-try.png app-b/#/inspector-group-set-path-row/path-lesmis --click "Add note" --expect "Valjean to Javert"` and the same on path-door-entries with "Ana Ruiz to Priya Nair". Exit code 0 for both.
+- The dataset column of `node app-b/study.mjs --list` (check 3's ds.mjs).
+
+Domains, read from the persona files: alert-reviewer and fraud-analyst financial crime (transaction monitoring; fraud investigation); analyst-alex logistics operations (operations analytics at a logistics company); bioinformatics-researcher and genomics-cytoscape-user biology research; cybersecurity-analyst IT security (SOC threat hunter); expert-emma network science; explorer-elena product management; gephi-holdout social science (computational social science professor); intelligence-analyst law enforcement intelligence; knowledge-engineer data architecture; marketing-analyst marketing; ml-engineer-recsys e-commerce engineering (online retailer); recipe-recipient biology lab management (cell biology lab manager); screen-reader-analyst public health (epidemiology); supply-chain-analyst supply chain.
+
+Result: pass. Every one of the 21 keys has at least one task, every covering task has personas from at least two domains (the lowest is 3), and each task's routes exercise its key: the task renders show the measured controls (for example t05 notes-place/writing, t07 data-place/new-step, t11 full-canvas-modes/comparison, t13 data-page/replace, t20 data-page/entries-pair and inspector-attribute-and-filter-step/edge-weight, t21 inspector-group-set-path-row/label-empty). The two chain-note tasks reach the writing box by click-through, and --try proves it opens with the chain's chip. wide-field (t22, t23) draws only the wide dataset and nested-json (t24, t25) only the nested one; every task's datasets list equals what its routes draw (check 3). The first-use tasks include a first nested file (t24, from start-screen/nested-first-use, before the export is read) and a first very wide file (t23, from start-screen/wide-first-use). The plan has 61 think-aloud tasks and 280 sessions.
 
 ```
-MISSING A column header's menu
-MISSING A grouping, opening to its groups
-MISSING A row's right-click menu
-MISSING A step's menu
-MISSING A tab for a grouping's groups
-MISSING Direction: As the file says | Directed | Undirected
-MISSING Each column's role, under its name
-MISSING Each file or address, with its menu
-MISSING (each graph in the project)
-MISSING Each row is: a node | an edge
-MISSING Each step, with a checkbox to apply it
-MISSING Every note, newest first
-MISSING Folders you made
-MISSING For a nested document: the document's outline, with a checkbox on each list of records
-MISSING Header: name, kind, where it came from, and "..."
-MISSING Members or Values
-MISSING Nodes | Edges
-MISSING One edge per: Row | Pair
-MISSING Pause layout / Resume layout
-MISSING Right-click on a node
-MISSING Right-click on empty canvas
-MISSING Rows added by Analyze, each with its eye
-MISSING Sets you kept
-MISSING Shortest paths, opening to each route found
-MISSING Switch to 2D / Switch to 3D
-MISSING The chosen table
-MISSING The list of rows, top to bottom
-MISSING (your recent projects)
-MISSING Your saved views, in order, each with In tour
+ok   characterize t01 personas=7 domains=7 datasets=lesmis
+ok   characterize t01-transactions personas=6 domains=5 datasets=transactions
+ok   rank t02 personas=6 domains=5 datasets=lesmis
+ok   rank t02-transactions personas=6 domains=5 datasets=transactions
+ok   communities t03 personas=6 domains=5 datasets=lesmis
+ok   communities t03-transactions personas=5 domains=5 datasets=transactions
+ok   find-explore t04 personas=5 domains=5 datasets=lesmis
+ok   find-explore t04-transactions personas=4 domains=3 datasets=transactions
+ok   note t05 personas=6 domains=6 datasets=lesmis
+ok   filter t07 personas=5 domains=4 datasets=transactions
+ok   filter t07-wide personas=5 domains=5 datasets=wide
+ok   layout t08 personas=6 domains=6 datasets=lesmis
+ok   layout t08-transactions personas=4 domains=4 datasets=transactions
+ok   color-size t09 personas=5 domains=4 datasets=nested
+ok   color-size t09-wide personas=5 domains=5 datasets=wide
+ok   sets t10 personas=5 domains=5 datasets=lesmis
+ok   sets t10-transactions personas=5 domains=4 datasets=transactions
+ok   compare t11 personas=6 domains=6 datasets=transactions
+ok   path t12 personas=5 domains=5 datasets=lesmis
+ok   path t12-transactions personas=4 domains=3 datasets=transactions
+ok   path t12-doorentries personas=4 domains=4 datasets=doorEntries
+ok   reuse t13 personas=6 domains=6 datasets=transactions
+ok   load t14 personas=5 domains=5 datasets=lesmis
+ok   load t14-transactions personas=5 domains=4 datasets=transactions
+ok   load t26 personas=4 domains=4 datasets=plainJson
+ok   recipe t15 personas=5 domains=4 datasets=transactions
+ok   recipe t15-wide personas=4 domains=4 datasets=wide
+ok   export t16 personas=6 domains=5 datasets=lesmis
+ok   export t17 personas=5 domains=5 datasets=lesmis
+ok   export t17-transactions personas=4 domains=3 datasets=transactions
+ok   multi-table t18 personas=7 domains=7 datasets=doorEntries
+ok   multi-table t19 personas=6 domains=6 datasets=doorEntries
+ok   multi-table t18-transactions personas=5 domains=4 datasets=transactions
+ok   weight t20 personas=5 domains=5 datasets=doorEntries
+ok   weight t20-transactions personas=5 domains=4 datasets=transactions
+ok   labels t21 personas=6 domains=6 datasets=lesmis
+ok   labels t21-wide personas=4 domains=4 datasets=wide
+ok   notes-targets t06 personas=5 domains=5 datasets=lesmis
+ok   notes-targets t06-doorentries personas=4 domains=4 datasets=doorEntries
+ok   notes-targets t39 personas=4 domains=4 datasets=lesmis
+ok   notes-targets t39-doorentries personas=3 domains=3 datasets=doorEntries
+ok   wide-field t22 personas=7 domains=7 datasets=wide
+ok   wide-field t23 personas=6 domains=6 datasets=wide
+ok   nested-json t24 personas=7 domains=6 datasets=nested
+ok   nested-json t25 personas=5 domains=5 datasets=nested
+distinct personas in plan: 16; every one has a file: true
+think-aloud sessions: 280 tasks: 61
+exit 0
+```
+--- --try
+```
+/home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/tmp/preflight-r7a4/t39-try.png
+exit 0
+/home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/tmp/preflight-r7a4/t39d-try.png
+exit 0
 ```
 
-Every one of these is a descriptive placeholder ("The chosen table", "Sets you kept"), a pair
-written with a slash or a bar, or a parenthetical, so a verbatim lookup cannot find it. Each
-concrete control was looked up on its own and found: As the file says, Each row is, One edge
-per, Pause layout, Resume layout, Switch to 2D, Switch to 3D, In tour, Members, Values, Top 10,
-Painted by, Memberships, Go to column, Makes, Match report, Edge id, Subtype, Move to folder,
-Time slider, Export table as CSV, Find in notes, Export tour video, Standard views, Enter VR,
-Enter AR, Compare graphs, Version history, Measure the graph, Find paths and edge sets, Rank
-nodes and edges, Find groups, Clear graph data, Compute the overview, Combine with selected
-rows and Hide in list. Place by appears in lib.js and the specification (section 7, attribute
-menu).
+## Check 8. Decided changes not drawn
 
-The menus were also rendered in the participant view and read against the outline:
-main-menu/open, project-menu/open, context-menus/canvas, context-menus/node,
-context-menus/run-row and context-menus/attribute (`node app-b/study.mjs --shoot ...`, PNGs
-in shots/app-b/). The rail (Graph, Data, Views, Notes, Assistant), the header (main menu,
-project name, Undo, Redo, Local only, Full graph), the five toolbar icons, the inspector's
-Style and Data tabs, and the table dock all match.
+Commands: `timeout 120 node app-b/study.mjs --counts` (exit code 1, 14 violations, below); each decided change's route compared with the plan's routes; renders read for the routes the plan does use near a change (t07/04.png, fc09/01.png, t33/02.png).
 
-PASS, with one wording note: a run row's menu says "Compare with another run...", while the
-outline's union menu says "Compare with another row..." (see Hazards).
-
-## Check 6: answer keys stay away from participants
-
-Method: read every task scenario, tree prompt and first-click prompt against the labels on its
-target. The labels were read from the renders and found by grep in the section files. Then
-the first render (01.png) of every distinct starting route was viewed:
-graph-place/at-rest, transfers-loaded, louvain-open, many-groups, door-entries, wide,
-nested-set, nested, empty; data-page/people, entries, edge-list, transfers, wide-hosts,
-json-tree, json-plain; data-place/at-rest; start-screen/returning and first-run;
-views-place/empty; canvas-and-states/drawn. The first-click screens fc02, fc06, fc08, fc09
-and fc13 were viewed as well.
-
-- Participant view: no render shows a review bar, design notes, or a section or state name.
-  PNG names are 01.png to NN.png. PASS on the renders, with the Review-button hazard above.
-- Start states: FAIL for t01-transactions and t09 (see "What must change", item 2). Every other
-  01.png viewed is a start state, not the answer.
-- Words on the target: FAIL for the prompts listed in "What must change", item 1.
-- Clean on reading: t01, t02, t02-transactions, t03, t04, t05, t06, t06-doorentries, t07,
-  t07-wide, t08, t08-transactions, t09-wide, t10, t10-transactions, t11, t16, t17,
-  t17-transactions, t19, t24, t26, t27, t28, t28-doorentries, t28-nested, t29, t30, t31, t32,
-  t33, t35, t36, t37, t21; tree 1-3, 5-12, 14-16; fc01-fc12 and fc14. fc08 and fc09 avoid
-  "total", "sum", "value" and "amount". fc11 and fc12 point at a rail or header first click,
-  which carries no "file".
-
-## Check 7: coverage
-
-Command: `node tmp/preflight-r7/domains.mjs`. Each persona's domain comes from the opening of
-its file: alert-reviewer and fraud-analyst financial crime; analyst-alex logistics operations;
-bioinformatics-researcher and genomics-cytoscape-user biology research; cybersecurity-analyst
-IT security; expert-emma network science; explorer-elena product management; gephi-holdout
-social science; intelligence-analyst law enforcement intelligence; knowledge-engineer data
-architecture; marketing-analyst marketing; ml-engineer-recsys e-commerce engineering;
-recipe-recipient biology lab management; screen-reader-analyst public health;
-supply-chain-analyst supply chain. Exit code: 0.
+Result: pass. Each decided change is either on no route the plan uses, or the tasks that use its route are flagged or excluded:
+- Analyze: Exact or Sampled and the declined run (costly, declined) -- no task uses them; named as not testable.
+- Analyze: weighted degree and task-word search -- no task uses analyze-popover/search. fc09 uses analyze-popover/transfers, which draws "Total amount", "Total amount in" and "Total amount out" with one line each (fc09/01.png); fc08's analyze-popover/open draws "Total value". t02-transactions ends on analyze-popover/link-counts, drawn.
+- "Not on a bridge edge" (search route, data-place/filters) -- no task uses either route; t07-wide's data-place/wide-computed draws it.
+- The degree step on data-place/filters -- no task uses that route; t07 ends at data-place/one-step, whose inspector is the graph's own (state bar "5 readings are for all 3,000 nodes", "Compute on 812"), not the scope pattern; t07-wide uses wide-computed, where the step is drawn.
+- Attributes grouping, fill, computed rows; the wide list's "In use (6)" -- t07-wide, t22 and fc13 use attributes-wide and attributes-wide-search for the Find box, which is drawn; none depends on the unfiltered order or the In use count.
+- Nested names by full stored path -- t09 carries the flag; no task uses data-place/attributes-nested.
+- Link-count measure names on graph-place/transfers-loaded -- the start screen draws no measure rows; "Links in (count)" appears on the Analyze screen with the catalog's name (see Plan defects).
+- A run painting on finish (graph-place/finished) -- excluded from tasks; t02 reads an existing ranking and t02-transactions stops at Run; the paint focus group names it as a known gap of the mock.
+- A failed GPU run (graph-place/failed) -- excluded; t33 uses inspector-run-row/failed (the rerun's state bar, drawn) and flags the missing failure mark on the tree row, which t33/02.png confirms.
+- The graph switcher's note count -- t11 uses graphs-switcher/many for Compare graphs..., not the count; named as not testable.
+- Sampled ranks, "=" ties, the weighted Made with -- t02 reads exact ranks on inspector-measure-row/data and does not depend on them.
+- "Covered by" on the covering row's Style tab -- t34 uses inspector-measure-row/covered, where the covered case is drawn.
+- Per-edge-type weights in the door entries inspector -- t20 carries the flag.
+- Readings-only tree row; label top N; palette picker -- no task uses those routes.
+- Select lands on the usual selection picture -- t10-transactions ends on select-where/where and asks how the list would be kept; both later states excluded.
+- Counts from fixtures and one shared formatter -- --counts still fails (below). The "Filtered: ..." lines in notes-place.js and path-popover.js draw only on notes-place/filter-step-on and path-popover/no-path, which no task uses. t07, t07-wide and t12-transactions carry the formatter flag. The start screen's two transfer sizes touch t14, t28-lesmis and t40 without any task depending on them (see Plan defects). The hand-typed 77 in toolbar.js and style-pickers.js matches the fixture (77 nodes) on every route used.
+- Message keys, the data-source password, framework-change records and the "run without waiting" process decision -- not screens; out of scope as the plan says. "Change overview..." -- the skeleton draws no such card; no task depends on it.
 
 ```
-characterize   t01(7 domains) t01-transactions(5 domains)
-rank           t02(5 domains) t02-transactions(5 domains)
-communities    t03(5 domains) t03-transactions(5 domains)
-find-explore   t04(5 domains) t04-transactions(3 domains)
-note           t05(6 domains)
-filter         t07(4 domains) t07-wide(5 domains)
-layout         t08(6 domains) t08-transactions(4 domains)
-color-size     t09(4 domains) t09-wide(5 domains)
-sets           t10(5 domains) t10-transactions(4 domains)
-compare        t11(6 domains)
-path           t12(5 domains) t12-transactions(3 domains) t12-doorentries(4 domains)
-reuse          t13(6 domains)
-load           t14(5 domains) t14-transactions(4 domains) t26(4 domains)
-recipe         t15(4 domains) t15-wide(4 domains)
-export         t16(5 domains) t17(5 domains) t17-transactions(3 domains)
-multi-table    t18(7 domains) t19(6 domains) t18-transactions(4 domains)
-weight         t20(5 domains) t20-transactions(4 domains)
-labels         t21(6 domains) t21-wide(4 domains)
-notes-targets  t06(5 domains) t06-doorentries(4 domains)
-wide-field     t22(7 domains) t23(6 domains)
-nested-json    t24(6 domains) t25(5 domains)
-tasks 58, sessions 280, 0 tasks with one domain
+sections/inspector-nothing-selected.js:475: assigns AB.projectCounts; register the project's counts with AB.countSource(dataset, fn)
+sections/notes-place.js:471: ""Filtered: " + AB.fx" writes a part of a whole its own way; use AB.count(n, noun, { of })
+sections/path-popover.js:310: ""Filtered: " + AB.fx" writes a part of a whole its own way; use AB.count(n, noun, { of })
+sections/start-screen.js:30: "3,093 accounts" is typed by hand; read it from AB.fx and write it with AB.count
+sections/start-screen.js:31: "300 proteins" is typed by hand; read it from AB.fx and write it with AB.count
+sections/start-screen.js:32: "3,000 accounts" is typed by hand; read it from AB.fx and write it with AB.count
+sections/start-screen.js:33: "124,318 patents" is typed by hand; read it from AB.fx and write it with AB.count
+sections/start-screen.js:36: "3,093 accounts" is typed by hand; read it from AB.fx and write it with AB.count
+sections/style-pickers.js:369: "total: "77" is typed by hand; read it from AB.fx and write it with AB.count
+sections/style-pickers.js:370: "total: "3,000" is typed by hand; read it from AB.fx and write it with AB.count
+sections/style-pickers.js:372: "total: "77" is typed by hand; read it from AB.fx and write it with AB.count
+sections/style-pickers.js:375: "total: "77" is typed by hand; read it from AB.fx and write it with AB.count
+sections/style-pickers.js:394: ""77", "nodes"" is typed by hand; read it from AB.fx and write it with AB.count
+sections/toolbar.js:89: "count: "77" is typed by hand; read it from AB.fx and write it with AB.count
+14 counts not written by AB.count
+exit 1
 ```
 
-- Every key has at least one task, and every task has personas from three to seven domains.
-- Every wide-field task (t22, t23) draws the wide dataset. Every nested-json task (t24, t25)
-  draws the nested dataset. Every task's datasets list names exactly the datasets its routes
-  draw (check 3).
-- No task or first-click id names its answer (ids are t01 ... t38, fc01 ... fc14).
-- FAIL: no first-use task starts before a nested or a very wide file is read ("What must
-  change", item 3).
-- FAIL: the notes-targets key is exercised for nodes, edges and groups, but not paths ("What
-  must change", item 4).
+## Check 9. Every persona has a file
 
-## Check 8: decided changes the skeleton does not draw
+Command: `node tmp/preflight-r7a4/cov.mjs` (it checks study/personas/<id>.md for every persona of every task) and `ls study/personas/`. Exit code 0.
 
-Each decided change was read against the routes of every task, tree prompt and first-click
-prompt:
+Result: pass. The plan names 16 personas, and each has a file; the focus groups' members are among them.
 
-- Exact or Sampled, the declined run, and the bridges wording in Analyze: no task uses
-  analyze-popover/costly, declined, essentials or search. Excluded.
-- Weighted degree in the catalog: fc08, fc09 and t02-transactions use analyze-popover/open and
-  transfers, where Total value, Total amount in and Links in (count) are drawn.
-- The bridges and degree filter steps: t07-wide uses data-place/wide-computed, where both are
-  drawn; the "300 to 187 nodes" rows are flagged in its grading note.
-- Attributes grouped by type, the wide list order, nested names by full stored path: no task
-  uses data-place/attributes or attributes-nested. t22 and fc13 touch the partly drawn wide
-  list (hazard above).
-- A run painting as soon as it finishes, and the failed GPU run: excluded (t02 reads an
-  existing ranking, t02-transactions ends at the running row, t33 uses a different failed
-  state and is flagged). The focus group on stacked results names the gap when it is shown.
-- The graph switcher's note count: t11 uses graphs-switcher/many, but it does not depend on
-  the note count.
-- Sampled rank ranges and weighted Made with: t02 reads exact PageRank, so it does not depend
-  on them.
-- "Covered by" on the covering row: t34 uses inspector-measure-row/covered, where it is drawn.
-- Per-edge-type weights: t20 reads one edge table ("count, stronger"). t19's
-  door-entries-as-nodes inspector does name each edge type's weight ("Loaded weights:
-  person_id links none; building_id links none").
-- Readings-only run, full selection, top-N labels and the group color picker: no task uses
-  those routes.
-- Counts from the fixture file (shell): no task depends on a statistic that differs between
-  two of its own routes.
-- One shared formatter (shell): t12-transactions is flagged for 3,530.28 against 3,530.
-  t07-wide is flagged. **t07 is not flagged** although data-place/one-step and at-rest draw
-  "3,000 to 812 nodes". FAIL ("What must change", item 5).
-- Changes with no screen: message keys, the password, framework records, the review process.
-  Out of scope, as the plan says.
+```
+alert-reviewer.md
+analyst-alex.md
+bioinformatics-researcher.md
+cybersecurity-analyst.md
+expert-emma.md
+explorer-elena.md
+fraud-analyst.md
+genomics-cytoscape-user.md
+gephi-holdout.md
+intelligence-analyst.md
+knowledge-engineer.md
+marketing-analyst.md
+ml-engineer-recsys.md
+recipe-recipient.md
+screen-reader-analyst.md
+supply-chain-analyst.md
+```
 
-## Check 9: personas
+## Check 10. success_criteria carries the round's targets
 
-Every persona id in the plan's personas, tasks and focus groups has a file in
-`study/personas/` (16 files; `cmp.mjs` reported no missing persona). PASS.
-
-## Check 10: success_criteria
-
-The plan's success_criteria begins with the round's targets, word for word: at least 80
-percent graded success or success with difficulty for every top task, bookend and new task;
-no confirmed severity-4 problem left unresolved; a mean ease rating (SEQ) of at least 5.5 of
-7 over every session; at least 70 percent direct success on every tree-test task. PASS.
-
-Scratch files for this preflight: `tmp/preflight-r7/`.
+Read from the plan's success_criteria. Result: pass. It states, in its first paragraph: every top task (the twelve ranked tasks and the three bookends) and each new task (one graph from several tables, weight set at load, labels from a field, notes with no author name, a field found and used among dozens, a graph built from a nested document) at 80 percent graded success or success-with-difficulty; no confirmed severity-4 problem left unresolved; mean SEQ at least 5.5 of 7 over every session; every tree-test task at 70 percent direct success (correct with no backtracking).

@@ -254,13 +254,15 @@ How each target keeps pointing at the same thing:
 - **An edge** is saved by its two ends plus the file's edge id or, for an edge without one, its
   position among the edges between the same two nodes (`ordinal`, out of `among`). A session
   `EdgeId` passed to `add` is turned into this form, because an `EdgeId` is renumbered on every
-  load. An edge added in the session without a file id is saved the same way: when the notes are
-  saved, its position is counted among the edges then between its two ends, in the order the graph
-  holds them, which is how a load of the saved graph counts it, so the note finds the edge once the
-  project is reopened. It is never saved by the id graphty-element made up for it
-  (`graphty:e<n>`); only an edge already removed when the notes are saved, which has no position,
-  keeps that id and reads `missing` once opened (section 7.5). An edge saved by position finds no edge once the pair has a different number of edges; if
-  one edge of a pair is removed and another added, the position can name the new edge. Give edges
+  load. The position is counted when the notes are saved, among the edges then between the two
+  ends, in the order the graph holds them, which is how a load of the saved graph counts it. So a
+  note finds its edge once the project is reopened, whatever parallel edges were added or removed
+  during the session. This holds for a loaded edge and for an edge added in the session alike; the
+  latter is never saved by the id graphty-element made up for it (`graphty:e<n>`). Only an edge
+  already removed when the notes are saved, which has no position, keeps the form it was held in,
+  and reads `missing` once opened (section 7.5). Opened against a graph other than the one saved
+  with it, an edge saved by position finds no edge once the pair has a different number of edges;
+  if one edge of a pair is removed and another added, the position can name the new edge. Give edges
   ids in your data when notes about them matter.
 - **A set** is saved by its id, plus its name for display.
 - **A result** is saved by its id. The note follows the result across re-runs.

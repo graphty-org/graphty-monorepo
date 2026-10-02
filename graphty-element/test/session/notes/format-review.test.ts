@@ -258,6 +258,37 @@ describe("format review: an edge added in the session", () => {
         assert.deepEqual(textsAbout(second, second2), ["two"]);
     });
 
+    // A loaded edge without a file id takes its position when the notes are saved, not from its
+    // load, so parallel edges added and removed in the session neither lose nor move its note.
+    it("saves a loaded edge by its position at save time, after parallel edges come and go", async () => {
+        const first = await loaded([["a", "b"]]);
+        const [original] = edgesBetween(first, "a", "b");
+        first.notes.add({ text: "loaded", targets: [{ edge: original }] });
+        await first.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+        ]);
+        const [, extra, kept] = edgesBetween(first, "a", "b");
+        first.notes.add({ text: "kept", targets: [{ edge: kept }] });
+        await first.data.removeEdges([extra]);
+
+        const saved = JSON.parse(JSON.stringify(first.notes.toDocument())) as NotesDocument;
+        const targets = saved.notes.map((note) => [note.text, note.targets[0]]);
+        assert.deepEqual(targets, [
+            ["loaded", { edge: { source: "a", target: "b", ordinal: 0, among: 2 } }],
+            ["kept", { edge: { source: "a", target: "b", ordinal: 1, among: 2 } }],
+        ]);
+
+        const second = await loaded([
+            ["a", "b"],
+            ["a", "b"],
+        ]);
+        assert.strictEqual(second.notes.mergeDocument(saved).missing, 0);
+        const [one, two] = edgesBetween(second, "a", "b");
+        assert.deepEqual(textsAbout(second, one), ["loaded"]);
+        assert.deepEqual(textsAbout(second, two), ["kept"]);
+    });
+
     it("reads missing once the edge is removed, here and in the saved file", async () => {
         const first = await loaded([["a", "b"]]);
         await first.data.addEdges([{ src: "a", dst: "b" }]);

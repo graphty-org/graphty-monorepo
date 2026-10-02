@@ -95,12 +95,13 @@ one note about two things.
    because one file loads as either type depending on the format), except that when the graph holds
    both a number and a string with the same text, a target binds to the one of its own type.
 2. **An edge** is saved by its two ends plus the file's edge id, or, for an edge without one, its
-   position among the edges between the same two nodes (`ordinal`, out of `among`). An edge added
-   in the session without a file id is saved the same way, its position counted when the notes are
-   saved, among the edges then between its two ends in the order the graph holds them, so it
-   binds in the graph saved with it. It is never saved by the id graphty-element made up for it
-   (`graphty:e<n>`), except for an edge removed before the notes were saved, which has no position
-   and reads `missing` once opened ("Binding" rule 2). An edge saved by position finds no
+   position among the edges between the same two nodes (`ordinal`, out of `among`). The position is
+   counted when the notes are saved, among the edges then between the two ends in the order the
+   graph holds them, so the note binds in the graph saved with it whatever parallel edges were
+   added or removed before saving. An edge added in the session is saved the same way, never by the
+   id graphty-element made up for it (`graphty:e<n>`), except for an edge removed before the notes
+   were saved, which has no position and reads `missing` once opened ("Binding" rule 2). Opened
+   against another graph, an edge saved by position finds no
    edge once the pair has a different number of edges; if one edge of a pair is removed and another
    added, the position names the new one.
 3. **A set** is saved by its id, plus its name for display. The name is never used to bind.

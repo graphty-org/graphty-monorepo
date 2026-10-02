@@ -55,7 +55,10 @@ name.
     its two ends plus its position among the parallel edges between them (`ordinal`, out of
     `among`), counted when the notes are saved, in the order the graph holds the edges -- the rule
     a load uses for an edge without a file id. It is never saved by the id graphty-element made up
-    for it (`graphty:e<n>`), so the note finds its edge again once the project is reopened. Only an
+    for it (`graphty:e<n>`), so the note finds its edge again once the project is reopened. For the
+    same reason a loaded edge without a file id also takes its position at save time, not from the
+    load it came in, so parallel edges added or removed during the session cannot lose or misbind
+    its note. An edge with a file edge id is still saved by that id. Only an
     edge removed before the notes are saved, which has no position, keeps that id, and its note
     reads `missing`. This replaces the design's earlier rule that a session-added edge is saved by
     its made-up id and binds nothing once opened.

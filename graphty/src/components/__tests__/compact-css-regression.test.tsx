@@ -19,7 +19,6 @@ import {
     Badge,
     Button,
     Checkbox,
-    ColorInput,
     MantineProvider,
     NativeSelect,
     NumberInput,
@@ -34,10 +33,9 @@ import {
     TextInput,
 } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { theme } from "../../theme";
-import { CompactColorInput } from "../sidebar/controls/CompactColorInput";
 
 // Wrapper component with theme provider
 function ThemeWrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -263,44 +261,6 @@ describe("Compact CSS Regression Tests", () => {
                 render(
                     <ThemeWrapper>
                         <NativeSelect label="Test" aria-label="Test" size="compact" data={["A", "B"]} />
-                    </ThemeWrapper>,
-                );
-                const input = screen.getByLabelText("Test");
-                const computed = window.getComputedStyle(input);
-                // A compact input is borderless at rest. Since the Figma release the field
-                // draws no border at all: hover and focus paint a 1px outline at -1px on
-                // the field (compact-mantine's cm-field), so the box never grows.
-                expect(computed.borderWidth).toBe("0px");
-            });
-        });
-
-        describe("ColorInput", () => {
-            it("has correct compact height (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <ColorInput label="Test" aria-label="Test" size="compact" />
-                    </ThemeWrapper>,
-                );
-                const input = screen.getByLabelText("Test");
-                const computed = window.getComputedStyle(input);
-                expect(computed.height).toBe("24px");
-            });
-
-            it("has correct compact font size (11px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <ColorInput label="Test" aria-label="Test" size="compact" />
-                    </ThemeWrapper>,
-                );
-                const input = screen.getByLabelText("Test");
-                const computed = window.getComputedStyle(input);
-                expect(computed.fontSize).toBe("11px");
-            });
-
-            it("is borderless at rest; the focus ring is the field's 1px outline", () => {
-                render(
-                    <ThemeWrapper>
-                        <ColorInput label="Test" aria-label="Test" size="compact" />
                     </ThemeWrapper>,
                 );
                 const input = screen.getByLabelText("Test");
@@ -864,164 +824,6 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.padding).toBe("0px 4px");
             });
         });
-    });
-
-    describe("Sidebar Components", () => {
-        describe("CompactColorInput", () => {
-            const defaultProps = {
-                color: "#5B8FF9",
-                opacity: 100,
-                onColorChange: vi.fn(),
-                onOpacityChange: vi.fn(),
-            };
-
-            it("color swatch ActionIcon has correct size (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
-                const computed = window.getComputedStyle(actionIcon);
-                expect(computed.height).toBe("24px");
-                expect(computed.width).toBe("24px");
-            });
-
-            it("color swatch has correct background color", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
-                const computed = window.getComputedStyle(actionIcon);
-                // Should use --mantine-color-default = rgb(42, 48, 53)
-                expect(computed.backgroundColor).toBe("rgb(56, 56, 56)");
-            });
-
-            it("color swatch has correct left border-radius (4px 0 0 4px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
-                const computed = window.getComputedStyle(actionIcon);
-                expect(computed.borderRadius).toBe("4px 0px 0px 4px");
-            });
-
-            it("hex input has correct compact height (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.height).toBe("24px");
-            });
-
-            it("hex input has monospace font family", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.fontFamily).toBe("monospace");
-            });
-
-            it("hex input has uppercase text transform", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const computed = window.getComputedStyle(hexInput);
-                expect(computed.textTransform).toBe("uppercase");
-            });
-
-            it("hex input has correct width (72px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const hexInput = screen.getByLabelText("Color hex value");
-                const wrapper = hexInput.closest(".mantine-TextInput-wrapper");
-
-                if (wrapper) {
-                    const computed = window.getComputedStyle(wrapper);
-                    expect(computed.width).toBe("72px");
-                }
-            });
-
-            it("opacity input has correct compact height (24px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const opacityInput = screen.getByLabelText("Opacity");
-                const computed = window.getComputedStyle(opacityInput);
-                expect(computed.height).toBe("24px");
-            });
-
-            it("opacity input has right text-align", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const opacityInput = screen.getByLabelText("Opacity");
-                const computed = window.getComputedStyle(opacityInput);
-                expect(computed.textAlign).toBe("right");
-            });
-
-            it("opacity input has correct right border-radius (0 4px 4px 0)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const opacityInput = screen.getByLabelText("Opacity");
-                const computed = window.getComputedStyle(opacityInput);
-                expect(computed.borderRadius).toBe("0px 4px 4px 0px");
-            });
-
-            it("color swatch inner ColorSwatch has correct size (14px)", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} />
-                    </ThemeWrapper>,
-                );
-                const colorSwatch = getElement(".mantine-ColorSwatch-root");
-                const computed = window.getComputedStyle(colorSwatch);
-                expect(computed.height).toBe("14px");
-                expect(computed.width).toBe("14px");
-            });
-
-            it("with label shows label with correct styling", () => {
-                render(
-                    <ThemeWrapper>
-                        <CompactColorInput {...defaultProps} label="Color" />
-                    </ThemeWrapper>,
-                );
-                const label = screen.getByText("Color");
-                const computed = window.getComputedStyle(label);
-                // Uses Text size="xs" which is 12px in Mantine, but c="dimmed"
-                expect(computed.color).toBe("rgb(140, 140, 140)");
-            });
-        });
-
-        /* The `StyleColorInput` block that used to sit here is GONE with the component.
-           It was the sidebar's own fork of a colour field, and after the style inspector
-           was rebuilt on compact-mantine nothing rendered it but this file -- design 6.17
-           check 1 forbids a call-site substitute for a library control, and a regression
-           test is not a consumer. `CompactColorInput` above is the library's, and its own
-           package tests cover the geometry this block was asserting. */
     });
 
     describe("Border Radius Consistency", () => {

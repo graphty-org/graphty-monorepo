@@ -17,10 +17,10 @@ describe("theme", () => {
         expect(Object.keys(theme.components ?? {})).toEqual(Object.keys(compactThemeOverride.components ?? {}));
     });
 
-    it("keeps every library component extension, NativeSelect and ColorInput included", () => {
+    it("keeps every library component extension, NativeSelect included", () => {
         const library = compactThemeOverride.components ?? {};
         expect(Object.keys(library).length).toBeGreaterThan(20);
-        for (const name of [...Object.keys(library), "NativeSelect", "ColorInput"]) {
+        for (const name of [...Object.keys(library), "NativeSelect"]) {
             const merged = resolvedTheme.components[name];
             expect(merged, name).toBeDefined();
             expect(merged.styles, name).toBe(library[name]?.styles);

@@ -9,7 +9,7 @@ import { createCompactTheme } from "@graphty/compact-mantine";
  * on Figma's dark primary blue measures 3.53:1, under the 4.5:1 WCAG 1.4.3 asks of text.
  *
  * The app adds nothing else. The neutral dark greys, the brand palette, every Mantine component
- * this app renders (NativeSelect and ColorInput included) and the stylesheet the theme injects
+ * this app renders (NativeSelect included) and the stylesheet the theme injects
  * all come from the library, so a fix to any of them lands in the library for every consumer.
  * If the app ever needs a theme value the library does not have, the value goes into the
  * library, not into a local override here.

@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../../src/common/direction.js";
 import { LOSS } from "../../../src/common/export.js";
+import { formatGmlReal } from "../../../src/common/format.js";
 import { ImportReportBuilder } from "../../../src/common/report.js";
 import { decodeChunks } from "../../../src/common/writer.js";
 import {
     DEFAULT_WEIGHT_KEY,
     gmlExporter,
-    gmlRealText,
     GRAPHICS_CONFLICT_CODE,
     GRAPHICS_OVERRIDDEN_CODE,
     INVALID_KEY_CODE,
@@ -96,14 +96,14 @@ describe("gmlExporter: plugin shape", () => {
     });
 
     it("formats reals with a decimal point and the NetworkX non-finite spellings", () => {
-        expect(gmlRealText(2)).toBe("2.0");
-        expect(gmlRealText(0.1)).toBe("0.1");
-        expect(gmlRealText(1e-7)).toBe("1.0e-7");
-        expect(gmlRealText(1e21)).toBe("1.0e+21");
-        expect(gmlRealText(Math.fround(0.1), "f32")).toBe("0.1");
-        expect(gmlRealText(Infinity)).toBe("+INF");
-        expect(gmlRealText(-Infinity)).toBe("-INF");
-        expect(gmlRealText(NaN)).toBe("NAN");
+        expect(formatGmlReal(2)).toBe("2.0");
+        expect(formatGmlReal(0.1)).toBe("0.1");
+        expect(formatGmlReal(1e-7)).toBe("1.0e-7");
+        expect(formatGmlReal(1e21)).toBe("1.0e+21");
+        expect(formatGmlReal(Math.fround(0.1), "f32")).toBe("0.1");
+        expect(formatGmlReal(Infinity)).toBe("+INF");
+        expect(formatGmlReal(-Infinity)).toBe("-INF");
+        expect(formatGmlReal(NaN)).toBe("NAN");
     });
 });
 

@@ -50,7 +50,7 @@ const NOSONAR_FORM = /NOSONAR\((S\d+)\): .{10,}/;
 const SETUP_FIX = "run `node tools/sonar-baseline.mjs --setup` once (the owner, with the admin token)";
 const TOKEN_FIX =
     "use the graphty-scan user's token (design/sonarqube/server-settings.md): log in as graphty-scan, " +
-    "My Account > Security > Generate token, and put it in .env as SONAR_TOKEN";
+    "My Account > Security > Generate token, and put it in .env as SONAR_SCAN_TOKEN";
 const RED = "\x1b[0;31m";
 const YELLOW = "\x1b[1;33m";
 const NC = "\x1b[0m";
@@ -333,7 +333,10 @@ async function checkSetup(run) {
     const cfg = loadConfig(run.top);
     await checkServer(run, cfg);
     if (!cfg.token)
-        throw run.blockSetup("no SONAR_TOKEN", "put SONAR_TOKEN=<graphty-scan's token> in the repository's .env");
+        throw run.blockSetup(
+            "no SONAR_SCAN_TOKEN",
+            "put SONAR_SCAN_TOKEN=<graphty-scan's token> in the repository's .env",
+        );
     if (!cfg.projectKey) throw run.blockSetup("no SONAR_PROJECT_KEY", "put SONAR_PROJECT_KEY=graphty-monorepo in .env");
 
     const api = client(cfg.host, cfg.token);
@@ -343,7 +346,7 @@ async function checkSetup(run) {
         throw run.blockSetup(`the token was rejected (${why})`, TOKEN_FIX);
     }
     if (me.permissions?.global?.includes("admin")) {
-        throw run.blockSetup("SONAR_TOKEN belongs to an administrator", TOKEN_FIX);
+        throw run.blockSetup("SONAR_SCAN_TOKEN belongs to an administrator", TOKEN_FIX);
     }
     const java = cfg.java || findOnPath("java");
     if (!java || !isExecutable(java)) {

@@ -22,7 +22,7 @@
 // "SonarQube burn-down" issue.
 //
 // The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
-// pnpm, gh, the build) runs with SONAR_TOKEN removed from its environment.
+// pnpm, gh, the build) runs with both tokens removed from its environment.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -159,7 +159,7 @@ async function syncGate(api, projects) {
 async function setup(cfg) {
     const status = await serverStatus(cfg.host);
     if (!status) throw new Error("the server at SONAR_HOST_URL does not answer");
-    const api = client(cfg.host, cfg.token);
+    const api = client(cfg.host, cfg.adminToken);
     const me = await api.call("api/users/current");
     if (!me.permissions?.global?.includes("admin")) {
         throw new Error("--setup creates projects and profiles: run it with an administrator's token");
@@ -418,12 +418,16 @@ const MODES = { "--setup": setup, "--once": pass, "--watch": watch };
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const mode = MODES[process.argv[2]];
     const cfg = loadConfig(ROOT);
-    const missing = ["host", "projectKey", "token"].filter((k) => !cfg[k]);
+    const missing = ["host", "projectKey", process.argv[2] === "--setup" ? "adminToken" : "token"].filter(
+        (k) => !cfg[k],
+    );
     if (!mode) {
         console.error("usage: node tools/sonar-baseline.mjs --setup | --once | --watch");
         process.exitCode = 2;
     } else if (missing.length) {
-        console.error(`missing ${missing.join(", ")}: set SONAR_HOST_URL, SONAR_PROJECT_KEY and SONAR_TOKEN in .env`);
+        console.error(
+            `missing ${missing.join(", ")}: set SONAR_HOST_URL, SONAR_PROJECT_KEY and SONAR_SCAN_TOKEN (SONAR_TOKEN, an admin token, for --setup) in .env`,
+        );
         process.exitCode = 1;
     } else {
         try {

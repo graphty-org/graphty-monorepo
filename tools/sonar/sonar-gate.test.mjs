@@ -157,7 +157,7 @@ const issue = (line, text, more = {}) => ({
 describe("sonar-gate: when it cannot check", () => {
     it("passes with the warning when the server is down, and sends no token", async () => {
         const dir = repo(HEAD_NEW);
-        const r = await gate(dir, { SONAR_HOST_URL: "http://127.0.0.1:9", SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: "http://127.0.0.1:9", SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.match(r.out, /SonarQube did NOT check this push/);
         assert.match(r.log, / skipped:unreachable /);
@@ -167,7 +167,7 @@ describe("sonar-gate: when it cannot check", () => {
         const s = await server();
         const dir = repo(HEAD_NEW);
         writeFileSync(join(dir, ".git/sonar/server-id"), "SOMEONE-ELSE\n");
-        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.match(r.log, / skipped:not-pinned-server /);
         assert.ok(
@@ -179,7 +179,7 @@ describe("sonar-gate: when it cannot check", () => {
     it("passes without contacting the server when no analyzable file changed", async () => {
         const s = await server();
         const dir = repo(BASE, { extra: { "notes.md": "docs only\n" } });
-        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.equal(s.seen.length, 0);
         assert.match(r.log, / passed /);
@@ -189,20 +189,20 @@ describe("sonar-gate: when it cannot check", () => {
         const s = await server();
         const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url });
         assert.equal(r.code, 1);
-        assert.match(r.out, /no SONAR_TOKEN/);
+        assert.match(r.out, /no SONAR_SCAN_TOKEN/);
         assert.match(r.log, / blocked /);
     });
 
     it("blocks when the token is rejected", async () => {
         const s = await server();
-        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_TOKEN: "wrong" });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: "wrong" });
         assert.equal(r.code, 1);
         assert.match(r.out, /token was rejected/);
     });
 
     it("blocks an administrator's token", async () => {
         const s = await server({ admin: true });
-        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 1);
         assert.match(r.out, /belongs to an administrator/);
     });
@@ -212,7 +212,7 @@ describe("sonar-gate: the verdict", () => {
     it("blocks a new issue on a changed line, and never leaks the token", async () => {
         const s = await server({ local: [issue(2, "    return 1 + 1;")] });
         const dir = repo(HEAD_NEW);
-        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 1);
         assert.match(r.out, /src\/a\.ts:2 {2}typescript:S1234 {2}Do not do that\./);
         assert.match(r.log, / blocked /);
@@ -243,7 +243,7 @@ describe("sonar-gate: the verdict", () => {
                 ],
             },
         });
-        const r = await gate(repo(head), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(repo(head), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0, r.out);
         assert.match(r.out, /Existing issues on lines you touched/);
         assert.doesNotMatch(r.out, /Possibly introduced/);
@@ -252,7 +252,7 @@ describe("sonar-gate: the verdict", () => {
 
     it("warns, without blocking, about a new issue on an unchanged line", async () => {
         const s = await server({ local: [issue(4, "export const b = 2;")] });
-        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.match(r.out, /Possibly introduced by this push/);
     });
@@ -260,7 +260,7 @@ describe("sonar-gate: the verdict", () => {
     it("passes a code smell with a Sonar-Bypass trailer on HEAD, and logs it", async () => {
         const s = await server({ local: [issue(2, "    return 1 + 1;")] });
         const dir = repo(HEAD_NEW, { message: "change\n\nSonar-Bypass: the server mislabels this rule" });
-        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.match(r.out, /Sonar-Bypass: the server mislabels this rule/);
         assert.match(r.log, / bypassed /);
@@ -275,7 +275,7 @@ describe("sonar-gate: the verdict", () => {
         const dir = repo(HEAD_NEW, { message: "change\n\nSonar-Bypass: in a hurry today, sorry" });
         for (const shape of [{ local: [vuln] }, { hotspots: [hotspot] }]) {
             const s = await server(shape);
-            const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+            const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
             assert.equal(r.code, 1, r.out);
             assert.match(r.out, /does not cover vulnerabilities or security hotspots/);
         }
@@ -284,7 +284,7 @@ describe("sonar-gate: the verdict", () => {
     it("blocks a NOSONAR without a rule and a reason", async () => {
         const s = await server();
         const head = BASE.replace("return 1;", "return 1; // NOSONAR");
-        const r = await gate(repo(head), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(repo(head), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 1);
         assert.match(r.out, /NOSONAR\(<rule>\): <reason/);
     });
@@ -293,7 +293,7 @@ describe("sonar-gate: the verdict", () => {
         const s = await server();
         const dir = repo(HEAD_NEW);
         writeFileSync(join(dir, "src/a.ts"), `${HEAD_NEW}// edited\n`);
-        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        const r = await gate(dir, { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
         assert.equal(r.code, 0);
         assert.match(r.out, /not checked: src\/a\.ts has uncommitted changes/);
         assert.match(r.log, /left-out:1/);

@@ -302,7 +302,7 @@ The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on t
 SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
 fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
 already has never blocks, even on a touched line. It runs in the background while the tests run.
-The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
+The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_SCAN_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
 come from the environment or `.env`; never print the token or put it on a command line. Design and
 the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
 

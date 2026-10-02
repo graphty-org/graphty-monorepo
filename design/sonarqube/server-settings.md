@@ -51,8 +51,10 @@ These need the owner's account or a server-wide change, which no script in this 
 
 - **Create the `graphty-scan` user** with "Browse" and "Execute Analysis" on `graphty-monorepo`
   and `graphty-monorepo-local` and no global permission, generate a user token for it, and put it
-  in `.env` as `SONAR_TOKEN`. Until then the gate blocks every push that changes an analyzable
-  file, with "SONAR_TOKEN belongs to an administrator", because the token in use is `admin`'s.
+  in `.env` as `SONAR_SCAN_TOKEN`. Until then the gate blocks every push that changes an
+  analyzable file with "no SONAR_SCAN_TOKEN". The admin token keeps the name `SONAR_TOKEN` (the
+  SonarQube MCP server and `--setup` use it), so a shell profile exporting it never stands in for
+  the scan token.
 - **Delete the probe project** `graphty-monorepo-baseline-probe`, left from the backlog
   measurement (`backlog.md`).
 - **TLS in front of the server**, then switch `SONAR_HOST_URL` to `https`.

@@ -185,7 +185,7 @@ would notice until the weekly review.
 | No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                          | Passes, with the boxed warning; no token is sent                                                 |
 | The step's 900 s deadline passes                                                                                                  | Passes, with the boxed warning                                                                   |
 | No pinned server id (`--setup` never ran on this machine)                                                                         | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
-| No `SONAR_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
+| No `SONAR_SCAN_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
 | The token is rejected (401), or belongs to an administrator (`api/users/current`)                                                 | Blocks, saying how to create the `graphty-scan` token                                            |
 | No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, scanner or server error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
 | Findings that block (section "What blocks")                                                                                       | Blocks                                                                                           |
@@ -212,7 +212,7 @@ from it, so a gate that has quietly stopped running shows up within a week.
 ### Configuration and secrets
 
 **Where the values come from.** The gate and the baseline job read `SONAR_HOST_URL`,
-`SONAR_PROJECT_KEY` and `SONAR_TOKEN` from the environment first, then from the repository's
+`SONAR_PROJECT_KEY` and `SONAR_SCAN_TOKEN` (the scan token; `SONAR_TOKEN`, an admin token, only for `--setup`) from the environment first, then from the repository's
 `.env`. They never source `.env`: they read those three keys (and `SONAR_SCANNER_JAVA_EXE_PATH`,
 which is not a secret) line by line and ignore everything
 else, so nothing else in the file (the Chromatic tokens and the rest) is run or exported. `.env`
@@ -225,7 +225,7 @@ the owner's shell starts, which this design cannot prevent. The local key is
 and the `Authorization` header that `tools/sonar/api.mjs` builds for each Web API call. Every
 Web API call in the gate and in the baseline job goes through that one helper, so no `curl` ever
 carries the token on a command line. `tools/prepush.sh` never reads or exports it. Every other
-child process (git, pnpm, the build, `gh`) is started with `SONAR_TOKEN` removed from its
+child process (git, pnpm, the build, `gh`) is started with both tokens removed from its
 environment. The token is never an argument (arguments show in `ps`), never logged, and never
 passed to servherd in `env` or `command` (servherd stores both and shows them in
 `servherd_info`); the baseline loop reads it itself. The scanner never runs with `-X`,
@@ -357,7 +357,7 @@ analyzed yet (the server's last analysis revision, from `api/project_analyses/se
 1. moves its own detached worktree, `.worktrees/sonar-baseline`, to `origin/master` (never the
    main checkout);
 2. runs `pnpm install --frozen-lockfile` and the nx build (cached), so type-aware rules resolve
-   cross-package types the same way the gate's scans do, with `SONAR_TOKEN` removed from their
+   cross-package types the same way the gate's scans do, with both tokens removed from their
    environment;
 3. downloads that commit's `coverage-*` artifacts from the CI run of the master push for that
    commit (`gh run list --workflow ci.yml --branch master --event push --commit <sha>`, then `gh

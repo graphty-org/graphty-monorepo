@@ -1,5 +1,7 @@
-// The one place that handles the SonarQube token. Reads SONAR_HOST_URL, SONAR_PROJECT_KEY and
-// SONAR_TOKEN (environment first, then the repository's .env, parsed line by line -- never
+// The one place that handles the SonarQube tokens. Reads SONAR_HOST_URL, SONAR_PROJECT_KEY,
+// SONAR_SCAN_TOKEN (the non-admin graphty-scan user's, for every scan) and SONAR_TOKEN (an
+// administrator's, only for --setup; a separate name so an admin token exported by a shell profile
+// never stands in for the scan token) (environment first, then the repository's .env, parsed line by line -- never
 // sourced), makes every Web API call with the token in a header, and starts the scanner with the
 // token in that child's environment only. Every other child gets an environment without it.
 //
@@ -11,7 +13,7 @@ import { join } from "node:path";
 
 // The three settings, plus where the scanner's Java is (not a secret; read the same way because a
 // git hook does not see what ~/.bashrc exports when the push comes from a non-login shell).
-const KEYS = ["SONAR_HOST_URL", "SONAR_PROJECT_KEY", "SONAR_TOKEN", "SONAR_SCANNER_JAVA_EXE_PATH"];
+const KEYS = ["SONAR_HOST_URL", "SONAR_PROJECT_KEY", "SONAR_SCAN_TOKEN", "SONAR_TOKEN", "SONAR_SCANNER_JAVA_EXE_PATH"];
 
 // Read one KEY=value from .env text, without running or exporting anything else in it.
 function parseEnvFile(text, key) {
@@ -39,7 +41,7 @@ function parseEnvFile(text, key) {
  * The settings, from the environment first, then the repository's .env.
  * @param root - The repository root holding `.env`.
  * @param env - The environment to read first.
- * @returns `{ host, projectKey, token, tokenSource, java }`, each undefined when unset.
+ * @returns `{ host, projectKey, token, tokenSource, adminToken, java }`, each undefined when unset.
  */
 export function loadConfig(root, env = process.env) {
     let text = "";
@@ -65,8 +67,9 @@ export function loadConfig(root, env = process.env) {
     return {
         host: withoutTrailingSlash(out.SONAR_HOST_URL),
         projectKey: out.SONAR_PROJECT_KEY,
-        token: out.SONAR_TOKEN,
-        tokenSource: src.SONAR_TOKEN,
+        token: out.SONAR_SCAN_TOKEN,
+        tokenSource: src.SONAR_SCAN_TOKEN,
+        adminToken: out.SONAR_TOKEN,
         java: out.SONAR_SCANNER_JAVA_EXE_PATH,
     };
 }
@@ -80,11 +83,12 @@ const withoutTrailingSlash = (url) => {
 /**
  * An environment for every child that is not the scanner.
  * @param env - The environment to copy.
- * @returns A copy of `env` without SONAR_TOKEN.
+ * @returns A copy of `env` without either token.
  */
 export function envWithoutToken(env = process.env) {
     const rest = { ...env };
     delete rest.SONAR_TOKEN;
+    delete rest.SONAR_SCAN_TOKEN;
     return rest;
 }
 

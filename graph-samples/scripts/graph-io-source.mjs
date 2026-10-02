@@ -127,3 +127,38 @@ export function datasetOf(snapshot, spec) {
         dropped: { loops, parallel },
     };
 }
+
+/**
+ * The fromEdgeArrays input of a dataset: what scripts/build-hosted.mjs publishes.
+ * @param {object} data - a DatasetData from datasetOf()
+ * @returns {object} directed, nodeCount, ids, src, dst and the node columns
+ */
+export function edgeArraysOf(data) {
+    const m = data.edges.length / 2;
+    const src = new Uint32Array(m);
+    const dst = new Uint32Array(m);
+    for (let e = 0; e < m; e++) {
+        src[e] = data.edges[2 * e];
+        dst[e] = data.edges[2 * e + 1];
+    }
+    const nodeColumns = {};
+    for (const [name, column] of Object.entries(data.columns)) {
+        switch (column.dtype) {
+            case "dict":
+                nodeColumns[name] = {
+                    data: column.codes.map((code) => column.categories[code]),
+                    decl: { dtype: "dict", options: column.categories },
+                };
+                break;
+            case "string":
+                nodeColumns[name] = { data: column.values, decl: { dtype: "string", role: column.role } };
+                break;
+            case "u8":
+                nodeColumns[name] = Uint8Array.from(column.values);
+                break;
+            default:
+                nodeColumns[name] = Float64Array.from(column.values, (value) => value ?? Number.NaN);
+        }
+    }
+    return { directed: data.directed, nodeCount: data.nodeCount, ids: data.ids, src, dst, nodeColumns };
+}

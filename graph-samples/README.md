@@ -162,11 +162,14 @@ const roads = await fetchDataset("road-ny"); // a GraphSnapshot, with its node c
 const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" });
 ```
 
-| Name         | Graph                                                    | Nodes / edges       | Download | Ground truth |
-| ------------ | -------------------------------------------------------- | ------------------- | -------- | ------------ |
-| `road-ny`    | New York City roads, DIMACS (directed, lengths, lon/lat) | 264,346 / 733,846   | 9.4 MB   |              |
-| `ogbn-arxiv` | arXiv CS citations, OGB (directed, `year`)               | 169,343 / 1,166,243 | 10.6 MB  | `subject`    |
-| `com-dblp`   | DBLP co-authorship, SNAP                                 | 317,080 / 1,049,866 | 15.6 MB  |              |
+| Name               | Graph                                                    | Nodes / edges       | Download | Ground truth |
+| ------------------ | -------------------------------------------------------- | ------------------- | -------- | ------------ |
+| `road-ny`          | New York City roads, DIMACS (directed, lengths, lon/lat) | 264,346 / 733,846   | 9.4 MB   |              |
+| `ogbn-arxiv`       | arXiv CS citations, OGB (directed, `year`)               | 169,343 / 1,166,243 | 10.6 MB  | `subject`    |
+| `com-dblp`         | DBLP co-authorship, SNAP                                 | 317,080 / 1,049,866 | 15.6 MB  |              |
+| `go-basic`         | Gene Ontology, term to parent (directed, `obsolete`)     | 48,340 / 71,496     | 1.4 MB   | `namespace`  |
+| `disease-ontology` | Human Disease Ontology, disease to parent (directed)     | 14,854 / 17,479     | 0.3 MB   |              |
+| `bioplex3-hct116`  | BioPlex 3.0 HCT116 protein interactions (directed, x/y)  | 10,251 / 75,346     | 0.7 MB   |              |
 
 `https://graphty.app/data/graph-samples/v1/index.json` lists the same metadata with each file's URL.
 

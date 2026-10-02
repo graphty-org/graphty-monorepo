@@ -153,3 +153,27 @@ Source:   https://snap.stanford.edu/data/bigdata/communities/com-dblp.ungraph.tx
 Also:     https://snap.stanford.edu/data/com-DBLP.html
 Cite:     J. Yang and J. Leskovec, Defining and evaluating network communities based on ground-truth, IEEE ICDM 2012, 745-754. doi:10.1109/ICDM.2012.138; dblp computer science bibliography, https://dblp.org
 License:  unclear: SNAP states no license for its files; the underlying dblp data is CC0 1.0 (https://dblp.org/db/about/copyright.html).
+
+----------------------------------------------------------------------------------------------------
+Gene Ontology (go-basic) (hosted: go-basic)
+
+Source:   https://release.geneontology.org/2026-08-05/ontology/go-basic.obo
+Also:     https://geneontology.org/docs/download-ontology/ (release archive: https://release.geneontology.org/)
+Cite:     The Gene Ontology Consortium, The Gene Ontology knowledgebase in 2023, Genetics 224(1), iyad031 (2023). doi:10.1093/genetics/iyad031; GO release 2026-07-26 (release.geneontology.org/2026-08-05)
+License:  CC BY 4.0 (Gene Ontology Consortium; https://geneontology.org/docs/go-citation-policy/).
+
+----------------------------------------------------------------------------------------------------
+Human Disease Ontology (DOID) (hosted: disease-ontology)
+
+Source:   https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/v2026-09-30/src/ontology/doid.obo
+Also:     https://disease-ontology.org/
+Cite:     L. M. Schriml et al., The Human Disease Ontology 2022 update, Nucleic Acids Research 50(D1), D1255-D1261 (2022). doi:10.1093/nar/gkab1063
+License:  CC0 1.0 (the ontology's own terms:license).
+
+----------------------------------------------------------------------------------------------------
+BioPlex 3.0 protein interactions in HCT116 cells (hosted: bioplex3-hct116)
+
+Source:   https://www.ndexbio.org/v3/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf
+Also:     https://www.ndexbio.org/viewer/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf; https://bioplex.hms.harvard.edu/
+Cite:     E. L. Huttlin et al., Dual proteome-scale networks reveal cell-specific remodeling of the human interactome, Cell 184(11), 3022-3040 (2021). doi:10.1016/j.cell.2021.04.011; NDEx network e96d063d-237a-11ea-bb65-0ac135e8bacf
+License:  CC0 1.0 (the network's rights: Waiver-No rights reserved (CC0), holder Harvard Medical School).

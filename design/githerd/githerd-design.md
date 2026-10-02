@@ -127,7 +127,7 @@ Registered in `.mcp.json`:
 ```
 
 **MCP startup never waits for the daemon.** The launcher answers `initialize` and `tools/list` at
-once from its static list of the five session tools, and runs `ensureDaemon()` in the background.
+once from its static list of the six session tools, and runs `ensureDaemon()` in the background.
 A `tools/call` waits up to 45 seconds for the daemon, then returns `isError` with "githerd daemon
 not reachable: <reason>". A session therefore always has the tools, and a slow cold start shows up
 as a clear error instead of a missing server.
@@ -158,7 +158,9 @@ as a clear error instead of a missing server.
    - after every `start`, turn on pm2's autorestart. servherd 1.1 starts every process with pm2's
      autorestart off and has no option to change it, so the launcher deletes the pm2 process
      servherd just made (`servherd-githerd`) and starts it again through pm2 directly, with the same
-     name, command, cwd and `PORT` and autorestart on. servherd still lists, logs, stops and
+     name, command, cwd and `PORT` and autorestart on. That pm2 is the one servherd depends on, run
+     with servherd's `PM2_HOME` (`~/.servherd/pm2` unless set); pm2's own default, `~/.pm2`, would
+     start a second pm2 that servherd never sees. servherd still lists, logs, stops and
      restarts it by name, and `servherd restart` keeps pm2's options; only a `start` with a changed
      command resets them, which is why the step follows every `start`. When servherd gains an
      autorestart option, that option replaces this step;

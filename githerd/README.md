@@ -20,6 +20,17 @@ The design is `design/githerd/githerd-design.md`; the build order is
 node githerd/bin/githerd.mjs version    # or: pnpm exec githerd version
 ```
 
+## The MCP server
+
+Claude Code starts `node githerd/bin/githerd-mcp.mjs` (the launcher). It lists the session tools at
+once, then finds or starts the repository's one daemon through servherd under the name `githerd`,
+running the default branch's copy of this package from `.githerd/versions/`, and forwards tool
+calls to it. Its errors go to `.githerd/launcher.log`.
+
+`githerd/scripts/smoke-launcher.sh` checks the launcher against the real servherd: five launchers
+at once in a scratch repository, under the name `githerd-smoke`, must share one daemon; it removes
+its entry at the end.
+
 ## Development
 
 ```bash

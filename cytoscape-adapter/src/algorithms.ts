@@ -17,6 +17,8 @@
  */
 
 import {
+    accelerated,
+    type AcceleratedAlgorithms,
     adamicAdarForPairs,
     adamicAdarPrediction,
     adamicAdarScore,
@@ -132,6 +134,7 @@ import type {
     NodeSingular,
 } from "cytoscape";
 
+import { type Backend, backendOf, gpuFor, type GpuMode, recording } from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -154,6 +157,12 @@ export interface AlgorithmOptions {
     readonly weight?: SnapshotOptions["weight"];
     /** Write each element's value (what `score` or `cluster` returns) into `data(field)`. */
     readonly field?: string;
+    /**
+     * The `...Async` methods only: "auto" (default) runs on the GPU when "@graphty/cytoscape/webgpu" is imported and
+     * a device is available, "off" runs on the CPU, "require" throws instead of running on the CPU when no device
+     * is available. The synchronous methods always run on the CPU and reject "require".
+     */
+    readonly gpu?: GpuMode;
 }
 
 /** Per-element values, keyed by element. */
@@ -233,10 +242,56 @@ interface Ctx {
     readonly weighted: boolean;
     /** The caller's options without the adapter's own: what goes to the algorithm unchanged. */
     readonly rest: Record<string, unknown>;
+    /**
+     * Runs one of the algorithms the GPU can answer: synchronously on the CPU for the plain methods, through the
+     * dispatcher of `@graphty/algorithms` (GPU or CPU, a promise) for the `...Async` methods.
+     */
+    call<K extends GpuKey>(key: K, ...args: Parameters<Dispatch[K]>): Out<K> | Promise<Out<K>>;
+}
+
+/** The @graphty/algorithms dispatcher's methods: the ones an accelerator can answer, by the dispatcher's names. */
+type Dispatch = Omit<AcceleratedAlgorithms, "accelerator">;
+type Out<K extends keyof Dispatch> = Awaited<ReturnType<Dispatch[K]>>;
+
+/**
+ * The CPU functions behind the dispatcher methods the WebGPU accelerator implements (its `createAccelerator`
+ * list), under the dispatcher's names. The plain methods call these directly, so they stay synchronous.
+ */
+const CPU = {
+    breadthFirstSearch,
+    sssp: dijkstra,
+    bellmanFord,
+    allPairsShortestPath,
+    pageRank,
+    personalizedPageRank,
+    eigenvectorCentrality,
+    katzCentrality,
+    hits,
+    closenessCentrality,
+    betweennessCentrality,
+    edgeBetweennessCentrality,
+    connectedComponents,
+    weaklyConnectedComponents,
+    triangleCount,
+    labelPropagation,
+    labelPropagationSynchronous,
+} satisfies Partial<{ [K in keyof Dispatch]: (...args: Parameters<Dispatch[K]>) => Out<K> }>;
+
+type GpuKey = keyof typeof CPU;
+
+/**
+ * Applies a function to a value that is either plain (a CPU run) or a promise (a dispatcher run).
+ * @param x - the value or its promise
+ * @param f - the function
+ * @returns f(x), or its promise
+ */
+function then<T, U>(x: T | Promise<T>, f: (t: T) => U): U | Promise<U> {
+    return x instanceof Promise ? x.then(f) : f(x);
 }
 
 // Options the adapter consumes and converts; everything else passes through to the algorithm.
 const ADAPTER_KEYS = new Set([
+    "gpu",
     "directed",
     "weight",
     "field",
@@ -448,21 +503,6 @@ function maskOf(c: Ctx, sel: NodeSelection | undefined): U32 | undefined {
         maskSet(m, i, true);
     }
     return m;
-}
-
-/**
- * The numeric fields of a result (iterations, converged, modularity, ...), to pass on beside the accessors.
- * @param r - the algorithm's result
- * @returns its number and boolean fields
- */
-function scalars(r: object): Record<string, number | boolean> {
-    const out: Record<string, number | boolean> = {};
-    for (const [k, v] of Object.entries(r)) {
-        if (typeof v === "number" || typeof v === "boolean") {
-            out[k] = v;
-        }
-    }
-    return out;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -738,6 +778,85 @@ function labelsOf(c: Ctx, clusters: string | readonly NodeSelection[] | undefine
     return labels;
 }
 
+/** The all-pairs result. */
+interface ApspResult {
+    distance(from: ElementRef, to: ElementRef): number;
+    /** The path; throws when the run was made with `paths: false`. */
+    path(from: ElementRef, to: ElementRef): CollectionReturnValue;
+    readonly hasNegativeCycle: boolean;
+}
+
+/**
+ * The all-pairs accessors.
+ * @param c - the context
+ * @param r - the distance matrix, with the path walkers when it was run with `paths: true`
+ * @returns the accessors
+ */
+function apsp(
+    c: Ctx,
+    r: Out<"allPairsShortestPath"> & {
+        pathTo?: (i: number, j: number) => Uint32Array;
+        pathEdges?: (i: number, j: number) => Uint32Array;
+    },
+): ApspResult {
+    const pair = (a: ElementRef, b: ElementRef): [number, number] | undefined => {
+        const i = lookup(c, a);
+        const j = lookup(c, b);
+        return i === undefined || j === undefined ? undefined : [i, j];
+    };
+    return {
+        hasNegativeCycle: r.hasNegativeCycle,
+        distance: (a, b) => {
+            const p = pair(a, b);
+            return p === undefined ? Infinity : r.dist[p[0] * r.n + p[1]];
+        },
+        path: (a, b) => {
+            const { pathTo, pathEdges } = r;
+            if (pathTo === undefined || pathEdges === undefined) {
+                throw new Error(`${c.name}: path() needs the paths: true option (the default)`);
+            }
+            const p = pair(a, b);
+            return p === undefined ? c.cy.collection() : pathOf(c, pathTo(p[0], p[1]), pathEdges(p[0], p[1]));
+        },
+    };
+}
+
+/** A PageRank result. */
+type RankResult = ScoreResult & { rank(node: ElementRef): number | undefined; iterations: number; converged: boolean };
+
+/**
+ * A PageRank result from scores.
+ * @param c - the context
+ * @param r - the run
+ * @returns the result
+ */
+function ranked(c: Ctx, r: Out<"pageRank">): RankResult {
+    return scored(c, r.scores, { rank: accessor(c, r.scores), iterations: r.iterations, converged: r.converged });
+}
+
+/**
+ * A label-propagation partition. The GPU result has no `iterations` / `converged` (the WebGPU label propagation
+ * does not report them), so both are undefined when the GPU ran.
+ * @param c - the context
+ * @param r - the run
+ * @returns the partition
+ */
+function propagated(
+    c: Ctx,
+    r: Out<"labelPropagation"> & { iterations?: number; converged?: boolean },
+): Partition<LpaReport> {
+    return partition(c, r.labels, { iterations: r.iterations, converged: r.converged });
+}
+
+/** What label propagation reports beside the partition; undefined when the GPU ran. */
+interface LpaReport {
+    iterations: number | undefined;
+    converged: boolean | undefined;
+}
+
+/** A result that is plain from a plain method and a promise from an `...Async` method. */
+type MaybeAsync<T> = T | Promise<T>;
+
 // ---------------------------------------------------------------------------------------------------------------
 // Option types
 
@@ -829,9 +948,11 @@ function bestLevel(modularities: ArrayLike<number>): number {
 
 const IMPLS = {
     // Traversal and paths
-    breadthFirstSearch: (c: Ctx, o: WalkOptions): SearchResult => {
+    breadthFirstSearch: (c: Ctx, o: WalkOptions): MaybeAsync<SearchResult> => {
         const target = indexOf(c.cs, o.target, `${c.name}: target`);
-        return search(c, breadthFirstSearch(c.s, req(c, o.root, "root"), { ...c.rest, target }), target);
+        return then(c.call("breadthFirstSearch", c.s, req(c, o.root, "root"), { ...c.rest, target }), (r) =>
+            search(c, r, target),
+        );
     },
     directionOptimizedBfs: (c: Ctx, o: Rooted & DirectionOptimizedBfsOptions): SearchResult =>
         search(c, directionOptimizedBfs(c.s, req(c, o.root, "root"), c.rest), undefined),
@@ -847,15 +968,16 @@ const IMPLS = {
         const order = topologicalSort(c.s);
         return order === null ? null : nodesAt(c, order);
     },
-    dijkstra: (c: Ctx, o: Rooted & { readonly cutoff?: number }): PathsResult =>
-        paths(c, dijkstra(c.s, req(c, o.root, "root"), c.rest)),
+    dijkstra: (c: Ctx, o: Rooted & { readonly cutoff?: number }): PathsResult | Promise<PathsResult> =>
+        then(c.call("sssp", c.s, req(c, o.root, "root"), c.rest), (r) => paths(c, r)),
     bellmanFord: (
         c: Ctx,
         o: Rooted & { readonly cutoff?: number },
-    ): PathsResult & { readonly hasNegativeWeightCycle: boolean } => {
-        const r = bellmanFord(c.s, req(c, o.root, "root"), c.rest);
-        return { ...paths(c, r), hasNegativeWeightCycle: r.hasNegativeCycle };
-    },
+    ): MaybeAsync<PathsResult & { readonly hasNegativeWeightCycle: boolean }> =>
+        then(c.call("bellmanFord", c.s, req(c, o.root, "root"), c.rest), (r) => ({
+            ...paths(c, r),
+            hasNegativeWeightCycle: r.hasNegativeCycle,
+        })),
     bidirectionalDijkstra: (c: Ctx, o: PointToPoint): PointPathResult => {
         const r = bidirectionalDijkstra(c.s, req(c, o.root, "root"), req(c, o.goal, "goal"), c.rest);
         return { found: r.path.length > 0, distance: r.distance, path: pathOf(c, r.path, r.edges) };
@@ -874,29 +996,8 @@ const IMPLS = {
     allPairsShortestPath: (
         c: Ctx,
         _o: AlgorithmOptions & Omit<ApspOptions, "weights" | "weighted"> = {},
-    ): {
-        distance(from: ElementRef, to: ElementRef): number;
-        path(from: ElementRef, to: ElementRef): CollectionReturnValue;
-        readonly hasNegativeCycle: boolean;
-    } => {
-        const r = allPairsShortestPath(c.s, { paths: true, ...c.rest });
-        const pair = (a: ElementRef, b: ElementRef): [number, number] | undefined => {
-            const i = lookup(c, a);
-            const j = lookup(c, b);
-            return i === undefined || j === undefined ? undefined : [i, j];
-        };
-        return {
-            hasNegativeCycle: r.hasNegativeCycle,
-            distance: (a, b) => {
-                const p = pair(a, b);
-                return p === undefined ? Infinity : r.dist[p[0] * r.n + p[1]];
-            },
-            path: (a, b) => {
-                const p = pair(a, b);
-                return p === undefined ? c.cy.collection() : pathOf(c, r.pathTo(p[0], p[1]), r.pathEdges(p[0], p[1]));
-            },
-        };
-    },
+    ): MaybeAsync<ApspResult> =>
+        then(c.call("allPairsShortestPath", c.s, { paths: true, ...c.rest }), (r) => apsp(c, r)),
 
     // Centrality
     degreeCentrality: (
@@ -919,10 +1020,9 @@ const IMPLS = {
             /** Starting rank of each node. */
             readonly initialRanks?: (node: NodeSingular) => number;
         } = {},
-    ): ScoreResult & { rank(node: ElementRef): number | undefined; iterations: number; converged: boolean } => {
+    ): MaybeAsync<RankResult> => {
         const initialRanks = o.initialRanks && vectorOf(c, o.initialRanks, "initialRanks");
-        const r = pageRank(c.s, { ...c.rest, initialRanks, weighted: c.weighted });
-        return scored(c, r.scores, { rank: accessor(c, r.scores), iterations: r.iterations, converged: r.converged });
+        return then(c.call("pageRank", c.s, { ...c.rest, initialRanks, weighted: c.weighted }), (r) => ranked(c, r));
     },
     personalizedPageRank: (
         c: Ctx,
@@ -932,11 +1032,12 @@ const IMPLS = {
             /** Starting rank of each node. */
             readonly initialRanks?: (node: NodeSingular) => number;
         },
-    ): ScoreResult & { rank(node: ElementRef): number | undefined; iterations: number; converged: boolean } => {
+    ): MaybeAsync<RankResult> => {
         const p = vectorOf(c, o.personalization, "personalization");
         const initialRanks = o.initialRanks && vectorOf(c, o.initialRanks, "initialRanks");
-        const r = personalizedPageRank(c.s, p, { ...c.rest, initialRanks, weighted: c.weighted });
-        return scored(c, r.scores, { rank: accessor(c, r.scores), iterations: r.iterations, converged: r.converged });
+        return then(c.call("personalizedPageRank", c.s, p, { ...c.rest, initialRanks, weighted: c.weighted }), (r) =>
+            ranked(c, r),
+        );
     },
     deltaPageRank: (
         c: Ctx,
@@ -962,42 +1063,46 @@ const IMPLS = {
         c: Ctx,
         o: AlgorithmOptions &
             Omit<EigenvectorOptions, "startVector"> & { readonly startVector?: (node: NodeSingular) => number } = {},
-    ): ScoreResult & { iterations: number; converged: boolean } => {
+    ): MaybeAsync<ScoreResult & { iterations: number; converged: boolean }> => {
         const startVector = o.startVector && vectorOf(c, o.startVector, "startVector");
-        const r = eigenvectorCentrality(c.s, { ...c.rest, startVector });
-        return scored(c, r.scores, scalars(r) as { iterations: number; converged: boolean });
+        return then(c.call("eigenvectorCentrality", c.s, { ...c.rest, startVector }), (r) =>
+            scored(c, r.scores, { iterations: r.iterations, converged: r.converged }),
+        );
     },
     katzCentrality: (
         c: Ctx,
         _o: WeightedFlag<KatzOptions> = {},
-    ): ScoreResult & { iterations: number; converged: boolean } => {
-        const r = katzCentrality(c.s, { ...c.rest, weighted: c.weighted });
-        return scored(c, r.scores, { iterations: r.iterations, converged: r.converged });
-    },
+    ): MaybeAsync<ScoreResult & { iterations: number; converged: boolean }> =>
+        then(c.call("katzCentrality", c.s, { ...c.rest, weighted: c.weighted }), (r) =>
+            scored(c, r.scores, { iterations: r.iterations, converged: r.converged }),
+        ),
     hits: (
         c: Ctx,
         _o: WeightedFlag<HitsOptions> = {},
-    ): ScoreResult & {
-        hub(node: ElementRef): number | undefined;
-        authority(node: ElementRef): number | undefined;
-        iterations: number;
-        converged: boolean;
-    } => {
-        const r = hits(c.s, { ...c.rest, weighted: c.weighted });
-        return scored(c, r.authorities, {
-            hub: accessor(c, r.hubs),
-            authority: accessor(c, r.authorities),
-            iterations: r.iterations,
-            converged: r.converged,
-        });
-    },
+    ): MaybeAsync<
+        ScoreResult & {
+            hub(node: ElementRef): number | undefined;
+            authority(node: ElementRef): number | undefined;
+            iterations: number;
+            converged: boolean;
+        }
+    > =>
+        then(c.call("hits", c.s, { ...c.rest, weighted: c.weighted }), (r) =>
+            scored(c, r.authorities, {
+                hub: accessor(c, r.hubs),
+                authority: accessor(c, r.authorities),
+                iterations: r.iterations,
+                converged: r.converged,
+            }),
+        ),
     closenessCentrality: (
         c: Ctx,
         o: WeightedFlag<Omit<ClosenessOptions, "sources">> & { readonly sources?: NodeSelection } = {},
-    ): ScoreResult & { closeness(node: ElementRef): number | undefined } => {
+    ): MaybeAsync<ScoreResult & { closeness(node: ElementRef): number | undefined }> => {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
-        const r = closenessCentrality(c.s, { ...c.rest, sources, weighted: c.weighted });
-        return scored(c, r.scores, { closeness: accessor(c, r.scores) });
+        return then(c.call("closenessCentrality", c.s, { ...c.rest, sources, weighted: c.weighted }), (r) =>
+            scored(c, r.scores, { closeness: accessor(c, r.scores) }),
+        );
     },
     nodeClosenessCentrality: (
         c: Ctx,
@@ -1006,27 +1111,30 @@ const IMPLS = {
     betweennessCentrality: (
         c: Ctx,
         o: AlgorithmOptions & Omit<BetweennessOptions, "sources"> & { readonly sources?: NodeSelection } = {},
-    ): ScoreResult & {
-        betweenness(node: ElementRef): number | undefined;
-        betweennessNormalized(node: ElementRef): number | undefined;
-    } => {
+    ): MaybeAsync<
+        ScoreResult & {
+            betweenness(node: ElementRef): number | undefined;
+            betweennessNormalized(node: ElementRef): number | undefined;
+        }
+    > => {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
-        const r = betweennessCentrality(c.s, { ...c.rest, sources });
-        // Cytoscape's `betweenness` counts ordered pairs, so on an undirected graph it is twice the NetworkX
-        // convention `score` follows. The result does not say which scale it is in, so the factor is rebuilt here
-        // from the rules in @graphty/algorithms' BetweennessOptions.normalized.
-        const n = c.s.nodeCount;
-        const pairs = o.endpoints === true ? n * (n - 1) : (n - 1) * (n - 2);
-        const unordered = c.s.directed ? 1 : 2;
-        const toOrderedPairs = o.normalized === true && pairs > 0 ? pairs : unordered;
-        const raw = r.scores.map((x) => x * toOrderedPairs);
-        const max = raw.reduce((m, x) => Math.max(m, x), 0);
-        return scored(c, r.scores, {
-            betweenness: accessor(c, raw),
-            betweennessNormalized: accessor(
-                c,
-                raw.map((x) => (max === 0 ? 0 : x / max)),
-            ),
+        return then(c.call("betweennessCentrality", c.s, { ...c.rest, sources }), (r) => {
+            // Cytoscape's `betweenness` counts ordered pairs, so on an undirected graph it is twice the NetworkX
+            // convention `score` follows. The result does not say which scale it is in, so the factor is rebuilt here
+            // from the rules in @graphty/algorithms' BetweennessOptions.normalized.
+            const n = c.s.nodeCount;
+            const pairs = o.endpoints === true ? n * (n - 1) : (n - 1) * (n - 2);
+            const unordered = c.s.directed ? 1 : 2;
+            const toOrderedPairs = o.normalized === true && pairs > 0 ? pairs : unordered;
+            const raw = Float64Array.from(r.scores, (x) => x * toOrderedPairs);
+            const max = raw.reduce((m, x) => Math.max(m, x), 0);
+            return scored(c, r.scores, {
+                betweenness: accessor(c, raw),
+                betweennessNormalized: accessor(
+                    c,
+                    raw.map((x) => (max === 0 ? 0 : x / max)),
+                ),
+            });
         });
     },
     edgeBetweennessCentrality: (
@@ -1036,16 +1144,18 @@ const IMPLS = {
             readonly k?: number;
             readonly sources?: NodeSelection;
         } = {},
-    ): ScoreResult => {
+    ): MaybeAsync<ScoreResult> => {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
-        return scored(c, edgeBetweennessCentrality(c.s, { ...c.rest, sources }).scores, {}, true);
+        return then(c.call("edgeBetweennessCentrality", c.s, { ...c.rest, sources }), (r) =>
+            scored(c, r.scores, {}, true),
+        );
     },
 
     // Components and structure
-    connectedComponents: (c: Ctx, _o: AlgorithmOptions = {}): Partition =>
-        partition(c, connectedComponents(c.s).labels, {}),
-    weaklyConnectedComponents: (c: Ctx, _o: AlgorithmOptions = {}): Partition =>
-        partition(c, weaklyConnectedComponents(c.s).labels, {}),
+    connectedComponents: (c: Ctx, _o: AlgorithmOptions = {}): MaybeAsync<Partition> =>
+        then(c.call("connectedComponents", c.s), (r) => partition(c, r.labels, {})),
+    weaklyConnectedComponents: (c: Ctx, _o: AlgorithmOptions = {}): MaybeAsync<Partition> =>
+        then(c.call("weaklyConnectedComponents", c.s), (r) => partition(c, r.labels, {})),
     stronglyConnectedComponents: (c: Ctx, _o: AlgorithmOptions = {}): Partition =>
         partition(c, stronglyConnectedComponents(c.s).labels, {}),
     condensation: (c: Ctx, _o: AlgorithmOptions = {}): Partition<{ condensed: DerivedGraph }> => {
@@ -1067,14 +1177,16 @@ const IMPLS = {
     triangleCount: (
         c: Ctx,
         _o: AlgorithmOptions = {},
-    ): ScoreResult & { coefficient(node: ElementRef): number | undefined; total: number; transitivity: number } => {
-        const r = triangleCount(c.s);
-        return scored(c, r.perNode, {
-            coefficient: accessor(c, r.coefficient),
-            total: r.total,
-            transitivity: r.transitivity,
-        });
-    },
+    ): MaybeAsync<
+        ScoreResult & { coefficient(node: ElementRef): number | undefined; total: number; transitivity: number }
+    > =>
+        then(c.call("triangleCount", c.s), (r) =>
+            scored(c, r.perNode, {
+                coefficient: accessor(c, r.coefficient),
+                total: r.total,
+                transitivity: r.transitivity,
+            }),
+        ),
     isBipartite: (
         c: Ctx,
         _o: AlgorithmOptions & BipartiteOptions = {},
@@ -1124,20 +1236,13 @@ const IMPLS = {
         const r = leiden(c.s, c.rest);
         return partition(c, r.labels, { modularity: r.modularity, iterations: r.iterations });
     },
-    labelPropagation: (
-        c: Ctx,
-        _o: WeightedFlag<LabelPropagationOptions> = {},
-    ): Partition<{ iterations: number; converged: boolean }> => {
-        const r = labelPropagation(c.s, { ...c.rest, weighted: c.weighted });
-        return partition(c, r.labels, { iterations: r.iterations, converged: r.converged });
-    },
+    labelPropagation: (c: Ctx, _o: WeightedFlag<LabelPropagationOptions> = {}): MaybeAsync<Partition<LpaReport>> =>
+        then(c.call("labelPropagation", c.s, { ...c.rest, weighted: c.weighted }), (r) => propagated(c, r)),
     labelPropagationSynchronous: (
         c: Ctx,
         _o: AlgorithmOptions & { readonly maxIterations?: number } = {},
-    ): Partition<{ iterations: number; converged: boolean }> => {
-        const r = labelPropagationSynchronous(c.s, { ...c.rest, weighted: c.weighted });
-        return partition(c, r.labels, { iterations: r.iterations, converged: r.converged });
-    },
+    ): MaybeAsync<Partition<LpaReport>> =>
+        then(c.call("labelPropagationSynchronous", c.s, { ...c.rest, weighted: c.weighted }), (r) => propagated(c, r)),
     labelPropagationSemiSupervised: (
         c: Ctx,
         o: WeightedFlag<LabelPropagationOptions> & {
@@ -1308,7 +1413,13 @@ type Tail<T extends readonly unknown[]> = T extends readonly [unknown, ...infer 
 
 /** The methods `cytoscape.use(graphtyCytoscape)` adds to every collection and to the core. */
 export type GraphtyAlgorithms = {
-    [K in keyof Impls as `graphty${Capitalize<K>}`]: (...options: Tail<Parameters<Impls[K]>>) => ReturnType<Impls[K]>;
+    [K in keyof Impls as `graphty${Capitalize<K>}`]: (
+        ...options: Tail<Parameters<Impls[K]>>
+    ) => Awaited<ReturnType<Impls[K]>>;
+} & {
+    [K in AsyncKey as `graphty${Capitalize<K>}Async`]: (
+        ...options: Tail<Parameters<Impls[K]>>
+    ) => Promise<Awaited<ReturnType<Impls[K]>> & { readonly backend: Backend }>;
 };
 
 // Module augmentation is how a Cytoscape extension types its methods. The interfaces are empty because the members
@@ -1329,17 +1440,53 @@ function methodName(key: string): string {
     return `graphty${key.charAt(0).toUpperCase()}${key.slice(1)}`;
 }
 
-/** Every method name `cytoscape.use(graphtyCytoscape)` registers on collections and the core. */
+/** Every synchronous method name `cytoscape.use(graphtyCytoscape)` registers on collections and the core. */
 export const ALGORITHM_NAMES: readonly string[] = Object.keys(IMPLS).map(methodName);
+
+// The algorithms whose implementation goes through `c.call`, i.e. those the dispatcher can send to the GPU.
+const ASYNC_KEYS = [
+    "breadthFirstSearch",
+    "dijkstra",
+    "bellmanFord",
+    "allPairsShortestPath",
+    "pageRank",
+    "personalizedPageRank",
+    "eigenvectorCentrality",
+    "katzCentrality",
+    "hits",
+    "closenessCentrality",
+    "betweennessCentrality",
+    "edgeBetweennessCentrality",
+    "connectedComponents",
+    "weaklyConnectedComponents",
+    "triangleCount",
+    "labelPropagation",
+    "labelPropagationSynchronous",
+] as const satisfies readonly (keyof Impls)[];
+
+/** The algorithms with an `...Async` method: those the WebGPU accelerator can run. */
+type AsyncKey = (typeof ASYNC_KEYS)[number];
+
+/** Every `...Async` method name: the algorithms the WebGPU accelerator can run. */
+export const ASYNC_ALGORITHM_NAMES: readonly string[] = ASYNC_KEYS.map((k) => `${methodName(k)}Async`);
+
+/** The algorithm table a run calls through: the CPU functions, or the dispatcher. */
+type Algos = Record<GpuKey, (...args: never[]) => unknown>;
 
 /**
  * Runs one algorithm over a collection.
  * @param eles - the collection
  * @param key - the algorithm
  * @param options - the caller's options
- * @returns the algorithm's result
+ * @param algos - the CPU functions (a synchronous run) or the dispatcher (an asynchronous one)
+ * @returns the algorithm's result (a promise through the dispatcher) and the snapshot it ran on
  */
-function run(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
+function run(
+    eles: Collection,
+    key: keyof Impls,
+    options: AlgorithmOptions,
+    algos: Algos,
+): { result: unknown; snapshot: GraphSnapshot } {
     const name = methodName(key);
     if (options.weight !== undefined && UNWEIGHTED.has(key)) {
         throw new Error(`${name}: this algorithm reads no edge weights; remove the weight option`);
@@ -1354,8 +1501,52 @@ function run(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {})
         field: options.field,
         weighted: options.weight !== undefined,
         rest,
+        call: (k, ...args) => (algos[k] as (...a: unknown[]) => never)(...args),
     };
-    return (IMPLS[key] as (c: Ctx, o: AlgorithmOptions) => unknown)(c, options);
+    return { result: (IMPLS[key] as (c: Ctx, o: AlgorithmOptions) => unknown)(c, options), snapshot: cs.snapshot };
+}
+
+/**
+ * Runs an algorithm synchronously on the CPU.
+ * @param eles - the collection
+ * @param key - the algorithm
+ * @param options - the caller's options
+ * @returns the result
+ */
+function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
+    if (options.gpu === "require") {
+        throw new Error(`${methodName(key)}: runs on the CPU; call ${methodName(key)}Async for the GPU`);
+    }
+    return run(eles, key, options, CPU as unknown as Algos).result;
+}
+
+/**
+ * Runs an algorithm through the @graphty/algorithms dispatcher, on the core's GPU when it has one, and reports
+ * which implementation answered. A GPU failure after the run started is thrown, never finished on the CPU.
+ * @param eles - the collection
+ * @param key - the algorithm
+ * @param options - the caller's options
+ * @returns the result with `backend`
+ */
+async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
+    const d = await gpuFor(coreOf(eles), options.gpu);
+    const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
+    const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null) as unknown as Algos);
+    let value: object;
+    try {
+        value = (await result) as object;
+    } finally {
+        if (d.gpu !== null && typeof options.weight === "function") {
+            // a weight function bypasses the snapshot cache, so nothing else would release this upload
+            d.gpu.accelerator.release(snapshot);
+        }
+    }
+    const backend = backendOf(
+        d,
+        rec?.used() ?? false,
+        "the options or the graph need the CPU implementation (the @graphty/algorithms dispatcher does not say which)",
+    );
+    return Object.assign(value, { backend });
 }
 
 /** The registration function Cytoscape's `use()` calls. */
@@ -1369,10 +1560,19 @@ export function registerAlgorithms(cytoscape: Register): void {
     for (const key of Object.keys(IMPLS) as (keyof Impls)[]) {
         const name = methodName(key);
         cytoscape("collection", name, function (this: Collection, options?: AlgorithmOptions) {
-            return run(this, key, options);
+            return runSync(this, key, options);
         });
         cytoscape("core", name, function (this: Core, options?: AlgorithmOptions) {
-            return run(this.elements(), key, options);
+            return runSync(this.elements(), key, options);
+        });
+    }
+    for (const key of ASYNC_KEYS) {
+        const name = `${methodName(key)}Async`;
+        cytoscape("collection", name, function (this: Collection, options?: AlgorithmOptions) {
+            return runAsync(this, key, options);
+        });
+        cytoscape("core", name, function (this: Core, options?: AlgorithmOptions) {
+            return runAsync(this.elements(), key, options);
         });
     }
 }

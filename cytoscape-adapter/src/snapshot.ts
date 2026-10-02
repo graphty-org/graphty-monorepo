@@ -41,6 +41,8 @@ interface CacheEntry {
 interface CoreState {
     version: number;
     entries: CacheEntry[];
+    /** Told about every snapshot the cache lets go of (a GPU device releases its upload of it). */
+    dropListeners: Set<(dropped: readonly GraphSnapshot[]) => void>;
 }
 
 const state = new WeakMap<Core, CoreState>();
@@ -63,17 +65,46 @@ export function coreOf(eles: Collection | NodeCollection | EdgeCollection): Core
 function coreState(cy: Core): CoreState {
     let s = state.get(cy);
     if (s === undefined) {
-        const created: CoreState = { version: 0, entries: [] };
+        const created: CoreState = { version: 0, entries: [], dropListeners: new Set() };
         // ponytail: "data" fires for any field, so writing a result into data also invalidates; a per-field
         // check would need Cytoscape to say which field changed, and it does not.
         cy.on("add remove data move", () => {
             created.version++;
+            drop(created, created.entries);
             created.entries = [];
         });
         state.set(cy, created);
         s = created;
     }
     return s;
+}
+
+/**
+ * Tells the drop listeners about entries leaving the cache.
+ * @param cs - the core's cache state
+ * @param gone - the entries
+ */
+function drop(cs: CoreState, gone: readonly CacheEntry[]): void {
+    if (gone.length > 0) {
+        const snapshots = gone.map((e) => e.value.snapshot);
+        for (const listener of cs.dropListeners) {
+            listener(snapshots);
+        }
+    }
+}
+
+/**
+ * Subscribes to the snapshots a core's cache lets go of.
+ * @param cy - the core
+ * @param listener - called with the dropped snapshots
+ * @returns the unsubscriber
+ */
+export function onSnapshotsDropped(cy: Core, listener: (dropped: readonly GraphSnapshot[]) => void): () => void {
+    const cs = coreState(cy);
+    cs.dropListeners.add(listener);
+    return () => {
+        cs.dropListeners.delete(listener);
+    };
 }
 
 /**
@@ -95,6 +126,10 @@ export function toSnapshot(eles: Collection, options: SnapshotOptions = {}): Cyt
         return hit.value;
     }
     const value = build(eles, directed, options.weight);
+    drop(
+        cs,
+        cs.entries.filter((e) => e.key === key),
+    );
     cs.entries = [...cs.entries.filter((e) => e.key !== key), { key, eles, version: cs.version, value }];
     return value;
 }

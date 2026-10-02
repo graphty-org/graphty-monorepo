@@ -12,9 +12,18 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js",
             "default": "./dist/index.js"
+        },
+        "./webgpu": {
+            "types": "./dist/webgpu.d.ts",
+            "node": "./dist/webgpu-node.js",
+            "import": "./dist/webgpu.js",
+            "default": "./dist/webgpu.js"
         }
     },
-    "sideEffects": false,
+    "sideEffects": [
+        "./dist/webgpu.js",
+        "./dist/webgpu-node.js"
+    ],
     "files": [
         "dist/",
         "!dist/*.tsbuildinfo",
@@ -48,7 +57,8 @@
         "cytoscape",
         "cytoscape-extension",
         "forceatlas2",
-        "graph-format"
+        "graph-format",
+        "webgpu"
     ],
     "license": "MIT",
     "bugs": {

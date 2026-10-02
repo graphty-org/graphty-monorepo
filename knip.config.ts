@@ -68,11 +68,12 @@ const config: KnipConfig = {
 
         // cytoscape-adapter package (@graphty/cytoscape): Cytoscape.js extensions over the graphty packages
         "cytoscape-adapter": {
-            entry: ["src/index.ts!", "test/**/*.test.ts"],
+            // the root, and the browser and Node builds of the "./webgpu" entry
+            entry: ["src/index.ts!", "src/webgpu.ts!", "src/webgpu-node.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
-            // A declared optional peer, linked from the workspace so pnpm does not auto-install a registry
-            // copy; nothing imports it yet (a caller passes its accelerator in).
+            // An OPTIONAL peer imported only by the "./webgpu" entry, which is what an optional peer is for; knip
+            // reports every referenced optional peer, so it is ignored by name (as graphty-element does)
             ignoreDependencies: ["@graphty/webgpu-graph-algorithms"],
         },
 

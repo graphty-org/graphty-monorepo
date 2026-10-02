@@ -46,6 +46,7 @@ import type {
     Position,
 } from "cytoscape";
 
+import { type Backend, backendOf, cpuWithoutAsking, gpuFor, type GpuMode } from "./gpu.js";
 import { type CytoscapeSnapshot, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
 /** Options of every "graphty-*" layout. Options not listed here go to the @graphty/layout function unchanged. */
@@ -77,7 +78,16 @@ export interface GraphtyLayoutOptions {
     readonly randomize?: boolean;
     /** Simulations with `animate: true`: iterations per frame. Default 1. */
     readonly refresh?: number;
-    /** Simulations: a GPU accelerator from @graphty/webgpu-graph-algorithms `createAccelerator`; default the CPU. */
+    /**
+     * Simulations: "auto" (default) runs on the core's GPU when "@graphty/cytoscape/webgpu" is imported and a device
+     * is available (the run is then asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when
+     * `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran.
+     */
+    readonly gpu?: GpuMode;
+    /**
+     * Simulations: an accelerator the caller built and owns (for example the `createAccelerator` of
+     * `@graphty/webgpu-graph-algorithms`); overrides `gpu`. null forces the CPU.
+     */
     readonly accelerator?: LayoutAccelerator | null;
     /** shell: the shells, innermost first. */
     readonly nlist?: readonly NodeSelection[];
@@ -103,6 +113,8 @@ interface LayoutThis {
     options: ConstructorOptions;
     stopped: boolean;
     looping: boolean;
+    /** Simulations: which implementation ran and why, set before layoutready. */
+    backend?: Backend;
     emit(event: string | { type: string; layout: LayoutThis }, params?: unknown[]): LayoutThis;
     one(events: string, handler: EventHandler): LayoutThis;
 }
@@ -308,11 +320,54 @@ function stepToEnd(sim: LayoutSimulation, layout: LayoutThis): void | Promise<vo
 }
 
 /**
- * Runs a simulation layout.
+ * Runs a simulation layout: on the caller's accelerator, on the CPU when no GPU is enabled (synchronously), or on
+ * the core's GPU once one is acquired. The decision is made before the simulation starts; a GPU failure after that
+ * is reported as layouterror, never finished on the CPU.
  * @param layout - the layout
  * @param type - the simulation type
  */
 function runSimulation(layout: LayoutThis, type: SimulationType): void {
+    const o = layout.options;
+    layout.stopped = false;
+    if (o.accelerator !== undefined) {
+        layout.backend =
+            o.accelerator === null
+                ? { ran: "cpu", reason: "accelerator: null was passed", device: null }
+                : { ran: "gpu", reason: null, device: o.accelerator.kind };
+        simulate(layout, type, o.accelerator);
+        return;
+    }
+    const reason = cpuWithoutAsking(o.gpu);
+    if (reason !== null) {
+        layout.backend = { ran: "cpu", reason, device: null };
+        simulate(layout, type, null);
+        return;
+    }
+    layout.looping = true;
+    gpuFor(o.cy, o.gpu)
+        .then((d) => {
+            layout.looping = false;
+            layout.backend = backendOf(d, d.gpu !== null, "");
+            if (layout.stopped) {
+                layout.emit({ type: "layoutstop", layout });
+                return;
+            }
+            simulate(layout, type, d.gpu?.accelerator ?? null);
+        })
+        .catch((error: unknown) => {
+            layout.looping = false;
+            layout.emit("layouterror", [error]);
+            layout.emit({ type: "layoutstop", layout });
+        });
+}
+
+/**
+ * Runs a simulation on an accelerator (null: the CPU).
+ * @param layout - the layout
+ * @param type - the simulation type
+ * @param accelerator - the accelerator
+ */
+function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutAccelerator | null): void {
     const o = layout.options;
     const cs = layoutSnapshot(o);
     const s = cs.snapshot;
@@ -343,7 +398,7 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
     const sim = createSimulation(
         type,
         { ...graphtyOptions(o), scale: radius, center, iterationsPerStep: 1 },
-        o.accelerator ?? null,
+        accelerator,
     );
     sim.load(s, pos);
     if (anyLocked) {
@@ -369,7 +424,6 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         layout.emit({ type: "layoutstop", layout });
     };
 
-    layout.stopped = false;
     if (o.animate !== true) {
         const done = (): void => {
             layout.looping = false;

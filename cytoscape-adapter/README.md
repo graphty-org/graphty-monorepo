@@ -36,24 +36,24 @@ cy.graphtyLouvain(); // the core method runs over cy.elements(): an array of nod
 
 ## Layouts
 
-| Name                           | Kind       | Options of its own                                                                                                                  |
-| ------------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `graphty-random`               | static     | `seed`                                                                                                                              |
-| `graphty-circular`             | static     |                                                                                                                                     |
-| `graphty-spiral`               | static     | `resolution`, `equidistant`                                                                                                         |
-| `graphty-grid`                 | static     | `columns`                                                                                                                           |
-| `graphty-shell`                | static     | `nlist`: the shells, innermost first, each a selector or a collection                                                               |
-| `graphty-bipartite`            | static     | `top`: selector or collection of the first line (default: every other node); `align`, `aspectRatio`                                 |
-| `graphty-multipartite`         | static     | `subsets`: a node data field naming each node's layer (default `"subset"`), or the layers as selectors or collections; `align`      |
-| `graphty-bfs`                  | static     | `start`: selector or collection of the start node (default the first node); `align`. Throws on a disconnected graph                 |
-| `graphty-radial`               | static     | `root`: selector or collection of the centre node (default the node with the most neighbours)                                       |
-| `graphty-planar`               | static     | Throws when the graph is not planar                                                                                                 |
-| `graphty-spectral`             | static     | `seed`                                                                                                                              |
-| `graphty-kamada-kawai`         | static     | `weight`. Memory grows with the square of the node count                                                                            |
-| `graphty-arf`                  | static     | `seed`, `scaling`, `a`, `maxIter`                                                                                                   |
-| `graphty-forceatlas2`          | simulation | `weight`, `maxIter` (100), `scalingRatio`, `gravity`, `strongGravity`, `linlog`, `distributedAction`, `jitterTolerance`             |
-| `graphty-fruchterman-reingold` | simulation | `weight`, `iterations` (50), `k`                                                                                                    |
-| `graphty-spring-electrical`    | simulation | Needs `accelerator` (there is no CPU implementation): `springLength`, `springCoefficient`, `gravity`, `dragCoefficient`, `timeStep` |
+| Name                           | Kind       | Options of its own                                                                                                                                 |
+| ------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty-random`               | static     | `seed`                                                                                                                                             |
+| `graphty-circular`             | static     |                                                                                                                                                    |
+| `graphty-spiral`               | static     | `resolution`, `equidistant`                                                                                                                        |
+| `graphty-grid`                 | static     | `columns`                                                                                                                                          |
+| `graphty-shell`                | static     | `nlist`: the shells, innermost first, each a selector or a collection                                                                              |
+| `graphty-bipartite`            | static     | `top`: selector or collection of the first line (default: every other node); `align`, `aspectRatio`                                                |
+| `graphty-multipartite`         | static     | `subsets`: a node data field naming each node's layer (default `"subset"`), or the layers as selectors or collections; `align`                     |
+| `graphty-bfs`                  | static     | `start`: selector or collection of the start node (default the first node); `align`. Throws on a disconnected graph                                |
+| `graphty-radial`               | static     | `root`: selector or collection of the centre node (default the node with the most neighbours)                                                      |
+| `graphty-planar`               | static     | Throws when the graph is not planar                                                                                                                |
+| `graphty-spectral`             | static     | `seed`                                                                                                                                             |
+| `graphty-kamada-kawai`         | static     | `weight`. Memory grows with the square of the node count                                                                                           |
+| `graphty-arf`                  | static     | `seed`, `scaling`, `a`, `maxIter`                                                                                                                  |
+| `graphty-forceatlas2`          | simulation | `weight`, `maxIter` (100), `scalingRatio`, `gravity`, `strongGravity`, `linlog`, `distributedAction`, `jitterTolerance`                            |
+| `graphty-fruchterman-reingold` | simulation | `weight`, `iterations` (50), `k`                                                                                                                   |
+| `graphty-spring-electrical`    | simulation | Needs a GPU (there is no CPU implementation; see [WebGPU](#webgpu)): `springLength`, `springCoefficient`, `gravity`, `dragCoefficient`, `timeStep` |
 
 Any option not listed in the next section is passed to the @graphty/layout function of the same
 name unchanged.
@@ -72,7 +72,8 @@ name unchanged.
 | `dim`                                                                                 | `2`          | `3` runs the layout in 3D and projects the result onto the x-y plane                                                                                                                                  |
 | `randomize`                                                                           | `true`       | Simulations: start from random positions in the box, or (`false`) from the current ones                                                                                                               |
 | `refresh`                                                                             | `1`          | Simulations with `animate: true`: iterations per frame                                                                                                                                                |
-| `accelerator`                                                                         | none (CPU)   | Simulations: a WebGPU accelerator from `createAccelerator` in @graphty/webgpu-graph-algorithms                                                                                                        |
+| `gpu`                                                                                 | `"auto"`     | Simulations: `"auto"`, `"off"` or `"require"`; see [WebGPU](#webgpu)                                                                                                                                  |
+| `accelerator`                                                                         | none         | Simulations: an accelerator you built and own (`createAccelerator` in @graphty/webgpu-graph-algorithms); overrides `gpu`; `null` forces the CPU                                                       |
 
 Locked nodes never move. The simulations also treat them as fixed while computing, so the rest of
 the graph arranges itself around them; with a locked node present the simulation keeps the
@@ -84,7 +85,7 @@ Compound parent nodes are not laid out; Cytoscape sizes them from their children
 ## Events
 
 `layoutstart`, `layoutready` and `layoutstop`, in that order, on the layout and on the core. An
-asynchronous run (a simulation with an `accelerator`) that fails emits `layouterror`, whose
+asynchronous run (a simulation on a GPU) that fails emits `layouterror`, whose
 handler receives the error as its second argument, followed by `layoutstop`. A synchronous
 failure (a non-planar graph for `graphty-planar`, a selector that matches nothing) throws from
 `run()`.
@@ -163,6 +164,70 @@ Not exposed: `bipartiteFlowNetwork` (it builds a graph from id lists, not from a
 `update()` of the incremental `DeltaPageRank` engines (a changed Cytoscape graph is a new
 snapshot, so only the one-shot run is offered, as `graphtyDeltaPageRank`, with `priority: true`
 for `PriorityDeltaPageRank`).
+
+## WebGPU
+
+WebGPU is optional. Install `@graphty/webgpu-graph-algorithms` (and, under Node, the `webgpu`
+package, which is Dawn) and import one more module, once:
+
+```ts
+import "@graphty/cytoscape/webgpu";
+
+const r = await cy.elements().graphtyPageRankAsync();
+r.rank("#a");
+r.backend; // { ran: "gpu", reason: null, device: "nvidia nvidia-geforce-rtx-4070-super" }
+cy.layout({ name: "graphty-forceatlas2" }).run(); // now on the GPU; listen for layoutstop
+```
+
+That import is the whole integration. Each core acquires one device the first time it needs one,
+reuses it for every later call, acquires a new one after the device is lost, and releases it on
+`cy.destroy()`. The same import works in a browser and under Node (the package's `node` export
+condition picks Dawn). Without it nothing imports the GPU package, so an application that never
+uses WebGPU builds without it installed.
+
+**Which methods.** Seventeen algorithms have an asynchronous twin, `graphty<Name>Async`
+(`ASYNC_ALGORITHM_NAMES` lists them): breadth-first search, Dijkstra, Bellman-Ford, all-pairs
+shortest paths, PageRank, personalized PageRank, eigenvector, Katz, HITS, closeness, betweenness
+and edge betweenness centrality, connected and weakly connected components, triangle count, and
+both label propagations. They take the same options and return the same result as the plain
+method, plus `backend`. The plain methods stay synchronous and always run on the CPU. Of the
+layouts, the three simulations use the GPU; the static layouts have no GPU implementation.
+
+**Which ran, and why.** `backend` is `{ ran: "gpu" | "cpu", reason, device }` on an `...Async`
+result, and on the layout object (`layout.backend`) once a simulation has started. `reason` says why
+the CPU ran:
+
+- WebGPU is not enabled (the module above was not imported), or `gpu: "off"` was passed.
+- No usable device: no WebGPU in this runtime, no adapter, a software-only adapter (refused by
+  default, being usually slower than the CPU; `enableWebGpu({ acceptSoftware: true })` accepts it),
+  or a device that fails the GPU package's correctness check.
+- The options or the graph need the CPU implementation. @graphty/algorithms' dispatcher decides this
+  per call: for example PageRank with `initialRanks`, personalized PageRank on a graph with a node
+  that has no out-edges, eigenvector centrality on a directed or bipartite graph, all-pairs shortest
+  paths with `paths: true` (the default; pass `paths: false` to let the GPU answer, and `path()`
+  then throws), breadth-first search with a `target`.
+
+**Modes.** Every `...Async` method and every simulation takes `gpu`: `"auto"` (default) as above;
+`"off"` for the CPU; `"require"` to throw (or emit `layouterror`) instead of running on the CPU
+when no device is available. A plain method rejects `"require"`.
+
+**Errors are never hidden.** The GPU-or-CPU decision is made before any work starts. A failure
+after that, such as a device lost in the middle of a run, rejects the call (or emits
+`layouterror`); it is never finished quietly on the CPU. The next call acquires a new device.
+
+**Precision.** GPU results are single precision. Against the CPU they agree to the tolerances the
+GPU package documents: about 1e-5 relative for PageRank (after the same number of iterations),
+paths, closeness and weighted all-pairs distances; 1e-4 for betweenness; exactly for components,
+breadth-first depths, triangle counts and unweighted distances. Label propagation breaks ties
+differently on the two, so partitions can differ; the GPU result has no `iterations` or
+`converged`. The power-iteration methods stop at their own convergence on each side, and the two
+packages read `tolerance` differently for PageRank (the GPU stops at an L1 change below
+`tolerance` times the node count, the CPU below `tolerance`), so at the same options the GPU
+usually stops sooner.
+
+`enableWebGpu(options)` and `disableWebGpu()` are exported from `@graphty/cytoscape/webgpu`.
+`enableWebGpu` takes `acceptSoftware` and, under Node, `adapter` (a substring of the Dawn adapter
+name, such as `"llvmpipe"`).
 
 ## Using the graph-format snapshot directly
 

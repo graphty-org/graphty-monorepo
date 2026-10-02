@@ -7,6 +7,10 @@
  * cytoscape.use(graphtyCytoscape);
  * cy.layout({ name: "graphty-forceatlas2" }).run();
  * cy.elements().graphtyPageRank().rank("#a");
+ *
+ * import "@graphty/cytoscape/webgpu"; // optional: the ...Async methods and the simulations then use WebGPU
+ * const r = await cy.elements().graphtyPageRankAsync();
+ * r.backend.ran; // "gpu" or "cpu", with r.backend.reason saying why
  * ```
  */
 
@@ -16,6 +20,7 @@ import { registerLayouts } from "./layouts.js";
 export {
     ALGORITHM_NAMES,
     type AlgorithmOptions,
+    ASYNC_ALGORITHM_NAMES,
     type CutResult,
     type ElementRef,
     type GraphtyAlgorithms,
@@ -27,6 +32,7 @@ export {
     type ScoreResult,
     type SearchResult,
 } from "./algorithms.js";
+export { type Backend, type GpuMode } from "./gpu.js";
 export { type GraphtyLayoutOptions, LAYOUT_NAMES } from "./layouts.js";
 export { type CytoscapeSnapshot, type NodeSelection, type SnapshotOptions, toSnapshot, writeData } from "./snapshot.js";
 

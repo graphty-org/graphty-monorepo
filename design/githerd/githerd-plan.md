@@ -190,14 +190,16 @@ hears about a red master once per incident and by the paging policy; nothing on 
   `tools/list`; `ensureDaemon()` in the background exactly as design section 3.1 (root, config,
   run mode, warm path on `codeHash` and `loopTickAt`, the upgrade wait on `runsInFlight`, `git
   archive` into `versions/<version>-<hash8>/` with `version.json`, `start` for a new hash and
-  `restart` for a wedged loop, the rename-based lock steal, the 15 minute restart limit, the
-  timeout's log line and page); the stdio proxy with a 45 second wait; heartbeats keyed on
-  `process.ppid` that run `ensureDaemon()` on failure; quiet exit outside a git repository.
+  `restart` for a wedged loop, pm2 autorestart turned on after every `start`, the rename-based lock
+  steal, the 15 minute restart limit, the timeout's log line and page); the stdio proxy with a 45
+  second wait; heartbeats keyed on `process.ppid` that run `ensureDaemon()` on failure; quiet exit
+  outside a git repository.
 - Tests: `test/launcher.test.mjs` with `test/helpers/fake-servherd.mjs` (spawns the command
   detached, records pids, returns "existing" for an unchanged command, implements `restart`):
   `initialize` answers while the fake servherd sleeps 20 s; cold start; warm reuse without calling
   servherd; five launchers against a stale lock make exactly one servherd call; a lock without
-  `owner.json` younger than 60 s is not stolen; a hung-but-online daemon gets `restart`, not
+  `owner.json` younger than 60 s is not stolen; after a `start` the daemon's pm2 process is
+  re-created with autorestart on (a fake pm2 records it); a hung-but-online daemon gets `restart`, not
   `start`; a stale `lastPollOkAt` alone causes no restart; a new hash waits while a run is in
   flight; a worktree's local code never becomes the daemon; a killed daemon returns after a failed
   heartbeat; with `GITHERD_URL` set servherd is never called; stdout holds only JSON-RPC lines.
@@ -209,8 +211,8 @@ hears about a red master once per incident and by the paging policy; nothing on 
 
 - Files: `githerd/bin/githerd.mjs`: `status`, `ledger`, `runs`, `run <id>`, `mode`, `ack`, `veto`,
   `ensure`, `restart`, `dev`, `doctor [--send-test]` with the checks of design section 12
-  (including the signed `git commit-tree -S` with a 10 second timeout, the code hash, supervision,
-  and the deploy-key fingerprint warning).
+  (including the signed `git commit-tree -S` with a 10 second timeout, the code hash, supervision
+  as pm2 autorestart on the daemon's process, and the deploy-key fingerprint warning).
 - Tests: `test/cli.test.mjs` against a daemon on port 0 -- each command's output and exit code;
   `mode acting` is refused; `doctor` reports a missing gh, a hanging signer and a missing notify
   command; `dev` uses the `githerd-dev` name and `.githerd-dev/`.
@@ -228,14 +230,15 @@ hears about a red master once per incident and by the paging policy; nothing on 
 
 ### 1.16 Dry-run soak, part one
 
-- Precondition: the owner's prerequisites of design section 17 (supervision, notify credentials).
+- Precondition: the owner's prerequisites of design section 17 (notify credentials, MCP approval).
 - Run the daemon on the real repository with `GITHERD_CONFIG` set (until the config is on master)
   for at least 72 hours.
 - Pass criteria: zero writes outside `would-do`; every master red and recovery in the window paged
   as the policy says, checked against the Actions history, and at least one red incident replayed
   from fixtures through the live daemon if none happened; no lane verdict moved backwards; rate use
   under 5%; no orphan processes; the daemon killed by hand once with a session open and once with
-  none, with the recovery time recorded; one container restart survived.
+  none, with the recovery time recorded; after one container restart, the daemon came back when
+  the first session opened (there is no cron or systemd to bring it back sooner).
 - Retire `tmp/master-watch/watch.sh` and `stuck-prs.sh` once the soak passes.
 - Done: the soak results are in the PR description.
 

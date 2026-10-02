@@ -488,4 +488,26 @@ export default tseslint.config(
             },
         },
     },
+
+    // ============================================
+    // GITHERD: NODE TOOL
+    // ============================================
+    // githerd is plain .mjs with no build, all of it run in Node. As in visual-review, a JSDoc
+    // type is the only type annotation these files have, so it is allowed and read as TypeScript.
+    {
+        files: ["githerd/**/*.mjs"],
+        settings: {
+            jsdoc: {
+                mode: "typescript",
+            },
+        },
+        rules: {
+            "jsdoc/no-types": "off",
+        },
+        languageOptions: {
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
 );

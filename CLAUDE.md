@@ -146,6 +146,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, pages the owner on a red master, coordinates Claude sessions through MCP tools, starts bounded fix runs; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -162,6 +163,7 @@ graphty-monorepo/
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- githerd/              # @graphty/githerd: pipeline daemon, session coordination MCP tools, CLI
 |-- tools/                # Build scripts
 |   |-- merge-coverage.sh # Coverage report merging
 |   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
@@ -444,7 +446,7 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 23 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -454,6 +456,7 @@ The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
 - `graphty`
 - `remote-logger`
 - `visual-review`
+- `githerd`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`

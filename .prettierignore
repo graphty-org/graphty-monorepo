@@ -58,3 +58,8 @@ visual-review/trusted/vendor/
 # the frozen design record the framework cites.
 design/ui/framework/
 design/ui/object-first-ux/
+
+# The githerd design and plan are hand-formatted: prettier breaks inline code that wraps across
+# lines out of its list item and folds the paragraph after a list into the last item, which
+# changes what the steps say.
+design/githerd/

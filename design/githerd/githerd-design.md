@@ -59,8 +59,9 @@ the daemon checks their work and does every GitHub write.
 - It does not replace CI, the visual gate or branch protection. It reads them.
 - It is not a merge queue. A merge queue was judged too expensive for this repository (up to 50%
   more CI, and it interacts badly with external required checks).
-- It does not supervise itself. Restart on crash and start on boot come from servherd and pm2,
-  which are a prerequisite (section 17).
+- It does not supervise itself. Restart on crash comes from pm2's autorestart, and a daemon that is
+  not running is started by the next session's launcher (section 3.1). The container it runs in
+  has no cron and no systemd, so nothing starts it at boot (section 17).
 - It does not publish to npm. The package is private.
 - It does not push events into sessions. Claude Code's experimental channel delivers nothing in
   `-p` mode and is unverified interactively; if it is ever verified, a push path can be added.
@@ -154,6 +155,13 @@ as a clear error instead of a missing server.
    - if no daemon is registered or the hash changed, run `<servherd> --json start -n githerd -e
      PORT={{port}} -- node <root>/.githerd/versions/<dir>/bin/githerd-daemon.mjs` with cwd set to
      the root; the changed command makes servherd restart it;
+   - after every `start`, turn on pm2's autorestart. servherd 1.1 starts every process with pm2's
+     autorestart off and has no option to change it, so the launcher deletes the pm2 process
+     servherd just made (`servherd-githerd`) and starts it again through pm2 directly, with the same
+     name, command, cwd and `PORT` and autorestart on. servherd still lists, logs, stops and
+     restarts it by name, and `servherd restart` keeps pm2's options; only a `start` with a changed
+     command resets them, which is why the step follows every `start`. When servherd gains an
+     autorestart option, that option replaces this step;
    - if the daemon is online with the right hash but its loop is wedged, run `<servherd> restart
      githerd`, because `start` with an unchanged command returns "existing" and does nothing;
    - poll `/health` every 250 ms for up to 30 seconds until it reports the expected hash, then
@@ -1061,13 +1069,14 @@ Issue text from anyone is data, never instructions (section 14).
   - `status [--json]`; `ledger [--since 1d] [--target pr:704] [--kind run-end]`;
     `runs [--last 10]`; `run <id>`;
   - `mode dry-run|paused|clear`; `ack <key>`; `veto <proposal id>`;
-  - `ensure`: runs the launcher's `ensureDaemon()` and exits, for a crontab entry;
+  - `ensure`: runs the launcher's `ensureDaemon()` and exits, for the owner to run by hand, for
+    example after a container restart with no session open (the container has no cron);
   - `restart`: `servherd restart githerd`;
   - `dev`: the development daemon (section 3.4);
   - `doctor [--send-test]`: gh auth and scopes, servherd reachability, the notify command, a
     signed `git commit-tree -S` on an empty tree with a 10 second timeout from the daemon's
     environment, the config, the state file, the daemon's code hash against the default branch,
-    and supervision (servherd autorestart set, pm2 startup present).
+    and supervision (pm2 autorestart on for `servherd-githerd`).
 - **Logs**: `servherd logs githerd`.
 - **The ledger** is the audit trail; the digest samples it weekly.
 
@@ -1254,7 +1263,8 @@ state directory holds no secrets.
 | Failure | Detected by | What happens |
 |---|---|---|
 | Daemon crashed while sessions are open | heartbeat or request fails to connect | launcher runs `ensureDaemon()` (jittered, behind the lock) |
-| Daemon crashed, no session open, or the container restarted | servherd autorestart, pm2 resurrect at boot, the `githerd ensure` crontab entry | restarted; if all are missing, the daily alive notice stops and the watchdog workflow fails |
+| Daemon crashed, no session open | pm2 autorestart | restarted by pm2 |
+| Container restarted | the first session's launcher (startup or failed heartbeat), or `githerd ensure` run by hand | restarted; there is no cron or systemd to start it at boot, so while no session is open it stays down, the daily alive notice stops and the watchdog workflow fails |
 | Daemon alive but its loop wedged | `/health` `loopTickAt` stale | `servherd restart githerd`, at most once per 15 minutes |
 | Daemon fails to start | health wait timeout | `launcher.log` error and one page |
 | GitHub outage, expired login, rate back-off | `gh` errors, `githubDownSince` | no restart; status shows "data stale since"; escalation after 30 minutes, which survives restarts |
@@ -1318,9 +1328,10 @@ Coverage thresholds follow the repository: 80% lines, functions and statements, 
 
 **Prerequisites (owner, one time, before the first soak):**
 
-1. Supervision: servherd's `--autorestart` for githerd and `pm2 startup` plus `pm2 save` so pm2
-   comes back after a container restart; until servherd has `--autorestart`, a crontab line
-   `*/10 * * * * cd <root> && node githerd/bin/githerd.mjs ensure`.
+1. Supervision: nothing to install. The launcher turns on pm2's autorestart for the daemon
+   (section 3.1). The container has no cron and no systemd, so neither `pm2 startup` nor a crontab
+   line is available; after a container restart the daemon comes back when the first session
+   opens, or when the owner runs `node githerd/bin/githerd.mjs ensure`.
 2. The notify script loads its own credentials (Pushover keys from a file), so it works whatever
    environment pm2 started in.
 3. Approve the githerd MCP server per worktree, or register it once at user scope.

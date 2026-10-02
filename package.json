@@ -63,6 +63,7 @@
     },
     "devDependencies": {
         "@graphty/visual-review": "workspace:*",
+        "@graphty/githerd": "workspace:*",
         "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",

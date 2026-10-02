@@ -17,10 +17,11 @@
  * Usage: node tools/check-data-source-migration.mjs              (exit 1 on a problem)
  *        node tools/check-data-source-migration.mjs --self-test  (prove each rule fires)
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { scratchWorkspace } from "./scratch-workspace.mjs";
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";
@@ -116,11 +117,7 @@ function check(rootDir) {
  * that breaks it.
  */
 function selfTest() {
-    const dir = mkdtempSync(join(tmpdir(), "data-source-migration-"));
-    const write = (file, body) => {
-        mkdirSync(dirname(join(dir, file)), { recursive: true });
-        writeFileSync(join(dir, file), body);
-    };
+    const { dir, write } = scratchWorkspace("data-source-migration-");
     const expect = (label, want) => {
         const got = check(dir);
         if (JSON.stringify(got) !== JSON.stringify(want)) {

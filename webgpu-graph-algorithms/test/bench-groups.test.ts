@@ -45,7 +45,9 @@ describe("bench-groups", () => {
     });
 
     it("maps every WGSL module to a kernel id of the registry", () => {
-        const mapped = new Set([...kernelModules().values()].flat().map((f) => f.split("/src/")[1]));
+        const mapped = new Set(
+            [...kernelModules().values()].flat().map((f) => f.replace(/\\/g, "/").split("/src/")[1]),
+        );
         const modules = readdirSync(new URL("../src/wgsl", import.meta.url)).map((f) => `wgsl/${f}`);
         expect(modules.filter((m) => !mapped.has(m))).toEqual([]);
     });

@@ -241,7 +241,7 @@ export const XGMML_LOSS = Object.freeze({
     TEMPORAL_TEXT_DROPPED: TEMPORAL_TEXT_DROPPED_CODE,
     /** A role the format has no slot for, written as a plain att. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
-    /** A parents column beyond the first parent written as xlink:href references. */
+    /** A parents column not written because the snapshot also has a parent column. */
     PARENTS_DROPPED: PARENTS_DROPPED_CODE,
     /** A mutual pair written as two directed edges. */
     MUTUAL_EXPANDED: MUTUAL_EXPANDED_CODE,
@@ -263,4 +263,6 @@ export const XGMML_LOSS = Object.freeze({
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /** A string / dict column that reads back as the other storage class. */
     STORAGE_CLASS_CHANGED: STORAGE_CLASS_CODE,
+    /** Edge labels shaped `a (i) b` read back with an `interaction` column (Cytoscape's label alias). */
+    INTERACTION_FROM_LABEL: "W_XGMML_INTERACTION_FROM_LABEL",
 });

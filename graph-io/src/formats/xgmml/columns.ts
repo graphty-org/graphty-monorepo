@@ -326,10 +326,21 @@ export class ColumnSet {
         }
         let itemKind = elementKind(att.elementType);
         if (itemKind === null) {
+            const kinds = new Set<ScalarKind>();
             for (const child of children) {
                 const type = attType(child);
                 const kind: ScalarKind = type.kind === "list" || type.kind === "map" ? "string" : type.kind;
+                kinds.add(kind);
                 itemKind = itemKind === null ? kind : widenScalar(itemKind, kind);
+            }
+            if (kinds.size > 1) {
+                this.report.warnOnce(
+                    "coercion",
+                    XGMML_ISSUE.WIDENED,
+                    `the items of list "${name}" declare different types; they are read as ${itemKind ?? "string"}`,
+                    at,
+                    `${XGMML_ISSUE.WIDENED}:${this.domain}:${name}`,
+                );
             }
         }
         const items: Item[] = [];

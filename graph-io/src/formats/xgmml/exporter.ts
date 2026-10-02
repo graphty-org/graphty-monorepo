@@ -5,9 +5,10 @@
  * snapshot and `cy:directed` on every edge (Cytoscape ignores the root attribute), `type` plus
  * `cy:type` (and `cy:elementType`) on every att, positions as `graphics x y z` with y negated
  * back to screen coordinates, the importer's `graphics` json columns back as graphics attributes
- * and nested atts, containment as node-nested graphs (further parents as `xlink:href`
- * references), and newline and tab as character references unless `cytoscapeEscapes` asks for
- * Cytoscape's two-character form. It writes the graph's structure and columns, never styles.
+ * and nested atts, containment as each group node's nested graph of `xlink:href` member
+ * references (every node is declared at the top level, so the node order survives), and newline
+ * and tab as character references unless `cytoscapeEscapes` asks for Cytoscape's two-character
+ * form. It writes the graph's structure and columns, never styles.
  */
 
 import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
@@ -29,6 +30,7 @@ import {
     EDGE_ID_COLUMN,
     FORMAT,
     GRAPHICS_COLUMN,
+    INTERACTION_COLUMN,
     LABEL_COLUMN,
     META_KEY,
     NESTED_NETWORK_COLUMN,
@@ -44,6 +46,7 @@ import {
     XLINK_NAMESPACE,
     Z_COLUMN,
 } from "./constants.js";
+import { aliasesOf } from "./emit.js";
 
 /** The format-specific options of the XGMML exporter. */
 export interface XgmmlExportOptions {
@@ -78,7 +81,33 @@ const CAPABILITIES: ExportCapabilities = capabilities({
 const SLOT_ROLES: ReadonlySet<string> = new Set(["label", "id", "parent", "parents", "position"]);
 
 /** The names the importer gives the slot columns. */
-const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: LABEL_COLUMN, id: EDGE_ID_COLUMN });
+const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
+    label: LABEL_COLUMN,
+    id: EDGE_ID_COLUMN,
+    parent: PARENT_COLUMN,
+    position: POSITION_COLUMN,
+});
+
+/** Roles checkCapabilities() reports as not written (no slot in XGMML): the column is skipped. */
+const DROPPED_ROLES: ReadonlySet<string> = new Set([
+    "color",
+    "size",
+    "shape",
+    "thickness",
+    "start",
+    "end",
+    "timestamp",
+    "timestamps",
+    "spells",
+    "open",
+    "spellsOpen",
+]);
+
+/** XML attributes of `<node>` and `<edge>` the importer reads itself; a column of such a name is an att. */
+const READ_ATTRIBUTES: Readonly<Record<"node" | "edge", ReadonlySet<string>>> = {
+    node: new Set(["id", "label", "name"]),
+    edge: new Set(["id", "label", "name", "source", "target", "weight"]),
+};
 
 /** Roles never written as atts. */
 const STRUCTURAL_ROLES: ReadonlySet<string> = new Set([
@@ -153,9 +182,10 @@ interface ColumnWrite {
     readonly column: Column;
     readonly name: string;
     /** "att" for a typed att, or the importer-owned slot it goes to. */
-    readonly kind: "att" | "label" | "graphics" | "z" | "subgraph" | "nested" | "pointer" | "networks";
-    readonly type: string;
-    readonly cyType: string;
+    readonly kind: "att" | "xml" | "label" | "graphics" | "z" | "subgraph" | "nested" | "pointer" | "networks";
+    /** The att's type and cy:type; null when the source att had none. */
+    readonly type: string | null;
+    readonly cyType: string | null;
     readonly elementType: string | null;
 }
 
@@ -170,6 +200,8 @@ interface Plan {
     readonly folding: PairFolding;
     readonly weights: ExplicitWeights;
     readonly hierarchy: ChildrenCsr;
+    /** 1 for a node a traversal from the roots reaches; the others are written without parents. */
+    readonly reachable: Uint8Array;
     readonly position: Column | null;
     readonly edgeId: Column | null;
 }
@@ -181,6 +213,9 @@ interface Plan {
  * @returns [type, cy:type]
  */
 function typesOf(column: Column, dtype: string | null): [string, string] {
+    if (column.meta.components > 1) {
+        return ["string", "String"];
+    }
     switch (dtype) {
         case "bool":
             return ["boolean", "Boolean"];
@@ -270,7 +305,13 @@ function planTable(
         domain !== "graph" && (domain === "node" ? snapshot.nodes : snapshot.edges).byRole("label") !== null;
     for (const column of table) {
         const { meta } = column;
-        if (meta.role !== null && (STRUCTURAL_ROLES.has(meta.role) || meta.role === "id" || meta.role === "timeText")) {
+        if (
+            meta.role !== null &&
+            (STRUCTURAL_ROLES.has(meta.role) ||
+                DROPPED_ROLES.has(meta.role) ||
+                meta.role === "id" ||
+                meta.role === "timeText")
+        ) {
             continue;
         }
         const kind = slotOf(column, domain, hasLabelRole);
@@ -301,7 +342,7 @@ function planTable(
             attNotes(column, domain, note);
         }
         const item = meta.dtype === "list" ? meta.itemDtype : meta.dtype;
-        const [type, cyType] = meta.dtype === "list" ? ["list", "List"] : typesOf(column, item);
+        const [type, cyType] = meta.dtype === "list" ? ["list", "List"] : declaredTypes(column, typesOf(column, item));
         writes.push({
             column,
             name: meta.name,
@@ -323,6 +364,9 @@ function planTable(
  */
 function slotOf(column: Column, domain: "graph" | "node" | "edge", hasLabelRole: boolean): ColumnWrite["kind"] {
     const { meta } = column;
+    if (domain !== "graph" && untypedAttribute(column, domain)) {
+        return "xml";
+    }
     if (
         meta.role === "label" ||
         (!hasLabelRole &&
@@ -358,6 +402,44 @@ function slotOf(column: Column, domain: "graph" | "node" | "edge", hasLabelRole:
 }
 
 /**
+ * Whether a column came from an XML attribute of the element (the importer's 5.1 text grammar:
+ * xgmml origin, no declared type) and can be written back as one, so it reads back the same.
+ * @param column - the column
+ * @param domain - node or edge
+ * @returns true to write it as an XML attribute
+ */
+function untypedAttribute(column: Column, domain: "node" | "edge"): boolean {
+    const { meta } = column;
+    const { origin } = meta;
+    return (
+        origin !== null &&
+        origin.format === FORMAT &&
+        origin.type === null &&
+        origin.namespace === null &&
+        meta.role === null &&
+        meta.components === 1 &&
+        (meta.dtype === "string" || meta.dtype === "bool" || meta.dtype === "i32" || meta.dtype === "f64") &&
+        /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(meta.name) &&
+        !READ_ATTRIBUTES[domain].has(meta.name)
+    );
+}
+
+/**
+ * The type and cy:type of an att: the source's own declaration when the column came from an
+ * XGMML att that declared only `type` (a draft or 2.x file), else both.
+ * @param column - the column
+ * @param types - the type and cy:type of its dtype
+ * @returns the pair to write; a null member is not written
+ */
+function declaredTypes(column: Column, types: [string, string]): [string | null, string | null] {
+    const { origin } = column.meta;
+    if (origin !== null && origin.format === FORMAT && origin.type === types[0] && column.meta.components === 1) {
+        return [types[0], null];
+    }
+    return types;
+}
+
+/**
  * The notes of a column written as a typed att: dtypes Cytoscape widens, json written as text,
  * literal backslash escapes, the string / dict heuristic.
  * @param column - the column
@@ -378,7 +460,7 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         );
         return;
     }
-    if (item === "f32" || item === "u8" || item === "u32" || item === "dict") {
+    if (item === "f32" || item === "u8" || item === "u32") {
         note(
             XGMML_LOSS.WIDENED_TYPE,
             `${label} (${item}) is written as a wider Cytoscape type and reads back as ${readBackDtype(column, item)}`,
@@ -431,9 +513,6 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
  * @returns the dtype the importer gives it
  */
 function readBackDtype(column: Column, item: string): string {
-    if (item === "dict") {
-        return "string";
-    }
     if (item === "u8" || (item === "u32" && maxValue(column) <= I32_MAX)) {
         return "i32";
     }
@@ -494,7 +573,14 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
         );
     }
     const parents = snapshot.nodes.byRole("parents");
-    if (parents !== null && snapshot.nodes.byRole("parent") === null && !multiParent(parents)) {
+    if (parents !== null && snapshot.nodes.byRole("parent") !== null) {
+        note(
+            XGMML_LOSS.PARENTS_DROPPED,
+            `parents column "${parents.meta.name}" is not written: the "parent" column is the containment written`,
+            parents.meta.name,
+            parents.length - parents.nullCount,
+        );
+    } else if (parents !== null && !multiParent(parents)) {
         note(
             LOSS.COLUMN_NAME_CHANGED,
             `parents column "${parents.meta.name}" holds one parent per node and reads back as the "parent" column`,
@@ -506,6 +592,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     if (position !== null) {
         positionNotes(position, snapshot, note);
     }
+    interactionNote(snapshot, note);
     const weights = explicitWeights(snapshot);
     for (const column of snapshot.edges) {
         if (column.meta.name === "weight" && column.meta.role === null && !weights.weighted) {
@@ -522,9 +609,60 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
         folding,
         weights,
         hierarchy,
+        reachable: reachableNodes(snapshot.nodeCount, hierarchy),
         position,
         edgeId,
     };
+}
+
+/**
+ * The note for edge labels the importer reads as Cytoscape label aliases (`a (i) b`): without an
+ * `interaction` column they read back with one, as Cytoscape fills it.
+ * @param snapshot - the snapshot
+ * @param note - the recorder
+ */
+function interactionNote(snapshot: GraphSnapshot, note: NoteFn): void {
+    const label = snapshot.edges.byRole("label") ?? snapshot.edges.get(LABEL_COLUMN);
+    if (label === null || snapshot.edges.get(INTERACTION_COLUMN) !== null) {
+        return;
+    }
+    let shaped = 0;
+    for (let e = 0; e < label.length; e++) {
+        if (label.isSet(e) && aliasesOf(scalarText(label.value(e))) !== null) {
+            shaped++;
+        }
+    }
+    if (shaped > 0) {
+        note(
+            XGMML_LOSS.INTERACTION_FROM_LABEL,
+            `${shaped} edge label(s) have Cytoscape's "a (i) b" shape and read back with an "${INTERACTION_COLUMN}" column`,
+            INTERACTION_COLUMN,
+            shaped,
+        );
+    }
+}
+
+/**
+ * The nodes a traversal of the containment from its roots reaches.
+ * @param nodeCount - the number of nodes
+ * @param hierarchy - the children CSR
+ * @returns 1 per reached node
+ */
+function reachableNodes(nodeCount: number, hierarchy: ChildrenCsr): Uint8Array {
+    const reached = new Uint8Array(nodeCount);
+    const stack = Array.from(hierarchy.roots);
+    for (const root of stack) {
+        reached[root] = 1;
+    }
+    while (stack.length > 0) {
+        for (const child of hierarchy.childrenOf(stack.pop() as number)) {
+            if (reached[child] === 0) {
+                reached[child] = 1;
+                stack.push(child);
+            }
+        }
+    }
+    return reached;
 }
 
 /**
@@ -622,6 +760,8 @@ function valueText(value: unknown, dtype: string | null, escapes: boolean): stri
         text = dtype === "f32" ? formatF32(value) : formatF64(value);
     } else if (typeof value === "string") {
         text = escapes ? value.replace(/\n/g, "\\n").replace(/\t/g, "\\t") : value;
+    } else if (ArrayBuffer.isView(value)) {
+        text = JSON.stringify(Array.from(value as unknown as ArrayLike<number>));
     } else {
         text = JSON.stringify(value) ?? "";
     }
@@ -657,6 +797,22 @@ function idText(id: NodeId): string {
 }
 
 /**
+ * The XML attributes of one row: the columns that came from XML attributes (`untypedAttribute`).
+ * @param writes - the column writes of the table
+ * @param row - the row
+ * @returns the attributes, each with a leading space
+ */
+function xmlAttributesOf(writes: readonly ColumnWrite[], row: number): string {
+    let out = "";
+    for (const w of writes) {
+        if (w.kind === "xml" && w.column.isSet(row)) {
+            out += ` ${w.name}="${escapeXmlAttribute(scalarText(w.column.value(row)))}"`;
+        }
+    }
+    return out;
+}
+
+/**
  * The atts of one row of a table.
  * @param writes - the column writes of the table
  * @param row - the row
@@ -683,7 +839,7 @@ function* attsOf(
             continue;
         }
         const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
-        const types = ` type="${w.type}" cy:type="${w.cyType}"`;
+        const types = `${w.type === null ? "" : ` type="${w.type}"`}${w.cyType === null ? "" : ` cy:type="${w.cyType}"`}`;
         const extra = `${column.meta.extra.hidden === true ? ' cy:hidden="1"' : ""}${column.meta.extra.equation === true ? ' cy:equation="1"' : ""}`;
         if (!isSet) {
             yield `${name}${types}${w.elementType === null ? "" : ` cy:elementType="${w.elementType}"`}${extra}/>\n`;
@@ -841,11 +997,11 @@ function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, st
 }
 
 /**
- * The XML of one node and its nested group graph, recursively.
+ * The XML of one node and its group graph, whose members are `xlink:href` references (every
+ * node is declared at the top level, in index order).
  * @param snapshot - the snapshot
  * @param plan - the plan
  * @param node - the node
- * @param declared - the parent each node is declared under (others reference it)
  * @param indent - the indentation
  * @yields the node element
  * @returns nothing
@@ -854,19 +1010,19 @@ function* nodeOf(
     snapshot: GraphSnapshot,
     plan: Plan,
     node: number,
-    declared: Int32Array,
     indent: string,
 ): Generator<string, void, undefined> {
     const labelCol = slot(plan.nodes, "label");
     const label = cellOf(labelCol, node);
-    yield `${indent}<node id="${escapeXmlAttribute(idText(snapshot.ids.idOf(node)))}"${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`}>\n`;
+    yield `${indent}<node id="${escapeXmlAttribute(idText(snapshot.ids.idOf(node)))}"${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`}${xmlAttributesOf(plan.nodes, node)}>\n`;
     const inner = `${indent}    `;
     yield* attsOf(plan.nodes, node, node === 0, plan, inner);
-    const children = plan.hierarchy.childrenOf(node);
+    const children = plan.reachable[node] === 1 ? plan.hierarchy.childrenOf(node) : [];
     const nested = cellOf(slot(plan.nodes, "nested"), node);
     const pointer = cellOf(slot(plan.nodes, "pointer"), node);
-    if (children.length > 0) {
-        const sub = (cellOf(slot(plan.nodes, "subgraph"), node) ?? {}) as Record<string, unknown>;
+    const subgraph = cellOf(slot(plan.nodes, "subgraph"), node);
+    if (children.length > 0 || subgraph !== null) {
+        const sub = (subgraph ?? {}) as Record<string, unknown>;
         yield `${inner}<att name="__isGroup" value="1" type="boolean" cy:type="Boolean" cy:hidden="1"/>\n`;
         const id = typeof sub.id === "string" ? ` id="${escapeXmlAttribute(sub.id)}"` : "";
         const lbl = typeof sub.label === "string" ? ` label="${escapeXmlAttribute(sub.label)}"` : "";
@@ -879,11 +1035,7 @@ function* nodeOf(
             yield* jsonAtt(key, value, `${inner}        `);
         }
         for (const child of children) {
-            if (declared[child] === node) {
-                yield* nodeOf(snapshot, plan, child, declared, `${inner}        `);
-            } else {
-                yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(child)))}"/>\n`;
-            }
+            yield `${inner}        <node xlink:href="#${escapeXmlAttribute(idText(snapshot.ids.idOf(child)))}"/>\n`;
         }
         yield `${inner}    </graph>\n${inner}</att>\n`;
     } else if (typeof nested === "string") {
@@ -894,34 +1046,6 @@ function* nodeOf(
     const graphics = cellOf(slot(plan.nodes, "graphics"), node) as Record<string, unknown> | null;
     yield* graphicsOf(graphics, coordsOf(plan, slot(plan.nodes, "z"), node), inner);
     yield `${indent}</node>\n`;
-}
-
-/**
- * The parent each node is declared under: its first parent when that chain reaches a root, else
- * none (-1, written at the top level).
- * @param snapshot - the snapshot
- * @param hierarchy - the children CSR
- * @returns the declaring parent of every node, -1 for a top-level node
- */
-function declaringParents(snapshot: GraphSnapshot, hierarchy: ChildrenCsr): Int32Array {
-    const declared = new Int32Array(snapshot.nodeCount).fill(-1);
-    const placed = new Uint8Array(snapshot.nodeCount);
-    const stack: number[] = [];
-    for (const root of hierarchy.roots) {
-        stack.push(root);
-        placed[root] = 1;
-        while (stack.length > 0) {
-            const u = stack.pop() as number;
-            for (const child of hierarchy.childrenOf(u)) {
-                if (placed[child] === 0) {
-                    placed[child] = 1;
-                    declared[child] = u;
-                    stack.push(child);
-                }
-            }
-        }
-    }
-    return declared;
 }
 
 /**
@@ -937,19 +1061,26 @@ function* write(
     options: (XgmmlExportOptions & CommonExportOptions) | undefined,
 ): Generator<string, void, undefined> {
     const plan = planFor(snapshot, options);
-    const meta = snapshot.meta.extra[META_KEY] as { graphId?: unknown } | undefined;
+    const meta = snapshot.meta.extra[META_KEY] as { graphId?: unknown; directed?: unknown } | undefined;
     const graphId = typeof meta?.graphId === "string" ? ` id="${escapeXmlAttribute(meta.graphId)}"` : "";
+    // Every edge carries cy:directed, so when they all agree the root attribute does not decide
+    // the direction and the source's own text is written back.
+    const keep =
+        (meta?.directed === "0" || meta?.directed === "1") &&
+        snapshot.edgeCount > 0 &&
+        snapshot.edges.byRole("directed") === null;
+    let directed = snapshot.directed ? "1" : "0";
+    if (keep) {
+        directed = meta?.directed as string;
+    }
     const name = snapshot.meta.name === null ? "" : ` label="${escapeXmlAttribute(snapshot.meta.name)}"`;
     yield '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-    yield `<graph${graphId}${name} directed="${snapshot.directed ? "1" : "0"}" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="${XLINK_NAMESPACE}" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="${CY_NAMESPACE}" xmlns="${XGMML_NAMESPACE}">\n`;
+    yield `<graph${graphId}${name} directed="${directed}" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="${XLINK_NAMESPACE}" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="${CY_NAMESPACE}" xmlns="${XGMML_NAMESPACE}">\n`;
     yield* metadataOf(snapshot);
     yield* attsOf(plan.graph, 0, true, plan, "    ");
     yield* graphicsOf(cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null, [], "    ");
-    const declared = declaringParents(snapshot, plan.hierarchy);
     for (let u = 0; u < snapshot.nodeCount; u++) {
-        if (declared[u] === -1) {
-            yield* nodeOf(snapshot, plan, u, declared, "    ");
-        }
+        yield* nodeOf(snapshot, plan, u, "    ");
     }
     yield* networksOf(snapshot, plan);
     yield* edgesOf(snapshot, plan);
@@ -1032,7 +1163,7 @@ function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, 
         const id = cellOf(plan.edgeId, e);
         const label = cellOf(labelCol, e);
         const weight = weights.text(e);
-        yield `    <edge${id === null ? "" : ` id="${escapeXmlAttribute(scalarText(id))}"`}${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`} source="${escapeXmlAttribute(idText(snapshot.ids.idOf(u)))}" target="${escapeXmlAttribute(idText(snapshot.ids.idOf(v)))}" cy:directed="${directed ? "1" : "0"}"${weight === null ? "" : ` weight="${weight}"`}>\n`;
+        yield `    <edge${id === null ? "" : ` id="${escapeXmlAttribute(scalarText(id))}"`}${label === null ? "" : ` label="${escapeXmlAttribute(scalarText(label))}"`} source="${escapeXmlAttribute(idText(snapshot.ids.idOf(u)))}" target="${escapeXmlAttribute(idText(snapshot.ids.idOf(v)))}" cy:directed="${directed ? "1" : "0"}"${weight === null ? "" : ` weight="${weight}"`}${xmlAttributesOf(plan.edges, e)}>\n`;
         yield* attsOf(plan.edges, e, first, plan, "        ");
         yield* graphicsOf(cellOf(graphicsCol, e) as Record<string, unknown> | null, [], "        ");
         yield "    </edge>\n";

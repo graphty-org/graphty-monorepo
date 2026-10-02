@@ -664,7 +664,7 @@ export class XgmmlParser implements XmlHandler {
         const labelAttr = attrs.get("label") ?? null;
         const nameAttr = attrs.get("name") ?? null;
         const label = labelAttr ?? nameAttr;
-        if (href === null && (id === null || id.length === 0)) {
+        if (href === null && id === null) {
             if (label === null || label.length === 0) {
                 this.report.counts.skippedNodes++;
                 this.report.error("missing-value", XGMML_ISSUE.MISSING_ID, "<node> without an id or a label", {

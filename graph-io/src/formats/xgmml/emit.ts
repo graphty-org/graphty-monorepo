@@ -343,7 +343,7 @@ export class XgmmlEmitter {
             );
         }
         const header = this.headerDirected();
-        this.direction.setHeader(header, { line: this.doc.root.line });
+        this.direction.setHeader(this.sinkDirection(members.edges, header), { line: this.doc.root.line });
         this.addNodes(members.nodes);
         if (graph === null) {
             this.checkReferences();
@@ -452,6 +452,48 @@ export class XgmmlEmitter {
             return this.options.defaultDirected;
         }
         return this.flag(text, this.options.defaultDirected, { line: this.doc.root.line, element: "directed" });
+    }
+
+    /** The direction of each edge, decided once (its warning is recorded once). */
+    private readonly directions = new Map<EdgeRec, boolean>();
+
+    /**
+     * The direction of one edge: its cy:directed, else the header.
+     * @param record - the edge
+     * @param header - the header direction
+     * @returns whether the edge is directed
+     */
+    private edgeDirection(record: EdgeRec, header: boolean): boolean {
+        let directed = this.directions.get(record);
+        if (directed === undefined) {
+            directed =
+                record.directed === null
+                    ? header
+                    : this.flag(record.directed, header, { line: record.line, element: record.id ?? record.label });
+            this.directions.set(record, directed);
+        }
+        return directed;
+    }
+
+    /**
+     * The direction the sink starts with: the one every edge has when they all agree (a
+     * Cytoscape file writes cy:directed on every edge and may omit the root attribute), else the
+     * header, so a graph of one direction is never expanded into a mixed one.
+     * @param edges - the edges of the graph
+     * @param header - the header direction
+     * @returns the sink direction
+     */
+    private sinkDirection(edges: readonly EdgeRec[], header: boolean): boolean {
+        let first: boolean | null = null;
+        for (const edge of edges) {
+            const directed = this.edgeDirection(edge, header);
+            if (first === null) {
+                first = directed;
+            } else if (first !== directed) {
+                return header;
+            }
+        }
+        return first ?? header;
     }
 
     /**
@@ -736,6 +778,9 @@ export class XgmmlEmitter {
                 }
             }
         }
+        if (member.size === 0) {
+            return;
+        }
         const handle = this.declare("node", {
             name: NETWORKS_COLUMN,
             dtype: "list",
@@ -828,7 +873,7 @@ export class XgmmlEmitter {
             );
             return -1;
         }
-        const directed = record.directed === null ? header : this.flag(record.directed, header, where);
+        const directed = this.edgeDirection(record, header);
         const kind: EdgeKind = directed ? "directed" : "undirected";
         let weight: number | undefined;
         try {
@@ -893,7 +938,7 @@ export class XgmmlEmitter {
                 return this.coercer.text(resolved.id);
             }
         }
-        if (text === null || text.length === 0) {
+        if (text === null) {
             this.report.error(
                 "missing-value",
                 XGMML_ISSUE.MISSING_ENDPOINT,
@@ -1070,28 +1115,12 @@ export class XgmmlEmitter {
                 [META_KEY]: {
                     graphId: g.id,
                     directed: this.doc.root.attrs.get("directed") ?? null,
-                    dialect: dialectName(this.dialect),
                     rdf: Object.keys(rdf).length > 0 ? { ...rdf } : null,
                 },
                 ...(this.extras.metaExtra ?? {}),
             },
         });
     }
-}
-
-/**
- * The name of a dialect, for `meta.extra.xgmml.dialect`.
- * @param dialect - the dialect
- * @returns "draft", "cytoscape-2", "cytoscape-3" or "cytoscape-session"
- */
-function dialectName(dialect: Dialect): string {
-    if (dialect.session) {
-        return "cytoscape-session";
-    }
-    if (!dialect.cytoscape) {
-        return "draft";
-    }
-    return dialect.cy2 ? "cytoscape-2" : "cytoscape-3";
 }
 
 /**
@@ -1393,13 +1422,14 @@ class Containment {
                     continue;
                 }
                 for (const graph of record.nested) {
-                    this.subgraphs.set(row.index, {
-                        id: graph.id,
-                        label: graph.label,
-                        atts: Object.fromEntries(
-                            graph.atts.filter((a) => a.name !== null).map((a) => [a.name, attJson(a)]),
-                        ),
-                    });
+                    const atts = graph.atts.filter((a) => a.name !== null);
+                    if (graph.id !== null || graph.label !== null || atts.length > 0) {
+                        this.subgraphs.set(row.index, {
+                            id: graph.id,
+                            label: graph.label,
+                            atts: Object.fromEntries(atts.map((a) => [a.name, attJson(a)])),
+                        });
+                    }
                     for (const member of graph.members) {
                         if (member.kind !== "node") {
                             continue;

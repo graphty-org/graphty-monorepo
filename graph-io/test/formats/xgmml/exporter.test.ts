@@ -79,7 +79,7 @@ describe("xgmmlExporter", () => {
         expectSameSnapshot(first, await read(text));
     });
 
-    it("writes containment as nested graphs and further parents as xlink references", async () => {
+    it("writes containment as group graphs of xlink references", async () => {
         const first = await read(`<graph ${NS} cy:documentVersion="3.0" directed="1">
 <node id="g1"><att name="__isGroup" value="1" type="boolean"/><att><graph id="sg" label="G"><att name="gr" value="v" type="string"/><node id="m"/><node id="n"/></graph></att></node>
 <node id="g2"><att name="__isGroup" value="1" type="boolean"/><att><graph><node xlink:href="#m"/></graph></att></node>
@@ -198,6 +198,68 @@ describe("xgmmlExporter", () => {
         expect(codes(b.freeze())).toEqual(
             expect.arrayContaining([LOSS.WEIGHT_KEY_CLASH, LOSS.COLUMN_NAME_CHANGED, LOSS.ROLE_ASSUMED]),
         );
+    });
+
+    it("writes untyped XML attribute columns back as XML attributes and keeps a draft file's types", async () => {
+        const first = await read(
+            `<graph id="3" directed="1"><node id="1" label="1" weight="-1"><att name="t" value="2" type="integer"/></node><node id="2" weight="x"/></graph>`,
+        );
+        const text = await xgmmlExporter.exportToString(first);
+        expect(text).toContain('<node id="1" label="1" weight="-1">');
+        expect(text).toContain('<att name="t" value="2" type="integer"/>');
+        expect(text).toContain('directed="1"');
+        expectSameSnapshot(first, await read(text));
+    });
+
+    it("declares every node at the top level, so a group's members keep their order", async () => {
+        const first = await read(`<graph ${NS} directed="1"><att name="documentVersion" value="1.1"/>
+<node id="-1"/><node id="-2"/><node id="-3"><att name="__groupState" value="1" type="integer"/><att><graph><node xlink:href="#-1"/><node xlink:href="#-2"/></graph></att></node></graph>`);
+        const text = await xgmmlExporter.exportToString(first);
+        expect(text).not.toContain("<graph>\n            <node id");
+        const second = await read(text);
+        expectSameSnapshot(first, second);
+        expect([0, 1, 2].map((i) => second.ids.idOf(i))).toEqual(["-1", "-2", "-3"]);
+    });
+
+    it("skips visual and temporal role columns, writes strides as JSON text, and notes label aliases", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        b.addEdge("a", "b");
+        b.declareNodeColumn({ name: "color", dtype: "f32", components: 4, role: "color", nullable: true });
+        b.setNodeValue("color", 0, [1, 0, 0, 1]);
+        b.declareNodeColumn({ name: "v", dtype: "f32", components: 2, nullable: true });
+        b.setNodeValue("v", 0, [1, 2]);
+        b.declareEdgeColumn({ name: "label", dtype: "string", role: "label", nullable: true });
+        b.setEdgeValue("label", 0, "a (pp) b");
+        const snapshot = b.freeze();
+        expect(codes(snapshot)).toEqual(
+            expect.arrayContaining([LOSS.VIZ, LOSS.COMPONENTS, XGMML_LOSS.INTERACTION_FROM_LABEL]),
+        );
+        const text = await xgmmlExporter.exportToString(snapshot);
+        expect(text).not.toContain('name="color"');
+        expect(text).toContain('<att name="v" value="[1,2]" type="string" cy:type="String"/>');
+        const second = await read(text);
+        expect(second.edges.get("interaction")?.value(0)).toBe("pp");
+    });
+
+    it("notes a parents column it cannot write beside a parent column", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        b.addNode("c");
+        b.declareNodeColumn({ name: "parent", dtype: "u32", role: "parent", refersTo: "node", nullable: true });
+        b.setNodeValue("parent", 1, 0);
+        b.declareNodeColumn({
+            name: "parents",
+            dtype: "list",
+            itemDtype: "u32",
+            role: "parents",
+            refersTo: "node",
+            nullable: true,
+        });
+        b.setNodeValue("parents", 2, [0, 1]);
+        expect(codes(b.freeze())).toContain(XGMML_LOSS.PARENTS_DROPPED);
     });
 
     it("round-trips the real Cytoscape 3.10 export of the yeast network", async () => {

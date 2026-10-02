@@ -443,11 +443,11 @@ describe("the poll loop", () => {
         await redTimeline(daemon);
         expect(daemon.state.master.verdict).toBe("red");
         expect(existsSync(notifyLog)).toBe(false);
+        await daemon.shutdown(); // waits for the ledger appends
         const notices = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "notify");
         expect(notices.some((e) => e.message.startsWith("master red"))).toBe(true);
         expect(notices.every((e) => e.delivered === false)).toBe(true);
 
-        await daemon.shutdown();
         rmSync(join(dir, ".githerd"), { recursive: true });
         clock = new Date("2026-10-02T12:00:00Z");
         scene = { head: A, ci: [run(100, A, "success")], commits: [commit(A, null, "first")], prs: [] };
@@ -620,6 +620,55 @@ describe("the poll loop", () => {
         expect(again.filter((p) => p.includes("/pulls/7/commits"))).toHaveLength(1);
         expect(again.filter((p) => p.includes("/actions/jobs/555"))).toHaveLength(1);
         expect(gh.writes()).toEqual([]);
+    });
+});
+
+describe("unreadable state", () => {
+    it("keeps the corrupt files, escalates, and pages a red master once as a restart", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "state.json"), "{");
+        writeFileSync(join(stateDir, "state.json.bak"), "[1]");
+        // master went red at 12:00; githerd restarts at 12:05
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        clock = new Date("2026-10-02T12:05:00Z");
+        const daemon = await start();
+        expect(daemon.state.recovery).toMatchObject({ emptyStart: true, at: clock.toISOString() });
+        expect(daemon.state.escalations["state-reset"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        expect(daemon.state.escalations["state-reset"].summary).toContain(
+            "state.json.corrupt-2026-10-02T12-05-00.000Z",
+        );
+        expect(readFileSync(join(stateDir, "state.json.corrupt-2026-10-02T12-05-00.000Z"), "utf8")).toBe("{");
+        expect(readFileSync(join(stateDir, "state.json.bak.corrupt-2026-10-02T12-05-00.000Z"), "utf8")).toBe("[1]");
+
+        for (const at of ["2026-10-02T12:08:00Z", "2026-10-02T12:11:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.verdict).toBe("red");
+        const red = pages().filter((p) => /master (is )?red/.test(p.message));
+        expect(red).toEqual([
+            {
+                status: "waiting",
+                message: "githerd restarted, master is red since 2026-10-02T12:00 UTC: ci (Build) at bbbbbbbbb",
+            },
+        ]);
+        expect(pages().filter((p) => p.message.startsWith("state.json unreadable"))).toEqual([
+            { status: "error", message: expect.stringContaining("githerd started empty") },
+        ]);
+    });
+
+    it("escalates without paging when it starts from the backup", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "state.json"), "{");
+        writeFileSync(join(stateDir, "state.json.bak"), JSON.stringify({ schema: 1 }));
+        const daemon = await start();
+        expect(daemon.state.escalations["state-from-backup"]).toMatchObject({ kind: "other" });
+        await poll(daemon);
+        expect(pages().filter((p) => p.message.includes("state.json"))).toEqual([]);
     });
 });
 

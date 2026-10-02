@@ -83,6 +83,8 @@ async function readStateFile(file) {
  * @property {boolean} readOnly true when the file has a newer schema than this code: serve status
  *   from it, never save it, and escalate
  * @property {string[]} errors why each unreadable file was rejected
+ * @property {string[]} kept where each unreadable file was moved (`<name>.corrupt-<time>`), so the
+ *   next save cannot overwrite it
  * @property {{emptyStart: true, at: string, holdRunsUntil: string} | null} recovery set on an
  *   empty-state start after a failure: open incidents and pending proposals are unknown, a red
  *   master gets a "githerd restarted" page instead of an incident page, proposals wait for a fresh
@@ -91,7 +93,8 @@ async function readStateFile(file) {
 
 /**
  * Loads state.json, then state.json.bak, then starts empty. An older schema is migrated forward
- * after copying the file to state.json.pre-migrate-<schema>.
+ * after copying the file to state.json.pre-migrate-<schema>. A file that could not be read is
+ * renamed to `<name>.corrupt-<time>` once another file or an empty state is chosen.
  * @param {string} dir the .githerd directory
  * @param {{now?: () => Date, migrations?: Record<number, (state: object) => object>}} [options] the clock and the
  *   migrations to apply
@@ -99,7 +102,27 @@ async function readStateFile(file) {
  */
 export async function loadState(dir, { now = () => new Date(), migrations = MIGRATIONS } = {}) {
     const errors = [];
+    /** @type {string[]} the unreadable files */
+    const bad = [];
     let missing = 0;
+    /**
+     * Moves the unreadable files aside.
+     * @returns {Promise<string[]>} their new paths
+     */
+    const keep = async () => {
+        const stamp = now().toISOString().replaceAll(":", "-");
+        const kept = [];
+        for (const file of bad) {
+            const to = `${file}.corrupt-${stamp}`;
+            try {
+                await rename(file, to);
+                kept.push(to);
+            } catch (err) {
+                errors.push(`${file}: could not be kept aside: ${err.message}`);
+            }
+        }
+        return kept;
+    };
     for (const [name, source] of /** @type {const} */ ([
         [STATE, "state"],
         [`${STATE}.bak`, "bak"],
@@ -112,10 +135,11 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
         }
         if ("error" in read) {
             errors.push(read.error);
+            bad.push(file);
             continue;
         }
         let { state } = read;
-        if (state.schema > STATE_SCHEMA) return { state, source, readOnly: true, errors, recovery: null };
+        if (state.schema > STATE_SCHEMA) return { state, source, readOnly: true, errors, kept: [], recovery: null };
         if (state.schema < STATE_SCHEMA) {
             try {
                 await copyFile(file, join(dir, `${STATE}.pre-migrate-${state.schema}`));
@@ -126,19 +150,21 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
                 }
             } catch (err) {
                 errors.push(`${file}: ${err.message}`);
+                bad.push(file);
                 continue;
             }
         }
-        return { state, source, readOnly: false, errors, recovery: null };
+        return { state, source, readOnly: false, errors, kept: await keep(), recovery: null };
     }
     const state = { schema: STATE_SCHEMA };
-    if (missing === 2) return { state, source: "new", readOnly: false, errors, recovery: null };
+    if (missing === 2) return { state, source: "new", readOnly: false, errors, kept: [], recovery: null };
     const at = now();
     return {
         state,
         source: "empty",
         readOnly: false,
         errors,
+        kept: await keep(),
         recovery: {
             emptyStart: true,
             at: at.toISOString(),

@@ -499,8 +499,11 @@ evidence, follow-up, report text) are marked `untrusted: true`.
 
 - **State writes** go through one promise chain: temporary file with a unique name, fsync, copy
   the old file to `state.json.bak`, rename. A crash leaves the old or the new file, never a torn one.
-- **Load** tries `state.json`, then `state.json.bak`. If both fail, it starts empty and logs an
-  error; nearly all state is rebuilt from GitHub within one poll. On an empty-state start every
+- **Load** tries `state.json`, then `state.json.bak`. A file that cannot be read is renamed to
+  `<name>.corrupt-<time>` so the next save cannot overwrite it. Starting from the backup raises an
+  `other` escalation, `state-from-backup`. If both fail, it starts empty, logs an error, raises the
+  `blocked` escalation `state-reset` and pages it once; nearly all state is rebuilt from GitHub
+  within one poll. On an empty-state start every
   open incident and pending proposal is marked unknown; a red master older than the restart gets
   one "githerd restarted, master is red since <time>" page instead of a new incident page; no
   proposal executes until a fresh veto query has run and a new grace period of 3 days has passed;

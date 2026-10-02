@@ -24,7 +24,7 @@
 import { execFile } from "node:child_process";
 import { accessSync, constants, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { delimiter, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import { homedir } from "node:os";
 
 import * as board from "./board.mjs";
@@ -239,6 +239,8 @@ export async function startDaemon({
     const loaded = await loadState(stateDir, { now });
     const state = loaded.state;
     for (const err of loaded.errors) say("error", `state: ${err}`);
+    // Kept for the run dispatcher, which holds new runs until `holdRunsUntil`.
+    if (loaded.recovery) state.recovery = loaded.recovery;
     state.master ??= { lanes: {} };
     state.master.lanes ??= {};
     state.incidents ??= {};
@@ -561,8 +563,15 @@ export async function startDaemon({
                     runId: open.lanes[gatingRed[0][0]].runId,
                     sha: open.redSha,
                 });
+                // After an empty-state start, a red run older than the restart is not news.
+                const recovery = loaded.recovery;
+                const since = gatingRed
+                    .map(([, l]) => l.updatedAt)
+                    .filter(Boolean)
+                    .sort()[0];
+                const restartedSince = recovery && since && since < recovery.at ? since : undefined;
                 // No judgment runs yet, so nothing else will handle it.
-                page({ type: "master-red-confirmed", incident: open.id, runStarting: false });
+                page({ type: "master-red-confirmed", incident: open.id, runStarting: false, restartedSince });
             }
         } else if (m.verdict === "green" && open) {
             open.status = "resolved";
@@ -958,6 +967,19 @@ export async function startDaemon({
         state.notify.brokenSince ??= startedAt;
         state.notify.lastError = notifyProblem;
         say("error", notifyProblem);
+    }
+    const kept = loaded.kept.map((f) => basename(f)).join(", ");
+    if (loaded.source === "empty") {
+        const summary = `state.json unreadable; githerd started empty (files kept as ${kept || "nothing"})`;
+        raise({ key: "state-reset", kind: "blocked", summary, detail: loaded.errors.join("\n") });
+        page({ type: "state-reset", at: startedAt, summary });
+    } else if (loaded.source === "bak") {
+        raise({
+            key: "state-from-backup",
+            kind: "other",
+            summary: `state.json unreadable; githerd started from state.json.bak (file kept as ${kept || "nothing"})`,
+            detail: loaded.errors.join("\n"),
+        });
     }
     if (loaded.readOnly) {
         raise({

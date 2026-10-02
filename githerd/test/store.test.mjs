@@ -21,7 +21,14 @@ describe("state", () => {
     it("round-trips a saved state", async () => {
         const state = { schema: STATE_SCHEMA, master: { verdict: "green" }, spend: { "2026-10-02": 4.18 } };
         await saveState(dir, state);
-        expect(await loadState(dir)).toEqual({ state, source: "state", readOnly: false, errors: [], recovery: null });
+        expect(await loadState(dir)).toEqual({
+            state,
+            source: "state",
+            readOnly: false,
+            errors: [],
+            kept: [],
+            recovery: null,
+        });
     });
 
     it("starts new, with no recovery flags, when no state was ever written", async () => {
@@ -40,10 +47,15 @@ describe("state", () => {
         await saveState(dir, { schema: STATE_SCHEMA, n: 1 });
         await saveState(dir, { schema: STATE_SCHEMA, n: 2 });
         writeFileSync(join(dir, "state.json"), '{"schema": 1, "n"');
-        const r = await loadState(dir);
+        const r = await loadState(dir, { now });
         expect(r.source).toBe("bak");
         expect(r.state.n).toBe(1);
         expect(r.errors).toHaveLength(1);
+        // the torn file is kept aside, so the next save leaves the good backup alone
+        expect(r.kept).toEqual([join(dir, "state.json.corrupt-2026-10-02T15-00-00.000Z")]);
+        expect(read("state.json.corrupt-2026-10-02T15-00-00.000Z")).toBe('{"schema": 1, "n"');
+        await saveState(dir, r.state);
+        expect(JSON.parse(read("state.json.bak")).n).toBe(1);
     });
 
     it("starts empty with recovery flags when both files are corrupt", async () => {
@@ -58,6 +70,10 @@ describe("state", () => {
             at: NOW.toISOString(),
             holdRunsUntil: new Date(NOW.getTime() + RUN_HOLD_MS).toISOString(),
         });
+        expect(readdirSync(dir).sort()).toEqual([
+            "state.json.bak.corrupt-2026-10-02T15-00-00.000Z",
+            "state.json.corrupt-2026-10-02T15-00-00.000Z",
+        ]);
     });
 
     it("leaves a valid file after two concurrent saves, the later one winning", async () => {

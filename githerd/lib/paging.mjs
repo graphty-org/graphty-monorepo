@@ -4,10 +4,14 @@
  * whose per-key marks make every page go out at most once.
  *
  * Events:
- * - `{type: "master-red-confirmed", incident, runStarting?}`: pages `waiting` at once unless a run
- *   is starting for the incident and runs are on (`runs.maxConcurrent > 0`). The dispatcher passes
- *   `runStarting: false` when the incident's run limit is spent or the day's budget cannot fit a
- *   master-red run.
+ * - `{type: "master-red-confirmed", incident, runStarting?, restartedSince?}`: pages `waiting` at
+ *   once unless a run is starting for the incident and runs are on (`runs.maxConcurrent > 0`). The
+ *   dispatcher passes `runStarting: false` when the incident's run limit is spent or the day's
+ *   budget cannot fit a master-red run. `restartedSince` (the red run's time, set when the daemon
+ *   started on empty state after that run) pages "githerd restarted, master is red since" instead,
+ *   under the same key.
+ * - `{type: "state-reset", at, summary}`: `error` once, when state.json and its backup were both
+ *   unreadable and the daemon started empty.
  * - `{type: "master-red-run-ended", incident, fixed}`: pages `waiting` when the run ended without
  *   a fix.
  * - `{type: "poll", now}`: pages `error` once for each open incident confirmed 2 hours ago or more.
@@ -82,6 +86,15 @@ export function pagesFor(event, state, config) {
     const incidents = state.incidents ?? {};
     switch (event.type) {
         case "master-red-confirmed": {
+            if (event.restartedSince) {
+                const inc = incidents[event.incident] ?? {};
+                return [
+                    {
+                        ...masterRed(event.incident, inc),
+                        message: `githerd restarted, master is red since ${event.restartedSince.slice(0, 16)} UTC: ${describe(inc)}`,
+                    },
+                ];
+            }
             const runsOn = config.runs.maxConcurrent > 0;
             if (runsOn && event.runStarting) return [];
             return [masterRed(event.incident, incidents[event.incident] ?? {}, "no fix run will handle it")];
@@ -123,6 +136,8 @@ export function pagesFor(event, state, config) {
         }
         case "daily":
             return dailyPages(event.date, state);
+        case "state-reset":
+            return [{ key: `state-reset:${event.at}`, status: "error", message: event.summary }];
         case "digest-written":
             return [
                 {

@@ -31,6 +31,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import * as csv from "../../src/formats/csv/index.js";
+import * as cx2 from "../../src/formats/cx2/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -82,6 +83,7 @@ const SUBPATHS: Readonly<Record<string, Record<string, unknown>>> = {
     CSV: csv,
     JSON: json,
     NEO4J: neo4j,
+    CX2: cx2,
 };
 
 function isCodeTable(value: unknown): value is CodeTable {

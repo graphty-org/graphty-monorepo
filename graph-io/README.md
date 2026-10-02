@@ -8,8 +8,8 @@
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
 JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
-Graphs are read only), Neo4j (`neo4j-admin import` CSV) and OBO, the ontology format of the Gene
-Ontology (read only).
+Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format)
+and OBO, the ontology format of the Gene Ontology (read only).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -147,6 +147,7 @@ reports every column or feature outside it):
 | JSON    | `@graphty/graph-io/json`    | `.json`                            | per dialect | yes         | per dialect | any           | f64 i32 bool string (no declarations)  | no    | yes  | no       | Cytoscape | none           | per dialect | Cytoscape | no  |
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
 | OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
+| CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -296,6 +297,24 @@ losses and format rules, in addition to the table:
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position
   or visual column as a plain property.
+
+- **CX2**: the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web, read element by
+  element so a document longer than one JavaScript string still loads. Every edge is directed;
+  node ids are integers (an id beyond 2^53 keeps its digits as a string id, `W_PRECISION`; `"5"` and
+  `5.0` read as 5, `W_ID_TEXT_TYPE`). Declared attributes become typed columns under their full
+  names (the alias in `origin.id`, the default in `meta.default`); an undeclared attribute is typed
+  from its values (`W_CX2_UNDECLARED_ATTRIBUTE`), a value of the wrong type is `E_BAD_VALUE` and its
+  cell is unset. `name` is the label; `x` / `y` are the position, stored y-up (y negated, as for every
+  Cytoscape-family format) and negated back on export; `z` is a stacking order in the `z` column
+  (`zAs: "position"` puts it in the position). Per-element visual values (`nodeBypasses`,
+  `edgeBypasses`) are one column per visual property (origin namespace `cx2.bypass`); style rules
+  (`visualProperties`, `visualEditorProperties`) and opaque aspects are kept verbatim in
+  `meta.extra.cx2.opaque` and written back, but not applied (`W_STYLES_NOT_IMPORTED`). A missing
+  `status` is `E_CX2_NO_STATUS`, `success: false` is fatal (`E_STATUS_FAILED`), an edge to an unknown
+  node is `E_UNKNOWN_NODE` (`addMissingNodes: true` creates it, as Cytoscape does). The exporter
+  refuses non-integer node ids unless `sanitizeIds: "mangle"`, which keeps the original in a
+  `graphty:originalId` attribute the importer turns back into the id; NaN and the infinities are
+  written as null (`W_CX2_NONFINITE_AS_NULL`), nested values as JSON text (`W_CX2_JSON_AS_STRING`).
 
 ## Format detection
 

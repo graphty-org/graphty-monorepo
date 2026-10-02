@@ -35,6 +35,11 @@ const VALUE_EXPORTS = [
     "CSV_LOSS",
     "csvExporter",
     "csvImporter",
+    "CX2_CAPABILITIES",
+    "CX2_ISSUE",
+    "CX2_LOSS",
+    "cx2Exporter",
+    "cx2Importer",
     "DOT_LOSS",
     "DOT_ISSUE",
     "dotExporter",
@@ -212,6 +217,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     it("re-exports each format's importer and exporter under its format name", () => {
         const pairs: [string, graphIo.GraphImporter, graphIo.GraphExporter][] = [
             ["csv", graphIo.csvImporter, graphIo.csvExporter],
+            ["cx2", graphIo.cx2Importer, graphIo.cx2Exporter],
             ["dot", graphIo.dotImporter, graphIo.dotExporter],
             ["gexf", graphIo.gexfImporter, graphIo.gexfExporter],
             ["gml", graphIo.gmlImporter, graphIo.gmlExporter],
@@ -240,6 +246,8 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             LOSS: graphIo.LOSS,
             CSV_ISSUE: graphIo.CSV_ISSUE,
             CSV_LOSS: graphIo.CSV_LOSS,
+            CX2_ISSUE: graphIo.CX2_ISSUE,
+            CX2_LOSS: graphIo.CX2_LOSS,
             DOT_ISSUE: graphIo.DOT_ISSUE,
             DOT_LOSS: graphIo.DOT_LOSS,
             GEXF_ISSUE: graphIo.GEXF_ISSUE,

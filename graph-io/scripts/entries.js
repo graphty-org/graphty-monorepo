@@ -18,6 +18,7 @@ export const ENTRIES = Object.freeze({
     csv: "src/formats/csv/index.ts",
     json: "src/formats/json/index.ts",
     neo4j: "src/formats/neo4j/index.ts",
+    cx2: "src/formats/cx2/index.ts",
     obo: "src/formats/obo/index.ts",
 });
 

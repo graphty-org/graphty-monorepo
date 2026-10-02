@@ -29,6 +29,7 @@ import {
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import * as csv from "../../src/formats/csv/index.js";
+import * as cx2 from "../../src/formats/cx2/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -222,7 +223,7 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j"] as const;
+const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "cx2"] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -232,6 +233,7 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     csv,
     json,
     neo4j,
+    cx2,
 };
 /** The formats graph-io reads but does not write: one importer, no exporter. */
 const READ_ONLY = ["obo"] as const;

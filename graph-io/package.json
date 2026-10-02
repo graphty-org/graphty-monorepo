@@ -56,6 +56,11 @@
             "types": "./dist/obo.d.ts",
             "import": "./dist/obo.js",
             "default": "./dist/obo.js"
+        },
+        "./cx2": {
+            "types": "./dist/cx2.d.ts",
+            "import": "./dist/cx2.js",
+            "default": "./dist/cx2.js"
         }
     },
     "sideEffects": false,

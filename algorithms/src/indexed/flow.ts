@@ -8,7 +8,9 @@ import {
     maskTest,
     type NodeId,
     type NodeMask,
+    type NodeRef,
     type NumericVector,
+    resolveNode,
     type U32,
 } from "@graphty/graph-format";
 
@@ -210,14 +212,21 @@ function buildResidual(s: GraphSnapshot, capacity: Float64Array): Residual {
  * one edge can show more flow than its capacity; this port reports the net flow of the pair on
  * the edges in its direction instead, each within its capacity.
  * @param s - The snapshot
- * @param source - The source node index
- * @param sink - The sink node index
+ * @param sourceNode - The source node: its index, or `{ id }`
+ * @param sinkNode - The sink node: its index, or `{ id }`
  * @param options - The path search and the capacity override
  * @returns The flow value, the per-edge flows, the source side and the cut edges
  * @throws RangeError when `source` or `sink` is not a node index, or they are the same node
  * @public
  */
-export function maxFlow(s: GraphSnapshot, source: number, sink: number, options: MaxFlowOptions = {}): MaxFlowResult {
+export function maxFlow(
+    s: GraphSnapshot,
+    sourceNode: NodeRef,
+    sinkNode: NodeRef,
+    options: MaxFlowOptions = {},
+): MaxFlowResult {
+    const source = resolveNode(s, sourceNode);
+    const sink = resolveNode(s, sinkNode);
     const n = s.nodeCount;
     if (!(Number.isInteger(source) && source >= 0 && source < n && Number.isInteger(sink) && sink >= 0 && sink < n)) {
         throw new RangeError(`source ${String(source)} and sink ${String(sink)} must be node indices below ${n}`);
@@ -325,14 +334,21 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
  * `"ford-fulkerson"`, as the legacy `minSTCut` uses: on weights that are not binary fractions
  * another search adds the bottlenecks in another order and the value can differ in its last bits.
  * @param s - The snapshot
- * @param source - The source node index
- * @param sink - The sink node index
+ * @param sourceNode - The source node: its index, or `{ id }`
+ * @param sinkNode - The sink node: its index, or `{ id }`
  * @param options - The path search and the capacity override
  * @returns The cut value, the source side and the cut edges
  * @throws RangeError as {@link maxFlow} does
  * @public
  */
-export function minSTCut(s: GraphSnapshot, source: number, sink: number, options: MaxFlowOptions = {}): MinCutResult {
+export function minSTCut(
+    s: GraphSnapshot,
+    sourceNode: NodeRef,
+    sinkNode: NodeRef,
+    options: MaxFlowOptions = {},
+): MinCutResult {
+    const source = resolveNode(s, sourceNode);
+    const sink = resolveNode(s, sinkNode);
     const r = maxFlow(s, source, sink, { ...options, algorithm: options.algorithm ?? "ford-fulkerson" });
     return { cutValue: r.maxFlow, side: r.sourceSide, cutEdges: r.cutEdges };
 }

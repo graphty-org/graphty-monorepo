@@ -5,6 +5,8 @@ import {
     makeMask,
     maskTest,
     type NodeMask,
+    type NodeSet,
+    resolveNodeMask,
     type U32,
 } from "@graphty/graph-format";
 
@@ -15,11 +17,13 @@ export interface BipartiteMatchingOptions {
     /**
      * The left side. Given together with `right`, the two sides are used as they are and the graph
      * is not tested for bipartiteness; a node on neither side is never matched. When either is
-     * missing both come from `isBipartite`: its first side is the left one.
+     * missing both come from `isBipartite`: its first side is the left one. A side is a NodeSet
+     * (a plain array of indices, `{ mask }` or `{ ids }`); a bare Uint32Array is read as a NodeMask,
+     * as it always has been here, so pass indices in a Uint32Array as `Array.from(indices)`.
      */
-    readonly left?: NodeMask | undefined;
+    readonly left?: NodeMask | NodeSet | undefined;
     /** The right side; see `left`. */
-    readonly right?: NodeMask | undefined;
+    readonly right?: NodeMask | NodeSet | undefined;
     /**
      * Which arcs of a directed snapshot join a left node to a right one. "both" (default) ignores
      * direction, as a matching does. "out" follows out-arcs of left nodes only, as the legacy
@@ -46,10 +50,20 @@ interface Sides {
     readonly views: readonly AdjacencyView[];
 }
 
+/**
+ * One side as a NodeMask: a bare Uint32Array is already one; any other NodeSet is resolved.
+ * @param s - The snapshot
+ * @param side - The caller's side
+ * @returns The side as a mask
+ */
+function sideMask(s: GraphSnapshot, side: NodeMask | NodeSet): NodeMask {
+    return side instanceof Uint32Array ? side : resolveNodeMask(s, side);
+}
+
 function resolveSides(s: GraphSnapshot, options: BipartiteMatchingOptions): Sides {
     const views: AdjacencyView[] = s.directed && options.arcs !== "out" ? [s, s.reverse()] : [s];
     if (options.left !== undefined && options.right !== undefined) {
-        return { left: options.left, right: options.right, views };
+        return { left: sideMask(s, options.left), right: sideMask(s, options.right), views };
     }
     const { sides } = isBipartite(s, { arcs: options.arcs });
     if (sides === null) {

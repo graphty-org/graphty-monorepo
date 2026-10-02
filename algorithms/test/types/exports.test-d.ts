@@ -2,7 +2,7 @@
 // algorithms 3.0.0: every algorithm takes a GraphSnapshot (or an AdjacencyView, for the traversals and paths) first
 // and an options object last, the 2.x `indexed` namespace is a deprecated alias of the same functions, and none of
 // the 2.x legacy names is exported any more.
-import type { AdjacencyView, F32, F64, GraphSnapshot, NodeId, U32 } from "@graphty/graph-format";
+import type { AdjacencyView, F32, F64, GraphSnapshot, NodeId, NodeRef, U32 } from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
 import type {
@@ -89,7 +89,7 @@ import * as algorithms from "../../src/index.js";
 // ---- every promoted function, with its exact signature: a changed parameter list or result type fails here
 expectTypeOf(algorithms.allPairsShortestPath).toEqualTypeOf<(s: GraphSnapshot, options?: ApspOptions) => ApspResult>();
 expectTypeOf(algorithms.bellmanFord).toEqualTypeOf<
-    (g: AdjacencyView, source: number, options?: SsspOptions) => BellmanFordResult
+    (g: AdjacencyView, source: NodeRef, options?: SsspOptions) => BellmanFordResult
 >();
 expectTypeOf(algorithms.betweennessCentrality).toEqualTypeOf<
     (s: GraphSnapshot, options?: BetweennessOptions) => ScoresResult
@@ -98,17 +98,17 @@ expectTypeOf(algorithms.edgeBetweennessCentrality).toEqualTypeOf<
     (s: GraphSnapshot, options?: EdgeBetweennessOptions) => EdgeScoresResult
 >();
 expectTypeOf(algorithms.breadthFirstSearch).toEqualTypeOf<
-    (g: AdjacencyView, start: number, options?: BfsOptions) => BfsResult
+    (g: AdjacencyView, start: NodeRef, options?: BfsOptions) => BfsResult
 >();
 expectTypeOf(algorithms.directionOptimizedBfs).toEqualTypeOf<
-    (s: GraphSnapshot, source: number, options?: DirectionOptimizedBfsOptions) => BfsResult
+    (s: GraphSnapshot, source: NodeRef, options?: DirectionOptimizedBfsOptions) => BfsResult
 >();
 expectTypeOf(algorithms.isBipartite).toEqualTypeOf<(s: GraphSnapshot, options?: BipartiteOptions) => BipartiteResult>();
 expectTypeOf(algorithms.closenessCentrality).toEqualTypeOf<
     (s: GraphSnapshot, options?: ClosenessOptions) => ClosenessResult
 >();
 expectTypeOf(algorithms.nodeClosenessCentrality).toEqualTypeOf<
-    (s: GraphSnapshot, node: number, options?: Omit<ClosenessOptions, "sources" | "k">) => number
+    (s: GraphSnapshot, node: NodeRef, options?: Omit<ClosenessOptions, "sources" | "k">) => number
 >();
 expectTypeOf(algorithms.commonNeighborsScore).toEqualTypeOf<
     (s: GraphSnapshot, u: number, v: number, o?: CommonNeighborsOptions) => number
@@ -117,18 +117,18 @@ expectTypeOf(algorithms.connectedComponents).toEqualTypeOf<(s: GraphSnapshot) =>
 expectTypeOf(algorithms.weaklyConnectedComponents).toEqualTypeOf<(s: GraphSnapshot) => LabelResult>();
 expectTypeOf(algorithms.degreeCentrality).toEqualTypeOf<(s: GraphSnapshot, options?: DegreeCentralityOptions) => F64>();
 expectTypeOf(algorithms.depthFirstSearch).toEqualTypeOf<
-    (g: AdjacencyView, start: number, options?: DfsOptions) => DfsResult
+    (g: AdjacencyView, start: NodeRef, options?: DfsOptions) => DfsResult
 >();
 expectTypeOf(algorithms.hasCycle).toEqualTypeOf<(g: AdjacencyView) => boolean>();
 expectTypeOf(algorithms.topologicalSort).toEqualTypeOf<(g: AdjacencyView, options?: ArcOrderOption) => U32 | null>();
 expectTypeOf(algorithms.dijkstra).toEqualTypeOf<
-    (g: AdjacencyView, source: number, options?: SsspOptions) => SsspResult
+    (g: AdjacencyView, source: NodeRef, options?: SsspOptions) => SsspResult
 >();
 expectTypeOf(algorithms.walkPredArcs).toEqualTypeOf<
-    (g: AdjacencyView, predArc: U32, source: number, target: number) => U32
+    (g: AdjacencyView, predArc: U32, source: number, target: NodeRef) => U32
 >();
 expectTypeOf(algorithms.walkPredEdges).toEqualTypeOf<
-    (g: AdjacencyView, predArc: U32, source: number, target: number) => U32
+    (g: AdjacencyView, predArc: U32, source: number, target: NodeRef) => U32
 >();
 expectTypeOf(algorithms.eigenvectorCentrality).toEqualTypeOf<
     (s: GraphSnapshot, o?: EigenvectorOptions) => EigenvectorResult
@@ -141,10 +141,10 @@ expectTypeOf(algorithms.bipartiteFlowNetwork).toEqualTypeOf<
     ) => BipartiteFlowNetwork
 >();
 expectTypeOf(algorithms.maxFlow).toEqualTypeOf<
-    (s: GraphSnapshot, source: number, sink: number, options?: MaxFlowOptions) => MaxFlowResult
+    (s: GraphSnapshot, source: NodeRef, sink: NodeRef, options?: MaxFlowOptions) => MaxFlowResult
 >();
 expectTypeOf(algorithms.minSTCut).toEqualTypeOf<
-    (s: GraphSnapshot, source: number, sink: number, options?: MaxFlowOptions) => MinCutResult
+    (s: GraphSnapshot, source: NodeRef, sink: NodeRef, options?: MaxFlowOptions) => MinCutResult
 >();
 expectTypeOf(algorithms.girvanNewman).toEqualTypeOf<
     (s: GraphSnapshot, options?: GirvanNewmanOptions) => GirvanNewmanResult
@@ -179,7 +179,7 @@ expectTypeOf(algorithms.adamicAdarPrediction).toEqualTypeOf<
     (s: GraphSnapshot, o?: LinkPredictionOptions) => LinkPredictionResult
 >();
 expectTypeOf(algorithms.adamicAdarScore).toEqualTypeOf<
-    (s: GraphSnapshot, u: number, v: number, o?: CommonNeighborsOptions) => number
+    (s: GraphSnapshot, u: NodeRef, v: NodeRef, o?: CommonNeighborsOptions) => number
 >();
 expectTypeOf(algorithms.commonNeighborsForPairs).toEqualTypeOf<
     (s: GraphSnapshot, pairs: NodePairs, o?: CommonNeighborsOptions) => F64
@@ -202,10 +202,10 @@ expectTypeOf(algorithms.evaluateCommonNeighbors).toEqualTypeOf<
     (s: GraphSnapshot, edges: NodePairs, nonEdges: NodePairs, o?: CommonNeighborsOptions) => LinkPredictionMetrics
 >();
 expectTypeOf(algorithms.getTopAdamicAdarCandidatesForNode).toEqualTypeOf<
-    (s: GraphSnapshot, u: number, o?: CandidateOptions) => LinkPredictionResult
+    (s: GraphSnapshot, u: NodeRef, o?: CandidateOptions) => LinkPredictionResult
 >();
 expectTypeOf(algorithms.getTopCandidatesForNode).toEqualTypeOf<
-    (s: GraphSnapshot, u: number, o?: CandidateOptions) => LinkPredictionResult
+    (s: GraphSnapshot, u: NodeRef, o?: CandidateOptions) => LinkPredictionResult
 >();
 expectTypeOf(algorithms.louvain).toEqualTypeOf<(s: GraphSnapshot, o?: LouvainOptions) => LouvainResult>();
 expectTypeOf(algorithms.markovClustering).toEqualTypeOf<(s: AdjacencyView, options?: MarkovOptions) => MarkovResult>();
@@ -229,14 +229,14 @@ expectTypeOf(algorithms.personalizedPageRank).toEqualTypeOf<
 expectTypeOf(algorithms.astar).toEqualTypeOf<
     (
         g: AdjacencyView,
-        source: number,
-        target: number,
+        source: NodeRef,
+        target: NodeRef,
         heuristic: (node: number, target: number) => number,
         options?: PathOptions,
     ) => AstarResult
 >();
 expectTypeOf(algorithms.bidirectionalDijkstra).toEqualTypeOf<
-    (s: GraphSnapshot, source: number, target: number, options?: PathOptions) => PathResult
+    (s: GraphSnapshot, source: NodeRef, target: NodeRef, options?: PathOptions) => PathResult
 >();
 expectTypeOf(algorithms.condensation).toEqualTypeOf<
     (s: GraphSnapshot, options?: ArcOrderOption) => CondensationResult

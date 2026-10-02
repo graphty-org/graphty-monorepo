@@ -1,4 +1,4 @@
-import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type AdjacencyView, INVALID_INDEX, type NodeRef, type U32 } from "@graphty/graph-format";
 
 import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
@@ -18,11 +18,11 @@ export interface DfsResult {
 /** Options of the index-based DFS. @public */
 export interface DfsOptions extends ArcOrderOption {
     /**
-     * Stop the whole walk as soon as this node index is visited. Pre-order only: a post-order walk
+     * Stop the whole walk as soon as this node (an index, or `{ id }`) is visited. Pre-order only: a post-order walk
      * always runs to the end, since a node's post-order place is known only once its subtree is done.
      * @throws RangeError when it is not a node index
      */
-    readonly target?: number | undefined;
+    readonly target?: NodeRef | undefined;
     /** "pre" (default) lists a node when it is first reached, "post" when its subtree is finished. */
     readonly order?: "pre" | "post" | undefined;
 }
@@ -113,13 +113,13 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
  * `options.arcOrder` gives another. Takes any
  * `AdjacencyView`, so `s.reverse()` walks in-neighbours.
  * @param g - The adjacency to traverse
- * @param start - The node index to start from
+ * @param startNode - The node to start from: its index, or `{ id }`
  * @param options - Traversal options
  * @returns The visit order, the DFS tree as a parent array, the tree depths and the visited count
  * @public
  */
-export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOptions = {}): DfsResult {
-    checkStart(g, start);
+export function depthFirstSearch(g: AdjacencyView, startNode: NodeRef, options: DfsOptions = {}): DfsResult {
+    const start = checkStart(g, startNode);
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const target = checkTarget(g, options.target);
     const w = newWalk(g.nodeCount);

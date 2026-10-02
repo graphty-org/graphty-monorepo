@@ -54,12 +54,15 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  * Two definitions, chosen by `randomSeed`. Each is one definition wherever it runs:
  *
  * - No seed (the default): synchronous passes. Every node reads its neighbours' labels from the
- *   previous pass and takes the lowest of the best-voted labels, with passes alternating between
- *   moving only up and only down so two neighbours cannot trade labels for ever. Deterministic.
+ *   previous pass and takes one of the best-voted labels by a fixed order, with passes alternating
+ *   between moving only up and only down that order so two neighbours cannot trade labels for ever.
+ *   Deterministic.
  *   This is the definition a GPU runs, so it is the one routed to an accelerator above its floor;
  *   below the floor, or with no accelerator, `@graphty/algorithms`' synchronous port runs it. The
- *   two follow the same rule but differ in three details -- which direction the first pass moves,
- *   whether a label tied for the lead is kept, and how a run whose labels cycle ends -- so on a
+ *   two follow the same rule but differ in four details -- the order (the lowest label on the
+ *   device, a scramble of the label on the CPU, so a long chain numbered in order settles in a few
+ *   passes on the CPU and creeps one node per two passes on the device), which direction the first
+ *   pass moves, whether a label tied for the lead is kept, and how a run whose labels cycle ends -- so on a
  *   graph with tied votes they can settle on different, equally valid partitions; on community
  *   structure they agree. `caveats.precision` says which one ran. On a cycle (some weighted graphs)
  *   the CPU stops when a pass repeats the labels of two passes before and reports `converged`

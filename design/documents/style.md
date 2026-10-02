@@ -81,6 +81,17 @@ implements:
    run's result. A column name is flat: a dot is part of the name and nested values are not
    walked, so `data.adj.P.Val` reads the column named `adj.P.Val`. A path with neither prefix is
    read as `data.<path>` (`team` is `data.team`). graphty-element's own writers write `data.`.
+   **The `graphty.` root is reserved** for values graphty-element itself provides, now and in later
+   releases: a path starting `graphty.` never reads a column. A column whose name starts `graphty.`
+   is still read as `data.graphty.<name>`, and `styles.validate` reports a bare `graphty.` path when
+   the data has a column of that name. Version 1 defines three such values, on nodes and edges:
+   `graphty.notes.count` (how many notes have the element among their targets), `graphty.notes.latest`
+   (the text of the newest of them) and `graphty.notes.latestTime` (its `time`), each with no value
+   on an element no note names (notes.md). They are accepted in a selector, in a binding's `by` and
+   in `select({ where })`, and refused everywhere a path decides what a result or a set is computed
+   over (the visibility filter, run scopes, recipes and set rules). A `graphty.` path this release
+   does not know has no value, and its layer is reported unbound. A label or tooltip bound to a
+   `graphty.notes.` path is drawn as literal text, never as label markup.
 2. Every path -- a binding's `by`, a selector's `path`, the paths inside a `where` -- is read the same
    way. A segment that is not an identifier (`[A-Za-z_][A-Za-z0-9_]*`) is quoted (`data."log-fc"`,
    `data."display name"`); an unquoted hyphen is subtraction. A quoted segment MUST NOT contain a

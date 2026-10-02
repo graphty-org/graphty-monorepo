@@ -476,6 +476,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const work = {
             capability,
             nodeCount: snapshot.nodeCount,
+            edgeCount: snapshot.edgeCount,
             forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
             // A graph whose edges all weigh the same (one with no weight attribute reads 1 everywhere)
             // is unweighted as far as the floors are concerned.

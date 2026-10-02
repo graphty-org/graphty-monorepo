@@ -26,6 +26,8 @@ import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } fr
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
+    ACCELERATION_MIN_EDGES_MEASUREMENT,
+    ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
@@ -77,6 +79,12 @@ export interface AcceleratedWork {
      * means weighted.
      */
     readonly weighted?: boolean;
+    /**
+     * How many edges this work is over. Compared, as edges times edges per node, against
+     * `ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY`. Absent counts as none, so a capability
+     * floored on its edges stays on the CPU path when the caller does not say.
+     */
+    readonly edgeCount?: number;
 }
 
 /**
@@ -594,6 +602,20 @@ export class AccelerationController {
                     `the graph has ${String(work.nodeCount)} nodes, below the ${String(floor)} at which ` +
                     `an accelerated ${work.weighted === false ? "unweighted " : ""}"${work.capability}" was measured to beat the CPU path ` +
                     `(${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
+            };
+        }
+
+        const densityFloor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY[work.capability as FlooredCapability];
+        const edges = work.edgeCount ?? 0;
+        const density = work.nodeCount > 0 ? (edges * edges) / work.nodeCount : 0;
+        if (densityFloor !== undefined && !this.#explicitMinNodes && !required && density < densityFloor) {
+            return {
+                accelerated: false,
+                reason:
+                    `the graph has ${String(edges)} edges on ${String(work.nodeCount)} nodes, whose edges times ` +
+                    `edges per node (${String(Math.round(density))}) is below the ${String(densityFloor)} at which an ` +
+                    `accelerated "${work.capability}" was measured to beat the CPU path ` +
+                    `(${ACCELERATION_MIN_EDGES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
             };
         }
 

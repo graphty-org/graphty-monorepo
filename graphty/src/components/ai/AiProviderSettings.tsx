@@ -313,7 +313,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
 
             try {
                 const createProvider = await getCreateProvider();
-                const instance = createProvider({ provider, apiKey: key });
+                const instance = createProvider(provider);
+                instance.configure({ apiKey: key });
                 const valid = await instance.validateApiKey();
 
                 finish(valid ? "success" : "error", valid ? "" : "The provider rejected that key");
@@ -342,15 +343,16 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
     );
 
     /**
-     * Turns remembering on or off. Enabling it saves the keys already held too:
-     * graphty-element's `enablePersistence` writes what is in memory.
+     * Turns remembering on or off. The key store saves the keys it already holds when
+     * remembering starts, and unticking takes them out of storage (they stay usable
+     * until the page closes), so the choice survives a reload either way.
      * @param next - whether keys should be remembered.
      */
     const handleRememberChange = (next: boolean): void => {
         if (next) {
             onEnablePersistence();
         } else {
-            onDisablePersistence(false);
+            onDisablePersistence();
         }
     };
 
@@ -553,10 +555,11 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                         autoComplete="off"
                                         data-1p-ignore
                                         data-lpignore="true"
-                                        /* compact-mantine names the reveal toggle "Show the
-                                           password"; this field says "key" on purpose, because
-                                           that is the name the artboard draws
-                                           (Settings.dc.html:820). */
+                                        /* Mantine's reveal control ships with no name at all, and
+                                           an icon-only control must have one. It keeps ONE name in
+                                           both states, which is the register's own convention for
+                                           a toggle ("a toggle never renames itself"), and it is
+                                           the name the artboard draws (Settings.dc.html:820). */
                                         visibilityToggleButtonProps={{
                                             "aria-label": "Show the key",
                                             title: "Show the key",

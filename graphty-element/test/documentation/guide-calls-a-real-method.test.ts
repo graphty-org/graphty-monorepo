@@ -10,8 +10,8 @@
  * nothing in the repository disagreed with the page.
  *
  * This reads the guides the way a reader does -- the code blocks -- and checks the names against
- * the two classes, and every `session.sets.<name>` and `session.scope.<name>` against the
- * interfaces the session publishes those two under. It cannot check what a call DOES, only that the door exists, which is exactly
+ * the two classes, and every `session.sets.<name>`, `session.scope.<name>` and `session.notes.<name>`
+ * against the interfaces the session publishes those three under. It cannot check what a call DOES, only that the door exists, which is exactly
  * the class of error that shipped.
  */
 
@@ -191,6 +191,7 @@ describe("the session doors the guides teach", () => {
     for (const [receiver, file, name] of [
         ["session.sets", "src/session/sets/types.ts", "SetsApi"],
         ["session.scope", "src/session/scope/ScopeApi.ts", "ScopeApi"],
+        ["session.notes", "src/session/notes/types.ts", "NotesApi"],
     ] as const) {
         it(`every \`${receiver}.<name>\` in a guide is declared by ${name}`, () => {
             const declared = interfaceMembers(file, name);

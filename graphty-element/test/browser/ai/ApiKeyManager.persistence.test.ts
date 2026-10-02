@@ -249,15 +249,18 @@ describe("ApiKeyManager Persistence", () => {
             assert.strictEqual(localStorage.getItem(`${testPrefix}:keys`), "not an encrypted value");
         });
 
-        it("writes nothing when there is nothing to save", () => {
+        it("with nothing to save, writes only an encrypted empty store, so remembering survives a reload", () => {
+            const config = { encryptionKey: "empty-test-long-key", prefix: testPrefix };
             const manager = new ApiKeyManager();
-            manager.enablePersistence({
-                encryptionKey: "empty-test-long-key",
-                storage: "localStorage",
-                prefix: testPrefix,
-            });
+            manager.enablePersistence(config);
 
-            assert.strictEqual(localStorage.getItem(`${testPrefix}:keys`), null);
+            const stored = localStorage.getItem(`${testPrefix}:keys`);
+            assert.isNotNull(stored);
+            assert.notInclude(stored ?? "", "{");
+
+            const reloaded = new ApiKeyManager({ prefix: testPrefix });
+            reloaded.enablePersistence(config);
+            assert.deepStrictEqual(reloaded.getConfiguredProviders(), []);
         });
     });
 

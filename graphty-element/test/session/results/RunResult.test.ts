@@ -553,9 +553,21 @@ describe("a path result", () => {
             runId: "shortest-path",
             shape: "path",
             fields: [
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "node", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "node",
+                    type: "boolean",
+                }),
                 field({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "edge", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "edge",
+                    type: "boolean",
+                }),
             ],
             measured: { nodes: 4, edges: 3 },
             nodes: [
@@ -698,7 +710,11 @@ describe("the fields a shape declares", () => {
 
 describe("the top of a ranking, cut only between tie groups", () => {
     /** The cat fixture's degrees: 3 nodes of degree 4, 12 of degree 3 and 5 of degree 2. */
-    const CAT_DEGREES = [...Array.from({ length: 3 }, () => 4), ...Array.from({ length: 12 }, () => 3), ...Array.from({ length: 5 }, () => 2)];
+    const CAT_DEGREES = [
+        ...Array.from({ length: 3 }, () => 4),
+        ...Array.from({ length: 12 }, () => 3),
+        ...Array.from({ length: 5 }, () => 2),
+    ];
 
     it("takes a tie group only when the whole group fits inside n", () => {
         const top = metricResult(CAT_DEGREES).top("value", 5);
@@ -736,5 +752,71 @@ describe("the top of a ranking, cut only between tie groups", () => {
                 assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_OPTION_RANGE");
             }
         }
+    });
+});
+
+describe("a quality score's band", () => {
+    const louvain = BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain");
+
+    /** A Louvain result carrying the catalogue's own fields and the given modularity. */
+    function louvainResult(modularity: unknown): RunResult {
+        assert.isDefined(louvain);
+
+        return createRunResult({
+            runId: "louvain",
+            shape: "community",
+            fields: louvain.fields,
+            measured: { nodes: 2, edges: 1 },
+            nodes: [
+                { id: "a", values: { group: 0 } },
+                { id: "b", values: { group: 1 } },
+            ],
+            graph: { modularity },
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+    }
+
+    it("reads modularity above 0.3 as clear, 0.1 to 0.3 as weak and below 0.1 as barely", () => {
+        const bands: [number, string][] = [
+            [0.54, "clear"],
+            [0.3001, "clear"],
+            [0.3, "weak"],
+            [0.2, "weak"],
+            [0.1, "weak"],
+            [0.0999, "barely"],
+            [0, "barely"],
+            [-0.2, "barely"],
+        ];
+
+        for (const [modularity, id] of bands) {
+            assert.strictEqual(louvainResult(modularity).band("modularity")?.id, id, `modularity ${modularity}`);
+        }
+    });
+
+    it("has no band for a missing or non-finite value, or a field without a scale", () => {
+        assert.isUndefined(louvainResult(undefined).band("modularity"));
+        assert.isUndefined(louvainResult(Number.NaN).band("modularity"));
+        assert.isUndefined(louvainResult(0.5).band("groupCount"));
+        assert.isUndefined(louvainResult(0.5).band("nope"));
+    });
+
+    it("says the band in the result's own reading, so a consumer of reading() gets it too", () => {
+        assert.include(louvainResult(0.447).reading(), "Modularity is 0.447 (clearly separated).");
+        assert.include(louvainResult(0.05).reading(), "(barely separated).");
+    });
+
+    it("publishes the scale in the catalogue as plain JSON with its source", () => {
+        const interpretation = louvain?.fields.find((entry) => entry.name === "modularity")?.interpretation;
+
+        assert.isDefined(interpretation);
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(interpretation)), interpretation);
+        assert.include(interpretation.source, "Newman");
+        assert.deepStrictEqual(
+            interpretation.bands.map((band) => band.id),
+            ["clear", "weak", "barely"],
+        );
+        assert.isUndefined(interpretation.bands.at(-1)?.above);
+        assert.isUndefined(interpretation.bands.at(-1)?.atLeast);
     });
 });

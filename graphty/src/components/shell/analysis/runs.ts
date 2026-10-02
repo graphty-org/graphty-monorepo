@@ -23,7 +23,7 @@
  * App shell progressive disclosure design, section 7 "Novice path".
  */
 
-import type { GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
+import type { FieldBand, GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
 import {
@@ -95,6 +95,8 @@ export interface CommunityRunResult {
     readonly largestGroupSize: number;
     /** Modularity, or undefined when the element did not report it. */
     readonly modularity?: number;
+    /** The band graphty-element put the modularity in, or undefined when it named none. */
+    readonly modularityBand?: FieldBand;
     /** Nodes the run covered. */
     readonly nodeCount: number;
     /** Every group, largest first. */
@@ -232,12 +234,14 @@ export async function runCommunityDetection(session: Pick<GraphSession, "runs">)
        and a run that did not publish one must degrade to the reading with no banded clause
        rather than to a fabricated score. */
     const { modularity } = result.graph;
+    const modularityBand = result.band("modularity");
 
     return {
         runId: run.id,
         groupCount: groups.length,
         largestGroupSize: groups.length > 0 ? groups[0].size : 0,
         ...(typeof modularity === "number" && Number.isFinite(modularity) ? { modularity } : {}),
+        ...(modularityBand === undefined ? {} : { modularityBand }),
         nodeCount: summary.measured,
         groups,
     };

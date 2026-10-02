@@ -293,6 +293,13 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+
+    /**
+     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
+     * the element last asked to frame the graph for a load or a new layout. The first-settlement
+     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     */
+    #cameraPlaced = false;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -617,7 +624,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring);
+                this.layoutManager.loadArrangement(restoring, wrote);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -729,6 +736,7 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -1239,6 +1247,33 @@ export class Graph implements GraphContext {
             return;
         }
 
+        // NO NODE OR EDGE IS BUILT UNTIL THE RENDERER IS KNOWN. Opening WebGPU takes hundreds of
+        // milliseconds (an adapter, a device, and the shader compiler fetched from Babylon's CDN),
+        // and data assigned before the element was attached arrives in that window. Built then,
+        // every mesh went onto the WebGL scene, was disposed with it, and was built again on the
+        // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
+        // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
+        // instead, and take their turn once the scene they will be drawn on exists.
+        const queue = this.operationQueue;
+        const holdQueue = !queue.getStats().isPaused;
+        if (holdQueue) {
+            queue.pause();
+        }
+
+        try {
+            await this.openWebGPU(requested);
+        } finally {
+            if (holdQueue) {
+                queue.resume();
+            }
+        }
+    }
+
+    /**
+     * Opens a WebGPU engine and moves the graph onto it, or records why WebGL stays.
+     * @param requested - What was asked for: `"webgpu"` or `"auto"`.
+     */
+    private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
         const opened = await openWebGPUEngine(canvas);
         // Shut down while the engine was opening: nothing will ever dispose it but this.
@@ -1449,8 +1484,12 @@ export class Graph implements GraphContext {
                         // should NOT trigger zoom to fit - the user's camera position should be preserved.
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
-                            // Force a final zoom to fit after layout has truly settled
-                            this.autoFrame();
+                            // Force a final zoom to fit after layout has truly settled, unless the
+                            // camera was placed since the load asked for framing: that placement
+                            // is the answer, and a slow machine settles after it as often as before.
+                            if (!this.#cameraPlaced) {
+                                this.autoFrame();
+                            }
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -3430,6 +3469,7 @@ export class Graph implements GraphContext {
      * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
+        this.#cameraPlaced = false;
         if (this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
         }
@@ -4590,6 +4630,13 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
+        // An explicit placement answers any framing the element still owes on its own initiative
+        // (a data load, a new layout, the first settlement). Left outstanding, that request is
+        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
+        // one -- and moves the camera off the state just placed. A later load or layout asks again.
+        this.updateManager.disableZoomToFit();
+        this.#cameraPlaced = true;
+
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
@@ -5455,6 +5502,37 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D -- it is the `fitToGraph` view measured over these nodes only.
+     * Ids that name no node are skipped; when none of them names a node the camera does not
+     * move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - One node id, or several.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await graph.zoomToNodes(["n1", "n2"]);
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: (string | number) | readonly (string | number)[],
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        // Each id is looked up the way getNode looks it up, so either spelling of an integer id
+        // frames the node, and the scope is handed the ids the graph itself holds.
+        // A lone id is not iterated: a string is iterable, and its characters name no node.
+        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
+        if (nodes.length === 0) {
+            return undefined;
+        }
+
+        return this.applyCameraView("fitToGraph", { ...options, scope: { nodes } });
+    }
+
+    /**
      * Get default camera state for current camera type
      * Lazily captures the initial state on first use, or returns captured state
      * @returns The default camera state
@@ -5680,11 +5758,16 @@ export class Graph implements GraphContext {
      * per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.
      *
+     * Notes are left out unless `{ notes: true }` asks for them; then each node and edge a note
+     * names gets the `graphty.notes.count` and `graphty.notes.text` columns. Either way an export
+     * of a session holding notes reports `W_GRAPHTY_NOTES`.
+     *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
      * "neo4j" })`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
-     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
+     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
+     * and the element's `notes`.
      * @returns The loss notes, and the document as text or as UTF-8 chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
      * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not

@@ -15,11 +15,14 @@ import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
-import { RichTextParser } from "./RichTextParser";
+import { measureLine, RichTextParser } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
+
+/** The line height a label is drawn at when its style names none. */
+const DEFAULT_LINE_HEIGHT = 1.2;
 
 export type BadgeType =
     | "notification"
@@ -100,6 +103,11 @@ interface RuntimeProperties {
      * ordinary label does not, so a node or an edge nearer the camera passes in front of it.
      */
     onTop?: boolean;
+    /**
+     * Draw the text as its characters, every one of them, never as label markup (`<bold>`,
+     * `<color='...'>`). Set for words a note supplied (design/notes 6.3).
+     */
+    plainText?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -116,6 +124,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "progress"
     | "attachTo"
     | "onTop"
+    | "plainText"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -152,6 +161,11 @@ export class RichTextLabel {
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     /** The size of the words alone, in the same units as `actualDimensions`. */
     private textSize = { width: 0, height: 0 };
+    /**
+     * How tall the plane is, in units of `sizePx / 48` world units: 1 for one line at the default
+     * line height, more for each extra line or wider spacing (see `_calculateDimensions`).
+     */
+    private heightInLines = 1;
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -193,7 +207,7 @@ export class RichTextLabel {
             fontWeight: "normal",
             textColor: "black",
             textAlign: "center",
-            lineHeight: 1.2,
+            lineHeight: DEFAULT_LINE_HEIGHT,
             backgroundColor: "transparent",
             backgroundGradient: false,
             backgroundGradientColors: ["rgba(0, 0, 0, 0.8)", "rgba(50, 50, 50, 0.8)"],
@@ -337,7 +351,7 @@ export class RichTextLabel {
     }
 
     private _parseRichText(): void {
-        this.parsedContent = this.parser.parse(this.options.text);
+        this.parsedContent = this.parser.parse(this.options.text, this.options.plainText === true);
     }
 
     private _calculateDimensions(): void {
@@ -378,6 +392,25 @@ export class RichTextLabel {
 
         this.actualDimensions.width = contentWidth + this.totalBorderWidth * 2;
         this.actualDimensions.height = contentHeight + this.totalBorderWidth * 2;
+
+        // LETTERS KEEP THEIR SIZE; THE LABEL GROWS. The plane is `sizePx / 48` world units tall for
+        // the canvas a single line at the default line height would need, and taller in proportion
+        // to anything more. Without this a three-line label squeezed its canvas into one line's
+        // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
+        // letters instead of spreading the lines.
+        // The first line WITH WORDS: a blank line has no height of its own to measure.
+        const firstLine = this.parsedContent.find((line) => line.length > 0);
+        if (firstLine === undefined) {
+            this.heightInLines = 1;
+        } else {
+            const { lineBox } = measureLine(tempCtx, firstLine, {
+                lineHeight: DEFAULT_LINE_HEIGHT,
+                textOutline: this.options.textOutline,
+                textOutlineWidth: this.options.textOutlineWidth,
+            });
+            const oneLine = this.actualDimensions.height - totalHeight + lineBox;
+            this.heightInLines = oneLine > 0 ? this.actualDimensions.height / oneLine : 1;
+        }
 
         if (this.options.pointer) {
             this._calculatePointerDimensions();
@@ -894,11 +927,9 @@ export class RichTextLabel {
     }
 
     private _createMesh(): void {
-        const sizeScale = this.options.fontSize / 48;
-
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
-        const planeHeight = sizeScale;
-        const planeWidth = aspectRatio * sizeScale;
+        const planeHeight = (this.options.fontSize / 48) * this.heightInLines;
+        const planeWidth = aspectRatio * planeHeight;
 
         this.mesh = MeshBuilder.CreatePlane(
             `richTextPlane_${this.id}`,
@@ -952,9 +983,8 @@ export class RichTextLabel {
             return;
         }
 
-        const sizeScale = this.options.fontSize / 48;
-        const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * sizeScale;
-        const labelHeight = sizeScale;
+        const labelHeight = (this.options.fontSize / 48) * this.heightInLines;
+        const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
 
         const newPos = targetPos.clone();
 
@@ -1034,12 +1064,20 @@ export class RichTextLabel {
     }
 
     private _setupDepthFading(): void {
-        const camera = this.scene.activeCamera;
+        const cameraAt = new Vector3();
 
         this.depthFadeCallback = () => {
+            // READ EVERY FRAME: switching between 2D and 3D swaps the active camera.
+            const camera = this.scene.activeCamera;
             if (!camera || !this.mesh || !this.material) {
                 return;
             }
+
+            // WHERE THE CAMERA REALLY IS. The 3D camera is parented to a pivot, so its `position`
+            // is an offset from that pivot -- (0, 0, -distance) however the graph is centred or
+            // turned. Measuring from that faded labels as if the camera sat near the origin, and
+            // orbiting changed nothing. The world matrix carries the pivot.
+            camera.getWorldMatrix().getTranslationToRef(cameraAt);
 
             // THE ABSOLUTE POSITION, NOT THE LOCAL ONE. A label's plane is PARENTED to the node
             // it belongs to, so `mesh.position` is its offset from that node -- the same small
@@ -1047,7 +1085,7 @@ export class RichTextLabel {
             // camera against the origin, so every label in the scene faded by exactly the same
             // amount however near or far its node was, which is the one thing depth fading is
             // for. Read back in a story: twenty labels, twenty identical alphas.
-            const distance = Vector3.Distance(camera.position, this.mesh.getAbsolutePosition());
+            const distance = Vector3.Distance(cameraAt, this.mesh.getAbsolutePosition());
 
             let fadeFactor = 1.0;
             if (distance < this.options.depthFadeNear) {
@@ -1185,6 +1223,15 @@ export class RichTextLabel {
      */
     public get labelMesh(): Mesh | null {
         return this.mesh;
+    }
+
+    /**
+     * The runs of text the label draws, one list per line, each with the style it is drawn in:
+     * what the markup in its text came to, or the text whole when it is plain text.
+     * @returns The runs.
+     */
+    public get textRuns(): readonly (readonly TextSegment[])[] {
+        return this.parsedContent;
     }
 
     /**

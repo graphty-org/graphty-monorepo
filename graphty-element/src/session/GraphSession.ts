@@ -55,6 +55,12 @@ import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
+import { createNoteFacts } from "./notes/countIndex";
+import { createNotesApi } from "./notes/NotesApi";
+import { isNotePath, noteFieldOf } from "./notes/paths";
+import { noteMembers } from "./notes/select";
+import { boundTargets } from "./notes/status";
+import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
@@ -123,7 +129,7 @@ import {
     type PathDirectory,
     type SessionStylesApi,
 } from "./styles";
-import { channelsFor } from "./styles/channels";
+import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
@@ -247,6 +253,7 @@ const TX_PARTS = [
     "results",
     "scope",
     "sets",
+    "notes",
     "selection",
     "visibility",
     "styles",
@@ -284,6 +291,8 @@ interface SessionParts {
     readonly scope: ScopeApi;
     /** The kept sets. */
     readonly sets: SetsApi;
+    /** The notes. */
+    readonly notes: NotesApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -378,6 +387,7 @@ class Session implements ElementSession {
     readonly results: ResultsApi;
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
+    readonly notes: NotesApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -425,6 +435,7 @@ class Session implements ElementSession {
         this.results = parts.results;
         this.scope = parts.scope;
         this.sets = parts.sets;
+        this.notes = parts.notes;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -555,7 +566,8 @@ class Session implements ElementSession {
                         code: "E_BAD_COMMAND",
                         message: `A set's ${minted.join(", ")} ${minted.length === 1 ? "is" : "are"} minted by the element; leave ${minted.length === 1 ? "it" : "them"} out of set.create.`,
                         source: "data",
-                        details: { fields: minted },
+                        // The same reason a note's element-made fields are refused with.
+                        details: { fields: minted, reason: "element-field" },
                     }),
                 ) as CommandOutcome<C>;
             }
@@ -1086,6 +1098,9 @@ function configOf(
         get layoutBehavior() {
             return read().layoutBehavior;
         },
+        get author() {
+            return read().author;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.
@@ -1348,26 +1363,6 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Read one dotted path out of a parsed style object.
- * @param style - The style to read.
- * @param path - The dotted path a channel declares, such as `texture.color`.
- * @returns What sits there, or undefined when any step of the path is missing.
- */
-function atStylePath(style: unknown, path: string): unknown {
-    let held = style;
-
-    for (const segment of path.split(".")) {
-        if (typeof held !== "object" || held === null) {
-            return undefined;
-        }
-
-        held = (held as Record<string, unknown>)[segment];
-    }
-
-    return held;
-}
-
-/**
  * Turn one of the element's default styles into the channels a layer writes.
  *
  * DERIVED RATHER THAN RESTATED, and that is the whole point of it. Every channel declares where
@@ -1493,7 +1488,9 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
-        answers: (path: Path, target: "node" | "edge"): boolean => answerablePaths(data, runs, target).includes(path),
+        // A note value is always answerable: it reads nothing until a note names the element.
+        answers: (path: Path, target: "node" | "edge"): boolean =>
+            noteFieldOf(path) !== undefined || answerablePaths(data, runs, target).includes(path),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }
@@ -1656,6 +1653,7 @@ function repaintAgainstCurrentData(
                 return engine.repaintAll(stack, context);
             },
             styleOf: (target, index) => engine.styleOf(target, index),
+            plainText: (target, index, channel) => engine.plainText(target, index, channel),
             meshKeyOf: (target, index) => engine.meshKeyOf(target, index),
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
@@ -1826,11 +1824,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
-    const data = new SessionData(store.store, records, readData, {
-        dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
-        importer: () => dispatcher.capturedDispatch(),
-        slice,
-    });
+    const data = new SessionData(
+        store.store,
+        records,
+        readData,
+        {
+            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            importer: () => dispatcher.capturedDispatch(),
+            slice,
+        },
+        {
+            revision: () => inputs.tick.value,
+            // Read through a call: the resolver is built below.
+            resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+        },
+    );
     // A session that holds a store of its own kind writes it through its own ingest; the element
     // hands its data manager's in instead.
     if (store.store instanceof GraphStore) {
@@ -1910,6 +1918,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 ? []
                 : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
+            // And notes naming it, labeled with the note's first line (design/notes 5.7). A set a file
+            // named is that file's, not this session's set of the same id.
+            ...[...dispatcher.state.notes.values()].flatMap((entry) =>
+                boundTargets(entry).flatMap((target) =>
+                    "set" in target
+                        ? [
+                              {
+                                  user: {
+                                      kind: "note" as const,
+                                      id: entry.note.id,
+                                      label: firstLineOf(entry.note.text),
+                                  },
+                                  scope: { set: target.set },
+                              },
+                          ]
+                        : [],
+                ),
+            ),
         ],
         materialise: createMaterialiser({
             snapshot,
@@ -2097,7 +2123,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const graph = snapshot();
             const space = edgeSpaceOf(graph);
             const held = heldItems(
-                [...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter],
+                [
+                    ...keptSets.list().map((set) => set.definition),
+                    ...layerScopesOf(stack),
+                    visibility.filter,
+                    // A note's item target selects what its run held (design/notes 5.6).
+                    ...[...dispatcher.state.notes.values()].flatMap((entry) =>
+                        boundTargets(entry).flatMap((target) =>
+                            "item" in target ? [{ kind: "item", item: target.item }] : [],
+                        ),
+                    ),
+                ],
                 runId,
             );
 
@@ -2177,6 +2213,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         entries: () => runs.list().map((run) => toResultsEntry(run)),
     });
 
+    // Notes, published as `session.notes`: a result a note names is known while its run is, and
+    // a cite or an item pins the token of its current finished run.
+    const noteResult = (id: RunId): { readonly execution: string | undefined } | undefined =>
+        runs.get(id) === undefined ? undefined : { execution: executionOf(id) };
+    const notes = createNotesApi({
+        dispatcher,
+        edgeMember,
+        status: {
+            snapshot,
+            visible: {
+                node: (row: number) => visibility.masks.nodes().has(row),
+                edge: (row: number) => visibility.masks.edges().has(row),
+            },
+            set: (id: SetId) => keptSets.get(id),
+            result: noteResult,
+        },
+        onChange: (change) => {
+            publish(watchers, "note:changed", change);
+        },
+    });
+
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
@@ -2184,6 +2241,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         results: (runId) => runs.get(runId)?.result,
         records,
+        notes: createNoteFacts(
+            () => dispatcher.state.notes,
+            () => dispatcher.lane.writes("notes"),
+            snapshot,
+        ),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
@@ -2206,6 +2268,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
+        note: (id: NoteId, target: number | undefined) => {
+            const status = notes.status(id);
+            return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);
+        },
         records,
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
@@ -2316,6 +2382,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
     });
 
+    // The `notes` hook: a note written, edited, removed, merged, undone or redone moves the
+    // `graphty.notes.*` values of the nodes and edges it names (design/notes 8.3), so the layers
+    // reading one are repainted over what they matched before and match now, from the lowest of
+    // them up. A stack reading no note path paints nothing.
+    // ponytail: a reader repaints all it matches, not only the elements whose notes changed, so a
+    // domain over the count stays whole; paint the changed rows alone if a big noted graph shows it.
+    dispatcher.lane.register("notes", async (rendered, target, dirty) => {
+        const readers = target.styles.filter((entry) => entry.reads.some(isNotePath));
+        if (readers.length === 0 || ![...dirty].some((id) => rendered.notes.get(id) !== target.notes.get(id))) {
+            return;
+        }
+
+        painter.invalidate();
+        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        const fromIndex = target.styles.indexOf(readers[0]);
+        await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
+    });
+
     // The `graph` hook of a session with no renderer: a layer may select on any value a data
     // command wrote, and a node a command added has no paint until a pass reaches it. So a change
     // to the rows -- an add, a removal, a replace, a weight or the direction, forward or on undo
@@ -2388,6 +2472,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         scope,
         sets,
+        notes,
         selection,
         visibility,
         styles,
@@ -2461,6 +2546,16 @@ function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[];
  */
 function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
     return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "member" ? [layer.selector.of] : []));
+}
+
+/**
+ * A note's first line with any characters, cut to 80 code points: how `sets.usedBy` labels it.
+ * @param text - The note's text.
+ * @returns The label.
+ */
+function firstLineOf(text: string): string {
+    const line = text.split(/\r\n|\r|\n/).find((candidate) => candidate.trim() !== "") ?? "";
+    return Array.from(line.trim()).slice(0, 80).join("");
 }
 
 /** What names a set from outside the session, for `usedBy`. */

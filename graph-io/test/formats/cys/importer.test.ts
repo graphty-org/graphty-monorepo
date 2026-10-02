@@ -403,6 +403,38 @@ describe("cysImporter: a 3.x network", () => {
         expect(codes(report)).toContain(CYS_ISSUE.TABLE);
     });
 
+    it("refuses an Integer cell beyond i32 (E_BAD_VALUE): a java.lang.Integer column never holds one", async () => {
+        const doc = session('<node id="5" label="n"/><node id="6" label="m"/>', [
+            table(NODE_TABLE, [
+                '"SUID","n","l"',
+                '"java.lang.Long","java.lang.Integer","java.util.List<java.lang.Integer>"',
+                '"Net default node",""',
+                '"5","2147483648","2147483648\n4"',
+                '"6","7","8"',
+            ]),
+        ]);
+        const { snapshot, report } = await importGraph(doc, { format: "cys" });
+        expect(codes(report).filter((c) => c === "E_BAD_VALUE")).toHaveLength(2);
+        expect(codes(report)).not.toContain("W_WIDENED");
+        expect(snapshot.nodes.get("n")?.dtype).toBe("i32");
+        expect(cell(snapshot, "nodes", "n", "5")).toBeUndefined();
+        expect(cell(snapshot, "nodes", "n", "6")).toBe(7);
+        expect(Array.from(cell(snapshot, "nodes", "l", "5") as number[])).toEqual([4]);
+    });
+
+    it("keeps a column name with doubled quotes and a comma as written", async () => {
+        const doc = session('<node id="5" label="n"/>', [
+            table(NODE_TABLE, [
+                '"SUID","say ""hi"", then"',
+                '"java.lang.Long","java.lang.String"',
+                '"Net default node",""',
+                '"5","a ""quoted"" cell"',
+            ]),
+        ]);
+        const { snapshot } = await importGraph(doc, { format: "cys" });
+        expect(cell(snapshot, "nodes", 'say "hi", then', "5")).toBe('a "quoted" cell');
+    });
+
     it("records a broken table header, broken CSV and a bad Boolean", async () => {
         const short = session('<node id="5" label="n"/>', [table(NODE_TABLE, ['"CyCSV-Version","1"', '"SUID","w"'])]);
         expect(codes((await importGraph(short, { format: "cys" })).report)).toContain(CYS_ISSUE.TABLE);
@@ -444,6 +476,20 @@ describe("cysImporter: a 3.x network", () => {
         ]);
         const { snapshot } = await importGraph(bytes, { format: "cys" });
         expect(cell(snapshot, "nodes", "cytoscape.nestedNetwork", "3")).toBe("Second");
+    });
+
+    it("skips the nodes of a second view the network does not hold, and an id the id rule refuses", async () => {
+        const view = (id: string, x: string): ZipInput => ({
+            name: `${ROOT}views/2-${id}-Net.xgmml`,
+            data: `${DECL}<graph id="${id}" cy:view="1" cy:networkId="2" ${NS}><node id="${id}0" cy:nodeId="5"><graphics x="${x}" y="2"/></node><node id="${id}1" cy:nodeId="404"><graphics x="9" y="9"/></node><node id="${id}2" cy:nodeId="abc"><graphics x="9" y="9"/></node></graph>`,
+        });
+        const doc = session('<node id="5" label="n"/>', [view("8", "1"), view("9", "3")]);
+        for (const options of [{}, { ids: "number" as const }]) {
+            const { snapshot, report } = await importGraph(doc, { format: "cys", ...options });
+            expect(snapshot.nodeCount).toBe(1);
+            expect(cell(snapshot, "nodes", "position@2", 0)).toEqual([3, -2, 0]);
+            expect(codes(report)).toContain(CYS_ISSUE.DANGLING_REFERENCE);
+        }
     });
 
     it("warns about tables, views and view elements that name nothing", async () => {

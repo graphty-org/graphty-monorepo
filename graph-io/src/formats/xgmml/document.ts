@@ -256,6 +256,9 @@ export class XgmmlParser implements XmlHandler {
 
     private xgmmlNamespace = false;
 
+    /** The prefix of the root element (`xgmml` in `<xgmml:graph>`), or null when it has none. */
+    private rootPrefix: string | null = null;
+
     private readonly rdf: Record<string, string> = {};
 
     private rdfXml: string | null = null;
@@ -438,6 +441,7 @@ export class XgmmlParser implements XmlHandler {
                 this.cytoscape = true;
             }
         }
+        this.rootPrefix = prefix;
         const nsKey = prefix === null ? "xmlns" : `xmlns:${prefix}`;
         this.xgmmlNamespace = rawAttrs.get(nsKey) === XGMML_NAMESPACE;
         if (local !== "graph") {
@@ -573,21 +577,34 @@ export class XgmmlParser implements XmlHandler {
         line: number,
     ): void {
         const { att } = frame;
-        if (name === "att" && !rawName.includes(":")) {
+        const xgmml = this.isXgmmlName(rawName);
+        if (name === "att" && xgmml) {
             const child = this.newAtt(attrs, line);
             att.children.push(child);
             this.beginAtt(child, attrs, frame.owner === "graphics" ? "graphics" : "att");
             return;
         }
-        if (name === "graph" && !rawName.includes(":")) {
+        if (name === "graph" && xgmml) {
             att.hasGraph = true;
             this.beginNestedGraph(frame, attrs, line);
             return;
         }
-        att.xml = "";
+        // a second foreign element of the same att is appended to the first
+        att.xml ??= "";
         const capture: Extract<Frame, { kind: "capture" }> = { kind: "capture", att, depth: 0 };
         this.frames.push(capture);
         this.capture(capture, rawName, attrs);
+    }
+
+    /**
+     * Whether an element name inside an att is XGMML's own (unprefixed, or with the root's prefix,
+     * as in a document whose root is `<xgmml:graph>`) rather than foreign XML such as `rdf:RDF`.
+     * @param rawName - the name as written
+     * @returns true for an XGMML element name
+     */
+    private isXgmmlName(rawName: string): boolean {
+        const colon = rawName.indexOf(":");
+        return colon < 0 || (this.rootPrefix !== null && rawName.slice(0, colon) === this.rootPrefix);
     }
 
     /**

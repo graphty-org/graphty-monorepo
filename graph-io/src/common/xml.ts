@@ -82,7 +82,9 @@ export interface XmlRepairs {
     /**
      * Read an `&` that is not followed by a `;` within the next 7 characters as `&amp;` (Cytoscape's
      * `cytoscape.xgmml.repair.bare.ampersands` lookahead); an `&name;` that does end in time is
-     * still decoded, and still fatal when the entity is unknown.
+     * still decoded, and still fatal when the entity is unknown. A complete numeric character
+     * reference is decoded whatever its length (`&#128512;`), where Cytoscape's byte lookahead
+     * would turn it into text.
      */
     readonly bareAmpersand?: ((line: number) => void) | undefined;
     /**
@@ -323,7 +325,12 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
     while (amp >= 0) {
         out += raw.slice(start, amp);
         const semi = raw.indexOf(";", amp + 1);
-        if (repairs?.bareAmpersand !== undefined && (semi < 0 || semi - amp > BARE_AMPERSAND_LOOKAHEAD)) {
+        if (
+            repairs?.bareAmpersand !== undefined &&
+            (semi < 0 || semi - amp > BARE_AMPERSAND_LOOKAHEAD) &&
+            // a well-formed character reference longer than the lookahead (&#128512;) is not bare
+            !CHAR_REFERENCE.test(raw.slice(amp, amp + 12))
+        ) {
             repairs.bareAmpersand(lineAt(raw, amp, line));
             out += "&";
             start = amp + 1;

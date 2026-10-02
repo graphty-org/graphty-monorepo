@@ -310,6 +310,17 @@ describe("repair hooks (off unless asked for; XGMML only)", () => {
         }
     });
 
+    it("decodes a complete character reference longer than the lookahead instead of repairing it", async () => {
+        const doc = '<a x="&#128512;&#x1F600;">&#128512; &#x1F600;</a>';
+        const smile = String.fromCodePoint(0x1f600);
+        for (const size of [doc.length, 3, 1]) {
+            const { events, ampersands } = await repaired(doc, size);
+            expect(events[0]).toEqual(["start", "a", { x: smile + smile }, 1]);
+            expect(events[1]).toEqual(["text", `${smile} ${smile}`, 1]);
+            expect(ampersands).toEqual([]);
+        }
+    });
+
     it("still rejects an unknown entity that does end in ; within 7 characters", async () => {
         const { handler } = recorder();
         await expect(

@@ -14,7 +14,7 @@
  * both readers share every column rule. Styles are not read (issue #706): W_STYLES_NOT_IMPORTED.
  */
 
-import { GraphFormatError, type GraphSink } from "@graphty/graph-format";
+import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
 import { IdCoercer } from "../../common/ids.js";
@@ -666,8 +666,13 @@ function writeViewPositions(
             { element: name },
         );
         for (const [id, xyz] of positions) {
-            const index = sink.indexOf(coercer.text(id));
-            if (index >= 0) {
+            let index: number;
+            try {
+                index = sink.indexOf(coercer.text(id));
+            } catch {
+                continue; // an id the id rule refuses was refused, and recorded, as a node already
+            }
+            if (index !== INVALID_INDEX) {
                 sink.setNodeValue(handle, index, xyz);
             }
         }

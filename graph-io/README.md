@@ -302,7 +302,9 @@ losses and format rules, in addition to the table:
 - **XGMML**: one reader for the 1.0 draft, the Cytoscape 2.x and 3.x exports and the Cytoscape 3
   session network files. Direction follows the DTD (root `directed`, default 0), then `cy:directed`
   per edge; ids stay strings (`"1"` and `"01"` are two nodes); atts are typed by `cy:type`, then
-  `type` (Integer `i32` widening to `f64` with `W_WIDENED`, Long `f64` or a string under
+  `type` (the XGMML `integer` is `i32`, widening to `f64` with `W_WIDENED` because pre-3.3
+  Cytoscape wrote Longs that way, while a value beyond i32 under `cy:type="Integer"` or in a
+  session's `java.lang.Integer` column is `E_BAD_VALUE`; Long `f64` or a string under
   `long: "string"`, lists of their element type, record lists, lists of lists and RDF as `json`);
   groups become `parent` / `parents`, other node-nested graphs the `cytoscape.nestedNetwork`
   pointer; `graphics` x and y are the position, stored y-up (Cytoscape writes screen coordinates;

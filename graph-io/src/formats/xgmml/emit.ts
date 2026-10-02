@@ -563,7 +563,8 @@ export class XgmmlEmitter {
                 );
                 continue;
             }
-            const row: NodeRow = { id, records: [record], index: INVALID_INDEX, row: this.rowList.length };
+            // -1 (not INVALID_INDEX, which is positive) marks a node the sink refused
+            const row: NodeRow = { id, records: [record], index: -1, row: this.rowList.length };
             try {
                 row.index = this.sink.addNode(this.nodeId(id, record.line));
                 this.report.counts.nodes++;
@@ -876,8 +877,17 @@ export class XgmmlEmitter {
      */
     private addEdge(record: EdgeRec, header: boolean, ids: Set<string>, where: IssueLocation): number {
         const alias = this.settings.labelAliases ? aliasesOf(record.label) : null;
-        const source = this.endpoint(record.source, alias?.[0] ?? null, "source", where);
-        const target = this.endpoint(record.target, alias?.[2] ?? null, "target", where);
+        let source: NodeId | null;
+        let target: NodeId | null;
+        try {
+            source = this.endpoint(record.source, alias?.[0] ?? null, "source", where);
+            target = this.endpoint(record.target, alias?.[2] ?? null, "target", where);
+        } catch (err) {
+            // an endpoint the id rule or the sink refuses (ids: "number", a caller's sink)
+            this.report.counts.skippedEdges++;
+            this.report.recordError(err, where);
+            return -1;
+        }
         if (source === null || target === null) {
             this.report.counts.skippedEdges++;
             return -1;

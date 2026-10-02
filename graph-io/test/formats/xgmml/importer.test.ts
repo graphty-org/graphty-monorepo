@@ -198,6 +198,21 @@ describe("xgmmlImporter nodes, edges and direction", () => {
         expect(added.snapshot.edgeCount).toBe(1);
     });
 
+    it("records a node or an endpoint the id rule refuses and goes on (ids: number)", async () => {
+        const doc = cy3('<node id="1"/><node id="x"/><edge source="1" target="x"/><edge source="1" target="1"/>');
+        const { snapshot, report } = await load(doc, { ids: "number" });
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.edgeCount).toBe(1);
+        expect(report.counts.skippedEdges).toBe(1);
+        expect(codes(report)).toContain("E_INVALID_ID");
+        const added = await load(cy3('<node id="1"/><edge source="1" target="ghost"/>'), {
+            ids: "number",
+            addMissingNodes: true,
+        });
+        expect(added.snapshot.edgeCount).toBe(0);
+        expect(codes(added.report)).toContain("E_INVALID_ID");
+    });
+
     it("enforces addMissingNodes false through the registry's builder too", async () => {
         const result = await importGraph(cy3('<node id="a"/><edge source="a" target="ghost"/>'), { format: "xgmml" });
         expect(result.snapshot.edgeCount).toBe(0);
@@ -260,6 +275,38 @@ describe("xgmmlImporter attributes", () => {
         expect(cell(snapshot, "nodes", "r", "a")).toBe(Number.POSITIVE_INFINITY);
         expect(cell(snapshot, "nodes", "r", "b")).toBe(Number.NEGATIVE_INFINITY);
         expect(codes(report)).toEqual(expect.arrayContaining([XGMML_ISSUE.WIDENED, XGMML_ISSUE.PRECISION]));
+    });
+
+    it("refuses a value beyond i32 where cy:type says Integer (E_BAD_VALUE), in scalars and lists alike", async () => {
+        const { snapshot, report } = await load(
+            cy3(`<node id="a"><att type="integer" name="n" value="2147483648" cy:type="Integer"/>
+  <att type="list" name="l" cy:type="List" cy:elementType="Integer"><att type="integer" value="2147483648" cy:type="Integer"/><att type="integer" value="3" cy:type="Integer"/></att>
+  <att type="list" name="old"><att type="integer" value="2147483648"/><att type="integer" value="3"/></att></node>
+<node id="b"><att type="integer" name="n" value="7" cy:type="Integer"/></node>`),
+        );
+        expect(codes(report).filter((c) => c === XGMML_ISSUE.BAD_VALUE)).toHaveLength(2);
+        expect(snapshot.nodes.get("n")?.dtype).toBe("i32");
+        expect(cell(snapshot, "nodes", "n", "a")).toBeUndefined();
+        expect(cell(snapshot, "nodes", "n", "b")).toBe(7);
+        expect(snapshot.nodes.get("l")?.meta.itemDtype).toBe("i32");
+        expect(cell(snapshot, "nodes", "l", "a")).toEqual([3]);
+        // a pre-3.3 list of "integer" items also carried Longs: it widens like a scalar
+        expect(snapshot.nodes.get("old")?.meta.itemDtype).toBe("f64");
+        expect(cell(snapshot, "nodes", "old", "a")).toEqual([2147483648, 3]);
+        expect(codes(report)).toContain(XGMML_ISSUE.WIDENED);
+    });
+
+    it("keeps a real .SUID att real (Cytoscape writes 21.0) and an integer one as a declared long", async () => {
+        const { snapshot, report } = await load(
+            cy3(
+                `<node id="a"><att type="real" name="other.SUID" value="21.0"/><att type="integer" name="mine.SUID" value="22"/></node>`,
+            ),
+        );
+        expect(report.errorCount).toBe(0);
+        expect(cell(snapshot, "nodes", "other.SUID", "a")).toBe(21);
+        expect(snapshot.nodes.get("other.SUID")?.meta.origin?.type).toBe("real");
+        expect(snapshot.nodes.get("mine.SUID")?.meta.origin?.type).toBe("long");
+        expect(snapshot.nodes.get("other.SUID")?.meta.extra.suidReference).toBe(true);
     });
 
     it("records E_BAD_VALUE for values that do not parse (Java-only forms included) and leaves the cell unset", async () => {
@@ -335,6 +382,17 @@ describe("xgmmlImporter attributes", () => {
             '<rdf:RDF xmlns:rdf="r"><rdf:Description about="x">t &amp; u</rdf:Description></rdf:RDF>',
         );
         expect(codes(report)).toContain(XGMML_ISSUE.RECORD_LIST);
+    });
+
+    it("keeps every foreign element of one att, not only the last", async () => {
+        const { snapshot } = await load(
+            draft(
+                '<node id="a"><att name="meta"><f:one xmlns:f="urn:f">1</f:one><f:two xmlns:f="urn:f">2</f:two></att></node>',
+            ),
+        );
+        const xml = cell(snapshot, "nodes", "meta", "a") as string;
+        expect(xml).toContain("<f:one");
+        expect(xml).toContain("<f:two");
     });
 
     it("reports malformed atts once per kind (W_XGMML_BAD_ATT): list with value, scalar with children, no name", async () => {
@@ -689,6 +747,16 @@ describe("xgmmlImporter document-level errors and repairs", () => {
         );
         expect(prefixed.snapshot.nodeCount).toBe(1);
         expect(codes(prefixed.report)).not.toContain(XGMML_ISSUE.NO_NAMESPACE);
+    });
+
+    it("reads the atts and nested graphs of a document whose root is prefixed, under the same prefix", async () => {
+        const { snapshot, report } = await load(
+            `<x:graph id="1" xmlns:x="http://www.cs.rpi.edu/XGMML"><x:node id="a"><x:att name="l" type="list"><x:att value="1" type="integer"/><x:att value="2" type="integer"/></x:att><x:att><x:graph id="sub"><x:node id="b"/></x:graph></x:att></x:node></x:graph>`,
+        );
+        expect(codes(report)).toEqual([]);
+        expect(snapshot.nodeCount).toBe(2);
+        expect(cell(snapshot, "nodes", "l", "a")).toEqual([1, 2]);
+        expect(cell(snapshot, "nodes", "parent", "b")).toBe(snapshot.ids.indexOf("a"));
     });
 
     it("skips unknown elements with their subtree, once per name", async () => {

@@ -153,7 +153,7 @@ export class ColumnSet {
                 plan.declared.add("string");
             }
         } else if (type.kind === "list") {
-            cell = this.listCell(att, name, at);
+            cell = this.listCell(att, name, plan, at);
             plan.declared.add("list");
         } else if (type.kind === "map") {
             cell = jsonCell(recordOf(att));
@@ -292,7 +292,7 @@ export class ColumnSet {
             return null;
         }
         const parsed = parseScalar(att.value, kind, this.options.unescape);
-        if (parsed === null) {
+        if (parsed === null || (parsed.overflow !== undefined && kind === "int" && exactInteger(att.cyType))) {
             this.badValue(att.value, kind, at);
             return null;
         }
@@ -311,10 +311,11 @@ export class ColumnSet {
      * A list of lists, a list with records, or a list of named fields is a json value.
      * @param att - the att
      * @param name - the column name
+     * @param plan - the column (an item beyond i32 widens it, as a scalar does)
      * @param at - the location
      * @returns the cell
      */
-    private listCell(att: AttRec, name: string, at: IssueLocation): Cell | null {
+    private listCell(att: AttRec, name: string, plan: Plan, at: IssueLocation): Cell | null {
         if (att.value !== null) {
             this.badAtt(`the list att "${name}" has a value; it is ignored`, att, "list-value");
         }
@@ -349,9 +350,16 @@ export class ColumnSet {
                 continue;
             }
             const parsed = parseScalar(child.value, itemKind ?? "string", this.options.unescape);
-            if (parsed === null) {
+            const exact = exactInteger(att.elementType) || exactInteger(child.cyType);
+            if (parsed === null || (parsed.overflow !== undefined && itemKind === "int" && exact)) {
                 this.badValue(child.value, itemKind ?? "string", { line: child.line, element: at.element });
                 continue;
+            }
+            if (parsed.overflow === "i32") {
+                plan.overflow = true;
+            } else if (parsed.overflow === "precision") {
+                plan.precision = true;
+                plan.overflow ||= itemKind === "int";
             }
             items.push({ value: parsed.value, text: child.value });
         }
@@ -572,6 +580,17 @@ export class ColumnSet {
     private recordList(message: string, at: IssueLocation): void {
         this.report.warnOnce("coercion", XGMML_ISSUE.RECORD_LIST, message, at);
     }
+}
+
+/**
+ * Whether a Cytoscape type names Java's Integer exactly (`cy:type="Integer"`, a CyCSV
+ * `java.lang.Integer` column): a value beyond i32 is then not an Integer at all (Cytoscape cannot
+ * write one), where the XGMML `integer` of pre-3.3 Cytoscape also carried Longs and widens.
+ * @param cyType - the Cytoscape type, or null
+ * @returns true for Integer
+ */
+function exactInteger(cyType: string | null): boolean {
+    return cyType?.trim().toLowerCase() === "integer";
 }
 
 /** A column's decided storage. */

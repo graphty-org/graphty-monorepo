@@ -45,8 +45,8 @@ const XGMML_TYPES: Readonly<Record<string, DeclaredKind>> = {
 
 /**
  * The kind an att declares: `cy:type` first, then `type`, both case-insensitive; no type is a
- * string; an unknown type is a string the caller reports. A numeric att whose name ends in
- * `.SUID` is a long (Cytoscape keeps SUID references as Long).
+ * string; an unknown type is a string the caller reports. An untyped-by-Cytoscape `integer` att
+ * whose name ends in `.SUID` is a long (Cytoscape keeps SUID references as Long).
  * @param att - the att
  * @returns the declared kind
  */
@@ -65,7 +65,9 @@ export function attType(att: AttRec): AttType {
         const unknown = declared ?? null;
         return { kind: "string", declared, unknown };
     }
-    if ((kind === "int" || kind === "real") && att.name?.endsWith(".SUID") === true) {
+    if (kind === "int" && att.cyType === null && att.name?.endsWith(".SUID") === true) {
+        // pre-3.3 Cytoscape wrote its Long SUID references as "integer"; a real one stays real
+        // (Cytoscape writes Double.toString forms such as "21.0", which no integer rule reads)
         kind = "long";
     }
     return { kind, declared, unknown: null };

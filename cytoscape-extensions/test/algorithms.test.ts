@@ -369,10 +369,7 @@ describe("centrality with known answers", () => {
         for (const n of dir.nodes()) {
             const exact = pr.rank(n) ?? 0;
             expect(delta.rank(n)).toBeCloseTo(exact, 5);
-            // A defect in @graphty/algorithms' PriorityDeltaPageRank: its propagated deltas already hold the
-            // teleport, and it adds (1 - d) / n to every score once more at the end, so the result is PageRank
-            // mixed with a uniform share: (r / (1 - d) + (1 - d) / n) / (1 / (1 - d) + 1 - d).
-            expect(priority.rank(n)).toBeCloseTo((exact / 0.15 + 0.15 / 3) / (1 / 0.15 + 0.15), 5);
+            expect(priority.rank(n)).toBeCloseTo(exact, 5);
         }
     });
 

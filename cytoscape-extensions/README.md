@@ -153,10 +153,6 @@ They follow Cytoscape's built-in algorithms:
 - **Degree** is the plain degree unless `normalized: true` (divide by `n - 1`).
 - **Depth-first order** tries neighbours in edge order; Cytoscape's tries the last one first, so
   the two visit orders differ when a node has more than one unvisited neighbour.
-- **`graphtyDeltaPageRank({ priority: true })`** adds the teleport share once more after it has
-  already propagated it, so its ranks are PageRank mixed with a small uniform share (a known
-  defect in @graphty/algorithms' `PriorityDeltaPageRank`); without `priority` the ranks are
-  PageRank's.
 - **Link prediction** on an undirected graph lists each candidate pair twice, once per
   orientation (`topK` counts both).
 

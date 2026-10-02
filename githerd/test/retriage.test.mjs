@@ -360,6 +360,21 @@ describe("filter runs", () => {
         expect(f.state.proposals.a.status).toBe("voided");
     });
 
+    it("voids every proposal of a filter run that was interrupted or lost, and runs the group again", async () => {
+        for (const status of ["interrupted", "lost"]) {
+            const t = await toFilter(candidates);
+            t.state.proposals = {
+                a: { id: "a", target: "issue:4", proposedBy: "run-3", status: "pending", closeAs: "completed" },
+                c: { id: "c", target: "issue:50", proposedBy: "run-other", status: "pending" },
+            };
+            t.end("run-3", { status, structured: null });
+            await t.make().tick();
+            expect(t.state.proposals.a).toMatchObject({ status: "voided", voidReason: "its filter run did not finish" });
+            expect(t.state.proposals.c.status).toBe("pending");
+            expect(t.state.retriage.filters[0]).toMatchObject({ status: "running", run: "run-4" });
+        }
+    });
+
     it("splits filter groups to fit the run write cap", async () => {
         const many = Array.from({ length: 12 }, (_, i) => ({ issue: i + 1, type: "obsolete", reason: "r" }));
         const t = await toFilter(many);

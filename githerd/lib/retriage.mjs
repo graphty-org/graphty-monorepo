@@ -243,7 +243,9 @@ export function createRetriage({
     }
 
     /**
-     * Settles the items whose run is over. An interrupted or lost run's item is pending again.
+     * Settles the items whose run is over. An interrupted or lost run's item is pending again, and
+     * every proposal that run made is voided: no filter run confirmed it, and the next filter run
+     * cannot replace it (one proposal per target).
      * @param {any[]} items batches or filter groups
      * @param {(item: any, run: any) => Promise<void>} onEnd handles a finished run
      */
@@ -253,6 +255,17 @@ export function createRetriage({
             const run = state.runs?.[item.run];
             if (run?.status === "running") continue;
             if (!run || run.status === "interrupted" || run.status === "lost") {
+                for (const p of Object.values(state.proposals ?? {})) {
+                    const proposal = /** @type {any} */ (p);
+                    if (proposal.proposedBy !== item.run || proposal.status === "voided") continue;
+                    proposal.status = "voided";
+                    proposal.voidReason = "its filter run did not finish";
+                    await event("retriage-proposal-voided", {
+                        proposal: proposal.id,
+                        run: item.run,
+                        target: proposal.target,
+                    });
+                }
                 item.status = "pending";
                 item.run = null;
                 continue;

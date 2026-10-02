@@ -189,7 +189,7 @@ describe("sonar-gate: when it cannot check", () => {
         const s = await server();
         const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url });
         assert.equal(r.code, 1);
-        assert.match(r.out, /no SONAR_SCAN_TOKEN/);
+        assert.match(r.out, /no SONAR_TOKEN/);
         assert.match(r.log, / blocked /);
     });
 
@@ -200,11 +200,10 @@ describe("sonar-gate: when it cannot check", () => {
         assert.match(r.out, /token was rejected/);
     });
 
-    it("blocks an administrator's token", async () => {
+    it("accepts an administrator's token from SONAR_TOKEN", async () => {
         const s = await server({ admin: true });
-        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_SCAN_TOKEN: TOKEN });
-        assert.equal(r.code, 1);
-        assert.match(r.out, /belongs to an administrator/);
+        const r = await gate(repo(HEAD_NEW), { SONAR_HOST_URL: s.url, SONAR_TOKEN: TOKEN });
+        assert.doesNotMatch(r.out, /administrator|no SONAR_TOKEN|token was rejected/);
     });
 });
 

@@ -7,7 +7,7 @@
 //    extensions SonarQube analyzes. A file with uncommitted changes is left out with a warning (the
 //    scanner reads the working tree; the push sends HEAD). Nothing left: pass, no server contact.
 // 2. The server and the setup. Unreachable, or not the pinned server: pass with a boxed warning and
-//    send no token. Anything else wrong (no token, rejected or admin token, no Java, no scanner, no
+//    send no token. Anything else wrong (no token, rejected token, no Java, no scanner, no
 //    `<key>-local` project): block, with the fix.
 // 3. Scan only those files into `<key>-local` (scratch; never `<key>`, which a partial scan would
 //    empty), wait for the server to process it, read its open issues and hotspots.
@@ -48,9 +48,7 @@ const REPO_OF = { ".ts": "typescript", ".tsx": "typescript", ".js": "javascript"
 const SCORE_RULES = /:(S3776|S107)$/;
 const NOSONAR_FORM = /NOSONAR\((S\d+)\): .{10,}/;
 const SETUP_FIX = "run `node tools/sonar-baseline.mjs --setup` once (the owner, with the admin token)";
-const TOKEN_FIX =
-    "use the graphty-scan user's token (design/sonarqube/server-settings.md): log in as graphty-scan, " +
-    "My Account > Security > Generate token, and put it in .env as SONAR_SCAN_TOKEN";
+const TOKEN_FIX = "put a valid SonarQube user token in .env as SONAR_TOKEN (My Account > Security > Generate token)";
 const RED = "\x1b[0;31m";
 const YELLOW = "\x1b[1;33m";
 const NC = "\x1b[0m";
@@ -333,10 +331,7 @@ async function checkSetup(run) {
     const cfg = loadConfig(run.top);
     await checkServer(run, cfg);
     if (!cfg.token)
-        throw run.blockSetup(
-            "no SONAR_SCAN_TOKEN",
-            "put SONAR_SCAN_TOKEN=<graphty-scan's token> in the repository's .env",
-        );
+        throw run.blockSetup("no SONAR_TOKEN", "put SONAR_TOKEN=<your SonarQube token> in the repository's .env");
     if (!cfg.projectKey) throw run.blockSetup("no SONAR_PROJECT_KEY", "put SONAR_PROJECT_KEY=graphty-monorepo in .env");
 
     const api = client(cfg.host, cfg.token);
@@ -344,9 +339,6 @@ async function checkSetup(run) {
     if (me.error || !me.isLoggedIn) {
         const why = me.error instanceof ApiError ? `HTTP ${me.error.status}` : (me.error?.message ?? "not logged in");
         throw run.blockSetup(`the token was rejected (${why})`, TOKEN_FIX);
-    }
-    if (me.permissions?.global?.includes("admin")) {
-        throw run.blockSetup("SONAR_SCAN_TOKEN belongs to an administrator", TOKEN_FIX);
     }
     const java = cfg.java || findOnPath("java");
     if (!java || !isExecutable(java)) {

@@ -185,8 +185,8 @@ would notice until the weekly review.
 | No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                          | Passes, with the boxed warning; no token is sent                                                 |
 | The step's 900 s deadline passes                                                                                                  | Passes, with the boxed warning                                                                   |
 | No pinned server id (`--setup` never ran on this machine)                                                                         | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
-| No `SONAR_SCAN_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
-| The token is rejected (401), or belongs to an administrator (`api/users/current`)                                                 | Blocks, saying how to create the `graphty-scan` token                                            |
+| No `SONAR_TOKEN` in the environment or in `.env`                                                                                  | Blocks, saying where to set it                                                                   |
+| The token is rejected (401) (`api/users/current`)                                                 | Blocks, saying how to make a valid token                                                            |
 | No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, scanner or server error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
 | Findings that block (section "What blocks")                                                                                       | Blocks                                                                                           |
 
@@ -212,7 +212,7 @@ from it, so a gate that has quietly stopped running shows up within a week.
 ### Configuration and secrets
 
 **Where the values come from.** The gate and the baseline job read `SONAR_HOST_URL`,
-`SONAR_PROJECT_KEY` and `SONAR_SCAN_TOKEN` (the scan token; `SONAR_TOKEN`, an admin token, only for `--setup`) from the environment first, then from the repository's
+`SONAR_PROJECT_KEY` and `SONAR_TOKEN` (or `SONAR_SCAN_TOKEN` for scans, when set) from the environment first, then from the repository's
 `.env`. They never source `.env`: they read those three keys (and `SONAR_SCANNER_JAVA_EXE_PATH`,
 which is not a secret) line by line and ignore everything
 else, so nothing else in the file (the Chromatic tokens and the rest) is run or exported. `.env`
@@ -233,12 +233,13 @@ passed to servherd in `env` or `command` (servherd stores both and shows them in
 scan with a fake token and checks that it appears in none of the log, the scanner's working
 directory, or `ps` output taken during the scan.
 
-**A non-admin token is required.** The token in the environment today is the `admin` user's,
-which can also create projects and change server settings. Before the gate is switched on, the
-owner creates a dedicated user, `graphty-scan`, with "Browse" and "Execute Analysis" on the two
-projects, and puts its token in `.env`. The gate refuses an administrator's token (see the table
-above). `--setup`, which creates projects and restores the profile, is the only thing that takes
-the admin token, from the owner's own shell, once.
+**The owner's token is used; a separate scan user is optional.** The token in the environment is
+the `admin` user's, exported from the owner's shell profile, so every process on this machine can
+already read it. A narrower scan-only token would therefore not reduce what an agent can reach,
+and the gate uses `SONAR_TOKEN` as it is. If the admin token ever leaves the shell profile, a user
+with "Browse" and "Execute Analysis" on the two projects can be created and its token put in `.env`
+as `SONAR_SCAN_TOKEN`, which scans then use instead. `--setup` (creates projects, restores the
+profile) needs an administrator's token.
 
 **The server is not authenticated yet.** The server's host name resolves in public DNS to a
 private address, and the server speaks plain `http`. Off the owner's network, any device that
@@ -455,7 +456,7 @@ backlog fix to push.
 
 | Stage                                                  | Work                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Done when                                                                                                                          | Ratchet when done                                                                                                                        |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 0. Setup (first week)                                  | The owner creates the `graphty-scan` user and token and puts it in `.env`, then runs `--setup`. Land the gate, `sonar-project.properties`, the "Graphty way" profile with S2699, S4782, S7735 and S4138 off, the exclusions and the S2245 / S4036 path entries. Start the baseline loop. Delete the probe projects. File the S5852 graph-io bug. Record the starting numbers on the tracking issue. The owner puts TLS in front of the server.                         | The gate runs on every push with the non-admin token; master has a fresh analysis with CI coverage; the server answers on `https`. | Gate: new issues and new hotspots on changed lines block.                                                                                |
+| 0. Setup (first week)                                  | The owner's token is in `.env` or the environment; `--setup` has run. Land the gate, `sonar-project.properties`, the "Graphty way" profile with S2699, S4782, S7735 and S4138 off, the exclusions and the S2245 / S4036 path entries. Start the baseline loop. Delete the probe projects. File the S5852 graph-io bug. Record the starting numbers on the tracking issue. The owner puts TLS in front of the server.                         | The gate runs on every push; master has a fresh analysis with CI coverage; the server answers on `https`. | Gate: new issues and new hotspots on changed lines block.                                                                                |
 | 1. Security (deadline: two weeks after the gate lands) | Review every hotspot left on `graphty-monorepo` by hand and set its status on the server. Fix the S5852 regexes (if the graph-io bug has not already). Add integrity hashes for the 3 CDN scripts (S5725). Check the S2068 "password".                                                                                                                                                                                                                                 | 0 hotspots to review; security review rating A.                                                                                    | Server gate: security review rating A.                                                                                                   |
 | 2. Reliability                                         | The 4 blockers (S3516). Then the 34 S2871 sorts, each read by hand: a numeric sort without a comparator is a real bug. Then S4335, S7767, S7059, S7739 (the rest of the 63 high). Then the medium and low reliability issues, rule by rule.                                                                                                                                                                                                                            | Reliability rating A (no open reliability issue).                                                                                  | Server gate: reliability rating C as soon as the high ones are gone, then A.                                                             |
 | 3. Mechanical maintainability                          | The rules a codemod or ESLint autofix can change with no change in behavior, one rule per PR, largest first: S1444, S7748, S6353, S6582, S7764, S7763, S7755, S7772, S7781, S7778, S1940 (about 1,100 after S4782 is off). Then the behavior-sensitive ones with the tests running: S2933, S7758, S6759, S7773. Decide S7735 and S4138, and switch them on if the decision is not "Deactivate".                                                                        | Every rule in this list has 0 open issues or a decision in the table.                                                              | Server gate: maintainability rating A held; duplication on new code at most 3%.                                                          |
@@ -561,7 +562,7 @@ Labels: drop `needs-decision` and `blocked`; keep `infrastructure`, `priority:me
 >
 > ## Done when
 >
-> - [ ] a non-admin `graphty-scan` token is in `.env` (the gate refuses an admin token)
+> - [x] a SonarQube token is in the environment or `.env`
 > - [ ] `sonar-project.properties`, `tools/sonar-gate.mjs`, `tools/sonar-baseline.mjs`,
 >       `tools/sonar/api.mjs` and the "Graphty way" profile are merged, and `tools/prepush.sh`
 >       runs the step

@@ -49,12 +49,12 @@ master, and it is where each burn-down stage adds its ratchet (section 3, "Stage
 
 These need the owner's account or a server-wide change, which no script in this repository makes:
 
-- **Create the `graphty-scan` user** with "Browse" and "Execute Analysis" on `graphty-monorepo`
-  and `graphty-monorepo-local` and no global permission, generate a user token for it, and put it
-  in `.env` as `SONAR_SCAN_TOKEN`. Until then the gate blocks every push that changes an
-  analyzable file with "no SONAR_SCAN_TOKEN". The admin token keeps the name `SONAR_TOKEN` (the
-  SonarQube MCP server and `--setup` use it), so a shell profile exporting it never stands in for
-  the scan token.
+- **No separate scan user.** The gate uses the owner's own `SONAR_TOKEN`. A narrower scan-only
+  token would limit what a leaked token can do, but the owner's admin token is already exported to
+  every shell on this machine, so a second token would not reduce what an agent can reach. If the
+  admin token ever moves out of the shell profile, create a user with "Browse" and "Execute
+  Analysis" on `graphty-monorepo` and `graphty-monorepo-local` and put its token in `.env` as
+  `SONAR_SCAN_TOKEN`; scans use it instead.
 - **Delete the probe project** `graphty-monorepo-baseline-probe`, left from the backlog
   measurement (`backlog.md`).
 - **TLS in front of the server**, then switch `SONAR_HOST_URL` to `https`.

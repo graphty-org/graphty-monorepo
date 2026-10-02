@@ -1,7 +1,7 @@
 // The one place that handles the SonarQube tokens. Reads SONAR_HOST_URL, SONAR_PROJECT_KEY,
-// SONAR_SCAN_TOKEN (the non-admin graphty-scan user's, for every scan) and SONAR_TOKEN (an
-// administrator's, only for --setup; a separate name so an admin token exported by a shell profile
-// never stands in for the scan token) (environment first, then the repository's .env, parsed line by line -- never
+// SONAR_TOKEN (the owner's token, used for everything) and the optional SONAR_SCAN_TOKEN (a
+// narrower token for scans only; used instead of SONAR_TOKEN for scans when it is set)
+// (environment first, then the repository's .env, parsed line by line -- never
 // sourced), makes every Web API call with the token in a header, and starts the scanner with the
 // token in that child's environment only. Every other child gets an environment without it.
 //
@@ -67,8 +67,8 @@ export function loadConfig(root, env = process.env) {
     return {
         host: withoutTrailingSlash(out.SONAR_HOST_URL),
         projectKey: out.SONAR_PROJECT_KEY,
-        token: out.SONAR_SCAN_TOKEN,
-        tokenSource: src.SONAR_SCAN_TOKEN,
+        token: out.SONAR_SCAN_TOKEN ?? out.SONAR_TOKEN,
+        tokenSource: src.SONAR_SCAN_TOKEN ?? src.SONAR_TOKEN,
         adminToken: out.SONAR_TOKEN,
         java: out.SONAR_SCANNER_JAVA_EXE_PATH,
     };

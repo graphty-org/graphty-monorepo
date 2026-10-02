@@ -82,7 +82,10 @@ describe("FruchtermanReingoldSimulation", () => {
         sim.step();
         const d = Math.hypot(positions[0] - positions[3], positions[1] - positions[4]);
         assert.ok(d > 0.1, `the pair is ${d} apart after one iteration`);
-        assert.ok(Math.abs(positions[0] + positions[3]) < 1e-6 && Math.abs(positions[1] + positions[4]) < 1e-6, "kick is antisymmetric");
+        assert.ok(
+            Math.abs(positions[0] + positions[3]) < 1e-6 && Math.abs(positions[1] + positions[4]) < 1e-6,
+            "kick is antisymmetric",
+        );
     });
 
     it("one locked node and the rest unseeded does not collapse the layout onto the locked node", () => {
@@ -100,7 +103,10 @@ describe("FruchtermanReingoldSimulation", () => {
         let minD = Number.POSITIVE_INFINITY;
         for (let i = 0; i < s.nodeCount; i++) {
             for (let j = i + 1; j < s.nodeCount; j++) {
-                minD = Math.min(minD, Math.hypot(positions[3 * i] - positions[3 * j], positions[3 * i + 1] - positions[3 * j + 1]));
+                minD = Math.min(
+                    minD,
+                    Math.hypot(positions[3 * i] - positions[3 * j], positions[3 * i + 1] - positions[3 * j + 1]),
+                );
             }
         }
         assert.ok(minD > 0.01, `closest pair is ${minD} apart`);

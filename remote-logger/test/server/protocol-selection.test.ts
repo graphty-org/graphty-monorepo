@@ -46,8 +46,12 @@ describe("Protocol selection", () => {
         storage.stopCleanupTimer();
         // Cleanup cert files
         try {
-            if (fs.existsSync(certPath)) {fs.unlinkSync(certPath);}
-            if (fs.existsSync(keyPath)) {fs.unlinkSync(keyPath);}
+            if (fs.existsSync(certPath)) {
+                fs.unlinkSync(certPath);
+            }
+            if (fs.existsSync(keyPath)) {
+                fs.unlinkSync(keyPath);
+            }
         } catch {
             // Ignore cleanup errors
         }
@@ -220,7 +224,9 @@ describe("Protocol selection", () => {
                     },
                     (res) => {
                         let data = "";
-                        res.on("data", (chunk) => { data += chunk; });
+                        res.on("data", (chunk) => {
+                            data += chunk;
+                        });
                         res.on("end", () => {
                             resolve({ statusCode: res.statusCode!, data });
                         });

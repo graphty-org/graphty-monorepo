@@ -931,7 +931,7 @@ import {
     HELP_TEXT,           // CLI help text
 
     // Certificate utilities
-    generateSelfSignedCert, // async: await generateSelfSignedCert(hostname)
+    generateSelfSignedCert,
     certFilesExist,
     readCertFiles,
 } from "@graphty/remote-logger/server";

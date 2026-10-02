@@ -27,13 +27,21 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import ts from "typescript";
 
 /** The package directory and its path inside the repository. */
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * A path relative to the package, always with "/": path.relative gives "\\" on Windows, and every
+ * set, list and comparison here uses "/".
+ * @param {string} file an absolute path
+ * @returns {string} the package-relative path
+ */
+const rel = (file) => relative(PACKAGE_DIR, file).split(sep).join("/");
 const PACKAGE_PREFIX = "webgpu-graph-algorithms/";
 
 /**
@@ -156,7 +164,7 @@ function reachedSrc(roots, kernels) {
             }
         }
     }
-    return new Set([...seen].map((f) => relative(PACKAGE_DIR, f)).filter((f) => f.startsWith("src/")));
+    return new Set([...seen].map((f) => rel(f)).filter((f) => f.startsWith("src/")));
 }
 
 /**
@@ -212,7 +220,7 @@ export function groupFileSets() {
     // The runner's own imports, minus the bench files: what every group shares.
     const prelude = relativeImports(runner)
         .map((s) => resolveImport(runner, s))
-        .filter((f) => f !== null && !benchFiles.has(relative(PACKAGE_DIR, f)));
+        .filter((f) => f !== null && !benchFiles.has(rel(f)));
     const kernels = kernelModules();
     const sets = new Map();
     for (const { name, benchFile } of declaredGroups()) {
@@ -228,7 +236,7 @@ export function groupFileSets() {
 export function srcFiles() {
     return readdirSync(join(PACKAGE_DIR, "src"), { recursive: true, withFileTypes: true })
         .filter((d) => d.isFile())
-        .map((d) => relative(PACKAGE_DIR, join(d.parentPath, d.name)));
+        .map((d) => rel(join(d.parentPath, d.name)));
 }
 
 /**

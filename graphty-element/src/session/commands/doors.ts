@@ -1158,6 +1158,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onRest: RENDER,
             restoring: RENDER,
             replacing: RENDER,
+            graphWritesWaiting: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,

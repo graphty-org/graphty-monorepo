@@ -56,7 +56,7 @@
     const COMMANDS = [
         // Go to: places, and the parts of a place people ask for by name
         L("Go to", "network", "Graph", "Rail > Graph", { go: ["graph-place", "at-rest"], aka: ["tree", "layers", "rows", "results", "styles"] }),
-        L("Go to", "database", "Data", "Rail > Data", { go: ["data-place", "at-rest"], aka: ["sources", "import", "files", "datasets"] }),
+        L("Go to", "database", "Data", "Rail > Data", { go: ["data-place", "at-rest"], aka: ["sources", "import data", "files", "datasets"] }),
         L("Go to", "database", "Data: Attributes", "Data > Attributes", { go: ["data-place", "attributes"], aka: ["field", "fields", "columns", "properties"] }),
         L("Go to", I.filter, "Data: Filters", "Data > Filters", { go: ["data-place", "filters"], aka: ["filter"] }),
         L("Go to", I.view, "Views", "Rail > Views", { go: ["views-place", "at-rest"], aka: ["saved views", "cameras", "bookmarks"] }),
@@ -70,13 +70,13 @@
         C("clear-graph-data", "Graph tree", "trash-2", { aka: ["reset", "clear results"] }),
         // Analyze
         C("analyze", "Analyze", "flask-conical", { aka: ["algorithm", "run", "statistics", "all algorithms"] }),
-        L("Analyze", "chart-column", "PageRank", "Toolbar > Analyze", { go: ["analyze-popover", "essentials"], aka: ["importance", "influence"] }),
-        L("Analyze", "group", "Louvain", "Toolbar > Analyze", { go: ["analyze-popover", "open"], aka: ["communities", "clusters", "modularity"] }),
-        L("Analyze", "chart-column", "Betweenness", "Toolbar > Analyze", { go: ["analyze-popover", "open"], aka: ["brokers", "bridges", "centrality"] }),
-        C("find-paths", "Analyze", "route", { aka: ["path", "route", "shortest", "connected"] }),
+        L("Analyze", "chart-column", "PageRank", "Toolbar > Analyze", { go: ["analyze-popover", "essentials"], desc: "Which nodes are connected to other well-connected nodes", aka: ["important", "most important", "influence", "rank"] }),
+        L("Analyze", "group", "Louvain", "Toolbar > Analyze", { go: ["analyze-popover", "open"], desc: "Which nodes form densely connected groups", aka: ["groups", "communities", "clusters", "modularity"] }),
+        L("Analyze", "chart-column", "Betweenness", "Toolbar > Analyze", { go: ["analyze-popover", "open"], desc: "Which nodes sit on the most shortest paths between others", aka: ["important", "brokers", "bridges", "centrality"] }),
+        C("find-paths", "Analyze", "route", { desc: "The shortest or cheapest route between two nodes", aka: ["cheapest route", "path", "route", "shortest", "connected"] }),
         // Data
         // the Data page's three doors come from AB.COMMANDS, so they open the same Data page states as every other door
-        C("add-data", "Data", "file-plus", { aka: ["join", "import", "source", "paste data", "table", "link tables"] }),
+        C("add-data", "Data", "file-plus", { aka: ["join", "import data", "source", "paste data", "table", "link tables"] }),
         C("edit-source", "Data", "pencil", { aka: ["field", "fields", "columns", "roles", "key", "weight", "remap", "source"] }),
         C("replace-file", "Data", "file-plus", { aka: ["replace", "refresh", "update data", "new version"] }),
         // Drawn as Data > Attributes "+" is: disabled with its reason, and like that "+" left out of the study build
@@ -127,8 +127,32 @@
         C("shortcuts", "Settings and help", "keyboard", { aka: ["keys", "hotkeys"] }),
         L("Settings and help", "menu", "Main menu", "Header > Main menu", { go: ["main-menu", "open"], aka: ["menu", "file", "help"] }),
     ];
+    // Weighted degree (in, out, total) and the link counts, named from the project's weight column so the
+    // sums and the counts never read alike. A stand-in for the labels graphty-element's catalog.metrics()
+    // should give these measures. In and out need direction; an undirected graph says so on the row.
+    function measures() {
+        const ds = (AB.route && AB.route.frame.dataset) || "lesmis";
+        const edge = AB.fieldsOf(ds).filter((t) => t.element === "edge").flatMap((t) => t.fields);
+        const wf = edge.find((x) => /Weight/.test(x.usedBy || "")) || edge.find((x) => x.type === "num");
+        const w = wf ? wf.name : "weight";
+        const off = (AB.fx.datasets[ds] || {}).directed === false ? "Needs direction: this graph is undirected" : null;
+        const M = (name, desc, dir, aka) => L("Analyze", "chart-column", name, "Toolbar > Analyze", { desc, go: ["analyze-popover", "open"], off: dir ? off : null,
+            aka: ["important", "weighted degree", "degree", "strength", "hubs", "total", w].concat(aka) });
+        return [
+            M("Total " + w + " in", "Sum of " + w + " on the links into each node", true, ["in", "received", "money in"]),
+            M("Total " + w + " out", "Sum of " + w + " on the links out of each node", true, ["out", "sent", "money out"]),
+            M("Total " + w, "Sum of " + w + " on every link of each node, in and out", false, ["all"]),
+            M("Links in (count)", "How many links come into each node, not their " + w, true, ["count", "links", "in"]),
+            M("Links out (count)", "How many links leave each node, not their " + w, true, ["count", "links", "out"]),
+        ];
+    }
+    // The measures sit in the Analyze group, after the table's own Analyze rows.
     // A command marked needs (a control the study build hides) is left out of the study build here too
-    const shown = () => (document.documentElement.hasAttribute("data-design-notes-hidden") ? COMMANDS.filter((c) => !c.needs) : COMMANDS);
+    function shown() {
+        const at = COMMANDS.findIndex((c) => c.g === "Analyze" && c.name === "Betweenness") + 1;
+        const all = COMMANDS.slice(0, at).concat(measures(), COMMANDS.slice(at));
+        return document.documentElement.hasAttribute("data-design-notes-hidden") ? all.filter((c) => !c.needs) : all;
+    }
     const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
 
     function matches(q) {
@@ -152,7 +176,7 @@
 
     // The hint teaches a place ("Place > Control"); a disabled row says why instead.
     function resultRow(c, q) {
-        const hint = c.off || (c.home && c.home.includes(" > ") ? c.home : null);
+        const hint = c.off || c.desc || (c.home && c.home.includes(" > ") ? c.home : null);
         const el = h("div", { class: "k-result", role: "option", "aria-selected": "false", "aria-disabled": c.off ? "true" : null },
             icon(c.icon), h("span", { class: "qs-name" }, hl(c.name, q)), hint ? h("span", { class: "qs-why" }, hint) : null,
             c.key ? h("span", { class: "k-kbd qs-key" }, c.key) : null);
@@ -181,8 +205,9 @@
             const hits = matches(q);
             if (!hits) {
                 list.append(h("div", { class: "qs-head" }, "Recent"));
-                RECENT.forEach((n) => list.append(resultRow(COMMANDS.find((c) => c.name === n), "")));
-                groups(shown(), "");
+                const all = shown();
+                RECENT.forEach((n) => list.append(resultRow(all.find((c) => c.name === n), "")));
+                groups(all, "");
             } else {
                 if (!hits.length) list.append(h("div", { class: "qs-none" }, 'No match for "' + q.trim() + '"'));
                 groups(hits.map((x) => x.c), q);
@@ -232,7 +257,7 @@
             ["Ctrl+K", "Quick actions: commands and places"],
             ["/", "Find rows and notes"],
             ["?", "These shortcuts"],
-            ["Ctrl+Z", "Undo"], ["Ctrl+Shift+Z", "Redo"],
+            ["Ctrl+Z", "Undo"], ["Ctrl+Shift+Z, Ctrl+Y", "Redo (Ctrl+Y not on macOS)"],
             ["Ctrl+O", "Open..."], ["Ctrl+S", "Save"], ["Ctrl+E", "Export..."], ["Ctrl+,", "Settings"],
             ["Esc", "Close one level. Never clears the selection"],
         ] },
@@ -307,6 +332,22 @@
         });
     }
 
+    // ---------- Find on an id ----------
+    // A query shaped like an id (letters, digits and dashes, no spaces, with a digit or a dash) matches the
+    // id exactly, so a miss is a count and offers no "Closest" guess. The Graph place draws Find's field and
+    // its no-match line; this state puts the id in the field and the count in that line.
+    const ID_QUERY = "ACC-365386";
+    const idShaped = (q) => /^[A-Za-z0-9-]+$/.test(q) && /[\d-]/.test(q);
+    function findId() {
+        const input = document.querySelector(".ab-left input");
+        const none = document.querySelector(".ab-left .ab-fl-none");
+        if (!input || !none || !idShaped(ID_QUERY)) return;
+        input.value = ID_QUERY;
+        const text = AB.count(0, "match", { plural: "matches" }) + " for " + ID_QUERY;
+        none.firstChild.replaceWith(AB.empty(text));
+        AB.announce(text);
+    }
+
     // ---------- keys this section owns ----------
     document.addEventListener("keydown", (e) => {
         const t = e.target;
@@ -328,19 +369,19 @@
         closeTo: "graph-place",
         states: [
             { id: "quick-actions", label: "Quick actions, empty" },
-            { id: "quick-actions-results", label: "Quick actions, typed \"field\"" },
+            { id: "quick-actions-results", label: "Quick actions, typed \"important\": measures by task word" },
             { id: "quick-actions-views", label: "Quick actions, typed \"view\"" },
             { id: "quick-actions-layout", label: "Quick actions, typed \"layout\"" },
             { id: "quick-actions-settings", label: "Quick actions, typed \"settings\"" },
             { id: "find", label: "Find, row and note results" },
-            { id: "find-no-match", label: "Find, no match" },
+            { id: "find-no-match", label: "Find, no match on an id: 0 matches" },
             { id: "shortcuts", label: "Keyboard shortcuts panel" },
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
             else if (state === "find") setTimeout(findNotes, 0); // the Graph place draws Find's field and rows
-            else if (state === "find-no-match") return; // the Graph place draws the field and its no-match line
-            else quick(el, { "quick-actions-results": "field", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
+            else if (state === "find-no-match") setTimeout(findId, 0); // the Graph place draws the field and its no-match line
+            else quick(el, { "quick-actions-results": "important", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
         },
     });
 })();

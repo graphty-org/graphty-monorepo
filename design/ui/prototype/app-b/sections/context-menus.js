@@ -72,7 +72,8 @@
     const nodeItems = (o) => [
         { heading: "Valjean" },
         C("neighborhood"),
-        o.second ? C("find-paths") : null,
+        // always listed; it needs a second node to run, so with one node it is disabled with that reason
+        o.second ? C("find-paths") : C("find-paths", { disabled: "Select a second node first" }),
         { sep: true },
         C("analyze"),
         { sep: true },
@@ -124,6 +125,25 @@
     const onStage = () => ["#ab-canvas .k-stage", L().anchors.selected.x, L().anchors.selected.y, true];
     const byText = (sel, re) => [...document.querySelectorAll(sel)].find((r) => re.test(r.textContent));
     const RUN = "Louvain"; // run rows are named by their algorithm
+    // The delete notice names the style layers that go with the run (the element's runs.bindings;
+    // Louvain's suggested look is one layer, Fill color by community)
+    const RUN_DELETED = () => RUN + ", its 6 communities and " + AB.count(1, "style layer");
+
+    // A hosts number attribute with its own inspector state (inspector-attribute-and-filter-step/long-name)
+    const HOST_NUMBER = "vuln_count_critical_unremediated_over_30_days";
+    function topN(anchor, measure, signed) {
+        let dir = "high";
+        const n = h("input", { class: "k-input", type: "number", min: "1", value: "5", "aria-label": "How many", style: "width:64px" });
+        const dirs = signed ? [["high", "Largest increase"], ["low", "Largest decrease"]] : [["high", "Highest"], ["low", "Lowest"]];
+        return AB.popover({
+            anchor, title: "Select top N by " + measure,
+            body: [
+                AB.fieldRow("How many", n, { popover: true }),
+                AB.fieldRow("Which", AB.seg(dirs, dir, (v) => { dir = v; }, { label: "Which end of the ranking" }), { popover: true }),
+            ],
+            foot: AB.button("Select", { go: ["inspector-several-elements", "style"] }),
+        });
+    }
 
     // Each state: where it points, what the frame shows, and the items (a function of the overlay el).
     const STATES = {
@@ -245,13 +265,19 @@
                 { label: "Collapse on canvas", needs: "graphty-element cannot draw a group as one node yet" },
                 { sep: true },
                 C("frame-members", { go: ["canvas-and-states", "drawn"] }),
-                { label: "Show only this row", shortcut: "Alt+Space", onClick: () => { AB.close(); requestAnimationFrame(() => requestAnimationFrame(() => { const eye = document.querySelector("#ab-left [data-row=c3] .ab-eye"); if (eye) eye.dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true, detail: 1 })); })); } },
                 { sep: true },
                 ...lock(false),
                 ...listVis(false),
                 { sep: true },
                 C("add-note"),
-                { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
+                { label: "Open notes", go: ["inspector-group-set-path-row", "notes"] },
+                // one Compare command; its target is another row or the rest of the graph
+                { label: "Compare with", sub: true, onClick: sub(el, [
+                    { label: "Another row...", go: ["full-canvas-modes", "comparison"] },
+                    { label: "The rest of the graph", ...flash("Compare Community 3 with the rest of the graph") },
+                ]) },
+                // a door into the one Export dialog with this row as the target (a door only fills a field)
+                C("export", { shortcut: null, go: ["export-dialog", "from-row"] }),
                 { sep: true },
                 del("Delete", "Community 3"),
             ],
@@ -277,14 +303,15 @@
                 { heading: "PageRank" },
                 rename(),
                 { sep: true },
-                { label: "Select top N...", ...flash("Select top N") },
+                { label: "Select top N...", go: ["context-menus", "top-n"] },
+                { sep: true },
+                showInTable(),
                 { label: "Filter to...", go: ["data-place", "filters"] },
                 { sep: true },
                 ...lock(false),
                 ...listVis(false),
                 { sep: true },
                 C("add-note"),
-                showInTable(),
                 { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
                 del("Delete", "PageRank"),
@@ -305,14 +332,15 @@
                 { label: "Lay out by these groups", ...flash("Lay out by these groups") },
                 { label: "Restore an earlier result", needs: "graphty-element keeps only the latest result of a run" },
                 { label: "Check against a null model and other seeds...", needs: "graphty-element has no null-model or seed-stability check" },
-                { label: "Compare with another run...", needs: "graphty-element cannot compare two runs' results" },
+                // the one comparison page; its agreement numbers carry their own needs-graphty-element chips
+                { label: "Compare with another run...", desc: "Puts this run's groups beside another run's", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
                 ...lock(false),
                 ...listVis(false),
                 { sep: true },
                 C("add-note"),
                 { sep: true },
-                del("Delete", RUN + " and its 6 communities"),
+                del("Delete", RUN_DELETED()),
             ],
         },
         folder: {
@@ -331,26 +359,27 @@
                 del("Delete", "For the report and its 3 rows"),
             ],
         },
+        // An attribute's menu is the one attribute menu (AB.attributeMenu), the same list Data >
+        // Attributes, the attribute inspector's "..." and a table column open. It is shown on a hosts
+        // attribute because there Color by and Size by add a paint row (a measure row on top of the tree).
         attribute: {
-            label: "An attribute (amount, on edges)",
-            frame: { left: "data-place/attributes", right: "inspector-attribute-and-filter-step/attribute" },
-            at: () => [[...document.querySelectorAll("#ab-left .dp-row .dp-l1, #ab-left .dp-row")].find((l) => /^\s*amount/.test(l.textContent)) || "#ab-left", 55, 50, false],
-            items: () => [
-                { heading: "amount" },
-                { label: "Color by", ...flash("Color by amount") },
-                { label: "Width by", ...flash("Width by amount") },
-                C("label-by", { go: ["inspector-group-set-path-row", "label-by"] }),
-                { label: "Show as groups", ...flash("Show as groups") },
-                { label: "Place by", needs: "graphty-element places nodes only by position attributes; amount as an axis needs a layout that reads any attribute" },
-                { sep: true },
-                { label: "Filter to...", go: ["data-place", "filters"] },
-                { label: "Create set where this is...", go: ["select-where", "where"] },
-                { sep: true },
-                { label: "Read as...", go: ["inspector-attribute-and-filter-step", "attribute"] },
-                { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: ["data-page", "edit-source"] },
-                { sep: true },
-                showInTable("transfers"),
-            ],
+            label: "An attribute (a number attribute of the hosts)",
+            frame: { left: "data-place/attributes-wide", dataset: "wide", right: "inspector-attribute-and-filter-step/long-name" },
+            // the row is scrolled to the list's middle so the whole menu opens below it, clear of the window bottom
+            at: () => {
+                const r = [...document.querySelectorAll("#ab-left .ab-fl-opt")].find((x) => (x.getAttribute("aria-label") || x.textContent).split(",")[0].trim().replace(/^\W+/, "") === HOST_NUMBER);
+                if (r) r.scrollIntoView({ block: "center" });
+                return [r || "#ab-left", 100, 100, false];
+            },
+            open: (anchor) => AB.attributeMenu(anchor, "wide", HOST_NUMBER, { table: ["wide", "wide"] }),
+        },
+        // Select top N...: how many, and one direction choice (on a signed column the choice reads
+        // Largest increase / Largest decrease instead of Highest / Lowest)
+        "top-n": {
+            label: "Select top N... on a measure row (PageRank)",
+            frame: { left: "graph-place/at-rest", right: "inspector-measure-row/style" },
+            at: () => ["#ab-left [data-row=pagerank]", 100, 50, false],
+            open: (anchor, el) => el.append(topN(anchor, "PageRank", false)),
         },
         "filter-step": {
             label: "A filter step (amount >= 1,000)",
@@ -420,7 +449,7 @@
         render(el, state) {
             // An old link to the removed run-delete confirmation: Delete acts at once
             if (state === "run-delete") {
-                setTimeout(() => { AB.go("graph-place", "at-rest"); setTimeout(() => AB.deleted(RUN + " and its 6 communities"), 0); }, 0);
+                setTimeout(() => { AB.go("graph-place", "at-rest"); setTimeout(() => AB.deleted(RUN_DELETED()), 0); }, 0);
                 return;
             }
             const s = STATES[state] || STATES.node;
@@ -428,6 +457,7 @@
             requestAnimationFrame(() => {
                 const [target, fx, fy, ring] = s.at();
                 const p = mark(el, target, fx, fy, ring);
+                if (s.open) return s.open(p, el);
                 const m = AB.menu({ anchor: p, place: s.place || "right-start", items: s.items(el) });
                 m.setAttribute("aria-label", "Context menu");
                 el.append(m);

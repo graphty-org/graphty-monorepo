@@ -1,5 +1,5 @@
 /* Views place: the project's saved views in user order (the report, presentation and tour order).
-   Header: "+" (Save view), play (Present). Rows: thumbnail, name, In tour.
+   Header: "+" (Save view), play (Present), "..." (Export tour video...). Rows: thumbnail, name, In tour.
    Built-in views are not listed here: they are the View flyout's Standard views. Thumbnails are
    stand-ins drawn from the kit's canvas art. Styles are injected once from this file. Plain ASCII. */
 (function () {
@@ -11,8 +11,6 @@
 .vp-row:hover { background: var(--cm-bg-hover); }
 .vp-row[aria-selected="true"] { background: var(--cm-bg-selected); }
 .vp-row:focus-visible { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
-.vp-grip { display: inline-grid; place-items: center; width: 16px; color: var(--cm-icon-secondary); cursor: grab; flex: none; visibility: hidden; }
-.vp-row:hover .vp-grip, .vp-row:focus-within .vp-grip, .vp-row[aria-selected="true"] .vp-grip, .vp-row[data-lifted] .vp-grip { visibility: visible; }
 .vp-thumb { position: relative; width: 48px; height: 36px; flex: none; border-radius: 4px; overflow: hidden; background: var(--cm-bg-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); }
 .vp-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .vp-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
@@ -30,6 +28,9 @@
 
     const RENAME_REASON = "graphty-element cannot rename a saved camera view yet";
     // The element records 2D video, but a tour stop takes a 3D position and target
+    const TOUR_2D = "A tour moves the camera in 3D. Switch to 3D to export one";
+    // Worded for anyone: a saved view keeps the name it was saved under (the element has no rename for it)
+    const RENAME_OFF = "A saved view keeps the name it was saved with";
     // TEMPORARY WORKAROUND, for the study only: the app holds the order and the In tour marks because
     // graphty-element's exportCameraPresets returns an unordered record with no tour membership.
     const ORDER_NEEDS = "An ordered saved-view collection with tour membership: exportCameraPresets returns an unordered record, so the app holds the order and the In tour marks until the element has one";
@@ -55,13 +56,21 @@
     function header(state, n) {
         const save = AB.plus({ label: "Save view", items: ["Save view"], onAdd: () => AB.go("views-place", "saving") });
         const present = AB.iconButton("play", AB.COMMANDS.present.label, n ? { go: AB.COMMANDS.present.go } : { disabled: "Save a view first" });
-        // No "..." here: its one item, Export tour video, has its home in Export > Video > View: Tour of saved views
-        return AB.placeHead("Views", [save, present]);
+        const more = AB.iconButton(AB.ICON.options, "More for views", { onClick: () => (document.querySelector(".k-menu") ? AB.closeMenu() : headMenu(more, n)) });
+        return AB.placeHead("Views", [save, present, more]);
+    }
+    // Export tour video... opens Export > Video with View set to "Tour of saved views"
+    function headMenu(anchor, n) {
+        const in2d = AB.route.frame.mode === "2d";
+        AB.openMenu(anchor, [
+            { label: "Export tour video...", go: ["export-video", "tour"], disabled: in2d ? TOUR_2D : !n ? "Save a view first" : false },
+        ]);
     }
 
     function rowMenu(li, v, list) {
         AB.openMenu(li, [
-            { label: "Rename", shortcut: "F2", needs: RENAME_REASON },
+            // Disabled with its reason, not `needs`: a participant must see Rename and why it is off
+            { label: "Rename", shortcut: "F2", disabled: RENAME_OFF },
             { label: "Update to current camera", onClick: () => AB.notice(v.name + " now keeps the current camera", { label: "Undo", onClick: () => AB.announce(v.name + " restored") }) },
             { sep: true },
             { label: "Delete", onClick: () => del(li, v, list) },
@@ -239,6 +248,7 @@
             if (naming) requestAnimationFrame(() => nameNew(at("new"), state === "save-name-taken" ? "Top" : null));
             // The view applies its camera; a row it named was deleted, so the notice names it and the view shows without it
             if (state === "applied-missing") requestAnimationFrame(() => AB.notice("Applied Whole cast without Group 1: that row was deleted", { label: "Update view", onClick: () => AB.announce("Whole cast updated") }));
+            if (state === "in-tour-2d") requestAnimationFrame(() => headMenu(el.querySelector('[aria-label="More for views"]'), views.length));
             if (state === "row-menu") requestAnimationFrame(() => rowMenu(at("circle"), views[1], list));
         },
     });

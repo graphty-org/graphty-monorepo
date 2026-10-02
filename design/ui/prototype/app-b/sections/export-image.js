@@ -85,7 +85,8 @@
     const MULTS = [1, 2, 4];
     const STANDARD = ["Fit", "Front", "Side", "Top", "Isometric"];   // the View flyout's standard views (3D)
     const BG = { canvas: "Canvas color", white: "White", transparent: "Transparent" };
-    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp" };
+    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp", SVG: "svg" };
+    const LOSSY = (f) => f === "JPEG" || f === "WebP";   // only these take a Quality
     const NO_ALPHA = "JPEG cannot hold a transparent background.";
     const CLIP_INSECURE = "Copy needs a secure page (HTTPS), and this page is not one.";
     const CLIP_PNG = "The clipboard takes PNG images only.";
@@ -149,7 +150,7 @@
         sharp.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } });
         const toPx = () => { s.mode = "px"; s.w = out.w; s.h = out.h; };
         return [
-            s.format === "PNG" ? null : AB.fieldRow("Quality", h("span", { class: "xi-line" }, num(s.quality, "Quality, 1 to 100", (v) => { s.quality = Math.min(100, v); }, { max: "100" }), h("span", { class: "xi-sub" }, "of 100")), { popover: true }),
+            !LOSSY(s.format) ? null : AB.fieldRow("Quality", h("span", { class: "xi-line" }, num(s.quality, "Quality, 1 to 100", (v) => { s.quality = Math.min(100, v); }, { max: "100" }), h("span", { class: "xi-sub" }, "of 100")), { popover: true }),
             AB.fieldRow("Rendering", h("span", null, h("span", { class: "xi-line" }, sharp, "Sharper"), h("div", { class: "xi-sub" }, "Renders larger, then scales down; slower.")), { popover: true }),
             AB.fieldRow("Pixels", h("span", { class: "xi-line" },
                 num(out.w, "Width in pixels", (v) => { toPx(); s.w = v; if (s.lock) s.h = Math.round(v / aspect); }), "x",
@@ -216,19 +217,21 @@
         const size = drop("Size", s.mode === "x" ? `${s.mult}x -- ${n(out.w)} x ${n(out.h)}` : `Custom -- ${n(out.w)} x ${n(out.h)}`, sizeItems);
 
         const fmtItem = (f) => ({ label: f, check: s.format === f, disabled: f === "JPEG" && s.bg === "transparent" ? NO_ALPHA + " Change Background first." : false, onClick: () => { s.format = f; edited(); redraw(); } });
-        const format = drop("Format", s.format, [fmtItem("PNG"), fmtItem("JPEG"), fmtItem("WebP"), { sep: true },
-            { label: "SVG", needs: "graphty-element captures raster images only; an SVG figure (and PDF later) needs the element." }]);
+        const format = drop("Format", s.format, [fmtItem("PNG"), fmtItem("JPEG"), fmtItem("WebP"),
+            // SVG needs graphty-element (it captures the canvas as pixels only; a vector export is filed).
+            // Spec 12.1 draws it disabled with its reason in every view, so `disabled`, not `needs` (which user tests hide).
+            { label: "SVG", desc: "A vector figure: stays sharp at any size, for papers and slides",
+                disabled: "Not available yet" }]);
 
         const pickView = (v) => ({ label: v, check: s.view === v, onClick: () => { s.view = v; edited(); redraw(); } });
         const view = drop("View", s.view, [pickView("Current camera"), { sep: true }, { heading: "Standard views" }, ...STANDARD.map(pickView), { sep: true }, { heading: "Your views" }, ...AB.SAVED_VIEWS.map(pickView)]);
 
         const bgItem = (id) => ({ label: BG[id], check: s.bg === id,
             disabled: id === "transparent" && s.format === "JPEG" ? NO_ALPHA + " Choose PNG or WebP." : false,
-            needs: id === "white" ? "captureScreenshot draws the canvas background or none; a chosen background color needs graphty-element." : null,
             onClick: () => { s.bg = id; edited(); redraw(); } });
         const bg = drop("Background", BG[s.bg], ["canvas", "white", "transparent"].map(bgItem));
 
-        const advSum = [s.format === "PNG" ? null : "Quality " + s.quality, s.sharp ? "Sharper rendering" : "Standard rendering"].filter(Boolean).join(", ");
+        const advSum = [!LOSSY(s.format) ? null : "Quality " + s.quality, s.sharp ? "Sharper rendering" : "Standard rendering"].filter(Boolean).join(", ");
         const advField = AB.field(advSum, { icon: "sliders-horizontal", onClick: (e) => (adv ? closeAdv(true) : openAdv(e.currentTarget)) });
         advField.setAttribute("data-adv", "");
         advField.setAttribute("aria-haspopup", "dialog");

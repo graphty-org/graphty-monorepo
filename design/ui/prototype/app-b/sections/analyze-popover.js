@@ -2,7 +2,8 @@
    toolbar's Analyze button (Shift+A, which the shell binds; plain A is graphty-element's canvas key).
    List level: search, Recent (three entries), then the catalog grouped by what a run adds to the tree.
    Picking an entry shows its essentials only: Scope (only when something is selected), Weight and its
-   meaning, the one key option, Exact | Sampled (costly entries only); the foot holds the cost line
+   meaning, the one key option, Exact | Sampled (only where the exact run would not fit the time
+   limit, defaulting to the largest sample that fits); the foot holds the cost line
    and Run. Shortest path opens the Path popover. Running closes the popover; the new row at the top
    of the tree is the feedback (no notice). Plain ASCII. Styles are injected below. */
 (function () {
@@ -24,6 +25,9 @@
 .ap-type { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; color: var(--cm-text-secondary); background: var(--cm-bg-secondary); }
 .ap-txt { flex: 1 1 auto; min-width: 0; display: grid; line-height: 16px; }
 .ap-sub { font-size: 11px; color: var(--cm-text-secondary); }
+.ap-stack > .ap-sub { line-height: 16px; white-space: normal; }
+.ap-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ap-start { flex: none; font-size: 11px; color: var(--cm-text-secondary); }
 .ap-marks { display: inline-flex; gap: 6px; flex: none; color: var(--cm-text-tertiary); }
 .ap-answers { padding: 8px 16px; line-height: 16px; }
 .ap-scope { padding-top: 8px; }
@@ -51,8 +55,13 @@
     const GROUPS = [
         {
             title: "Rank nodes and edges", entries: [
-                { id: "pagerank", name: "PageRank", family: "Centrality", out: MEASURE, weight: "flow", key: ["Damping", "0.85", ["0.5", "0.85", "0.95"]], aliases: ["influence", "importance", "random walk"], answers: "Which nodes are connected to other well-connected nodes." },
-                { id: "degree", name: "Degree", family: "Centrality", out: MEASURE, weight: "flow", key: ["Count", "Edges", ["Edges", "Sum of weights"]], aliases: ["connections", "hubs", "popular"], answers: "How many connections each node has." },
+                { id: "pagerank", name: "PageRank", family: "Centrality", start: true, out: MEASURE, weight: "flow", key: ["Damping", "0.85", ["0.5", "0.85", "0.95"]], aliases: ["influence", "important", "importance", "random walk"], answers: "Which nodes are connected to other well-connected nodes." },
+                // Link counts and weighted degree are named from the data, never from a domain: on a
+                // directed graph each offers in, out and both as its one key option (SIDES below)
+                { id: "degree", name: "Links (count)", rowName: (side) => "Links" + SIDE_WORD[side] + " (count)", family: "Degree", out: MEASURE, weight: null, sides: true, aliases: ["degree", "connections", "hubs", "popular"],
+                    answersBy: { both: "How many edges each node has.", in: "How many edges come into each node.", out: "How many edges go out of each node." } },
+                { id: "weighted-degree", name: "Weighted degree", rowName: (side, w) => (w ? "Total " + w : "Weighted degree") + SIDE_WORD[side], family: "Degree", out: MEASURE, weight: "flow", needsWeight: true, sides: true, aliases: ["weighted degree", "strength", "sum of weights", "total", "volume"],
+                    answersBy: { both: (w) => "The sum of " + w + " over each node's edges.", in: (w) => "The sum of " + w + " over the edges coming into each node.", out: (w) => "The sum of " + w + " over the edges going out of each node." } },
                 { id: "betweenness", name: "Betweenness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, aliases: ["brokers", "bridges", "gatekeepers", "bottlenecks"], answers: "Which nodes sit on the most shortest paths between others." },
                 { id: "closeness", name: "Closeness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, key: ["Variant", "Per component", ["Per component", "Whole graph"]], aliases: ["reach", "distance to everyone"], answers: "Which nodes reach every other node in the fewest steps." },
                 { id: "eigenvector", name: "Eigenvector", family: "Centrality", out: MEASURE, weight: "flow", aliases: ["prestige", "well connected friends"], answers: "Which nodes are tied to other central nodes." },
@@ -63,9 +72,9 @@
         },
         {
             title: "Find groups", entries: [
-                { id: "louvain", name: "Louvain", family: "Community", out: RUN, weight: "flow", key: ["Resolution", "1.0", ["0.5", "1.0", "1.5", "2.0"]], aliases: ["communities", "clusters", "modularity"], answers: "Which nodes form densely connected groups." },
-                { id: "leiden", name: "Leiden", family: "Community", out: RUN, weight: "flow", key: ["Resolution", "1.0", ["0.5", "1.0", "1.5", "2.0"]], aliases: ["communities", "clusters"], answers: "Densely connected groups, each connected inside." },
-                { id: "label-propagation", name: "Label propagation", family: "Community", out: RUN, weight: "flow", key: ["Seed", "Random", ["Random", "1", "42"]], aliases: ["communities", "fast clusters"], answers: "Groups found by letting neighbors vote on a label." },
+                { id: "louvain", name: "Louvain", family: "Community", out: RUN, weight: "flow", key: ["Resolution", "1.0", ["0.5", "1.0", "1.5", "2.0"]], aliases: ["communities", "clusters", "groups", "modularity"], answers: "Which nodes form densely connected groups." },
+                { id: "leiden", name: "Leiden", family: "Community", start: true, out: RUN, weight: "flow", key: ["Resolution", "1.0", ["0.5", "1.0", "1.5", "2.0"]], aliases: ["communities", "clusters", "groups"], answers: "Densely connected groups, each connected inside." },
+                { id: "label-propagation", name: "Label propagation", family: "Community", out: RUN, weight: "flow", key: ["Seed", "Random", ["Random", "1", "42"]], aliases: ["communities", "groups", "fast clusters"], answers: "Groups found by letting neighbors vote on a label." },
                 { id: "girvan-newman", name: "Girvan-Newman", family: "Community", out: RUN, weight: "distance", cost: true, key: ["Groups", "Best split", ["Best split", "2", "5", "10"]], aliases: ["communities", "divisive", "dendrogram"], answers: "Groups found by cutting the busiest edges one at a time." },
                 { id: "components", name: "Connected components", family: "Components", out: RUN, weight: null, aliases: ["islands", "pieces", "disconnected"], answers: "Which parts of the graph are cut off from each other." },
                 { id: "scc", name: "Strongly connected components", family: "Components", out: RUN, weight: null, direction: true, aliases: ["cycles", "loops"], answers: "Groups in which every node reaches every other.", disabled: "Needs direction: this graph is undirected" },
@@ -76,8 +85,12 @@
         },
         {
             title: "Find paths and edge sets", entries: [
-                { id: "shortest-path", name: "Shortest path", family: "Shortest path", out: PATH, weight: "distance", opens: ["path-popover", "from-analyze"], aliases: ["route", "how are they connected", "dijkstra"], answers: "The fewest steps, or the lightest route, between two nodes." },
-                { id: "min-cut", name: "Minimum cut", family: "Flow", out: EDGESET, weight: "flow", needsWeight: true, node: "pair", aliases: ["weakest cut", "bottleneck", "separate", "max flow"], answers: "The lightest set of edges that cuts one node off from another." },
+                { id: "shortest-path", name: "Shortest path", family: "Shortest path", start: true, out: PATH, weight: "distance", opens: ["path-popover", "from-analyze"], aliases: ["route", "cheapest route", "how are they connected", "dijkstra"], answers: "The fewest steps, or the lightest route, between two nodes." },
+                // Max flow and min cut are named for the question they answer; the algorithm names are aliases
+                { id: "max-flow", name: "Most flow", family: "Flow", out: MEASURE, weight: "capacity", needsWeight: true, node: "pair", aliases: ["max flow", "maximum flow", "throughput", "capacity"], answers: "The most that can move from one node to another, and over which edges." },
+                { id: "min-cut", name: "Weakest cut", family: "Flow", out: EDGESET, weight: "capacity", needsWeight: true, node: "pair", aliases: ["minimum cut", "min cut", "bottleneck", "separate"], answers: "The lightest set of edges that cuts one node off from another." },
+                { id: "bridges", name: "Bridges", family: "Structure", out: EDGESET, weight: null, aliases: ["bridge edges", "cut edges", "single points of failure"], answers: "Which edges, if removed, would cut the graph apart.",
+                    reads: ["Each edge reads", "On a bridge edge, or Not on a bridge edge. The row holds only the bridge edges."] },
                 { id: "mst", name: "Minimum spanning tree", family: "Spanning tree", out: EDGESET, weight: "distance", needsWeight: true, key: ["Method", "Kruskal", ["Kruskal", "Prim"]], aliases: ["backbone", "skeleton", "kruskal", "prim"], answers: "The lightest set of edges that still connects every node." },
                 { id: "matching", name: "Bipartite matching", family: "Matching", out: EDGESET, weight: null, aliases: ["pairing", "assignment", "two sides"], answers: "The most edges pairing one side with the other.", disabled: "Needs two sides: this graph is not bipartite" },
             ],
@@ -85,7 +98,7 @@
         {
             title: "Measure the graph", entries: [
                 { id: "all-pairs", name: "All-pairs distance", family: "Shortest path", out: PAIRS, weight: "distance", cost: true, aliases: ["distance matrix", "floyd-warshall", "how far apart", "diameter"], answers: "The shortest distance between every pair of nodes." },
-                { id: "link-prediction", name: "Link prediction", family: "Link prediction", out: PAIRS, weight: null, key: ["Method", "Adamic-Adar", ["Adamic-Adar", "Jaccard", "Common neighbors"]], aliases: ["missing links", "likely ties", "who should know whom"], answers: "Which unconnected pairs are most likely to be connected." },
+                { id: "link-prediction", name: "Link prediction", family: "Link prediction", start: true, out: PAIRS, weight: null, key: ["Method", "Adamic-Adar", ["Adamic-Adar", "Jaccard", "Common neighbors"]], aliases: ["missing links", "likely ties", "who should know whom"], answers: "Which unconnected pairs are most likely to be connected." },
             ],
         },
     ];
@@ -99,6 +112,8 @@
         wide: { weight: "bytes_total_24h", meaning: "stronger", desc: "Bytes per connection in 24 hours", directed: true },
         nested: { weight: "weight", meaning: "stronger", desc: "Strength per link (links' weight column)", directed: false },
         plainJson: { weight: "weight", meaning: "stronger", desc: "Strength per link", directed: false },
+        // The patent citations: the one graph whose betweenness has a cost estimate (it has no weight)
+        citations: { weight: null, meaning: "stronger", desc: "No weight column", directed: true },
     };
     // The door entries' loaded weight follows the last Load: count under Pair, none under Row or as nodes
     const graphOf = (ds) => (ds === "doorEntries" && AB.fx.datasets.doorEntries.loaded.per !== "pair"
@@ -108,7 +123,39 @@
     // A precondition the graph on screen meets switches its entry on
     const disabledOf = (e) => (e.direction && graphOf(ui.ds).directed) || (e.id === "matching" && graphOf(ui.ds).bipartite) ? null : e.disabled;
     const AS = { stronger: "as strength", farther: "as distance", capacity: "as capacity" };
-    const DS_OF = { transfers: "transactions", "node-weight": "doorEntries", "wide-weight": "wide" };
+    // Link counts and weighted degree: in, out or both, each named from the data
+    const SIDES = ["both", "in", "out"];
+    const SIDE_WORD = { both: "", in: " in", out: " out" };
+    // An entry's name and task line: a data-named entry follows the weight (and, once picked, its side)
+    // In the list each side is its own row (sideOf), so in, out and total each carry their own line
+    const picked = (e) => ui.level === "pick" && ui.picked === e.id;
+    const nm = (e, side) => (!e.rowName ? e.name : picked(e) ? e.rowName(ui.side, ui.weight) : e.rowName(side || "both", graphOf(ui.ds).weight));
+    const answersOf = (e, side) => {
+        if (!e.answersBy) return e.answers;
+        const a = e.answersBy[picked(e) ? ui.side : side || "both"];
+        return typeof a === "function" ? a((picked(e) ? ui.weight : graphOf(ui.ds).weight) || "a chosen weight") : a;
+    };
+    // The list's rows: [entry, side]; a link count or weighted degree on a directed graph lists all three
+    const rowsOf = (e) => (e.sides && graphOf(ui.ds).directed ? SIDES.map((s) => [e, s]) : [[e, null]]);
+    // Edge results a run may read as a weight (the tree's Edge betweenness row on Les Miserables)
+    const EDGE_RESULTS = { lesmis: ["Edge betweenness"] };
+    // A stand-in for graphty-element's cost estimate, for betweenness only: per source, m at the
+    // element's default rate (5,000,000 a second) unweighted, (m + n) log2 n weighted (one Dijkstra);
+    // a 30 second time limit. On the transfers, weighted by amount, exact runs past the limit; every
+    // other run on the projects the skeleton loads fits it.
+    const RATE = 5e6, BUDGET = 30;
+    function estimateOf(e, w) {
+        const D = AB.fx.datasets[ui.ds];
+        if (e.id !== "betweenness" || !D || !D.nodes || !D.edges) return null;
+        const per = (w ? (D.edges + D.nodes) * Math.log2(D.nodes) : D.edges) / RATE, k = Math.min(D.nodes, Math.floor(BUDGET / per));
+        const band = (sec) => (sec < 60 ? "under a minute" : sec < 600 ? "a few minutes" : "hours");
+        return { exact: { seconds: D.nodes * per, withinBudget: D.nodes * per <= BUDGET }, sampled: [{ k, seconds: k * per, band: band(k * per) }], largestKWithinBudget: k };
+    }
+    // Exact | Sampled is offered only where the exact run would not fit the time limit
+    const costly = (e) => { const est = e.cost ? estimateOf(e, ui.weight) : null; return est && !est.exact.withinBudget ? est : null; };
+    const about = (sec) => (sec >= 5400 ? Math.round(sec / 3600) + " hours" : sec >= 90 ? Math.round(sec / 60) + " minutes" : Math.round(sec) + " seconds");
+    const nodesOf = () => (AB.fx.datasets[ui.ds] && AB.fx.datasets[ui.ds].nodes) || AB.fx.datasets.lesmis.nodes;
+    const DS_OF = { costly: "transactions", declined: "transactions", transfers: "transactions", "transfers-pagerank": "transactions", "weighted-degree": "transactions", "link-counts": "transactions", "node-weight": "doorEntries", "wide-weight": "wide" };
     const ALL = GROUPS.flatMap((g) => g.entries);
     const byId = (id) => ALL.find((e) => e.id === id);
     const RECENT = ["louvain", "pagerank", "shortest-path"];
@@ -124,18 +171,28 @@
     function reset(state) {
         // The project on screen: Analyze opened from the door entries or the transfers runs on them
         ui = { state, ds: DS_OF[state] || (AB.route && AB.route.frame.dataset) || "lesmis", level: "list", query: "", picked: null, sel: state === "scoped", scope: "sel" };
-        if (state === "search") ui.query = "brokers";
+        // Task words find measures through the element's aliases
+        const Q = { search: "brokers", "search-important": "important", "search-groups": "groups", "search-route": "cheapest route", "search-total": "total" };
+        if (Q[state]) ui.query = Q[state];
         if (state === "no-match") ui.query = "sentiment";
-        if (state === "essentials" || state === "transfers" || state === "wide-weight") pick("pagerank", true);
+        if (state === "essentials" || state === "transfers-pagerank" || state === "wide-weight") pick("pagerank", true);
+        // The transfers, weighted by amount: exact betweenness would pass the time limit, so Sampled is the default
+        if (state === "costly") pick("betweenness", true);
+        // Exact chosen and Run pressed: graphty-element declines it, which is not a failure
+        if (state === "declined") { pick("betweenness", true); ui.sampled = "exact"; ui.declined = true; }
         if (state === "node-weight") { pick("pagerank", true); ui.nodeW = true; }
         // This run overrides both: Edge betweenness, read as distance, so busy bridges count as long hops
         if (state === "weight-override") { pick("closeness", true); ui.weight = "Edge betweenness"; ui.meaning = "farther"; }
         if (state === "revise") { pick("louvain", true); ui.key = "1.5"; }
+        if (state === "weight-list") { pick("closeness", true); ui.weight = "Edge betweenness"; ui.meaning = "farther"; }
+        if (state === "weighted-degree") { pick("weighted-degree", true); ui.side = "in"; }
+        if (state === "link-counts") { pick("degree", true); ui.side = "in"; }
+        if (state === "bridges") pick("bridges", true);
     }
 
-    function matches(e, q) {
+    function matches(e, q, side) {
         q = q.trim().toLowerCase();
-        return !q || e.name.toLowerCase().includes(q) || e.family.toLowerCase().includes(q) || e.aliases.some((a) => a.includes(q));
+        return !q || nm(e, side).toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.family.toLowerCase().includes(q) || e.aliases.some((a) => a.includes(q));
     }
 
     // Marks are bare icons; the tooltip says what each means
@@ -148,11 +205,13 @@
     }
     const typeIcon = (e) => h("span", { class: "ap-type", "aria-hidden": "true" }, icon(e.out.icon, "sm"));
 
-    function pick(id, quiet) {
+    function pick(id, quiet, side) {
         const e = byId(id);
         if (e.opens) return AB.go(e.opens[0], e.opens[1]);
         const G = graphOf(ui.ds);
-        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, sampled: "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
+        // An exact run past the time limit defaults to the largest sample that fits
+        const est = e.cost ? estimateOf(e, e.weight ? G.weight : null) : null;
+        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, declined: false, side: side || "both", sampled: est && !est.exact.withinBudget ? "sampled" : "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
         if (!quiet) draw();
     }
     function back() {
@@ -162,11 +221,12 @@
         draw();
     }
 
-    function entryRow(e) {
+    // In its group (not under Recent) the one method to start with carries "Start here"
+    function entryRow(e, inGroup, side) {
         const dis = disabledOf(e);
-        const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0", "data-entry": e.id }, dis ? {} : AB.act({ onClick: () => pick(e.id) })),
+        const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0", "data-entry": e.id }, dis ? {} : AB.act({ onClick: () => pick(e.id, false, side) })),
             typeIcon(e),
-            h("span", { class: "ap-txt" }, h("span", { class: "ap-name k-ellipsis" }, e.name), h("span", { class: "ap-sub k-ellipsis" }, dis || e.answers)),
+            h("span", { class: "ap-txt" }, h("span", { class: "ap-name" }, h("span", { class: "k-ellipsis" }, nm(e, side)), inGroup && e.start ? h("span", { class: "k-badge ap-start" }, "Start here") : null), h("span", { class: "ap-sub k-ellipsis" }, dis || answersOf(e, side))),
             marks(e));
         return AB.tip(el, e.family, { label: false });
     }
@@ -180,15 +240,15 @@
     function listBody() {
         const body = h("div", { class: "ap-list", role: "region", "aria-label": "Algorithms" });
         let gid = 0;
-        const group = (title, entries) => {
+        const group = (title, rows, inGroup) => {
             const id = "ap-gh-" + ++gid;
-            body.append(h("div", { class: "ap-gh", id }, title), h("div", { role: "group", "aria-labelledby": id }, entries.map(entryRow)));
+            body.append(h("div", { class: "ap-gh", id }, title), h("div", { role: "group", "aria-labelledby": id }, rows.map(([e, side]) => entryRow(e, inGroup, side))));
         };
-        if (!ui.query) group("Recent", RECENT.map(byId));
+        if (!ui.query) group("Recent", RECENT.map((id) => [byId(id), null]), false);
         let any = false;
         GROUPS.forEach((g) => {
-            const hits = g.entries.filter((e) => matches(e, ui.query));
-            if (hits.length) { any = true; group(g.title, hits); }
+            const hits = g.entries.flatMap(rowsOf).filter(([e, side]) => matches(e, ui.query, side));
+            if (hits.length) { any = true; group(g.title, hits, true); }
         });
         if (!any) {
             const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.query = ""; draw(); } })), "Clear");
@@ -220,16 +280,26 @@
         return X.lesmis.rows.map((r) => r.label);
     };
 
-    // Weight: the field list at menu size over the project's edge attributes (number ones first, the
-    // loaded weight in use, "Not a number" disabled with the reason); the meaning defaults from the
-    // load. No weight is the link under it. Anything else is this run's override, recorded in its
-    // Made with, never in the data.
+    // Weight: the field list at menu size, listing the loaded weight first, then None for this run
+    // (not on an entry that needs a weight), then the project's other number attributes on edges and
+    // its edge results; the meaning defaults from the load. Anything but the loaded weight is this
+    // run's override, recorded in its Made with, never in the data.
+    function weightItems(e, G) {
+        const set = (w) => () => { ui.weight = w; ui.declined = false; draw(); };
+        const nums = AB.fieldsOf(ui.ds).filter((g) => g.element === "edge").flatMap((g) => g.fields).filter((x) => x.type === "num" && x.name !== G.weight).map((x) => x.name);
+        const none = e.needsWeight ? null : { label: G.weight ? "None for this run" : "None (loaded: each edge counts 1)", check: !ui.weight, onClick: set(null) };
+        const items = G.weight ? [{ label: G.weight + " (loaded weight)", check: ui.weight === G.weight, onClick: set(G.weight) }, none] : [none];
+        if (nums.length) items.push({ heading: "Other number attributes" }, ...nums.map((n) => ({ label: n, check: ui.weight === n, onClick: set(n) })));
+        const res = EDGE_RESULTS[ui.ds] || [];
+        if (res.length) items.push({ heading: "Results" }, ...res.map((n) => ({ label: n, check: ui.weight === n, onClick: set(n) })));
+        return items.filter(Boolean);
+    }
     function weightRows(e, body, row) {
         const G = graphOf(ui.ds);
-        const label = ui.weight ? (ui.weight === G.weight ? ui.weight + " (loaded weight)" : ui.weight) : "None";
-        const f = AB.field(label, { caret: true, onClick: () => AB.openFieldList(f, { kind: "number", element: "edge", current: ui.weight, results: false, notes: false, label: "Weight", onPick: (name) => { ui.weight = name; draw(); } }) });
+        const label = ui.weight ? (ui.weight === G.weight ? ui.weight + " (loaded weight)" : ui.weight) : G.weight ? "None for this run" : "None";
+        const f = AB.field(label, { caret: true, onClick: () => AB.openFieldList(f, { items: weightItems(e, G), label: "Weight" }) });
         f.setAttribute("aria-haspopup", "listbox");
-        f.setAttribute("aria-label", "Weight: " + (ui.weight || "None"));
+        f.setAttribute("aria-label", "Weight: " + label);
         f.dataset.apWeight = "";
         row("Weight", f);
         if (ui.weight) {
@@ -239,16 +309,15 @@
         }
         const link = (text, fn) => h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { fn(); draw(); } })), text);
         const useLoaded = link(G.weight ? "Use the loaded weight" : "Use no weight", () => { ui.weight = G.weight; ui.meaning = G.meaning; });
-        const noWeight = ui.weight && G.weight && ui.weight === G.weight && !e.needsWeight ? link("Use no weight", () => { ui.weight = null; }) : null;
         // the graph inspector's words: "value, stronger"
         const loaded = G.weight ? "Loaded weight: " + G.weight + ", " + G.meaning + ". " : "Loaded weight: none (each edge counts 1). " + G.desc + ".";
         const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
-        const reads = e.weight === "distance" ? "farther" : "stronger";
-        const conv = ui.weight && ui.meaning !== "capacity" && ui.meaning !== reads
-            ? e.name + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
+        const reads = e.weight === "distance" ? "farther" : e.weight === "capacity" ? "capacity" : "stronger";
+        const conv = ui.weight && ui.meaning !== "capacity" && reads !== "capacity" && ui.meaning !== reads
+            ? nm(e) + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
         body.append(h("div", { class: "ap-wnote" },
             over ? h("span", { class: "k-badge" }, "This run's override") : null,
-            over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + (G.weight ? G.weight + ", " + G.meaning : "no weight") + ". ", useLoaded) : h("span", null, loaded, noWeight),
+            over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + (G.weight ? G.weight + ", " + G.meaning : "no weight") + ". ", useLoaded) : h("span", null, loaded),
             conv ? h("span", null, conv) : null));
         if (e.nodeWeight && G.nodeWeight) {
             // The same words as the floors attribute inspector: one candidate entry reads node weight, and it waits on the element
@@ -266,10 +335,13 @@
     function essentialsBody(e) {
         // PageRank on the door entries offers the node weight loaded with them (floors)
         if (ui.state === "node-weight" || (ui.ds === "doorEntries" && e.id === "pagerank")) e = Object.assign({}, e, { nodeWeight: true });
-        const body = h("div", null, scopeLine(), h("div", { class: "ap-answers" }, e.answers));
+        const body = h("div", null, scopeLine(), h("div", { class: "ap-answers" }, answersOf(e)));
         const row = (label, ctl) => body.append(AB.fieldRow(label, ctl, { popover: true }));
         if (e.weight) weightRows(e, body, row);
-        if (graphOf(ui.ds).directed) row("Direction", AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], ui.dir, (v) => { ui.dir = v; draw(); }, { label: "Direction" }));
+        const directed = graphOf(ui.ds).directed;
+        // In, out or both, named from the data; it takes the place of Direction
+        if (e.sides && directed) row("Measure", dropdown(e.rowName(ui.side, ui.weight), SIDES.map((s) => e.rowName(s, ui.weight)), (c) => { ui.side = SIDES.find((s) => e.rowName(s, ui.weight) === c); draw(); }));
+        if (directed && !e.sides) row("Direction", AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], ui.dir, (v) => { ui.dir = v; draw(); }, { label: "Direction" }));
         if (e.node === "start") row("Start", dropdown(ui.start, NODES(), (c) => { ui.start = c; draw(); }, { placeholder: "Choose a node" }));
         if (e.node === "pair") {
             row("From", dropdown(ui.from, NODES(), (c) => { ui.from = c; draw(); }, { placeholder: "Choose a node" }));
@@ -281,23 +353,40 @@
             inp.addEventListener("change", () => { ui.key = inp.value.trim(); });
             row(AB.scrub(h("span", null, e.key[0]), inp, { onSet: (v) => { ui.key = String(v); } }), inp);
         } else if (e.key) row(e.key[0], dropdown(ui.key || e.key[1], e.key[2], (c) => { ui.key = c; draw(); }));
-        if (e.cost) row("Precision", AB.seg([["exact", "Exact"], ["sampled", "Sampled"]], ui.sampled, (v) => { ui.sampled = v; draw(); }, { label: "Precision" }));
-        if (!e.weight && !e.node && !e.key && !e.cost) body.append(AB.empty("Nothing to set."));
+        if (e.reads) row(e.reads[0], h("span", { class: "ap-stack" }, e.reads[1]));
+        const est = costly(e);
+        if (est) {
+            // Never swapped silently: both choices explain themselves before either is picked
+            row("Precision", h("span", { class: "ap-stack" },
+                AB.seg([["exact", "Exact"], ["sampled", "Sampled"]], ui.sampled, (v) => { ui.sampled = v; ui.declined = false; draw(); }, { label: "Precision" }),
+                h("span", { class: "ap-sub" }, "Exact: Computed on every node, not estimated. It does not say the ranking is meaningful."),
+                h("span", { class: "ap-sub" }, "Sampled: " + AB.count(est.largestKWithinBudget, "source") + " of " + AB.num(nodesOf()) + ": the largest sample that fits the time limit.")));
+        }
+        if (!e.weight && !e.node && !e.key && !est && !e.reads && !(e.sides && directed)) body.append(AB.empty("Nothing to set."));
         return body;
     }
 
     // Betweenness is the run the tree's "Run in progress" state shows; an update opens the revised row
     function run(e, asCopy) {
+        // graphty-element declines an exact run past its time limit: not a failure, so no failure mark
+        const est = ui.sampled === "exact" ? costly(e) : null;
+        if (est) { ui.declined = true; draw(); return AB.announce("Not run: would take about " + about(est.exact.seconds)); }
         if (e.id === "betweenness") return AB.go("analyze-popover", "running");
         if (hasRow(e) && !asCopy) return AB.go(e.out.section, "data");
-        AB.flash("Would add " + e.name + (asCopy ? " as a copy" : "") + " at the top of the list, running (not modeled in the skeleton)");
+        AB.flash("Would add " + nm(e) + (asCopy ? " as a copy" : "") + " at the top of the list, running (not modeled in the skeleton)");
     }
 
     function essentialsFoot(e) {
-        const missing = e.node === "start" && !ui.start ? "Choose a start node" : e.node === "pair" && !(ui.from && ui.to) ? "Choose From and To" : null;
+        const missing = e.node === "start" && !ui.start ? "Choose a start node" : e.node === "pair" && !(ui.from && ui.to) ? "Choose From and To" : e.needsWeight && !ui.weight ? "Choose a weight" : null;
         const n = ui.sel && ui.scope === "sel" ? SELECTED.length : ui.ds === "transactions" ? AB.fx.datasets.transactions.nodes : ui.ds === "doorEntries" ? AB.fx.datasets.doorEntries.loadedTypes().total
             : ui.ds === "nested" ? AB.walkList("nested").length + AB.fx.datasets.nested.recordArrays["data.institutions[]"] : AB.fx.datasets[ui.ds] && AB.fx.datasets[ui.ds].nodes || AB.fx.datasets.lesmis.nodes;
-        const cost = AB.tip(h("span", { class: "ap-cost", tabindex: "0" }, e.id === "all-pairs" && ui.sampled === "exact" ? "About a second" : "Under a second"), "Estimated on " + n + " nodes", { label: false });
+        const est = costly(e), fits = !est && e.cost ? estimateOf(e, ui.weight) : null;
+        const sampledBand = est && (est.sampled.find((x) => x.k === est.largestKWithinBudget) || {}).band;
+        const costText = ui.declined && est ? "Not run: would take about " + about(est.exact.seconds)
+            : est ? (ui.sampled === "exact" ? "About " + about(est.exact.seconds) : sampledBand.charAt(0).toUpperCase() + sampledBand.slice(1))
+                : fits && fits.exact.seconds >= 1.5 ? "About " + about(fits.exact.seconds)
+                    : e.id === "all-pairs" && ui.sampled === "exact" ? "About a second" : "Under a second";
+        const cost = AB.tip(h("span", { class: "ap-cost", tabindex: "0" }, costText), "Estimated on " + AB.num(n) + " nodes", { label: false });
         const main = hasRow(e) ? "Update " + hasRow(e) + " row" : "Run";
         const runBtn = AB.button(main, { key: "Enter", disabled: missing, onClick: () => run(e, false) });
         runBtn.setAttribute("data-autofocus", "");
@@ -308,7 +397,7 @@
     function draw() {
         const e = ui.level === "pick" ? byId(ui.picked) : null;
         const title = e
-            ? [AB.iconButton("chevron-left", "Back to the list", { key: "Esc", onClick: back }), typeIcon(e), e.name]
+            ? [AB.iconButton("chevron-left", "Back to the list", { key: "Esc", onClick: back }), typeIcon(e), nm(e)]
             : "Analyze";
         const pop = AB.popover({
             anchor: ANCHOR,
@@ -318,7 +407,7 @@
             place: "above-toolbar",
         });
         pop.classList.add("ap-pop");
-        pop.setAttribute("aria-label", e ? "Analyze: " + e.name : "Analyze");
+        pop.setAttribute("aria-label", e ? "Analyze: " + nm(e) : "Analyze");
         pop.addEventListener("keydown", (ev) => {
             if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); back(); return; }
             if (ev.key === "Enter" && e && !ev.target.closest(".k-seg, .k-field, .k-btn, .k-icon-btn, input")) {
@@ -339,9 +428,12 @@
                 return;
             }
             // The hosts: the Weight line's field list open over the 26 connection attributes
-            if (ui.state === "wide-weight" && e) { const w = pop.querySelector("[data-ap-weight]"); if (w) { ui.state = "essentials"; w.click(); } return; }
+            // Les Miserables: the same list with this run's override checked
+            if ((ui.state === "wide-weight" || ui.state === "weight-list") && e) { const w = pop.querySelector("[data-ap-weight]"); if (w) { ui.state = "essentials"; w.click(); } return; }
+            // The transfers: the list opens on its measures (link counts and totals), below Recent
+            if (ui.state === "transfers" && !e) { const g = pop.querySelectorAll(".ap-gh")[1]; if (g) { g.style.scrollMarginTop = "40px"; g.scrollIntoView({ block: "start" }); } }
             const f = pop.querySelector(e ? ".ap-run" : ".ap-find input");
-            if (f) f.focus();
+            if (f) f.focus({ preventScroll: true });
         }, 20);
     }
 
@@ -362,18 +454,29 @@
         // Running: the tree of the project the run was started on (the screen before this one), its new row on top
         frame: (state) => (state === "running" ? ({ doorEntries: { own: true, dataset: "doorEntries", left: "graph-place/door-entries-running" }, transactions: { own: true, dataset: "transactions", left: "graph-place/transfers-running", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" } }[AB.route && AB.route.frame.dataset] || { left: "graph-place/running" })
             : state === "scoped" ? { left: "graph-place/at-rest", right: "inspector-several-elements/style" }
-            : state === "transfers" ? { dataset: "transactions", left: "graph-place/many-groups", canvas: "canvas-and-states/transfers" }
+            : state === "transfers" || state === "transfers-pagerank" || state === "costly" || state === "declined" || state === "search-total" || state === "weighted-degree" || state === "link-counts" ? { dataset: "transactions", left: "graph-place/many-groups", canvas: "canvas-and-states/transfers" }
             : state === "node-weight" ? { dataset: "doorEntries", left: "data-place/door-entries", right: false }
             : state === "wide-weight" ? { dataset: "wide", left: "graph-place/at-rest" } : {}),
         states: [
             { id: "open", label: "Open: Recent and the catalog" },
             { id: "search", label: "Search: an alias match (brokers)" },
+            { id: "search-important", label: "Search: a task word (important)" },
+            { id: "search-groups", label: "Search: a task word (groups)" },
+            { id: "search-route", label: "Search: a task word (cheapest route)" },
+            { id: "search-total", label: "Transfers: search total, weighted degree total, in and out" },
             { id: "no-match", label: "Search: no match (sentiment)" },
             { id: "scoped", label: "Five nodes selected: On line first" },
             { id: "essentials", label: "PageRank essentials: loaded weight value" },
-            { id: "transfers", label: "Transfers: loaded weight amount, Direction" },
+            { id: "transfers", label: "Transfers: the catalog, link counts and totals in, out and both" },
+            { id: "transfers-pagerank", label: "Transfers: PageRank, loaded weight amount, Direction" },
+            { id: "costly", label: "Transfers: Betweenness weighted by amount, Sampled by default (exact passes the time limit)" },
+            { id: "declined", label: "Transfers: Exact declined, Not run: would take about 84 seconds" },
             { id: "wide-weight", label: "Hosts: the Weight line's field list over 26 connection attributes" },
             { id: "weight-override", label: "Weight override: Closeness on Edge betweenness" },
+            { id: "weight-list", label: "Weight list: loaded weight, None for this run, then the rest" },
+            { id: "weighted-degree", label: "Transfers: weighted degree, Total amount in" },
+            { id: "link-counts", label: "Transfers: link count, Links in (count)" },
+            { id: "bridges", label: "Bridges: Not on a bridge edge" },
             { id: "node-weight", label: "Door entries: a node-weight line" },
             { id: "revise", label: "Louvain already has a row: Update or Run as copy" },
             { id: "find-paths", label: "Find paths: Shortest path opens the Path popover" },

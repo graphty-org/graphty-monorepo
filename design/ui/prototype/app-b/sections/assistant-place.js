@@ -1,14 +1,16 @@
-/* Assistant place: the rail's last place. With no AI provider: one empty line linking to
-   Settings > Assistant, and nothing else. With one: a switcher row (the open conversation, a
+/* Assistant place: the rail's last place. With no AI provider: one empty line, "Off. Nothing is
+   sent.", linking to Settings > Assistant, and nothing else. With one: a switcher row (the open conversation, a
    chevron listing the others and New conversation), the conversation, and the composer pinned at
    the bottom (microphone and Send). A tool line is one sentence with the object as a chip, the
    same chip Notes uses for its targets. A failed answer carries Retry inside it; the composer stays
-   empty. Layers the assistant adds are ordinary rows marked "from the assistant". Plain ASCII. */
+   empty. Under each question, one past-tense line says what was sent and to whom. Layers the
+   assistant adds are ordinary rows marked "from the assistant". Plain ASCII. */
 (function () {
     const CSS = `
 .as-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
 .as-conv { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; line-height: 18px; }
 .as-q { align-self: flex-end; max-width: 85%; padding: 6px 10px; border-radius: 8px; background: var(--cm-bg-secondary); color: var(--cm-text); }
+.as-sent { align-self: flex-end; margin-top: -8px; }
 .as-a { color: var(--cm-text); display: flex; flex-direction: column; gap: 6px; }
 .as-a ol { margin: 0; padding-left: 18px; }
 .as-tools { display: flex; flex-direction: column; gap: 2px; }
@@ -76,6 +78,12 @@
         "Why is Myriel's group so far from the rest?",
     ];
     const LAYER = "Size by betweenness";
+    const HOST = "api.anthropic.com";
+
+    /* What left the computer with a question, said after the fact. */
+    function sentLine(time, what) {
+        return h("div", { class: "as-sent k-caption" }, "Sent to " + HOST + " at " + time + ": " + what);
+    }
 
     /* The object chip: a kind icon and the object's name; a click selects it. */
     function chip(iconName, label, target) {
@@ -170,6 +178,7 @@
         }[stage];
         return h("div", { class: "as-conv", "aria-live": stage === "streaming" ? "polite" : null },
             h("div", { class: "as-q" }, CONVERSATIONS[0]),
+            sentLine("14:02", "your question, " + AB.fx.datasets.lesmis.nodes + " character names, 3 statistics"),
             h("div", { class: "as-a" }, h("div", { class: "as-tools", "aria-label": "Tool calls" }, tools), answer),
         );
     }
@@ -244,7 +253,7 @@
         render(el, state) {
             if (state === "no-provider") {
                 el.append(AB.placeHead("Assistant"),
-                    AB.empty("The Assistant needs an AI provider.", { verb: "Set one up in Settings", go: ["settings", "assistant"] }));
+                    AB.empty("Off. Nothing is sent.", { verb: "Turn on in Settings", go: ["settings", "assistant"] }));
                 return;
             }
             if (state === "long-conversation") {

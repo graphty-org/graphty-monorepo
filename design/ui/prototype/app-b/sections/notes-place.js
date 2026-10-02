@@ -47,6 +47,10 @@
 .np-editor textarea { font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; padding: 6px 8px; min-height: 72px; max-height: 240px; field-sizing: content; resize: vertical; outline: none; }
 .np-editor textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
 .np-editor-foot { display: flex; align-items: center; gap: 8px; }
+.np-editor-foot .k-kbd { margin-inline-start: 6px; }
+.np-earlier { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--cm-text-secondary); }
+.np-earlier .k-btn { height: 20px; padding: 0 6px; }
+.np-earlier-why { flex-basis: 100%; color: var(--cm-text-tertiary); }
 .np-chip.np-gone { text-decoration: line-through; color: var(--cm-text-secondary); }
 .np-edit-li { list-style: none; }
 .np-sub { padding: 0 16px 4px; color: var(--cm-text-tertiary); }
@@ -61,14 +65,19 @@
     const T = {
         community3: { label: "Community 3", swatch: "#009E73", /* Community 3's color in the Graph tree */ go: ["inspector-group-set-path-row", "community-3"] },
         louvain: { label: "Louvain", icon: AB.ICON.run, go: ["inspector-run-row", "data"] },
-        valjean: { label: "Valjean", icon: "circle-dot", go: ["inspector-node", "data"] },
-        javert: { label: "Javert", icon: "circle-dot", go: ["inspector-node", "data"] },
-        napoleon: { label: "Napoleon", icon: "circle-dot", go: ["inspector-node", "data"] },
+        // A node is selected as the canvas walk selects it (AB.walked names it in the inspector), so
+        // each chip selects its own node, not the one node inspector state's Valjean
+        valjean: { label: "Valjean", icon: "circle-dot", go: ["inspector-node", "why-this-look"], node: true },
+        javert: { label: "Javert", icon: "circle-dot", go: ["inspector-node", "why-this-look"], node: true },
+        napoleon: { label: "Napoleon", icon: "circle-dot", go: ["inspector-node", "why-this-look"], node: true },
         edge: { label: "Javert -- Valjean", icon: "spline", go: ["inspector-edge", "data"] },
         graph: { label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] },
         pagerank: { label: "PageRank", icon: "chart-column", go: ["inspector-measure-row", "data"] },
         betweenness: { label: "Betweenness", icon: "chart-column", go: ["inspector-measure-row", "data"] },
     };
+
+    // The walk step that selects a target node (1-based, as frame.walk takes it), or null
+    const walkOf = (t) => t.walk || (t.node ? L().rows.findIndex((r) => r.label === t.label) + 1 || null : null);
 
     // Times are stamped by graphty-element; at is the meta line, full the tooltip. by is optional:
     // it exists only when the writer typed a name in Settings, which most do not.
@@ -79,7 +88,7 @@
         const list = [
             { id: "n1", by: state === "two-authors" || state === "one-author" ? "Ada Okafor" : null, at: "2 h ago", full: "Wednesday, September 30, 2026, 09:12", about: [c3],
                 text: "Myriel's household and the people he meets in Digne." },
-            { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, at: "Yesterday", full: "Tuesday, September 29, 2026, 17:40", about: [c3, nap], cites: [T.louvain],
+            { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, at: "Yesterday", full: "Tuesday, September 29, 2026, 17:40", about: [c3, nap], cites: [state === "earlier-group" ? Object.assign({ earlier: true }, T.louvain) : T.louvain],
                 text: "Napoleon is here only because Myriel meets him once." },
             { id: "n3", at: "Yesterday", full: "Tuesday, September 29, 2026, 15:05", edited: true, about: [T.louvain],
                 text: "Valjean and Javert land in the same community, with Marius and Cosette." },
@@ -190,11 +199,12 @@
         el.setAttribute("aria-label", (o.cite ? "Cites " : "") + t.label + (why ? ", " + why.toLowerCase() : ""));
         // An earlier group may be numbered differently now: its chip opens the run, not today's group
         const target = t.earlierGroup ? ["inspector-run-row", "data"] : t.go;
-        const goTo = (e) => { e.stopPropagation(); clearTimeout(pending); show(o.note || null, target.join("/"), t.walk); };
+        const goTo = (e) => { e.stopPropagation(); clearTimeout(pending); show(o.note || null, target.join("/"), walkOf(t)); };
         el.addEventListener("click", goTo);
         el.addEventListener("keydown", (e) => { if (e.key === "Enter") goTo(e); });
         return el;
     }
+    const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Cmd" : "Ctrl";
     let pending = null; // a single click waits out the double-click interval, so double-click can edit
 
     // The editor, in place of a note (edit) or at the top of the list (new). targets come from the selection.
@@ -217,7 +227,9 @@
         // Esc cancels. A new note with no text is dropped silently; one with text is discarded with Undo
         // (the writing state's done shows the notice), so typed words are never lost to one key
         const cancel = () => { const typed = !o.text && !empty(); if (!o.text && !typed) AB.announce("Empty note discarded"); o.done(false, typed ? { text: ta.value, about: targets } : null); };
-        const saveBtn = AB.button("Save", { key: "Mod+Enter", onClick: save });
+        // The key is drawn on the button, named for this keyboard (Ctrl, or Cmd on a Mac)
+        const saveBtn = AB.button(["Save", h("span", { class: "k-kbd" }, MOD + "+Enter")], { tip: "Save", key: MOD + "+Enter", onClick: save });
+        saveBtn.setAttribute("aria-label", "Save");
         const sync = () => {
             const off = empty();
             saveBtn.setAttribute("aria-disabled", String(off));
@@ -247,7 +259,7 @@
         // The spoken name carries what the note is about and cites, since the label replaces the row's content
         const label = () => [n.text, "about " + n.about.map((t) => t.label).join(", "), n.cites ? "cites " + n.cites.map((t) => t.label).join(", ") : null, by, n.full + (n.edited ? ", edited" : "")].filter(Boolean).join("; ");
         const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label(), "aria-keyshortcuts": "ArrowRight Delete Shift+F10" });
-        const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/"), n.about.length === 1 ? n.about[0].walk : null); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
+        const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/"), n.about.length === 1 ? walkOf(n.about[0]) : null); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
         const edit = () => {
             clearTimeout(pending);
             // The editor stays a list item, so the list keeps its structure
@@ -319,6 +331,40 @@
         const about = h("div", { class: "np-chips", "aria-label": "About" }, n.about.map((t) => chip(t, { note: n.id })));
         const citesLine = () => h("div", { class: "np-cites", "aria-label": "Cites", hidden: n.cites ? null : "" }, "Cites", (n.cites || []).map((t) => chip(t, { cite: true, note: n.id })));
         let citesEl = citesLine();
+        // A rerun replaced a run the note relies on (an earlier cite, or a group of an earlier result):
+        // "Add current value" cites the current run beside the earlier one, which stays as it was.
+        // Nothing rewrites what the note relied on; Undo takes the added cite away again.
+        const current = () => {
+            const now = (n.cites || []).filter((t) => !t.earlier).map((t) => t.label);
+            const add = [];
+            n.about.concat(n.cites || []).forEach((t) => {
+                const c = t.earlierGroup ? T.louvain : t.earlier ? Object.assign({}, t, { earlier: false }) : null;
+                if (c && !now.includes(c.label) && !add.some((a) => a.label === c.label)) add.push(c);
+            });
+            return add;
+        };
+        const redrawCites = () => { const c = citesLine(); citesEl.replaceWith(c); citesEl = c; li.setAttribute("aria-label", label()); };
+        let earlierEl = null;
+        const earlierLine = () => {
+            const add = current();
+            if (!add.length) return null;
+            const btn = AB.button("Add current value", { kind: "ghost", onClick: () => {
+                const before = n.cites ? n.cites.slice() : null;
+                n.cites = (n.cites || []).concat(add);
+                redrawCites();
+                earlierEl.remove();
+                li.focus();
+                AB.notice("Added " + add.map((t) => t.label).join(", ") + " beside the earlier " + (add.length > 1 ? "runs" : "run"), { label: "Undo", onClick: () => {
+                    n.cites = before;
+                    redrawCites();
+                    earlierEl = earlierLine();
+                    if (earlierEl) citesEl.after(earlierEl);
+                    li.focus();
+                } });
+            } });
+            return h("div", { class: "np-earlier" }, icon("history", "sm"), "Earlier run", btn, h("span", { class: "np-earlier-why" }, "Keeps the earlier run and its value."));
+        };
+        earlierEl = earlierLine();
         const meta = h("span", null, AB.tip(h("span", { class: "k-num" }, n.at), n.full, { label: false }), n.edited ? ", edited" : null);
         // A second click on "..." closes the menu it opened
         const more = AB.iconButton(AB.ICON.options, "Note options", { onClick: () => (document.querySelector(".k-menu") ? AB.closeMenu() : options(more)) });
@@ -328,6 +374,7 @@
             text,
             about,
             citesEl,
+            earlierEl,
             h("div", { class: "np-meta k-secondary" },
                 by ? h("span", { class: "k-ellipsis" }, by + ",") : null,
                 meta,

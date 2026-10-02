@@ -509,3 +509,14 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .ab-problem-what { font-weight: 550; }
 .ab-problem-todo { color: var(--cm-text-secondary); }
 .ab-problem-act { padding-top: 4px; }
+
+/* ---------- the way back from the participant view (review only) ---------- */
+/* A small, quiet control in the bottom left corner, over the rail's empty foot; shown only while
+   design notes are hidden, so a touch screen that cannot press Esc or reach the review bar is never stuck */
+.ab-leave-study {
+    position: fixed; left: 4px; bottom: 4px; z-index: 1000; min-width: 24px; min-height: 24px; padding: 0 6px;
+    font: inherit; font-size: 11px; color: var(--cm-text-secondary); background: transparent;
+    border: 1px solid var(--cm-border); border-radius: 4px; opacity: 0.45; cursor: pointer;
+}
+.ab-leave-study:hover, .ab-leave-study:focus-visible { opacity: 1; background: var(--cm-bg); }
+.ab-leave-study[hidden] { display: none; }

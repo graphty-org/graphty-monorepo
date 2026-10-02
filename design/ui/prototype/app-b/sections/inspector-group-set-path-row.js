@@ -37,6 +37,13 @@
     const WATCHLIST = { color: "#CC79A7", inside: 8, density: 0.8, members: [["Thenardier", 4], ["Mme.Thenardier", 4], ["Valjean", 3], ["Javert", 3], ["Eponine", 2]] };
     const RULESET = { name: "Degree 13 or more", color: "#F0E442", inside: 24, density: 0.667, members: [["Valjean", 7, 36], ["Gavroche", 7, 22], ["Marius", 6, 19], ["Enjolras", 6, 15], ["Javert", 5, 17], ["Thenardier", 5, 16], ["Bossuet", 5, 13], ["Courfeyrac", 4, 13], ["Fantine", 3, 15]] };
     const G4_WATCHED = ["Javert", "Thenardier", "Mme.Thenardier", "Eponine"];
+    // A run's group keeps a color the reader picked, saved against its category value (run and value),
+    // so a rerun that finds the same value paints it the same. Lives for this page view.
+    const RECOLOR = {};
+    // Plain names for the palette's colors, for the announcement ("Community 3 is now Vermilion, was Bluish green")
+    const COLOR_NAMES = { "#E69F00": "Orange", "#56B4E9": "Sky blue", "#009E73": "Bluish green", "#F0E442": "Yellow", "#0072B2": "Blue", "#D55E00": "Vermilion", "#CC79A7": "Reddish purple", "#000000": "Black", "#BDBDBD": "Gray" };
+    // The Color popover's swatches say their own name (aria-label) and hex (aria-description); a name read there is kept here
+    const colorName = (hex) => COLOR_NAMES[hex.toUpperCase()] || hex.toUpperCase();
     const COMMUNITIES = { 1: [25, "#E69F00"], 2: [17, "#56B4E9"], 3: [10, "#009E73", 2], 4: [10, "#0072B2"], 5: [9, "#D55E00"], 6: [6, "#CC79A7"] };
 
     const STATES = [
@@ -63,6 +70,7 @@
         { id: "kept-2", label: "Kept set: Group 2, in a folder" },
         { id: "path-lesmis", label: "Path: Valjean to Javert" },
         { id: "path", label: "Path from Path between" },
+        { id: "path-reversed", label: "Path traced end to start: dates out of order" },
         { id: "path-door-entries", label: "Path: door entries, from Find path" },
         { id: "path-style", label: "Path: Style" },
         { id: "path-edge-set", label: "Edge set: spanning tree" },
@@ -78,7 +86,7 @@
     const SELECT = ["inspector-several-elements", "style"];
     const pr = () => lnk("PageRank", ["inspector-measure-row", "style"]);
     const memberRow = (name, trail) => AB.row({ label: name, trail, go: ["inspector-node", name === "Valjean" ? "why-this-look" : "data"] });
-    const acctRow = (id, k, n) => AB.row({ label: h("span", { class: "k-id" }, id), trail: k === 0 ? "start" : k === n - 1 ? "end" : "hop " + k, onClick: () => AB.flash("Selects " + id + " (not wired in the skeleton)") });
+    const acctRow = (id, trail) => AB.row({ label: h("span", { class: "k-id" }, id), trail, onClick: () => AB.flash("Selects " + id + " (not wired in the skeleton)") });
     const scope = (L) => ["Scope", "Full graph, " + L.nodes + " nodes"];
     const version = (L) => ["Data version", L.file + ", current"];
 
@@ -97,6 +105,7 @@
             summary: [["Size", size, SELECT], ["Density", String(density)], ["Edges leaving", String(leaving)]],
             membersSummary: (leg.count > 10 ? "Top 10 of " + leg.count : "All " + leg.count) + ", by degree within the group",
             members: top.map(([n, d]) => memberRow(n, String(d))),
+            dist: top.length === leg.count ? top : null, distOf: "degree within the group",
             made: [],
             all: [["Attribute", "group"], scope(L), version(L)],
         };
@@ -112,6 +121,7 @@
             summary: [["Size", o.count + " nodes, " + OTHER.inside + " edges", SELECT], ["Groups", "6 (1 node), 7 (2), 10 (2)"], ["Edges leaving", String(OTHER.leaving)]],
             membersSummary: "All " + o.count + ", by degree within their own group",
             members: OTHER.members.map(([n, d]) => memberRow(n, String(d))),
+            dist: OTHER.members, distOf: "degree within their own group",
         });
     }
 
@@ -142,23 +152,34 @@
             summary: [["Size", size, SELECT], ["Density", String(W.density)], ["Groups", "4 (4 members), 2 (1)", [SELF, "group-4"]]],
             membersSummary: "All " + n + ", by degree within the set",
             members: W.members.map(([nm, d]) => memberRow(nm, String(d))),
+            dist: W.members, distOf: "degree within the set",
             made: [],
             all: [["Members", "Fixed: they do not follow the data"], scope(L), version(L)],
         };
     }
 
+    // A rule set (Create set where this is...) is a set marked with a small rule glyph: its members
+    // follow the rule, and it paints them; it never filters anything out
+    const RULE_NOTE = "Its members follow the rule. It paints them and never filters.";
+    function ruleGlyph() {
+        const g = h("span", { role: "img", style: "position:relative;display:inline-flex" }, icon("circle-check"),
+            h("span", { style: "position:absolute;right:-5px;bottom:-5px;display:inline-flex;background:var(--cm-bg);border-radius:50%" }, icon("sigma", "sm")));
+        return AB.tip(g, "Rule set. " + RULE_NOTE);
+    }
     function ruleSetModel() {
         const L = L0(), R = RULESET, n = R.members.length;
         const size = n + " nodes, " + R.inside + " edges";
         return {
-            title: R.name, color: R.color, icon: "circle-check", kind: "Rule set",
+            title: R.name, color: R.color, icon: ruleGlyph(), kind: "Rule set",
             provenance: ["from degree", "inspector-attribute-and-filter-step", "attribute"],
+            styleNote: RULE_NOTE,
             set: { "node.color": R.color },
             paints: ["Paints " + size, SELECT],
             order: "Wins Color on " + n + " of " + n + ": nothing above it paints these members",
             summary: [["Size", size, SELECT], ["Density", String(R.density)]],
             membersSummary: "All " + n + ", by degree within the set, then in the graph",
             members: R.members.map(([nm, d, full]) => memberRow(nm, d + " of " + full)),
+            dist: R.members, distOf: "degree within the set",
             made: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")]],
             all: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")], ["Members", "Follow the data"], scope(L), version(L)],
             question: "On a rule set, does Keep as set (in \"...\") freeze today's " + n + " members as a plain set?",
@@ -171,8 +192,9 @@
         const L = L0();
         const none = () => AB.empty("No node has degree 40 or more; the highest is " + L.stats.maxDegree + ".");
         return {
-            title: "Degree 40 or more", color: "#F0E442", icon: "circle-check", kind: "Rule set",
+            title: "Degree 40 or more", color: "#F0E442", icon: ruleGlyph(), kind: "Rule set",
             provenance: ["from degree", "inspector-attribute-and-filter-step", "attribute"],
+            styleNote: RULE_NOTE,
             set: { "node.color": "#F0E442" },
             paints: () => h("div", null, AB.paintsLine("Paints 0 nodes"), none()),
             summary: [["Size", "0 nodes"]],
@@ -222,9 +244,13 @@
     }
 
     function communityModel(c) {
-        const L = L0(), [size, color, notes] = COMMUNITIES[c] || COMMUNITIES[3];
+        const L = L0(), [size, def, notes] = COMMUNITIES[c] || COMMUNITIES[3];
+        const key = "Louvain/" + c, color = RECOLOR[key] || def;
+        const known = String(c) === "3" ? GROUPS[3][3] : null;
         return {
             title: "Community " + c, color, icon: "circle-dot", kind: "Group",
+            recolor: { key, def },
+            styleNote: "Its color is saved for the Louvain value " + c + ", so a rerun that finds " + c + " again keeps it.",
             provenance: ["from Louvain", "inspector-run-row", "data"],
             renameDisabled: "a label per group that survives a rerun. Keep as set (in the ... menu) to name this group now.",
             set: { "node.color": color },
@@ -232,8 +258,9 @@
             edgesInside: c === "3" || c === 3 ? 30 : null, // Fantine's circle: the 30 edges among its 10 members (GROUPS[3])
             order: ["Covered by ", pr(), " for Color on " + size + " of " + size],
             summary: [["Size", size + " nodes", SELECT]],
-            membersSummary: "Not ranked",
-            members: [AB.empty("Louvain ranks no members.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
+            membersSummary: known ? "All " + known.length + ", by degree within the community" : "Not ranked",
+            members: known ? known.map(([n, d]) => memberRow(n, String(d))) : [AB.empty("Louvain ranks no members.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
+            dist: known, distOf: "degree within the community",
             made: [],
             all: [["Resolution", "1.0"], scope(L), version(L)],
             notes: notes || 0,
@@ -267,27 +294,45 @@
         });
     }
 
-    function pathModel() {
+    // A dated path trace, in path order (never sorted by date). Each transfer is a hop with its date and a
+    // "Dates in order" cell; each account shows what it received and sent along this trace, named from
+    // the weight column. A hop earlier than the hop before it is flagged in words. graphty-element
+    // returns these with the path result; ponytail: computed here from the fixture until it does.
+    // `reversed` traces the same accounts end to start (direction ignored), which runs the dates backward.
+    const COLS = "display:grid;grid-template-columns:1fr 40px 48px;column-gap:6px;align-items:end;padding:0 8px 0 16px";
+    const day = (ts) => new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+    function pathModel(reversed) {
         const T = AB.fx.datasets.transactions, P = T.setsAndPaths.path, r = P.asDistance;
-        const n = r.route.length;
-        const size = act(n + " accounts, " + r.hops + " transfers", () => AB.flash("Selects the path's accounts and transfers (not wired in the skeleton)"));
-        const members = [];
-        r.route.forEach((id, k) => {
-            members.push(acctRow(id, k, n));
-            if (r.transfers[k]) members.push(h("div", { class: "igs-hops" }, "amount " + fmtAmount(r.transfers[k].amount) + ", " + r.transfers[k].timestamp.slice(0, 10)));
+        const route = reversed ? r.route.slice().reverse() : r.route;
+        const tr = reversed ? r.transfers.slice().reverse() : r.transfers;
+        const n = route.length;
+        const [from, to] = reversed ? [P.to, P.from] : [P.from, P.to];
+        const selAll = () => AB.flash("Selects the path's accounts and transfers (not wired in the skeleton)");
+        const size = act(AB.count(n, "account") + ", " + AB.count(r.hops, "transfer"), selAll);
+        const late = tr.map((t, k) => k > 0 && t.timestamp < tr[k - 1].timestamp);
+        const flags = tr.map((t, k) => (late[k] ? "hop " + (k + 1) + " (" + day(t.timestamp) + ") is earlier than hop " + k + " (" + day(tr[k - 1].timestamp) + ")" : null)).filter(Boolean);
+        const members = [h("div", { class: "igs-hops", style: COLS + ";font-weight:550" }, h("span", null, "Transfer"), h("span", null, "Date"), h("span", null, "Dates in order"))];
+        route.forEach((id, k) => {
+            members.push(acctRow(id, k === 0 ? "start" : k === n - 1 ? "end" : "via"));
+            const got = k > 0 ? tr[k - 1].amount : 0, sent = k < n - 1 ? tr[k].amount : 0;
+            members.push(h("div", { class: "igs-hops", style: "padding-left:16px" }, "Total amount in " + fmtAmount(got) + " / out " + fmtAmount(sent) + ", this trace"));
+            if (tr[k]) members.push(h("div", { class: "igs-hops", style: COLS + ";margin-bottom:4px" }, h("span", null, "hop " + (k + 1) + ", " + fmtAmount(tr[k].amount)), h("span", null, day(tr[k].timestamp)), h("span", { class: late[k] ? "k-strong" : null }, late[k] ? "No" : "Yes")));
         });
         const accounts = T.nodes.toLocaleString("en-US");
+        const dir = reversed ? "Either way" : "Follow it";
         return {
-            title: P.from.id + " to " + P.to.id, icon: "route", color: "#D55E00", kind: "Path",
+            title: from.id + " to " + to.id, icon: "route", color: "#D55E00", kind: "Path",
             provenance: ["from Shortest paths", "inspector-run-row", "data"],
             set: { "node.color": "#D55E00", "edge.color": "#1A1A1A" },
-            paints: h("div", { class: "ab-paints" }, act("Paints " + n + " accounts, " + r.hops + " transfers", () => AB.flash("Selects the path's accounts and transfers (not wired in the skeleton)"))),
+            paints: h("div", { class: "ab-paints" }, act("Paints " + AB.count(n, "account") + ", " + AB.count(r.hops, "transfer"), selAll)),
             order: "Wins Color on " + n + " of " + n + ": nothing above it paints these accounts",
-            summary: [["Size", size], ["From", P.from.id + ", " + P.from.kind + ", riskScore " + P.from.riskScore], ["To", P.to.id + ", " + P.to.kind + ", riskScore " + P.to.riskScore + (P.to.flagged ? ", flagged" : "")], ["Total amount", fmtAmount(r.dollars)]],
-            membersSummary: "In path order, with each transfer",
+            summary: [["Size", size], ["From", from.id + ", " + from.kind + ", riskScore " + from.riskScore + (from.flagged ? ", flagged" : "")], ["To", to.id + ", " + to.kind + ", riskScore " + to.riskScore + (to.flagged ? ", flagged" : "")], ["Total amount", fmtAmount(r.dollars)]],
+            membersSummary: "In path order, " + (flags.length ? AB.count(flags.length, "hop") + " out of time order" : "dates in order"),
+            membersNote: AB.needsElement("graphty-element returns each hop's date, whether the dates run in order, and each account's amount in and out along the trace, as part of the path result"),
+            membersFlag: flags.length ? AB.problem({ level: "partial", what: "Not in time order: " + flags.join("; ") + ".", todo: "Money cannot be passed on before it arrives, so this trace is not one chain of transfers." }) : null,
             members,
-            made: [["Weight", "amount, farther"]],
-            all: [["Weight", "amount, farther"], ["Direction", "Follow it"], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
+            made: reversed ? [["Direction", "Either way"]] : [["Weight", "amount, farther"]],
+            all: [["Weight", "amount, farther"], ["Direction", dir], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
         };
     }
 
@@ -391,6 +436,7 @@
         if (state === "path-lesmis" || state === "arrows") return lesmisPathModel();
         if (state === "path-lesmis-2") return lesmisPath2Model();
         if (state === "path" || state === "path-style") return pathModel();
+        if (state === "path-reversed") return pathModel(true);
         if (state === "path-edge-set") return edgeSetModel();
         if (state === "path-door-entries") return doorPathModel();
         if (LABELS[state]) return groupModel("2");
@@ -402,11 +448,15 @@
     // ---------- Style tab ----------
     function styleTab(m, state) {
         const o = { kinds: ["node", "edge"], set: Object.assign({}, m.set), kind: m.styleKind || "node", paints: typeof m.paints === "function" ? m.paints() : m.paints, order: m.order };
-        if (state === "fill-set") o.set["node.opacity"] = 0.8;
+        // Fill set's second property only on its own route: behind the color picker the row shows as it is
+        if (state === "fill-set" && AB.route && AB.route.id === SELF) o.set["node.opacity"] = 0.8;
         if (state === "edges-side") { o.set["edge.color"] = m.set["node.color"]; o.kind = "edge"; }
         if (state === "arrows") { Object.assign(o.set, { "edge.arrowHead": "normal", "edge.arrowTail": "dot" }); o.kind = "edge"; o.selected = "edge.arrowHead"; }
         const labels = LABELS[state] || m.labels;
         if (labels) { o.labels = labels; o.selected = "node.label"; }
+        // The path's edges: one middle label (the date), and the head and tail captions
+        // in Arrows (folded into Head and Tail; their lines name the caption)
+        if (state === "path-style") { Object.assign(o.set, { "edge.arrowHead": "normal", "edge.arrowHeadText": "amount", "edge.arrowTail": "dot" }); o.bound = { "edge.label": { field: "timestamp", type: "time" } }; o.kind = "edge"; }
         if (state === "invalid-value") { o.set["node.size"] = -2; o.error = { "node.size": "Size must be 0 or more (got -2). The row keeps painting its last valid size." }; }
         // The Paints line counts a side only when the row sets something on it
         if (Array.isArray(o.paints) && typeof o.paints[0] === "string") {
@@ -428,6 +478,15 @@
             if (f.length > 16) { v.classList.remove("k-ellipsis"); v.replaceChildren(AB.truncMiddle(f, 16)); }
         });
         if (labels) { mid(); new MutationObserver(mid).observe(tab, { childList: true, subtree: true }); }
+        if (state === "path-style") {
+            const cap = () => [["edge.arrowHead", "amount"], ["edge.arrowTail", "no caption"]].forEach(([ch, t]) => {
+                const v = tab.querySelector('.ab-sline[data-ch="' + ch + '"] .k-field .k-grow');
+                if (v && !v.dataset.cap) { v.dataset.cap = "1"; v.textContent += ", " + t; v.parentNode.setAttribute("aria-label", v.parentNode.getAttribute("aria-label") + ", " + (t === "no caption" ? t : "caption " + t)); }
+            });
+            cap();
+            new MutationObserver(cap).observe(tab, { childList: true, subtree: true });
+        }
+        if (m.styleNote) { const ol = tab.querySelector(".ab-paint-order") || tab.querySelector(".ab-paints"); if (ol) ol.after(h("div", { class: "ab-cap k-secondary igs-note" }, m.styleNote)); }
         if (m.orderTip) { const ol = tab.querySelector(".ab-paint-order"); if (ol) AB.tip(ol, m.orderTip, { label: false }); }
         return tab;
     }
@@ -443,12 +502,24 @@
         ];
         const parts = AB.dataTab({
             Summary: { summary: m.summary[0][1] instanceof Node ? m.summary[0][1].textContent : m.summary[0][1], body: m.summary.map(([k, v, go]) => AB.data(k, go ? lnk(v, go) : v)) },
-            Members: { summary: m.membersSummary, body: [m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.membersSummary) : null, m.members] },
+            Members: { summary: m.membersSummary, body: [m.dist && m.dist.length > 1 && AB.histogram ? AB.histogram(distModel(m.dist, m.distOf)) : null,
+                m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.dist ? "Top 10" + (m.dist.length > 10 ? "" : ": all " + m.dist.length) + ", by " + m.distOf : m.membersSummary, m.membersNote ? [" ", m.membersNote] : null) : null,
+                m.membersFlag || null, m.members] },
             "Made with": { summary: m.made.length ? m.made.map((x) => x[0]).join(", ") : "All at their defaults", body: madeBody },
             Notes: { count: m.notes || 0, target: ["notes-place", "about-selection"] },
         }, { kind: "group" });
         if (hot) { const n = parts[parts.length - 1]; n.classList.add("igs-hot"); n.id = "igs-notes"; }
         return parts;
+    }
+
+    // The members' values as the one histogram (AB.histogram, the measure row's): one bar per whole value
+    function distModel(pairs, what) {
+        const vals = pairs.map((p) => p[1]).sort((a, b) => a - b), n = vals.length;
+        const bins = new Array(vals[n - 1] + 1).fill(0), binNames = {};
+        pairs.forEach(([nm, v]) => { bins[v]++; (binNames[v] = binNames[v] || []).push(nm); });
+        const med = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
+        return { title: what, unit: "members", hist: { bins, from: 0, width: 1 }, fmt: String, binNames,
+            caption: AB.count(n, "member") + ", " + what + " " + vals[0] + " to " + vals[n - 1] + ", median " + AB.num(med) };
     }
 
     function allOptions(m) {
@@ -459,25 +530,46 @@
     }
 
     // ---------- the section ----------
-    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path", "path-door-entries"];
+    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path", "path-reversed", "path-door-entries"];
     const baseOf = (state) => {
         const s = String(state || "style").replace(/\/all-options$/, "");
         return RENAMED[s] || s;
     };
+
+    // A run's group recolored from the Color popover (style-pickers draws it over this inspector and
+    // reports no pick, so its swatch clicks are read here): saved against the category value, the field
+    // and header follow, and the change is announced in words with Undo. ponytail: swatches only, not a typed hex.
+    let shown = null;
+    function recolor(hex, name) {
+        hex = String(hex || "").trim();
+        if (name && /^#[0-9A-F]{6}$/i.test(hex)) COLOR_NAMES[hex.toUpperCase()] = name;
+        const m = shown && shown.m, el = shown && shown.el;
+        if (!m || !m.recolor || !el.isConnected || !/^#[0-9A-F]{6}$/i.test(hex)) return;
+        const was = m.color;
+        if (hex.toUpperCase() === was.toUpperCase()) return;
+        RECOLOR[m.recolor.key] = m.color = hex;
+        el.querySelectorAll('.ab-insp-head .k-chit, .ab-sline[data-ch="node.color"] .k-chit').forEach((c) => (c.style.background = hex));
+        const f = el.querySelector('.ab-sline[data-ch="node.color"] .ab-color-field');
+        if (f) { f.querySelector(".k-num").textContent = hex.slice(1).toUpperCase(); f.setAttribute("aria-label", f.getAttribute("aria-label").replace(/#[0-9A-F]{6}/i, hex.toUpperCase())); }
+        AB.notice(m.title + " is now " + colorName(hex) + ", was " + colorName(was), { label: "Undo", onClick: () => recolor(was) });
+    }
+    const picked = (e) => { const sw = e.target.closest && e.target.closest(".sp-stops [role=option]"); if (sw && (e.type === "click" || e.key === "Enter" || e.key === " ")) recolor(sw.getAttribute("aria-description"), sw.getAttribute("aria-label")); };
+    document.addEventListener("click", picked, true);
+    document.addEventListener("keydown", picked, true);
 
     registerSection({
         id: SELF,
         title: "Inspector: a group, set or path row",
         region: "right",
         rail: "graph",
-        frame: (state) => (/^path(-style)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
+        frame: (state) => (/^path(-style|-reversed)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
             : baseOf(state) === "path-door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries-path", dock: false }
             : baseOf(state) === "long-name" ? { dataset: "nested", left: "graph-place/nested-set", canvas: "canvas-and-states/nested-set" } : { left: "graph-place/at-rest" }),
         // All options closes back to the row it opened from; everything else to the tree
         get closeTo() {
             const parts = location.hash.replace(/^#\/?/, "").split("/");
             return parts[0] === SELF && parts[parts.length - 1] === "all-options" ? SELF + "/" + parts.slice(1, -1).join("/")
-                : parts[1] === "path-door-entries" ? "graph-place/door-entries-path" : /^path(-style)?$/.test(parts[1] || "") ? "graph-place/path-found" : "graph-place/at-rest";
+                : parts[1] === "path-door-entries" ? "graph-place/door-entries-path" : /^path(-style|-reversed)?$/.test(parts[1] || "") ? "graph-place/path-found" : "graph-place/at-rest";
         },
         states: STATES,
         render(el, state) {
@@ -485,7 +577,7 @@
             const options = /\/all-options$/.test(state);
             const m = modelFor(base);
             el.append(AB.inspector({
-                icon: m.icon, swatch: m.color ? AB.chit(m.color, m.icon === "circle-dot" || m.icon === "circle-check") : null,
+                icon: m.icon, swatch: m.color ? AB.chit(m.color, m.icon === "circle-dot" || m.icon === "circle-check" || m.kind === "Rule set") : null,
                 title: m.title, kind: m.kind, kindKey: "igs", locked: m.locked,
                 provenance: m.provenance,
                 menu: ["context-menus", "row"],
@@ -495,6 +587,7 @@
                 tabs: { Style: () => styleTab(m, base), Data: () => dataTab(m, base, base === "notes") },
             }));
             el.firstChild.classList.add("igs");
+            shown = { m, el: el.firstChild };
             // The popover lives in the overlay layer like every popover; the shell fills that layer after
             // this region, so it goes in a frame later. Its X, Esc and closeTo return to the row.
             if (options) requestAnimationFrame(() => { const layer = document.getElementById("ab-overlay"); if (!layer) return;

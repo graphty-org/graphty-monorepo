@@ -23,11 +23,12 @@
         "The convent", "Gorbeau house", "Patron-Minette", "Bridges to Valjean", "Closing shot"];
     const XR_REASON = "graphty-element's isVRSupported() and isARSupported() return only true or false; the reason a device cannot enter is needed";
 
-    // Choosing an item: the camera moves (not modeled), the flyout closes.
+    // Choosing an item: the camera moves (not modeled), the flyout closes, then the notice shows (after
+    // the new route draws, which clears the notice slot)
     const done = (text, route) => () => {
         if (route) AB.go(route[0], route[1]);
         else AB.close();
-        AB.flash(text);
+        setTimeout(() => AB.flash(text), 0);
     };
 
     function items(state) {
@@ -80,9 +81,10 @@
         list.push(
             { sep: true },
             AB.cmd("view-mode", { go: is2d ? ["toolbar", "at-rest"] : ["toolbar", "2d"] }),
-            // Without a headset: one line with the needs mark (no second line); hidden in the user-test build
-            AB.cmd("enter-vr", headset ? { enabled: true, go: ["toolbar", "xr-hand-menu"] } : { enabled: true, needs: XR_REASON }),
-            AB.cmd("enter-ar", headset ? { enabled: true, go: ["toolbar", "xr-hand-menu"] } : { enabled: true, needs: XR_REASON }),
+            // Without a headset: drawn disabled with its reason (the command's own), in every build; the
+            // element gap (a reason, not just true or false) is a design note on the row, added in render
+            AB.cmd("enter-vr", headset ? { enabled: true, go: ["toolbar", "xr-hand-menu"] } : { xrNote: true }),
+            AB.cmd("enter-ar", headset ? { enabled: true, go: ["toolbar", "xr-hand-menu"] } : { xrNote: true }),
         );
         return list;
     }
@@ -116,6 +118,7 @@
                 if (!row) return;
                 if (it.tag3d) row.children[1].append(h("span", { class: "vf-tag" }, "3D"));
                 if (it.view) viewRows.push(row);
+                if (it.xrNote) row.children[1].append(AB.needsElement(XR_REASON));
             });
             // Past eight views the Your views rows scroll in a block of their own; the rest stays put
             if (viewRows.length > 8) {

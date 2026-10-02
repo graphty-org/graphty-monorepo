@@ -266,10 +266,23 @@
         const set = (c) => { hex.value = c.slice(1).toUpperCase(); chit.style.background = c; chit.style.opacity = ""; o.onChange && o.onChange(c); AB.announce((o.name || "Color") + " " + c); };
         return { el: h("span", { class: "sp-color" }, chit, hex, pct), set };
     }
-    // Swatches you can click: the document's colors, or a library palette
+    // A color's spoken name: graphty-element's names for its palette colors, else a plain hue word.
+    // ponytail: a stand-in for the element's color names; the hue buckets are coarse.
+    const NAMES = { E69F00: "orange", "56B4E9": "sky blue", "009E73": "bluish green", "0072B2": "blue", D55E00: "vermilion", CC79A7: "reddish purple", "000000": "black", F0E442: "yellow", BDBDBD: "light gray", FFFFFF: "white", "882255": "wine", "332288": "indigo" };
+    function colorName(hex) {
+        const k = hex.replace("#", "").toUpperCase();
+        if (NAMES[k]) return NAMES[k];
+        const [r, g, b] = [0, 2, 4].map((i) => parseInt(k.slice(i, i + 2), 16) / 255);
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, s = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
+        if (s < 0.15) return l > 0.9 ? "white" : l < 0.12 ? "black" : (l > 0.65 ? "light " : l < 0.35 ? "dark " : "") + "gray";
+        const hue = hueOf("#" + k), word = [[15, "red"], [45, "orange"], [70, "yellow"], [165, "green"], [200, "teal"], [255, "blue"], [295, "purple"], [340, "pink"], [361, "red"]].find(([t]) => hue < t)[1];
+        return (l < 0.3 ? "dark " : l > 0.75 ? "light " : "") + word;
+    }
+    const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    // Swatches you can click: the document's colors, or a library palette. Each says its color's name.
     const swatches = (colors, onPick) => h("div", { class: "sp-stops", role: "listbox", "aria-label": "Colors" }, colors.map((c) => {
         const s = h("span", { class: "k-chit", style: "background:" + c, role: "option", tabindex: "0" });
-        AB.tip(s, c.toUpperCase());
+        AB.tip(s, cap1(colorName(c)), { second: c.toUpperCase() });
         s.addEventListener("click", () => onPick(c));
         s.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onPick(c)));
         return s;
@@ -436,14 +449,14 @@
                 const palName = h("span", { class: "k-ellipsis" });
                 const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
                 drawPal();
-                const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
+                const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, onClick: () => { palFor = { kind: B.type === "number" ? "number" : "category", id: palId }; AB.go("style-pickers", "palette"); } });
                 palField.setAttribute("aria-label", "Palette");
                 const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
                 rev.setAttribute("aria-pressed", "false");
                 palRow = row("Palette", palField, rev);
             } else {
                 // a size binding maps the values onto a size range instead of a palette
-                palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] })));
+                palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] }), "px"));
             }
             const num = B.type === "number";
             const R = B.range || ["", ""];
@@ -469,7 +482,13 @@
                 num ? row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : fitText; }, "Values from")) : null,
                 num ? fitted : null, num ? typedRow : null,
                 num ? row("Clamp", check("Clamp values outside the range", true)) : null,
-                B.mid ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
+                // a size never goes negative: a signed source sizes by absolute value, and the
+                // smallest value still draws a mark of at least the minimum size, on screen and in print
+                num && !isColor ? row("Below 0", AB.tip(h("span", { class: "sp-eff", tabindex: "0" }, "Sized by absolute value"), "-2 and 2 draw the same size", { label: false })) : null,
+                num && !isColor ? row("Smallest mark", h("span", { class: "sp-pair" }, input({ label: "Smallest mark on screen, px", num: true, eff: "2 px", src: "graphty-element's minimum on screen" }), "print", input({ label: "Smallest mark in print, pt", num: true, eff: "1 pt", src: "graphty-element's minimum in print" })), AB.needsElement("graphty-element keeps a minimum mark size on screen and in print, so the smallest value never renders invisibly")) : null,
+                B.mid ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid, eff: "0" })) : null,
+                // a signed column (a fold change) needs nothing special: ordinary Color by diverges at 0
+                B.mid ? h("div", { class: "k-secondary", style: "padding:0 16px 8px;font-size:11px" }, "A column with values below and above 0 centers on 0 by itself. " + B.source + " has none below 0, so its midpoint is set here.") : null,
                 // Note count is 0 on an element with no note, so a count binding never meets "no value"
                 noValue ? row("No value", noValue) : null,
                 h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, disabled: B.error ? "Nothing is painted to keep" : null, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their " + (isColor ? "colors" : "sizes"), { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
@@ -489,22 +508,34 @@
         if (o.open) requestAnimationFrame(() => requestAnimationFrame(() => {
             AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", query: o.query, onPick: (n, t) => { current = n; repick(n, t); } });
             // o.reveal scrolls a row into view by the start of its name (the disabled rows at a list's end)
-            if (o.reveal) requestAnimationFrame(() => { const r = [...document.querySelectorAll("#ab-overlay .ab-fl [data-fl-row]")].find((x) => (x.getAttribute("aria-label") || "").startsWith(o.reveal)); if (r) r.scrollIntoView({ block: "center" }); });
+            // a closed folder (Not usable here) is opened, so its disabled rows and their reasons show
+            const rowOf = () => [...document.querySelectorAll("#ab-overlay .ab-fl [data-fl-row]")].find((x) => (x.getAttribute("aria-label") || "").startsWith(o.reveal));
+            if (o.reveal) requestAnimationFrame(() => {
+                const r = rowOf();
+                if (r && r.matches(".ab-fl-folder[data-open=false]")) r.click();
+                requestAnimationFrame(() => { const r2 = rowOf(); if (r2) r2.scrollIntoView({ block: "start" }); });
+            });
             if (o.query) requestAnimationFrame(() => { const c = document.querySelector("#ab-overlay .ab-fl-count"); AB.announce(c && c.textContent ? c.textContent : "No match for \"" + o.query + "\""); });
         }));
         return pop1;
     }
 
     // ---------- Palette: one picker, pre-filtered by the binding's type ----------
-    function palettePicker(el) {
-        let cur = "ylorbr";
+    // what the Palette field it was opened from binds: a number (sequential, diverging) or a category
+    // (kept until the route leaves the palette, so Esc returns to the inspector it was opened from).
+    // A direct visit is the groups' palette: Louvain's Fill, Eight distinct.
+    let palFor = null;
+    function palettePicker(el, kind) {
+        const f = palFor || { kind: kind || "category", id: kind === "number" ? "ylorbr" : "okabe-ito" };
+        let cur = f.id;
         const list = h("div", { role: "listbox", "aria-label": "Palettes" });
         const draw = () => {
             list.replaceChildren();
-            ["sequential", "diverging"].forEach((k) => {
-                list.append(h("div", { class: "sp-head" }, k === "sequential" ? "Sequential" : "Diverging"));
-                PALETTES.filter((p) => p.kind === k).forEach((p) => {
-                    const it = h("div", { class: "sp-item", role: "option", tabindex: p.id === cur ? "0" : "-1", "aria-selected": String(p.id === cur) },
+            (f.kind === "category" ? ["categorical"] : ["sequential", "diverging"]).forEach((k) => {
+                list.append(h("div", { class: "sp-head" }, { categorical: "Categories", sequential: "Sequential", diverging: "Diverging" }[k]));
+                PALETTES.filter((p) => p.kind === k && !/highlight/.test(p.id)).forEach((p) => {
+                    // the strip is drawn, so its colors are spoken: every swatch's name, in order
+                    const it = h("div", { class: "sp-item", role: "option", tabindex: p.id === cur ? "0" : "-1", "aria-selected": String(p.id === cur), "aria-description": p.colors.map(colorName).join(", ") },
                         h("span", { class: "sp-ck" }, p.id === cur ? icon("check", "sm") : null),
                         h("span", { class: "sp-strip", "aria-hidden": "true" }, p.colors.map((c) => h("span", { style: "background:" + c }))),
                         h("span", { class: "k-grow k-ellipsis" }, p.name),
@@ -522,8 +553,22 @@
             });
         };
         draw();
+        // The pair check on the palette picked (graphty-element's check). On the palette the groups use,
+        // it is the Color picker's one too-close flag over every pair the graph shows, with Fix...
+        const ds = AB.route && AB.route.frame.dataset;
+        const inUse = () => f.kind === "category" && cur === f.id && (!ds || ds === "lesmis");
+        const verdict = h("div", { role: "status", style: "padding-top:8px" });
+        const line = (t) => h("div", { class: "k-secondary", style: "padding:0 16px;font-size:11px" }, t);
+        const except = (c, group) => AB.notice(cap1(group) + " now uses " + colorName(c) + ", an exception to " + pal(cur).name, { label: "Undo", onClick: () => AB.announce(cap1(group) + " back to " + pal(cur).name) });
+        const say = () => {
+            const p = pal(cur), hit = closePairs(p.colors)[0], flag = inUse() ? tooClose(Object.values(L().groupColors), except) : null;
+            verdict.replaceChildren(flag || line(hit ? closeText(hit) : p.safe ? "Every pair of colors in " + p.name + " can be told apart, also with red-green or blue-yellow color blindness." : "Some colors in " + p.name + " are too close for red-green color blindness."));
+        };
+        list.addEventListener("click", say);
+        list.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && say());
+        say();
         const foot = [AB.button("Custom palette", { kind: "secondary", icon: "plus", go: ["style-pickers", "palette-custom"] })];
-        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Palette", list, { foot, width: 300 }));
+        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Palette", [list, verdict], { foot, width: 300 }));
     }
     function customPalette(el) {
         const src = pal("ylorbr");
@@ -533,11 +578,11 @@
         const body = [
             row("Name", name),
             row("Kind", segLive([["categorical", "Categories"], ["sequential", "Sequential"], ["diverging", "Diverging"]], "sequential", () => {}, "Kind")),
-            row("Starts from", AB.field(src.name, { caret: true, go: ["style-pickers", "palette"] })),
+            row("Starts from", AB.field(src.name, { caret: true, onClick: () => { palFor = { kind: "number", id: src.id }; AB.go("style-pickers", "palette"); } })),
             h("div", { class: "k-section-head", style: "padding:0 16px" }, h("span", { class: "ab-sec-h" }, "Colors, in order"), h("span", { class: "k-grow" }), AB.plus({ label: "Add a color", items: ["Color"], onAdd: () => stops.append(Object.assign(AB.chit(src.colors[src.colors.length - 1]), { tabIndex: 0 })) })),
             stops,
         ];
-        const foot = [AB.button("Add palette", { onClick: () => { AB.go("style-pickers", "palette"); AB.flash("Added Orange to brown 2, saved with this style"); } })];
+        const foot = [AB.button("Add palette", { onClick: () => { palFor = { kind: "number", id: src.id }; AB.go("style-pickers", "palette"); AB.flash("Added Orange to brown 2, saved with this style"); } })];
         el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Custom palette", body, { foot, width: 340 }));
     }
 
@@ -550,8 +595,43 @@
         const x = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
         return Math.round((x * 60 + 360) % 360);
     };
+    // The too-close check over every pair of colors in the row, the default palette's own included:
+    // graphty-element's behavior (a stand-in table here). It names the pair and the color vision it
+    // models, and, once the palette has no unused color left, suggests colors clear of every neighbor.
+    // The table is the element's verdict per pair (a stand-in); closePairs walks every pair against it.
+    const CLOSE = [["#E69F00", "#D55E00", "red-green color blindness (deuteranopia)"], ["#E69F00", "#F0E442", "red-green color blindness (deuteranopia)"]];
+    const CLEAR = ["#332288", "#882255"]; // from Nine soft, clear of every color in the graph
+    const UP = (c) => c.toUpperCase();
+    function closePairs(colors) {
+        const cs = [...new Set(colors.map(UP))], out = [];
+        cs.forEach((a, i) => cs.slice(i + 1).forEach((b) => { const t = CLOSE.find(([x, y]) => (x === a && y === b) || (x === b && y === a)); if (t) out.push([a, b, t[2]]); }));
+        return out;
+    }
+    const closeText = (hit) => cap1(colorName(hit[0])) + " and " + colorName(hit[1]) + " are too close for " + hit[2] + ".";
+    function tooClose(colors, setColor) {
+        const has = (c) => colors.some((x) => UP(x) === c);
+        const hits = closePairs(colors), hit = hits[0];
+        if (!hit) return null;
+        const fx = L().groupColors, groupOf = (c) => Object.keys(fx).filter((k) => UP(fx[k]) === c).map((k) => "group " + k).join(" and ");
+        const what = closeText(hit);
+        // the palette's unused colors first, each only if it clears every neighbor; once none does, colors from another palette
+        const left = pal("okabe-ito").colors.filter((c) => !has(c));
+        const clashOf = (c) => closePairs(colors.concat(c)).find((p) => p.includes(c) && p[0] !== hit[1] && p[1] !== hit[1]);
+        const clear = left.filter((c) => !clashOf(c));
+        const fix = { label: "Fix...", onClick: (e) => AB.openMenu(e.currentTarget, [
+            ...left.map((c) => { const k = clashOf(c); return { label: "Use " + colorName(c) + " for " + groupOf(hit[1]), desc: "Unused in " + pal("okabe-ito").name, disabled: k ? cap1(colorName(c)) + " is too close to " + colorName(k[0] === c ? k[1] : k[0]) + " for " + k[2] : null, onClick: () => setColor(c, groupOf(hit[1])) }; }),
+            ...(clear.length ? [] : [{ heading: pal("okabe-ito").name + " has run out: clear of every neighbor" },
+                ...CLEAR.map((c) => ({ label: "Use " + colorName(c) + " for " + groupOf(hit[1]), desc: c + ", from " + pal("tol-muted").name, onClick: () => setColor(c, groupOf(hit[1])) }))]),
+        ]) };
+        const more = hits.length > 1 ? " " + AB.count(hits.length - 1, "more pair") + " too close." : "";
+        const p = AB.problem({ what, todo: cap1(groupOf(hit[0])) + " and " + groupOf(hit[1]) + " use them." + more, action: fix, level: "partial" });
+        p.style.margin = "0 16px 8px";
+        requestAnimationFrame(() => AB.announce(what));
+        return h("div", null, p, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary", style: "padding:0 16px 8px" }, "The check:", AB.needsElement("graphty-element checks every pair of colors in the row, its default palette's included, names the pair and the color vision it models, and suggests colors that clear every neighbor when the palette runs out.")));
+    }
     function colorBody(o) {
         const fx = L().groupColors;
+        const used = [...new Set(Object.values(fx))], unused = pal("okabe-ito").colors.filter((c) => !used.some((u) => u.toUpperCase() === c));
         o.hue = hueOf(o.hex || "#D55E00");
         const v = colorValue({ name: o.name || "Color", hex: o.hex, pct: o.pct, onChange: o.onChange, focus: true });
         const custom = () => [
@@ -560,11 +640,21 @@
                 on: { click: (e) => { const r = e.currentTarget.getBoundingClientRect(), hue = Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 360); e.currentTarget.setAttribute("aria-valuenow", String(hue)); e.currentTarget.firstChild.style.left = hue / 3.6 + "%"; AB.announce("Hue " + hue); } } },
                 h("i", { style: "left:" + ((o.hue || 36) / 3.6) + "%" })),
             row("Hex", v.el),
+            // A group's colors: the palette's unused colors first, then the ones the graph already uses
+            unused.length ? h("div", { class: "sp-head" }, "Unused in " + pal("okabe-ito").name) : null,
+            unused.length ? swatches(unused, v.set) : null,
             h("div", { class: "sp-head" }, "In this graph"),
-            swatches([...new Set(Object.values(fx))], v.set),
+            swatches(used, v.set),
+            o.check ? tooClose(used, v.set) : null,
         ];
-        // A single-color row: each library lists its swatches; pick one color
-        const libs = () => [row("Hex", v.el)].concat(...PALETTES.filter((p) => !/highlight/.test(p.id)).map((p) => [h("div", { class: "sp-head" }, p.name), swatches(p.colors, v.set)]));
+        // Libraries: the colors of recipes and style files, then the palettes; pick one color.
+        // Read from the fixtures: the transfers' recipe and the protein network's style file.
+        const D = AB.fx.datasets;
+        const files = [["Mule ring triage", "recipe", D.transactionsApril.communityColors], [D.ppi.title.replace(/ \(.*/, "") + ".style", "style file", D.ppi.moduleColors]];
+        const libs = () => [row("Hex", v.el), h("div", { class: "sp-head" }, "Recipes and style files")]
+            .concat(...files.map(([n, kind, cols]) => [h("div", { class: "sp-head", style: "font-weight:400" }, n + ", " + kind), swatches([...new Set(Object.values(cols))], v.set)]),
+                h("div", { class: "sp-head" }, "Palettes"),
+                ...PALETTES.filter((p) => !/highlight/.test(p.id)).map((p) => [h("div", { class: "sp-head", style: "font-weight:400" }, p.name), swatches(p.colors, v.set)]));
         const box = h("div");
         const show = (t) => box.replaceChildren(...(t === "Libraries" ? libs() : custom()));
         show(o.tab || "Custom");
@@ -580,7 +670,7 @@
         const hex = ((sv && sv.textContent) || "").match(/[0-9A-F]{6}/i) || ["D55E00"];
         const pctEl = sv && sv.querySelector(".k-secondary");
         const pct = pctEl ? pctEl.textContent.replace("%", "") : null;
-        el.append(pop(find(lineAt(ch), lineAt("node.color")), name, colorBody({ hex: "#" + hex[0], pct: pct === "100" ? null : pct, tab, hue: 21 })));
+        el.append(pop(find(lineAt(ch), lineAt("node.color")), name, colorBody({ hex: "#" + hex[0], pct: pct === "100" ? null : pct, tab, hue: 21, check: true })));
     }
 
     // ---------- Glow: color and strength ----------
@@ -621,11 +711,14 @@
         const cap = AB.field(h("span", { class: "sp-eff" }, "None"), { go: ["style-pickers", "label-style"] });
         cap.setAttribute("aria-label", end + " caption: none");
         cap.setAttribute("aria-haspopup", "dialog");
-        el.append(pop(find(lineAt("edge.arrow" + end), headSel("Arrows")), end, [
-            glyphGrid("Arrow type", chChoices("edge.arrowHead").filter((c) => c !== "none"), tail ? "dot" : "normal", arrowGlyph, () => {}, "arrow"),
+        // the caption's style: the same Label popover, from its "Aa" swatch
+        const capStyle = AB.iconButton("type", "Caption style", { go: ["style-pickers", "label-style"] });
+        capStyle.setAttribute("aria-haspopup", "dialog");
+        el.append(pop(find(lineAt("edge.arrow" + end), headSel("Arrows")), "Arrow " + end.toLowerCase(), [
+            glyphGrid("Arrow type", chChoices("edge.arrowHead"), tail ? "dot" : "normal", arrowGlyph, () => {}, "arrow"),
             row(AB.scrub(h("span", null, "Size"), size), size),
-            row("Color", AB.colorField({ name: end + " color", eff: lineColor })),
-            row("Caption", cap),
+            row("Color", AB.colorField({ name: end + " color", eff: lineColor, pct: 100 })),
+            row("Caption", cap, capStyle),
         ], { width: 300 }));
     }
 
@@ -770,7 +863,8 @@
         let sectionEl;
         const draw = (focusKey) => {
             const items = [];
-            GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], f }))); });
+            // each unset field says its effective value and where it comes from
+            GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], desc: (f[3] == null ? "Not set" : String(f[3])) + ", " + DEF, f }))); });
             const plus = AB.plus({ label: "Add a label field", items, onAdd: (it) => { set[it.f[0]] = it.f[3] == null || it.f[1] === "color" ? (it.f[1] === "color" ? "#FFFFFF" : null) : it.f[3]; draw(it.f[0]); paint(); } });
             fields.replaceChildren(...all.filter((f) => f[0] in set).map((f) => {
                 const minus = AB.iconButton("minus", "Remove " + f[2], { onClick: () => { delete set[f[0]]; draw(); paint(); AB.notice("Removed " + f[2], { label: "Undo", onClick: () => { set[f[0]] = f[3]; draw(); } }); } });
@@ -788,8 +882,20 @@
         sectionEl = AB.section({ title: "Style", editable: true }, fields, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Field list:", AB.needsElement("graphty-element publishes only the label-style field names; full descriptors (kind, choices, range, default, plain name) are filed. A maximum width and a same-size-at-any-distance option are not label fields yet.")));
         draw();
         drawSrc();
+        // Which nodes carry the labels: the label layer's selector, every node or the top N by a value
+        let topBy = "PageRank";
+        const topN = input({ label: "How many", num: true, value: "10" });
+        topN.style.cssText = "flex:0 0 44px;width:44px";
+        const byField = AB.field(h("span", { class: "sp-ml" }, AB.typeGlyph("num"), topBy), { caret: true, onClick: () => AB.openFieldList(byField, { kind: "number", element: "node", current: topBy, label: "Top by", onPick: (n) => { topBy = n; byField.firstChild.replaceChildren(AB.typeGlyph("num"), n); AB.announce("Label the top " + topN.value + " by " + n); } }) });
+        byField.setAttribute("aria-label", "By");
+        byField.setAttribute("aria-haspopup", "listbox");
+        const topRow = row("Top", h("span", { class: "sp-pair" }, topN, "by", byField));
+        topRow.hidden = !o.top;
+        const which = row("Nodes", segLive([["all", "Every node"], ["top", "Top N by a value"]], o.top ? "top" : "all", (v) => { topRow.hidden = v !== "top"; AB.announce(v === "top" ? "Label the top " + topN.value + " by " + topBy : "Label every node"); }, "Which nodes are labeled"),
+            AB.needsElement("A top-N selector: graphty-element's selectors match by value; ranking by a value is filed"));
         const p = pop(find(`#ab-right .ab-sline[data-label="${posWord(ed.pos)}"] .ab-sv`, lineAt("node.label"), headSel("Label")), "Label, " + posWord(ed.pos), [
             row("Text", srcField),
+            which, topRow,
             row("Position", h("span", { style: "display:flex;gap:8px;align-items:center;padding:2px 0" }, grid, posName)),
             h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary", style: "padding:0 16px 8px" }, "Several lines:", AB.needsElement("Labels keyed by position: graphty-element draws one label per node today, so a second line needs per-position label channels.")),
             preview, sectionEl], { width: 320 });
@@ -856,10 +962,10 @@
     const G2 = (s) => "inspector-group-set-path-row/" + s;
     const RIGHT = {
         "plus-menu": G2("style"), "plus-one-left": G2("style"), "label-show": G2("style"), glow: G2("style"), shape: G2("style"),
-        bind: G2("label-two"), "label-style": G2("label-two"), "label-new-line": G2("label-two"), "label-position": G2("label-two"),
+        bind: G2("label-two"), "label-style": G2("label-two"), "label-top": G2("label-two"), "label-new-line": G2("label-two"), "label-position": G2("label-two"),
         "bind-number": "inspector-selection-and-everything/everything", color: G2("fill-set"), "color-libraries": G2("fill-set"),
         pattern: G2("edges-side"), arrow: G2("arrows"),
-        binding: "inspector-measure-row/style", "binding-diverging": "inspector-measure-row/risk-score", palette: "inspector-measure-row/style", "palette-custom": "inspector-measure-row/style",
+        binding: "inspector-measure-row/style", "binding-diverging": "inspector-measure-row/risk-score", palette: "inspector-run-row/style", "palette-categories": "inspector-run-row/style", "palette-custom": "inspector-measure-row/style",
         "token-color": "inspector-node/why-this-look",
         "wide-no-match": HOSTS, "wide-size-by": HOSTS, "wide-color-by": HOSTS, "wide-search": HOSTS, "wide-bind": HOSTS, "wide-label": HOSTS,
         "nested-color-by": RESEARCHERS, "binding-long": RESEARCHERS, "binding-unknown-path": "inspector-measure-row/style",
@@ -887,9 +993,13 @@
         // on Group 2's two lines (Above: label, Below: Note count) "+" adds a Right draft and opens the From data list on it
         "label-new-line": () => addLines([], true),
         "label-style": (el) => labelStyle(el),
+        // the Nodes switch on Top: "Label the top 10 by PageRank", the label layer's selector
+        "label-top": (el) => labelStyle(el, { top: true }),
         // "+" then Note count gives a Right line; its popover shows Above and Below used
         "label-position": (el) => labelAfterLines(el, ["Note count"], { right: true }),
-        palette: palettePicker,
+        palette: (el) => palettePicker(el),
+        // a category binding's Palette (Louvain's Fill): the categorical palettes; the default's own close pair is named
+        "palette-categories": (el) => palettePicker(el, "category"),
         "palette-custom": customPalette,
         color: (el) => colorPicker(el, "Custom"),
         "color-libraries": (el) => colorPicker(el, "Libraries"),
@@ -929,8 +1039,10 @@
     }
     // The Label popover keeps the inspector it was opened from (a label line knows it); else the state's fixture
     window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) setTimeout(() => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) labelOpener = null; }, 0); });
+    window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/palette$/.test(location.hash)) palFor = null; });
     const rightOf = (s) => (s === "bind-prop" ? (bindOpener && bindOpener.right) || "inspector-selection-and-everything/everything"
         : s === "bound" ? (boundOpener || "inspector-selection-and-everything/everything")
+        : s === "palette" && palFor && palFor.kind === "number" ? "inspector-measure-row/style"
         : (s === "label-style" || s === "bind") && labelOpener && labelOpener.right ? labelOpener.right : RIGHT[s] || RIGHT["plus-menu"]);
     const stateNow = () => stateOf(decodeURIComponent((location.hash.split("/")[2] || "plus-menu")));
 
@@ -944,7 +1056,15 @@
             // bind-prop keeps the panels and the project it was opened from
             if (stateOf(state) === "bind-prop") return Object.assign({ left: "graph-place/at-rest", right }, bindOpener ? { left: bindOpener.left, canvas: bindOpener.canvas, dataset: bindOpener.dataset } : {});
             // a bound line and a painted row keep the panels they were opened over (the shell carries the project)
-            if (stateOf(state) === "bound") return { right };
+            // a direct visit, before any bind: the hosts' Everything with its Color bound to cpu_util_p95_pct
+            if (stateOf(state) === "bound") {
+                if (boundOpener) return { right };
+                const EV = "inspector-selection-and-everything/everything";
+                if (!(AB.painted.wide || []).some((x) => x.on === EV && x.prop === "Color")) AB.paintBy("wide", "Color", "cpu_util_p95_pct", EV);
+                // and Size bound to a second field, so the line shows its range beside the Color line's palette
+                if (!(AB.painted.wide || []).some((x) => x.on === EV && x.prop === "Size")) AB.paintBy("wide", "Size", "memory_util_p95_pct", EV);
+                return { left: "graph-place/wide", right: EV, dataset: "wide" };
+            }
             if (/^painted-/.test(stateOf(state))) {
                 // a direct visit, before any Color by or Size by: the hosts painted by cpu_util_p95_pct
                 const prop = /size$/.test(state) ? "Size" : "Color", ds0 = (AB.paintedLast || { ds: "wide" }).ds;
@@ -968,7 +1088,8 @@
             { id: "binding-diverging", label: "Binding, diverging" },
             { id: "bind-prop", label: "Binding for an unbound line (its bind icon), no source yet" },
             { id: "bind-number", label: "Binding: Size from Note count" },
-            { id: "palette", label: "Palette" },
+            { id: "palette", label: "Palette (directly: Louvain's groups, with the too-close check; from a number's Binding: sequential and diverging)" },
+            { id: "palette-categories", label: "Palette for a category (Louvain's groups)" },
             { id: "palette-custom", label: "Custom palette" },
             { id: "color", label: "Color" },
             { id: "color-libraries", label: "Color: Libraries" },
@@ -977,6 +1098,7 @@
             { id: "pattern", label: "Pattern" },
             { id: "arrow", label: "Arrows: Head" },
             { id: "label-style", label: "Label (text, position and style)" },
+            { id: "label-top", label: "Label: only the top 10 by PageRank" },
             { id: "label-position", label: "Label: position grid, Above and Below used" },
             { id: "token-color", label: "Token: Color on Valjean" },
             { id: "wide-color-by", label: "Color by on the hosts: Find, In use first, by table" },
@@ -990,7 +1112,7 @@
             { id: "binding-long", label: "Binding: Size from a seven-segment path" },
             { id: "painted-color", label: "Binding of a Color by row (directly: the hosts by cpu_util_p95_pct)" },
             { id: "painted-size", label: "Binding of a Size by row (directly: the hosts by cpu_util_p95_pct)" },
-            { id: "bound", label: "Binding of a line bound with its bind icon (directly: Everything's Color, no source yet)" },
+            { id: "bound", label: "Binding of a line bound with its bind icon (directly: the hosts' Everything, Color bound to cpu_util_p95_pct)" },
         ],
         render(el, state) {
             const s = stateOf(state);

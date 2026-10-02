@@ -17,24 +17,36 @@
     // Everything covers the graph on screen: Les Miserables, or the door entries or transfers project it opened from
     const C = () => {
         const ds = A.route && A.route.frame.dataset, X = A.fx.datasets, f = (v) => Number(v).toLocaleString("en-US");
-        if (ds === "doorEntries") return { nodes: f(X.doorEntries.loadedTypes().total), edges: f(X.doorEntries.loadedEdges()), dockN: "door-entries-nodes", dockE: "door-entries" };
-        if (ds === "transactions") return { nodes: f(X.transactions.nodes), edges: f(X.transactions.edges), dockN: "transfers", dockE: "transfers" };
+        if (ds === "doorEntries") return { nodes: f(X.doorEntries.loadedTypes().total), edges: f(X.doorEntries.loadedEdges()) };
+        if (ds === "transactions") return { nodes: f(X.transactions.nodes), edges: f(X.transactions.edges) };
         const pc = ds && ds !== "lesmis" && A.projectCounts && A.projectCounts(ds);
-        if (pc) return { nodes: f(pc.nodes), edges: f(pc.edges), dockN: "wide", dockE: "wide" };
-        return { nodes: L().nodes, edges: L().edges, dockN: "nodes", dockE: "edges" };
+        if (pc) return { nodes: f(pc.nodes), edges: f(pc.edges) };
+        return { nodes: L().nodes, edges: L().edges };
     };
     const MENU = ["context-menus", "row"];
 
     // ---------- Selection: graphty-element's selection style (GraphStyle.ts: #FFD700, 1.45, 0.4) ----------
-    // The one Style tab, like every painting row: Fill (Color, its opacity inside) and Shape (Size, the
-    // same unitless size as on Everything). Nodes only: graphty-element's selectionStyle paints nodes (Node.ts).
+    // selectionStyle's only fields are color, scale and opacity, so the body is exactly three lines --
+    // Color, Size, Opacity (percent) -- with no "+", bind or "-" (spec 3.7). Not styleTab: it folds opacity
+    // into Color, and these are three project settings, not a painting row's sections. Nodes only:
+    // graphty-element's selectionStyle paints nodes (Node.ts).
     function selectionBody() {
-        return A.styleTab({
-            kinds: ["node"], noBind: true,
-            set: { "node.color": "#FFD700", "node.opacity": 0.4, "node.size": 1.45 },
-            paints: "Paints 0 nodes",
-            extra: h("div", { class: "ab-cap ab-review-only k-secondary" }, "Default color, edges:", A.needsElement("The default gold on the default whitesmoke canvas measures about 1.3:1, under the 3:1 of WCAG 1.4.11. The element's default must pass. The selection style paints nodes only; an edge side is filed.")),
-        });
+        const num = (name, value, range, suffix) => {
+            const inp = h("input", { class: "ab-sin k-num", type: "text", inputmode: "decimal", value: String(value), "aria-label": name, spellcheck: "false" });
+            inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" || e.key === "Escape") inp.blur(); });
+            const label = h("span", null, name);
+            A.scrub(label, inp, { range });
+            return A.fieldRow(label, [inp, suffix ? h("span", { class: "k-secondary" }, suffix) : null]);
+        };
+        return [
+            A.paintsLine("Paints 0 nodes"),
+            A.fieldRow("Color", A.colorField({ name: "Color", hex: "#FFD700", pct: null })),
+            num("Size", 1.45, [0, null]),
+            num("Opacity", 40, [0, 100], "%"),
+            h("div", { class: "ab-review-only" },
+                h("div", { class: "ab-cap k-secondary" }, "The row's eye:", A.needsElement("graphty-element draws the selection highlight outside the layer stack and has no switch to stop drawing it. The app must not fake one by writing opacity 0, which would overwrite the reader's own Opacity.")),
+                h("div", { class: "ab-cap k-secondary" }, "Default color:", A.needsElement("The default gold on the default whitesmoke canvas measures about 1.3:1, under the 3:1 of WCAG 1.4.11. The element's default must pass. The selection style paints nodes only; an edge side is filed."))),
+        ];
     }
 
     function selectionData() {
@@ -57,7 +69,7 @@
     }
     function everythingData() {
         return A.dataTab({
-            Summary: [A.data("Covers", "every node and edge"), A.data("Nodes", C().nodes, { go: ["table-dock", C().dockN] }), A.data("Edges", C().edges, { go: ["table-dock", C().dockE] }), A.data("Position", "under every other row")],
+            Summary: [A.data("Covers", "every node and edge")],
         }, { kind: "everything" });
     }
 
@@ -86,7 +98,9 @@
     // draws only on the noted elements.
     function notesStyle(state) {
         const N = noted(), empty = state === "notes-row";
-        const paints = A.paintsLine(empty ? "Notes are about " + notedText(N) + ". Nothing set, so nothing paints: + to add a look" : "Paints " + notedText(N) + " (noted)", N.list);
+        // the count is the link; the hint after it is plain text
+        const paints = A.paintsLine("Paints " + notedText(N) + " (noted)", N.list);
+        if (empty) paints.replaceChildren(h("span", null, [...paints.childNodes], ". Nothing set -- + to add a look")); // one flow, so it wraps as a sentence
         const look = state === "notes-row-outlined" ? { set: { "node.outline": "#D55E00" } }
             : state === "notes-row-label" ? { labels: [{ pos: "Below", field: "Note count", type: "num" }] } : {};
         return A.styleTab(Object.assign({ kinds: ["node", "edge"], kind: "node", paints, order: empty ? null : "In the Notes node layer; no edge layer yet" }, look));
@@ -94,11 +108,14 @@
     function notesData() {
         const N = noted();
         if (!N.notes) return A.dataTab({ Summary: [A.empty("No notes.", { verb: "Add note", key: "N", onClick: () => A.addNote() }), A.data("Paints", "0 nodes")] }, { kind: "notes-row" });
-        return A.dataTab({
+        const secs = A.dataTab({
             Summary: [A.data("Noted elements", notedText(N)), A.data("Notes about them", String(N.notes), { go: N.list })],
             Members: [N.nodes.map(([n, go]) => A.row({ label: n, go })), N.edges.map(([n, go]) => A.row({ icon: "spline", label: n, go })),
                 h("div", { class: "ab-cap k-secondary" }, N.caption)],
         }, { kind: "notes-row" });
+        const head = secs.map((s) => s.querySelector(".k-section-head")).find((hd) => hd && hd.textContent.trim() === "Members");
+        if (head) head.append(A.link(N.list[0], N.list[1], "In Notes", { class: "ab-link" }));
+        return secs;
     }
 
     // ---------- Overrides: a list of edits, one line per element and property ----------

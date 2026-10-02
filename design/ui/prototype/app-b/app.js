@@ -28,6 +28,13 @@
         plainJson: { graph: "plain-json", data: "plain-json", views: "empty", notes: "empty" },
         registry: { graph: "registry", data: "registry", views: "empty", notes: "empty" },
     };
+    // The filter chip has one wording, written by AB.count: "60 of 77 nodes". A section's chip that
+    // counts ("Filtered: 60 of 77 nodes", "812 of 3,000 nodes") is rewritten to it; any other text
+    // ("Full graph", "Filtered: neighbors of X", where the fixtures hold no count) stays as given.
+    function chipWording(chip) {
+        const m = typeof chip === "string" && chip.match(/^(?:Filtered:\s*)?([\d,]+) of ([\d,]+) (\w+?)s?$/);
+        return m ? AB.count(Number(m[1].replace(/,/g, "")), m[3], { of: Number(m[2].replace(/,/g, "")) }) : chip;
+    }
     // The selection bar is raised in one place: a frame whose inspector shows elements gets the bar
     // for them unless the route names its own toolbar (section frames never set it themselves)
     function selectionBarFor(right) {
@@ -38,6 +45,7 @@
         if (r.id === "inspector-several-elements") return r.state === "style" || r.state === "data" ? "selection-bar/five-nodes" : "selection-bar/two-nodes";
         return null;
     }
+    const REGION_HEADING = { "ab-rail": "Places", "ab-left": "Left panel", "ab-canvas": "Graph drawing", "ab-toolbar": "Canvas toolbar", "ab-dock": "Table", "ab-right": "Inspector" };
     const PLACES = { graph: ["Graph", "network", "graph-place"], data: ["Data", "database", "data-place"], views: ["Views", "bookmark", "views-place"], notes: ["Notes", "message-square", "notes-place"], assistant: ["Assistant", "bot", "assistant-place"] };
 
     // ---------- persistent viewer conveniences (never required) ----------
@@ -48,6 +56,12 @@
     // The table dock starts closed at rest; counts, "Show in table" and Shift+T open it
     const shell = { dock: store.get("dock") || "closed", panels: "shown" };
     AB.store = store;
+    // Usage data (the owner's telemetry decision): off until the reader opts in, for this page view.
+    // The header's privacy chip reads it; Settings > Privacy and the start screen's answer set it
+    // with AB.setUsageData(on), which redraws the header. Their answered states imply it too.
+    AB.usageData = false;
+    AB.setUsageData = (on) => { AB.usageData = !!on; if (route && route.frame.top && !route.frame.full) { $("ab-top").replaceChildren(); renderTop($("ab-top")); } };
+    const USAGE_STATE = { "settings/privacy": false, "settings/privacy-on": true, "start-screen/answered": true, "start-screen/declined": false };
 
     function setTheme(t) {
         if (t) document.documentElement.setAttribute("data-theme", t);
@@ -61,9 +75,23 @@
     if (store.get("theme")) document.documentElement.setAttribute("data-theme", store.get("theme"));
     // Review only: "Design notes" (open questions, "needs graphty-element" marks, and menu items and
     // controls marked as needing graphty-element) can be hidden for the user-test build
-    const notesHidden = () => store.get("designNotes") === "hidden";
-    const applyNotes = () => document.documentElement.toggleAttribute("data-design-notes-hidden", notesHidden());
+    // "participant" is the participant view study.mjs opens: notes hidden for good, with no review bar,
+    // no Review button and no key that brings either back
+    const participant = () => store.get("designNotes") === "participant";
+    const notesHidden = () => participant() || store.get("designNotes") === "hidden";
+    const applyNotes = () => {
+        document.documentElement.toggleAttribute("data-design-notes-hidden", notesHidden());
+        const c = document.getElementById("ab-leave-study");
+        if (c) c.hidden = !notesHidden();
+    };
     applyNotes();
+    function setNotes(hidden) {
+        if (participant()) return;
+        store.set("designNotes", hidden ? "hidden" : "");
+        applyNotes();
+        if (route && document.body.dataset.page === "app") renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state);
+        AB.announce(hidden ? "Design notes hidden" : "Design notes shown");
+    }
 
     // ---------- routing ----------
     function parse() {
@@ -159,7 +187,7 @@
             ];
             el.append(
                 placeHead("Graph"),
-                h("div", { class: "ab-switcher" }, h("span", Object.assign({ class: "ab-switch-btn", role: "button" }, act({ go: ["graphs-switcher", "open"] })), icon("network"), h("span", { class: "k-ellipsis" }, L.frame.graphRow), icon("chevron-down", "sm")), h("span", { class: "k-grow" }), h("span", { class: "k-secondary k-num" }, L.nodes + " nodes")),
+                h("div", { class: "ab-switcher" }, h("span", Object.assign({ class: "ab-switch-btn", role: "button" }, act({ go: ["graphs-switcher", "open"] })), icon("network"), h("span", { class: "k-ellipsis" }, L.frame.graphRow), icon("chevron-down", "sm")), h("span", { class: "k-grow" }), h("span", { class: "k-secondary k-num" }, AB.count(L.nodes, "node"))),
                 h("div", { class: "ab-treebar" }, AB.field("Find rows", { icon: "search", go: ["commands-and-search", "find"] }), AB.iconButton("list-filter", "List options", { go: ["graph-place", "list-menu"] })),
                 h("div", { class: "k-scroll" }, AB.tree(rows)),
             );
@@ -172,13 +200,13 @@
                     icon: "network", title: f.graphRow, kind: "Graph", provenance: [f.file, "data-place", "sources-menu"], menu: ["context-menus", "canvas"],
                     body: [
                         AB.section({ title: "Summary", collapsible: true, key: "graph.summary" },
-                            AB.data("Nodes", String(L.nodes)), AB.data("Edges", L.edges + " (undirected)"), AB.data("Density", String(L.stats.density)),
-                            AB.data(f.componentsName, f.components), AB.data("Isolated nodes", String(L.stats.isolated)), AB.data("Average degree", String(L.stats.averageDegree)),
+                            AB.data("Nodes", AB.num(L.nodes)), AB.data("Edges", AB.num(L.edges) + " (undirected)"), AB.data("Density", AB.num(L.stats.density)),
+                            AB.data(f.componentsName, f.components), AB.data("Isolated nodes", AB.num(L.stats.isolated)), AB.data("Average degree", AB.num(L.stats.averageDegree)),
                             AB.tip(h("div", { class: "ab-bars" }, f.degreeBars.map((b) => h("span", { style: `height:${Math.max(1, (b / max) * 100)}%` }))), f.degreeLabel, { label: false }),
                             h("div", { class: "ab-cap k-secondary" }, f.degreeName + ". " + f.degreeLabel + "."),
                             AB.data("Edge weight", "value", { go: ["inspector-attribute-and-filter-step", "attribute"] }),
-                            AB.data("Attributes", String(f.attributes), { go: ["data-place", "attributes"] })),
-                        AB.section({ title: "Statistics", collapsible: true, key: "graph.statistics" }, AB.data("Modularity of group", String(L.stats.modularityOfGroups), { go: ["inspector-run-row", "data"] })),
+                            AB.data("Attributes", AB.num(f.attributes), { go: ["data-place", "attributes"] })),
+                        AB.section({ title: "Statistics", collapsible: true, key: "graph.statistics" }, AB.data("Modularity of group", AB.num(L.stats.modularityOfGroups), { go: ["inspector-run-row", "data"] })),
                         AB.section({ title: "Layout", collapsible: true, key: "graph.layout", summary: "Force-directed" }, AB.data("Method", "Force-directed")),
                         AB.section({ title: "Canvas", collapsible: true, key: "graph.canvas", summary: "Default background, overlapping labels shown" },
                             h("div", { class: "ab-cap k-secondary" }, "graphty-element settings, not a layer."),
@@ -212,7 +240,7 @@
             const rows = L.topByDegree.slice(0, 12);
             el.append(
                 h("div", { class: "k-dock-tabs" }, h("span", { role: "tablist", class: "ab-tablist" }, tab("Nodes", "nodes", true), tab("Edges", "edges")), h("span", { class: "k-grow" }), AB.iconButton("search", "Find in table", { go: ["commands-and-search", "find"] }), AB.iconButton("ellipsis", "Table options", { go: ["table-dock", "nodes"] }), AB.dockToggle()),
-                h("div", { class: "k-scope" }, "Full graph: " + L.nodes + " nodes. Sorted by degree."),
+                h("div", { class: "k-scope" }, "Full graph: " + AB.count(L.nodes, "node") + ". Sorted by degree."),
                 h("div", { class: "k-table-wrap" }, h("table", { class: "k-table" },
                     h("thead", null, h("tr", null, h("th", null, "label"), h("th", null, "group ", h("span", { class: "k-profile" }, "10 values")), h("th", { class: "k-n" }, "degree ", h("span", { class: "k-profile" }, "1 to " + L.stats.maxDegree)), h("th", { class: "k-n" }, "betweenness ", h("span", { class: "k-profile" }, "0 to 0.57")))),
                     h("tbody", null, rows.map((r) => h("tr", act({ onClick: () => AB.selectNode("lesmis", L.rows.findIndex((x) => x.label === r.label)) }), h("td", { class: "k-id" }, r.label), h("td", null, AB.chit(L.groupColors[r.group] || "#808080"), String(r.group)), h("td", { class: "k-n" }, r.degree), h("td", { class: "k-n" }, r.betweenness)))),
@@ -304,13 +332,15 @@
             h("h1", { class: "ab-h1" }, project),
             AB.iconButton("undo-2", "Undo", { key: "Ctrl+Z", onClick: () => AB.flash("Nothing to undo") }),
             AB.iconButton("redo-2", "Redo", { key: "Ctrl+Shift+Z", onClick: () => AB.flash("Nothing to redo") }),
-            AB.tip(h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["settings", "privacy"] })), icon(AB.ICON.local, "sm"), "Local only"), "Privacy settings", { label: false }),
-            // A status chip, shown only while a filter is on; a click opens Data > Filters (it is a link, not a menu)
-            route.frame.chip && route.frame.chip !== "Full graph" ? AB.tip(h("span", Object.assign({ id: "ab-filter", class: "ab-privacy", role: "link" }, act({ go: ["data-place", "filters"] })), icon("funnel", "sm"), route.frame.chip), "Filters", { label: false }) : null,
+            AB.tip(h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["settings", AB.usageData ? "privacy-on" : "privacy"] })), icon(AB.ICON.local, "sm"), AB.usageData ? "Usage data on, content masked" : "Local only"), "Privacy settings", { label: false }),
+            // The filter chip always says what the graph shows: "Full graph", or "812 of 3,000 nodes" while
+            // a filter step removes something. A click opens the project's filters (a link, not a menu)
+            AB.tip(h("span", Object.assign({ id: "ab-filter", class: "ab-privacy", role: "link" }, act({ go: ["data-place", route.frame.chip && route.frame.chip !== "Full graph" ? "filters" : placeOf(route.frame.dataset, "data")] })), icon("funnel", "sm"), route.frame.chip || "Full graph"), "Filters", { label: false }),
             h("span", { class: "k-grow" }),
         ]);
     }
     function renderReview(el, sec, state) {
+        if (participant()) return;
         const place = PLACES[route.rail] ? PLACES[route.rail][0] : "";
         const st = sec.states.find((s) => s.id === state) || sec.states[0];
         const crumbs = [place && route.frame.full == null ? AB.link(PLACES[route.rail][2], null, place) : null, REGION_LABEL[sec.region] || sec.region, h("b", null, sec.title), sec.states.length > 1 ? st.label : null].filter(Boolean);
@@ -321,10 +351,10 @@
         const states = h("span", { class: "ab-states" }, sec.states.length > 1 ? [h("span", { class: "ab-rv-label" }, "States:"), sec.states.map((s) => h("a", { href: href(sec.id, s.id), class: "ab-state", "aria-current": s.id === st.id ? "true" : null }, s.label))] : null);
         el.append(
             h("a", { href: "#/map", class: "ab-rv-title" }, "Refined B skeleton"),
+            h("span", { class: "ab-rv-btn", role: "switch", tabindex: "0", "aria-checked": String(notesHidden()), on: { click: () => setNotes(!notesHidden()), keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotes(!notesHidden()); } } } }, notesHidden() ? "Show design notes" : "Hide design notes"),
             bc, states, h("span", { class: "k-grow" }),
             h("a", { href: "#/map", class: "ab-rv-btn" }, "Site map"),
             h("span", { class: "ab-rv-btn", role: "button", tabindex: "0", on: { click: () => { setTheme(currentTheme() === "dark" ? "light" : "dark"); } } }, icon(currentTheme() === "dark" ? "sun" : "moon", "sm"), currentTheme() === "dark" ? "Light" : "Dark"),
-            h("span", { class: "ab-rv-btn", role: "switch", tabindex: "0", "aria-checked": String(notesHidden()), on: { click: () => { store.set("designNotes", notesHidden() ? "" : "hidden"); applyNotes(); renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state); } } }, notesHidden() ? "Show design notes" : "Hide design notes"),
             h("a", { href: "../index.html", class: "ab-rv-btn" }, "Gallery"),
         );
     }
@@ -389,7 +419,7 @@
         // a transfers place (Data, the Path tool) brings the transfers canvas, inspector and table.
         const leftExtra = leftSec && leftSec !== sec ? frameOf(leftSec, leftRef.state || leftSec.states[0].id) : {};
         frame.dataset = extra.dataset || leftExtra.dataset || (carried ? was.frame.dataset : "lesmis");
-        frame.chip = extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph");
+        frame.chip = chipWording(extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph"));
         // The attributes the project's filter steps read (on or off): the field lists' "Filter step" tag
         frame.filterOn = extra.filterOn || leftExtra.filterOn || (carried ? was.frame.filterOn : null) || null;
         if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
@@ -418,6 +448,7 @@
         if (sec.region === "workspace" && (!route || route.id !== sec.id)) AB.pageOpener = route ? href(route.id, route.state) : null;
         AB.onPageCancel = null;
         route = { id: sec.id, state, sec, frame, rail: railKey, closeTo };
+        if ((sec.id + "/" + state) in USAGE_STATE) AB.usageData = USAGE_STATE[sec.id + "/" + state];
         // A notice belongs to the screen that raised it
         document.querySelectorAll(".gp-offer").forEach((f) => f.remove());
         $("ab-notice").replaceChildren();
@@ -460,6 +491,11 @@
         $("ab-rail").hidden = !frame.rail;
         if (frame.rail) renderRail($("ab-rail"));
         ["left", "right", "canvas", "toolbar", "dock", "workspace", "full", "overlay"].forEach((r) => fill("ab-" + r, r));
+        // Every region has a heading, so a keyboard or screen reader user hears which region holds focus
+        Object.entries(REGION_HEADING).forEach(([id, text]) => {
+            const r = $(id);
+            if (r && !r.hidden && r.childElementCount && !r.querySelector(":scope h1, :scope h2, :scope [role=heading]")) r.prepend(h("h2", { class: "k-sr ab-region-h" }, text));
+        });
         // An overlay section that draws nothing (a "closed" state, a rename in place) lets clicks through.
         // Some overlays draw a frame later (they wait for the regions' boxes), so check again then.
         const setActive = () => { $("ab-overlay").dataset.active = frame.overlay && $("ab-overlay").childElementCount ? "true" : "false"; };
@@ -607,6 +643,7 @@
     document.addEventListener("keydown", (e) => {
         const t = e.target;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (e.key === "Escape" && e.defaultPrevented) return;
         const mod = e.ctrlKey || e.metaKey;
         // Single keys fire wherever focus is, except in a text field (above), an open menu, popover,
         // dialog or list box (they own their letters for typeahead), or on a page that replaces the
@@ -622,10 +659,11 @@
         // else a notice that says what it would do. Never the browser's own (Ctrl+S, Ctrl+O, Ctrl+E).
         const press = (sel, fallback) => () => { const b = document.querySelector(sel); if (b && b.getAttribute("aria-disabled") !== "true") b.click(); else AB.flash(fallback); };
         const stub = (text) => () => AB.flash(text + " (not wired in the skeleton)");
-        const undoNotice = () => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === "Undo");
+        // Ctrl+Z and Ctrl+Shift+Z act on the notice's own change first (its Undo or Redo), then the header's
+        const noticeAction = (word) => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === word);
         const keys = [
-            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = undoNotice(); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
-            [() => mod && e.shiftKey && !e.altKey && k === "z", press("#ab-top [aria-label='Redo']", "Nothing to redo")],
+            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = noticeAction("Undo"); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
+            [() => mod && e.shiftKey && !e.altKey && k === "z", () => { const r = noticeAction("Redo"); if (r) r.click(); else press("#ab-top [aria-label='Redo']", "Nothing to redo")(); }],
             [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go("data-page", "edge-list")],
             [() => mod && !e.shiftKey && !e.altKey && k === "s", stub("Save")],
             [() => mod && e.shiftKey && !e.altKey && k === "s", stub("Save as")],
@@ -665,6 +703,8 @@
         if (hit) { e.preventDefault(); hit[1](); }
         else if (e.key === "Escape" && route && AB.onPageCancel && !route.frame.overlay) { e.preventDefault(); AB.onPageCancel(); }
         else if (e.key === "Escape" && route && route.id !== route.closeTo.id) { e.preventDefault(); AB.close(); }
+        // Nothing open: in the participant view Esc leaves it (the review bar and design notes come back)
+        else if (e.key === "Escape" && route && notesHidden() && !participant() && !route.frame.overlay) { e.preventDefault(); setNotes(false); }
     });
     document.addEventListener("DOMContentLoaded", () => {
         // A click on empty canvas clears the selection: back to the place at rest (nothing selected)
@@ -681,6 +721,7 @@
             if (stage) stage.focus({ preventScroll: true });
             if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place, st);
         });
+        if (!participant()) document.body.append(h("button", { id: "ab-leave-study", class: "ab-leave-study", type: "button", "aria-label": "Show design notes", hidden: !notesHidden() || null, on: { click: () => setNotes(false) } }, "Review"));
         $("ab-overlay").addEventListener("click", (e) => { if (e.target === $("ab-overlay") || e.target.classList.contains("ab-modal-wrap")) AB.close(); });
         matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
         new MutationObserver(() => route && document.body.dataset.page === "app" && renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -792,6 +833,7 @@
             Object.assign(fx.datasets, more);
             AB.fx = fx;
             AB.order = manifest;
+            const shared = AB.projectCounts;
             await Promise.all(manifest.map((id) => new Promise((res) => {
                 const s = document.createElement("script");
                 s.src = "sections/" + id + ".js";
@@ -799,6 +841,14 @@
                 s.onerror = () => { console.error("Could not load sections/" + id + ".js"); res(); };
                 document.head.append(s);
             })));
+            // A section that still assigns AB.projectCounts itself has its counts kept as the base, and the
+            // shared reader (which adds every Remove from data) put back: register with AB.countSource instead
+            if (AB.projectCounts !== shared) {
+                const own = AB.projectCounts;
+                Object.keys(AB.fx.datasets).forEach((ds) => AB.countSource(ds, own));
+                AB.projectCounts = shared;
+                console.warn("A section assigns AB.projectCounts; register a project's counts with AB.countSource(dataset, fn)");
+            }
             manifest.forEach((id) => { if (!AB.sections[id]) registerSection({ id, title: id, region: "overlay" }); });
             render();
         } catch (err) {

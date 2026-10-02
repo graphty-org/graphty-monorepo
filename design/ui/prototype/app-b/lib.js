@@ -2217,7 +2217,46 @@
                 o.action ? h("div", { class: "ab-problem-act" }, button(o.action.label, Object.assign({ kind: "secondary" }, o.action))) : null));
     }
 
+    // ---------- the one count and measure formatter ----------
+    // A whole number with thousands separators; any other value to three significant digits, so
+    // "6.60" beside "6.08" and "0.570" beside "0.0754". Read the value from AB.fx, never type it.
+    function num(v, digits = 3) {
+        if (v == null || v === "") return "";
+        const x = Number(v);
+        if (!Number.isFinite(x)) return String(v);
+        if (Number.isInteger(x) || Math.abs(x) >= 10 ** digits) return Math.round(x).toLocaleString("en-US");
+        return x.toPrecision(digits);
+    }
+    // count(77, "node") "77 nodes"; count(60, "node", { of: 77 }) "60 of 77 nodes";
+    // { version: "before the filter" } adds the data version when it is not what the screen shows
+    function count(n, noun, o = {}) {
+        const many = o.of != null ? Number(o.of) : Number(n);
+        const word = noun ? " " + (many === 1 ? noun : o.plural || noun + "s") : "";
+        return num(n) + (o.of != null ? " of " + num(o.of) : "") + word + (o.version ? " (" + o.version + ")" : "");
+    }
+
+    // ---------- the data as it is now: one source for a project's node and edge counts ----------
+    // projectCounts(ds) is { nodes, edges } after every Remove from data in this page view, so the
+    // table, Everything and the graph inspector show one number. It reads the fixture's counts, or the
+    // counts a section registers for a project it builds (countSource). removeFromData(ds, { nodes,
+    // edges }) records what a removal took (graphty-element reports it; the fixture stands in) and
+    // returns the Undo, which gives it back.
+    const countSources = {}, dataEdits = [];
+    function countSource(ds, fn) { countSources[ds] = fn; }
+    function projectCounts(ds) {
+        const D = AB.fx && AB.fx.datasets[ds];
+        const c = countSources[ds] ? countSources[ds](ds) : D && typeof D.nodes === "number" ? { nodes: D.nodes, edges: D.edges } : null;
+        if (!c) return null;
+        return dataEdits.filter((e) => e.ds === ds).reduce((a, e) => ({ nodes: a.nodes - (e.nodes || 0), edges: a.edges - (e.edges || 0) }), c);
+    }
+    function removeFromData(ds, took) {
+        const e = { ds, nodes: took.nodes || 0, edges: took.edges || 0 };
+        dataEdits.push(e);
+        return () => { const i = dataEdits.indexOf(e); if (i >= 0) dataEdits.splice(i, 1); };
+    }
+
     Object.assign(AB, {
+        num, count, projectCounts, countSource, removeFromData,
         graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
         fieldList, openFieldList, fieldsOf, nestedLoaded, painted, paintBy, paintOf, paintRow, recordsOf, valueAt, fieldIn, attributeMenu, boundOn, nameCols, nameOf, nameWord, problem, truncMiddle, wordMatch,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,

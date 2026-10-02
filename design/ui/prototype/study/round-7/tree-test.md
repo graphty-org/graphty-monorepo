@@ -1,130 +1,254 @@
-# Round 7 tree test: the navigation as it stands after round 6
+# Round 7 tree test: the refined B navigation
 
-This tests where people look for things, with no visual design at all: participants see only a
-tree of text, open one level at a time, and pick the place where they would do the job. The tree
-they read is `tree.md` in this folder, and nothing else: it holds the outline only, so no task,
-answer or score can leak into a session.
-
-The tree is the navigation drawn on the gallery today (`screens/navigation.html`, frames "new",
-"new-node", "new-results", "new-run", "new-menu", "new-file", "new-prefs", "new-data"), plus the
-places the round-6 decisions added (`../decision-log.md`, "Round 6"):
-
-- The rail lists what a project owns: the main menu, Graph, Data, Results, Notes and the
-  Assistant. Results is the rail place for runs; the label "Results" was kept after round 6.
-- An opened run pins the selected node's line above Top nodes ("Valjean: #3 of 77, show in
-  table"); a community run lists its groups, and a row selects its group.
-- A style layer made from a run says "From run: <the run>", and that line opens the run.
-- A source row in Data states its facts and offers only "Update with new data..."; a column says
-  that each run asks what its value means. The Loaded line no longer offers "Change...".
-- A path's Members states its count and its sums; tied routes get "Route 1 of 2".
-- Every file intake (File > Open..., Add a source, a drop) recognizes a recipe and opens the one
-  Apply dialog; Main menu > Recipes > Apply a recipe... stays.
-- The right panel with nothing selected holds Background, Layout, the Overview and the Style
-  stack, as the frame at rest draws it.
-- Preferences holds the Assistant provider, the WebGPU choice and "Usage data", where the first-run
-  question's answer is kept.
+This tests where people look for things with no visual design: a participant reads only the text
+outline in `tree.md` (this folder), opens one level at a time, and picks the place where they
+would do the job. `tree.md` holds the outline and nothing else, so no prompt, answer or score can
+reach a session. The outline is the clickable refined B skeleton as a participant sees it: the
+header (main menu, project-name menu), the rail (Graph, Data, Views, Notes, Assistant), the Data
+page, the canvas's right-click menus, the toolbar's tooltip names, the selection bar, the
+inspector's tabs and sections, and the table.
 
 Every participant is simulated from the persona files in `../personas/`. Sixteen simulated
 participants are far below the 50 or more a real tree test wants, and they share blind spots: a
-failed task is a strong signal and a passed task a weak one. Every table of results from this test
-says so beside its numbers.
+failed task is a strong signal and a passed task a weak one. Every table of results says so beside
+its numbers.
 
-## How it runs
+**Scoring.** Correct means the participant's final pick is one of the locations listed for that
+task. Direct means correct with no backtracking (no level opened and then left). The bar for this
+round is 70 percent direct on every task. Each answer file records the path taken, every level
+opened and left, the final pick, and a confidence rating from 1 to 7.
 
-- **One tree, all 16 personas.** The label question ("Results" or "Runs") was closed after round 6:
-  the label stays "Results". Milestone 7 said every persona would take both trees; that referred to
-  the label variant, which is retired, so round 7 runs one tree with every persona (a studio
-  decision; the label is not re-tested).
-- **Each persona is its own session,** with no memory of any other session and no access to this
-  file, the gallery or the earlier rounds' answers. A session that sees this file, answers from
-  another persona's answers, or returns no answers is thrown away and run again, never left out.
-- **All 16 tasks, in an order shuffled per session.**
-- **What is recorded for every task:** each place opened, in order; the final pick; whether the
-  participant went back up the tree; confidence from 1 to 7; one sentence in the participant's
-  words. Record every first top-level place opened, even on correct paths.
+**Order.** Tasks are given in a different random order to each participant; the order is recorded
+in the answer file.
 
-## How it is scored (frozen before the round; not changed after answers are read)
+**Wording.** Each prompt states a goal in the participant's own words. None uses join, source,
+attribute, layer, JSON, path, array or field, and none reuses a label the outline shows at the
+place it points to. Domain words follow the persona: a prompt says "accounts" to the fraud and
+alert personas, "genes" or "proteins" to the biology personas, "hosts" to the security persona,
+and "people" or "characters" to everyone else. The facilitator swaps only those nouns.
 
-- **Correct:** the final pick is one of the task's correct places.
-- **Direct:** correct, reached without going back up the tree.
-- **Pass:** on every task, at least 70% correct and at least 55% direct, all 16 personas.
-- **Picks counted separately** are listed per task below. Each is wrong or indirect, and each is
-  reported with its count.
-- **Where the key changed since round 6,** a change in the number is partly a change in the key.
-  Tasks 1, 2, 4, 5 and 6 are reported under both keys, the new one for the pass and the round-6
-  one beside it.
-- **Flagged task 4.** Its new correct places (File > Open..., the project name menu's Open... and
-  Data > Sources > Add a source) come from a decided change whose page half is drawn only on the
-  protein recipe page (`screens/recipe-apply.html#file-open`, `#add-source`), not on the screens
-  of the think-aloud task about a team's colors file. The tree test scores the design as decided,
-  so the new key decides the pass. The round-6 key is reported beside it, and if task 4 passes on
-  the new key alone, the result says "passes only through the new file routes".
-- **Flagged task 13.** "Usage data" under Preferences is where the first-run question says the
-  answer is kept ("You can change this any time in Preferences"), but no Preferences screen draws
-  it yet. The task tests whether people look there; a pass is a reason to draw it, not proof it
-  works.
+## The tasks
 
-## Tasks
+Each task names the placement it tests (from the refined B specification, sections 2.2 to 2.4,
+4, 5.3, 9, 10 and 11, and the decision log), its correct locations, and the skeleton route each
+location stands for.
 
-Written in the participant's words, never in the tree's labels. Tasks 1 to 10 repeat round 6's
-wording exactly (round-6 task number in brackets), so each change shows as a difference between
-rounds. Tasks 11 to 16 are new: the two top tasks never tested (make the layout readable, combine
-sets) and four first-use moments (the usage-data answer, the Assistant, a failed save, a browser
-with no WebGPU).
+### Tree 1. The ones everything passes through
 
-| # | Task (read to the participant) | Correct places | Counted separately |
-|---:|---|---|---|
-| 1 | [2] Earlier you worked out which characters hold the groups together. Where do you see how Valjean scored and where he places? | Right panel, with a node selected > Results; Results (rail) > An opened run > The selected node's line; Bottom table > Nodes tab, Edges tab, and a tab for each opened run; Bottom table > Search; Bottom table > Column header menu (sort). Round-6 key: the same without the selected node's line | Results (rail) > An opened run > Top nodes (shows Valjean only because he is first) |
-| 2 | [3] A colleague wants to repeat an earlier calculation exactly. Where do you find how it was set up? | Results (rail) > Each run; Results (rail) > An opened run > Settings; Results (rail) > An opened run > State line; Right panel, with nothing selected > Style stack > Each layer (its "From run:" line opens the run). Round-6 key: the first three | Any pick in Data > Sources |
-| 3 | [5] You are about to find the cheapest route between two accounts. Where do you make sure a bigger transfer counts as more expensive, not less? | Canvas > Floating toolbar > Path (options); Main menu > Selection > Paths between...; Right panel, with a node selected > Header actions (Path to...); Main menu > Algorithms > Path | Data > Sources > Its columns; The loaded file's chip; Right panel, with nothing selected > Overview |
-| 4 | [7] A colleague sent you a file of the colors and sizes their team always uses. Where would you bring it into this project? | Main menu > Recipes > Apply a recipe...; Data > Recipes; Right panel, with nothing selected > Style stack > Add a layer (+) > From a recipe or file...; Main menu > File > Open...; Project name menu > Open...; Data > Sources > Add a source (+). Round-6 key: the first three. **Flagged** (above) | Style stack > Add a layer > Empty layer; every visit to Main menu > Recipes that backs out |
-| 5 | [11] You have selected the transfers along one route. Where do you see how much money moved along it in total? | Bottom table > Footer; Right panel, with a set, a group or a path selected > Members. Round-6 key: the footer only | Bottom table > Edges tab (sorting single transfers is not a total) |
-| 6 | [12] Where do you find out how the biggest group differs from the rest of the network? | Right panel, with a set, a group or a path selected > Compare with the rest; Bottom table > Row menu (compare this group with the rest); Results (rail) > An opened run > Groups (the row selects the group, whose panel holds the comparison). Round-6 key: the first two | Results (rail) > An opened run > Compare with another run... (it lists runs, not the rest of the graph) |
-| 7 | [15] One character you care about has no name showing on the drawing, because names are hidden where they would overlap. Where do you make sure that character's name always shows? | Right panel, with a node selected > Show label anyway; Canvas > Legend > The labels line | Right panel, with nothing selected > Style stack (any place in it); Look |
-| 8 | [16] Where do you see where money went next after it left one account in early August? | Right panel, with a node selected > Header actions (Neighbors: direction, from a date); Main menu > Selection > Neighbors... | Filter chip > Add a step; Bottom table > Column header menu (filter to...); Data > Versions |
-| 9 | [8] Next month's transfers file has arrived. Where do you bring it in so that everything you set up carries over? | Main menu > File > Update with new data...; Project name menu > Update with new data...; Data > Sources > Update with new data...; The loaded file's chip > Update with new data... | Main menu > File > Open...; Data > Sources > Add a source (+) |
-| 10 | [10] Your manager wants the accounts that take in far more money than they send out. Where do you start? | Main menu > Algorithms > Centrality (Weighted degree); Main menu > Quick actions...; Canvas > Floating toolbar > Quick actions; Results (rail) > Run a measure...; Bottom table > Column header menu (new column) | Bottom table > Edges tab |
-| 11 | The drawing is one tangled ball and you cannot make out any groups in it. Where do you go to make it easier to read? | Right panel, with nothing selected > Layout; Main menu > Quick actions...; Canvas > Floating toolbar > Quick actions | Right panel, with nothing selected > Style stack (any place in it); Main menu > View > 2D or 3D; Filter chip (any place in it) |
-| 12 | You have put aside two lists of accounts. Your manager wants only the accounts that are on the first list and also on the second. Where do you get them? | Graph (rail) > Sets and paths | Filter chip > Add a step (it narrows the view; it keeps no list); Bottom table (any place in it) |
-| 13 | When you first opened the app you agreed to let it collect how you use it. You have changed your mind. Where do you take that back? | Main menu > Preferences > Usage data. **Flagged** (above) | Data > Sent and saved (it reports, it does not change the answer); The line under the project name |
-| 14 | You would like to ask questions about the network in plain words and get answers back. Where do you set that up? | Main menu > Preferences > Assistant provider; Assistant (rail) | Main menu > Quick actions... (it runs commands; it does not answer questions) |
-| 15 | The app has just told you it could not keep your latest changes in this browser. Where do you make sure you have a copy of your work before you close the tab? | Canvas > The one-line notice; Main menu > File > Download project file; Project name menu > Download project file | Main menu > File > Export...; Project name menu > Export...; Data > Export... (each writes an output, not the project); Main menu > File > Version history |
-| 16 | A ranking took far longer than on a colleague's computer. Where do you find out whether your browser used the graphics card for it? | Results (rail) > An opened run > State line; Main menu > Preferences > Use WebGPU when available | Results (rail) > An opened run > Settings (the method, not the engine) |
+Prompt: "You want to know which people the network depends on to get from one group to another --
+the go-betweens. Where would you go to work that out?"
 
-## Placements this covers
+Tests: running an analysis from the toolbar's Analyze popover, with no Algorithms place on the
+rail (spec 2.2).
 
-Every placement the decision log names as new or provisional after round 6, and the two top tasks
-and four first-use moments that were never tree-tested:
+Correct:
+- Toolbar > Analyze (Shift+A), any heading inside it -- `analyze-popover/open`
+- Canvas > Right-click on a node > Analyze... -- `context-menus/node`, which opens `analyze-popover/scoped`
+- Toolbar > Quick actions (Ctrl+K) -- `commands-and-search/quick-actions-results`
 
-| Placement | Tasks |
-|---|---|
-| Results as the rail place for runs; the selected node's line pinned above Top nodes | 1, 2, 10 |
-| A style layer from a run leads back to the run ("From run:") | 2 (and first-click prompt 1) |
-| The meaning of a bigger weight is chosen in each run; the Loaded line and the column only describe the data | 3 (and first-click prompt 4) |
-| Every file intake recognizes a recipe and opens the one Apply dialog; Recipes > Apply a recipe... stays | 4 (flagged; and first-click prompt 5) |
-| A path's Members states its sums; the table footer totals the selection | 5 |
-| A community row selects its group; Compare with another run... lists runs, not the rest | 6 |
-| Show label anyway on the selected node, and the legend's hidden-labels line | 7 |
-| Neighbors with a direction and a from date (a real findability miss kept on purpose) | 8 |
-| A source row offers only Update with new data...; the file chip and one File list (regression) | 9 |
-| Weighted degree in the algorithm list, Quick actions and the table's New column | 10 |
-| Layout in the right panel with nothing selected (top task 7) | 11 |
-| Sets and paths as the place to combine kept sets (top task 9) | 12 |
-| The usage-data answer kept in Preferences (first use: the opt-in) | 13 (flagged) |
-| The Assistant provider in Preferences and the Assistant on the rail (first use: the opt-in) | 14 |
-| Download project file after a failed autosave (first use: the first save) | 15 |
-| The engine named on a run's state line, and the WebGPU choice in Preferences (first use: no WebGPU) | 16 |
+### Tree 2. Why a colleague cared about one cluster
 
-## Known differences between the tree and the drawn screens
+Prompt: "A colleague told you they wrote down why one cluster of people mattered to them. Where
+would you look to read what they wrote?"
 
-Recorded so a miss is not blamed on the wrong cause:
+Tests: notes as their own rail place, not rows in the tree, with note counts on rows (spec 2.1).
 
-- Two drawings of Preferences exist: a dialog on `screens/navigation.html` (name, theme, Assistant
-  provider) and a menu on `screens/preferences.html` (theme, overview, motion, WebGPU, scroll,
-  AI provider...). Neither shows "Usage data". The tree lists the union and adds Usage data.
-- The right panel with nothing selected is drawn three ways: Overview and Style stack only
-  (`screens/navigation.html`), Background, Layout, Overview and Style stack
-  (`screens/frame-at-rest.html`), and Graph, Statistics with a Layout row that runs
-  (`screens/run-and-read.html#layout`). The tree follows the frame at rest.
-- The protein recipe page draws File > Open... and Add a source opening the Apply dialog; the
-  April transfers screens used by the team-colors think-aloud task do not.
+Correct:
+- Rail > Notes, its list of notes -- `notes-place/all`
+- Rail > Graph > Find rows and notes -- `graph-place/find`
+- Rail > Graph > the list of rows > A grouping (a run), opening to its groups (a group row's note count) -- `inspector-group-set-path-row/notes`
+
+### Tree 3. A figure for Friday
+
+Prompt: "You need a picture of the network as it looks right now, to paste into Friday's slides.
+Where do you go?"
+
+Tests: Export... in the project-name menu, with no Export button or rail place (owner decision;
+spec 9 and 10.2).
+
+Correct:
+- Header > Project name > Export... > Image -- `export-dialog/image`
+
+### Tree 4. The lab's color scheme on your data
+
+Prompt: "A colleague sent you a file holding their lab's colors and settings, but none of their
+data. Where would you use it on the network you have open?"
+
+Tests: Apply recipe or style file... in the project-name menu; round 6 decided every file intake
+recognizes a recipe, so Open... and Sources + also count (decision log, Round 6, "Replace and
+recipe").
+
+Correct:
+- Header > Project name > Apply recipe or style file... -- `recipe-apply/binding`
+- Header > Main menu > Open... -- `main-menu/open-file`
+- Rail > Data > Sources (+ adds data) -- `data-page/entries` (the Data page, which hands a recipe to the same dialog)
+
+Reported both ways: the correct rate with all three, and with the project-name menu alone, so the
+round can say whether File-style doors carry the job.
+
+### Tree 5. What it looked like before Tuesday
+
+Prompt: "Someone changed things in this project on Tuesday. Where do you see what the project
+looked like before that, and what was done since?"
+
+Tests: Version history in the project-name menu as the one home of data versions (spec 9).
+
+Correct:
+- Header > Project name > Version history -- `full-canvas-modes/version-history`
+
+### Tree 6. Only the big ones count
+
+Prompt: "From now on you want every number and every drawing to leave out the small transfers
+(or small interactions) and count only the large ones. Where do you set that up?"
+
+Tests: filters belong with the data, in the Data place, and the header chip opens them (owner;
+spec 2.4 and 7).
+
+Correct:
+- Rail > Data > Filters (+ adds a step) -- `data-place/new-step`
+- Header > Full graph (filter) -- `data-place/empty-filters`
+
+### Tree 7. A bigger number means a closer tie
+
+Prompt: "In your door-swipe spreadsheet, a person and a building that appear together 40 times
+should count as more tightly tied than a pair that appears once, in every analysis from now on.
+Where do you tell graphty that?"
+
+Tests: weight chosen when the data is loaded, as a column's role on the Data page (owner,
+2026-09-30; spec 2.4 and 11.3). Round 6's tree had a per-run answer here; this is the moved key.
+
+Correct:
+- The data page > The chosen table > Each column's role > Weight -- `data-page/entries-pair`
+- Rail > Data > Sources > Each file > Edit source... > (the column's role) Weight -- `data-page/edit-entries`
+
+### Tree 8. Untangle the drawing
+
+Prompt: "The drawing is a tangle. You want to try a different way of arranging it. Where do you
+go?"
+
+Tests: the layout method as a property of the graph, in the inspector's Style tab when nothing is
+selected; Re-run layout in the canvas menu (spec 2.3 and 5.3).
+
+Correct:
+- Inspector > Style tab > Layout (when nothing is selected) > Method -- `inspector-nothing-selected/layout-method`
+- Canvas > Right-click on empty canvas > Re-run layout or Reshuffle layout seed -- `context-menus/canvas`
+
+### Tree 9. The angle you want to show again
+
+Prompt: "You turned the drawing to an angle that shows the story well. You want to come back to
+exactly this angle on Monday and show it to your manager. Where do you go?"
+
+Tests: saved views in the Views place and the View flyout; no camera button of its own (spec 2.3
+and 4.1).
+
+Correct:
+- Rail > Views > Save view (+) -- `views-place/saving`
+- Toolbar > View > Save view -- `view-flyout/3d`
+
+### Tree 10. Did the groups change between months?
+
+Prompt: "You have last month's and this month's network in the same project. Where do you see how
+far the groups of people moved between the two?"
+
+Tests: Compare graphs... in the graph switcher and Compare with another row... on a row (spec 9
+and 10.3).
+
+Correct:
+- Rail > Graph > Graph switcher > Compare graphs... -- `graphs-switcher/many`, then `full-canvas-modes/comparison`
+- Rail > Graph > A row's right-click menu > Compare with another row... (on the grouping) -- `context-menus/run-row`
+
+### Tree 11. Everyone matching a rule
+
+Prompt: "You want to pick out, at once, every person who matches a rule you can type, such as
+everyone in one country with a high score. Where do you go?"
+
+Tests: Select where... in the main menu, with no Select tool on the toolbar (spec 2.3 and 10.1).
+
+Correct:
+- Header > Main menu > Select where... -- `select-where/where`
+- Rail > Data > Attributes > An attribute's menu > Create set where this is... -- `select-where/attribute`
+
+### Tree 12. What leaves my computer
+
+Prompt: "Your IT department asks what, if anything, this program sends back to its makers. Where
+do you check, and change it?"
+
+Tests: the privacy chip in the header and Settings > Privacy (owner, 2026-09-29; spec 9 and 11.2).
+
+Correct:
+- Header > Local only (privacy) -- `settings/privacy`
+- Header > Main menu > Settings... > Privacy -- `settings/privacy`
+
+### Tree 13. Next month's file, same analysis
+
+Prompt: "April's file has arrived. You want everything you built on March -- the groups, the
+rankings, the colors -- to run again on April's file instead. Where do you start?"
+
+Tests: Replace with file... on the source row in Data > Sources (spec 15, top task 12).
+
+Correct:
+- Rail > Data > Sources > Each file or address > Replace with file... -- `data-page/replace`
+- Toolbar > Quick actions -- `commands-and-search/quick-actions` (typing the job)
+
+### Tree 14. Names over the dots
+
+Prompt: "You want each person's name written next to them in the drawing, and their department
+written under it. Where do you set that up?"
+
+Tests: label lines on a row's Style tab that start empty, and Label by on an attribute (owner,
+2026-09-30; spec 16.6).
+
+Correct:
+- Inspector > Style tab > Label (+ adds a label line) -- `inspector-group-set-path-row/label-empty`
+- Rail > Data > Attributes > An attribute's menu > Label by -- `context-menus/attribute`
+
+### Tree 15. Out of sight, but still counted
+
+Prompt: "Three people clutter the drawing. You want them out of sight for now, but you still want
+every count and ranking to include them. Where do you do that?"
+
+Tests: Hide on canvas (drawing only) kept apart from a filter step (changes what is computed)
+(owner, 2026-09-30; spec 2.3 and 3.6).
+
+Correct:
+- Selection bar > Hide on canvas -- `selection-bar/hidden`
+- Canvas > Right-click on a node > Hide on canvas -- `context-menus/node`
+
+Counted as a wrong answer that matters: Rail > Data > Filters (it removes them from every count).
+
+### Tree 16. A number column that reads as words
+
+Prompt: "Your scores column came in as words, so graphty will not let you size people by it.
+Where do you tell it the column holds numbers?"
+
+Tests: Read as on an attribute (Data > Attributes and the attribute's inspector); roles stay on
+the Data page (spec 5.2 and 7).
+
+Correct:
+- Rail > Data > Attributes > An attribute's menu > Read as... -- `inspector-attribute-and-filter-step/attribute`
+- The data page > The chosen table > Each column's role (the column's type) -- `data-page/edit-source`
+
+## Placements and the tasks that test them
+
+| Placement (provisional unless the owner decided it) | Who decided | Task |
+|---|---|---|
+| No Algorithms place; Analyze in the toolbar | studio | 1 |
+| Notes are a rail place, not tree rows | studio | 2 |
+| Export... in the project-name menu | owner | 3 |
+| Apply recipe or style file... in the project-name menu; every file door recognizes a recipe | studio | 4 |
+| Version history in the project-name menu | studio | 5 |
+| Filters with the data, opened by the header chip | owner (filters with the data); studio (the chip) | 6 |
+| Weight chosen on the Data page at load | owner | 7 |
+| Layout method on the graph's inspector; Re-run in the canvas menu | studio | 8 |
+| Saved views in the Views place and the View flyout | studio | 9 |
+| Compare graphs... in the switcher; Compare with... on a row | studio | 10 |
+| Select where... in the main menu | studio | 11 |
+| The privacy chip and Settings > Privacy | owner (opt-in); studio (the chip) | 12 |
+| Replace with file... on a source row | studio | 13 |
+| Label lines on a row's Style tab, starting empty | owner | 14 |
+| Hide (eye, Hide on canvas) apart from filters | owner | 15 |
+| Read as on the attribute | studio | 16 |
+
+Not testable as a tree: the comparison of a toolbar Analyze against a rail-place Analyze that the
+specification proposes (2.2). The skeleton draws only the toolbar build, so the round reports
+first-click and session evidence on the toolbar build alone.

@@ -1,7 +1,7 @@
 /* Inspector: one edge. Javert -- Valjean in Les Miserables (value 17, chapters shared), the one
    edge of the "Valjean to Javert" path row. Style tab: Why this look (collapsible; the rows that
-   win a property, top first). Data tab: Summary (Direction, then the attributes, the weight
-   attribute marked by the role tag; Results only once a run has written to this edge), Memberships,
+   win a property, top first). Data tab: Summary (Direction, the attributes in use with the weight marked by a small
+   scale icon, the results a run wrote to this edge, then "N more attributes"), Memberships,
    Notes (1 note: the fixture note about this edge; its meta line is the time alone, no author). Every verb is in the "..." menu, the edge's
    context menu. Plain ASCII. See ../README.md. */
 (function () {
@@ -9,6 +9,18 @@
     if (!document.querySelector("link[data-ie]")) document.head.append(h("link", { rel: "stylesheet", href: "sections/inspector-edge.css", "data-ie": "" }));
     const EVERY = ["inspector-selection-and-everything", "everything"];
     const PATH = ["inspector-group-set-path-row", "path-lesmis"];
+
+    // The weight mark: a small scale icon after the weight attribute's name (spec 5.2), its meaning in
+    // the tooltip, a link to where the weight is chosen. ponytail: the icon sprite has no "weight", so
+    // lucide's is drawn here; it belongs in lib.js's EXTRA_ICONS and AB.ICON once a second place needs it.
+    const WEIGHT_TIP = "set when loaded -- every run uses it unless the run picks another. Change it on the Data page";
+    function weightMark(go) {
+        const s = h("svg", { class: "k-i k-i-sm", viewBox: "0 0 24 24", "aria-hidden": "true" });
+        s.innerHTML = '<circle cx="12" cy="5" r="3"/><path d="M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z"/>';
+        const el = h("span", Object.assign({ class: "k-secondary", role: "link", style: "display:inline-flex;align-items:center;cursor:pointer" }, AB.act({ go })), s);
+        return AB.tip(el, "Weight, " + WEIGHT_TIP);
+    }
+    const nameWithWeight = (name, go) => h("span", { style: "display:inline-flex;align-items:center;gap:4px" }, name, weightMark(go));
 
     function edge() {
         const L = AB.fx.datasets.lesmis;
@@ -26,8 +38,6 @@
 
     function dataTab(E, state) {
         const node = (n) => link("inspector-node", n.label === "Valjean" ? "why-this-look" : "data", n.label);
-        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page",
-            go: ["data-page", "edit-graph-file"] });
         const dir = E.directed ? "Directed" : "Undirected";
         const parts = AB.dataTab({
             Summary: {
@@ -35,9 +45,11 @@
                 body: [
                     AB.data("Direction", dir, { go: ["inspector-nothing-selected", "overview"] }),
                     AB.data("Ends", h("span", null, node(E.a), ", ", node(E.b))),
-                    AB.data(h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, "value", weight),
-                        h("span", { class: "k-num" }, String(E.value))),
-                    // Results: none has been written to this edge yet, so the row is left out
+                    AB.data(nameWithWeight("value", ["data-page", "edit-graph-file"]), h("span", { class: "k-num" }, String(E.value))),
+                    // Results: Shortest paths marked this edge as on its path (isInPath), so it carries a result
+                    AB.data("In path", "yes, Shortest paths", { go: ["inspector-run-row", "data"] }),
+                    // "N more attributes": value is the edge's one attribute and it is in use, so none are left
+                    AB.empty("No more attributes"),
                     h("div", { class: "ab-cap" }, AB.openQuestion("Which end is listed first in an undirected graph: the file's order?")),
                 ],
             },
@@ -58,14 +70,13 @@
         const style = () => AB.whyThisLook([
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: EVERY, wins: ["width", "pattern"], values: { width: "1", pattern: "Solid" } },
         ], { kind: "edge", element: "this edge" });
-        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page", go: ["data-page", "edit-entries"] });
         const data = () => AB.dataTab({
             Summary: {
                 summary: "directed, count " + p.count,
                 body: [
                     AB.data("Direction", "Directed", { go: ["inspector-nothing-selected", "door-entries"] }),
                     AB.data("Ends", h("span", null, link("inspector-node", "door-ana", "Ana Ruiz"), " -> ", link("inspector-node", "door-b1", "B1"))),
-                    pair ? AB.data(h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, "count", weight), h("span", { class: "k-num" }, String(p.count))) : null,
+                    pair ? AB.data(nameWithWeight("count", ["data-page", "edit-entries"]), h("span", { class: "k-num" }, String(p.count))) : null,
                     AB.data("time (earliest)", p.time.slice(0, 10)),
                     AB.data("time (latest)", p["time (latest)"].slice(0, 10)),
                 ],
@@ -103,12 +114,11 @@
         const filled = rest.filter((x) => e[x.name] != null), emptyN = rest.length - filled.length;
         const dir = D.directed ? "Directed" : "Undirected", arrow = D.directed ? " -> " : " -- ";
         const title = hostOf(e.source) + arrow + hostOf(e.target);
-        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page", go: ["data-place", "attributes-wide"] });
         // a value at the end of its row, end ellipsis, the whole value in its tooltip (as the node inspector)
         const valueOf = (x) => { const v = wideValue(e[x.name], x.name) || "no value"; return AB.tip(h("span", { class: "inn-val k-ellipsis", tabindex: "-1" }, v), v, { label: false }); };
         const used = inUse.map((x) => {
             const isWeight = x.name === "bytes_total_24h";
-            const r = AB.data(isWeight ? h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, x.name, weight) : x.name,
+            const r = AB.data(isWeight ? nameWithWeight(x.name, ["data-place", "attributes-wide"]) : x.name,
                 h("span", { class: x.name === "id" ? "k-mono" : "k-num" }, wideValue(e[x.name], x.name)));
             if (isWeight) r.classList.add("ie-keep");
             return r;

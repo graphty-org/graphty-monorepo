@@ -6,7 +6,7 @@
    (the "edited" state), and Overrides' line clears with "-" on hover.
    Label positions stack like every property: each position is its own token on the line of the
    row that writes it ("Label above from Group 2", "Label below from Notes"). Labels keyed by position wait on graphty-element.
-   Data tab: Summary (attributes, then results with rank; Degree selects the neighbors),
+   Data tab: Summary (the file's attributes, then Results: rank, scope when run on a subset, bridges; Degree selects the neighbors),
    Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
    most notes will not; the count is the one link to them, so no name appears here. Plain ASCII.
    See ../README.md. */
@@ -15,6 +15,18 @@
 
     const EDIT_COLOR = "#E41A1C"; // the analyst's own pick in the edited state; the tree's Overrides swatch
     const PR_COLOR = "#662506"; // Valjean's PageRank, 0.0754, the top of the ramp
+
+    // ponytail: the shared whyThisLook() draws its closed summary on its own wrapping line under the
+    // head; closed must take one line, so the summary moves into the head and ends in an ellipsis
+    // (the full list stays in its tooltip). Belongs in lib.js / app.css for edges and several too.
+    function whyLook(lines, opts) {
+        const s = AB.whyThisLook(lines, opts), sum = s.querySelector(":scope > .ab-sec-sum"), grow = s.querySelector(":scope > .k-section-head > .k-grow");
+        if (sum && grow) {
+            sum.style.cssText = "display:block;flex:1 1 0;min-width:0;margin:0 0 0 8px;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400";
+            grow.replaceWith(sum);
+        }
+        return s;
+    }
 
     function styleTab(state) {
         const edited = state === "edited";
@@ -39,27 +51,47 @@
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"],
                 wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
         ].filter(Boolean);
-        return AB.whyThisLook(lines, { kind: "node", element: "Valjean",
+        return whyLook(lines, { kind: "node", element: "Valjean",
             notes: ["Labels keyed by position (one token per position) need graphty-element's per-position label channels and explain() reporting them."] });
     }
 
+    // The Summary's two parts: what the file holds, then what runs computed (never mixed)
+    const subhead = (text) => h("div", { role: "heading", "aria-level": "4", class: "k-secondary", style: "height:28px;display:flex;align-items:center;padding:0 16px;font-weight:550" }, text);
+    // A result's value, then its rank ("#1 of 77", or a range "#1-#2" from a sampled run), then the
+    // scope it was computed on when that is not the whole graph ("on 60 of 77")
+    function ranked(value, rank, o = {}) {
+        const r = h("span", { class: "k-secondary", tabindex: o.sampled ? "0" : null }, "  " + rank);
+        if (o.sampled) AB.tip(r, "Sampled run: the rank is a range", { label: false });
+        // In a narrow inspector the scope wraps as a whole under the value, never mid-phrase
+        return h("span", { style: "white-space:normal" }, h("span", { style: "white-space:nowrap" }, value, r), o.scope ? [" ", h("span", { class: "k-secondary", style: "white-space:nowrap" }, o.scope)] : null);
+    }
+    // Valjean is the only neighbor of these five, so each edge to them is a bridge (Les Miserables)
+    const BRIDGES_TO = ["Labarre", "Mme.deR", "Isabeau", "Gervais", "Scaufflaire"];
     function dataTab() {
         const L = AB.fx.datasets.lesmis;
         const v = L.rows.find((r) => r.label === "Valjean");
-        const rank = (value) => h("span", null, value, h("span", { class: "k-secondary" }, "  rank 1 of " + L.nodes));
+        const of = "#1 of " + AB.num(L.nodes);
+        // Betweenness here ran sampled on the 60 nodes the first filter step keeps
+        const kept = L.filterSteps.after.step1;
+        const bw = L.filterSteps.betweennessOnStep1, bwAt = bw.findIndex((x) => x.label === "Valjean") + 1;
         const toMeasure = { go: ["inspector-measure-row", "data"] };
-        const degree = AB.data("Degree", rank(String(v.degree)), { go: ["selection-bar", "neighborhood"] });
+        const degree = AB.data("Degree", ranked(String(v.degree), of), { go: ["selection-bar", "neighborhood"] });
         AB.tip(degree, "Select Valjean's " + L.valjeanNeighbors + " neighbors", { label: false });
+        const bridges = "On " + BRIDGES_TO.length + " bridge edges";
         return AB.dataTab({
             Summary: {
-                summary: "group " + v.group + ", PageRank 0.0754, degree " + v.degree,
+                summary: "group " + v.group + "; PageRank #1, Betweenness #" + bwAt + "-#" + (bwAt + 1) + ", Degree #1; " + bridges.toLowerCase(),
                 body: [
+                    subhead("From " + L.file),
                     AB.data("id", h("span", { class: "k-mono" }, v.id)),
                     AB.data("label", v.label),
                     AB.data("group", String(v.group), { go: ["inspector-group-set-path-row", "group-2"] }),
-                    AB.data("PageRank", rank("0.0754"), toMeasure),
-                    AB.data("Betweenness", rank(String(v.betweenness)), toMeasure),
+                    subhead("Results"),
+                    AB.data("PageRank", ranked("0.0754", of), toMeasure),
+                    AB.data("Betweenness", ranked(AB.num(bw[bwAt - 1].betweenness), "#" + bwAt + "-#" + (bwAt + 1), { sampled: true, scope: "on " + AB.num(kept) + " of " + AB.num(L.nodes) }), toMeasure),
                     degree,
+                    AB.data("Bridges", bridges),
+                    h("div", { class: "k-secondary", style: "padding:0 8px 4px 16px" }, "to " + BRIDGES_TO.join(", ")),
                 ],
             },
             Memberships: {
@@ -84,7 +116,7 @@
         const W = AB.walked && AB.walked.dataset === "doorEntries" && AB.route && AB.route.frame.right === AB.walked.right ? AB.walked.name : null;
         const r = (W && tbl.sample.find((x) => (d.type === "person" ? x.name : x.bldg) === W)) || tbl.sample.find((x) => x[d.key] === d.id);
         const title = d.type === "person" ? r.name : r.bldg;
-        const style = () => AB.whyThisLook([
+        const style = () => whyLook([
             { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
         ], { kind: "node", element: title });
@@ -164,7 +196,7 @@
     }
     function wideStyle(r) {
         const sized = AB.route && AB.route.frame.left === "graph-place/wide-sized";
-        const why = AB.whyThisLook([
+        const why = whyLook([
             sized && { name: VULN, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "long-name"], wins: ["size"], values: { size: "Size by " + VULN + ": " + r[VULN] } },
             // the one Selection look every project uses (Les Miserables' why-this-look)
             { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: sized ? ["color"] : ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
@@ -257,7 +289,7 @@
             onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
             tab: "Data",
             tabs: {
-                Style: () => AB.whyThisLook([
+                Style: () => whyLook([
                     { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
                     { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
                 ], { kind: "node", element: name }),
@@ -277,7 +309,7 @@
             onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
             tab: "Data",
             tabs: {
-                Style: () => AB.whyThisLook([
+                Style: () => whyLook([
                     { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
                     { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
                 ], { kind: "node", element: AB.nameOf("plainJson", r) }),
@@ -291,21 +323,24 @@
         AB.mem.set("sec.data.node.summary", "1");
         const rows = AB.fx.datasets.transactions.rows, i = walkedOn("transactions");
         const r = rows[i != null ? i : 0];
-        const shown = ["kind", "country", "riskScore", "flagged", "degree", "pagerank"];
+        // The accounts file's own columns, then the run results; an empty alert column says so
+        const fromFile = ["kind", "country", "riskScore", "flagged", "alertRule", "alertTime"], results = ["degree", "pagerank"];
+        const val = (c) => (isEmpty(r[c]) ? h("span", { class: "k-secondary" }, "empty") : fmt(r[c]));
         el.append(AB.inspector({
             icon: "circle-dot", title: r.id, kind: "Node, account", kindKey: "node",
             menu: ["context-menus", "node"],
             onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
             tab: "Data",
             tabs: {
-                Style: () => AB.whyThisLook([
+                Style: () => whyLook([
                     { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
                     { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
                 ], { kind: "node", element: r.id }),
                 Data: () => AB.dataTab({
                     Summary: {
                         summary: r.kind + ", " + r.country + ", degree " + r.degree,
-                        body: [AB.data("id", h("span", { class: "k-mono" }, r.id))].concat(shown.map((c) => AB.data(c, fmt(r[c])))),
+                        body: [subhead("From " + AB.fx.datasets.transactions.accountsFile), AB.data("id", h("span", { class: "k-mono" }, r.id))]
+                            .concat(fromFile.map((c) => AB.data(c, val(c))), subhead("Results"), results.map((c) => AB.data(c, val(c)))),
                     },
                     Notes: { count: 0, target: ["notes-place", "many"] },
                 }, { kind: "node" }),
@@ -318,7 +353,7 @@
     // reports it on the line of the row it concerns: the problem block sits under that line.
     const BAD = { row: "Appearances", path: "appearances.total" };
     function unknownPathStyle() {
-        const why = AB.whyThisLook([
+        const why = whyLook([
             { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"], wins: ["label below"], values: { "label below": "2, from Note count" } },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"], wins: ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
             { name: BAD.row, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], wins: ["size"], values: { size: "Nothing: " + BAD.path + " reads nothing" } },

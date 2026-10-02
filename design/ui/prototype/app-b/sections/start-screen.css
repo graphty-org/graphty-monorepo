@@ -58,3 +58,11 @@
     .ss-cols > .ss-col:last-child > .ss-h { grid-column: 1 / -1; }
     .ss-card { flex-direction: column; align-items: stretch; }
 }
+/* First use: the stand-in for the system file picker, over the start screen */
+.ss-pick-wrap { position: absolute; z-index: 5; }
+.ss-folder { display: flex; gap: 6px; align-items: center; margin: 0 16px 8px; font-size: 11px; line-height: 16px; }
+.ss-file { gap: 8px; padding: 0 16px !important; cursor: pointer; }
+.ss-file:hover { background: var(--cm-bg-hover); }
+.ss-file:focus-visible { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
+.ss-file-off { opacity: 0.45; cursor: default; }
+.ss-file-off:hover { background: none; }

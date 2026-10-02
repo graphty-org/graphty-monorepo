@@ -1,7 +1,10 @@
 /* Main menu: the header button left of the project name. One dark menu, one level, three groups:
    New project, Open..., Open recent > | Select where..., Select edges between, Show hidden elements
    | Settings..., Keyboard shortcuts, Help >. Only Open recent and Help cascade. The main menu is the
-   app; the project-name menu is this project (Apply recipe or style file lives there now).
+   app; the project-name menu is this project (Apply recipe or style file... lives there too).
+   Open... takes any file: a data file lands on the Data page, a recipe or style file opens the
+   Apply file dialog (never a new project). The open-file state stands in for the system file
+   picker with one file of each kind, so a click-through reaches both destinations.
    Undo and Redo have the header buttons; Select all, Invert and Reselect previous live in the
    canvas menu; Copy ids lives in the several-elements menu; Select by ids is a tab of Select where.
    Only the overlay region is drawn; the frame underneath is the app at rest. Plain ASCII. */
@@ -20,7 +23,7 @@
         const hidden = AB.COMMANDS["show-hidden"];
         return [
             { label: "New project", go: ["graph-place", "empty"] },
-            { label: "Open...", shortcut: "Ctrl+O", go: ["data-page", "edge-list"] }, // the picked file lands on the Data page
+            { label: "Open...", shortcut: "Ctrl+O", go: ["main-menu", "open-file"] }, // the file decides: data -> Data page, recipe or style -> Apply file
             { label: "Open recent", sub: true, go: ["main-menu", "open-recent"] },
             { sep: true },
             { label: "Select where...", go: ["select-where", "where"] },
@@ -38,6 +41,16 @@
     }
 
     const SUBS = {
+        // Stand-in for the system file picker: the file's kind decides where it goes
+        "open-file": {
+            label: "Choose a file",
+            items: () => [
+                { heading: "Choose a file" },
+                { label: "transfers-2026-04.csv", desc: "Data file: opens on the Data page", go: ["data-page", "edge-list"] },
+                { label: "mule-ring-triage.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "binding"] },
+                { label: "risk-review-look.json", desc: "Style file: opens the Apply file dialog over this project", go: ["recipe-apply", "style-unbound"] },
+            ],
+        },
         "open-recent": {
             label: "Open recent",
             items: () => RECENTS.map((r) => ({ label: r.name, desc: r.when, onClick: flash("Open " + r.name) })),
@@ -72,7 +85,7 @@
         el.append(m2);
     }
 
-    const STATES = ["open", "open-recent", "help", "two-selected", "after-hide"];
+    const STATES = ["open", "open-file", "open-recent", "help", "two-selected", "after-hide"];
 
     registerSection({
         id: "main-menu",
@@ -87,6 +100,7 @@
         closeTo: "graph-place",
         states: [
             { id: "open", label: "Open" },
+            { id: "open-file", label: "Open...: a data, recipe or style file" },
             { id: "open-recent", label: "Open recent" },
             { id: "help", label: "Help" },
             { id: "two-selected", label: "Two nodes selected (Select edges between on)" },

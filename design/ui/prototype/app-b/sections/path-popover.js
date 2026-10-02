@@ -1,10 +1,13 @@
 /* Path popover: the one interface for a path (spec 2.3). One light popover above the toolbar,
-   "Path between", with From, To, Direction (directed graphs only), Weight and its meaning. No Scope:
-   a path runs on what the graph draws (a filter decides that), and its two ends are the selection.
-   Opened by the selection bar's Path between, P and Analyze > Find paths. One footer button, Find
+   "Path between", with From, To, Direction (directed graphs only), Weight and its meaning, and Scope.
+   Scope is a third pick field: the whole graph as drawn (what the filters leave), or a set or group
+   picked on the canvas or typed, so the path stays inside it. Opened by the selection bar's Path between, P and Analyze > Find paths. One footer button, Find
    path, because it creates a row; Esc, X or a click outside close it. Most flow and Weakest cut are
    Analyze entries, not here. A pick field, while active, turns the canvas into a pick target (a
    crosshair and one hint line) and also takes a typed name, so the keyboard can pick too.
+   A found path states its length and its total in the weight column's own name ("3 edges, total
+   amount 22,929.05") in a bar above the toolbar; when routes tie on cost, the bar adds a
+   "Route 1 of 2" stepper (previous and next, arrow keys while it has focus).
    Plain ASCII. */
 (function () {
     "use strict";
@@ -17,6 +20,10 @@
         ".pp-col { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; width: 100%; }",
         ".pp-col .k-seg > * { white-space: nowrap; }",
         ".pp-loaded { color: var(--cm-text-tertiary); font-size: 11px; line-height: 16px; }",
+        ".pp-result { height: auto; min-height: 32px; padding: 4px 8px 4px 12px; gap: 8px; font-size: 13px; color: var(--cm-text); }",
+        ".pp-result .pp-step { display: inline-flex; align-items: center; gap: 2px; border-radius: 6px; }",
+        ".pp-result .pp-step:focus-visible { outline: 2px solid var(--cm-border-brand, var(--cm-primary)); outline-offset: 2px; }",
+        ".pp-result .pp-of { min-width: 76px; text-align: center; color: var(--cm-text-secondary, var(--cm-text)); }",
         ".pp-catch { position: absolute; cursor: crosshair; }",
         ".pp-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px;",
         "  padding: 4px 10px; border-radius: 6px; background: var(--cm-bg-elevated, var(--cm-bg)); color: var(--cm-text);",
@@ -24,6 +31,11 @@
     ].join("\n");
 
     // The fixture ends and settings for each graph. Les Miserables is undirected, so Direction hides.
+    // The set Scope can pick on the canvas: one the project's tree holds (none on a project with no sets yet)
+    function scopeSet(ds) {
+        if (ds === "transactions") return AB.fx.datasets.transactions.setsAndPaths.intersection.name;
+        return !ds || ds === "lesmis" ? "Watchlist" : null;
+    }
     function setup(state) {
         const L = AB.fx.datasets.lesmis, T = AB.fx.datasets.transactions, ds = AB.route && AB.route.frame.dataset;
         if (ds === "doorEntries") {
@@ -76,20 +88,75 @@
         };
     }
 
+    // The path the last Find path added on this project, or the fixture's own
+    function foundPath(ds) {
+        const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === (ds || "lesmis") ? AB.lastPath : null;
+        if (lp) return lp;
+        const P = AB.fx.datasets.transactions.setsAndPaths.path;
+        return ds === "transactions" ? { ds, from: P.from.id, to: P.to.id, weight: "amount", meaning: "farther", loaded: "amount" } : { ds: "lesmis", from: "Valjean", to: "Javert", weight: "value", loaded: "value" };
+    }
+    // A total in the column's own precision (amount has cents, value is whole): no currency case.
+    // A stand-in for the total graphty-element's path result would report.
+    function total(vals) {
+        const d = Math.max(0, ...vals.map((v) => (String(v).split(".")[1] || "").length));
+        return vals.reduce((a, b) => a + b, 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+    }
+    // The tied routes of a found path, each with its edge count and total. Only the two projects with
+    // path fixtures have them (ponytail: the door entries and loaded projects show no bar until they get one).
+    function routesOf(ds, p) {
+        const col = p.weight || p.loaded; // the run's weight, else the loaded one, so a tie on edges still names its totals
+        if (ds === "transactions") {
+            const P = AB.fx.datasets.transactions.setsAndPaths.path;
+            // The fixture's routes are equally short in edges, so unweighted they tie (the path inspector's route first);
+            // weighted they do not: amount as a distance finds one, 1/amount (Stronger) the other
+            const key = (r) => r.accounts.join(), shown = (p.weight && p.meaning === "stronger" ? P.asSimilarityOneOverW : P.asDistance).route.join();
+            const routes = P.routes.filter((r) => key(r) === shown).concat(p.weight ? [] : P.routes.filter((r) => key(r) !== shown));
+            return routes.map((r) => ({ edges: r.transfers.length, col, sum: col === "amount" ? total(r.transfers.map((t) => t.amount)) : null }));
+        }
+        if (!ds || ds === "lesmis") return [{ edges: 1, col, sum: col === "value" ? total([17]) : null }]; // Valjean -- Javert, value 17 (the edge inspector's row)
+        return [];
+    }
+    // The result bar above the toolbar: "3 edges, total amount 22,929.05", and the stepper only on a tie
+    function resultBar(ds) {
+        const routes = routesOf(ds, foundPath(ds)), dock = document.getElementById("ab-toolbar");
+        if (!routes.length || !dock) return;
+        let i = 0;
+        const line = h("span", { "aria-live": "polite" });
+        const of = h("span", { class: "pp-of" });
+        const show = () => {
+            const r = routes[i];
+            line.textContent = AB.count(r.edges, "edge") + (r.sum ? ", total " + r.col + " " + r.sum : "");
+            of.textContent = "Route " + (i + 1) + " of " + routes.length;
+        };
+        const step = (d) => { i = (i + d + routes.length) % routes.length; show(); };
+        const stepper = routes.length > 1 ? h("span", { class: "pp-step", role: "group", tabindex: "0", "aria-label": "Routes that tie on cost: arrow keys step" },
+            AB.iconButton("chevron-left", "Previous route", { onClick: () => step(-1) }), of, AB.iconButton("chevron-right", "Next route", { onClick: () => step(1) })) : null;
+        if (stepper) stepper.addEventListener("keydown", (e) => {
+            const d = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+            if (!d) return;
+            e.preventDefault(); e.stopPropagation(); step(d);
+        });
+        show();
+        dock.prepend(h("div", { class: "k-toolbar pp-result", role: "group", "aria-label": "Path found" }, icon("route", "sm"), line, stepper ? h("span", { class: "k-toolbar-sep" }) : null, stepper));
+    }
+
     function render(el, state) {
         if (!document.getElementById("pp-css")) document.head.append(h("style", { id: "pp-css" }, CSS));
-        if (state === "found") {
+        if (state === "found" || state === "found-tied") {
             // The selected path row and its inspector confirm the result; the notice offers only Undo,
             // which goes back to the project's tree as it was before the path
             const ds = AB.route && AB.route.frame.dataset;
+            if (state === "found-tied") AB.lastPath = Object.assign(foundPath("transactions"), { weight: null });
             const undo = ds && ds !== "lesmis" ? ["graph-place", AB.placeOf(ds, "graph") || "at-rest"] : ["path-popover", "from-selection"];
             el.append(AB.notice("Path added", { label: "Undo", go: undo }));
+            resultBar(ds);
             return;
         }
         const s = setup(state);
         // The Weight starts as the weight chosen when the data was loaded, with its meaning; any other
         // pick overrides this path run only and is recorded in its Made with, never in the data.
         s.weight = s.loaded.weight; s.meaning = s.loaded.meaning;
+        s.scope = null; s.set = scopeSet(AB.route && AB.route.frame.dataset);
         if (state === "weight-overridden") { s.weight = null; }
         let active = state === "picking-to" ? "to" : state === "from-analyze" || !s.from ? "from" : !s.to ? "to" : null;
         const host = h("div");
@@ -100,35 +167,37 @@
 
         function pickField(which) {
             const val = s[which], on = active === which;
-            const label = which === "from" ? "From" : "To";
+            const label = { from: "From", to: "To", scope: "Scope" }[which];
             // Armed, the field is the text box itself (a click anywhere on it types there); otherwise a button that arms it
             const f = on ? h("span", { class: "k-field pp-pick pp-full", "data-armed": "" })
-                : h("span", { class: "k-field pp-pick pp-full", role: "button", tabindex: "0", "aria-pressed": "false", "aria-label": label + ": " + (val || "not chosen") });
-            f.append(icon(s[which + "Icon"], "sm"));
+                : h("span", { class: "k-field pp-pick pp-full", role: "button", tabindex: "0", "aria-pressed": "false", "aria-label": label + ": " + (val || (which === "scope" ? "Whole graph" : "not chosen")) });
+            f.append(icon(which === "scope" ? (val ? AB.ICON.set : "network") : s[which + "Icon"], "sm"));
             if (on) {
-                const inp = h("input", { type: "text", placeholder: "Type a name", "aria-label": label, "data-autofocus": "", value: val || "" });
+                const inp = h("input", { type: "text", placeholder: which === "scope" ? "Type a set name" : "Type a name", "aria-label": label, "data-autofocus": "", value: val || "" });
                 inp.addEventListener("keydown", (e) => {
                     if (e.key !== "Enter") return;
                     e.preventDefault();
                     const q = inp.value.trim().toLowerCase();
-                    const hit = q && s.names.find((n) => n.toLowerCase().startsWith(q));
+                    const hit = q && (which === "scope" ? [s.set].filter(Boolean) : s.names).find((n) => n.toLowerCase().startsWith(q));
                     if (!hit) return AB.flash('No match for "' + inp.value.trim() + '"');
                     choose(which, hit);
                 });
                 f.append(inp);
             } else {
-                f.append(h("span", { class: "k-grow k-ellipsis" + (val ? "" : " pp-empty") }, val || "Click to pick"));
+                f.append(h("span", { class: "k-grow k-ellipsis" + (val || which === "scope" ? "" : " pp-empty") }, val || (which === "scope" ? "Whole graph" : "Click to pick")));
             }
-            AB.tip(f, on ? "Click a node on the canvas, or type a name" : "Pick " + label + " on the canvas", { label: false });
+            AB.tip(f, which === "scope" ? (on ? "Click a set or group on the canvas, or type its name" : "Keep the path inside a set or group: pick it on the canvas")
+                : on ? "Click a node on the canvas, or type a name" : "Pick " + label + " on the canvas", { label: false });
             const arm = (e) => { if (e.target.tagName === "INPUT") return; if (on) { f.querySelector("input").focus(); return; } active = which; draw(); };
             f.addEventListener("click", arm);
             f.addEventListener("keydown", (e) => { if (e.target === f && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); arm(e); } });
             return f;
         }
         function choose(which, name) {
+            if (which === "scope" && !name) { active = null; AB.flash("This project has no sets or groups yet"); return draw(); }
             s[which] = name;
             active = which === "from" && !s.to ? "to" : null;
-            AB.announce(which === "from" ? "From: " + name : "To: " + name);
+            AB.announce({ from: "From: ", to: "To: ", scope: "Scope: " }[which] + name);
             draw();
         }
         const loadedLine = () => (s.loaded.weight ? s.loaded.weight + ", " + s.loaded.meaning : "none (each edge counts 1)"); // the graph inspector's words: "value, stronger"
@@ -181,13 +250,19 @@
                     // The same words as Analyze: a path reads a weight as distance, so a Stronger weight is inverted
                     s.weight && s.meaning === "stronger" ? h("span", { class: "pp-loaded" }, "Shortest path reads a weight as distance: it uses 1/" + s.weight + ".") : null,
                     s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
+                AB.fieldRow("Scope", h("span", { class: "pp-col" },
+                    pickField("scope"),
+                    // what the path may pass through: the count, filter-aware ("64 of 77 nodes"), or the way back
+                    s.scope ? AB.link("path-popover", state, "Back to the whole graph", { on: { click: (e) => { e.preventDefault(); s.scope = null; active = null; draw(); } } })
+                        : h("span", { class: "pp-loaded" }, state === "no-path" ? AB.count(s.count, "node", { of: AB.fx.datasets.lesmis.nodes }) + " after filters" : AB.count(s.count, s.unit === "accounts" ? "account" : "node")),
+                    s.scope ? AB.needsElement("graphty-element's shortest path runs on the whole graph; keeping it inside a set needs a scope option") : null), { popover: true }),
             ];
             const np = noPath();
             if (np) body.push(np);
             const foot = AB.button("Find path", {
                 icon: "route", disabled: np ? "No path between these two in what the graph draws" : ready ? null : "Choose From and To first",
                 // The ends and the weight go with the new row, so the tree and the inspector name this path
-                onClick: () => { AB.lastPath = { ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, loaded: s.loaded.weight }; AB.go("path-popover", "found"); },
+                onClick: () => { AB.lastPath = { ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, meaning: s.meaning, loaded: s.loaded.weight, scope: s.scope }; AB.go("path-popover", "found"); },
             });
             const pop = AB.popover({ anchor: anchor(), title: "Path between", body, foot, width: 360 });
             pop.querySelector(".k-popover-body").append(AB.openQuestion("Can From or To be a set, so the path starts at the nearest member? graphty-element takes one source node"));
@@ -197,10 +272,10 @@
                 const cv = document.getElementById("ab-canvas"), ov = document.getElementById("ab-overlay");
                 if (cv && ov) {
                     const C = cv.getBoundingClientRect(), O = ov.getBoundingClientRect();
-                    const name = active === "from" ? s.pickFrom : s.pickTo;
+                    const name = active === "from" ? s.pickFrom : active === "to" ? s.pickTo : s.set;
                     const which = active;
                     const catcher = h("div", { class: "pp-catch", style: `left:${C.left - O.left}px;top:${C.top - O.top}px;width:${C.width}px;height:${C.height}px`, "aria-hidden": "true" },
-                        h("div", { class: "pp-hint" }, icon("crosshair", "sm"), "Click a node or set for " + (active === "from" ? "From" : "To")));
+                        h("div", { class: "pp-hint" }, icon("crosshair", "sm"), active === "scope" ? "Click a set or group for Scope" : "Click a node or set for " + (active === "from" ? "From" : "To")));
                     catcher.addEventListener("click", (e) => { e.stopPropagation(); choose(which, name); });
                     layer.unshift(catcher);
                 }
@@ -225,6 +300,7 @@
             { id: "weight-overridden", label: "Weight overridden to None for this path" },
             { id: "from-analyze", label: "From Analyze > Find paths, nothing selected" },
             { id: "found", label: "Path found: the new row selected" },
+            { id: "found-tied", label: "Path found: two routes tie, Route 1 of 2" },
             { id: "no-path", label: "No path: a filter step splits the graph" },
         ],
         closeTo: "graph-place/at-rest",
@@ -232,9 +308,9 @@
             if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
             if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes + " of " + AB.fx.datasets.lesmis.nodes + " nodes", filterOn: ["group"] };
-            if (state === "found") {
+            if (state === "found" || state === "found-tied") {
                 // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
-                const ds = AB.route && AB.route.frame.dataset;
+                const ds = state === "found-tied" ? "transactions" : AB.route && AB.route.frame.dataset;
                 if (ds === "doorEntries") return { own: true, dataset: ds, left: "graph-place/door-entries-path", right: "inspector-group-set-path-row/path-door-entries", dock: false };
                 if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
                 // a loaded project has no path fixture: its own tree, beside the graph's inspector

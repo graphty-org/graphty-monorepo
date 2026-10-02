@@ -1,6 +1,8 @@
 /* Inspector: several elements (spec 5.2 "Several elements", 5.4 "Why this look").
-   Style: Why this look on the shared grid with the fixed coverage column ("5 of 5") and the
-   needs-graphty-element mark (explain() takes one element). Data: Summary with the same rows in the
+   Style: Why this look on the shared grid with the fixed coverage column and the
+   needs-graphty-element mark (explain() takes one element). Coverage is partial where the rows are:
+   the Notes row's label wins on the noted picks (Valjean and Javert, "2 of 5"), Group 2's label on
+   Valjean alone ("1 of 5"); the rest win on all five. The lines are the node inspector's, same order. Data: Summary with the same rows in the
    same order as a node's (id, label, group, PageRank, Betweenness, Degree), led by the Size row whose
    tooltip is the one names list; Memberships ("3 of 5"); Notes. No verbs in the body: commands are
    in "..." (context-menus/several) and on the selection bar.
@@ -33,6 +35,8 @@
     const COMMUNITY_1 = ["Valjean", "Javert", "Cosette"];
     const WATCHLIST = ["Valjean", "Javert", "Thenardier", "Mme.Thenardier", "Eponine"];
     const PATH = ["Valjean", "Javert"];
+    const NOTED = ["Valjean", "Javert"]; // the lesmis nodes with notes (inspector-selection-and-everything)
+    const GROUP_2 = ["Valjean"];
 
     function pick(L, two) {
         const p = two ? PICKS.two : PICKS.several;
@@ -52,8 +56,10 @@
     function styleTab(S) {
         const all = of(S, S.n);
         const lines = [
+            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), wins: ["label below"], coverage: of(S, count(S, NOTED)), go: ["inspector-selection-and-everything", "notes-row"], values: { "label below": "Note count, on " + S.names.filter((n) => NOTED.includes(n)).join(" and ") } },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), wins: ["color"], coverage: all, go: ["inspector-measure-row", "style"], values: { color: "PageRank ramp, " + range(S.names.map((n) => PR[n])) } },
             { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), hiddenRow: true, wins: ["size"], coverage: all, go: ["inspector-measure-row", "style"], values: { size: "degree " + range(S.nodes.map((x) => x.degree)) } },
+            { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), wins: ["label above"], coverage: of(S, count(S, GROUP_2)), go: ["inspector-group-set-path-row", "label-two"], values: { "label above": "label, on " + S.names.filter((n) => GROUP_2.includes(n)).join(" and ") } },
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
         ];

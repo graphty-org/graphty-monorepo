@@ -30,7 +30,9 @@
         if (ds !== "lesmis" && fx.datasets[ds]) return ownGraph(fx, ds);
         const L = fx.datasets.lesmis;
         const groups = L.frame.legend.rows.length + L.frame.legend.other.title.split(/,| and /).length;
-        const base = { name: L.frame.graphRow, nodes: L.nodes, how: L.nodes + " nodes, " + L.edges + " edges, from " + L.file, current: true };
+        // the file the reader loaded, as the inspector, Data place and Data page name it (the fixture's
+        // own `file` is the corpus the numbers were computed on)
+        const base = { name: L.frame.graphRow, nodes: L.nodes, how: L.nodes + " nodes, " + L.edges + " edges, from miserables.gexf", current: true };
         return two ? [base, { name: L.frame.graphRow + " by group", nodes: groups, how: "Made from " + L.frame.graphRow + " by Quotient by groups" }] : [base];
     }
     // The transfers project with one graph per month (graphs-switcher/many): March 2026 is the
@@ -70,7 +72,7 @@
 
     function graphItem(g, redraw) {
         const name = h("span", { class: "gs-name k-ellipsis" }, g.name);
-        const item = h("div", Object.assign({ class: "k-menu-item gs-graph", role: "menuitemradio", "aria-checked": String(!!g.current), "aria-keyshortcuts": "F2" },
+        const item = h("div", Object.assign({ class: "k-menu-item gs-graph", role: "menuitemcheckbox", "aria-checked": String(!!g.current), "aria-keyshortcuts": "F2" },
             AB.act({ onClick: (e) => {
                 // a click switches; wait out a double-click's first click so a rename does not also switch
                 clearTimeout(timer);

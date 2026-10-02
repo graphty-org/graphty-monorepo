@@ -126,7 +126,8 @@ whose frame names a dataset and no left panel keeps the left panel and canvas it
 for another project open in place (the tree's List options, the wide table's Table options), and
 an unbound line's bind icon opens `style-pickers/bind-prop`: Binding for that property with no
 source yet, over the panels it was clicked in. `AB.projectCounts(dataset)` gives a loaded
-project's node and edge counts to Everything and the graph inspector alike.
+project's node and edge counts to Everything, the graph inspector and the table alike (see "A
+project's counts" in the helper table).
 
 **The project on screen stays on screen.** From a frame whose `dataset` is not `"lesmis"` (the
 door entries, the transfers), the shell carries that project into the next screen when the next
@@ -180,9 +181,11 @@ uses the helper; a section-local copy of any of them is a defect.
 | What went wrong | `problem({ what, todo, action, level })` | **The problem block**: a red "x" (error) or yellow "!" (`level: "partial"`), the line saying what happened, a second line saying what to do, and at most one action (`{ label, go or onClick }`) under them. The Data page's refusals and partial loads, the Binding popover's and Why this look's unknown path |
 | A name that does not fit | `truncMiddle(text, max, ranges)` | The middle ellipsis for attribute names and paths (`cpu_util...p95_pct`): keeps the start and the end within `max` characters, bolds `ranges`, and puts the full text in the tooltip and the accessible name. Field lists, column headers, legends, Why this look. Prose (node, note, source and row names) uses the end ellipsis, `k-ellipsis` |
 | Find by word starts | `wordMatch(name, query)` | The one matcher: names split at `_ . - [ ]`, spaces and case changes, and so does what is typed; each typed word starts a word of the name, in order ("vu cr", "cpu p95", "kernel_version", "profile.field"). Returns the matched `[start, end)` ranges for bold, or `null`. Any find over names uses it (the field list, Go to column) |
+| A count or a measure | `count(n, noun, { of, plural, version })`, `num(v, digits = 3)` | **The one number formatter.** `count(L.nodes, "node")` is "77 nodes", `count(60, "node", { of: L.nodes })` "60 of 77 nodes", `version` adds the data version in parentheses when it is not what the screen shows ("before the filter"). `num` writes a whole number with thousands separators and anything else to three significant digits ("0.0868", "0.00101", "0.570", "6.60"). Read the number from `AB.fx` (or `AB.projectCounts`), never type it: `node app-b/study.mjs --counts` fails on a count typed by hand in a section file |
 | A command | `cmd(id, extra?)`, `COMMANDS` | A menu item from the one command table (below) |
 | Several choices | `seg([[value, label, extra]], value, onChange, { label })` | A segmented control for 2 to 4 short options: one Tab stop, arrows move and select |
 | The canvas toolbar | `toolbarButton(icon, name, { key, popup, pressed, open, disabled, go, onClick, tool })`, `toolbarBar(items, label)`, `mainToolbar()` | 32 px icon buttons, no text. `popup: "dialog"` or `"menu"` sets `aria-haspopup` and `aria-expanded`; `pressed` sets `aria-pressed`. **Blue fill means pressed** (a toggle that is on); **gray fill means open** (its flyout or popover shows; by default when the overlay on screen is the button's `go` target). The bar is one Tab stop; arrows move; Alt+Down, Enter or Space opens a flyout. While a state card shows, a canvas section sets `AB.toolbarDisabled = "Nothing is drawn"` and every button but Quick actions is disabled with that reason. `mainToolbar()` is the standard bar: Analyze, then Layout, View and Legend, then Quick actions |
+| A project's counts | `projectCounts(ds)`, `countSource(ds, fn)`, `removeFromData(ds, { nodes, edges })` | **The one reader of a project's node and edge counts**, `{ nodes, edges }` as the data is now: the fixture's counts (or what `countSource` registered for a project a section builds, such as the nested one) minus every Remove from data in this page view. `removeFromData` records what a removal took and returns the Undo that gives it back, so after the table removes Valjean (1 node, 36 edges) the table, Everything and the graph inspector all say 76 nodes. Read counts here, never from `AB.fx` directly where an edit could change them. A section never assigns `AB.projectCounts`: `--counts` fails on it |
 | Legend state | `legendOn()`, `setLegend(bool)`, `legendButton()`, `legendCard(parts)` | On by default, remembered per project. The toolbar's Legend button and L are its only doors: nothing else opens or closes it, and the card has no X. `legendCard([{ title: "Color: group", rows: [{ swatch, label, count }], more: "28 more communities" }])` draws the card top left and returns `null` while the legend is off. The card is read-only (the canvas carries no controls; `go` is ignored); `legendCard([])` draws "Nothing is colored or sized by a row", so a pressed Legend button always shows a card |
 | Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is its state (pause while running, play otherwise); `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
 | One meaning per icon | `ICON` | `view` bookmark, `set` circle-check, `createSet`, `run` layers, `legend` list, `note` message-square, `addNote`, `filter` funnel (data filters only), `options` ellipsis, `swap` arrow-left-right, `mode3d` box, `mode2d` square, `hidden` eye-off, `shown` eye |
@@ -346,14 +349,31 @@ Their routes redirect:
 | `inspector-source/derived` | `data-place/derived` |
 
 **The header**, left to right: main menu, project name (click: its menu; double-click or F2:
-rename in place), Undo, Redo, the privacy chip (always Settings > Privacy), the filter chip.
+rename in place), Undo, Redo, the privacy chip, the filter chip. The privacy chip reads "Local only"
+while usage data is off and "Usage data on, content masked" after opt-in, and always opens Settings >
+Privacy. Its state is `AB.usageData`; whatever answers the question (Settings > Privacy's switch, the
+start screen's card) calls `AB.setUsageData(on)`, which redraws the header (`settings/privacy-on` and
+`start-screen/answered` imply it on, `settings/privacy` and `start-screen/declined` off). The filter
+chip always shows: "Full graph", or the frame's `chip` ("812 of 3,000 nodes") while a filter step
+removes something; it opens the project's filters (Data > Filters, or the project's Data place
+when nothing is filtered). A counted chip has one wording, `AB.count(left, "node", { of: total })`,
+with no "Filtered:" before it: the shell rewrites any counted chip a section gives to that wording,
+so `AB.route.frame.chip` always reads "60 of 77 nodes". A chip with no count ("Filtered: neighbors
+of Ana Ruiz", where the fixtures hold none) is shown as given.
+
+**Every region has a heading.** The shell gives the rail, canvas, toolbar, table dock and any left
+panel or inspector without one a visually hidden `h2` ("Places", "Graph drawing", "Canvas toolbar",
+"Table", "Left panel", "Inspector"), so a screen reader names the region that holds focus.
 
 **The rail**, top to bottom: Graph, Data, Views, Notes (message-square), Assistant. Rail places
 have no keys.
 
 **Keys the shell owns** (outside text fields): Ctrl+, Settings; Ctrl+K Quick actions; Shift+A
 Analyze; P the Path popover; L the legend; ? shortcuts; 5 the view mode; Shift+T the table; Esc
-closes one level; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
+closes one level, starting with the innermost (a handler that closes, cancels or clears something
+calls `preventDefault()`, and the shell then leaves that press alone), and with nothing open while a
+reviewer has hidden design notes it shows them again (never in the participant view study.mjs opens); Ctrl+Z and Ctrl+Shift+Z press the notice's own
+Undo or Redo first, then the header's; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
 key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G (create a
 set from what is selected) belongs to the selection bar. T is not a key: the time slider opens
 from the table's options. Never bind W, A, S, D, Q, E, the arrows, = or -: they are
@@ -514,7 +534,12 @@ warns otherwise.
   note color). A style comes from a row or from graphty-element's defaults.
 - Screen text is for a stranger: no internal ids, no process narration, no "studio decision"
   labels on the product surface.
-- The review bar (pink) is not the product. Do not put product controls in it.
+- The review bar (pink) is not the product. Do not put product controls in it. Its "Hide design
+  notes" switch comes first after the title, so a narrow window never pushes it off screen. While
+  notes are hidden by that switch, a small quiet "Review" button in the bottom left corner
+  (`#ab-leave-study`) and Esc with nothing open bring them back, so the view is never a trap on a
+  touch screen. The participant view that study.mjs opens (`ab.designNotes` set to `participant`)
+  is locked: no review bar, no Review button, and no click or key brings design notes back.
 - Check your section at 1440 x 900, 1366 x 768 and 1024 x 768, light and dark, with no
   horizontal page scroll and no console errors.
 
@@ -523,6 +548,17 @@ warns otherwise.
 - `node app-b/study.mjs --check <route> ...`: each route renders with no stub, no failure, no
   script error and no 404. A route may end in `@1024` (in `--check`, `--shoot`, `--try` and
   `--matrix`): it opens in a 1024 x 768 window instead of 1440 x 900.
+- `node app-b/study.mjs --counts`: fails on every fixture count (a dataset's node, edge or record
+  count) typed by hand in a section file, outside comments, before any counted noun (nodes, edges, accounts,
+  proteins, patents, researchers ...): "77 nodes", "124,318 patents", "of 254", `count: 77`; on a
+  part of a whole written another way than `AB.count(n, noun, { of })` ("Filtered: " before a
+  count, "3,000 to 812 nodes", "3,000 -> 812", two numbers around an arrow icon); and on a banned
+  scope string anywhere in the skeleton ("within 1%", "near #", "not used yet", "Change..."); and on
+  a section that assigns `AB.projectCounts` (it registers a project's counts with `AB.countSource`).
+- `node app-b/study.mjs --prove`: proves `--check` fails on an unknown section, an unknown state and
+  a stub (a section with no render, planted for the run), and passes a good route.
+- `node app-b/study.mjs --task <id> <route> ...`: a task's participant shots, `01.png` on. Every route
+  must draw the same project (`frame.dataset`); a mix exits 1 and writes no `routes.json`.
 - `node app-b/study.mjs --matrix`: checks `../study/structure-comparison/state-matrix.md`. It fails
   on a blank cell, an `N/A` with no reason, a `BUILD` left in a cell or in the prose's backticks, a
   section of `--list` that no table row names, a route that is unknown or fails `--check`, and a

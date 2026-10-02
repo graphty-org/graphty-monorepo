@@ -8,10 +8,20 @@
 //                                                     of its states, renders with no stub, no render failure, no
 //                                                     script error and no 404, and shows no review bar
 //   node app-b/study.mjs --prove                      proves --check fails on an unknown section, an unknown state
-//                                                     and a stub, and passes a good route
+//                                                     and a stub (a section with no render, planted for the run),
+//                                                     and passes a good route
+//   node app-b/study.mjs --counts                     exit 1 if a section file types a fixture count by hand (77 nodes,
+//                                                     "of 254", count: 3000) instead of reading AB.fx through AB.count;
+//                                                     if a section writes a part of a whole its own way ("Filtered: 60
+//                                                     of 77", "3,000 to 812 nodes", "3,000 -> 812", two numbers
+//                                                     around an arrow icon); or if any skeleton
+//                                                     file holds a banned scope string ("within 1%", "near #",
+//                                                     "not used yet", "Change..."); or if a section assigns
+//                                                     AB.projectCounts (register counts with AB.countSource)
 //   node app-b/study.mjs --shoot [--dark] <route> ... participant-view PNGs: shots/app-b/<section>--<state>[--dark].png
 //   node app-b/study.mjs --task <id> <route> ...      a task's routes in order: shots/tasks/<id>/01.png, 02.png, ...
-//                                                     and shots/tasks/<id>/routes.json (the routes, in order). The PNG
+//                                                     and shots/tasks/<id>/routes.json (the routes, in order). Exit 1,
+//                                                     and no routes.json, unless every route draws one project. The PNG
 //                                                     names carry no route, so a participant shown 01.png learns nothing
 //                                                     from its name; routes.json is for graders and the preflight
 //   node app-b/study.mjs --fresh <png or task id> ... exit 1 unless each PNG (each task's routes.json and every PNG
@@ -57,9 +67,9 @@ const proto = resolve(here, "..");
 const { chromium } = await import(resolve(proto, "../../../node_modules/playwright/index.mjs"));
 
 const args = process.argv.slice(2);
-const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix)$/.test(a));
+const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix|counts)$/.test(a));
 if (!mode) {
-    console.error("usage: node app-b/study.mjs --list | --matrix | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click name | --hover name | --key Key]...");
+    console.error("usage: node app-b/study.mjs --list | --matrix | --counts | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click name | --hover name | --key Key]...");
     process.exit(2);
 }
 const dark = args.includes("--dark");
@@ -99,6 +109,45 @@ if (mode === "--fresh") {
     process.exit(bad.length || !n ? 1 : 0);
 }
 
+if (mode === "--counts") {
+    // Every node and edge count of every fixture dataset (20 or more, so small numbers are not flagged)
+    const fx = JSON.parse(await readFile(join(here, "kit/fixtures.json"), "utf8"));
+    const more = JSON.parse(await readFile(join(here, "kit/wide-nested.json"), "utf8"));
+    const nums = new Set();
+    for (const d of [...Object.values(fx.datasets), ...Object.values(more)]) for (const k of ["nodes", "edges", "records"]) if (d[k] >= 20) nums.add(d[k]);
+    const alt = [...nums].flatMap((n) => [String(n), n.toLocaleString("en-US")]).filter((v, i, a) => a.indexOf(v) === i);
+    const N = `(?:${alt.join("|")})`;
+    const re = new RegExp(`(?<![\\w.,#-])${N}(?![\\w.,])\\s*(?:nodes?|edges?|links?|rows?|hosts|connections|accounts|records|proteins|patents|researchers|institutions)\\b|\\bof\\s+${N}(?![\\w.,])|\\b(?:count|total|nodes|edges)\\s*:\\s*["']?${N}(?![\\w.,])|["']${N}["']\\s*,\\s*["'](?:nodes|edges)["']`);
+    // "Filtered: " before a count; a reduction written "a to b nodes" or "a -> b" (with a count beside it)
+    const PART = /["'`]Filtered:\s*["'`]?\s*\+\s*(?:AB\.|A\.)?(?:count|fx|num)|["'`]Filtered:\s*[\d$]|\}\s*(?:to|->)\s*\$\{[^}]*\}\s*(?:nodes?|edges?|rows?)\b|\)\s*\+\s*["'`]\s*->\s*["'`]\s*\+\s*(?:AB\.)?(?:num|count|n|fmt)\(|(?:num|count|fmt|\bn)\([^()]*\)\)\s*,\s*icon\(["']arrow-right["']/;
+    const BANNED = /within 1%|near #|not used yet|Change\.\.\./;
+    const bad = [];
+    for (const f of (await readdir(join(here, "sections"))).filter((x) => x.endsWith(".js")).sort()) {
+        // comments may cite the fixtures' numbers: block comments keep their line breaks, line comments go
+        const src = (await readFile(join(here, "sections", f), "utf8")).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ""));
+        src.split("\n").forEach((line, i) => {
+            const code = line.replace(/(^|\s)\/\/.*$/, "");
+            const m = code.match(re);
+            if (m) bad.push(`sections/${f}:${i + 1}: "${m[0]}" is typed by hand; read it from AB.fx and write it with AB.count`);
+            // a part of a whole is "60 of 77 nodes", from AB.count(n, noun, { of }), on every surface
+            const w = code.match(PART);
+            if (w) bad.push(`sections/${f}:${i + 1}: "${w[0]}" writes a part of a whole its own way; use AB.count(n, noun, { of })`);
+            // a project's counts have one reader, the shell's, which adds every Remove from data
+            if (/\bAB\.projectCounts\s*=(?!=)/.test(code)) bad.push(`sections/${f}:${i + 1}: assigns AB.projectCounts; register the project's counts with AB.countSource(dataset, fn)`);
+        });
+    }
+    // the scope strings no surface may show, in the section files and the shell's
+    for (const f of ["app.js", "lib.js", ...(await readdir(join(here, "sections"))).filter((x) => x.endsWith(".js")).map((x) => "sections/" + x)].sort()) {
+        (await readFile(join(here, f), "utf8")).split("\n").forEach((line, i) => {
+            const b = line.replace(/(^|\s)\/\/.*$/, "").match(BANNED);
+            if (b) bad.push(`${f}:${i + 1}: "${b[0]}" may not appear on any surface; write the scope with AB.count`);
+        });
+    }
+    for (const b of bad) console.log(b);
+    console.log(`${bad.length} count${bad.length === 1 ? "" : "s"} not written by AB.count`);
+    process.exit(bad.length ? 1 : 0);
+}
+
 const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".woff2": "font/woff2" };
 const server = createServer(async (req, res) => {
     const file = join(proto, normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""));
@@ -115,9 +164,10 @@ async function contextFor(narrow) {
     if (contexts.has(narrow)) return contexts.get(narrow);
     const viewport = narrow ? { width: 1024, height: 768 } : { width: 1440, height: 900 };
     const c = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: dark ? "dark" : "light" });
-    // The participant view: design notes hidden (the shell's own switch) and the review bar gone.
+    // The participant view: design notes hidden for good ("participant": the shell draws no review bar
+    // and no Review button, and no click or key brings design notes back), and the review bar gone.
     await c.addInitScript((theme) => {
-        try { localStorage.setItem("ab.designNotes", "hidden"); localStorage.setItem("ab.theme", theme); } catch (e) { /* fine */ }
+        try { localStorage.setItem("ab.designNotes", "participant"); localStorage.setItem("ab.theme", theme); } catch (e) { /* fine */ }
         addEventListener("DOMContentLoaded", () => document.head.append(Object.assign(document.createElement("style"), { textContent: "#ab-review{display:none!important}:root{--ab-review-h:0px!important}" })));
     }, dark ? "dark" : "light");
     contexts.set(narrow, c);
@@ -141,8 +191,13 @@ async function batched(routes, fn, at = 1) {
 }
 
 // Opens a route; returns what a checker needs. Never throws.
-async function open(route) {
+// plant: a section id served as a section file that registers no render (the --prove stub case)
+async function open(route, plant) {
     const page = await (await contextFor(narrowOf(route))).newPage();
+    if (plant) {
+        await page.route("**/sections/manifest.json", async (rt) => { const r = await rt.fetch(); rt.fulfill({ response: r, json: [...(await r.json()), plant] }); });
+        await page.route(`**/sections/${plant}.js`, (rt) => rt.fulfill({ contentType: "text/javascript", body: `registerSection({ id: "${plant}", title: "Planted stub", region: "left", states: ["only"] });` }));
+    }
     const errors = [];
     page.on("pageerror", (e) => errors.push(`script error: ${e.message}`));
     page.on("console", (m) => m.type() === "error" && errors.push(`console error: ${m.text().slice(0, 160)}`));
@@ -161,8 +216,8 @@ async function open(route) {
 }
 
 // focus: true also fails a route that opens a menu, popover or dialog and leaves focus on the page body
-async function check(route, focus) {
-    const { page, errors, r } = await open(route);
+async function check(route, focus, plant) {
+    const { page, errors, r } = await open(route, plant);
     const [id, ...rest] = r.split("/");
     const want = rest.join("/");
     const info = await page.evaluate(([id, want]) => {
@@ -203,6 +258,7 @@ async function shoot(route, file) {
     await page.evaluate(() => document.fonts.ready).catch(() => {});
     await mkdir(dirname(file), { recursive: true });
     await page.screenshot({ path: file });
+    errors.dataset = await page.evaluate(() => AB.route && AB.route.frame.dataset).catch(() => null);
     await page.close();
     return errors;
 }
@@ -286,7 +342,7 @@ async function matrix() {
 
 let code = 0;
 try {
-    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark|matrix)$/.test(a));
+    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark|matrix|counts)$/.test(a));
     if (mode === "--list") {
         const { page } = await open("map");
         const rows = await page.evaluate(() => AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))).flatMap((id) => {
@@ -319,17 +375,12 @@ try {
             ["an unknown section fails", "no-such-section/x", false],
             ["an unknown state fails", "graph-place/no-such-state", false],
         ];
-        // A stub: a manifest id with no section file registers as a render-less overlay. Plant one by
-        // asking for a section the registry knows only if it has no render; if every section is built, say so.
-        const { page } = await open("map");
-        const stub = await page.evaluate(() => Object.values(AB.sections).find((s) => typeof s.render !== "function")?.id);
-        await page.close();
-        if (stub) cases.push(["a stub fails", stub, false]);
-        else console.log("note: every section is built, so the stub case has nothing to try");
-        for (const [name, r, pass] of cases) {
-            const c = await check(r);
+        // A stub: every real section is built, so the run plants one (a section file with no render)
+        cases.push(["a stub fails", "prove-stub/only", false, "prove-stub"]);
+        for (const [name, r, pass, plant] of cases) {
+            const c = await check(r, false, plant);
             const ok = pass ? !c.problems.length : c.problems.length > 0;
-            console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `: ${c.problems.join("; ") || "passed"}`}`);
+            console.log(`${ok ? "ok  " : "FAIL"} ${name}${c.problems.length ? `: ${c.problems[0]}` : ok ? "" : ": passed"}`);
             if (!ok) code = 1;
         }
     } else if (mode === "--shoot") {
@@ -345,15 +396,23 @@ try {
         if (!id || !routes.length) { console.error("--task needs an id and at least one route"); code = 2; }
         else {
             const dir = join(proto, "shots/tasks", id);
-            await batched([...routes.keys()], async (k) => {
+            const drawn = await batched([...routes.keys()], async (k) => {
                 const r = routes[k];
                 const file = join(dir, `${String(k + 1).padStart(2, "0")}.png`);
                 const e = await shoot(r, file);
                 console.log(file);
                 for (const x of e) console.error(`  ${r}: ${x}`);
                 if (e.length) code = 1;
+                return e.dataset;
             });
-            await writeFile(join(dir, "routes.json"), JSON.stringify(routes.map(routeOf), null, 1) + "\n");
+            // One project from start to finish: a task whose routes draw two datasets is refused
+            const sets = [...new Set(drawn)];
+            if (sets.length > 1) {
+                console.error(`the task's routes draw ${sets.length} projects (${sets.join(", ")}); a task keeps one from start to finish:`);
+                routes.forEach((r, k) => console.error(`  ${shown(r)}: ${drawn[k]}`));
+                console.error("no routes.json written");
+                code = 1;
+            } else await writeFile(join(dir, "routes.json"), JSON.stringify(routes.map(routeOf), null, 1) + "\n");
         }
     } else if (mode === "--matrix") {
         code = await matrix();

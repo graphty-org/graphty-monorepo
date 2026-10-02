@@ -1,7 +1,9 @@
 /* Present: a full-window, canvas-only showing of the saved views checked In tour, in the Views
-   place's order. One full-canvas header (back arrow, "Present", the Esc hint, and the Lock the
-   canvas checkbox at its end) that hides itself 2 s after the pointer leaves it and comes back when
-   the pointer nears the top edge or focus enters it. The view's name appears once, in the caption
+   place's order. The header is the shared mode header (AB.pageHead: back arrow, "Present", the Esc
+   hint), with the Lock the canvas checkbox at its end; while presenting it hides itself 2 s after
+   the pointer leaves it and comes back when the pointer nears the top edge or focus enters it.
+   Right and Left arrows step (also Page Down / Page Up and Space, which presentation clickers send),
+   locked or not; Esc leaves. The view's name appears once, in the caption
    at the foot, with the step counter and previous / next. Lock the canvas is graphty-element's
    setInputEnabled(false): off by default, remembered per project, no notice.
    With no saved views Present is disabled in the Views place ("Save a view first"), so this
@@ -13,13 +15,10 @@
     const CSS = `
 .pm { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--k-canvas); }
 .pm .k-canvas { flex: 1 1 auto; }
-.pm-head { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px 0 8px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); transition: transform 160ms ease, opacity 160ms ease; }
+.pm-head { position: absolute; left: 0; right: 0; top: 0; z-index: 2; transition: transform 160ms ease, opacity 160ms ease; }
 .pm-head[data-hidden] { transform: translateY(-100%); opacity: 0; }
 .pm-head:focus-within { transform: none; opacity: 1; }
 .pm-hot { position: absolute; left: 0; right: 0; top: 0; height: 24px; z-index: 1; }
-.pm-title { font-weight: 600; }
-.pm-hint { color: var(--cm-text-secondary); white-space: nowrap; }
-.pm-grow { flex: 1 1 auto; }
 .pm-lock { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
 .pm-foot { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2; width: min(720px, calc(100% - 32px)); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 10px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); line-height: 18px; }
 .pm-cap { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
@@ -28,7 +27,6 @@
 .pm-step { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pm-count { min-width: 44px; text-align: center; color: var(--cm-text-secondary); }
 @media (prefers-reduced-motion: reduce) { .pm-head { transition: none; } }
-@media (max-width: 1100px) { .pm-hide-narrow { display: none; } }
 `;
     if (!document.querySelector("style[data-pm-css]")) document.head.append(h("style", { "data-pm-css": "" }, CSS));
 
@@ -65,14 +63,8 @@
         lock.addEventListener("click", flip);
         box.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); e.stopPropagation(); flip(); } });
 
-        const back = AB.iconButton("arrow-left", "Leave Present", { key: "Esc", go: ["views-place", "at-rest"] });
-        const head = h("div", { class: "pm-head" },
-            back,
-            h("span", { class: "pm-title" }, "Present"),
-            h("span", { class: "pm-hint pm-hide-narrow" }, h("span", { class: "k-kbd" }, "Esc"), " to leave"),
-            h("span", { class: "pm-grow" }),
-            AB.openQuestion("Arrow keys turn the graph while the canvas is unlocked (they are graphty-element's camera keys), so stepping always uses Page Up, Page Down and Space, which presentation clickers send, and adds the arrows only while locked. Should arrows step in both cases?"),
-            lock);
+        // The shared mode header; Esc and the back arrow return to the screen that opened Present.
+        const head = h("div", { class: "pm-head" }, AB.pageHead("Present", { backTip: "Leave Present", trail: lock }));
         const hot = h("div", { class: "pm-hot", "aria-hidden": "true" });
 
         // Auto-hide: shown on arrival, hidden 2 s after the pointer leaves it.
@@ -86,8 +78,8 @@
 
         // ---- the canvas and the caption ----
         const canvas = h("div", { class: "k-canvas" });
-        const prev = AB.iconButton("chevron-left", "Previous view", { key: "Page Up", onClick: () => step(-1) });
-        const next = AB.iconButton("chevron-right", "Next view", { key: "Page Down", onClick: () => step(1) });
+        const prev = AB.iconButton("chevron-left", "Previous view", { key: "ArrowLeft", onClick: () => step(-1) });
+        const next = AB.iconButton("chevron-right", "Next view", { key: "ArrowRight", onClick: () => step(1) });
         const name = h("b", { class: "k-ellipsis" });
         const cap = h("span");
         const count = h("span", { class: "pm-count k-num", "aria-live": "polite" });
@@ -122,13 +114,12 @@
         root.append(canvas, hot, head, foot);
         paint();
 
-        // Page Down / Space next, Page Up / Shift+Space previous; arrows too while locked.
-        // Esc is the shell's (closeTo).
+        // Right / Page Down / Space next, Left / Page Up / Shift+Space previous, locked or not.
+        // Esc is the shell's (pageHead's cancel).
         const onKey = (e) => {
             if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
-            const arrows = locked && (e.key === "ArrowRight" || e.key === "ArrowLeft");
-            const fwd = e.key === "PageDown" || (e.key === " " && !e.shiftKey && e.target === document.body) || (arrows && e.key === "ArrowRight");
-            const bk = e.key === "PageUp" || (e.key === " " && e.shiftKey && e.target === document.body) || (arrows && e.key === "ArrowLeft");
+            const fwd = e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !e.shiftKey && e.target === document.body);
+            const bk = e.key === "ArrowLeft" || e.key === "PageUp" || (e.key === " " && e.shiftKey && e.target === document.body);
             if (fwd) { e.preventDefault(); step(1); } else if (bk) { e.preventDefault(); step(-1); }
         };
         document.addEventListener("keydown", onKey);

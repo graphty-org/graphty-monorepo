@@ -18,6 +18,7 @@
         hidden: ["lesmis-groups-rest", "Les Miserables colored by PageRank, Valjean not drawn"],
         "long-name": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Jean Valjean selected"],
         "long-name-path": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Jean Valjean selected"],
+        "filtered-to-neighbors": ["lesmis-groups-valjean", "Les Miserables filtered to Valjean's neighbors"],
     };
 
     // Both selected nodes carry the selection ring: copy Valjean's two rings onto Javert
@@ -39,6 +40,30 @@
         doc.querySelectorAll("line").forEach((l) => { if ((l.getAttribute("x1") === V[0] && l.getAttribute("y1") === V[1]) || (l.getAttribute("x2") === V[0] && l.getAttribute("y2") === V[1])) l.remove(); });
         doc.querySelectorAll("text").forEach((t) => { if (t.textContent.trim() === "Valjean") t.remove(); });
     }
+    // Filtered to neighbors: only the nodes within the step's hops of Valjean, and the edges among
+    // them, are drawn (read from the drawing's own edges)
+    function keepNear(hops) {
+        const fn = (doc) => {
+            const key = (x, y) => x + "," + y;
+            const lines = [...doc.querySelectorAll("line")].map((l) => [l, key(l.getAttribute("x1"), l.getAttribute("y1")), key(l.getAttribute("x2"), l.getAttribute("y2"))]);
+            let keep = new Set([key("698.7", "394.3")]);
+            for (let i = 0; i < hops; i++) {
+                const next = new Set(keep);
+                lines.forEach(([, a, b]) => { if (keep.has(a)) next.add(b); if (keep.has(b)) next.add(a); });
+                keep = next;
+            }
+            const pts = [];
+            doc.querySelectorAll("circle").forEach((c) => { const k = key(c.getAttribute("cx"), c.getAttribute("cy")); if (keep.has(k)) pts.push([+c.getAttribute("cx"), +c.getAttribute("cy")]); else c.remove(); });
+            lines.forEach(([l, a, b]) => { if (!keep.has(a) || !keep.has(b)) l.remove(); });
+            // a label sits just right of its node, 4 px lower
+            doc.querySelectorAll("text").forEach((t) => {
+                const x = +t.getAttribute("x"), y = +t.getAttribute("y");
+                if (!pts.some(([cx, cy]) => x - cx >= 0 && x - cx < 40 && Math.abs(y - 4 - cy) < 3)) t.remove();
+            });
+        };
+        Object.defineProperty(fn, "name", { value: "keepNear" + hops });
+        return fn;
+    }
     function patchCanvas(state) {
         const cv = document.getElementById("ab-canvas");
         const d = DRAWING[state];
@@ -46,7 +71,9 @@
         // only the Les Miserables drawing has these selections; another project's canvas keeps its own
         if (!cv || !d || (AB.route && (AB.route.frame.right === "inspector-node/edited" || AB.route.frame.dataset !== "lesmis"))) return;
         const imgs = cv.querySelectorAll(".k-stage img");
-        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, state === "two-nodes" ? ringJavert : state === "hidden" ? hideValjean : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
+        const f = state === FILTERED ? filteredOf() : null;
+        if (f && f.who !== "Valjean") return;
+        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, state === "two-nodes" ? ringJavert : state === "hidden" ? hideValjean : f ? keepNear(f.hops) : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
         // "1 node not drawn" is said once, in the tree footer (graph-place), not again on the legend card
     }
 
@@ -100,6 +127,36 @@
         return { names: (AB.walked && AB.walked.name) || (head && head.textContent.trim()) || "Valjean", n: 1 };
     }
 
+    // The walk's readout, visible over the bar: the node and the number it is read with, named
+    // ("Valjean, 36 connections"), never a bare number
+    function readout(state) {
+        if (state !== "one-node") return null;
+        const ds = (AB.route && AB.route.frame.dataset) || "lesmis";
+        const w = AB.walked && AB.walked.dataset === ds ? AB.walked : null;
+        const name = subject(state).names;
+        const n = w ? w.neighbors : ds === "lesmis" && name === "Valjean" ? L().valjeanNeighbors : null;
+        if (n == null) return null;
+        return h("div", { class: "k-caption", style: "padding:2px 8px;border-radius:5px;background:var(--cm-bg);box-shadow:var(--cm-field-shadow)" }, name + ", " + AB.count(n, "connection"));
+    }
+
+    // Filter to neighbors: one filter step, counted by the header's filter chip. The state draws the
+    // last one committed (a direct visit: Valjean, 1 hop) over the panels it was committed from.
+    const FILTERED = "filtered-to-neighbors";
+    let filtered = null;
+    const filteredOf = () => filtered || { ds: "lesmis", who: "Valjean", hops: 1, dir: "both", frame: null };
+    function chipOf(f) {
+        // counts only where the fixtures hold them: Valjean and his neighbors; the merchant and its payers
+        const n = f.hops !== 1 ? null
+            : f.ds === "lesmis" && f.who === "Valjean" ? [L().valjeanNeighbors + 1, L().nodes]
+            : f.ds === "transactions" && f.who === T().merchant.id && f.dir === "in" ? [T().payers.count + 1, AB.fx.datasets.transactions.nodes] : null;
+        return "Filtered: " + (n ? AB.count(n[0], "node", { of: n[1] }) : "neighbors of " + f.who);
+    }
+    function filteredFrame() {
+        const f = filteredOf();
+        const base = f.frame || { left: "graph-place/at-rest", right: "inspector-node/why-this-look" };
+        return Object.assign({}, base, { chip: chipOf(f), filterOn: null });
+    }
+
     // After a commit: the result is the selected row; the notice keeps only Undo. The shell clears
     // the notice slot on every route, so the notice is raised once the new route has drawn.
     function commit(to, text, undo) {
@@ -137,7 +194,7 @@
         const setText = "Created set of " + s.n + (s.n === 1 ? " node" : " nodes");
         // The node menu's order (explore, then organize, then visibility, then notes), one command record per verb
         return AB.toolbarBar([
-            AB.toolbarButton("target", C("neighborhood").label, { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
+            AB.toolbarButton("target", C("neighborhood").label.replace(/\.\.\.$/, ""), { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed || ds === "transactions" ? "neighborhood-directed" : "neighborhood"] }),
             AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", open: state === "long-name-path", go: isLong(state) ? ["selection-bar", "long-name-path"] : C("find-paths").go }),
             "sep",
             AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(tree, setText, back) }),
@@ -156,9 +213,19 @@
         if (ds) directed = !!(AB.fx.datasets[ds] || {}).directed;
         const who = ds ? subject("one-node").names : directed ? T().merchant.id : "Valjean";
         let hops = 1, dir = "both";
+        // Dated neighbors (directed transfers): only edges from this date on. graphty-element's
+        // neighborhood takes depth and direction; the date is not one of its options yet
+        const span = (AB.fx.datasets.transactions.attributes.find((a) => a.name === "timestamp (edge)") || {}).range || [];
+        const day = (iso) => (iso || "").slice(0, 10);
+        let from = day(span[0]);
+        const fromBox = h("input", { type: "date", class: "k-field", style: "border:0;font:inherit;color-scheme:light dark", value: from, min: day(span[0]), max: day(span[1]), "aria-label": "From date",
+            on: { change: (e) => { from = e.target.value || day(span[0]); paint(); } } });
+        const timed = directed && (!ds || ds === "transactions");
+        const dated = () => timed && from && from !== day(span[0]);
+        const dateWord = () => new Date(from + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
         const said = h("div", { role: "status", style: "color:var(--cm-text-secondary);padding:0 16px 8px" });
         const hopsBox = h("span"), dirBox = h("span");
-        const stepName = () => "Neighbors of " + who + ", " + (hops === 1 ? "1 hop" : "1 to " + hops + " hops") + (directed && dir !== "both" ? ", " + dir : "");
+        const stepName = () => "Neighbors of " + who + ", " + (hops === 1 ? "1 hop" : "1 to " + hops + " hops") + (directed && dir !== "both" ? ", " + dir : "") + (dated() ? ", from " + dateWord() : "");
         function paint() {
             // AB.seg is redrawn on each pick; focus returns to the picked option so arrows keep working
             const again = (box) => { paint(); const f = box.querySelector("[aria-checked='true']"); if (f) f.focus(); };
@@ -167,25 +234,32 @@
             // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
             if (ds) said.textContent = "Selected: " + who + " and every node within " + (hops === 1 ? "1 hop" : hops + " hops") + (directed && dir === "out" ? " it points to." : directed && dir === "in" ? " that points to it." : ".");
             else if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: everyone within " + hops + " hops of Valjean.";
+            else if (dated()) said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + " by a transfer on or after " + dateWord() + ".";
             else if (hops === 1 && dir === "in") said.textContent = "Selected: " + who + " and the " + T().payers.count + " accounts that paid it.";
             else said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + (dir === "out" ? " it pays." : dir === "in" ? " that pays it." : ", either way.");
         }
         paint();
         const back = ds ? ["selection-bar", "one-node"] : ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
         const steps = ["graph-place", (ds && AB.placeOf(ds, "graph")) || "at-rest"];
-        const filters = ds === "wide" ? ["data-place", "wide-filters"] : ds ? ["data-place", AB.placeOf(ds, "data") || "at-rest"] : ["data-place", "filters"];
         const p = AB.popover({
             anchor,
             title: "Neighborhood of " + who,
             width: 300,
             body: [
                 AB.fieldRow("Hops", hopsBox, { popover: true }),
-                directed ? AB.fieldRow("Direction", dirBox, { popover: true }) : null, // hidden on an undirected graph
+                AB.fieldRow("Direction", directed ? dirBox : h("span", { class: "k-caption" }, "Undirected graph"), { popover: true }),
+                timed ? AB.fieldRow("From date", h("span", { style: "display:flex;align-items:center;gap:4px" }, fromBox, AB.needsElement("graphty-element's neighborhood takes depth and direction; a from date needs an edge time option")), { popover: true }) : null,
                 said,
             ],
             foot: [
                 AB.button("Add as steps", { kind: "secondary", onClick: () => commit(steps, "Added " + stepName() + ": one group per hop", back) }),
-                AB.button("Filter to neighbors", { onClick: () => commit(filters, "Added filter step: " + stepName(), back) }),
+                AB.button("Filter to neighbors", { onClick: () => {
+                    const fr = AB.route.frame;
+                    // the panels it was committed from; the Les Miserables popover keeps Valjean's
+                    filtered = { ds: ds || (directed ? "transactions" : "lesmis"), who, hops, dir: directed ? dir : "both",
+                        frame: ds || directed ? { dataset: fr.dataset, left: fr.left, right: fr.right, canvas: fr.canvas, dock: false } : null };
+                    commit(["selection-bar", FILTERED], "Added filter step: " + stepName(), back);
+                } }),
             ],
         });
         // Closing keeps the selection (Esc never clears it). The shell's Esc does nothing here, because
@@ -224,9 +298,10 @@
             { id: "one-edge", label: "One edge selected" },
             { id: "long-name", label: "One node with a 60-character name" },
             { id: "long-name-path", label: "Path between from the 60-character name" },
+            { id: FILTERED, label: "After Filter to neighbors" },
         ],
         // The Neighborhood popover is this section's own overlay, so Esc, the X and a click outside close it
-        frame: (state) => keepProject(state) || (state === "neighborhood-directed"
+        frame: (state) => keepProject(state) || (state === FILTERED ? filteredFrame() : state === "neighborhood-directed"
             ? { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: false, overlay: "selection-bar/neighborhood-directed" }
             : state === "one-edge" ? { left: "graph-place/at-rest", right: "inspector-edge/style", dock: "table-dock/edges" }
             : Object.assign({
@@ -249,6 +324,8 @@
             }
             // Notes are graphty-element API, except a note on an edge picked on the canvas
             if (state === "one-edge") wrap.append(AB.needsElement("graphty-element's notes attach to a node, a set or the graph; a note on an edge needs an edge subject"));
+            const r = readout(state);
+            if (r) wrap.append(r);
             wrap.append(b);
             el.append(wrap);
             ctx.renderSection("toolbar/at-rest", el);

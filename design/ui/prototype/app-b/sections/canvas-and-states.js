@@ -29,6 +29,7 @@
 .cs-card .k-canvas-card-title .k-i { flex: none; }
 .cs-danger { color: var(--cm-text-danger); }
 .cs-dots { display: inline-flex; align-items: center; gap: 4px; }
+.cs-true-box { display: inline-flex; justify-content: center; align-items: center; flex: none; }
 `;
     if (!document.getElementById("cs-css")) document.head.append(h("style", { id: "cs-css" }, CSS));
 
@@ -135,15 +136,168 @@
             h("div", { class: "k-canvas-card-acts" }, o.primary || null, o.secondary || null));
     }
 
-    // The legend for the drawing at rest: what wins color (PageRank) and size (Degree)
+    // ---------- a size layer's key ----------
+    // The part is titled "Size: " plus the row's own name (the tree's name). Each round value gets a
+    // circle at the size the drawing gives it: r(v) is the radius in the drawing's 1200-wide viewBox,
+    // and trueSize() turns it into screen pixels from the stage's drawn width. The last line names
+    // the scale: square root (area follows the value) or linear (the radius does).
+    function sizeKey(name, values, r, scale, go) {
+        const rows = values.map((v) => ({ swatch: h("span", { class: "cs-true-box" }, h("span", { class: "ab-dot cs-true", "data-r": r(v) })), label: AB.num(v), go }));
+        return { title: "Size: " + name, go, rows, sub: scale };
+    }
+    // A size key's title takes the middle ellipsis at 24 characters, the cut the row's inspector header
+    // uses, so the name reads the same in both; the full name is in its tooltip
+    const SIZE_CUT = 24;
+    function trueSize(stage, card) {
+        if (!card || !card.querySelector(".cs-true")) return;
+        card.querySelectorAll(".k-lg-title").forEach((t) => { const m = t.textContent.match(/^Size: (.+)$/); if (m && m[1].length > SIZE_CUT) t.replaceChildren("Size: ", AB.truncMiddle(m[1], SIZE_CUT)); });
+        const set = () => {
+            const k = stage.clientWidth / 1200;
+            if (!k) return;
+            const dots = [...card.querySelectorAll(".cs-true")], big = Math.max(...dots.map((d) => 2 * d.dataset.r * k));
+            dots.forEach((d) => { d.style.width = d.style.height = (2 * d.dataset.r * k).toFixed(1) + "px"; d.parentNode.style.width = big.toFixed(1) + "px"; });
+        };
+        new ResizeObserver(set).observe(stage);
+    }
+    // Round values between lo and hi for a size key: 3 to 5 steps of 1, 2 or 5 times a power of ten
+    function roundValues(lo, hi) {
+        if (!(hi > lo)) return [lo];
+        const raw = (hi - lo) / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw);
+        const out = [];
+        for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+        return out.length ? out : [lo, hi];
+    }
+    // Les Miserables' drawing sizes a node by degree on a square root scale: r = 4 + 2 * sqrt(degree)
+    // (degree 1 is 6, 10 is 10.3, 36 is 16 in the kit's SVGs)
+    const LM_R = (d) => 4 + 2 * Math.sqrt(d);
+
+    // The legend for the drawing at rest: what wins color (PageRank) and size (Degree, the tree's row)
     function pagerankLegend() {
-        const f = L().frame;
-        const go = ["inspector-measure-row", "style"];
+        const go = ["inspector-measure-row", "style"], deg = L().rows.map((r) => r.degree);
+        const lo = Math.min(...deg), hi = Math.max(...deg);
         return AB.legendCard([
             { title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: PR_DOMAIN[0] + " to " + PR_DOMAIN[1], go }] },
-            { title: "Size: Degree", go: ["inspector-measure-row", "degree"], rows: [{ swatch: h("span", { class: "cs-dots" }, f.sizeMarks.map((m) => h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px` }))), label: f.sizeMarks[0].degree + " to " + f.sizeMarks[f.sizeMarks.length - 1].degree, go: ["inspector-measure-row", "degree"] }] },
+            sizeKey("Degree", [lo].concat(roundValues(lo, hi).filter((v) => v > lo)), LM_R, "Square root scale (area), " + lo + " to " + hi, ["inspector-measure-row", "degree"]),
         ]);
     }
+    // What the size layer reads on one node, as hover and selection say it ("degree 36"). `cut`: the
+    // name as the legend title and the row's inspector cut it (the hover bubble); spoken text keeps it whole
+    function sizeValue(ds, i, cut) {
+        const nm = (t) => (cut && t.length > SIZE_CUT ? AB.truncMiddle(t, SIZE_CUT).textContent : t);
+        if (ds === "lesmis") return L().rows[i] ? "degree " + L().rows[i].degree : null;
+        if (!["wide", "nested", "plainJson"].includes(ds)) return null;
+        const g = otherGraph(ds);
+        if (ds === "wide" && AB.route && SIZED.includes(AB.route.state)) return g.size[i] != null ? nm(LONG) + " " + AB.num(g.size[i]) : null;
+        const p = AB.paintOf(ds, "Size", "node");
+        if (!p || p.type !== "num" || g.ntab[i] !== p.table) return null;
+        const v = AB.valueAt(g.nrec[i], p.name);
+        return typeof v === "number" ? nm(p.name) + " " + AB.num(v) : null;
+    }
+
+    // ---------- Shift+Arrow: the walk goes in the direction pressed ----------
+    // The shell selects (AB.selectNode: the node inspector and the selection bar); this section knows
+    // where each node is drawn, so it picks the next node in that direction: the nearest one within 45
+    // degrees of it, the distance off to the side counting twice. With nothing selected it starts from the
+    // middle of the drawing. Plain arrows are graphty-element's camera keys (orbit in 3D, pan in 2D).
+    // The package registry has no node inspector, so its walk keeps its own selection (regSel).
+    let regSel = -1;
+    const CENTER = [600, 400];
+    const LM_POS = Object.keys(PAGERANK).map((k) => k.split(",").map(Number)); // the drawing's circles, in row order
+    const sunflower = (n, gap) => Array.from({ length: n }, (_, i) => { const r = gap * Math.sqrt(i), t = i * 2.39996; return [600 + r * Math.cos(t), 400 + r * Math.sin(t) * 0.92]; });
+    function walkPos(ds) {
+        if (ds === "lesmis") return LM_POS;
+        if (ds === "registry") return registryGeo().pos;
+        if (["wide", "nested", "plainJson"].includes(ds)) return otherGraph(ds).pos;
+        if (ds === "doorEntries") {
+            if (!doorPos) doorSvg("light", AB.fx.datasets.doorEntries.loaded.per === "nodes");
+            let p = 0, b = 0;
+            return AB.walkList(ds).map((w) => (/door-ana$/.test(w.at) ? doorPos.dots[p++] : doorPos.B[b++]));
+        }
+        // ponytail: the transfers drawing is a density image with no node positions, so its accounts
+        // sit on a made-up sunflower in file order; the element reports real positions
+        return sunflower(AB.walkList(ds).length, 40);
+    }
+    function current(ds) {
+        if (ds === "registry") return regSel;
+        if (AB.walked && AB.walked.dataset === ds) return AB.walked.index;
+        // an inspector showing a node with no walk yet: the drawing's own hot spot node (Valjean, monitor-prod-iad-03)
+        if (!String((AB.route && AB.route.frame.right) || "").startsWith("inspector-node/")) return -1;
+        return ds === "lesmis" ? L().rows.indexOf(byLabel("Valjean")) : HOT[ds] ? HOT[ds](AB.fx.datasets[ds]) : -1;
+    }
+    function nextIn(pos, from, dx, dy, skip) {
+        let best = -1, score = Infinity;
+        pos.forEach((p, i) => {
+            if (!p || skip(i)) return;
+            const vx = p[0] - from[0], vy = p[1] - from[1], ahead = vx * dx + vy * dy;
+            const side = Math.abs(vx * dy - vy * dx);
+            if (ahead <= 0.5 || side > ahead) return;
+            const s = ahead + 2 * side;
+            if (s < score) { score = s; best = i; }
+        });
+        return best;
+    }
+    // ponytail: the skeleton holds names for 8 of the registry's packages, so a walked package is named by its place
+    function registryName(i) { return "Package " + AB.num(i + 1) + " of " + AB.num(registryGeo().pos.length); }
+    function say(ds, i) {
+        const w = ds === "registry" ? { name: registryName(i), neighbors: registryGeo().deg[i] } : AB.walkList(ds)[i];
+        if (!w) return "";
+        return [w.name, AB.count(w.neighbors, "neighbor"), sizeValue(ds, i)].filter(Boolean).join(", ");
+    }
+    // Keys on one drawing: the directional walk. live() also names the project drawn, for clearClick
+    let liveDs = null;
+    function live(stage, ds, hidden) {
+        liveDs = ds;
+        stage.addEventListener("keydown", (e) => {
+            if (!/^Arrow/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (!e.shiftKey) { AB.flash(AB.route.frame.mode === "2d" ? "Arrows pan the view (not modeled in the skeleton)" : "Arrows orbit the camera (not modeled in the skeleton)"); return; }
+            const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+            const pos = walkPos(ds), cur = current(ds), from = cur >= 0 && pos[cur] ? pos[cur] : CENTER;
+            const i = nextIn(pos, from, dir[0], dir[1], (j) => j === cur || (hidden && hidden(j)));
+            if (i < 0) { AB.flash(pos.length ? "No node further " + e.key.slice(5).toLowerCase() : "Nothing is drawn to walk through"); return; }
+            const text = say(ds, i);
+            if (ds === "registry") { regSel = i; AB.render(); refocus(); }
+            else AB.selectNode(ds, i);
+            setTimeout(() => AB.announce(text), 150);
+        });
+    }
+    // A click on empty canvas (the drawing, or the canvas around it) clears the selection with an Undo
+    // notice. It listens in the capture phase, so it reads the selection before the shell's own canvas
+    // click goes to the place with nothing selected.
+    let clearHandler = null;
+    function clearClick(el) {
+        if (clearHandler) el.removeEventListener("click", clearHandler, true);
+        clearHandler = (e) => {
+            const t = e.target, ds = liveDs;
+            if (!ds || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || t === el || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
+            const sel = selected(ds);
+            if (!sel) return;
+            const back = location.hash, w = AB.walked && Object.assign({}, AB.walked), reg = regSel;
+            regSel = -1;
+            const undo = () => {
+                if (ds === "registry") { regSel = reg; AB.render(); refocus(); }
+                else if (w) AB.selectNode(w.dataset, w.index);
+                else location.hash = back;
+                AB.announce("Selection restored");
+            };
+            // Only the selection: the notice's Undo is what Ctrl+Z presses while it shows; after it, Ctrl+Z is the header's
+            const show = () => AB.notice("Selection cleared (" + sel + ")", { label: "Undo", onClick: undo });
+            // the shell's own canvas click (after this one) goes to the place with nothing selected
+            setTimeout(() => { if (location.hash === back) { AB.render(); refocus(); show(); } else window.addEventListener("hashchange", show, { once: true }); }, 0);
+        };
+        el.addEventListener("click", clearHandler, true);
+    }
+    function selected(ds) {
+        if (ds === "registry") return regSel >= 0 ? AB.count(1, "node") : null;
+        const r = String((AB.route && AB.route.frame.right) || "");
+        if (r.startsWith("inspector-node/")) return AB.count(1, "node");
+        if (r.startsWith("inspector-edge/")) return AB.count(1, "edge");
+        // the several-elements states the selection bar shows as five nodes, else two (README)
+        if (r.startsWith("inspector-several-elements/")) return AB.count(/\/(style|data)$/.test(r) ? 5 : 2, "node");
+        return null;
+    }
+    const refocus = () => setTimeout(() => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); }, 50);
 
     // Group 2's two label lines (the label-two state: name above, degree below, the owner's example),
     // drawn on its three largest nodes so the picture matches the Label section. The 14 group-2 circles
@@ -187,7 +341,7 @@
         const labelBy = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-by";
         // The node a Shift+Arrow walk selected carries the selection ring (the drawing's circles are in row order)
         const w = AB.walked && AB.walked.dataset === "lesmis" ? AB.walked.index : -1, rk = "walk" + w;
-        if (w >= 0) stage.setAttribute("aria-label", alt + "; " + AB.walked.name + " selected");
+        if (w >= 0) stage.setAttribute("aria-label", alt + "; " + AB.walked.name + " selected, " + sizeValue("lesmis", w));
         const walkRing = w < 0 ? null : { [rk]: (doc, theme) => { const p = nodePairs(doc)[w]; if (p) new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${ringSvg(p.x, p.y, +p.c.getAttribute("r"), theme)}</svg>`, "image/svg+xml").documentElement.childNodes.forEach((c) => doc.documentElement.append(doc.importNode(c, true))); } }[rk];
         const imgs = AB.lesmisDrawing("lesmis-groups-rest", alt + (labelTwo ? "; Group 2 labeled with names above and degree below" : labelBy ? "; every node labeled with its degree above it" : "") + (w >= 0 ? "; " + AB.walked.name + " selected" : ""), state === "hidden-on-canvas" ? hideGroup0 : labelTwo ? groupTwoLabels : labelBy ? degreeLabels : null, edited ? valjeanOverride : walkRing);
         stage.append(...imgs);
@@ -195,9 +349,13 @@
         // patchCanvas); a walked node is not Valjean, so the walked drawing is put back after it
         if (w >= 0) setTimeout(() => stage.querySelectorAll("img").forEach((img, i) => { if (imgs[i] && img !== imgs[i]) img.replaceWith(imgs[i]); }), 0);
         stage.append(...hotspots());
-        AB.append(el, [stage, pagerankLegend()]);
+        const lg = pagerankLegend();
+        AB.append(el, [stage, lg]);
+        trueSize(stage, lg);
+        // group 0 is not drawn while it is hidden on canvas, so the walk passes over it
+        live(stage, "lesmis", state === "hidden-on-canvas" ? (j) => L().rows[j] && L().rows[j].group === 0 : null);
         // The walked route opens as the second Shift+Arrow left it: focus on the drawing, the node announced
-        if (state === "walked" && AB.walked) setTimeout(() => { if (stage.isConnected) { stage.focus({ preventScroll: true }); AB.announce(AB.walked.name + ", " + AB.walked.neighbors + (AB.walked.neighbors === 1 ? " neighbor" : " neighbors")); } }, 100);
+        if (state === "walked" && AB.walked) setTimeout(() => { if (stage.isConnected) { stage.focus({ preventScroll: true }); AB.announce(say("lesmis", AB.walked.index)); } }, 100);
         if (state === "less-detail") AB.notice("More than 10,000 nodes: drawn with less detail.", { label: "Limits", go: ["settings", "performance"] });
         if (state === "waiting-to-settle") AB.notice("Waiting for the layout to settle before capturing the image.", { label: "Cancel", go: ["export-image", "image"] });
     }
@@ -208,7 +366,9 @@
         const T = AB.fx.datasets.transactions;
         if (state !== "transfers-communities") {
             const pth = pathShown("transactions");
-            AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), AB.legendCard(pth ? [pth.legend] : [])]);
+            const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized));
+            live(st, "transactions");
+            AB.append(el, [st, AB.legendCard(pth ? [pth.legend] : [])]);
             if (state === "selection-full") {
                 AB.notice("Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.", { label: "Narrow the query", go: ["select-where", "where-error"] });
                 AB.announce("Selection is full: 5,000 of " + n(T.edges) + " matching transfers selected.");
@@ -217,8 +377,10 @@
         }
         const lg = AB.fx.datasets.transactionsApril.legends.march;
         const run = ["inspector-run-row", "many-groups"];
+        const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community"));
+        live(st, "transactions");
         AB.append(el, [
-            h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community")),
+            st,
             AB.legendCard([...(pathShown("transactions") ? [pathShown("transactions").legend] : []), { title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
     }
 
@@ -253,13 +415,14 @@
             });
         }
         doorFirst = dots[0]; // Ana Ruiz, the first person: the drawing's hot spot
+        doorPos = { dots, B }; // the walk's directions
         const dot = ([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#808080"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.75" fill="none" stroke="${bg}" stroke-width="1.5"/>`;
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/>` +
             `<g stroke="#808080" stroke-width="0.6" stroke-opacity="0.22">${lines.join("")}</g>` +
             `<g fill="#808080" fill-opacity="0.7">${mids.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8"/>`).join("")}</g>${dots.concat(B).map(dot).join("")}</svg>`;
     }
     const doorUrl = {};
-    let doorFirst = null;
+    let doorFirst = null, doorPos = null;
     function door(el) {
         const D = AB.fx.datasets.doorEntries;
         const alt = D.graphName + ": " + n(D.loadedTypes().total) + " nodes (" + (D.loadedTypes().entry ? "people, buildings and entries" : "people and buildings") + ") and " + n(D.loadedEdges()) + " edges, unstyled";
@@ -280,6 +443,17 @@
         if (!doorFirst) doorSvg("light", false);
         const hot = hotNode("doorEntries", doorFirst, 4, 0);
         if (hot) stage.append(hot);
+        // the walked person or building carries the selection ring
+        const wi = AB.walked && AB.walked.dataset === "doorEntries" ? AB.walked.index : -1, wp = wi >= 0 ? walkPos("doorEntries")[wi] : null;
+        if (wp) {
+            const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+            svg.setAttribute("viewBox", "0 0 1200 800");
+            svg.setAttribute("aria-hidden", "true");
+            svg.innerHTML = `<circle cx="${wp[0]}" cy="${wp[1]}" r="7" fill="none" stroke="var(--k-mark-in)" stroke-width="2"/><circle cx="${wp[0]}" cy="${wp[1]}" r="9" fill="none" stroke="var(--k-mark-out)" stroke-width="2"/>`;
+            stage.append(svg);
+            stage.setAttribute("aria-label", alt + "; " + AB.walked.name + " selected");
+        }
+        live(stage, "doorEntries");
         AB.append(el, [stage, AB.legendCard(pth ? [pth.legend] : [])]);
     }
     // The path a Find path just added on the door entries or the transfers, while the tree shows it
@@ -308,6 +482,7 @@
         const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node drawn unstyled" });
         stage.append(...derived("lesmis-groups-onesize", "everything-hidden-v2", everythingHidden));
         const part = (lab) => ({ title: "Color: Group " + lab, go: ["inspector-group-set-path-row", "kept-2"], rows: [{ swatch: g(lab).color, label: g(lab).count + " nodes" }] });
+        live(stage, "lesmis");
         AB.append(el, [stage, AB.legendCard([part("2"), part("8")])]);
     }
 
@@ -359,6 +534,8 @@
     // so the walked node gets the ring. `sized` sizes the hosts by the 46-character attribute.
     // ponytail: positions are made up, not graphty-element's layout; the element draws the real one.
     const LONG = "vuln_count_critical_unremediated_over_30_days";
+    // the states that size the hosts by LONG; hosts-legend-hover also shows the hot node's hover readout
+    const SIZED = ["hosts-legend", "hosts-legend-hover"];
     const VULN_RANGE = [0.5, 3]; // the measure row's Size range (inspector-measure-row/long-name)
     const graphs = new Map();
     function otherGraph(ds) {
@@ -441,7 +618,13 @@
             return { col: (v) => (v == null ? null : col[v]), part: { title: title + p.name, go: go(p), rows: top.slice(0, 7).map(([v, k]) => ({ swatch: col[v], label: AB.truncMiddle(String(v), 24), count: k.toLocaleString("en-US"), go: go(p) })), more: top.length > 7 ? top.length - 7 + " more values" : null } };
         };
         const color = (p, vals) => { const sp = spec(p, vals); out.parts.push(sp.part); return vals.map((v) => (sp.col ? sp.col(v) : sp.t(v) == null ? null : rampAt(sp.t(v)))); };
-        const size = (p, vals, from, to) => { const sp = spec(p, vals); out.parts.push(sp.part); return vals.map((v) => (sp.t && sp.t(v) != null ? from + sp.t(v) * (to - from) : null)); };
+        const size = (p, vals, from, to) => {
+            const sp = spec(p, vals), nums = vals.filter((v) => typeof v === "number");
+            // a node size row's key: true-size circles at round values (a width row keeps its range line)
+            if (sp.t && p.element !== "edge") { const lo = Math.min(...nums), hi = Math.max(...nums); out.parts.push(sizeKey(p.name, roundValues(lo, hi), (v) => from + sp.t(v) * (to - from), "Linear scale (radius), " + fmt(lo) + " to " + fmt(hi), go(p))); }
+            else out.parts.push(sp.part);
+            return vals.map((v) => (sp.t && sp.t(v) != null ? from + sp.t(v) * (to - from) : null));
+        };
         const nc = AB.paintOf(ds, "Color", "node"), ns = AB.paintOf(ds, "Size", "node"), ec = AB.paintOf(ds, "Color", "edge"), es = AB.paintOf(ds, "Size", "edge");
         if (nc) { out.fill = color(nc, read(nc, g.nrec, g.ntab)); out.words.push("nodes colored by " + nc.name); }
         if (ns && ns.type === "num") { out.rad = size(ns, read(ns, g.nrec, g.ntab), 4 * VULN_RANGE[0], 4 * VULN_RANGE[1]); out.words.push("nodes sized by " + ns.name); }
@@ -482,13 +665,14 @@
     function hotNode(ds, xy, r, idx) {
         const i = idx != null ? idx : HOT[ds] ? HOT[ds](AB.fx.datasets[ds]) : -1, w = AB.walkList(ds)[i];
         if (!w || !xy) return null;
-        const hot = AB.tip(h("span", Object.assign({ class: "ab-hot", role: "button", style: `left:${(xy[0] / 12).toFixed(2)}%;top:${(xy[1] / 8).toFixed(2)}%;width:${Math.max(14, r * 2 + 6)}px;height:${Math.max(14, r * 2 + 6)}px` }, AB.act({ onClick: () => AB.selectNode(ds, i) }))), w.name, { second: w.neighbors + (w.neighbors === 1 ? " neighbor" : " neighbors") });
+        // hover reads what the size layer reads on this node ("degree 34"), then its neighbors
+        const hot = AB.tip(h("span", Object.assign({ class: "ab-hot", role: "button", style: `left:${(xy[0] / 12).toFixed(2)}%;top:${(xy[1] / 8).toFixed(2)}%;width:${Math.max(14, r * 2 + 6)}px;height:${Math.max(14, r * 2 + 6)}px` }, AB.act({ onClick: () => AB.selectNode(ds, i) }))), w.name, { second: [sizeValue(ds, i, true), AB.count(w.neighbors, "neighbor")].filter(Boolean).join(", ") });
         hot.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
         return hot;
     }
     function hosts(el, state) {
         const ds = state === "nested-set" ? "nested" : ["nested", "plainJson"].includes(AB.route && AB.route.frame.dataset) ? AB.route.frame.dataset : "wide";
-        const D = AB.fx.datasets[ds], sized = state === "hosts-legend" && ds === "wide";
+        const D = AB.fx.datasets[ds], sized = SIZED.includes(state) && ds === "wide";
         // the ring marks the node the inspector shows: the walked one, else its state's own node (the hosts'
         // monitor-prod-iad-03, the first researcher or coauthor)
         const inNode = AB.route && String(AB.route.frame.right || "").startsWith("inspector-node/") && ds === AB.route.frame.dataset;
@@ -502,7 +686,7 @@
         const set = state === "nested-set" ? setMembers(D) : null;
         const fill = set ? Object.fromEntries(set.map((i) => [i, SET.color])) : null;
         const paint = paintOf(ds);
-        const alt = D.frame.project + ": " + what + (sized ? ", sized by " + LONG : set ? ", " + set.length + " researchers in the set colored green" : paint.words.length ? "" : ", unstyled") + (paint.words.length ? ", " + paint.words.join(", ") : "") + (walked >= 0 ? "; " + walkedName + " selected" : "");
+        const alt = D.frame.project + ": " + what + (sized ? ", sized by " + LONG : set ? ", " + set.length + " researchers in the set colored green" : paint.words.length ? "" : ", unstyled") + (paint.words.length ? ", " + paint.words.join(", ") : "") + (walked >= 0 ? "; " + [walkedName + " selected", sizeValue(ds, walked)].filter(Boolean).join(", ") : "");
         const imgs = ["light", "dark"].map((t) => {
             const k = [ds, JSON.stringify(ds === "nested" ? NL : ""), t, sized, walked, !!set, JSON.stringify(AB.painted[ds] || [])].join("-");
             return h("img", { class: "k-" + t + "-only", alt, src: otherUrl[k] || (otherUrl[k] = URL.createObjectURL(new Blob([otherSvg(ds, t, sized, walked, fill, paint)], { type: "image/svg+xml" }))) });
@@ -513,36 +697,48 @@
         // once the walk moved on, the hot spot's hover ring would read as a second selection: it stays quiet
         if (hot && walked >= 0 && walked !== hotI) hot.setAttribute("data-quiet", "");
         if (hot) stage.append(hot);
+        live(stage, ds);
         if (set) { AB.append(el, [stage, AB.legendCard([{ title: "Color: sets", go: SET.go, rows: [{ swatch: SET.color, label: SET.name, count: n(set.length), go: SET.go }] }].concat(paint.parts))]); return; }
-        if (!sized) { AB.append(el, [stage, AB.legendCard(paint.parts)]); return; }
+        if (!sized) { const lg = AB.legendCard(paint.parts); AB.append(el, [stage, lg]); trueSize(stage, lg); return; }
         // The legend's title is the row's name, the attribute: middle ellipsis, the full name in its tooltip and accessible name
         const go = ["inspector-measure-row", "long-name"], g = otherGraph(ds);
-        const dot = (v) => { const px = 4 * (VULN_RANGE[0] + (v / 6) * (VULN_RANGE[1] - VULN_RANGE[0])); return h("span", { class: "ab-dot", style: `width:${px}px;height:${px}px` }); };
         const lo = Math.min(...g.size), hi = Math.max(...g.size);
-        const card = AB.legendCard([{ title: "Size: " + LONG, go, rows: [{ swatch: h("span", { class: "cs-dots" }, [lo, Math.round((lo + hi) / 2), hi].map(dot)), label: lo + " to " + hi, go }] }].concat(paint.parts));
-        if (card) card.querySelector(".k-lg-title").replaceChildren("Size: ", AB.truncMiddle(LONG, 30));
+        const card = AB.legendCard([sizeKey(LONG, roundValues(lo, hi), (v) => 4 * (VULN_RANGE[0] + (v / 6) * (VULN_RANGE[1] - VULN_RANGE[0])), "Linear scale (radius), " + lo + " to " + hi, go)].concat(paint.parts));
         AB.append(el, [stage, card]);
+        trueSize(stage, card);
+        // the pointer resting on monitor-prod-iad-03: the one tooltip, reading the size layer's value
+        if (state === "hosts-legend-hover" && hot) requestAnimationFrame(() => requestAnimationFrame(() => AB.showTip(hot)));
     }
 
     // The package registry Load makes (data-page/json-keyed): 1,204 packages, each depending on a few
     // popular ones, drawn on a sunflower with the most depended-on at the center.
     // ponytail: the dependencies are made up from a seeded generator; the fixture holds only 8 packages
-    const registryUrl = {};
-    function registrySvg(theme, edges) {
-        const N = AB.fx.datasets[AB.registryDataset()].nodes, bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5", f = (x) => x.toFixed(1);
+    const registryUrl = {}, registryGeos = {};
+    // where each package sits, its dependency edges and each one's neighbor count (the walk reads them too)
+    function registryGeo() {
+        const R = AB.fx.datasets[AB.registryDataset()], N = R.nodes, E = R.edges, key = N + "-" + E;
+        if (registryGeos[key]) return registryGeos[key];
         let seed = 7;
         const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-        const pos = Array.from({ length: N }, (_, i) => { const r = 11 * Math.sqrt(i), t = i * 2.39996; return [600 + r * Math.cos(t), 400 + r * Math.sin(t) * 0.92]; });
-        const lines = [];
-        for (let k = 0; k < edges; k++) { const a = 1 + Math.floor(rnd() * (N - 1)), b = Math.floor(Math.pow(rnd(), 3) * a); lines.push(`<line x1="${f(pos[a][0])}" y1="${f(pos[a][1])}" x2="${f(pos[b][0])}" y2="${f(pos[b][1])}"/>`); }
-        const dots = pos.map(([x, y]) => `<circle cx="${f(x)}" cy="${f(y)}" r="3" fill="#808080" stroke="${bg}" stroke-width="1"/>`).join("");
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/><g stroke="#808080" stroke-width="0.5" stroke-opacity="0.12">${lines.join("")}</g>${dots}</svg>`;
+        const pos = sunflower(N, 11), pairs = [], nb = pos.map(() => new Set());
+        for (let k = 0; k < E; k++) { const a = 1 + Math.floor(rnd() * (N - 1)), b = Math.floor(Math.pow(rnd(), 3) * a); pairs.push([a, b]); nb[a].add(b); nb[b].add(a); }
+        return (registryGeos[key] = { pos, pairs, deg: nb.map((x) => x.size) });
+    }
+    function registrySvg(theme, sel) {
+        const G = registryGeo(), bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5", f = (x) => x.toFixed(1);
+        const lines = G.pairs.map(([a, b]) => `<line x1="${f(G.pos[a][0])}" y1="${f(G.pos[a][1])}" x2="${f(G.pos[b][0])}" y2="${f(G.pos[b][1])}"/>`);
+        const dots = G.pos.map(([x, y]) => `<circle cx="${f(x)}" cy="${f(y)}" r="3" fill="#808080" stroke="${bg}" stroke-width="1"/>`).join("");
+        const ring = sel >= 0 && G.pos[sel] ? ringSvg(f(G.pos[sel][0]), f(G.pos[sel][1]), 3, theme) : "";
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/><g stroke="#808080" stroke-width="0.5" stroke-opacity="0.12">${lines.join("")}</g>${dots}${ring}</svg>`;
     }
     function registry(el) {
         const R = AB.fx.datasets[AB.registryDataset()];
-        const alt = R.frame.project + ": " + n(R.nodes) + " packages" + (R.edges ? " and " + n(R.edges) + " dependencies" : ", no dependency edges") + ", unstyled";
-        const imgs = ["light", "dark"].map((t) => h("img", { class: "k-" + t + "-only", alt, src: registryUrl[t + R.edges] || (registryUrl[t + R.edges] = URL.createObjectURL(new Blob([registrySvg(t, R.edges)], { type: "image/svg+xml" }))) }));
-        el.append(h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs));
+        if (regSel >= R.nodes) regSel = -1;
+        const alt = R.frame.project + ": " + n(R.nodes) + " packages" + (R.edges ? " and " + n(R.edges) + " dependencies" : ", no dependency edges") + ", unstyled" + (regSel >= 0 ? "; " + registryName(regSel) + " selected" : "");
+        const imgs = ["light", "dark"].map((t) => { const k = [t, R.edges, regSel].join("-"); return h("img", { class: "k-" + t + "-only", alt, src: registryUrl[k] || (registryUrl[k] = URL.createObjectURL(new Blob([registrySvg(t, regSel)], { type: "image/svg+xml" }))) }); });
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs);
+        live(stage, "registry");
+        el.append(stage);
     }
 
     const OLD = { "too-large": "refused-too-large", "layout-running": "drawn", "layout-paused": "drawn", "layout-settled": "drawn", "legend-open": "drawn", "camera-moved": "drawn" };
@@ -570,7 +766,7 @@
             if (state === "transfers-communities") return { left: "graph-place/many-groups", right: "inspector-run-row/many-groups" };
             if (state === "selection-full") return { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: "table-dock/transfers" };
             if (state === "hosts") { const was = AB.route && AB.route.frame.dataset, ds = ["nested", "plainJson"].includes(was) ? was : "wide"; return { dataset: ds, left: "graph-place/" + { wide: "wide", nested: "nested", plainJson: "plain-json" }[ds] }; }
-            if (state === "hosts-legend") return { dataset: "wide", left: "graph-place/wide-sized", right: "inspector-measure-row/long-name" };
+            if (SIZED.includes(state)) return { dataset: "wide", left: "graph-place/wide-sized", right: "inspector-measure-row/long-name" };
             if (state === "nested-set") return { dataset: "nested", left: "graph-place/nested-set", right: "inspector-group-set-path-row/long-name" };
             if (state === "walked") return { left: "graph-place/at-rest", right: "inspector-node/why-this-look", walk: 2 };
             return { left: "graph-place/at-rest" };
@@ -596,11 +792,14 @@
             { id: "registry", label: "The package registry, as loaded (unstyled)" },
             { id: "hosts", label: "Hosts (wide project), unstyled; the nested project's canvas too" },
             { id: "hosts-legend", label: "Hosts sized by a 46-character attribute, its legend" },
+            { id: "hosts-legend-hover", label: "Hosts sized by a 46-character attribute, pointer on a host" },
             { id: "nested-set", label: "Research network: a kept set of 23 researchers colored green" },
             { id: "walked", label: "Les Miserables after two Shift+Arrow steps" },
         ],
         render(el, state) {
             state = OLD[state] || state;
+            if (state !== "registry") regSel = -1; // a registry selection lasts while its drawing shows
+            liveDs = null;
             if (state === "everything-hidden") everything(el);
             else if (state === "loading") loading(el, "lesmis");
             else if (state === "door-entries-loading" || state === "transfers-loading") {
@@ -619,13 +818,14 @@
             }
             else if (state === "registry") registry(el);
             else if (state === "door-entries") door(el);
-            else if (state === "hosts" || state === "hosts-legend" || state === "nested-set") hosts(el, state);
+            else if (state === "hosts" || SIZED.includes(state) || state === "nested-set") hosts(el, state);
             else if (state === "empty") empty(el);
             else if (state === "refused-too-large") refused(el);
             else if (state === "gpu-lost") gpuLost(el);
             else if (TRANSFERS.includes(state)) transfers(el, state);
             else drawn(el, state);
             el.oncontextmenu = (e) => { e.preventDefault(); AB.go("context-menus", "canvas"); };
+            clearClick(el);
         },
     });
 })();

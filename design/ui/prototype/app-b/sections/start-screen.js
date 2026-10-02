@@ -25,7 +25,9 @@
     // Recent projects, newest first (sizes from the fixtures' datasets). `path` is where the project
     // file was saved; Recent remembers it in this browser.
     const RECENTS = [
-        { name: "Mule ring review", size: "3,093 accounts", path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14" },
+        // Saved with the mule ring's accounts selected. Studio decision (reversible): reopening a project
+        // resumes where it stopped, so its saved selection is selected again and a notice says so.
+        { name: "Mule ring review", size: "3,093 accounts", path: "~/Documents/graphty/Mule ring review.graphty", when: "Today 09:14", dataset: "transactions", restore: (fx) => fx.transactions.inspector.twoHop.ring },
         { name: "Knockdown screen, September", size: "300 proteins", path: "~/Lab/screens/Knockdown screen, September.graphty", when: "Yesterday" },
         { name: "March transfers", size: "3,000 accounts", path: "~/Documents/graphty/March transfers.graphty", when: "Sep 24" },
         { name: "Patent citations 1999-2001", size: "124,318 patents", path: "~/Downloads/Patent citations 1999-2001.graphty", when: "Sep 19" },
@@ -48,7 +50,7 @@
         const path = h("span", { class: "k-ellipsis ss-path" }, r.path);
         // A missing file's row is a plain container: its "..." is its one control (a click on the row opens the same menu)
         const row = h("div", Object.assign({ class: "k-row ss-recent" + (missing ? " ss-missing" : "") }, missing ? { on: { click: (e) => { if (e.target.closest(".ss-more-btn")) return; if (menuWasOpen) menuWasOpen = false; else openRecentMenu(more, r, missing, redraw); } } }
-            : Object.assign({ role: "link", "aria-label": r.name + ", " + r.path + ", " + r.when }, AB.act({ go: r.go || ["graph-place", "at-rest"] }))),
+            : Object.assign({ role: "link", "aria-label": r.name + ", " + r.path + ", " + r.when }, AB.act({ onClick: () => openRecent(r) }))),
             icon(missing ? "triangle-alert" : "file"),
             h("span", { class: "k-grow ss-two" },
                 name,
@@ -60,11 +62,60 @@
         return row;
     }
 
+    // Open a recent project: its own project, and the selection it was saved with
+    function openRecent(r) {
+        const st = r.dataset ? ["graph-place", AB.placeOf(r.dataset, "graph")] : ["graph-place", "at-rest"];
+        // the notice belongs to the screen that opens, so it is raised once that screen has drawn
+        if (r.restore) window.addEventListener("hashchange", () => setTimeout(() => AB.notice("Selection restored: " + AB.count(r.restore(AB.fx.datasets), "node")), 0), { once: true });
+        AB.go(st[0], st[1]);
+    }
+
     function openRecentMenu(anchor, r, missing, redraw) {
         const remove = { label: "Remove from list", onClick: () => { removed = true; redraw(); toast("Removed " + r.name + " from Recent", () => { removed = false; redraw(); }); } };
         AB.openMenu(anchor, missing
             ? [{ label: "Locate...", desc: "Find the moved file; Recent remembers its new place", onClick: () => AB.go("graph-place", "at-rest") }, remove]
-            : [{ label: "Open", onClick: () => AB.go("graph-place", "at-rest") }, remove]);
+            : [{ label: "Open", onClick: () => openRecent(r) }, remove]);
+    }
+
+    // First use of a wide or a nested file: the start screen with nothing opened yet, and a stand-in
+    // for the system file picker over it. Choosing the file and pressing Open is what reads it; the
+    // Data page then opens on the proposal (data-page/wide-hosts, data-page/json-tree).
+    const FIRST_USE = {
+        wide: { folder: "Downloads > it-estate", go: ["data-page", "wide-hosts"], files: (d) => [
+            { name: d.file, size: "214 KB", when: "Mar 31" },
+            { name: d.edgesFile, size: "187 KB", when: "Mar 31" },
+            { name: "estate-diagram.png", size: "1.2 MB", when: "Mar 12", off: true },
+        ] },
+        nested: { folder: "Downloads > research-api", go: ["data-page", "json-tree"], files: (d) => [
+            { name: d.file, size: "1.4 MB", when: "Mar 30" },
+            { name: "api-reference.pdf", size: "620 KB", when: "Feb 02", off: true },
+        ] },
+    };
+    const firstUse = (state) => (/^(wide|nested)-/.exec(state || "") || [])[1];
+
+    // The picker: tick one or more files, then Open. Files graphty cannot open are dimmed, as a system
+    // picker dims the types it was not asked for. Cancel, the close button and Esc go back to the start screen.
+    function picker(ds, back) {
+        const F = FIRST_USE[ds], chosen = new Set();
+        const foot = h("div", { class: "k-modal-foot" });
+        const drawFoot = () => foot.replaceChildren(
+            AB.button("Cancel", { kind: "secondary", go: back }),
+            chosen.size ? AB.button("Open", { onClick: () => AB.go(F.go[0], F.go[1]) }) : AB.button("Open", { disabled: "Choose a file first" }));
+        const rows = F.files(AB.fx.datasets[ds]).map((f) => {
+            const box = h("span", { class: "k-check", "aria-hidden": "true", "aria-checked": "false" });
+            const flip = () => { if (f.off) return; chosen.has(f.name) ? chosen.delete(f.name) : chosen.add(f.name); const on = chosen.has(f.name); row.setAttribute("aria-checked", String(on)); box.setAttribute("aria-checked", String(on)); drawFoot(); };
+            const row = h("div", { class: "k-row ss-file" + (f.off ? " ss-file-off" : ""), role: "checkbox", tabindex: f.off ? "-1" : "0", "aria-checked": "false", "aria-disabled": f.off ? "true" : null, "aria-label": f.name,
+                on: { click: flip, keydown: (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } } } },
+                box, icon("file"), h("span", { class: "k-grow k-ellipsis" }, f.name), h("span", { class: "k-secondary k-num ss-when" }, f.size), h("span", { class: "k-secondary k-num ss-when" }, f.when));
+            return row;
+        });
+        drawFoot();
+        const tid = "ss-pick-title";
+        return h("div", { class: "ab-modal-wrap ss-pick-wrap" },
+            h("div", { class: "k-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": tid },
+                h("div", { class: "k-modal-head" }, h("h2", { id: tid, class: "k-grow ab-modal-title" }, "Choose files"), AB.iconButton("x", "Close", { key: "Esc", go: back })),
+                h("div", { class: "k-modal-body" }, h("p", { class: "k-secondary ss-folder" }, icon("folder-open", "sm"), F.folder), rows),
+                foot));
     }
 
     let toastSlot = null;
@@ -124,7 +175,8 @@
         id: "start-screen",
         title: "Start screen",
         region: "full",
-        frame: { top: false, rail: false },
+        // the first-use states name the project the files hold, so a task that starts here draws one project
+        frame: (state) => Object.assign({ top: false, rail: false }, firstUse(state) ? { dataset: firstUse(state) } : null),
         states: [
             { id: "first-run", label: "First launch, usage data unanswered" },
             { id: "disclosure", label: "What is collected, open" },
@@ -135,11 +187,16 @@
             { id: "recent-missing", label: "A recent project's file was moved" },
             { id: "recent-missing-menu", label: "A moved file's menu: Locate... or Remove" },
             { id: "long-name", label: "A long project name and a deep folder" },
+            { id: "wide-first-use", label: "First use: the IT estate's hosts and connections CSVs, not opened yet" },
+            { id: "wide-choose", label: "First use: the file picker on the IT estate's CSVs" },
+            { id: "nested-first-use", label: "First use: the research network's nested JSON, not opened yet" },
+            { id: "nested-choose", label: "First use: the file picker on the research network's JSON" },
         ],
         render(el, state) {
             const fx = AB.fx.datasets;
             const firstLaunch = state === "first-run" || state === "disclosure";
-            const hasRecents = !firstLaunch && state !== "answered" && state !== "declined";
+            const ds = firstUse(state), choose = ds ? ["start-screen", ds + "-choose"] : null;
+            const hasRecents = !firstLaunch && !ds && state !== "answered" && state !== "declined";
             const missingState = state === "recent-missing" || state === "recent-missing-menu";
             if (state !== "recent-missing") removed = false;
             const privacy = state === "answered" ? "Usage data on, content masked" : "Local only";
@@ -147,9 +204,9 @@
             // A project file opens the project. New from data... opens the Data page (File, URL and
             // Paste are its "+" choices); a dropped data file opens the same page with that one table.
             const doors = column("Start",
-                door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: ["graph-place", "at-rest"] }),
-                door({ icon: "file-plus", label: "New from data...", go: ["data-page", "entries"] }),
-                h("p", Object.assign({ class: "k-secondary ss-line ss-drop-hint" }, AB.act({ go: ["start-screen", "drop-target"] })), icon("upload", "sm"), "or drop a file anywhere in this window"),
+                door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: choose || ["graph-place", "at-rest"] }),
+                door({ icon: "file-plus", label: "New from data...", go: choose || ["data-page", "entries"] }),
+                h("p", Object.assign({ class: "k-secondary ss-line ss-drop-hint" }, AB.act({ go: choose || ["start-screen", "drop-target"] })), icon("upload", "sm"), "or drop a file anywhere in this window"),
                 h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "Files are read on this computer and never uploaded."),
             );
 
@@ -163,6 +220,7 @@
             if (hasRecents) drawRecents();
             const recents = column("Recent projects",
                 hasRecents ? list : h("p", { class: "k-secondary ss-empty" }, "Projects you open or create appear here. They are kept in this browser."),
+                hasRecents ? h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "This list is kept in this browser.") : null,
             );
 
             const samples = column("Samples",
@@ -193,6 +251,15 @@
                         ))
                     : null,
             );
+            if (state === "wide-choose" || state === "nested-choose") {
+                const back = ["start-screen", ds + "-first-use"];
+                screen.append(picker(ds, back));
+                requestAnimationFrame(() => { const f = screen.querySelector(".ss-file:not(.ss-file-off)"); if (f) f.focus(); });
+                // Esc cancels the picker (capture, before the shell's Esc, which would leave the start screen)
+                const esc = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); e.preventDefault(); AB.go(back[0], back[1]); } };
+                window.addEventListener("keydown", esc, true);
+                window.addEventListener("hashchange", () => window.removeEventListener("keydown", esc, true), { once: true });
+            }
             toastSlot = h("div", { class: "ss-toast" });
             screen.append(toastSlot);
             el.append(screen);

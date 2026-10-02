@@ -138,6 +138,10 @@
 
     // ---------- reader choices for this visit ----------
     const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", onlyStyle: false, methodsOnly: false, adv: {} };
+    // The open filter step (Les Miserables' first step, as graph-place/scope-mark shows it): a data
+    // export opened with a step open starts from that step's edges
+    const STEP = () => ({ name: L().filterSteps.steps[0], nodes: L().filterSteps.statsByState["1"].nodes, edges: L().filterSteps.statsByState["1"].edges });
+    const stepOpen = () => !!(AB.route && AB.route.frame.dataset === "lesmis" && AB.route.frame.chip && AB.route.frame.chip !== "Full graph");
     let redraw = () => {};
 
     // ---------- Data: every format graphty-element writes (session.catalog.formats(), canExport) ----------
@@ -157,17 +161,23 @@
         // a project loaded from nested JSON: graph-io writes its flattened columns back as dotted keys (element-requirements-5.md, Deferred)
         if (AB.route && AB.route.frame.dataset === "nested") return ["Nested fields are written as flat dotted keys (\"attributes.profile.h_index\": 24), not in the nesting of " + AB.fx.datasets.nested.file + "."];
         const nodeCols = "label, group, degree, betweenness, PageRank, the Louvain community, the position and the drawn color and size";
-        if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them.`];
+        if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them: each rank is a whole-number column with a separate Tie column, and a sampled estimate is a Rank low and a Rank high column.`];
         if (S.format === "CSV" && S.table === "Nodes") return [`The node table holds nodes only: the ${n(L().edges)} edges and their value are not written. Choose Table: Edges to keep them.`];
         if (S.format === "CSV") return ["An adjacency table holds who links to whom and the edge value only; every node attribute and run result is not written."];
         if (S.format === "Pajek NET") return ["Pajek has a slot for a label and a position per node: group, degree, betweenness, PageRank and the community are not written."];
         if (S.format === "DOT") return ["DOT has no attribute types: numbers are written as text."];
         return [];
     }
+    // Rank as written by graphty-element's table export (a stand-in until it writes it): a whole
+    // number, 1 = highest, tied rows share the lowest rank of their block; Tie = how many others share the value
+    function rankOf(r) {
+        const all = L().rows.map((x) => x.betweenness);
+        return [all.filter((v) => v >= r.betweenness).length, all.filter((v) => v === r.betweenness).length - 1];
+    }
     function dataPreview() {
         const rs = L().rows.slice(0, 3);
         const ext = FMT[S.format].ext;
-        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,betweenness,results.pagerank.rank,results.louvain.community,x,y,color,size"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].join(",") + ",...")).join("\n") + "\n...";
+        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,betweenness,betweenness_rank,betweenness_tie,results.louvain.community,x,y,color,size"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
         if (ext === "csv" && S.table === "Edges") return "source,target,value\n0,1,...\n...";
         if (ext === "csv") return ",Myriel,Napoleon,Mlle.Baptistine,...\nMyriel,0,1,...\n...";
         if (ext === "graphml") return ['<graphml xmlns="http://graphml.graphdrawing.org/xmlns">', '  <key id="label" for="node" attr.name="label" attr.type="string"/>', '  <key id="group" for="node" attr.name="group" attr.type="int"/>', `  <graph edgedefault="${S.adv.GraphML || "undirected"}">`]
@@ -201,7 +211,10 @@
     }
     function dataBody(fromRow) {
         const f = FMT[S.format];
-        const scopeTxt = S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
+        const st = STEP();
+        const scopeTxt = S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : S.scope === "Step" ? `${st.name}: ${AB.count(st.edges, "edge", { of: L().edges })}, among ${AB.count(st.nodes, "node")}` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
+        const scopeOpts = ["Full graph", "Watchlist"].concat(stepOpen() ? ["Step"] : []);
+        const scopeName = (o) => (o === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : o === "Step" ? "Open filter step: " + st.name : o);
         const notes = lossNotes();
         const inline = f.inline.map(([label, v, k]) => {
             if (!Array.isArray(v)) return row(label, check("On", true, () => AB.flash(label + " (not wired in the skeleton)")));
@@ -221,32 +234,46 @@
             head("Data", `${scopeTxt} - every attribute and run result - ${S.format}`),
             h("div", { class: "ex-set" },
                 row("Format", dropdown(S.format, Object.keys(FMT), (x) => { S.format = x; redraw(); }, "Format")),
-                row("Scope", dropdown(S.scope === "Watchlist" ? "Watchlist, 5 nodes" : "Full graph", ["Full graph", "Watchlist", "Filtered graph"].map((o) => ({ label: o, check: o === S.scope, onClick: () => { S.scope = o === "Filtered graph" ? S.scope : o; redraw(); }, needs: o === "Filtered graph" ? "exportGraph writes the whole graph; writing only the filtered graph needs graphty-element" : null })), null, "Scope"),
-                    S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a set's nodes needs graphty-element") : null),
+                row("Scope", dropdown(scopeName(S.scope), scopeOpts.map((o) => ({ label: scopeName(o), check: o === S.scope, onClick: () => { S.scope = o; redraw(); } })), null, "Scope"),
+                    S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a filter step's or a set's elements needs graphty-element") : null),
+                S.scope === "Step" ? h("div", { class: "ex-line ex-sum" }, "Starts from the filter step you have open, its edges. The full graph and the nodes are one choice away.") : null,
                 inline, advBtn ? row("", advBtn) : null),
             notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
             h("div", { class: "ex-h" }, "Preview"),
             h("pre", { class: "ex-pre", tabindex: "0", "aria-label": "Preview of the exported data" }, dataPreview()),
+            FMT[S.format].ext === "csv" && S.table === "Nodes" ? h("div", { class: "ex-line ex-sum" }, "A rank is a whole number (1 = highest) and Tie says how many other nodes share the value, so the column stays numeric in a spreadsheet. A sampled estimate writes Rank low and Rank high columns in its place.") : null,
             );
     }
-    const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
+    const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : S.scope === "Step" ? "_degree-2-or-more" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
 
-    // ---------- Recipe ----------
+    // ---------- Recipe: the sender's side ----------
+    // What travels, in the order it runs when applied: the open filter step, then the runs (which
+    // read the filtered graph); the layout by name with its settings (inspector-nothing-selected's
+    // Layout section: Spread Out, engine NGraph Force, seed 7).
+    const RUNS = "Louvain (resolution 1.0, weighted by value), PageRank, Degree, Betweenness, Closeness, Shortest paths";
     function recipeBody() {
         const views = AB.SAVED_VIEWS;
+        const step = stepOpen() ? STEP().name : null;
+        const dd = (t, d) => [h("dt", null, t), h("dd", null, d)];
         return h("div", { class: "ex-main" },
-            head("Recipe", S.onlyStyle ? "Only the style - paint rows - no data" : `The analysis without the data - 7 runs, ${views.length} saved views`),
+            head("Recipe", S.onlyStyle ? "Only the style - paint rows - no data" : `The analysis without the data - ${step ? "1 filter step, " : ""}6 runs, the layout, ${views.length} saved views`),
             h("div", { class: "ex-set" },
                 row("Include", check("Only the style", S.onlyStyle, () => { S.onlyStyle = !S.onlyStyle; redraw(); })),
                 row("File", h("span", null, S.onlyStyle ? `${PROJECT}.style` : `${PROJECT}.recipe`), AB.openQuestion("The recipe and style files' name endings"))),
             S.onlyStyle ? null : callout("info", "Applying it to other data runs each analysis again. ", "Restoring the results without running again", " ", AB.needsElement("graphty-element keeps no run records a recipe could restore without recomputing")),
             h("div", { class: "ex-h" }, "What the file holds"),
+            h("p", { class: "ex-line", style: "margin:0" }, h("b", null, "No data inside. "), "What your recipient does: load a graph with a group column on its nodes and a value column on its edges, then Apply. Columns are matched by name."),
             h("dl", { class: "ex-dl" },
-                S.onlyStyle ? null : [h("dt", null, "Runs"), h("dd", null, "Louvain at resolution 1.0, Louvain weighted by amount, PageRank, Degree, Betweenness, Closeness, Shortest paths")],
-                h("dt", null, "Style"), h("dd", null, "Every paint row in the tree, with the custom palettes they use (styles.toDocument)"),
-                S.onlyStyle ? null : [h("dt", null, "Saved views"), h("dd", null, views.join(", "))],
-                h("dt", null, "Left out"), h("dd", null, "Node names, values, the Watchlist's members, Overrides and notes: they name things in this data"),
-                h("dt", null, "Needs"), h("dd", null, "group (node) and value (edge), matched by name when applied")));
+                S.onlyStyle ? null : [
+                    dd("Order", step ? "Applied in this order: filter, then runs. The runs read the filtered graph." : "Applied in this order: filter, then runs. This project has no filter step, so the runs read the whole graph."),
+                    step ? dd("1. Filter", step) : null,
+                    dd((step ? "2. " : "") + "Runs", RUNS),
+                    dd("Layout", "Spread Out, engine NGraph Force, seed 7. Positions are drawn again on the recipient's data."),
+                ],
+                dd("Style", "Every paint row in the tree, with the custom palettes they use (styles.toDocument)"),
+                S.onlyStyle ? null : dd("Saved views", views.join(", ")),
+                dd("Needs", "group (node) and value (edge), from the recipient's data"),
+                dd("Not included", L().file + " (named, not carried), node names and values, positions, the Watchlist's members, Overrides and notes: they name things in this data")));
     }
 
     // ---------- Report (disabled: title, one sentence, the mark) ----------
@@ -258,20 +285,35 @@
     }
 
     // ---------- Recent exports ----------
-    const RECENT = [
-        { file: `${PROJECT}_whole-cast.png`, what: "Image, PNG at 2x, Whole cast", when: "Today 10:14", go: ["export-image", "image"] },
-        { file: `${PROJECT}_nodes.csv`, what: "Data, CSV node table, full graph", when: "Today 9:52", go: ["export-dialog", "data"], set: { format: "CSV", table: "Nodes", scope: "Full graph" } },
-        { file: `${PROJECT}.recipe`, what: "Recipe, 7 runs and 3 saved views", when: "Yesterday 16:30", go: ["export-dialog", "recipe"], set: { onlyStyle: false } },
-        { file: `${PROJECT}_tour.webm`, what: "Video, tour of saved views", when: "Sep 28 11:05", go: ["export-video", "tour"] },
-    ];
+    // Each row names the data version it was made from; Export again names the current one when it
+    // differs. Les Miserables has one version (its file); the transfers case has March and April
+    // (full-canvas-modes' version history: the March export, then April's data replaced it).
+    const month = (d) => d.title.replace(/^.*, (\w+) \d{4}$/, "$1") + " data";
+    function recentRows() {
+        if (AB.route && AB.route.frame.dataset === "transactions") {
+            const M = AB.fx.datasets.transactions, ring = AB.fx.scenarios.exportDialog.march.length;
+            return { now: month(AB.fx.datasets.transactionsApril), rows: [
+                { file: "case-acc-233575_ring-pagerank_2026-03.csv", what: `Data, CSV, ${ring} accounts of the Mule ring and the methods file`, when: "Sep 28", version: month(M),
+                  again: () => AB.flash("Export again on the current data (not drawn in the skeleton): the same settings, a new file named for the month, the earlier file kept") },
+            ] };
+        }
+        const v = L().file;
+        return { now: v, rows: [
+            { file: `${PROJECT}_whole-cast.png`, what: "Image, PNG at 2x, Whole cast", when: "Today 10:14", version: v, go: ["export-image", "image"] },
+            { file: `${PROJECT}_nodes.csv`, what: "Data, CSV node table, full graph", when: "Today 9:52", version: v, go: ["export-dialog", "data"], set: { format: "CSV", table: "Nodes", scope: "Full graph" } },
+            { file: `${PROJECT}.recipe`, what: "Recipe, 6 runs, the layout and 3 saved views", when: "Yesterday 16:30", version: v, go: ["export-dialog", "recipe"], set: { onlyStyle: false } },
+            { file: `${PROJECT}_tour.webm`, what: "Video, tour of saved views", when: "Sep 28 11:05", version: v, go: ["export-video", "tour"] },
+        ] };
+    }
     function recentBody() {
+        const { now, rows } = recentRows();
         return h("div", { class: "ex-main" },
-            head("Recent exports", `${RECENT.length} files, newest first - each was saved to Downloads`),
-            h("div", { class: "ex-recent", role: "list" }, RECENT.map((r) => h("div", { class: "ex-rec", role: "listitem" },
+            head("Recent exports", `${AB.count(rows.length, "file")}, newest first - each was saved to Downloads`),
+            h("div", { class: "ex-recent", role: "list" }, rows.map((r) => h("div", { class: "ex-rec", role: "listitem" },
                 icon("file", "sm"), h("span", { class: "k-ellipsis" }, r.file),
-                AB.button("Export again", { kind: "secondary", onClick: () => { Object.assign(S, r.set || {}); AB.go(r.go[0], r.go[1]); } }),
-                h("span", { class: "ex-sum" }, `${r.what} - ${r.when} - Downloads`)))),
-            h("div", { class: "ex-line ex-sum" }, "Export again opens the output with the same settings, on the data as it is now."));
+                AB.button(r.version === now ? "Export again" : `Export again, on ${now}`, { kind: "secondary", onClick: r.again || (() => { Object.assign(S, r.set || {}); AB.go(r.go[0], r.go[1]); }) }),
+                h("span", { class: "ex-sum" }, `${r.what} - ${r.when} - made from ${r.version}`)))),
+            h("div", { class: "ex-line ex-sum" }, "Export again opens the output with the same settings, on the data as it is now. The earlier file is kept."));
     }
 
     // ---------- the section ----------
@@ -287,7 +329,8 @@
         if (state === "video") return ctx.renderSection("export-video/still", el);
         // A door only fills a field: the Watchlist row's menu fills Scope (and the node table)
         if (!again && state === "from-row") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Watchlist" });
-        if (!again && state === "data") S.scope = "Full graph";
+        // With a filter step open, a data export starts from that step's edges
+        if (!again && (state === "data" || state === "filter-step")) Object.assign(S, stepOpen() ? { format: "CSV", table: "Edges", scope: "Step" } : { scope: "Full graph" });
         const cancel = AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() });
         let body, foot;
         if (state === "report") {
@@ -303,14 +346,28 @@
             body = dataBody(state === "from-row");
             foot = [cancel, AB.button("Copy", { kind: "secondary", onClick: () => AB.flash(`Copied ${dataFile()} to the clipboard`) }), AB.button("Export", { icon: "download", onClick: () => done(dataFile()) })];
         }
-        el.append(frame(state === "recent-exports" ? "recent" : state === "from-row" ? "data" : state, body, foot));
+        el.append(frame(state === "recent-exports" ? "recent" : state === "from-row" || state === "filter-step" ? "data" : state, body, foot));
     }
 
     registerSection({
         id: "export-dialog",
         title: "Export dialog",
         region: "overlay",
-        frame: { left: "graph-place/at-rest" },
+        // The screen behind stays when it is Les Miserables with a filter step on (the export starts
+        // from the step). Recent exports draws Les Miserables when opened from this dialog or Settings
+        // over it; otherwise (a direct link, version history) the transfers case, the project with
+        // two data versions.
+        frame: (state) => {
+            const was = AB.route && AB.route.frame;
+            // Data opened directly (Ctrl+E from the graph) shows Les Miserables with its filter step
+            // open, so the step default is what the reader meets; switching outputs inside the dialog
+            // keeps the screen behind as it was
+            const inDialog = was && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id);
+            if (state === "filter-step" || (state === "data" && !inDialog)) return { left: "graph-place/scope-mark" };
+            if (state === "recent-exports") return was && was.dataset === "lesmis" && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id) ? { left: "graph-place/at-rest" } : { left: "graph-place/many-groups", dataset: "transactions" };
+            if (was && was.dataset === "lesmis" && was.chip && was.chip !== "Full graph" && was.left) return { left: was.left };
+            return { left: "graph-place/at-rest" };
+        },
         closeTo: "graph-place",
         states: [
             { id: "image", label: "Image (the export-image section)" },
@@ -318,6 +375,7 @@
             { id: "report", label: "Report, disabled" },
             { id: "recipe", label: "Recipe" },
             { id: "data", label: "Data" },
+            { id: "filter-step", label: "Data, with a filter step open" },
             { id: "from-row", label: "Data from the Watchlist row's menu" },
             { id: "recent-exports", label: "Recent exports" },
         ],

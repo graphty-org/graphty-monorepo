@@ -3,11 +3,18 @@
    Quick actions, or a dropped file. Titled "Apply <kind>: <name>": a file header (name, who saved
    it and when), then one list of the rows the file adds, drawn with the shared AB.tree, each row
    with its binding inline in the count slot -- the matched attribute, or a picker when the data
-   lacks it. Apply waits until every mismatch has a choice. A file always lands on top of the tree
+   lacks it, after what the row paints. Matched bindings collapse into one line ("4 of 4 matched by
+   name and type") with Show all. Under the header: what the file brings, what the recipient
+   supplies, and the network it expects. Ids the recipe names that the data lacks are one problem
+   line under the list, with no repair. Apply waits (aria-disabled, focusable, with its reason)
+   until every mismatch has a choice, and the first open choice takes focus. A file always lands on top of the tree
    as one undo step (no Replace). An older 1.x style file is one notice and "Apply these settings",
    with each setting a checkbox.
    Data facts are kit/fixtures.json: March accounts carry alertRule; April's accounts file has only
-   id, kind, country, riskScore and flagged; 7 of the Watchlist's 9 accounts are in April.
+   id, kind, country, riskScore and flagged; 7 of the Watchlist's accounts are in April.
+   Section-local fact (WL): the recipe's Watchlist also names 12 ids a spreadsheet turned into dates
+   (1-Mar, 2-Sep: what it makes of MARCH1, SEPT2), so it reads 7 of 19 and the problem line under
+   the list names those 12; the fixture's two missing ACC ids are not part of it.
    A run's weight (spec 12.2): a run that used the loaded weight reads "Weight: loaded weight" and
    binds nothing; the recipe's Max flow run overrode its weight to fee, read as Capacity, so fee is
    listed with the bindings and its meaning control shows only while fee is unmatched. Section-local
@@ -33,6 +40,10 @@
 .ra-modal { width: 720px; max-width: calc(100vw - 32px); max-height: calc(100vh - 96px); }
 .ra-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 16px; border-bottom: 1px solid var(--cm-border); }
 .ra-head .k-i { color: var(--cm-text-secondary); }
+.ra-meta { padding: 6px 16px; border-bottom: 1px solid var(--cm-border); display: grid; gap: 2px; line-height: 18px; color: var(--cm-text-secondary); }
+.ra-meta b { color: var(--cm-text); font-weight: 550; }
+.ra-paints { color: var(--cm-text-secondary); margin-inline-end: 8px; }
+.ra-missing { margin: 8px 16px 4px; }
 .ra-sh { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; margin-top: 4px; font-weight: 550; }
 .ra-sh .k-secondary { font-weight: 450; }
 .ra-list .ab-trow { cursor: default; }
@@ -59,11 +70,21 @@
     const n = (x) => Number(x).toLocaleString("en-US");
     const abc = () => h("span", { class: "ab-abc" }, "Abc");
 
-    const RECIPE = { kind: "recipe", name: "Mule ring triage", file: "mule-ring-triage.graphty", savedBy: "", savedAt: "Mar 28 2026, 10:14", appliedAt: "today 09:31" };
-    const STYLE = { kind: "style file", name: "Risk review look", file: "risk-review-look.json", savedBy: "Dana Reyes", savedAt: "Mar 30 2026, 16:02" };
+    const RECIPE = { kind: "recipe", name: "Mule ring triage", file: "mule-ring-triage.graphty", savedBy: "", savedAt: "Mar 28 2026, 10:14", appliedAt: "today 09:31",
+        supply: "a network with an account column", expects: "a transfer network of accounts (not included)" };
+    const STYLE = { kind: "style file", name: "Risk review look", file: "risk-review-look.json", savedBy: "Dana Reyes", savedAt: "Mar 30 2026, 16:02",
+        supply: "a network with an account column", expects: "a transfer network of accounts (not included)" };
     const LEGACY = { file: "transfers-look-2025.json" };
-    const WIDE = { kind: "recipe", name: "Estate exposure review", file: "estate-exposure-review.graphty", savedBy: "", savedAt: "Feb 27 2026, 15:40" };
+    const WIDE = { kind: "recipe", name: "Estate exposure review", file: "estate-exposure-review.graphty", savedBy: "", savedAt: "Feb 27 2026, 15:40",
+        supply: "a network with a host column", expects: "an IT estate of hosts and connections (not included)" };
     const W = () => AB.fx.datasets.wide;
+    // The recipe's Watchlist: the fixture's 7 accounts in April plus 12 date-shaped ids no network has
+    const DATED = ["1-Mar", "2-Mar", "3-Mar", "6-Mar", "7-Mar", "8-Mar", "11-Mar", "1-Sep", "2-Sep", "3-Sep", "5-Sep", "7-Sep"];
+    function WL() {
+        const f = TA().watchlist;
+        const inData = f.memberIds.filter((id) => !f.notInCurrentData.includes(id));
+        return { name: f.name, members: inData.length + DATED.length, inCurrentData: inData.length, notInCurrentData: DATED, memberIds: inData.concat(DATED) };
+    }
 
     // April's attribute list for the field list: April's columns with March's types
     function aprilFields() {
@@ -82,25 +103,25 @@
     // The rows each file adds, top first. `reads` is the attribute it binds to (matched by name and
     // type); `miss` marks the one the April accounts file lacks.
     function recipeRows(april) {
-        const w = TA().watchlist;
+        const w = WL();
         return [
-            { id: "watchlist", kindIcon: "circle-check", name: "Watchlist", fixed: april ? w.inCurrentData + " of " + w.members + " in this data" : w.members + " accounts",
-              fixedTip: april ? w.notInCurrentData.join(" and ") + " are not in this data; they stay in the set as missing members" : "A set the recipe carries, by account id" },
-            { id: "ppr", kindIcon: "chart-column", name: "Personalized PageRank from Watchlist", fixed: "Weight: loaded weight",
+            { id: "watchlist", kindIcon: "circle-check", name: "Watchlist", set: true, paints: "Outline", fixed: april ? w.inCurrentData + " of " + w.members + " in this data" : w.members + " accounts",
+              fixedTip: april ? AB.count(w.notInCurrentData.length, "id") + " are not in this data; they stay in the set as missing members" : "A set the recipe carries, by account id" },
+            { id: "ppr", kindIcon: "chart-column", name: "Personalized PageRank from Watchlist", run: true, paints: "Color", fixed: "Weight: loaded weight",
               fixedTip: "Uses this data's loaded weight, " + LOADED.weight + " as " + LOADED.meaning + "; nothing to bind" },
-            { id: "maxflow", kindIcon: "route", name: "Max flow, Watchlist to merchants", role: "weight", reads: "fee", weight: true, miss: april },
-            { id: "cycles", kindIcon: "route", name: "Cycles up to 4 transfers", role: "time", reads: "timestamp", notes: 1 },
-            { id: "riskScore", kindIcon: "hash", name: "riskScore", role: "riskScore", reads: "riskScore" },
-            { id: "alertRule", kindIcon: abc(), name: "alertRule", role: "alertRule", reads: "alertRule", miss: april },
+            { id: "maxflow", kindIcon: "route", name: "Max flow, Watchlist to merchants", run: true, paints: "Flow edges", role: "weight", reads: "fee", weight: true, miss: april },
+            { id: "cycles", kindIcon: "route", name: "Cycles up to 4 transfers", run: true, paints: "Cycle edges", role: "time", reads: "timestamp", notes: 1 },
+            { id: "riskScore", kindIcon: "hash", name: "riskScore", paints: "Color", role: "riskScore", reads: "riskScore" },
+            { id: "alertRule", kindIcon: abc(), name: "alertRule", paints: "Label", role: "alertRule", reads: "alertRule", miss: april },
         ];
     }
     // The wide recipe: six attributes; vuln_crit_30d and owner are February's names
     function wideRows() {
         return [
             { id: "role", kindIcon: abc(), name: "role", role: "color", reads: "role" },
-            { id: "env", kindIcon: "funnel", name: "environment is production", role: "filter", reads: "environment" },
+            { id: "env", kindIcon: "funnel", name: "environment is production", filter: true, paints: "Nothing: a filter step", role: "filter", reads: "environment" },
             { id: "cpu", kindIcon: "hash", name: "cpu_util_p95_pct", role: "tooltip", reads: "cpu_util_p95_pct" },
-            { id: "btw", kindIcon: "chart-column", name: "Betweenness, weighted by bytes", role: "weight", reads: "bytes_total_24h" },
+            { id: "btw", kindIcon: "chart-column", name: "Betweenness, weighted by bytes", run: true, paints: "Glow", role: "weight", reads: "bytes_total_24h" },
             { id: "vuln", kindIcon: "hash", name: "vuln_crit_30d", role: "size", reads: "vuln_crit_30d", miss: true, kind: "number" },
             { id: "owner", kindIcon: abc(), name: "owner", role: "label", reads: "owner", miss: true, kind: "text" },
         ];
@@ -125,7 +146,7 @@
         const graph = wide ? W().frame.project : april ? "Transfers, April" : "Transfers, March";
         const dataset = wide ? "wide" : april ? "transactionsApril" : "transactions";
         if (april) aprilFields();
-        const st = { choice: {}, meaning: {} };
+        const st = { choice: {}, meaning: {}, all: false };
         const misses = rows.filter((r) => r.miss);
         const open = () => misses.filter((r) => !st.choice[r.id]);
         const matched = rows.filter((r) => r.reads && !r.miss).length;
@@ -149,12 +170,18 @@
             reason.replaceChildren(...(left.length
                 ? [icon("triangle-alert", "sm"), "Choose an attribute for " + left.map((r) => r.reads).join(", ") + ", or leave it unbound"]
                 : ["Adds " + rows.length + " rows on top of the tree, one undo step"]));
-            summary.replaceChildren(matched + " of " + binds + " attributes matched by name and type");
+            // Matched bindings collapse into this one line; Show all puts each inline on its row
+            const toggle = h("span", Object.assign({ class: "ab-link", role: "button", "aria-expanded": String(st.all) }, AB.act({ onClick: () => { st.all = !st.all; drawList(); drawFoot(); summary.querySelector(".ab-link").focus(); } })), st.all ? "Hide matched" : "Show all");
+            summary.replaceChildren(matched + " of " + binds + " matched by name and type", matched ? " " : null, matched ? toggle : null);
         };
 
         // The binding in the row's count slot: "weight -> amount", or a picker for a missing one
-        const bindingFor = (r) => {
+        // What the row paints leads the slot, then its binding
+        const paints = (r) => h("span", { class: "ra-paints" }, r.paints || r.role.charAt(0).toUpperCase() + r.role.slice(1));
+        const bindingFor = (r) => [paints(r), bindOf(r)];
+        const bindOf = (r) => {
             if (r.fixed) return AB.tip(h("span", { class: "ra-bind" }, r.fixed), r.fixedTip, { label: false });
+            if (!r.miss && !st.all) return null;
             if (!r.miss) return AB.tip(h("span", { class: "ra-bind" }, r.role + (r.weight ? ": " + r.reads : ""), h("span", { class: "ra-arrow" }, "->"), r.reads),
                 "Matched by name and type in " + graph + (r.weight ? "; read as Capacity, as the recipe saved it. This run's own weight: the loaded weight is unchanged" : ""), { label: false });
             const c = st.choice[r.id];
@@ -164,6 +191,8 @@
                 onClick: (e) => AB.openFieldList(e.currentTarget, { dataset, kind: r.weight ? "number" : r.kind, element: r.weight ? "edge" : "node", current: c, results: false, notes: false,
                     label: (r.weight ? "Weight" : "Attribute") + " for " + r.reads, onPick: (name) => pick(r, name) }) });
             f.dataset.raPick = r.id;
+            // Choosing the missing data is the main action: the first open choice takes focus
+            if (!wide && !c && r === open()[0]) f.setAttribute("data-autofocus", "");
             f.setAttribute("aria-haspopup", "listbox");
             const leave = c === none ? null : h("span", Object.assign({ class: "ab-link" , role: "button" }, AB.act({ onClick: () => pick(r, none) })), r.weight ? "Use no weight" : "Leave unbound");
             if (leave && !r.weight) AB.tip(leave, "The row is added hidden and marked unbound; bind it later from its Style tab", { label: false });
@@ -190,7 +219,7 @@
             rows.forEach((r) => {
                 const li = tr.querySelector(`[data-row="${r.id}"]`);
                 li.toggleAttribute("data-miss", !!(r.miss && !st.choice[r.id]));
-                li.querySelector(".ab-tcount").replaceChildren(bindingFor(r));
+                li.querySelector(".ab-tcount").replaceChildren(...bindingFor(r).filter(Boolean));
             });
             listWrap.replaceChildren(tr);
         };
@@ -198,13 +227,36 @@
         drawList();
         drawFoot();
 
+        // What the file brings and what the recipient supplies, counted from its rows
+        const kinds = [["set", "set"], ["filter", "filter step"], ["run", "run"]].map(([k, noun]) => rows.filter((r) => r[k]).length && AB.count(rows.filter((r) => r[k]).length, noun)).filter(Boolean);
+        const meta = h("div", { class: "ra-meta" },
+            h("div", null, h("b", null, "Brings: "), ["styles"].concat(kinds).join(", ") + ". ", h("b", null, "You supply: "), file.supply + "."),
+            h("div", null, h("b", null, "Expects: "), file.expects));
+        // Ids the recipe names that this data lacks: the element's match report, said in the open; no one-click repair
+        // The example is a date-shaped id when there is one (1-Mar, 2-Sep: what a spreadsheet makes of
+        // MARCH1, SEPT2), and those ids get one general line; there is no repair, since only the reader
+        // knows which gene or account a date was. A stand-in for the element's match report.
+        const w = WL();
+        const ids = w.notInCurrentData;
+        const dated = ids.filter((id) => /^\d{1,2}-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.test(id));
+        const missingIds = april && !isStyle ? AB.problem({ level: "partial",
+            what: "Not in this network: " + AB.count(ids.length, "id") + ", for example " + (dated[0] || ids[0]),
+            todo: dated.length
+                ? AB.count(dated.length, "id") + " look like spreadsheet dates (SEPT2 -> 2-Sep). They stay in Watchlist as missing members."
+                : "They follow no pattern a changed file would explain (such as spreadsheet dates, SEPT2 -> 2-Sep); they stay in Watchlist as missing members." }) : null;
+        if (missingIds) missingIds.classList.add("ra-missing");
         const body = h("div", null,
             h("div", { class: "ra-head" }, icon(isStyle ? "palette" : "book-open", "sm"), h("b", null, file.file), h("span", { class: "k-secondary" }, savedLine(file))),
+            meta,
             h("div", { class: "ra-sh" }, "Rows it adds", h("span", { class: "k-grow" }), summary),
-            listWrap);
+            listWrap, missingIds);
         const foot = h("div", { style: "display:contents" }, reason, AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), applyBtn);
         const wrap = finish(AB.modal({ title: "Apply " + file.kind + ": " + file.name, body, foot }));
         // The wide state opens on its first choice: the field list over the 69 host attributes
+        // Otherwise the first open choice takes focus. The shell's querySelectorAll(FIRST) returns
+        // document order, so its [data-autofocus] does not win over earlier focusable controls;
+        // focus it here until the shell prefers it (reported to the shell).
+        if (!wide) requestAnimationFrame(() => requestAnimationFrame(() => { const f = listWrap.querySelector("[data-autofocus]"); if (f && f.isConnected) f.focus(); }));
         if (wide) requestAnimationFrame(() => requestAnimationFrame(() => { const f = listWrap.querySelector('[data-ra-pick="vuln"]'); if (f && f.isConnected) f.click(); }));
         return wrap;
     }
@@ -254,7 +306,7 @@
             { name: "Notes", kindIcon: "message-square", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] },
         ];
         if (state === "applied") {
-            const w = TA().watchlist;
+            const w = WL();
             rows.push(
                 { name: "Watchlist", kindIcon: "circle-check", count: w.inCurrentData + " of " + w.members, eye: true, selected: true, go: ["recipe-apply", "applied"], menu: ["context-menus", "row"] },
                 { name: "Personalized PageRank from Watchlist", kindIcon: "chart-column", swatch: AB.ramp(), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
@@ -285,7 +337,7 @@
 
     // ---------- after applying the recipe: the new Watchlist row selected ----------
     function drawRight(el) {
-        const w = TA().watchlist;
+        const w = WL();
         el.append(AB.inspector({
             icon: "circle-check", title: "Watchlist", kind: "Set", kindKey: "igs",
             provenance: ["from recipe " + RECIPE.name, "full-canvas-modes", "version-history"],
@@ -302,8 +354,8 @@
                         AB.data("Members", String(w.members)), AB.data("In this data", String(w.inCurrentData)), AB.data("Not in this data", w.notInCurrentData.join(", "))),
                     AB.section({ title: "Members", collapsible: true, key: "data.set.members", summary: w.inCurrentData + " in this data" },
                         w.memberIds.filter((id) => !w.notInCurrentData.includes(id)).map((id) => AB.row({ label: h("span", { class: "k-id" }, id), onClick: () => AB.flash("Selects " + id) }))),
-                    AB.section({ title: "Made with", collapsible: true, key: "data.set.made-with", summary: "Recipe " + RECIPE.name },
-                        AB.data("Created from", "Recipe " + RECIPE.name + ", applied " + RECIPE.appliedAt, { go: ["full-canvas-modes", "version-history"] }),
+                    AB.section({ title: "Made with", collapsible: true, key: "data.set.made-with", summary: "Opened by this recipe, " + RECIPE.name },
+                        AB.data("Created from", "Opened by this recipe, " + RECIPE.name + ", applied " + RECIPE.appliedAt, { go: ["full-canvas-modes", "version-history"] }),
                         AB.data("Recipe file", RECIPE.file + ", " + savedLine(RECIPE).replace("Saved", "saved")),
                         AB.data("Members", "Fixed: they do not follow the data")),
                     AB.notesSection(0, ["notes-place", "about-selection"], "set"),

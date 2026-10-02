@@ -69,9 +69,12 @@
             // A review state shows the tooltip at once (a reader hovering would wait the 500 ms delay)
             const over = () => AB.showTip(b);
             if (TIP_ON[state]) return over();
-            b.tabIndex = 0;
+            // As if the reader tabbed in and pressed Right twice: the toolbar's one Tab stop moves to View
+            // (roving tabindex), and the page counts as keyboard-driven, so the ring and the tooltip show
+            b.closest("[role=toolbar]").querySelectorAll(".k-tool, .k-tool-caret").forEach((x) => (x.tabIndex = x === b ? 0 : -1));
+            document.documentElement.dataset.input = "key";
             b.focus({ focusVisible: true });
-            if (!b.matches(":focus-visible")) over(); // a browser without focusVisible: show it by hover
+            if (!b.matches(":focus-visible")) AB.showTip(b, true); // a browser without focusVisible
         }, 60);
     }
 

@@ -456,6 +456,8 @@ What this settles:
   One keyed on the edge count, or on edges per node, could, and it would route both inside the
   ceiling on dense graphs. Until then they reach the device only above 100,000 nodes, or through
   `acceleration.minNodes` or `acceleration="required"`.
+  Superseded for the triangle count on 2026-10-01: it is now floored on edges times edges per
+  node; label propagation keeps its node floor. See "Edge-aware floors (2026-10-01)" below.
 - **Katz on a released snapshot throws.** The cold arm found it: after `release(s)`, the
   device's `katzCentrality` fails with `E_RELEASED` where every other algorithm uploads the graph
   again. Issue #623. The Katz rows below have no cold column.
@@ -653,6 +655,101 @@ The full measurements:
 | closeness, 100 sources         | 10,000 / 100,000    |   44.0 |   12.5 |        12.5 | 3.35x / 3.67x / 3.52x                   |
 | closeness, 100 sources         | 20,000 / 100,000    |   69.7 |   13.8 |        14.1 | 4.81x / 4.09x / 5.05x                   |
 | closeness, 100 sources         | 50,000 / 100,000    |  178.4 |   14.8 |        15.1 | 8.50x / 6.83x / 12.05x                  |
+
+### Edge-aware floors (2026-10-01)
+
+The 2026-09-30 floors left the triangle count (which the clustering coefficient runs on) and
+label propagation at 100,000 nodes, above the element's 50,000-node ceiling, because both won on
+dense graphs and lost on sparse ones and a node count cannot tell the two apart. This section
+measures whether a floor that also reads the edge count can. Issue #678.
+
+**Method.** The same as the 2026-09-30 sweep: headless Chromium on the RTX 4070 SUPER through
+ANGLE's Vulkan backend (the NVIDIA adapter required, so SwiftShader could not stand in), both arms
+through `@graphty/algorithms`' dispatcher with the element's options -- `accelerated(null)` for the
+CPU port, `accelerated(createAccelerator(ctx))` for the device -- arms interleaved with the order
+flipped every round, one discarded pass of each first, medians of 15 rounds (9 above 20,000
+nodes). "Device" is the call with the graph resident; the cold call, which releases it first, read
+within noise of it at every size here. The graphs stay inside what the element holds (at most
+50,000 nodes and 100,000 edges): seeded uniform random graphs of 2, 3, 5, 10 and 20 edges a node at
+500 to 50,000 nodes, 40 and 100 edges a node on 500 to 2,500 nodes, boundary shapes of 12, 15, 25,
+30, 40 and 60 edges a node placed near the floor, and two R-MAT graphs (edge factors 4 and 8,
+self-loops and repeats dropped) for skewed degrees. Seven sweeps of the triangle count, three of
+label propagation and connected components. One-minute load averages on 32 threads were 10.6 to
+29.1 around five of the sweeps; the fourth and fifth started at 28.4 and 28.9 and ended at 38.6
+and 34.1, other sessions' pre-push gates having started meanwhile. The floor below does not depend
+on those two: every loss it rests on also appears in a sweep that stayed under 30. The script,
+logs and table generator are in `tmp/edge-aware-floors/` of the main checkout
+(`zz-edge-floors.test.ts`, `sweep1.log` to `sweep7.log`, `analyze.py`).
+
+**Triangle count: floored on edges times edges per node, 1,050,000.** The device call costs 6 to
+15 ms almost whatever the graph inside the ceiling. The CPU port's cost grows with the edges and
+with the neighbors each node intersects, so the measure that separates the two is edges times
+edges per node (edges squared over nodes). The edge count alone does not: two edges a node at
+100,000 edges is a toss-up (0.92x to 1.30x) while twenty a node wins at 60,000. A wedge count
+from the degrees does not either: the R-MAT graphs win with fewer wedges than uniform graphs that
+lose. Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x). Around 1,000,000 the
+graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.96x at 1,000,000, 0.98x at
+1,012,500), so the floor is 1,050,000, between the two. That routes a 100,000-edge graph of up to
+9,523 nodes, a 40,000-edge graph of up to 1,523, and the complete graph from 163 nodes. Skewed
+graphs win below it (R-MAT 1.5x to 2x at 220,000 to 374,000); the floor leaves them on the CPU
+port, a few milliseconds not saved rather than a slower run. Only the edge and node counts are
+read, so the degree distribution is not needed. Rows from 170,000 up, ratios per sweep:
+
+| shape                |  nodes |   edges | edges x edges per node | CPU port, ms | device, ms | device speedup, each sweep                     |
+| -------------------- | -----: | ------: | ---------------------: | ------------ | ---------- | ---------------------------------------------- |
+| R-MAT, edge factor 8 |  4,096 |  26,770 |                174,959 | 4.7-6.8      | 6.3-8.9    | 0.91 / 0.79 / 0.88 / 0.76 / 0.85 / 0.74 / 0.75 |
+| 5 a node             |  7,000 |  35,000 |                175,000 | 2.7-4.2      | 6.5-8.9    | 0.42 / 0.40 / 0.46 / 0.42 / 0.43 / 0.51 / 0.45 |
+| 3 a node             | 20,000 |  60,000 |                180,000 | 3.9-5.6      | 6.4-8.2    | 0.61 / 0.64 / 0.58 / 0.68 / 0.57 / 0.55 / 0.73 |
+| 2 a node             | 50,000 | 100,000 |                200,000 | 7.1-18.6     | 7.3-14.3   | 0.97 / 0.92 / 1.18 / 0.94 / 1.30 / 1.07 / 1.24 |
+| 10 a node            |  2,000 |  20,000 |                200,000 | 2.1-2.7      | 6.0-9.6    | 0.35 / 0.39 / 0.34 / 0.28 / 0.33 / 0.32 / 0.32 |
+| 20 a node            |    500 |  10,000 |                200,000 | 1.6-2.7      | 5.5-8.7    | 0.29 / 0.29 / 0.30 / 0.26 / 0.30 / 0.31 / 0.30 |
+| R-MAT, edge factor 4 | 16,384 |  59,979 |                219,573 | 10.5-18.2    | 6.7-11.4   | 1.57 / 1.19 / 1.64 / 1.60 / 1.48 / 1.43 / 1.60 |
+| 5 a node             | 10,000 |  50,000 |                250,000 | 3.8-6.2      | 6.7-10.6   | 0.56 / 0.57 / 0.69 / 0.48 / 0.53 / 0.60 / 0.62 |
+| 3 a node             | 30,000 |  90,000 |                270,000 | 6.0-9.3      | 7.2-9.9    | 0.83 / 1.05 / 1.05 / 0.94 / 0.94 / 0.82 / 0.83 |
+| 10 a node            |  3,000 |  30,000 |                300,000 | 2.9-4.4      | 5.9-8.6    | 0.49 / 0.61 / 0.51 / 0.51 / 0.46 / 0.50 / 0.53 |
+| R-MAT, edge factor 8 |  8,192 |  55,353 |                374,018 | 12.2-20.1    | 7.2-10.7   | 1.75 / 1.51 / 1.96 / 1.74 / 1.86 / 1.88 / 1.76 |
+| 5 a node             | 15,000 |  75,000 |                375,000 | 5.8-8.3      | 7.5-10.6   | 0.83 / 0.77 / 0.78 / 0.74 / 0.77 / 0.84 / 0.95 |
+| 20 a node            |  1,000 |  20,000 |                400,000 | 3.2-5.6      | 5.8-8.4    | 0.55 / 0.61 / 0.55 / 0.51 / 0.51 / 0.70 / 0.53 |
+| 5 a node             | 20,000 | 100,000 |                500,000 | 7.1-11.8     | 7.0-10.5   | 1.01 / 0.96 / 0.92 / 1.05 / 1.00 / 1.16 / 1.26 |
+| 10 a node            |  5,000 |  50,000 |                500,000 | 5.5-9.6      | 6.7-15.7   | 0.82 / 0.70 / 0.73 / 0.61 / 0.67 / 0.76 / 0.80 |
+| 10 a node            |  7,000 |  70,000 |                700,000 | 6.7-9.8      | 6.5-12.1   | 1.03 / 0.98 / 1.06 / 0.81 / 0.88 / 1.07 / 1.09 |
+| 20 a node            |  2,000 |  40,000 |                800,000 | 6.0-11.0     | 6.3-10.2   | 0.95 / 1.01 / 1.06 / 0.98 / 0.92 / 1.08 / 1.04 |
+| 40 a node            |    500 |  20,000 |                800,000 | 6.3-10.8     | 6.4-9.8    | 1.17 / 0.86 / 1.21 / 0.96 / 0.81 / 1.12        |
+| 30 a node            |  1,100 |  33,000 |                990,000 | 7.8-10.5     | 6.6-13.1   | 0.80 / 0.99 / 0.83 / 1.18                      |
+| 10 a node            | 10,000 | 100,000 |              1,000,000 | 9.7-16.5     | 7.5-13.3   | 1.29 / 1.07 / 1.44 / 1.05 / 1.31 / 1.20 / 1.39 |
+| 25 a node            |  1,600 |  40,000 |              1,000,000 | 9.5-10.8     | 7.1-10.5   | 1.11 / 1.05 / 0.96 / 1.34                      |
+| 12 a node            |  7,000 |  84,000 |              1,008,000 | 11.7-16.7    | 7.8-13.5   | 1.27 / 1.00 / 0.93 / 1.50                      |
+| 15 a node            |  4,500 |  67,500 |              1,012,500 | 9.0-20.8     | 7.6-15.7   | 1.32 / 1.10 / 0.98 / 1.18                      |
+| 30 a node            |  1,200 |  36,000 |              1,080,000 | 10.2-15.8    | 7.9-11.3   | 1.40 / 1.47 / 1.24 / 1.29                      |
+| 60 a node            |    300 |  18,000 |              1,080,000 | 11.0-12.2    | 7.0-10.4   | 1.36 / 1.22 / 1.11 / 1.57                      |
+| 40 a node            |    700 |  28,000 |              1,120,000 | 9.1-16.1     | 6.8-10.8   | 1.77 / 1.63 / 1.31 / 1.34                      |
+| 20 a node            |  3,000 |  60,000 |              1,200,000 | 9.4-15.3     | 6.6-10.7   | 1.42 / 1.13 / 1.70 / 1.24 / 1.26 / 1.35 / 1.40 |
+| 40 a node            |  1,000 |  40,000 |              1,600,000 | 14.5-20.3    | 7.5-9.4    | 1.93 / 1.70 / 2.28 / 1.75 / 1.65 / 2.13        |
+| 20 a node            |  5,000 | 100,000 |              2,000,000 | 16.8-22.0    | 6.8-11.7   | 2.47 / 1.88 / 2.22 / 2.16 / 1.80 / 2.15 / 2.14 |
+| 40 a node            |  1,500 |  60,000 |              2,400,000 | 17.2-25.1    | 7.2-11.5   | 2.31 / 2.77 / 2.68 / 2.41 / 2.03 / 2.39        |
+| 40 a node            |  2,000 |  80,000 |              3,200,000 | 22.9-39.4    | 8.3-11.6   | 2.68 / 3.46 / 3.40 / 3.28 / 3.86 / 2.76        |
+| 40 a node            |  2,500 | 100,000 |              4,000,000 | 31.3-38.4    | 7.9-12.5   | 2.90 / 4.20 / 4.09 / 2.80 / 3.07 / 4.19        |
+| 100 a node           |    500 |  50,000 |              5,000,000 | 41.0-59.8    | 7.3-11.6   | 4.41 / 7.67 / 5.45 / 4.69 / 4.53 / 5.62        |
+| 100 a node           |    700 |  70,000 |              7,000,000 | 55.4-88.2    | 7.5-12.6   | 5.96 / 8.51 / 8.40 / 6.08 / 5.61 / 8.49        |
+| 100 a node           |  1,000 | 100,000 |             10,000,000 | 77.3-110.4   | 8.3-15.9   | 7.18 / 8.48 / 8.90 / 7.25 / 6.87 / 9.31        |
+
+**Label propagation: no edge floor holds; it keeps 100,000 nodes.** Its cost is arcs times passes,
+and the passes, which nothing knows before the run, decide it. At the 100,000-edge limit the device
+won in every sweep on 5 and 10 edges a node (1.43x to 4.13x) and on 40 (1.14x to 1.47x), and lost
+in at least one sweep on 2 (0.87x to 1.06x) and 20 (0.94x to 1.93x). Below the limit, 40 edges a
+node lost at 80,000 edges (0.93x), and a very dense graph settles in a few passes, so the CPU is
+fast there: 100 edges a node lost at 50,000 edges (0.54x) and 70,000 (0.77x to 0.94x). No value of
+the edge count, of edges times edges per node or of a wedge count has every measured graph above
+it winning, short of the single 100,000-edge, 1,000-node row at 10,000,000. A floor that held would
+be a band of densities at the edge limit, fitted to a few rows, so label propagation keeps its node
+floor.
+
+**Connected components: no change.** The device lost on every graph inside the ceiling, at every
+density (0.79x at best, 30,000 nodes, 90,000 edges); its 100,000-node floor stands.
+
+**Kruskal (minimum spanning tree) was not measured.** The accelerator on master does not implement
+`minimumSpanningTree`, so the element runs it on the CPU at every size; the device version and
+its floor are pull request #663.
 
 ### Louvain measured: it loses inside the element's ceiling (2026-09-30)
 

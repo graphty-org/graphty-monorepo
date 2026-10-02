@@ -339,7 +339,7 @@ async function checkSetup(run) {
         throw run.blockSetup(`the token was rejected (${why})`, TOKEN_FIX);
     }
     if (me.permissions?.global?.includes("admin")) {
-        throw run.blockSetup("SONAR_TOKEN belongs to an administrator", `use a non-admin token: ${TOKEN_FIX}`);
+        throw run.blockSetup("SONAR_TOKEN belongs to an administrator", TOKEN_FIX);
     }
     const java = cfg.java || findOnPath("java");
     if (!java || !isExecutable(java)) {

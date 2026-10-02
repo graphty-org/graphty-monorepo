@@ -124,7 +124,7 @@ sonar_reminder() {
         echo -e "${YELLOW}Reminder: SonarQube did NOT check this push (see its box above).${NC}"
     fi
     if [ "$SONAR_FAILED" -eq 1 ]; then
-        echo -e "${RED}SonarQube: fix each new finding listed above; a false positive takes a NOSONAR(<rule>) with its reason.${NC}"
+        echo -e "${RED}SonarQube failed: fix each new finding it listed (a false positive takes NOSONAR(<rule>) with a reason), or the setup problem it named.${NC}"
     fi
 }
 

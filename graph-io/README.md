@@ -148,6 +148,7 @@ reports every column or feature outside it):
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
 | OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
 | CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
+| XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -297,6 +298,21 @@ losses and format rules, in addition to the table:
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position
   or visual column as a plain property.
+- **XGMML**: one reader for the 1.0 draft, the Cytoscape 2.x and 3.x exports and the Cytoscape 3
+  session network files. Direction follows the DTD (root `directed`, default 0), then `cy:directed`
+  per edge; ids stay strings (`"1"` and `"01"` are two nodes); atts are typed by `cy:type`, then
+  `type` (Integer `i32` widening to `f64` with `W_WIDENED`, Long `f64` or a string under
+  `long: "string"`, lists of their element type, record lists, lists of lists and RDF as `json`);
+  groups become `parent` / `parents`, other node-nested graphs the `cytoscape.nestedNetwork`
+  pointer; `graphics` x and y are the position, stored y-up (Cytoscape writes screen coordinates;
+  the exporter flips y back), z the separate `z` column (`zAs: "position"` makes it a coordinate),
+  every other graphics value a `json` column `graphics`. Cytoscape's `\n` / `\t` escapes, label
+  aliases (`a (pp) b`) and the two writer bugs Cytoscape repairs (`repairBareAmpersands`,
+  `pairSurrogateReferences`, both off by default) are options. A session network document lists
+  its registered networks through `listGraphs()`; `graphIndex` / `graphName` choose one. Dangling
+  endpoints are `E_UNKNOWN_NODE` unless `addMissingNodes: true`. The exporter writes the Cytoscape
+  3 dialect (`type` plus `cy:type` on every att): f32, u8, u32 and dict are written as wider
+  Cytoscape types, json as text, and graphty's visual roles are not translated into graphics.
 
 - **CX2**: the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web, read element by
   element so a document longer than one JavaScript string still loads. Every edge is directed;

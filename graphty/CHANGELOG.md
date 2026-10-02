@@ -1,3 +1,21 @@
+## 0.8.26 (2026-10-02)
+
+### 🩹 Fixes
+
+- **deps:** patch the open uuid, vitest mocker, ip-address and low-severity advisories ([a5a5109c](https://github.com/graphty-org/graphty-monorepo/commit/a5a5109c))
+- **graphty-element:** paint runs beneath a partial user layer instead of suppressing them ([#551](https://github.com/graphty-org/graphty-monorepo/issues/551))
+- **compact-mantine:** inputs follow the size scale and the password toggle has a name ([#7](https://github.com/graphty-org/graphty-monorepo/issues/7), [#137](https://github.com/graphty-org/graphty-monorepo/issues/137), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.19
+- Updated compact-mantine to 0.8.17
+- Updated graphty-element to 3.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.25 (2026-10-01)
 
 ### 🚀 Features

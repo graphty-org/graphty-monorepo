@@ -25,7 +25,7 @@ describe("Protocol selection", () => {
     let keyPath: string;
     const tmpDir = path.join(process.cwd(), "tmp");
 
-    beforeEach(() => {
+    beforeEach(async () => {
         storage = new LogStorage();
         // Generate test certs
         if (!fs.existsSync(tmpDir)) {
@@ -33,7 +33,7 @@ describe("Protocol selection", () => {
         }
         certPath = path.join(tmpDir, `test-cert-${Date.now()}.pem`);
         keyPath = path.join(tmpDir, `test-key-${Date.now()}.pem`);
-        const { cert, key } = generateSelfSignedCert("127.0.0.1");
+        const { cert, key } = await generateSelfSignedCert("127.0.0.1");
         fs.writeFileSync(certPath, cert);
         fs.writeFileSync(keyPath, key);
     });

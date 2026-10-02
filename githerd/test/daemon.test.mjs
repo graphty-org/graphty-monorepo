@@ -516,6 +516,20 @@ describe("the poll loop", () => {
         expect(daemon.state.escalations["github-down"].resolvedAt).toBe(clock.toISOString());
     });
 
+    it("keeps its loop ticking in read-only mode, so a launcher never takes it for wedged", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "state.json"), JSON.stringify({ schema: 99 }));
+        const daemon = await start();
+        expect(daemon.state.escalations["state-newer-schema"]).toMatchObject({ kind: "blocked" });
+        clock = new Date("2026-10-02T12:03:00Z");
+        expect(await daemon.poll()).toEqual({ skipped: true });
+        expect(gh.calls).toEqual([]);
+        const health = await (await fetch(`${daemon.url}/health`)).json();
+        expect(health.loopTickAt).toBe(clock.toISOString());
+        expect(JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8"))).toEqual({ schema: 99 });
+    });
+
     it("gives each open PR its why-stuck reasons from a new head's commits and files", async () => {
         writeConfig({
             requiredChecks: ["All Checks Pass"],

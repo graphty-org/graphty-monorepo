@@ -724,7 +724,12 @@ export async function startDaemon({
      * @returns {Promise<{skipped?: true, fenced?: true, ok?: boolean}>} what happened
      */
     async function poll() {
-        if (busy || stopping || fenced || loaded.readOnly) return { skipped: true };
+        if (busy || stopping || fenced) return { skipped: true };
+        if (loaded.readOnly) {
+            // Never polls, but the loop still ticks, so launchers do not take it for wedged.
+            loopTickAt = now().toISOString();
+            return { skipped: true };
+        }
         busy = true;
         const t = now();
         loopTickAt = t.toISOString();
@@ -955,7 +960,7 @@ export async function startDaemon({
         });
     }
     await save();
-    if (autoPoll && !loaded.readOnly) timer = setTimeout(tick, 0);
+    if (autoPoll) timer = setTimeout(tick, 0);
 
     /**
      * Stops polling and closes the server.

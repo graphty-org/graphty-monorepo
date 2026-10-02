@@ -563,7 +563,11 @@ export function createRunner({
         const guard = [process.execPath, join(packageDir, "bin", "githerd-guard.mjs")];
         writeFileSync(
             join(runDir, "settings.json"),
-            JSON.stringify(runSettings({ kind: req.kind, guard, gpgAgentSocket, stateDir: resolve(stateDir) }), null, 2),
+            JSON.stringify(
+                runSettings({ kind: req.kind, guard, gpgAgentSocket, stateDir: resolve(stateDir) }),
+                null,
+                2,
+            ),
         );
         writeFileSync(join(runDir, "result.schema.json"), JSON.stringify(RESULT_SCHEMA, null, 2));
         writeFileSync(join(runDir, "prompt.md"), req.prompt);
@@ -691,7 +695,13 @@ export function createRunner({
             charge(state, req.kind, end.toISOString().slice(0, 10), record.costUsd);
             releaseRun(state, id);
             live.delete(id);
-            void ledger({ kind: "run-end", run: id, outcome: "interrupted", status: "interrupted", cost: record.costUsd });
+            void ledger({
+                kind: "run-end",
+                run: id,
+                outcome: "interrupted",
+                status: "interrupted",
+                cost: record.costUsd,
+            });
         }
 
         /**

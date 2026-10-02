@@ -190,7 +190,9 @@ describe("pure parts", () => {
             expect(s.permissions.deny).toContain(`Edit(${p}/**)`);
         }
         expect(s.permissions.deny).toContain("Read(**/.env*)");
-        const withState = /** @type {any} */ (runSettings({ kind: "triage", guard: ["node"], stateDir: "/r/.githerd" }));
+        const withState = /** @type {any} */ (
+            runSettings({ kind: "triage", guard: ["node"], stateDir: "/r/.githerd" })
+        );
         expect(withState.permissions.deny).toContain("Read(//r/.githerd/runs/*/mcp.json)");
         expect(withState.permissions.deny).toContain("Edit(//r/.githerd/**)");
         expect(s.includeCoAuthoredBy).toBe(false);

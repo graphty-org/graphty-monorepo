@@ -325,7 +325,10 @@ describe("guard: Edit and Write", () => {
 
     it("denies Edit and Write to the tree's .git and .husky/", () => {
         for (const file of [".git", ".git/config", ".husky/_/reference-transaction", ".husky/pre-push"]) {
-            const r = guard(plain, { tool_name: "Write", tool_input: { file_path: join(plain.root, file), content: "x" } });
+            const r = guard(plain, {
+                tool_name: "Write",
+                tool_input: { file_path: join(plain.root, file), content: "x" },
+            });
             expect(r.status, file).toBe(2);
             expect(r.stderr).toMatch(/git or hook files/);
         }

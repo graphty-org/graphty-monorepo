@@ -369,7 +369,10 @@ describe("filter runs", () => {
             };
             t.end("run-3", { status, structured: null });
             await t.make().tick();
-            expect(t.state.proposals.a).toMatchObject({ status: "voided", voidReason: "its filter run did not finish" });
+            expect(t.state.proposals.a).toMatchObject({
+                status: "voided",
+                voidReason: "its filter run did not finish",
+            });
             expect(t.state.proposals.c.status).toBe("pending");
             expect(t.state.retriage.filters[0]).toMatchObject({ status: "running", run: "run-4" });
         }

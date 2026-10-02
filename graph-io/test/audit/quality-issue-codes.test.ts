@@ -33,6 +33,7 @@ import { describe, expect, it } from "vitest";
 import * as csv from "../../src/formats/csv/index.js";
 import * as cx from "../../src/formats/cx/index.js";
 import * as cx2 from "../../src/formats/cx2/index.js";
+import * as cys from "../../src/formats/cys/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -88,10 +89,11 @@ const SUBPATHS: Readonly<Record<string, Record<string, unknown>>> = {
     CX2: cx2,
     CX: cx,
     XGMML: xgmml,
+    CYS: cys,
 };
 
 /** The subpaths of formats graph-io reads but does not write: no <FMT>_LOSS table. */
-const READ_ONLY: ReadonlySet<string> = new Set(["CX"]);
+const READ_ONLY: ReadonlySet<string> = new Set(["CX", "CYS"]);
 
 function isCodeTable(value: unknown): value is CodeTable {
     return (
@@ -188,6 +190,7 @@ describe("audit: issue and loss code tables", () => {
             ["gexf malformed xml", gexf.gexfImporter, gexf.GEXF_ISSUE, "<gexf><graph>"],
             ["neo4j unclosed quote", neo4j.neo4jImporter, neo4j.NEO4J_ISSUE, ':ID,name\n1,"abc'],
             ["neo4j text after quote", neo4j.neo4jImporter, neo4j.NEO4J_ISSUE, ':ID,name\n1,"abc"def\n'],
+            ["cys text input", cys.cysImporter, cys.CYS_ISSUE, "not a zip"],
         ];
         const unlisted: string[] = [];
         for (const [name, importer, table, text] of cases) {

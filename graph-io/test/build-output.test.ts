@@ -117,6 +117,7 @@ describe("Build Output Tests", () => {
             "csv",
             "cx",
             "cx2",
+            "cys",
             "dot",
             "gexf",
             "gml",

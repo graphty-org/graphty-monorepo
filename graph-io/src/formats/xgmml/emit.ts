@@ -70,6 +70,11 @@ export interface EmitExtras {
     readonly sourceFormat?: string | undefined;
     /** Prefix of every issue message (the session entry name). */
     readonly entry?: string | undefined;
+    /**
+     * A group member that is not in the graph being read (a collapsed group's member in a
+     * session): the session records it instead of E_UNKNOWN_PARENT.
+     */
+    readonly onMissingMember?: ((group: string, member: string) => void) | undefined;
 }
 
 /** The dialect facts the rules depend on. */
@@ -396,6 +401,20 @@ export class XgmmlEmitter {
      */
     resolvePointer(href: string): string | null {
         return this.extras.resolvePointer?.(href) ?? null;
+    }
+
+    /**
+     * Hand a group member the graph does not hold to the session, when one is reading.
+     * @param group - the group node's id
+     * @param member - the member's id
+     * @returns true when the session took it
+     */
+    missingMember(group: string, member: string): boolean {
+        if (this.extras.onMissingMember === undefined) {
+            return false;
+        }
+        this.extras.onMissingMember(group, member);
+        return true;
     }
 
     /**
@@ -1437,7 +1456,9 @@ class Containment {
                         const id = member.id ?? (member.href === null ? null : localRef(member.href));
                         const child = id === null ? undefined : this.emitter.rowOf(id);
                         if (child === undefined) {
-                            unknown++;
+                            if (id === null || !this.emitter.missingMember(row.id, id)) {
+                                unknown++;
+                            }
                             continue;
                         }
                         if (child.index >= 0) {

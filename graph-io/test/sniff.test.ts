@@ -81,6 +81,7 @@ describe("rankFormats / sniffFormat (design 8.2)", () => {
             "cx2",
             "cx",
             "obo",
+            "cys",
         ]);
     });
 

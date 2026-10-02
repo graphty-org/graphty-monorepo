@@ -31,6 +31,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import * as csv from "../../src/formats/csv/index.js";
 import * as cx from "../../src/formats/cx/index.js";
 import * as cx2 from "../../src/formats/cx2/index.js";
+import * as cys from "../../src/formats/cys/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -239,8 +240,8 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     cx2,
 };
 /** The formats graph-io reads but does not write: one importer, no exporter. */
-const READ_ONLY = ["cx", "obo"] as const;
-const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo };
+const READ_ONLY = ["cx", "obo", "cys"] as const;
+const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo, cys };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
     it("exports the registry with importGraph / exportGraph / sniff and the children CSR helper", () => {

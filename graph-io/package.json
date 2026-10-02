@@ -71,6 +71,11 @@
             "types": "./dist/obo.d.ts",
             "import": "./dist/obo.js",
             "default": "./dist/obo.js"
+        },
+        "./cys": {
+            "types": "./dist/cys.d.ts",
+            "import": "./dist/cys.js",
+            "default": "./dist/cys.js"
         }
     },
     "sideEffects": false,
@@ -121,6 +126,7 @@
         "json",
         "neo4j",
         "xgmml",
+        "cys",
         "cytoscape",
         "graph-format"
     ],

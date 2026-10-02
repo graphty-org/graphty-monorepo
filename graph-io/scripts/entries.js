@@ -22,6 +22,7 @@ export const ENTRIES = Object.freeze({
     cx2: "src/formats/cx2/index.ts",
     cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
+    cys: "src/formats/cys/index.ts",
 });
 
 /**

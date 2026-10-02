@@ -317,8 +317,10 @@ function changedFiles(run) {
 // The server answers and is the one `--setup` pinned; otherwise a skip (no token is sent).
 async function checkServer(run, cfg) {
     if (!cfg.host) throw skip("no-host", "SONAR_HOST_URL is not set (environment or .env).");
-    const status = await serverStatus(cfg.host, 3000);
-    if (!status) throw skip("unreachable", "The SonarQube server did not answer within 3 s.");
+    // 15 s, not 3: this network's DNS stalls for about 4 s every 35 s, and the step runs beside the tests,
+    // so waiting costs the push nothing.
+    const status = await serverStatus(cfg.host, 15000);
+    if (!status) throw skip("unreachable", "The SonarQube server did not answer within 15 s.");
     const pinFile = join(run.sonarDir, "server-id");
     if (!existsSync(pinFile)) throw run.blockSetup("no pinned server id", SETUP_FIX);
     if (readFileSync(pinFile, "utf8").trim() !== status.id) {

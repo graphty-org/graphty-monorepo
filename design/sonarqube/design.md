@@ -180,7 +180,7 @@ would notice until the weekly review.
 
 | Situation                                                                                                                         | Behavior                                                                                         |
 | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Server unreachable: `api/system/status` does not answer UP within 3 s                                                             | Passes, with the boxed warning; no token is sent                                                 |
+| Server unreachable: `api/system/status` does not answer UP within 15 s                                                            | Passes, with the boxed warning; no token is sent                                                 |
 | Something answers, but its server id is not the pinned one (section "Configuration and secrets")                                  | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
 | No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                          | Passes, with the boxed warning; no token is sent                                                 |
 | The step's 900 s deadline passes                                                                                                  | Passes, with the boxed warning                                                                   |

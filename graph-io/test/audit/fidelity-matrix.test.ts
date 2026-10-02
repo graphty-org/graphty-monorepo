@@ -32,6 +32,7 @@ import { csvImporter } from "../../src/formats/csv/importer.js";
 import { cxImporter } from "../../src/formats/cx/importer.js";
 import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
 import { cx2Importer } from "../../src/formats/cx2/importer.js";
+import { cysImporter } from "../../src/formats/cys/importer.js";
 import { dotExporter } from "../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
@@ -58,7 +59,14 @@ import {
     type LossNote,
 } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
-import { CORPUS_FORMATS, CORPUS_ROOT, corpusFiles, type CorpusFormat, corpusOptions } from "../helpers/corpus.js";
+import {
+    CORPUS_FORMATS,
+    CORPUS_ROOT,
+    corpusFiles,
+    type CorpusFormat,
+    corpusOptions,
+    readCorpusInput,
+} from "../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, type SnapshotDiff, valuesEqual } from "../helpers/roundtrip.js";
 
 // ============================================================ the format pairs
@@ -115,6 +123,7 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         exporter: xgmmlExporter as GraphExporter<AnyExportOptions>,
         importer: xgmmlImporter as GraphImporter<AnyImportOptions>,
     },
+    cys: { exporter: null, importer: cysImporter as GraphImporter<AnyImportOptions> },
 };
 
 /** The formats graph-io writes: the targets of the matrix. */
@@ -157,7 +166,7 @@ interface Input {
     /** "gexf/minimal.gexf" or "synthetic/DYNAMIC_1_3". */
     readonly label: string;
     readonly format: CorpusFormat;
-    readonly text: string;
+    readonly text: string | Uint8Array;
     /** Importer options the file needs (a tab delimiter, a paired node or relationship file). */
     readonly importOptions: AnyImportOptions;
     /** Whether the file is a node table (CSV) with no edge rows. */
@@ -204,7 +213,7 @@ function allInputs(): Input[] {
             inputs.push({
                 label,
                 format,
-                text: corpusText(format, name),
+                text: readCorpusInput(format, name),
                 importOptions: importOptionsFor(format, name),
                 nodeTable:
                     format === "csv" && (name === "got-nodes.csv" || corpusOptions(format, name).table === "nodes"),
@@ -230,7 +239,12 @@ interface Loaded {
     readonly report: ImportReport;
 }
 
-async function load(format: CorpusFormat, text: string, options: AnyImportOptions, directed = true): Promise<Loaded> {
+async function load(
+    format: CorpusFormat,
+    text: string | Uint8Array,
+    options: AnyImportOptions,
+    directed = true,
+): Promise<Loaded> {
     const builder = new GraphBuilder({ directed, weightDtype: "f64" });
     const report = await PAIRS[format].importer.import(text, builder, options);
     return { snapshot: builder.freeze(), report };

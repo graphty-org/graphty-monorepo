@@ -21,6 +21,7 @@ import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
 import { cxImporter } from "../../src/formats/cx/importer.js";
 import { cx2Importer } from "../../src/formats/cx2/importer.js";
+import { cysImporter } from "../../src/formats/cys/importer.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
 import { gexfImporter } from "../../src/formats/gexf/importer.js";
@@ -35,7 +36,7 @@ import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { xgmmlImporter } from "../../src/formats/xgmml/importer.js";
 import { type CommonImportOptions, type GraphImporter } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
-import { CORPUS_FORMATS, CORPUS_ROOT, type CorpusFormat, corpusOptions } from "../helpers/corpus.js";
+import { CORPUS_FORMATS, CORPUS_ROOT, type CorpusFormat, corpusOptions, readCorpusInput } from "../helpers/corpus.js";
 
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
@@ -52,6 +53,7 @@ const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>>
     pajek: pajekImporter as GraphImporter<AnyImportOptions>,
     obo: oboImporter as GraphImporter<AnyImportOptions>,
     xgmml: xgmmlImporter as GraphImporter<AnyImportOptions>,
+    cys: cysImporter as GraphImporter<AnyImportOptions>,
 };
 
 const NOT_A_GRAPH: ReadonlySet<string> = new Set(["graphml/got-social-network.graphml"]);
@@ -59,7 +61,7 @@ const NOT_A_GRAPH: ReadonlySet<string> = new Set(["graphml/got-social-network.gr
 interface Input {
     readonly label: string;
     readonly format: CorpusFormat;
-    readonly text: string;
+    readonly text: string | Uint8Array;
     readonly importOptions: AnyImportOptions;
 }
 
@@ -91,7 +93,7 @@ function allInputs(): Input[] {
             inputs.push({
                 label,
                 format,
-                text: corpusText(format, name),
+                text: readCorpusInput(format, name),
                 importOptions: importOptionsFor(format, name),
             });
         }

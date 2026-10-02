@@ -14,6 +14,7 @@ the expectation today; the reference points into
 | csv | 83 | 69 | 14 | 67 | 1 |
 | cx | 49 | 49 | 0 | 0 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 1 |
+| cys | 53 | 53 | 0 | 0 | 0 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 98 | 11 | 88 | 4 |
@@ -121,6 +122,11 @@ rest of the format's expectations does something else.
 - obo (obonet-1.3.0): fastobo and ROBOT reject the unquoted literal; graph-io reads it as the value (1 file)
 - obo (spec): fastobo rejects the Typedef tag after its frame's clauses; obonet keeps the spaces before a ! comment in an id and makes FBbt:00005106 and 'FBbt:00005106 ' two nodes (16); the hidden comment and its whitespace are not part of the value (1 file)
 - obo (spec): fastobo and obonet reject the escaped colon; the guides' \: is a literal colon (1 file)
+- cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 6 nodes (1 file)
+- cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1) (1 file)
+- cys (cytoscape-integration-tests): Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 4 nodes and 2 edges (1 file)
+- cys (spec): Cytoscape's entry patterns need a folder before networks/ and tables/, so it loads nothing; the entries are unambiguous, so graph-io reads them (1 file)
+- cys (spec): Cytoscape throws a NullPointerException; graph-io skips the table and says so (1 file)
 - xgmml (spec): Cytoscape 3.10 creates no column for an untyped empty list (its element type is unknown); graph-io keeps it as an empty list of strings and says so, so the attribute is not dropped silently (1 file)
 - xgmml (spec): Cytoscape remaps *.SUID values to the SUIDs of the new session and drops unresolvable ones; SUIDs mean nothing outside the session that wrote them, so graph-io keeps the values as written with extra.suidReference (1 file)
 - xgmml (spec): Cytoscape's file filter refuses a root graph without the namespace or an xgmml.dtd DOCTYPE; the content is unambiguous XGMML, so graph-io reads it and warns (1 file)
@@ -199,6 +205,10 @@ No known failures.
 
 - `authored/mangled-ids.cx2`: threw: GraphFormatError: 2 node id(s) cannot be written as CX2 integers (first: "GO:0008150" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
+
+## cys
+
+No known failures.
 
 ## dot
 

@@ -1197,3 +1197,64 @@ same script; `karate.xgmml` is Zachary's karate club built from `test/corpus/gml
 
 Not committed: the 25.8 MB EFI-EST network
 (`SSN/20870_acyl_transferase_pfam_80_full_ssn.xgmml` of the same repository, MIT), research #15.
+
+## 14. Cytoscape sessions (`fixtures/cys/`)
+
+Research: `design/graph-io/cytoscape-and-obo/research-session-and-style.md` (the version history
+of section 2.1, the entry inventories of 2.2 and 2.3, the CyCSV table format of 2.4, the session
+flavor of XGMML of section 3, the zip findings of section 6 and the error list of section 7);
+design sections 1.4 and 3. There is no written specification of the session format: the
+normative definition is Cytoscape's reader code (`Cy3SessionReaderImpl`, `Cy2SessionReaderImpl`,
+`CSVCyReader`, `SessionUtil` in https://github.com/cytoscape/cytoscape-impl, LGPL-2.1) and the zip
+container's APPNOTE 6.3.10 (https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
+
+Oracle: Cytoscape 3.10.5 through CyREST (`tools/oracle_cytoscape.py`, run by the manually
+dispatched workflow `.github/workflows/conformance-cytoscape-oracle.yml`). Until its first run the
+sessions that Cytoscape's own integration tests load carry those tests' assertions, transcribed
+(counts, network names, selection, attribute values; `"oracle": "cytoscape-integration-tests"`,
+https://github.com/cytoscape/cytoscape-gui-distribution/tree/develop/integration-test/src/test/java/org/cytoscape/session),
+and every other fixture hand-written expectations (`"oracle": "spec"`). Groups are where the
+specification of graph-io's model overrules what Cytoscape shows (`oracleDisagrees`).
+
+Every file was retrieved on 2026-10-02. SHA-256 of the bytes committed:
+
+| Fixture                                       | Origin                                                                                                                                         | License (where stated)                                                                 | SHA-256                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `session3x/simpleSession.cys`                 | https://github.com/cytoscape/cytoscape-gui-distribution/blob/develop/integration-test/src/test/resources/testData/session3x/simpleSession.cys  | LGPL-2.1 (the test tree's file headers; the repository has no LICENSE file); test-only | `777d58e2cf627a26b6eb836164d8500aba684f35b8393a989b187a10ce5a730d` |
+| `session3x/visualMappings.cys`                | same tree, `visualMappings.cys`                                                                                                                | LGPL-2.1, test-only                                                                    | `142b61cabc53eb86b8e0f012022d8e14e4872a9a68602c66a839233f4269eedc` |
+| `session3x/subnetworks.cys`                   | same tree, `subnetworks.cys`                                                                                                                   | LGPL-2.1, test-only                                                                    | `47d404e93e770190b3b811f93ea0e5dbca2273a6c8cffb1c62979cfa4b517f54` |
+| `session3x/groups.cys`                        | same tree, `groups.cys`                                                                                                                        | LGPL-2.1, test-only                                                                    | `395faf059cef1a725a52b2364d02c0db9f159bd3b8e32049286d515aa5ec2d31` |
+| `session3x/nestedGroups_collapsed.cys`        | same tree, `nestedGroups_collapsed.cys`                                                                                                        | LGPL-2.1, test-only                                                                    | `2f3b13533c0c97a689a38cf7452717723fb6b4a4f7025fc715e3eec40330c5fb` |
+| `session2x/v252Session.cys`                   | same repository, `testData/session2x/v252Session.cys`                                                                                          | LGPL-2.1, test-only                                                                    | `3252e176652664699102933ee3260f53121de396f0e1c5e152f129940ee9fdf4` |
+| `session2x/v270session.cys`                   | same tree, `v270session.cys`                                                                                                                   | LGPL-2.1, test-only                                                                    | `1277f593c0b94ba9e3b9894c9f5856c0a3fb6ed29d1c04538c1fe29ebb6b2dae` |
+| `session2x/v283Groups.cys`                    | same tree, `v283Groups.cys`                                                                                                                    | LGPL-2.1, test-only                                                                    | `2a175d498ecfad426b87b8460225c4f98ddc5ffe0b950e0f554ac616893919e4` |
+| `session2x/v263SessionLarge.cys`              | same tree, `v263SessionLarge.cys`                                                                                                              | LGPL-2.1, test-only                                                                    | `e2fe291f62dd30b616d037d6564cd0d172a3f06645ec81a6b08dce2021f32062` |
+| `session2x/v283Session1.cys`                  | same tree, `v283Session1.cys`                                                                                                                  | LGPL-2.1, test-only                                                                    | `22ced7e5f30217a31ef0fbbd297af6f7b24c1c1011c9cf74f6ec90f6a6404a10` |
+| `impl/t3.cys`                                 | https://github.com/cytoscape/cytoscape-impl/blob/develop/io-impl/impl/src/test/resources/testData/NNFData/t3.cys                               | LGPL-2.1 (cytoscape-impl LICENSE); test-only                                           | `c9a6bc88a0444b6aaf412cf3e663cb65792149150c05179e4a8e7d421b9c29c0` |
+| `impl/LUAD_vest_v2.cys`                       | https://github.com/cytoscape/cytoscape-impl/blob/develop/layout-cytoscape-impl/src/test/resources/circular-layout-tests/LUAD_vest_v2.cys       | LGPL-2.1, test-only                                                                    | `afaa9392882e5b8e4bb4783232126295a0424c3cf96127c219c0423471b816d8` |
+| `impl/goTrees.cys`                            | same tree, `goTrees.cys`                                                                                                                       | LGPL-2.1, test-only                                                                    | `aa0a60f0e10d2b323c072768f634e4c0a87716af41df6896fc38a7ba0fef5bfa` |
+| `sampledata/galFiltered.cys`                  | https://github.com/cytoscape/cytoscape-gui-distribution/blob/develop/assembly/src/main/resources/sampleData/galFiltered.cys                    | LGPL-2.1, test-only                                                                    | `59c641783323cca354074b4b571f21c5884a0b32e7cc014175bd19e93ae24135` |
+| `tutorials/STELZ.cys`                         | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/STELZ.cys                                                        | CC0-1.0 (cytoscape-tutorials LICENSE); data Stelzl et al., Cell 122:957 (2005)         | `3d4356d095eee438d0f7f567b94d46555f16d30766a9db9b6b3fc7e47a32c1d8` |
+| `tutorials/galFiltered.cys`                   | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/galFiltered.cys                                                  | CC0-1.0; data Ideker et al., Science 292:929 (2001)                                    | `3513217733656d964d683538a0591a2054c1270040a9f8702367275bedf53a6f` |
+| `tutorials/layout-v1.cys`                     | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/presentations/modules/network-visualization-light/layout-v1.cys                 | CC0-1.0                                                                                | `64e7bf226bc43113f24c2dcbdb13905467cf721263e6b4ed37c2f49b0eb87266` |
+| `tutorials/AnnotationExample.cys`             | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/presentations/modules/advanced-visualization/AnnotationExample.cys              | CC0-1.0                                                                                | `176212c77f808547204574f7398c13fc2213b941f6870e6d24c6dad7701a3177` |
+| `test/corpus/malformed/cys/test_session1.cys` | https://github.com/cytoscape/cytoscape-impl/blob/develop/core-task-impl/src/test/resources/test_session1.cys (the 2011 3.0 pre-release layout) | LGPL-2.1, test-only                                                                    | `aacc1998e2e4a71988aef118b4d2cabcd37ab6d705df3f60b96982751f46bed1` |
+
+`authored/*.cys` (35 files) are written by `tools/make_cys_fixtures.py` (MIT, authored): a small
+3.x session written from scratch (two registered subnetworks sharing nodes, every CyCSV column
+type and cell rule, virtual columns including a chain and a name collision, HIDDEN and app
+tables, an expanded group, a nested-network pointer, two views, styles, global and app entries)
+and its variants for the container cases of research section 7 (zip64, a stored entry with a
+data descriptor, trailing and prepended bytes, an archive comment, a duplicate entry, no root
+folder, two root folders, `__MACOSX` noise, UTF-8 names, truncation, a missing end record, a CRC
+mismatch, encryption, deflate64 and bzip2, a 1000:1 ratio bomb), the table and session cases
+(an unknown CyCSV version and column class, bad rows, broken virtual columns, a table, a view and a
+member reference naming nothing, an edge leaving its subnetwork, a version 4 marker, the 3.0
+pre-release layout) and a small 2.x session. The design proposed deriving the container cases from
+the CC0 tutorials `galFiltered.cys`; a session written from scratch is as freely licensed and keeps
+each case a few kilobytes. The unit-test corpus `test/corpus/cys/` (a karate club session built
+from `test/corpus/gml/karate.gml` and copies of the authored 3.x and 2.x sessions) and
+`test/corpus/malformed/cys/` are written by the same script. Rerun it after changing it.
+
+Not committed: `sessions/The_Yeast_Interactome.cys` (24,809,869 bytes,
+https://github.com/cytoscape/cytoscape-gui-distribution, LGPL-2.1), the large-file case.

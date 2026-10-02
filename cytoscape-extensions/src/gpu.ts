@@ -1,9 +1,11 @@
 /**
  * WebGPU acceleration: detection, device acquisition, reuse, device-loss recovery and disposal, per Cytoscape core.
  *
- * This module never imports @graphty/webgpu-graph-algorithms. The "@graphty/cytoscape-extensions/webgpu" entry imports it and
- * registers a provider here, so a consumer who never imports that entry never resolves the optional peer and their
- * build works without it. Without a provider every method runs on the CPU and says so.
+ * The package @graphty/webgpu-graph-algorithms is a regular dependency, but nothing here imports it statically.
+ * The first call that could use a GPU, in a runtime that has WebGPU (or might: Node, where the optional `webgpu`
+ * package brings Dawn), loads it with a dynamic import of "#gpu-platform". The package's `imports` field maps that specifier to the Node
+ * build or the browser build, so a bundler puts the GPU code in a chunk of its own that a CPU-only page never
+ * fetches, and a browser bundle never sees the Node build's `import("webgpu")`.
  *
  * The rule the whole module follows: the GPU-or-CPU decision is made once, up front, before any work starts.
  * A failure of work that already started on the GPU (a lost device, an out-of-memory) is thrown to the caller,
@@ -37,20 +39,24 @@ export interface AcquiredGpu {
 export class GpuUnavailableError extends Error {
     /** E_NO_WEBGPU, E_NO_ADAPTER, E_SOFTWARE_ONLY, E_DEVICE_INCORRECT, ... */
     readonly code: string;
+    /** What the user can change to get the GPU, when there is something; null when nothing they do would help. */
+    readonly fix: string | null;
 
     /**
      * Creates the error.
      * @param code - the reason code
      * @param message - the reason in words
+     * @param fix - what the user can change to get the GPU, or null
      */
-    constructor(code: string, message: string) {
+    constructor(code: string, message: string, fix: string | null = null) {
         super(message);
         this.name = "GpuUnavailableError";
         this.code = code;
+        this.fix = fix;
     }
 }
 
-/** What "@graphty/cytoscape-extensions/webgpu" registers: probe, construct and verify a device, or throw GpuUnavailableError. */
+/** Probes, constructs and verifies a device, or throws GpuUnavailableError. */
 export interface GpuProvider {
     acquire(): Promise<AcquiredGpu>;
 }
@@ -70,10 +76,29 @@ export interface Backend {
     readonly device: string | null;
 }
 
+/** Options of `configureWebGpu`, for every core. */
+export interface WebGpuOptions {
+    /**
+     * Accept a software adapter (llvmpipe, SwiftShader, WARP). Default false: a software adapter is usually slower
+     * than the CPU implementation, so the CPU runs and the result says why.
+     */
+    readonly acceptSoftware?: boolean;
+    /** Node only: a substring of the Dawn adapter name to pick ("llvmpipe", "4070"). Ignored in a browser. */
+    readonly adapter?: string;
+}
+
+/**
+ * Graphs with at least this many nodes are where the GPU is expected to pay off. One of them running on the CPU for
+ * a reason the user could fix logs a one-time console warning; smaller graphs never do.
+ */
+export const GPU_SIZE_FLOOR = 5_000;
+
 /** A core's GPU decision: an acquired device, or the reason there is none. */
 interface Decision {
     readonly gpu: AcquiredGpu | null;
     readonly reason: string | null;
+    /** When the CPU was chosen for a reason the user could fix: the fix. */
+    readonly fix?: string | null;
 }
 
 interface CoreGpu {
@@ -83,18 +108,89 @@ interface CoreGpu {
     destroyed: boolean;
 }
 
-let provider: GpuProvider | null = null;
+/** A provider, or the reason (and fix) there is none. */
+type Source = GpuProvider | { readonly reason: string; readonly fix: string | null };
+
+let options: WebGpuOptions = {};
+/** Set by tests in place of the platform's provider; null disables WebGPU, undefined restores the platform's. */
+let override: GpuProvider | null | undefined;
+/** The provider being loaded or loaded, for the current options. */
+let loading: Promise<Source> | null = null;
+/** The same, once settled, so a run that cannot use the GPU can stay synchronous. */
+let loaded: Source | null = null;
+let warned = false;
 const cores = new WeakMap<Core, CoreGpu>();
 
-const NOT_ENABLED = 'WebGPU is not enabled: import "@graphty/cytoscape-extensions/webgpu" to use it';
+/**
+ * Sets the WebGPU options of every core. Each core disposes its device and decides again on its next call.
+ * @param o - see WebGpuOptions
+ */
+export function configureWebGpu(o: WebGpuOptions = {}): void {
+    options = { ...o };
+    loading = null;
+    loaded = null;
+    warned = false;
+}
 
 /**
- * Registers the provider "@graphty/cytoscape-extensions/webgpu" builds; each core disposes its device and decides again on
- * its next call.
- * @param p - the provider, or null to disable WebGPU
+ * Test seam: replaces the platform's provider.
+ * @param p - the provider; null disables WebGPU; undefined restores the platform's provider
  */
-export function registerGpuProvider(p: GpuProvider | null): void {
-    provider = p;
+export function registerGpuProvider(p: GpuProvider | null | undefined): void {
+    configureWebGpu(options);
+    override = p;
+}
+
+/**
+ * Why this runtime certainly has no WebGPU, without loading anything.
+ * @returns the reason, or null when it has WebGPU or might (Node, with the optional `webgpu` package)
+ */
+function noWebGpu(): string | null {
+    const nav = (globalThis as { navigator?: { gpu?: unknown } }).navigator;
+    if (nav?.gpu !== undefined && nav.gpu !== null) {
+        return null;
+    }
+    const proc = (globalThis as { process?: { versions?: { node?: string } } }).process;
+    return proc?.versions?.node === undefined ? "this runtime has no WebGPU (navigator.gpu is undefined)" : null;
+}
+
+/**
+ * The provider, loading the GPU package on first use.
+ * @returns the provider, or why there is none
+ */
+function source(): Promise<Source> {
+    if (loading === null) {
+        const none = noWebGpu();
+        if (override !== undefined || none !== null) {
+            // known without loading anything, so known synchronously
+            loaded = override ?? { reason: none ?? "WebGPU was disabled", fix: null };
+            loading = Promise.resolve(loaded);
+        } else {
+            const p: Promise<Source> = import("#gpu-platform").then(
+                (m) => m.gpuProvider(options),
+                (e: unknown) => ({
+                    reason: `@graphty/webgpu-graph-algorithms did not load: ${messageOf(e)}`,
+                    fix: "check that @graphty/webgpu-graph-algorithms is installed and that your bundler serves its chunk",
+                }),
+            );
+            loading = p;
+            void p.then((s) => {
+                if (loading === p) {
+                    loaded = s;
+                }
+            });
+        }
+    }
+    return loading;
+}
+
+/**
+ * Whether a source is a provider.
+ * @param s - the source
+ * @returns true for a provider
+ */
+function isProvider(s: Source): s is GpuProvider {
+    return "acquire" in s;
 }
 
 /**
@@ -139,7 +235,8 @@ async function decide(cy: Core, g: CoreGpu, p: GpuProvider): Promise<Decision> {
         gpu = await p.acquire();
     } catch (e) {
         // Up-front detection: nothing has run yet, so the CPU is the honest answer, with the reason
-        return { gpu: null, reason: `no usable WebGPU device: ${messageOf(e)}` };
+        const fix = e instanceof GpuUnavailableError ? e.fix : null;
+        return { gpu: null, reason: `no usable WebGPU device: ${messageOf(e)}`, fix };
     }
     if (g.destroyed) {
         gpu.accelerator.dispose();
@@ -165,43 +262,75 @@ async function decide(cy: Core, g: CoreGpu, p: GpuProvider): Promise<Decision> {
 /**
  * Why a run in this mode takes the CPU without asking for a device, so it can stay synchronous.
  * @param mode - the caller's mode
- * @returns the reason, or null when a device has to be asked for
+ * @returns the decision when it is already known to be the CPU, or null when a device has to be asked for
  */
-export function cpuWithoutAsking(mode: GpuMode = "auto"): string | null {
+export function cpuWithoutAsking(mode: GpuMode = "auto"): Decision | null {
     if (mode === "off") {
-        return 'gpu: "off" was requested';
+        return { gpu: null, reason: 'gpu: "off" was requested', fix: null };
     }
-    return provider === null ? NOT_ENABLED : null;
+    if (override === null) {
+        return { gpu: null, reason: "WebGPU was disabled", fix: null };
+    }
+    if (loading === null && override === undefined) {
+        const none = noWebGpu();
+        if (none !== null) {
+            return { gpu: null, reason: none, fix: null };
+        }
+    }
+    return loaded === null || isProvider(loaded) ? null : { gpu: null, ...loaded };
 }
 
 /**
  * The core's device, acquiring one on first use and again after a loss. One device per core, reused by every call.
+ * The first call in the process loads @graphty/webgpu-graph-algorithms.
  * @param cy - the core
  * @param mode - the caller's mode
  * @returns the device (null for the CPU) and the reason when null
  * @throws Error under "require" when no device is available, and when the core was destroyed
  */
 export async function gpuFor(cy: Core, mode: GpuMode = "auto"): Promise<Decision> {
-    const reason = cpuWithoutAsking(mode);
-    let d: Decision = { gpu: null, reason };
-    if (provider !== null && reason === null) {
+    let d: Decision | null = cpuWithoutAsking(mode);
+    if (d === null) {
+        // subscribed to the core's destroy before the first await, so a destroy during the wait is seen
         const g = coreGpu(cy);
-        if (g.destroyed) {
-            throw new Error("graphty: the Cytoscape core was destroyed");
+        const pending = source();
+        const src = loaded ?? (await pending);
+        if (!isProvider(src)) {
+            d = { gpu: null, ...src };
+        } else {
+            if (g.destroyed) {
+                throw new Error("graphty: the Cytoscape core was destroyed");
+            }
+            if (g.decision === null || g.by !== src) {
+                void g.decision?.then((old) => old.gpu?.accelerator.dispose());
+                // deferred one tick so decide() sees its own promise in g.decision
+                g.decision = Promise.resolve().then(() => decide(cy, g, src));
+                g.by = src;
+            }
+            d = await g.decision;
         }
-        const p = provider;
-        if (g.decision === null || g.by !== p) {
-            void g.decision?.then((old) => old.gpu?.accelerator.dispose());
-            // deferred one tick so decide() sees its own promise in g.decision
-            g.decision = Promise.resolve().then(() => decide(cy, g, p));
-            g.by = p;
-        }
-        d = await g.decision;
     }
     if (mode === "require" && d.gpu === null) {
         throw new Error(`graphty: gpu: "require" but ${d.reason ?? "no device"}`);
     }
     return d;
+}
+
+/**
+ * Warns once per configuration when a graph at or above GPU_SIZE_FLOOR runs on the CPU for a reason the user could
+ * fix. Small graphs, gpu: "off" and reasons nobody can fix stay quiet.
+ * @param d - the decision the run started with
+ * @param nodeCount - the graph's node count
+ */
+export function warnIfFixable(d: Decision, nodeCount: number): void {
+    if (warned || d.gpu !== null || d.fix === undefined || d.fix === null || nodeCount < GPU_SIZE_FLOOR) {
+        return;
+    }
+    warned = true;
+    console.warn(
+        `graphty: a ${nodeCount.toLocaleString("en-US")}-node graph ran on the CPU because ${d.reason ?? "no GPU"}. ` +
+            `To use the GPU: ${d.fix}. Pass gpu: "off" to run on the CPU without this warning.`,
+    );
 }
 
 /**

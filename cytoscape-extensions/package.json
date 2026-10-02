@@ -12,18 +12,16 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js",
             "default": "./dist/index.js"
-        },
-        "./webgpu": {
-            "types": "./dist/webgpu.d.ts",
-            "node": "./dist/webgpu-node.js",
-            "import": "./dist/webgpu.js",
-            "default": "./dist/webgpu.js"
         }
     },
-    "sideEffects": [
-        "./dist/webgpu.js",
-        "./dist/webgpu-node.js"
-    ],
+    "imports": {
+        "#gpu-platform": {
+            "types": "./src/gpu-platform-browser.ts",
+            "node": "./dist/gpu-platform-node.js",
+            "default": "./dist/gpu-platform-browser.js"
+        }
+    },
+    "sideEffects": false,
     "files": [
         "dist/",
         "!dist/*.tsbuildinfo",
@@ -67,15 +65,18 @@
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-extensions#readme",
+    "dependencies": {
+        "@graphty/webgpu-graph-algorithms": "workspace:^"
+    },
     "peerDependencies": {
         "@graphty/algorithms": "^3.0.0",
         "@graphty/graph-format": "^1.0.0",
         "@graphty/layout": "^2.0.0",
-        "@graphty/webgpu-graph-algorithms": ">=0.6.0",
-        "cytoscape": "^3.30.0"
+        "cytoscape": "^3.30.0",
+        "webgpu": ">=0.4.0 <1.0.0"
     },
     "peerDependenciesMeta": {
-        "@graphty/webgpu-graph-algorithms": {
+        "webgpu": {
             "optional": true
         }
     },
@@ -84,7 +85,6 @@
         "@graphty/graph-format": "workspace:^",
         "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
-        "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@storybook/addon-docs": "^9.0.11",
         "@storybook/html-vite": "^9.0.11",
         "@vitest/coverage-v8": "catalog:",

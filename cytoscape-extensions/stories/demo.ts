@@ -17,8 +17,7 @@ import {
 } from "@graphty/graph-samples/generators";
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 
-import graphtyCytoscape from "../src/index.js";
-import { enableWebGpu } from "../src/webgpu.js";
+import graphtyCytoscape, { configureWebGpu } from "../src/index.js";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -187,7 +186,7 @@ export function renderDemo(args: RunArgs, title: string, run: (d: Demo) => Promi
         return root;
     }
 
-    enableWebGpu({ acceptSoftware: args.acceptSoftware });
+    configureWebGpu({ acceptSoftware: args.acceptSoftware });
 
     const go = async (): Promise<void> => {
         button.disabled = true;

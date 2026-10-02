@@ -68,15 +68,17 @@ const config: KnipConfig = {
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
         "cytoscape-extensions": {
-            // the root, and the browser and Node builds of the "./webgpu" entry
-            entry: ["src/index.ts!", "src/webgpu.ts!", "src/webgpu-node.ts!", "test/**/*.test.ts"],
+            // the root, and the browser and Node builds the "#gpu-platform" dynamic import loads (the package's
+            // `imports` field maps it into dist/, which knip does not follow back to src/)
+            entry: ["src/index.ts!", "src/gpu-platform-browser.ts!", "src/gpu-platform-node.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
-            // An OPTIONAL peer imported only by the "./webgpu" entry, which is what an optional peer is for; knip
-            // reports every referenced optional peer, so it is ignored by name (as graphty-element does). `cytoscape`
+            // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
+            // loads it at run time, and declaring it here is what lets a package manager hand it through (only
+            // --production calls it unused; the normal run sees the GPU package's own use). `cytoscape`
             // is a required peer that src imports for types only (the consumer hands its own cytoscape to
             // `cytoscape.use()`), and --production drops type imports, so that run alone would call it unused
-            ignoreDependencies: ["@graphty/webgpu-graph-algorithms", ...(production ? ["cytoscape"] : [])],
+            ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
         // graph-samples package: the root, generators and every dataset subpath are entries

@@ -1,7 +1,7 @@
 /**
- * The `...Async` methods and the simulations on a real WebGPU device, through "@graphty/cytoscape-extensions/webgpu" under Node
- * (Dawn). Every result is compared with the synchronous CPU method within the tolerance the WebGPU package documents
- * for that algorithm.
+ * The `...Async` methods and the simulations on a real WebGPU device under Node (Dawn), through the provider the
+ * package loads on demand. Every result is compared with the synchronous CPU method within the tolerance the WebGPU
+ * package documents for that algorithm.
  *
  * The adapter policy is @graphty/webgpu-graph-algorithms', read from GRAPHTY_GPU_REQUIRE by its own parser: unset
  * skips these tests when there is no adapter (with the reason), "any" demands an adapter (lavapipe counts),
@@ -17,9 +17,8 @@ import { beforeAll, describe, expect, it, type TestContext } from "vitest";
 // The policy parser lives in the GPU package's scripts/ and is not exported, so the adapter's tests import it by
 // path rather than keep a second copy of the rule.
 import { checkAdapter, parseGpuRequire } from "../../webgpu-graph-algorithms/scripts/gpu-policy.js";
-import { type GpuAccelerator, gpuFor } from "../src/gpu";
+import { configureWebGpu, type GpuAccelerator, gpuFor } from "../src/gpu";
 import graphtyCytoscape, { type Backend } from "../src/index";
-import { enableWebGpu } from "../src/webgpu-node";
 import { caseName, CASES, coreFor, expectClose, mainGraph } from "./gpu-cases";
 
 if (process.env.XDG_RUNTIME_DIR === undefined || process.env.XDG_RUNTIME_DIR === "") {
@@ -37,7 +36,7 @@ beforeAll(async () => {
         console.log(`[gpu] cytoscape adapter tests on ${probe.summary.vendor} / ${probe.summary.architecture}`);
     }
     // The policy, not the adapter's software filter, decides which adapters these tests accept
-    enableWebGpu({ acceptSoftware: true, adapter });
+    configureWebGpu({ acceptSoftware: true, adapter });
 }, 60_000);
 
 /**

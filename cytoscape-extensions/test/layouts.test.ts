@@ -2,6 +2,7 @@ import { ForceAtlas2Simulation, type LayoutAccelerator, type LayoutSimulation } 
 import cytoscape, { type Core, type ElementDefinition, type EventObject, type LayoutOptions } from "cytoscape";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { registerGpuProvider } from "../src/gpu";
 import graphtyCytoscape, { LAYOUT_NAMES } from "../src/index";
 
 const BOX = { x1: 0, y1: 0, w: 400, h: 300 };
@@ -74,6 +75,8 @@ function expectPlaced(cy: Core): void {
 
 beforeAll(() => {
     cytoscape.use(graphtyCytoscape);
+    // the CPU layouts, synchronously; the GPU decision has its own tests
+    registerGpuProvider(null);
 });
 
 const runnable = LAYOUT_NAMES.filter((n) => n !== "spring-electrical");

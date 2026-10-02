@@ -134,7 +134,7 @@ import type {
     NodeSingular,
 } from "cytoscape";
 
-import { type Backend, backendOf, gpuFor, type GpuMode, recording } from "./gpu.js";
+import { type Backend, backendOf, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -158,9 +158,8 @@ export interface AlgorithmOptions {
     /** Write each element's value (what `score` or `cluster` returns) into `data(field)`. */
     readonly field?: string;
     /**
-     * The `...Async` methods only: "auto" (default) runs on the GPU when "@graphty/cytoscape-extensions/webgpu" is imported and
-     * a device is available, "off" runs on the CPU, "require" throws instead of running on the CPU when no device
-     * is available. The synchronous methods always run on the CPU and reject "require".
+     * The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device,
+     * "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require".
      */
     readonly gpu?: GpuMode;
 }
@@ -1531,6 +1530,7 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
 async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
     const d = await gpuFor(coreOf(eles), options.gpu);
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
+    warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null) as unknown as Algos);
     let value: object;
     try {

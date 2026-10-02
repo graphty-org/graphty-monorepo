@@ -46,7 +46,7 @@ import type {
     Position,
 } from "cytoscape";
 
-import { type Backend, backendOf, cpuWithoutAsking, gpuFor, type GpuMode } from "./gpu.js";
+import { type Backend, backendOf, cpuWithoutAsking, gpuFor, type GpuMode, warnIfFixable } from "./gpu.js";
 import { type CytoscapeSnapshot, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
 /** Options of every "graphty-*" layout. Options not listed here go to the @graphty/layout function unchanged. */
@@ -79,9 +79,8 @@ export interface GraphtyLayoutOptions {
     /** Simulations with `animate: true`: iterations per frame. Default 1. */
     readonly refresh?: number;
     /**
-     * Simulations: "auto" (default) runs on the core's GPU when "@graphty/cytoscape-extensions/webgpu" is imported and a device
-     * is available (the run is then asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when
-     * `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran.
+     * Simulations: "auto" (default) runs on the core's GPU when the runtime has a usable WebGPU device (the run may
+     * then be asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran.
      */
     readonly gpu?: GpuMode;
     /**
@@ -337,9 +336,10 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         simulate(layout, type, o.accelerator);
         return;
     }
-    const reason = cpuWithoutAsking(o.gpu);
-    if (reason !== null) {
-        layout.backend = { ran: "cpu", reason, device: null };
+    const known = cpuWithoutAsking(o.gpu);
+    if (known !== null) {
+        layout.backend = backendOf(known, false, "");
+        warnIfFixable(known, o.eles.nodes().length);
         simulate(layout, type, null);
         return;
     }
@@ -348,6 +348,7 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         .then((d) => {
             layout.looping = false;
             layout.backend = backendOf(d, d.gpu !== null, "");
+            warnIfFixable(d, o.eles.nodes().length);
             if (layout.stopped) {
                 layout.emit({ type: "layoutstop", layout });
                 return;

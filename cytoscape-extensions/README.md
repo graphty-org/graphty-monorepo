@@ -167,23 +167,38 @@ for `PriorityDeltaPageRank`).
 
 ## WebGPU
 
-WebGPU is optional. Install `@graphty/webgpu-graph-algorithms` (and, under Node, the `webgpu`
-package, which is Dawn) and import one more module, once:
+WebGPU needs no setup. `@graphty/webgpu-graph-algorithms` is a dependency of this package, so
+installing this package installs it, and there is nothing more to import:
 
 ```ts
-import "@graphty/cytoscape-extensions/webgpu";
-
 const r = await cy.elements().graphtyPageRankAsync();
 r.rank("#a");
 r.backend; // { ran: "gpu", reason: null, device: "nvidia nvidia-geforce-rtx-4070-super" }
-cy.layout({ name: "graphty-forceatlas2" }).run(); // now on the GPU; listen for layoutstop
+cy.layout({ name: "graphty-forceatlas2" }).run(); // on the GPU when there is one; listen for layoutstop
 ```
 
-That import is the whole integration. Each core acquires one device the first time it needs one,
+The GPU code is loaded on demand. The first `...Async` call or simulation in a runtime that has
+WebGPU loads it with a dynamic import, so a bundler (Vite, webpack, esbuild, Rollup) puts it in a
+chunk of its own, and a page that never makes such a call never downloads it. In a browser without
+WebGPU it is never loaded at all. Each core then acquires one device the first time it needs one,
 reuses it for every later call, acquires a new one after the device is lost, and releases it on
-`cy.destroy()`. The same import works in a browser and under Node (the package's `node` export
-condition picks Dawn). Without it nothing imports the GPU package, so an application that never
-uses WebGPU builds without it installed.
+`cy.destroy()`.
+
+**Node.** Install the optional `webgpu` package (Dawn) next to this one to use the GPU under Node:
+`npm install webgpu`. Without it every run is on the CPU, and `backend.reason` says so.
+
+**A warning when it matters.** When a graph of `GPU_SIZE_FLOOR` (5,000) nodes or more runs on the
+CPU for a reason you could fix (Node without the `webgpu` package, a software adapter refused, the
+GPU chunk failing to load), the console gets one warning naming the reason and the fix. Smaller
+graphs never warn, and `gpu: "off"` silences it.
+
+**Settings.** `configureWebGpu(options)`, exported from the main entry, applies to every core (each
+one disposes its device and decides again on its next call):
+
+| Option           | Default | Meaning                                                                                                                        |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `acceptSoftware` | `false` | Use a software adapter (SwiftShader, llvmpipe, WARP). Refused by default, as it is usually slower than the CPU implementation. |
+| `adapter`        | none    | Node only: a substring of the Dawn adapter name to pick, such as `"llvmpipe"` or `"4070"`.                                     |
 
 **Which methods.** Seventeen algorithms have an asynchronous twin, `graphty<Name>Async`
 (`ASYNC_ALGORITHM_NAMES` lists them): breadth-first search, Dijkstra, Bellman-Ford, all-pairs
@@ -197,10 +212,10 @@ layouts, the three simulations use the GPU; the static layouts have no GPU imple
 result, and on the layout object (`layout.backend`) once a simulation has started. `reason` says why
 the CPU ran:
 
-- WebGPU is not enabled (the module above was not imported), or `gpu: "off"` was passed.
-- No usable device: no WebGPU in this runtime, no adapter, a software-only adapter (refused by
-  default, being usually slower than the CPU; `enableWebGpu({ acceptSoftware: true })` accepts it),
-  or a device that fails the GPU package's correctness check.
+- `gpu: "off"` was passed.
+- No usable device: no WebGPU in this runtime (under Node: the `webgpu` package is not installed),
+  no adapter, a software-only adapter (refused by default; `configureWebGpu({ acceptSoftware: true })`
+  accepts it), or a device that fails the GPU package's correctness check.
 - The options or the graph need the CPU implementation. @graphty/algorithms' dispatcher decides this
   per call: for example PageRank with `initialRanks`, personalized PageRank on a graph with a node
   that has no out-edges, eigenvector centrality on a directed or bipartite graph, all-pairs shortest
@@ -224,10 +239,6 @@ differently on the two, so partitions can differ; the GPU result has no `iterati
 packages read `tolerance` differently for PageRank (the GPU stops at an L1 change below
 `tolerance` times the node count, the CPU below `tolerance`), so at the same options the GPU
 usually stops sooner.
-
-`enableWebGpu(options)` and `disableWebGpu()` are exported from `@graphty/cytoscape-extensions/webgpu`.
-`enableWebGpu` takes `acceptSoftware` and, under Node, `adapter` (a substring of the Dawn adapter
-name, such as `"llvmpipe"`).
 
 ## Using the graph-format snapshot directly
 

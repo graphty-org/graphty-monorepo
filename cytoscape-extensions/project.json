@@ -28,7 +28,7 @@
                 "command": "npm run test:run",
                 "cwd": "cytoscape-extensions"
             },
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build", "build"]
         },
         "coverage": {
             "executor": "nx:run-commands",
@@ -36,7 +36,7 @@
                 "command": "npm run coverage",
                 "cwd": "cytoscape-extensions"
             },
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build", "build"]
         },
         "lint": {
             "executor": "nx:run-commands",

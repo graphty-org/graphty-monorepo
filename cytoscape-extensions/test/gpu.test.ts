@@ -1,21 +1,29 @@
 /**
- * The `...Async` methods and the simulations' GPU decision without a real GPU: the CPU path (no
- * "@graphty/cytoscape-extensions/webgpu" import), and the device lifecycle against a fake provider (reuse, loss, destroy,
- * release, a refusal, a failure mid-run). The real device is exercised by gpu-device.test.ts.
+ * The `...Async` methods and the simulations' GPU decision without a real GPU: the CPU path (WebGPU disabled), the
+ * one-time warning for a large graph on the CPU, and the device lifecycle against a fake provider (reuse, loss,
+ * destroy, release, a refusal, a failure mid-run). The real device is exercised by gpu-device.test.ts.
  */
 
 import { pageRank } from "@graphty/algorithms";
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { ForceAtlas2Simulation, type LayoutSimulation } from "@graphty/layout";
+import type { ProbeResult } from "@graphty/webgpu-graph-algorithms";
 import cytoscape, { type EventObject, type LayoutOptions } from "cytoscape";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AcquiredGpu, type GpuAccelerator, GpuUnavailableError, registerGpuProvider } from "../src/gpu";
-import graphtyCytoscape, { ASYNC_ALGORITHM_NAMES, type Backend } from "../src/index";
+import { gpuProvider as browserProvider } from "../src/gpu-platform-browser";
+import { NODE_FIXES } from "../src/gpu-platform-node";
+import graphtyCytoscape, { ASYNC_ALGORITHM_NAMES, type Backend, GPU_SIZE_FLOOR } from "../src/index";
+import { providerFor } from "../src/webgpu-provider";
 import { caseName, CASES, coreFor, expectClose, mainGraph } from "./gpu-cases";
 
 beforeAll(() => {
     cytoscape.use(graphtyCytoscape);
+});
+
+beforeEach(() => {
+    registerGpuProvider(null);
 });
 
 afterEach(() => {
@@ -25,7 +33,7 @@ afterEach(() => {
 type Method = (o?: Record<string, unknown>) => unknown;
 const method = (cy: cytoscape.Core, name: string): Method => (cy as unknown as Record<string, Method>)[name].bind(cy);
 
-describe("the CPU path (WebGPU not enabled)", () => {
+describe("the CPU path (WebGPU disabled)", () => {
     it("registers one Async method per algorithm the GPU package implements", () => {
         expect(ASYNC_ALGORITHM_NAMES).toHaveLength(17);
         const cy = mainGraph();
@@ -41,31 +49,35 @@ describe("the CPU path (WebGPU not enabled)", () => {
             const r = (await method(cy, `${c.method}Async`)(c.options)) as Record<string, unknown> & {
                 backend: Backend;
             };
-            expect(r.backend).toEqual({
-                ran: "cpu",
-                reason: 'WebGPU is not enabled: import "@graphty/cytoscape-extensions/webgpu" to use it',
-                device: null,
-            });
+            expect(r.backend).toEqual({ ran: "cpu", reason: "WebGPU was disabled", device: null });
             const want = c.read(method(cy, c.method)(c.options) as never, cy);
             expectClose(c.read(r as never, cy), want, 0, caseName(c));
         });
     }
 
     it("the browser build in a runtime without WebGPU declines up front and runs on the CPU", async () => {
-        const { enableWebGpu, disableWebGpu } = await import("../src/webgpu");
-        enableWebGpu();
+        registerGpuProvider(browserProvider({}));
         const r = await mainGraph().graphtyPageRankAsync();
         expect(r.backend.ran).toBe("cpu");
         expect(r.backend.reason).toMatch(/no usable WebGPU device: .*navigator\.gpu/);
-        disableWebGpu();
-        expect((await mainGraph().graphtyPageRankAsync()).backend.reason).toMatch(/not enabled/);
+    });
+
+    it("the default provider under Node loads the GPU package on demand and decides up front", async () => {
+        registerGpuProvider(undefined);
+        const r = await mainGraph().graphtyPageRankAsync();
+        // Dawn and an adapter may or may not exist on this machine; either way the decision is reported
+        if (r.backend.ran === "cpu") {
+            expect(r.backend.reason).toMatch(/no usable WebGPU device/);
+        } else {
+            expect(r.backend.device).not.toBeNull();
+        }
     });
 
     it('gpu: "off" runs on the CPU and says so; "require" rejects', async () => {
         const cy = mainGraph();
         const r = await cy.graphtyPageRankAsync({ gpu: "off" });
         expect(r.backend).toEqual({ ran: "cpu", reason: 'gpu: "off" was requested', device: null });
-        await expect(cy.graphtyPageRankAsync({ gpu: "require" })).rejects.toThrow(/require.*not enabled/);
+        await expect(cy.graphtyPageRankAsync({ gpu: "require" })).rejects.toThrow(/require.*disabled/);
     });
 
     it('a synchronous method rejects gpu: "require"', () => {
@@ -82,6 +94,96 @@ describe("the CPU path (WebGPU not enabled)", () => {
         layout.run();
         expect(stopped).toBe(true);
         expect((layout as unknown as { backend: Backend }).backend.ran).toBe("cpu");
+    });
+});
+
+/**
+ * A path graph.
+ * @param n - its node count
+ * @returns the core
+ */
+function pathGraph(n: number): cytoscape.Core {
+    const elements: cytoscape.ElementDefinition[] = [];
+    for (let i = 0; i < n; i++) {
+        elements.push({ data: { id: `n${i}` } });
+        if (i > 0) {
+            elements.push({ data: { id: `e${i}`, source: `n${i - 1}`, target: `n${i}` } });
+        }
+    }
+    return cytoscape({ headless: true, elements });
+}
+
+/**
+ * A provider whose probe refuses with a code, on a platform with the given fixes.
+ * @param code - the refusal code
+ * @param fixes - the platform's fixes
+ */
+function refusing(code: ProbeResult["code"], fixes: Record<string, string> = {}): void {
+    registerGpuProvider(
+        providerFor(
+            {
+                probe: () =>
+                    Promise.resolve({
+                        ok: false,
+                        code,
+                        reason: `refused (${code})`,
+                        adapter: null,
+                        summary: null,
+                    }),
+                open: () => Promise.reject(new Error("not reached")),
+                fixes,
+            },
+            {},
+        ),
+    );
+}
+
+describe("the warning for a large graph on the CPU", () => {
+    let warn: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+        warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+        warn.mockRestore();
+    });
+
+    it("Node without Dawn: warns once above the size floor, naming the reason and the fix", async () => {
+        refusing("E_NO_WEBGPU", NODE_FIXES);
+        const cy = pathGraph(GPU_SIZE_FLOOR);
+        const r = await cy.graphtyPageRankAsync();
+        expect(r.backend).toEqual({
+            ran: "cpu",
+            reason: "no usable WebGPU device: refused (E_NO_WEBGPU)",
+            device: null,
+        });
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toMatch(
+            /5,000-node graph ran on the CPU.*E_NO_WEBGPU.*npm install webgpu/,
+        );
+        await cy.graphtyPageRankAsync();
+        expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("a refused software adapter names acceptSoftware, also from a simulation", async () => {
+        refusing("E_SOFTWARE_ONLY");
+        const cy = pathGraph(GPU_SIZE_FLOOR);
+        const layout = cy.layout({ name: "graphty-forceatlas2", boundingBox: BOX, maxIter: 1 } as LayoutOptions);
+        const stop = layout.promiseOn("layoutstop");
+        layout.run();
+        await stop;
+        expect((layout as unknown as { backend: Backend }).backend.ran).toBe("cpu");
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toMatch(/acceptSoftware: true/);
+    });
+
+    it('stays quiet for a small graph, for gpu: "off", and for a reason nobody can fix', async () => {
+        refusing("E_NO_WEBGPU", NODE_FIXES);
+        await pathGraph(GPU_SIZE_FLOOR - 1).graphtyPageRankAsync();
+        await pathGraph(GPU_SIZE_FLOOR).graphtyPageRankAsync({ gpu: "off" });
+        refusing("E_NO_ADAPTER", NODE_FIXES);
+        const r = await pathGraph(GPU_SIZE_FLOOR).graphtyPageRankAsync();
+        expect(r.backend.reason).toMatch(/E_NO_ADAPTER/);
+        expect(warn).not.toHaveBeenCalled();
     });
 });
 

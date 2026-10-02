@@ -62,11 +62,11 @@
         }
     },
     "devDependencies": {
-        "@graphty/visual-review": "workspace:*",
         "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",
         "@eslint/js": "^9.29.0",
+        "@graphty/visual-review": "workspace:*",
         "@nx/eslint": "22.7.12",
         "@nx/react": "22.7.12",
         "@nx/storybook": "22.7.12",
@@ -76,6 +76,7 @@
         "@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
+        "@sonar/scan": "5.0.1",
         "@types/node": "^20.19.9",
         "@vitest/browser": "catalog:",
         "@vitest/coverage-v8": "catalog:",

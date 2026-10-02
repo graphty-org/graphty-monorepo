@@ -83,7 +83,7 @@ export const GRID_WITH_CYCLE_NODES = 903;
  * but the first fails its exchange: under a retry bound of one they exhaust it (measured on lavapipe and the RTX
  * 4070 SUPER: exactly one batch for every k from 8 to 4,096), and under the default bound the reloaded value is the
  * smallest candidate, so no lane retries past its first failure. The DESCENDING order is the adversarial one (each
- * winner is the largest remaining candidate): a 32-lane subgroup then needs 31 attempts (`descendingFan`,
+ * winner is the largest remaining candidate): a 32-lane subgroup can need up to 31 attempts (`descendingFan`,
  * `racingCycle`); since issue #470 those lost exchanges never count against the bound, which counts spurious
  * failures only.
  * @param k - the fan width
@@ -113,23 +113,23 @@ export function descendingFan(k: number): EdgeSpec[] {
 }
 
 /**
- * Issue #470's race: a negative cycle `1 -> 2 -> 1` (weights 1 and -3) hanging off the source by `0 -> 1`, and `k`
- * PARALLEL arcs `1 -> 3` at weights `k, k - 1, ..., 1`, DESCENDING with the edge index (directed, 4 nodes). The cycle
- * lowers `dist[1]` every round, so in every round -- the decision round included -- all `k` candidates for node 3
- * improve on it, and adjacent lanes of one SIMD group load the same `dist[1]` and offer them largest first: each
- * exchange is won by the largest remaining candidate, so a lane can lose `k - 1` times in one round (31 on a 32-wide
- * subgroup) without any spurious failure.
- * @param k - the parallel arcs into node 3
+ * Issue #470's race: a negative SELF-LOOP `1 -> 1` at -2^20 hanging off the source by `0 -> 1`, and `k` PARALLEL
+ * arcs `1 -> 2` at weights `k, k - 1, ..., 1`, DESCENDING with the edge index (directed, 3 nodes). The loop lowers
+ * `dist[1]` by 2^20 every round, far more than the fan's spread, so in every round -- the decision round included --
+ * all `k` candidates for node 2 improve on it, and adjacent lanes of one SIMD group offer them largest first: a lane
+ * can lose its exchange many times in one round without any spurious failure (the kernel before the fix, which
+ * counted every loss, exhausted a bound of 8 on the RTX 4070 SUPER and of 4 on lavapipe at k = 4,096). Every
+ * distance stays an integer below 2^24 in magnitude, so f32 is exact.
+ * @param k - the parallel arcs into node 2
  * @returns the edges
  */
 export function racingCycle(k: number): EdgeSpec[] {
     const edges: EdgeSpec[] = [
         [0, 1, 1],
-        [1, 2, 1],
-        [2, 1, -3],
+        [1, 1, -(2 ** 20)],
     ];
     for (let i = 0; i < k; i++) {
-        edges.push([1, 3, k - i]);
+        edges.push([1, 2, k - i]);
     }
     return edges;
 }

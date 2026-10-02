@@ -57,7 +57,7 @@ import {
 } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { assertCheckPasses } from "../helpers/sabotage.js";
+import { assertCheckPasses, withSabotage } from "../helpers/sabotage.js";
 import { absorbPath, distBits, relSpread, ssspTolerance, weightedEdges, zeroPlateau } from "../helpers/sssp.js";
 import { expectPredArcAttains, expectTriangleInequality } from "../helpers/traversal-check.js";
 import { bellmanFordOracle, bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
@@ -549,6 +549,28 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
             expect(run.retryExhaustedRounds, `retryExhaustedRounds under ${JSON.stringify(tuning)}`).toBe(0);
         }
         ctx.release(s);
+    }, 120_000);
+
+    it("the driver's retryExhausted paths, reached through a kernel that counts every lost exchange (the kernel before issue #470): exhausted before the decision round it runs on and dist stays exact; exhausted IN the decision round it is E_VALIDATION, never a guess", async (t) => {
+        requireGpu(t);
+        const countsEveryLoss = {
+            name: "counts-every-lost-exchange",
+            find: "if (r.old_value == cur) {",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: "test/algorithms/bellman-ford.test.ts",
+        };
+        await withSabotage("bf-relax", countsEveryLoss, async (ctx) => {
+            const fan = snapshotOf(fanIn(4096), { directed: true, label: "bf-fan-in-counted" });
+            const bounded = await bellmanFordWithTuning(ctx, fan, 0, undefined, { maxRetries: 1 });
+            expect(bounded.retryExhaustedRounds, "retryExhaustedRounds under maxRetries 1").toBeGreaterThanOrEqual(1);
+            expectBitwiseEqual(distBits(bounded.result.dist), distBits(bellmanFordOracle(fan, 0).dist), "dist");
+            expect(bounded.result.hasNegativeCycle).toBe(false);
+            ctx.release(fan);
+            const racing = snapshotOf(racingCycle(4096), { directed: true, label: "bf-racing-cycle-counted" });
+            await expectRejection(bellmanFordWithTuning(ctx, racing, 0, undefined, { maxRetries: 1 }), "E_VALIDATION");
+            ctx.release(racing);
+        });
     }, 120_000);
 
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {

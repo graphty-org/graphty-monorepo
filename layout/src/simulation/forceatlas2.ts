@@ -23,8 +23,8 @@
  * reproduces NetworkX 3.4.2 `forceatlas2_layout` -- origin gravity, the position-mixed per-node swing / traction,
  * the global sums accumulated across iterations from 1 (test/simulation/forceatlas2.test.ts checks it against the
  * NetworkX fixtures the GPU package pins). `nodeSize` (adjustSizes, deferred: design 7.14, Q-25), `dissuadeHubs`
- * (ignored exactly like the legacy CPU), `seed` (the caller seeds the array with seedPositions) and `maxInFlight`
- * (GPU only) are accepted and unused.
+ * (ignored exactly like the legacy CPU) and `maxInFlight` (GPU only) are accepted and unused. `seed` seeds the
+ * non-finite start rows in load() with seedPositions, exactly as the GPU simulation does.
  *
  * The u32 hash of the coincident kick (kickDir) re-implements the GPU prelude's lowbias32 / pair_hash / hash_dir with
  * JavaScript's 32-bit operators on HASH WORDS and node indices below 2^32.
@@ -40,6 +40,7 @@ import {
     FA2_FOLD_LANES,
 } from "./constants";
 import { resolveNodeVector, resolveWeights } from "./inputs";
+import { seedPositions } from "./seed";
 import type { ForceAtlas2Options, LayoutSimulation } from "./types";
 
 /** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
@@ -70,6 +71,7 @@ interface ResolvedOptions {
     readonly settleWindow: number;
     readonly iterationsPerStep: number;
     readonly compat: "paper" | "networkx";
+    readonly seed: number | null;
 }
 
 /** The per-load scratch of one iteration (allocated by load(), released by dispose()). */
@@ -246,6 +248,7 @@ function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): Reso
             "an integer >= 1",
         ),
         compat,
+        seed: o.seed ?? null,
     };
 }
 
@@ -527,12 +530,14 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
 
     /**
      * Takes the snapshot and the owner's array (design 7.19 load): validates, resolves the mass (a role-`mass`
-     * column, else outDegree + 1: design 7.14, D28) and the weights, converts the scene-unit rows into the f64
+     * column, else outDegree + 1: design 7.14, D28) and the weights, seeds the non-finite rows of the owner's array
+     * in place (seedPositions with the `seed` option, the GPU simulation's rule), converts the scene-unit rows into the f64
      * layout-unit array `(v - center) / scale` (z forced to 0 in 2D), resets the speed controller (speed =
      * speedEfficiency = swing = traction = 1: the one place that does, D8), clears the fixed mask when n changed
      * (design 7.12), and reheats.
      * @param snapshot - an undirected snapshot (both arcs of every edge present)
      * @param positions - the owner's stride-3 scene-unit array, length 3 x nodeCount, read AND written in place
+     *     (non-finite rows are seeded)
      */
     load(snapshot: GraphSnapshot, positions: F32): void {
         this.assertNotDisposed();
@@ -565,8 +570,9 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.mass = mass;
         this.weights = weights;
         this.owner = positions;
-        const { scale } = this.options;
-        const [cx, cy, cz] = this.options.center;
+        const { scale, center, seed } = this.options;
+        seedPositions(snapshot, positions, seed, this.dim, scale, center, "fa2");
+        const [cx, cy, cz] = center;
         const layout = new Float64Array(3 * n);
         for (let i = 0; i < n; i++) {
             layout[3 * i] = (positions[3 * i] - cx) / scale;

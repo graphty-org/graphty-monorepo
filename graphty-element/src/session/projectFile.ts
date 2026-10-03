@@ -338,16 +338,15 @@ function columns(rows: readonly (Readonly<Record<string, unknown>> | undefined)[
  */
 function configOf(session: GraphSession): ProjectConfigPatch {
     const { data, runAlgorithmsOnLoad, background, selectionStyle, layoutBehavior } = session.config;
-    // NOSONAR(S7784): the JSON round trip drops undefined and non-JSON values, as the saved file will.
-    return JSON.parse(
-        JSON.stringify({
-            data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
-            runAlgorithmsOnLoad,
-            background,
-            selectionStyle,
-            layoutBehavior,
-        }),
-    ) as ProjectConfigPatch;
+    // Through JSON text, so the settings hold only what the saved file can: no undefined values.
+    const text = JSON.stringify({
+        data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
+        runAlgorithmsOnLoad,
+        background,
+        selectionStyle,
+        layoutBehavior,
+    });
+    return JSON.parse(text) as ProjectConfigPatch;
 }
 
 /**

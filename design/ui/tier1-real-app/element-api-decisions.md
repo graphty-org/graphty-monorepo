@@ -864,3 +864,27 @@ changes".
 designloom workflows to the tier 1 tasks and these items. The missing lens reports. A measured find
 index and project-open limit. Each is a precondition of re-approval, not of the owner's direction
 decisions.
+
+---
+
+## The owner's decisions (2026-10-03)
+
+- **Approved, all items as recommended**, except:
+  - **Item 9 (style channel sections) is dropped.** Arranging the Style tab is presentation, which
+    the app owns; the app groups channels with the existing `ChannelDescriptor.group`. PR #839 and
+    issue #789 are closed.
+  - **Item 11 (readable run names, #726) is released as built.** No rework; releases resume.
+  - **Item 2:** the minimal inference stays (strings and booleans categorical, numbers
+    quantitative, time and ordinal never inferred); a declaration always wins.
+- **New rule: graphty-element is neutral about presentation.** Verbatim: "graphty-element MUST be
+  neutral about how information is displayed and MUST NOT be opinionated about presentation or
+  information structure. the division of labor is that graphty app (or other apps that use
+  graphty-element) will make ALL presentation decisions, and all the logic for manging data and
+  rendering it lives in graphty-element." Consequences for this page:
+  - Reader-facing text (decision 3) becomes `{ code, params }` with no default English; the app
+    writes the words.
+  - Item 6 reports each algorithm's facts (result shape, options); no `sentence`, `plainName`,
+    category headings or "start here" groupings from the element.
+  - Item 8 reports what a run's style did as data; no `reason` sentence.
+  - The shared `CatalogGroup` shape and its `plainName` are dropped with item 9 and item 6's
+    headings.

@@ -8,10 +8,14 @@ import { readsWeights } from "./weights.js";
 /** Options of the index-based closeness centrality, matching the legacy `closenessCentrality`. @public */
 export interface ClosenessOptions {
     /**
-     * Scale by the fraction of other nodes reached (Wasserman and Faust), or with `harmonic` divide by
-     * `n - 1`. Default false.
+     * How the score is scaled, with `r` the number of other nodes a node reaches and `n` the node count:
+     * - `"none"` (default): `1 / sum(d)`, or `sum(1 / d)` with `harmonic`.
+     * - `"per-other-node"`: divided by the `n - 1` other nodes -- `r / sum(d) / (n - 1)`, the inverse mean distance
+     *   to the reached nodes per other node, or `sum(1 / d) / (n - 1)` with `harmonic`.
+     * - `"wasserman-faust"`: `(r / sum(d)) * (r / (n - 1))`, the score NetworkX's `closeness_centrality` reports by
+     *   default (`wf_improved=True`); on a connected graph it is `(n - 1) / sum(d)`. Not defined with `harmonic`.
      */
-    readonly normalized?: boolean | undefined;
+    readonly normalization?: "none" | "per-other-node" | "wasserman-faust" | undefined;
     /** Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs. Default false. */
     readonly harmonic?: boolean | undefined;
     /**
@@ -147,13 +151,40 @@ function searcher(n: number, adj: Adjacency, cutoff: number): Search {
  * @returns The score
  */
 function finish(o: ClosenessOptions, n: number, others: number, total: number, inverse: number): number {
+    const normalization = o.normalization ?? "none";
     if (o.harmonic === true) {
-        return o.normalized === true && n > 1 ? inverse / (n - 1) : inverse;
+        return normalization === "per-other-node" && n > 1 ? inverse / (n - 1) : inverse;
     }
     if (total <= 0) {
         return 0;
     }
-    return o.normalized === true && n > 1 ? others / total / (n - 1) : 1 / total;
+    if (normalization === "none" || n <= 1) {
+        return 1 / total;
+    }
+    const perOtherNode = others / total / (n - 1);
+    return normalization === "per-other-node" ? perOtherNode : perOtherNode * others;
+}
+
+/**
+ * Refuse a `normalization` the options cannot use.
+ * @param o - The options
+ * @param label - The function name, for the message
+ * @throws RangeError with code `E_BAD_OPTION` for an unknown normalization, or `"wasserman-faust"` with `harmonic`
+ */
+function checkNormalization(o: ClosenessOptions, label: string): void {
+    const normalization = o.normalization ?? "none";
+    if (!["none", "per-other-node", "wasserman-faust"].includes(normalization)) {
+        throw withCode(
+            new RangeError(`${label}: normalization must be "none", "per-other-node" or "wasserman-faust"`),
+            "E_BAD_OPTION",
+        );
+    }
+    if (normalization === "wasserman-faust" && o.harmonic === true) {
+        throw withCode(
+            new RangeError(`${label}: the Wasserman-Faust normalization is defined for the plain score, not harmonic`),
+            "E_BAD_OPTION",
+        );
+    }
 }
 
 /**
@@ -208,22 +239,23 @@ function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adj
  * SAMPLED (`sources` or `k`): the searches run from the sampled sources over the IN-arcs, so each search measures
  * every node's distance TO that source, and each node's sums run over the sources it reaches (itself excluded)
  * instead of over every node it reaches. Everything else is unchanged: the same formula is applied to those sums,
- * with the same `n - 1` under `normalized` and no extrapolation to the whole graph -- the UNSCALED rule sampled
+ * with the same `n - 1` under `normalization` and no extrapolation to the whole graph -- the UNSCALED rule sampled
  * betweenness follows. So a sample of every node gives exactly the exact scores (up to the order floating-point
  * sums are added in), and on a sample of `k` sources `1 / score` is the summed distance to those `k` sources:
  * multiply the plain score by `k / n` for the Eppstein-Wang estimate of the exact one. A `harmonic` score (normalized
- * or not) sums reciprocal distances, so it needs the inverse, `n / k`; a `normalized` plain score divides by the
- * number of sources reached, which already rescales it, so it needs no factor. On an undirected snapshot
+ * or not) sums reciprocal distances, so it needs the inverse, `n / k`; a `"per-other-node"` plain score divides by
+ * the number of sources reached, which already rescales it, so it needs no factor. On an undirected snapshot
  * the in-arcs are the out-arcs. Two corners are measured from the source's side and so differ from an exact run
  * even over a full sample: a weighted `cutoff` (the node just past it is admitted from the source's end of the
  * path) and a negative weight (the legacy settle rule is not symmetric).
  * @param s - The snapshot
  * @param options - Normalisation, harmonic form, cutoff, weights and sampling
  * @returns One score per node index; `iterations` and `sourcesUsed` are the number of searches run
- * @throws RangeError for a bad `sources` or `k`
+ * @throws RangeError for a bad `sources`, `k` or `normalization`
  * @public
  */
 export function closenessCentrality(s: GraphSnapshot, options: ClosenessOptions = {}): ClosenessResult {
+    checkNormalization(options, "closenessCentrality");
     const n = s.nodeCount;
     const cutoff = options.cutoff ?? Infinity;
     const scores = new Float64Array(n);
@@ -276,6 +308,7 @@ export function nodeClosenessCentrality(
             "E_BAD_NODE",
         );
     }
+    checkNormalization(options, "nodeClosenessCentrality");
     const search = searcher(s.nodeCount, adjacency(s, options, false), options.cutoff ?? Infinity);
     return exactScore(search, options, s.nodeCount, node);
 }

@@ -758,7 +758,8 @@ describe("accelerated(acc)", () => {
             );
             // every closeness option but weighted
             for (const options of [
-                { normalized: true },
+                { normalization: "per-other-node" as const },
+                { normalization: "wasserman-faust" as const },
                 { harmonic: true },
                 { cutoff: 1 },
                 { weighted: true, weights: new Float64Array(s.arcCount).fill(2) },

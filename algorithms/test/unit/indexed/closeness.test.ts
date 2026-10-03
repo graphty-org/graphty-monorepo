@@ -23,7 +23,12 @@ function expectMatches(s: GraphSnapshot, ported: Float64Array, legacy: Record<st
     }
 }
 
-const OPTION_SETS = [{}, { normalized: true }, { harmonic: true }, { harmonic: true, normalized: true }];
+const OPTION_SETS = [
+    {},
+    { normalization: "per-other-node" as const },
+    { harmonic: true },
+    { harmonic: true, normalization: "per-other-node" as const },
+];
 
 /** Weights no f32 can hold exactly, so only the per-arc f64 override reproduces the legacy sums. */
 function inexactWeights(): Graph {
@@ -160,7 +165,7 @@ describe("indexed.closenessCentrality", () => {
             { cutoff: 2 },
             { cutoff: 0.5 },
             { cutoff: 1, harmonic: true },
-            { cutoff: 5, normalized: true },
+            { cutoff: 5, normalization: "per-other-node" as const },
         ]) {
             expectMatches(
                 s,
@@ -182,7 +187,11 @@ describe("indexed.closenessCentrality", () => {
         it(`equals the legacy closeness functions on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
-            for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
+            for (const options of [
+                ...OPTION_SETS,
+                { cutoff: 2 },
+                { cutoff: 1, normalization: "per-other-node" as const },
+            ]) {
                 // the legacy closenessCentrality counted hops
                 expectMatches(
                     s,
@@ -235,7 +244,11 @@ describe("indexed.nodeClosenessCentrality", () => {
         const g = inexactWeights();
         const s = checksummedSnapshot(g);
         const weights = exactArcWeights(s);
-        for (const options of [{}, { harmonic: true }, { weighted: true, weights, normalized: true }]) {
+        for (const options of [
+            {},
+            { harmonic: true },
+            { weighted: true, weights, normalization: "per-other-node" as const },
+        ]) {
             const all = closenessCentrality(s, options).scores;
             for (let v = 0; v < s.nodeCount; v++) {
                 expect(nodeClosenessCentrality(s, v, options)).toBe(all[v]);
@@ -281,14 +294,14 @@ describe("indexed.closenessCentrality, sampled", () => {
             // hop sums are integers, so any order adds them exactly; harmonic and weighted sums are floating-point
             const hops: [object, boolean][] = [
                 [{ weighted: false }, true],
-                [{ weighted: false, normalized: true }, true],
+                [{ weighted: false, normalization: "per-other-node" as const }, true],
                 [{ weighted: false, cutoff: 2 }, true],
                 [{ weighted: false, harmonic: true }, false],
-                [{ weighted: false, harmonic: true, normalized: true }, false],
+                [{ weighted: false, harmonic: true, normalization: "per-other-node" as const }, false],
             ];
             const weighted: [object, boolean][] = [
                 [{ weighted: true }, false],
-                [{ weighted: true, normalized: true }, false],
+                [{ weighted: true, normalization: "per-other-node" as const }, false],
                 [{ weighted: true, weights: exactArcWeights(s) }, false],
             ];
             for (const [options, exact] of [...hops, ...weighted]) {
@@ -369,3 +382,37 @@ describe("indexed.closenessCentrality, sampled", () => {
 function gnmLike(): Graph {
     return undirectedFixtures()[5].graph;
 }
+
+describe("closeness normalization", () => {
+    // The path 0 - 1 - 2 and the isolated node 3: node 0 reaches r = 2 of the n - 1 = 3 others, at total distance 3.
+    function pathAndIsolated(): GraphSnapshot {
+        const b = new GraphBuilder({ directed: false });
+        for (const id of [0, 1, 2, 3]) {
+            b.addNode(id);
+        }
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        return b.freeze();
+    }
+
+    it("scales by the other nodes, or as NetworkX's Wasserman-Faust closeness does", () => {
+        const s = pathAndIsolated();
+        expect(closenessCentrality(s).scores[0]).toBeCloseTo(1 / 3, 12);
+        expect(closenessCentrality(s, { normalization: "none" }).scores[0]).toBeCloseTo(1 / 3, 12);
+        expect(closenessCentrality(s, { normalization: "per-other-node" }).scores[0]).toBeCloseTo(2 / 9, 12);
+        // networkx.closeness_centrality on this graph gives node 0 (2 / 3) * (2 / 3)
+        expect(closenessCentrality(s, { normalization: "wasserman-faust" }).scores[0]).toBeCloseTo(4 / 9, 12);
+        expect(nodeClosenessCentrality(s, 0, { normalization: "wasserman-faust" })).toBeCloseTo(4 / 9, 12);
+        expect(closenessCentrality(s, { normalization: "wasserman-faust" }).scores[3]).toBe(0);
+    });
+
+    it("refuses the Wasserman-Faust scale on the harmonic score and an unknown normalization", () => {
+        const s = pathAndIsolated();
+        expect(() => closenessCentrality(s, { harmonic: true, normalization: "wasserman-faust" })).toThrow(
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
+        );
+        expect(() => closenessCentrality(s, { normalization: "max" as unknown as "none" })).toThrow(
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
+        );
+    });
+});

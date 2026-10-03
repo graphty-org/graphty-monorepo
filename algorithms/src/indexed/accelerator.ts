@@ -316,7 +316,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * is set, or an `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
  * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
- * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`.
+ * `harmonic`, `cutoff` or `weights` override, and `normalization` absent or `"none"` -- and hands the
+ * accelerator an explicit `weighted`.
  * A sampled closeness (`sources` or `k`) goes too, handed the sources the port would run -- the caller's
  * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
  * the sources, which the accelerator's searches from the sources give only when distance is symmetric.
@@ -464,7 +465,7 @@ function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions
     const sampled = options?.sources !== undefined || options?.k !== undefined;
     return (
         (!sampled || !s.directed) &&
-        options?.normalized !== true &&
+        (options?.normalization ?? "none") === "none" &&
         options?.harmonic !== true &&
         options?.cutoff === undefined &&
         options?.weights === undefined

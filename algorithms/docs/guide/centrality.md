@@ -129,13 +129,16 @@ console.log(scores[graph.ids.requireIndex("a")].toFixed(3)); // 0.143: 1 / (1 + 
 ```
 
 Closeness is 1 over the sum of the distances to the other nodes, with edge weights read as distances when the graph
-has them (`weighted: false` counts hops). Pass `normalized: true` to scale it by the fraction of other nodes reached,
-and `harmonic: true` for harmonic closeness, which handles disconnected graphs. `nodeClosenessCentrality(graph, node)` scores one node.
+has them (`weighted: false` counts hops). `harmonic: true` sums 1 over each distance instead, which handles
+disconnected graphs. `normalization` scales the score: `"per-other-node"` divides by the `n - 1` other nodes (the
+plain score becomes `reached / sum / (n - 1)`), and `"wasserman-faust"` gives NetworkX's `closeness_centrality`,
+`(reached / sum) * (reached / (n - 1))`. `nodeClosenessCentrality(graph, node)` scores one node.
 
 On a big graph, sample: `k` draws that many sources (the same ones every time) and `sources` names them. Each node is
 then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. To estimate the exact
-score, multiply a plain sampled score by `k / n`, a `harmonic` one (normalized or not) by `n / k`, and leave a
-`normalized` one as it is (it already divides by the sources reached); a sample of every node gives the exact score.
+score, multiply a plain sampled score by `k / n`, a `harmonic` one (scaled or not) by `n / k`, and leave a
+`"per-other-node"` one as it is (it already divides by the sources reached); a sample of every node gives the exact
+score.
 
 <!-- doc-check -->
 

@@ -336,9 +336,9 @@ step to the next or previous project without opening the picker.
 
 ### Change
 
-A **Baseline pane** option (View menu, key `P`, remembered in this browser with the other
-options in `visual-review:options`). Off, the stage shows one pane, as wide as the two were, so at
-Fit the image is drawn about twice as large:
+A **Baseline pane** option (labeled Baseline, on the views' row until #860's View menu; key `P`;
+remembered in this browser with the other options in `visual-review:options`). Off, the stage
+shows one pane, as wide as the two were, so at Fit the image is drawn about twice as large:
 
 - side by side: the new image alone;
 - Flash and Spotlight flash: unchanged in effect (they already alternate baseline and new in the
@@ -353,7 +353,7 @@ The panes' scroll sync, Next change and the outline work on one pane as on two.
 ### Files and functions
 
 - `review.js`: `state.onePane` beside `state.showBox`, `saveOptions`, `renderStage` (which panes
-  it builds), `fit` (already per pane), the `p` key, the address (`panes=one`).
+  it builds), `fit` (already per pane), the `p` key, the address (`baseline=off`).
 - `review.css`: `.stage.one-pane` (one grid column).
 
 ### Tests

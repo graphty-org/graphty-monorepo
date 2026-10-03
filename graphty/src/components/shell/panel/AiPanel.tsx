@@ -15,55 +15,6 @@ const ASK_LABEL = "Ask the assistant";
 const SEND_LABEL = "Send";
 
 /**
- * One line of the composer's text, and the pad above and below it.
- *
- * A panel control is PANEL_GRID.CONTROL_HEIGHT tall, and Mantine spends 1 px of an
- * input's box on the border it swaps to paint focus, so one line is
- *     1 + 3 + 16 + 3 + 1 = 24 = PANEL_GRID.CONTROL_HEIGHT
- * which is the 24 px field AiPanel.dc.html:535 draws beside a 24 px Send. Left to
- * Mantine's own size="sm" metrics the field is 36 px and overhangs that button by
- * 12 px. Stated here rather than taken from the theme on purpose: compact-mantine's
- * `compactInputVarsNoHeight` deliberately omits `--input-height` for multi-line
- * inputs, so no theme fix supplies this number.
- *
- * Every further line adds exactly COMPOSER_LINE_HEIGHT, which is also what
- * react-textarea-autosize measures to size the grown field. Raising the composer's
- * font size above 11 px would clip the text inside this line box.
- */
-const COMPOSER_LINE_HEIGHT = 16;
-
-/** The pad above and below the one line, the remainder of the 24 px box. */
-const COMPOSER_PAD_BLOCK = (PANEL_GRID.CONTROL_HEIGHT - COMPOSER_LINE_HEIGHT - 2) / 2;
-
-/**
- * The composer's box, written as the custom properties Mantine resolves an input from.
- *
- * They go on the WRAPPER, where Mantine keeps them, and they redefine the SIZE RUNGS
- * rather than the resolved variables. Mantine's own vars
- * resolver writes `--input-height: var(--input-height-sm)` and
- * `--input-padding-y: var(--input-padding-y-sm)` inline on that same element, and
- * `getStyle` applies vars AFTER `styles`, so writing those two names loses; the rungs
- * they point at are declared in a stylesheet rule and an inline value wins. The rung
- * spelling also keeps compact-mantine's size="sm" default honest -- change that default
- * and the field grows, visibly, rather than half-applying.
- *
- * `styles.input` is not an option for the height at all: react-textarea-autosize throws
- * on `style.minHeight`, and Mantine's `min-height: var(--input-height)` is exactly what
- * has to move. Neither is the `vars` PROP -- `useInputProps` destructures it and never
- * forwards it to Input.
- *
- * `--input-size` is deliberately untouched. `[data-multiline]` sets it to `auto`, which
- * is what lets autosize drive the height; pinning it would freeze the field at one line.
- * Autosize measures line-height and padding off the input to size each row, so these
- * three give 24 px at one line and +16 px per line after it.
- */
-const COMPOSER_INPUT_VARS = {
-    "--input-height-sm": `${PANEL_GRID.CONTROL_HEIGHT}px`,
-    "--input-padding-y-sm": `${COMPOSER_PAD_BLOCK}px`,
-    "--input-line-height": `${COMPOSER_LINE_HEIGHT}px`,
-} as React.CSSProperties;
-
-/**
  * The dictation control's name, in BOTH states.
  *
  * The register holds exactly one title for this verb -- REGISTER-1.5 section 1.4,
@@ -370,12 +321,9 @@ export function AiPanel(props: AiPanelProps): React.JSX.Element {
                         placeholder={ASK_LABEL}
                         data-testid="ai-input"
                         style={{ flex: "1 1 auto", minWidth: 0 }}
-                        // `style` reaches the root, which is what carries the flex; the
-                        // 24 px control identity is a wrapper var (COMPOSER_INPUT_VARS),
-                        // because compact-mantine's `compactInputVarsNoHeight` omits
-                        // `--input-height` for multi-line inputs on purpose and Mantine's
-                        // size="sm" 36 px is what fills the gap.
-                        styles={{ wrapper: COMPOSER_INPUT_VARS }}
+                        // `style` reaches the root, which is what carries the flex. The
+                        // theme floors an autosize field at minRows lines: one line is the
+                        // panel's 24 px control height, beside the 24 px Send.
                         onChange={(event) => {
                             setDraft(event.currentTarget.value);
                         }}

@@ -168,9 +168,9 @@ describe("DataTable structure", () => {
         expect(within(headerFor("Name")).queryByRole("button")).toBeNull();
     });
 
-    it("draws rows at the 28px data pitch, and at whatever height it is given", () => {
+    it("draws rows at the 32px list pitch, and at whatever height it is given", () => {
         const { rerender } = renderTable(<DataTable columns={COLUMNS} data={CATS} />);
-        expect(rowNamed("Whiskers")).toHaveStyle({ height: "28px" });
+        expect(rowNamed("Whiskers")).toHaveStyle({ height: "32px" });
 
         rerender(
             <MantineProvider theme={compactTheme}>
@@ -485,9 +485,7 @@ describe("DataTable selection", () => {
     });
 
     it("draws the selection the caller gives it", () => {
-        renderTable(
-            <DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} selectedIds={["c2", "c4"]} />,
-        );
+        renderTable(<DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} selectedIds={["c2", "c4"]} />);
 
         expect(rowNamed("Chonky")).toHaveAttribute("aria-selected", "true");
         expect(rowNamed("Nibbles")).toHaveAttribute("aria-selected", "true");
@@ -497,9 +495,7 @@ describe("DataTable selection", () => {
     it("reports the row that was activated, and whether a pointer or a key did it", async () => {
         const user = userEvent.setup();
         const handleRowClick = vi.fn();
-        renderTable(
-            <DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} onRowClick={handleRowClick} />,
-        );
+        renderTable(<DataTable columns={COLUMNS} data={CATS} getRowId={(cat) => cat.id} onRowClick={handleRowClick} />);
 
         await user.click(cellIn("Nibbles"));
 

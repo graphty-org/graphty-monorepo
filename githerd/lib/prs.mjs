@@ -138,82 +138,108 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
     const out = {};
     const byHead = new Map(nodes.map((n) => [n.headRefName, n.number]));
     for (const node of nodes) {
-        const prev = saved[node.number];
-        const sameHead = prev?.headSha === node.headRefOid;
-        /** @type {Detail} */
-        const detail = node.detail ?? {};
-        const checks = readChecks(node, config.requiredChecks);
-
-        /** @type {PrRecord} */
-        const rec = {
-            ...(prev ?? {}),
-            headSha: node.headRefOid,
-            headRef: node.headRefName,
-            baseRef: node.baseRefName,
-            draft: node.isDraft,
-            author: node.author?.login ?? null,
-            title: node.title,
-            createdAt: node.createdAt ?? null,
-            references: (node.closingIssuesReferences?.nodes ?? []).map((i) => i.number),
-            labels: (node.labels?.nodes ?? []).map((l) => l.name),
-            headChangedAt: sameHead ? prev.headChangedAt : now,
-            headCommittedAt: checks.committedAt,
-            breaking: sameHead ? prev.breaking : false,
-            breakingCheckedFor: sameHead ? prev.breakingCheckedFor : null,
-            touchesProtected: sameHead ? prev.touchesProtected : false,
-            touchesNoAutoMerge: sameHead ? prev.touchesNoAutoMerge : false,
-            autoMerge: node.autoMergeRequest != null,
-            mergeable: prev?.mergeable ?? null,
-            conflictSightings: sameHead ? prev.conflictSightings : 0,
-            required: checks.required,
-            failingChecks: checks.failing,
-            failingStartedAt: checks.startedAt,
-            ownerGate: false,
-            ownerRejected: sameHead ? prev.ownerRejected : false,
-            stackedOn: null,
-            lastActivityAt: node.updatedAt,
-        };
-
-        // UNKNOWN is GitHub still computing: no data, so nothing about mergeability changes.
-        if (node.mergeable !== "UNKNOWN") {
-            rec.mergeable = node.mergeable;
-            rec.conflictSightings = node.mergeable === "CONFLICTING" ? rec.conflictSightings + 1 : 0;
-        }
-
-        if (detail.commits) {
-            rec.breaking = decideBreaking(node.title, detail.commits.messages, detail.commits.truncated === true);
-            rec.breakingCheckedFor = node.headRefOid;
-        } else if (BREAKING_SUBJECT.test(node.title)) {
-            // A retitle to "x!:" makes the PR breaking without a new head.
-            rec.breaking = true;
-        }
-
-        if (detail.files) {
-            rec.touchesProtected = touches(detail.files, config.protectedPaths);
-            rec.touchesNoAutoMerge = touches(detail.files, config.noAutoMergePaths);
-        }
-
-        const failingRequired = Object.keys(checks.required).filter((n) => checks.required[n] === "FAILURE");
-        if (config.ownerGate && failingRequired.length === 1) {
-            if (detail.failedSteps) {
-                const steps = config.ownerGate.steps.map((s) => new RegExp(s));
-                rec.ownerGate =
-                    detail.failedSteps.length > 0 && detail.failedSteps.every((n) => steps.some((re) => re.test(n)));
-            } else {
-                rec.ownerGate = sameHead && prev.ownerGate === true;
-            }
-        }
-
-        if (config.ownerGate?.rejectMarker && detail.comments) {
-            const marker = new RegExp(`<!--\\s*${escape(config.ownerGate.rejectMarker)}\\b`);
-            const since = rec.headCommittedAt ?? rec.headChangedAt;
-            rec.ownerRejected = detail.comments.some((c) => c.createdAt > since && marker.test(c.body));
-        }
-
+        const rec = foldPr(node, saved[node.number], config, now);
         if (node.baseRefName !== master.branch) rec.stackedOn = byHead.get(node.baseRefName) ?? null;
         out[node.number] = rec;
     }
     return out;
+}
+
+/**
+ * Folds one pull request's poll answer into its saved record.
+ * @param {any} node a GraphQL pullRequest node, optionally with `detail` ({@link Detail})
+ * @param {PrRecord | undefined} prev its record from the last poll
+ * @param {Config} config the normalized config
+ * @param {string} now the poll time, ISO
+ * @returns {PrRecord} the record, `stackedOn` still null
+ */
+function foldPr(node, prev, config, now) {
+    const sameHead = prev?.headSha === node.headRefOid;
+    /** @type {Detail} */
+    const detail = node.detail ?? {};
+    const checks = readChecks(node, config.requiredChecks);
+    // What a new head resets; the same head keeps what was decided for it.
+    const kept = sameHead
+        ? /** @type {PrRecord} */ (prev)
+        : {
+              headChangedAt: now,
+              breaking: false,
+              breakingCheckedFor: null,
+              touchesProtected: false,
+              touchesNoAutoMerge: false,
+              conflictSightings: 0,
+              ownerRejected: false,
+          };
+
+    /** @type {PrRecord} */
+    const rec = {
+        ...prev,
+        headSha: node.headRefOid,
+        headRef: node.headRefName,
+        baseRef: node.baseRefName,
+        draft: node.isDraft,
+        author: node.author?.login ?? null,
+        title: node.title,
+        createdAt: node.createdAt ?? null,
+        references: (node.closingIssuesReferences?.nodes ?? []).map((/** @type {any} */ i) => i.number),
+        labels: (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name),
+        headChangedAt: kept.headChangedAt,
+        headCommittedAt: checks.committedAt,
+        breaking: kept.breaking,
+        breakingCheckedFor: kept.breakingCheckedFor,
+        touchesProtected: kept.touchesProtected,
+        touchesNoAutoMerge: kept.touchesNoAutoMerge,
+        autoMerge: node.autoMergeRequest != null,
+        mergeable: prev?.mergeable ?? null,
+        conflictSightings: kept.conflictSightings,
+        required: checks.required,
+        failingChecks: checks.failing,
+        failingStartedAt: checks.startedAt,
+        ownerGate: ownerGateOf(config, checks.required, detail, sameHead && prev?.ownerGate === true),
+        ownerRejected: kept.ownerRejected,
+        stackedOn: null,
+        lastActivityAt: node.updatedAt,
+    };
+
+    // UNKNOWN is GitHub still computing: no data, so nothing about mergeability changes.
+    if (node.mergeable !== "UNKNOWN") {
+        rec.mergeable = node.mergeable;
+        rec.conflictSightings = node.mergeable === "CONFLICTING" ? rec.conflictSightings + 1 : 0;
+    }
+    if (detail.commits) {
+        rec.breaking = decideBreaking(node.title, detail.commits.messages, detail.commits.truncated === true);
+        rec.breakingCheckedFor = node.headRefOid;
+    } else if (BREAKING_SUBJECT.test(node.title)) {
+        // A retitle to "x!:" makes the PR breaking without a new head.
+        rec.breaking = true;
+    }
+    if (detail.files) {
+        rec.touchesProtected = touches(detail.files, config.protectedPaths);
+        rec.touchesNoAutoMerge = touches(detail.files, config.noAutoMergePaths);
+    }
+    if (config.ownerGate?.rejectMarker && detail.comments) {
+        const marker = new RegExp(String.raw`<!--\s*${escape(config.ownerGate.rejectMarker)}\b`);
+        const since = rec.headCommittedAt ?? rec.headChangedAt;
+        rec.ownerRejected = detail.comments.some((c) => c.createdAt > since && marker.test(c.body));
+    }
+    return rec;
+}
+
+/**
+ * Whether the only failing required check fails only in the owner gate's steps: the PR waits on
+ * the owner's visual review, not on a fix.
+ * @param {Config} config the normalized config
+ * @param {Record<string, CheckState>} required the required checks' states
+ * @param {Detail} detail what was read for this head
+ * @param {boolean} before the answer for this head at the last poll
+ * @returns {boolean} true when it waits on the owner
+ */
+function ownerGateOf(config, required, detail, before) {
+    const failing = Object.keys(required).filter((n) => required[n] === "FAILURE");
+    if (!config.ownerGate || failing.length !== 1) return false;
+    if (!detail.failedSteps) return before;
+    const steps = config.ownerGate.steps.map((s) => new RegExp(s));
+    return detail.failedSteps.length > 0 && detail.failedSteps.every((n) => steps.some((re) => re.test(n)));
 }
 
 /**
@@ -222,7 +248,7 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
  * @returns {string} the text with every special character escaped
  */
 function escape(s) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 /**
@@ -245,28 +271,9 @@ export function countsAsBreaking(rec) {
  * @returns {string[]} the reasons, empty when nothing holds the PR
  */
 export function whyStuck(number, rec, ctx) {
-    const { master, config } = ctx;
+    const { config } = ctx;
     const now = ctx.now ?? Date.now();
-    const reasons = [];
-    const failing = Object.keys(rec.required).filter((n) => rec.required[n] === "FAILURE");
-    const pending = Object.keys(rec.required).filter((n) => ["PENDING", "MISSING"].includes(rec.required[n]));
-
-    if (rec.draft) reasons.push("draft");
-    if (rec.mergeStatus?.state === "failure") reasons.push(rec.mergeStatus.description);
-    if (rec.conflictSightings >= 2) reasons.push("conflicting");
-    if (rec.ownerRejected) reasons.push("owner rejected images: fix needed");
-    else if (rec.ownerGate) reasons.push("waiting on owner: visual review");
-    if (countsAsBreaking(rec)) reasons.push("breaking: held for a grouped major");
-    if (rec.baseRef !== master.branch) {
-        reasons.push(`stacked: waiting on ${rec.stackedOn ? `#${rec.stackedOn}` : `branch ${rec.baseRef}`}`);
-    }
-    if (failing.length && !rec.ownerGate) reasons.push(`required check failing: ${failing.join(", ")}`);
-    if (failing.length && master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
-        reasons.push("failure predates master fix");
-    }
-    if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
-    if (rec.touchesNoAutoMerge) reasons.push("owner merges: touches githerd or CI config");
-    if (pending.length) reasons.push("checks pending");
+    const reasons = [...pullRequestReasons(rec, ctx.master)];
 
     const claim = ctx.claims?.[`pr:${number}`];
     if (claim) reasons.push(`claimed by ${claim.holderName ?? claim.holder}`);
@@ -276,6 +283,47 @@ export function whyStuck(number, rec, ctx) {
 
     const idleDays = Math.floor((now - Date.parse(rec.lastActivityAt)) / DAY_MS);
     if (idleDays >= config.staleDays) reasons.push(`stale: no activity for ${idleDays} days`);
+    return reasons;
+}
+
+/**
+ * The reasons that come from the pull request itself, in the order of design section 6.5.
+ * @param {PrRecord} rec its record
+ * @param {MasterView} master the default branch's verdict
+ * @returns {string[]} the reasons
+ */
+function pullRequestReasons(rec, master) {
+    const reasons = [];
+    if (rec.draft) reasons.push("draft");
+    if (rec.mergeStatus?.state === "failure") reasons.push(rec.mergeStatus.description);
+    if (rec.conflictSightings >= 2) reasons.push("conflicting");
+    if (rec.ownerRejected) reasons.push("owner rejected images: fix needed");
+    else if (rec.ownerGate) reasons.push("waiting on owner: visual review");
+    if (countsAsBreaking(rec)) reasons.push("breaking: held for a grouped major");
+    if (rec.baseRef !== master.branch) {
+        const base = rec.stackedOn ? `#${rec.stackedOn}` : "branch " + rec.baseRef;
+        reasons.push(`stacked: waiting on ${base}`);
+    }
+    reasons.push(...failingReasons(rec, master));
+    if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
+    if (rec.touchesNoAutoMerge) reasons.push("owner merges: touches githerd or CI config");
+    if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
+    return reasons;
+}
+
+/**
+ * The reasons about failing required checks.
+ * @param {PrRecord} rec the record
+ * @param {MasterView} master the default branch's verdict
+ * @returns {string[]} the reasons
+ */
+function failingReasons(rec, master) {
+    const failing = Object.keys(rec.required).filter((n) => rec.required[n] === "FAILURE");
+    if (!failing.length) return [];
+    const reasons = rec.ownerGate ? [] : [`required check failing: ${failing.join(", ")}`];
+    if (master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
+        reasons.push("failure predates master fix");
+    }
     return reasons;
 }
 

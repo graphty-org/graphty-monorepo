@@ -536,36 +536,60 @@ function pause(ms) {
  */
 export function takeLock(dir, self, cwd = process.cwd()) {
     const file = join(dir, LOCK);
-    const steal = `${file}.steal`;
     const text = `${JSON.stringify({ ...self, cwd })}\n`;
     let stale = null;
     for (;;) {
-        try {
-            writeFileSync(file, text, { flag: "wx" });
-            return { ok: true, stale };
-        } catch (err) {
-            if (err.code !== "EEXIST") throw err;
-        }
+        if (createOnly(file, text)) return { ok: true, stale };
         const holder = otherHolder(dir, self);
         if (holder) return { ok: false, holder };
-        try {
-            mkdirSync(steal);
-        } catch (err) {
-            if (err.code !== "EEXIST") throw err;
-            if (Date.now() - mtimeOf(steal) > STEAL_STALE_MS) rmSync(steal, { recursive: true, force: true });
-            pause(10); // another starter is stealing: see what it leaves
-            continue;
+        stale = stealStale(dir, self) ?? stale;
+    }
+}
+
+/**
+ * Creates a file only if it does not exist.
+ * @param {string} file the path
+ * @param {string} text the contents
+ * @returns {boolean} false when it already existed
+ */
+function createOnly(file, text) {
+    try {
+        writeFileSync(file, text, { flag: "wx" });
+        return true;
+    } catch (err) {
+        if (err.code === "EEXIST") return false;
+        throw err;
+    }
+}
+
+/**
+ * Removes the lock if it is stale, holding `lock.steal` while it judges and removes it.
+ * @param {string} dir the state directory
+ * @param {Identity} self this process
+ * @returns {any} the stale record it removed, or null when it removed nothing (another starter is
+ *   stealing, a start is mid-write, or the lock is gone)
+ */
+function stealStale(dir, self) {
+    const file = join(dir, LOCK);
+    const steal = `${file}.steal`;
+    try {
+        mkdirSync(steal);
+    } catch (err) {
+        if (err.code !== "EEXIST") throw err;
+        if (Date.now() - mtimeOf(steal) > STEAL_STALE_MS) rmSync(steal, { recursive: true, force: true });
+        pause(10);
+        return null;
+    }
+    try {
+        if (!lockStale(dir, self)) {
+            pause(10);
+            return null;
         }
-        try {
-            if (lockStale(dir, self)) {
-                stale = readJson(file) ?? { unreadable: true };
-                unlinkSync(file);
-            } else pause(10); // a start caught mid-write, or the lock is gone: try again
-        } catch (err) {
-            if (err.code !== "ENOENT") throw err;
-        } finally {
-            rmSync(steal, { recursive: true, force: true });
-        }
+        const rec = readJson(file) ?? { unreadable: true };
+        rmSync(file, { force: true });
+        return rec;
+    } finally {
+        rmSync(steal, { recursive: true, force: true });
     }
 }
 

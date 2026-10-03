@@ -409,7 +409,8 @@ interface RestrictedImportsOptions {
 /** The computed options of @typescript-eslint/no-restricted-imports for a src file (the file need not exist). */
 async function restrictedImportsOptions(eslint: ESLint, file: string): Promise<RestrictedImportsOptions> {
     const config = (await eslint.calculateConfigForFile(join(PACKAGE_ROOT, file))) as
-        { rules?: Record<string, unknown> } | undefined;
+        | { rules?: Record<string, unknown> }
+        | undefined;
     const entry = config?.rules?.["@typescript-eslint/no-restricted-imports"];
     expect(Array.isArray(entry), `${file}: rule entry`).toBe(true);
     const [severity, options] = entry as [unknown, RestrictedImportsOptions | undefined];

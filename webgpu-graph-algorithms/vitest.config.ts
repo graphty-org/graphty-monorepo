@@ -88,7 +88,7 @@ function browserLaunchEnv(): Record<string, string> | undefined {
  * @returns the names in command-line order
  */
 function selectedProjects(): string[] {
-    const {argv} = process;
+    const { argv } = process;
     const names: string[] = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];

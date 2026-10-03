@@ -17,7 +17,7 @@ layout/
 │   ├── algorithms/
 │   │   └── optimization/     # L-BFGS, line search, Kamada-Kawai solver
 │   ├── types/                # Node, Edge, Graph (the duck type toLayoutSnapshot reads), PositionMap
-│   └── utils/                # NumPy-like helpers, the seeded generator, the deprecated rescaleLayout (use rescaleInPlace)
+│   └── utils/                # NumPy-like helpers and the seeded generator
 ├── test/                     # Vitest tests; test/layouts/ per layout family, test/types/ compile-only
 └── stories/                  # Storybook stories, one per layout
 ```
@@ -78,7 +78,7 @@ absence of every name 2.0.0 removed; a changed parameter list, options type or r
   end of their budget, then rescale.
 - `kamada-kawai.ts`: `kamadaKawai` computes its distance matrix over the CSR (or takes `dist`) and runs the existing
   solver.
-- `arf.ts`: `arf` is its own loop, unrescaled, as networkx has it.
+- `arf.ts`: `arf` is its own loop, as networkx has it, then rescaled like every one-shot layout.
 
 ### Golden fixtures
 

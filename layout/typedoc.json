@@ -5,8 +5,7 @@
         "./src/types/index.ts",
         "./src/indexed/index.ts",
         "./src/positions.ts",
-        "./src/simulation/index.ts",
-        "./src/utils/rescale.ts"
+        "./src/simulation/index.ts"
     ],
     "entryPointStrategy": "expand",
     "out": "./docs/api/generated",

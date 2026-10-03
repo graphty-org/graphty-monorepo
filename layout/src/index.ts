@@ -6,10 +6,6 @@
 // Re-export all types
 export * from "./types";
 
-// The deprecated rescale utilities (rescaleLayout, rescaleLayoutDict). A star re-export, because naming a
-// deprecated export here trips @typescript-eslint/no-deprecated.
-export * from "./utils/rescale";
-
 // Conversions between layout results, PositionMap and the scene position column
 export * from "./positions";
 

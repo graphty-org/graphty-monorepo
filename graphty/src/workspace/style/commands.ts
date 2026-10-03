@@ -6,7 +6,5 @@ import { defineRegistration, stubCommands } from "../commands/registry";
  */
 export const registration = defineRegistration({
     owner: "style",
-    commands: stubCommands([
-        { id: "style.add-label-line", label: "Add label line", group: "Graph tree" },
-    ]),
+    commands: stubCommands([{ id: "style.add-label-line", label: "Add label line", group: "Graph tree" }]),
 });

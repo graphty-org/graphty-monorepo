@@ -56,8 +56,14 @@ describe("the workspace command registry", () => {
     });
 
     it("refuses a command id registered twice", () => {
-        const one = defineRegistration({ owner: "a", commands: stubCommands([{ id: "x", label: "X", group: "View" }]) });
-        const two = defineRegistration({ owner: "b", commands: stubCommands([{ id: "x", label: "X", group: "View" }]) });
+        const one = defineRegistration({
+            owner: "a",
+            commands: stubCommands([{ id: "x", label: "X", group: "View" }]),
+        });
+        const two = defineRegistration({
+            owner: "b",
+            commands: stubCommands([{ id: "x", label: "X", group: "View" }]),
+        });
         assert.throws(() => createRegistry([one, two]), /registered twice/);
     });
 

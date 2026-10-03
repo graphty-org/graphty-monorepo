@@ -6,7 +6,5 @@ import { defineRegistration, stubCommands } from "../commands/registry";
  */
 export const registration = defineRegistration({
     owner: "export",
-    commands: stubCommands([
-        { id: "file.export", label: "Export...", group: "Project", keys: ["Mod+E"] },
-    ]),
+    commands: stubCommands([{ id: "file.export", label: "Export...", group: "Project", keys: ["Mod+E"] }]),
 });

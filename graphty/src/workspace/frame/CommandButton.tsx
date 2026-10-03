@@ -32,7 +32,8 @@ export function CommandButton({ id, icon, pressed }: CommandButtonProps): React.
     }
     const { command, disabledReason, run } = door;
     const key = command.keys?.[0];
-    const label = key === undefined ? command.label : <TooltipShortcut label={command.label} shortcut={formatKey(key)} />;
+    const label =
+        key === undefined ? command.label : <TooltipShortcut label={command.label} shortcut={formatKey(key)} />;
     return (
         <Tooltip label={disabledReason ?? label}>
             <ActionIcon

@@ -144,10 +144,7 @@ export function useStoreValue<T>(store: WorkspaceStore, select: (state: Workspac
  * @param remembered - the tab memory.
  * @returns the tab, or null for a kind with no tabs.
  */
-export function tabFor(
-    kind: InspectedKind | undefined,
-    remembered: WorkspaceState["tabs"],
-): "style" | "values" | null {
+export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceState["tabs"]): "style" | "values" | null {
     if (kind === undefined || kind.tabs.length === 0) {
         return null;
     }

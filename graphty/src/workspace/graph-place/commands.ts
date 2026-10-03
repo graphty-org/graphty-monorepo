@@ -6,7 +6,5 @@ import { defineRegistration, stubCommands } from "../commands/registry";
  */
 export const registration = defineRegistration({
     owner: "graph-place",
-    commands: stubCommands([
-        { id: "find.focus", label: "Find", group: "Graph tree", keys: ["/"] },
-    ]),
+    commands: stubCommands([{ id: "find.focus", label: "Find", group: "Graph tree", keys: ["/"] }]),
 });

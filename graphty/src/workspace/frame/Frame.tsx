@@ -50,7 +50,12 @@ export function Frame({ onElementReady }: FrameProps): React.JSX.Element {
             <Header />
             <div
                 className="ws-body"
-                style={{ "--ws-left": `${String(leftWidth)}px`, "--ws-right": `${String(rightWidth)}px` } as React.CSSProperties}
+                style={
+                    {
+                        "--ws-left": `${String(leftWidth)}px`,
+                        "--ws-right": `${String(rightWidth)}px`,
+                    } as React.CSSProperties
+                }
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>

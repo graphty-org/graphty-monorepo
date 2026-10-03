@@ -8,13 +8,10 @@ import { buildStampPlugin, readBuildStamp } from "../../vite.build-stamp";
 describe("the build stamp", () => {
     it("reads the commit and the latest graphty release tag from git", () => {
         const asked: string[][] = [];
-        const stamp = readBuildStamp(
-            (args) => {
-                asked.push([...args]);
-                return args[0] === "rev-parse" ? "0123456789ab" : "graphty@0.8.35";
-            },
-            {},
-        );
+        const stamp = readBuildStamp((args) => {
+            asked.push([...args]);
+            return args[0] === "rev-parse" ? "0123456789ab" : "graphty@0.8.35";
+        }, {});
 
         expect(stamp).toEqual({ commit: "0123456789ab", release: "graphty@0.8.35" });
         expect(asked[1]).toContain("graphty@*");

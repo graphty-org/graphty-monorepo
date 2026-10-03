@@ -6,7 +6,5 @@ import { defineRegistration, stubCommands } from "../commands/registry";
  */
 export const registration = defineRegistration({
     owner: "table",
-    commands: stubCommands([
-        { id: "table.toggle", label: "Table", group: "Data", keys: ["Shift+T"] },
-    ]),
+    commands: stubCommands([{ id: "table.toggle", label: "Table", group: "Data", keys: ["Shift+T"] }]),
 });

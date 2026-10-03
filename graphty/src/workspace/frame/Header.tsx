@@ -43,7 +43,8 @@ export function Header(): React.JSX.Element {
                         const trimmed = next.trim();
                         store.set((state) => ({
                             renaming: false,
-                            project: state.project && trimmed !== "" ? { ...state.project, name: trimmed } : state.project,
+                            project:
+                                state.project && trimmed !== "" ? { ...state.project, name: trimmed } : state.project,
                         }));
                     }}
                     onCancel={() => {

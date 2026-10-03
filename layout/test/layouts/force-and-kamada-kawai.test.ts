@@ -3,7 +3,7 @@ import { assert, describe, it } from "vitest";
 
 import * as layout from "../../src";
 import { idealDistances } from "../../src/indexed/kamada-kawai";
-import { goldenFile, matchesGolden } from "./golden";
+import { goldenFile, matchesGolden, rescaledRows } from "./golden";
 
 const golden = goldenFile("force-and-kamada-kawai");
 
@@ -348,13 +348,14 @@ describe("arf", () => {
         const s = grid(4, 3);
         const pos = Float32Array.from({ length: 24 }, (_, i) => ((i * 37) % 11) / 11);
         const r = layout.arf(s, { pos, a: 1.5, maxIter: 300 });
-        matchesGolden(r, golden("arf from a start"), 1e-5);
+        // arfLayout returned the scale the forces settled at; arf rescales, as every one-shot layout does
+        matchesGolden(r, rescaledRows(golden("arf from a start")), 1e-5);
     });
 
     it("seeds from the seed as arfLayout did, rejects a <= 1 and handles n = 0", () => {
         const s = grid(3, 3);
         const r = layout.arf(s, { seed: 9, maxIter: 50 });
-        matchesGolden(r, golden("arf seeded"), 1e-4);
+        matchesGolden(r, rescaledRows(golden("arf seeded")), 1e-4);
         assert.throws(() => layout.arf(s, { a: 1 }), /larger than 1/);
         assert.equal(layout.arf(grid(0, 0)).n, 0);
     });

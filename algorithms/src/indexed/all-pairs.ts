@@ -1,4 +1,12 @@
-import { type F64, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
+import {
+    type F64,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeRef,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
 import { PathWalkError, withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
@@ -44,16 +52,16 @@ export interface ApspResult {
     readonly predArc: U32 | null;
     /**
      * Node indices from `source` to `target` inclusive; empty when unreachable.
-     * @param source - The row's node index
-     * @param target - The column's node index
+     * @param source - The row's node: its index, or `{ id }`
+     * @param target - The column's node: its index, or `{ id }`
      */
-    pathTo(source: number, target: number): U32;
+    pathTo(source: NodeRef, target: NodeRef): U32;
     /**
      * Logical edge indices along that path; empty when unreachable or when source === target.
-     * @param source - The row's node index
-     * @param target - The column's node index
+     * @param source - The row's node: its index, or `{ id }`
+     * @param target - The column's node: its index, or `{ id }`
      */
-    pathEdges(source: number, target: number): U32;
+    pathEdges(source: NodeRef, target: NodeRef): U32;
 }
 
 /**
@@ -333,7 +341,9 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         dist.fill(NaN);
     }
     // Row i of predArc is a single-source predecessor-arc array, so the SSSP walkers apply to it.
-    const row = (source: number, target: number): U32 => {
+    const row = (sourceNode: NodeRef, targetNode: NodeRef): U32 => {
+        const source = resolveNode(s, sourceNode);
+        const target = resolveNode(s, targetNode);
         if (predArc === null) {
             throw withCode(new Error("allPairsShortestPath: pass paths: true to walk shortest paths"), "E_BAD_OPTION");
         }
@@ -348,7 +358,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         hasNegativeCycle,
         method,
         predArc,
-        pathTo: (source, target) => walkPredArcs(s, row(source, target), source, target),
-        pathEdges: (source, target) => walkPredEdges(s, row(source, target), source, target),
+        pathTo: (source, target) => walkPredArcs(s, row(source, target), resolveNode(s, source), target),
+        pathEdges: (source, target) => walkPredEdges(s, row(source, target), resolveNode(s, source), target),
     };
 }

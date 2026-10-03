@@ -1,4 +1,12 @@
-import { type EdgeMask, type F64, type GraphSnapshot, maskTest } from "@graphty/graph-format";
+import {
+    type EdgeMask,
+    type F64,
+    type GraphSnapshot,
+    maskTest,
+    type NodeResolvable,
+    type NodeSet,
+    resolveNodeSet,
+} from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 
@@ -14,8 +22,8 @@ export interface BetweennessOptions {
      * `betweennessCentrality` accepts this option and ignores it.
      */
     readonly endpoints?: boolean | undefined;
-    /** Sampled betweenness: the source node indices to run from. Duplicates run twice. */
-    readonly sources?: readonly number[] | undefined;
+    /** Sampled betweenness: the source nodes to run from (indices, `{ mask }` or `{ ids }`). Duplicates run twice. */
+    readonly sources?: NodeSet | undefined;
     /**
      * Sampled betweenness: how many distinct sources to draw when `sources` is not given. The draw is
      * deterministic -- the same `(n, k)` draws the same sources every time, and the dispatcher hands an
@@ -28,8 +36,8 @@ export interface BetweennessOptions {
 export interface EdgeBetweennessOptions {
     /** Divide by `(n - 1)(n - 2)` directed, half that undirected, as the node scores are. Default false. */
     readonly normalized?: boolean | undefined;
-    /** Sampled edge betweenness: the source node indices to run from. */
-    readonly sources?: readonly number[] | undefined;
+    /** Sampled edge betweenness: the source nodes to run from (indices, `{ mask }` or `{ ids }`). */
+    readonly sources?: NodeSet | undefined;
     /** Sampled edge betweenness: how many sources to draw; see {@link BetweennessOptions.k}. */
     readonly k?: number | undefined;
     /**
@@ -96,19 +104,21 @@ function drawSources(n: number, k: number): number[] {
 
 /**
  * The sources a call runs: `sources` as given, else `k` drawn, else every node.
- * @param n - The node count
- * @param sources - The caller's list
+ * @param s - The graph (its node count, and its id map for `{ ids }`)
+ * @param sourceSet - The caller's sources
  * @param k - The caller's count
  * @param label - The algorithm named in an error
  * @returns The sources
  * @throws RangeError for a source outside `[0, n)`, a `k` outside `[0, n]`, or a `k` that disagrees with the list
  */
 export function resolveSources(
-    n: number,
-    sources: readonly number[] | undefined,
+    s: NodeResolvable,
+    sourceSet: NodeSet | undefined,
     k: number | undefined,
     label = "betweenness",
 ): readonly number[] {
+    const n = s.nodeCount;
+    const sources = sourceSet === undefined ? undefined : Array.from(resolveNodeSet(s, sourceSet));
     if (k !== undefined && (!Number.isInteger(k) || k < 0 || k > n)) {
         throw withCode(new RangeError(`${label}: k must be an integer in [0, ${n}], got ${k}`), "E_BAD_OPTION");
     }
@@ -251,7 +261,7 @@ function scale(s: GraphSnapshot, scores: F64, normalized: boolean | undefined, f
  */
 export function betweennessCentrality(s: GraphSnapshot, options: BetweennessOptions = {}): BetweennessResult {
     const n = s.nodeCount;
-    const sources = resolveSources(n, options.sources, options.k);
+    const sources = resolveSources(s, options.sources, options.k);
     const scores = new Float64Array(n);
     const endpoints = options.endpoints === true;
     accumulate(s, sources, scores, null, null, endpoints);
@@ -282,7 +292,7 @@ export function edgeBetweennessCentrality(s: GraphSnapshot, options: EdgeBetween
         );
     }
     const scores = new Float64Array(s.edgeCount);
-    accumulate(s, resolveSources(n, options.sources, options.k), null, scores, alive, false);
+    accumulate(s, resolveSources(s, options.sources, options.k), null, scores, alive, false);
     const divisor = scale(s, scores, options.normalized, (n - 1) * (n - 2));
     return { scores, divisor };
 }

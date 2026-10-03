@@ -199,13 +199,13 @@ both tsconfigs resolve `@graphty/layout` to `../layout/dist/layout.d.ts` (the BU
 the workspace root `pnpm exec nx run-many -t build --projects=graph-format,layout` does it, and
 `pnpm -r run build:all` orders every package correctly.
 
-The dev box needs the extracted libEGL tree for BOTH Dawn-node and headless Chromium to see the NVIDIA GPU
-(`docs/HEADLESS_GPU_REPORT.md` appendix D): `LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu`
-for the node projects and `scripts/gpu-report.js`; `GRAPHTY_EGL_LIB_DIR=<that dir>` (or the same
-`LD_LIBRARY_PATH`) for the browser project. Without it Dawn lists only llvmpipe and Chromium falls back to
-SwiftShader -- which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under
-`GRAPHTY_BROWSER_GPU=nvidia`, never into a silent pass. The tree is extracted per docs/HEADLESS_GPU_REPORT.md
-appendix D into the monorepo's gitignored tmp/egl/; Task M1-T5 of the integration plan re-extracts it.
+The dev box runs Ubuntu 24.04 with `libegl1` installed, so Dawn-node and headless Chromium both reach the NVIDIA
+GPU with no `LD_LIBRARY_PATH` (verified 2026-10-03: the node project, `scripts/gpu-report.js` and the browser
+project under `GRAPHTY_BROWSER_GPU=nvidia`). A machine WITHOUT `/usr/lib/x86_64-linux-gnu/libEGL.so.1` still
+needs the extracted libEGL tree of `docs/HEADLESS_GPU_REPORT.md` appendix D on `LD_LIBRARY_PATH` (node) or
+`GRAPHTY_EGL_LIB_DIR` (browser). Without it Dawn lists only llvmpipe and Chromium falls back to SwiftShader --
+which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under `GRAPHTY_BROWSER_GPU=nvidia`,
+never into a silent pass.
 The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
 `tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
 tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
@@ -376,12 +376,12 @@ Running the suites locally:
 
 ```bash
 # node project on the NVIDIA GPU (the setup prints [gpu] adapter vendor=nvidia ...)
-LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node
+GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node
 # node project as the default lane runs it (lavapipe)
-GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json XDG_RUNTIME_DIR=/tmp pnpm exec vitest run --project=node --coverage
+GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json XDG_RUNTIME_DIR=/tmp pnpm exec vitest run --project=node --coverage
 # browser project on SwiftShader (the default lane) and on the NVIDIA GPU
 GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
-LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_GPU_REQUIRE=nvidia node scripts/run-browser-project.js
+GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_GPU_REQUIRE=nvidia node scripts/run-browser-project.js
 ```
 
 On a box too old for the installed `webgpu` build -- Ubuntu 22.04 against 0.6.1, which is where this package
@@ -479,8 +479,9 @@ untouched by the Mesa difference. They are NVIDIA-only, on two runtimes: `nvidia
 `nvidia-turing-driver0.json` are browser runs on the Dawn that Chromium bundles, which the npm package does not
 touch. A `webgpu` bump moves the first two; a Chromium or Playwright upgrade moves the other two. Moving the dev container to
 Ubuntu 24.04 and the package to `webgpu` 0.6.x is pull request #24 (`chore/webgpu-environment-move`, plan
-`design/webgpu/plans/2026-09-23-webgpu-environment-move.md` on that branch); it is unmerged because the dev container
-has to be rebuilt and because Dawn 0.6.1 made the dense-twin PageRank about 2x slower.
+`design/webgpu/plans/2026-09-23-webgpu-environment-move.md`). The dev box is on 24.04 since 2026-10-03, and the
+PageRank slowdown Dawn 0.6.1 caused (its `tint_loop_idx` guard on an up-counting loop) is fixed by counting the dense
+twins down; `docs/decisions/G-ENV.md` section 0.0 has the numbers.
 
 ### Settled at G2 (P2-T3; the evidence is docs/decisions/G2.md)
 

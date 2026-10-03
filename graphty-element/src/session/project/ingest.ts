@@ -102,6 +102,8 @@ export interface AddEdgesOptions {
      * that about its own call site.
      */
     readonly repeated?: DuplicatePolicy;
+    /** The record key weights are read from, overriding `data.knownFields.edgeWeightPath`; null reads none. */
+    readonly weight?: string | null;
 }
 
 /** An edge the graph already holds, as the host hands it back; the host may carry more. */
@@ -322,7 +324,7 @@ export class Ingest<K extends KnownEdge> {
 
         writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
         if (loads) {
-            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge");
+            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.mapping);
         }
     }
 
@@ -412,7 +414,7 @@ export class Ingest<K extends KnownEdge> {
         const endpoints = this.endpointsFor(edges, options);
         const policy = options?.repeated ?? knownFields.repeatedEdges;
         const recordIdPath = knownFields.edgeIdPath;
-        const weightPath = knownFields.edgeWeightPath;
+        const weightPath = options?.weight === undefined ? knownFields.edgeWeightPath : options.weight;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
 
@@ -777,6 +779,7 @@ export class Ingest<K extends KnownEdge> {
      *     is still waiting for its next chunk
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
+     * @param mapping - The reader's column roles, read from every record whatever the format
      */
     async addDataFromSource(
         type: string,
@@ -784,6 +787,7 @@ export class Ingest<K extends KnownEdge> {
         writer: GraphWriter,
         signal?: AbortSignal,
         replacing = false,
+        mapping: DataImportCommand["mapping"] = {},
     ): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
@@ -805,18 +809,22 @@ export class Ingest<K extends KnownEdge> {
         this.loadEndpoints = null;
 
         const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
+        const source = mapping.source ?? named.edgeSource;
+        const target = mapping.target ?? named.edgeTarget;
         const endpointOverrides: AddEdgesOptions = {
-            ...(typeof named.edgeSource === "string" ? { source: named.edgeSource } : {}),
-            ...(typeof named.edgeTarget === "string" ? { target: named.edgeTarget } : {}),
+            ...(typeof source === "string" ? { source: keyExpression(source) } : {}),
+            ...(typeof target === "string" ? { target: keyExpression(target) } : {}),
+            ...(mapping.weight === undefined ? {} : { weight: mapping.weight }),
         };
+        const nodeIdPath = mapping.nodeId === undefined ? undefined : keyExpression(mapping.nodeId);
 
         // Bracketed as ONE load however many chunks it takes, so its edge ordinals are counted
         // over the whole import (design/sets 12.3).
         const { store } = writer;
         store.openLoad();
         try {
-            const source = DataSource.get(type, opts);
-            if (!source) {
+            const reader = DataSource.get(type, opts);
+            if (!reader) {
                 throw unknownFormat(type);
             }
 
@@ -825,7 +833,7 @@ export class Ingest<K extends KnownEdge> {
                 // line happen once per import rather than once per chunk.
                 let directionSettled = false;
 
-                for await (const chunk of untilAborted(source.getData(), signal)) {
+                for await (const chunk of untilAborted(reader.getData(), signal)) {
                     // Nothing is written once the load has been cancelled: its writes are being
                     // taken back, and a chunk written after that would outlive them.
                     signal?.throwIfAborted();
@@ -834,10 +842,10 @@ export class Ingest<K extends KnownEdge> {
                     // a source parses nothing until its first chunk is pulled, so before the loop
                     // every source declares null.
                     if (!directionSettled) {
-                        directionSettled = this.applyDeclaredDirection(type, source.declaredDirection, writer);
+                        directionSettled = this.applyDeclaredDirection(type, reader.declaredDirection, writer);
                     }
 
-                    this.addNodes(chunk.nodes, undefined, writer);
+                    this.addNodes(chunk.nodes, nodeIdPath, writer);
                     // The endpoint names a caller passed to the SOURCE are honoured here rather
                     // than inside each of the seven importers: whatever shape a source produces,
                     // the consumer who named the columns named them for the records that come out.
@@ -852,7 +860,7 @@ export class Ingest<K extends KnownEdge> {
                     this.host.loadProgress(progress);
                 }
 
-                const errors = source.getErrorAggregator();
+                const errors = reader.getErrorAggregator();
                 if (errors.getErrorCount() > 0) {
                     this.host.loadErrors(type, errors);
                 }
@@ -1041,6 +1049,16 @@ export class Ingest<K extends KnownEdge> {
             details: { limit, count: held + adding, of, graph: { nodes, edges } },
         });
     }
+}
+
+/**
+ * The JMESPath expression reading one record key, quoted when the name is not a bare identifier,
+ * so a column called "from station" or "2024" reads as itself.
+ * @param name - The key.
+ * @returns The expression.
+ */
+function keyExpression(name: string): string {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : JSON.stringify(name);
 }
 
 /**

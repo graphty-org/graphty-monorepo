@@ -31,6 +31,7 @@ import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
+    AttributeType,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
@@ -532,6 +533,105 @@ export interface SessionDataApi {
      *     load fails.
      */
     import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
+    /**
+     * Read a source the way `import` would and say what it would load, loading nothing: the
+     * format, each table with its columns and a few rows, the key and weight columns, and the
+     * report `lastImport()` would return. The graph and its history are untouched, and no
+     * `data:progress` event is published. A source `import` would refuse is refused here with the
+     * same error code -- `E_TOO_LARGE` with `details.limit`, `E_EDGE_ENDPOINTS_UNRESOLVED` with the
+     * columns the file carries -- so the refusal can be shown before the reader presses Load.
+     * @param source - What `import` takes.
+     * @param options - The reader's column roles, as `import` will apply them.
+     * @returns What the load would hold.
+     */
+    preview(source: DataSourceInput, options?: LoadPreviewOptions): Promise<LoadPreview>;
+}
+
+/** What a column of a previewed table is to the load. */
+export type LoadColumnRole = "id" | "source" | "target" | "weight" | "attribute";
+
+/** What a column's values measure. */
+export type LoadColumnLevel = "id" | "category" | "quantity" | "time" | "text";
+
+/** One column of a previewed table. */
+export interface LoadPreviewColumn {
+    /** The column's name, as the records carry it. */
+    readonly name: string;
+    /** The type of its values. */
+    readonly type: AttributeType;
+    /** What its values measure. */
+    readonly level: LoadColumnLevel;
+    /** The role the load gives it, with the mapping applied. */
+    readonly role: LoadColumnRole;
+    /** The role the element picks for it by itself, with no mapping. */
+    readonly suggested: LoadColumnRole;
+}
+
+/** One table of a previewed load: the node rows or the edge rows. */
+export interface LoadPreviewTable {
+    /** The file's name for one of two files, else `"nodes"` or `"edges"`. */
+    readonly name: string;
+    /** Whether its rows become nodes or edges. */
+    readonly role: "nodes" | "edges";
+    /** How many rows the source handed over. */
+    readonly rowCount: number;
+    /** Its columns, key columns first. */
+    readonly columns: readonly LoadPreviewColumn[];
+    /** Its first few rows. */
+    readonly sample: readonly Readonly<Record<string, unknown>>[];
+}
+
+/** What a load would hold, read before anything is loaded. */
+export interface LoadPreview {
+    /** The data source that reads it: the format named, or the one detected. */
+    readonly format: string;
+    /** The tables with any rows, nodes first. */
+    readonly tables: readonly LoadPreviewTable[];
+    /** The columns a node's id and an edge's endpoints are read from; null where no table has rows. */
+    readonly keys: { readonly node: string | null; readonly source: string | null; readonly target: string | null };
+    /** The column edge weights are read from, or null when none. */
+    readonly weight: string | null;
+    /** The report `lastImport()` would return after this load. */
+    readonly report: ImportReport;
+}
+
+/**
+ * The reader's edits to the roles a preview showed. A column named here takes that role; a role
+ * not named is the element's own pick.
+ */
+export interface LoadMapping {
+    /** The column holding a node's id. */
+    readonly nodeId?: string;
+    /** The column holding the node an edge leaves. */
+    readonly source?: string;
+    /** The column holding the node an edge enters. */
+    readonly target?: string;
+    /** The column holding an edge's weight, or null for none. */
+    readonly weight?: string | null;
+    /**
+     * Whether each table's rows are nodes or edges, by table name. Read for CSV: one file is
+     * read as a node list or an edge list, and two files are swapped when they were handed over
+     * the wrong way round.
+     */
+    readonly tables?: Readonly<Record<string, "nodes" | "edges">>;
+}
+
+/** How `data.preview` reads a source. */
+export interface LoadPreviewOptions {
+    /** The reader's column roles. */
+    readonly mapping?: LoadMapping;
+}
+
+/** How far a load has got: the payload of `data:progress`. */
+export interface LoadProgress {
+    /** The data source reading it. */
+    readonly format: string;
+    /** Records read so far: node records plus edge records. */
+    readonly read: number;
+    /** Node records read so far. */
+    readonly nodeRecords: number;
+    /** Edge records read so far. */
+    readonly edgeRecords: number;
 }
 
 /**
@@ -575,6 +675,8 @@ export interface ImportOptions {
      * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "keep";
+    /** The reader's column roles, as a `data.preview` with the same mapping showed them. */
+    readonly mapping?: LoadMapping;
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -766,6 +868,8 @@ export interface SessionEventMap {
      * committed. A write that was refused, or that changed nothing, publishes nothing.
      */
     "note:changed": NoteChange;
+    /** A chunk of a load is in the graph: the running count of records read. Not sent for a preview. */
+    "data:progress": LoadProgress;
 }
 
 /**

@@ -28,6 +28,7 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
+import { csvVariantFor, pairNames, previewLoad, type ScratchSession, withPairRoles } from "./preview";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
@@ -43,6 +44,8 @@ import type {
     EdgeRecordInput,
     GraphStatistics,
     ImportOptions,
+    LoadPreview,
+    LoadPreviewOptions,
     NodeRecord,
     NodeRecordInput,
     RecordPage,
@@ -66,6 +69,8 @@ interface DataWrites {
     importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** A new session with this one's data configuration, for a preview to load into. */
+    scratch(): ScratchSession;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -327,16 +332,34 @@ export class SessionData implements SessionDataApi {
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
+        const { mapping } = options;
+        const variant = csvVariantFor(mapping?.tables);
         const command = (resolved: ImportSource): DataImportCommand => ({
             op: "data.import",
-            source: resolved,
+            source:
+                variant === undefined || resolved.type !== "csv"
+                    ? resolved
+                    : { ...resolved, config: { ...resolved.config, variant } },
             mode: options.mode ?? "replace",
             ...(options.layout === undefined ? {} : { layout: options.layout }),
+            ...(mapping === undefined ? {} : { mapping }),
         });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
-        const resolved = resolveImportSource(source);
+        const resolved = resolveImportSource(withPairRoles(source, mapping?.tables));
         await send(command(resolved instanceof Promise ? await resolved : resolved));
+    }
+
+    /**
+     * What a load would hold, read into a scratch session and described, loading nothing here.
+     * @param source - What `import` takes.
+     * @param options - The reader's column roles.
+     * @returns The preview.
+     * @throws Whatever `import` would reject with, with the same code.
+     */
+    async preview(source: DataSourceInput, options: LoadPreviewOptions = {}): Promise<LoadPreview> {
+        this.requireLive("preview");
+        return previewLoad(() => this.writes.scratch(), source, options.mapping, this.readConfig().knownFields.nodeIdPath);
     }
 
     /**
@@ -898,7 +921,7 @@ export function headlessDataService(
         edgeStored: () => undefined,
         nodesArrived: () => undefined,
         edgesArrived: () => undefined,
-        loadProgress: () => undefined,
+        loadProgress: (progress) => dispatcher.events.loadProgress?.(progress),
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,
@@ -1010,6 +1033,11 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
 
     if (source.type !== undefined) {
         return { type: source.type, config, ...described };
+    }
+
+    // A node file and an edge file handed over as a pair are only ever CSV.
+    if (pairNames(config) !== null) {
+        return { type: "csv", config, ...described };
     }
 
     const byName = filename === undefined ? null : detectFormat({ filename });

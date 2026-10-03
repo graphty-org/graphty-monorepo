@@ -1350,6 +1350,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgePage: READ,
             lastImport: READ,
             source: READ,
+            // Loads into a scratch session it disposes; this one is untouched.
+            preview: READ,
             attributes: READ,
             statistics: READ,
             fingerprint: READ,

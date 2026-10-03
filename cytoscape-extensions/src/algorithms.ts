@@ -138,6 +138,7 @@ import { type Backend, backendOf, gpuFor, type GpuMode, recording, warnIfFixable
 import {
     coreOf,
     type CytoscapeSnapshot,
+    hold,
     indexOf,
     indicesOf,
     type NodeSelection,
@@ -1607,10 +1608,13 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null) as unknown as Algos);
+    // a data change during the run (another run writing its field, say) must not release what this run reads
+    const unhold = hold(snapshot);
     let value: object;
     try {
         value = (await result) as object;
     } finally {
+        unhold();
         if (d.gpu !== null && typeof options.weight === "function") {
             // a weight function bypasses the snapshot cache, so nothing else would release this upload
             d.gpu.accelerator.release(snapshot);

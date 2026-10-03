@@ -46,6 +46,10 @@ interface CoreState {
 }
 
 const state = new WeakMap<Core, CoreState>();
+/** Runs still using each snapshot; a snapshot the cache drops while it has holds is released when the last ends. */
+const holds = new Map<GraphSnapshot, number>();
+/** Snapshots the cache dropped while held, and the core state whose listeners release them. */
+const deferred = new Map<GraphSnapshot, CoreState>();
 
 /**
  * The core of a collection. Every collection has `cy()` at run time; Cytoscape's typings declare it only on single
@@ -85,12 +89,56 @@ function coreState(cy: Core): CoreState {
  * @param gone - the entries
  */
 function drop(cs: CoreState, gone: readonly CacheEntry[]): void {
-    if (gone.length > 0) {
-        const snapshots = gone.map((e) => e.value.snapshot);
+    const now: GraphSnapshot[] = [];
+    for (const { value } of gone) {
+        if (holds.has(value.snapshot)) {
+            deferred.set(value.snapshot, cs);
+        } else {
+            now.push(value.snapshot);
+        }
+    }
+    notify(cs, now);
+}
+
+/**
+ * Tells a core's drop listeners about snapshots to release.
+ * @param cs - the core's cache state
+ * @param snapshots - the snapshots
+ */
+function notify(cs: CoreState, snapshots: readonly GraphSnapshot[]): void {
+    if (snapshots.length > 0) {
         for (const listener of cs.dropListeners) {
             listener(snapshots);
         }
     }
+}
+
+/**
+ * Keeps a snapshot from being released while a run uses it: when the cache drops it (a data change, say) during
+ * the run, its release waits until every hold on it is let go.
+ * @param s - the snapshot
+ * @returns lets go of the hold; calling it again does nothing
+ */
+export function hold(s: GraphSnapshot): () => void {
+    holds.set(s, (holds.get(s) ?? 0) + 1);
+    let held = true;
+    return () => {
+        if (!held) {
+            return;
+        }
+        held = false;
+        const left = (holds.get(s) ?? 1) - 1;
+        if (left > 0) {
+            holds.set(s, left);
+            return;
+        }
+        holds.delete(s);
+        const cs = deferred.get(s);
+        if (cs !== undefined) {
+            deferred.delete(s);
+            notify(cs, [s]);
+        }
+    };
 }
 
 /**

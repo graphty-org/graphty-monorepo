@@ -264,7 +264,7 @@ method, plus `backend`. The plain methods stay synchronous and always run on the
 layouts, the three simulations use the GPU; the static layouts have no GPU implementation.
 
 **Which ran, and why.** `backend` is `{ ran: "gpu" | "cpu", reason, device }` on an `...Async`
-result, and on the layout object (`layout.backend`) once a simulation has started. `reason` says why
+result, and on the layout object (`layout.backend`, typed by the exported `GraphtyLayouts`) once a simulation has started. `reason` says why
 the CPU ran:
 
 - `gpu: "off"` was passed.
@@ -327,6 +327,12 @@ cy.layout({ name: "graphty-forceatlas2" }).run(); // generated and imported grap
 
 `elements` is the collection that was added, and `directed` says whether the graph is directed: pass
 it on as the algorithms' `directed` option, since a Cytoscape graph has no direction of its own.
+
+The three methods add a graph next to what the core already holds, and refuse (adding nothing) when
+one of the new node ids is already in use: Cytoscape would otherwise skip that node and attach the
+new edges to the old one, merging two graphs into one that is neither. Generated graphs number their
+nodes "0", "1", ..., and many files number theirs `n0`, `n1`, ..., so to replace a graph remove the
+old one first (`cy.elements().remove()`) or use an empty core.
 
 How the data maps:
 

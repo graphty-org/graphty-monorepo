@@ -7,8 +7,12 @@
 import { type Column, type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import type { Collection, ElementDefinition } from "cytoscape";
 
-/** Data fields Cytoscape gives a meaning of its own; a column with one of these names is not copied into data. */
-const RESERVED: ReadonlySet<string> = new Set(["id", "source", "target", "parent"]);
+/**
+ * Data fields Cytoscape gives a meaning of its own, and "__proto__", whose assignment would set the data object's
+ * prototype (and with it inherited id, source, target or parent fields); a column with one of these names is not
+ * copied into data.
+ */
+const RESERVED: ReadonlySet<string> = new Set(["id", "source", "target", "parent", "__proto__"]);
 
 /**
  * A column value as Cytoscape data: a typed array (a multi-component column) becomes a plain array.

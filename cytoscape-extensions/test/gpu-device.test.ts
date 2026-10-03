@@ -90,6 +90,21 @@ describe("the device lifecycle on the GPU", () => {
         expect(ctx.state).toBe("disposed");
     });
 
+    it("concurrent runs that write their fields all finish: one run's write does not free another's buffers", async (t) => {
+        requireGpu(t);
+        const cy = mainGraph();
+        const runs = await Promise.all([
+            cy.graphtyPageRankAsync({ field: "pr" }),
+            cy.graphtyBetweennessCentralityAsync({ field: "bc" }),
+            cy.graphtyClosenessCentralityAsync({ field: "cc" }),
+        ]);
+        expect(runs.map((r) => r.backend.ran)).toEqual(["gpu", "gpu", "gpu"]);
+        for (const field of ["pr", "bc", "cc"]) {
+            expect(typeof cy.nodes()[0].data(field), field).toBe("number");
+        }
+        cy.destroy();
+    });
+
     it("acquires a new device after the device is lost, and the next call runs on it", async (t) => {
         requireGpu(t);
         const cy = mainGraph();

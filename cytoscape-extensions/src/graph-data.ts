@@ -32,17 +32,17 @@ export interface GraphtyGraphData {
     /**
      * Adds a generated graph: `cy.graphtyGenerate("barabasi-albert", { n: 500, m: 2, seed: 1 })`. Node ids are
      * "0", "1", ...; ground-truth columns (`community`, ...) become data fields and weights `data.weight`. Nodes
-     * are placed at the origin: run a layout next.
+     * are placed at the origin: run a layout next. Throws, adding nothing, when the core already holds one of the graph's node ids.
      */
     graphtyGenerate<N extends GeneratorName>(name: N, options: GeneratorOptions<N>): Promise<AddedGraph>;
     /**
      * Adds a sample dataset: `cy.graphtyDataset("karate")`. The small ones ship with the package; the large ones
-     * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app.
+     * (road-ny, ogbn-arxiv, com-dblp) are downloaded from graphty.app. Throws, adding nothing, when the core already holds one of the graph's node ids.
      */
     graphtyDataset(name: string, options?: FetchDatasetOptions): Promise<AddedGraph>;
     /**
      * Adds the graph in a file: GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j, CX2, CX or OBO. Every attribute
-     * becomes a data field, and positions in the file become node positions.
+     * becomes a data field, and positions in the file become node positions. Throws, adding nothing, when the core already holds one of the graph's node ids.
      */
     graphtyImport(input: ImportInput, format?: ImportFormat, options?: ImportOptions): Promise<ImportedGraph>;
     /**
@@ -66,12 +66,23 @@ type Register = (type: string, name: string, registrant: unknown) => void;
 
 /**
  * Adds element definitions to a core. An edge whose id the core already holds loses it and gets one from
- * Cytoscape, so a second import into the same core does not fail on edge ids the file chose.
+ * Cytoscape, so a second import into the same core does not fail on edge ids the file chose. A node id the core
+ * already holds is refused: Cytoscape would skip that node and attach the new edges to the old one, merging the
+ * two graphs.
  * @param cy - the core
  * @param elements - the definitions; edge data may be changed
  * @returns the added elements
+ * @throws Error naming the first node id the core already holds; nothing is added
  */
 function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
+    for (const el of elements) {
+        if (el.group === "nodes" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
+            throw new Error(
+                `graphty: the core already has an element with id "${el.data.id}", so the new graph would merge ` +
+                    "into it; remove the existing elements (cy.elements().remove()) or add the graph to an empty core",
+            );
+        }
+    }
     for (const el of elements) {
         if (el.group === "edges" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
             delete el.data.id;

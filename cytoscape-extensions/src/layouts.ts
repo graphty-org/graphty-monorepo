@@ -48,7 +48,7 @@ import type {
 } from "cytoscape";
 
 import { type Backend, backendOf, cpuWithoutAsking, gpuFor, type GpuMode, warnIfFixable } from "./gpu.js";
-import { type CytoscapeSnapshot, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
+import { type CytoscapeSnapshot, hold, indexOf, indicesOf, type NodeSelection, toSnapshot } from "./snapshot.js";
 
 /** Options of every "graphty-*" layout. Options not listed here go to the @graphty/layout function unchanged. */
 export interface GraphtyLayoutOptions {
@@ -108,6 +108,12 @@ export interface GraphtyLayoutOptions {
     readonly [option: string]: unknown;
 }
 
+/**
+ * The layout a "graphty-*" layout name gives. `backend` is set on a simulation (forceatlas2, fruchterman-reingold,
+ * spring-electrical) once it has decided between GPU and CPU, before layoutready; static layouts leave it unset.
+ */
+export type GraphtyLayouts = CytoscapeLayouts & { readonly backend?: Backend };
+
 /** A "graphty-*" layout's options as `layout()`, `makeLayout()` and `createLayout()` take them. */
 type NamedGraphtyLayoutOptions = GraphtyLayoutOptions & { readonly name: `graphty-${string}` };
 
@@ -116,14 +122,14 @@ type NamedGraphtyLayoutOptions = GraphtyLayoutOptions & { readonly name: `grapht
 // take a "graphty-*" layout's own options; any other layout name still resolves to Cytoscape's signature.
 declare module "cytoscape" {
     interface CoreLayout {
-        layout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
-        makeLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
-        createLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        layout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        makeLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        createLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
     }
     interface CollectionLayout {
-        layout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
-        makeLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
-        createLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        layout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        makeLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
+        createLayout(options: NamedGraphtyLayoutOptions): GraphtyLayouts;
     }
 }
 
@@ -369,7 +375,8 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
         simulate(layout, type, o.accelerator);
         return;
     }
-    const known = cpuWithoutAsking(o.gpu);
+    // "require" goes through gpuFor, which turns a known CPU decision into the error layouterror reports
+    const known = o.gpu === "require" ? null : cpuWithoutAsking(o.gpu);
     if (known !== null) {
         layout.backend = backendOf(known, false, "");
         warnIfFixable(known, o.eles.nodes().length);
@@ -443,6 +450,12 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     if (anyLocked) {
         sim.setFixed(fixed);
     }
+    // a data change while the simulation runs must not release the snapshot its device upload came from
+    const unhold = hold(s);
+    const dispose = (): void => {
+        sim.dispose();
+        unhold();
+    };
 
     // With a locked node the pixel frame is fixed by it; otherwise the result is fitted to the box, as static ones are
     const xy = (): ArrayLike<number> => {
@@ -458,7 +471,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     };
     const fail = (error: unknown): void => {
         layout.looping = false;
-        sim.dispose();
+        dispose();
         layout.emit("layouterror", [error]);
         layout.emit({ type: "layoutstop", layout });
     };
@@ -466,7 +479,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     if (o.animate !== true) {
         const done = (): void => {
             layout.looping = false;
-            sim.dispose();
+            dispose();
             finishDiscrete(layout, cs.nodes, xy());
         };
         const r = stepToEnd(sim, layout);
@@ -501,7 +514,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         }
         if (sim.settled || layout.stopped) {
             layout.looping = false;
-            sim.dispose();
+            dispose();
             if (o.stop !== undefined) {
                 layout.one("layoutstop", o.stop);
             }

@@ -22,6 +22,9 @@ cy.elements()
     .run();
 cy.layout({ name: "graphty-grid", boundingBox: { x1: 0, y1: 0, w: 100, h: 100 } }).run();
 cy.layout({ name: "grid", rows: 2 }).run();
+// a simulation says which backend ran, as the README tells readers to check
+const simulation = cy.layout({ name: "graphty-forceatlas2", maxIter: 10, gpu: "off" }).run();
+const ranOn: "gpu" | "cpu" | undefined = simulation.backend?.ran;
 // @ts-expect-error -- Cytoscape's own layouts keep their own option types
 cy.layout({ name: "grid", boundingBox: 3 });
 
@@ -42,4 +45,4 @@ export async function run(): Promise<Backend> {
     return r.backend;
 }
 
-export { communities, path, rank };
+export { communities, path, rank, ranOn };

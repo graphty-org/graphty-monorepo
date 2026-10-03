@@ -147,7 +147,47 @@ describe("graphtyExport and graphtyImport", () => {
     });
 });
 
+describe("adding to a core that already holds the graph's node ids", () => {
+    it("refuses a second generated graph instead of merging the two, and adds nothing", async () => {
+        const cy = core();
+        await cy.graphtyGenerate("barabasi-albert", { n: 10, m: 2, seed: 1 });
+        const edges = cy.edges().length;
+        await expect(cy.graphtyGenerate("barabasi-albert", { n: 10, m: 2, seed: 2 })).rejects.toThrow(
+            /already has an element with id "0".*empty core/,
+        );
+        expect(cy.nodes()).toHaveLength(10);
+        expect(cy.edges()).toHaveLength(edges);
+    });
+
+    it("refuses an imported node whose id is an existing edge's id", async () => {
+        const cy = core([
+            { data: { id: "a" } },
+            { data: { id: "b" } },
+            { data: { id: "n0", source: "a", target: "b" } },
+        ]);
+        const text = await core([{ data: { id: "n0" } }]).graphtyExport("graphml");
+        await expect(cy.graphtyImport(text, "graphml")).rejects.toThrow(/"n0"/);
+    });
+});
+
 describe("snapshotToElements", () => {
+    it("never lets a column named __proto__ set the prototype of an element's data", async () => {
+        const cy = core();
+        const text = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a", kept: 2 } }, { data: { id: "b" } }],
+                edges: [],
+            },
+        });
+        // an object literal cannot hold an own "__proto__" key, so write it into the text the way a hostile file has it
+        await cy.graphtyImport(text.replace('"kept"', '"__proto__":{"parent":"b","evil":1},"kept"'), "json");
+        const a = cy.$("#a");
+        expect(a.data("kept")).toBe(2);
+        expect(a.parent()).toHaveLength(0);
+        expect(a.data("evil")).toBeUndefined();
+        expect(Object.getPrototypeOf(a.data())).toBe(Object.prototype);
+    });
+
     it("never copies a column into Cytoscape's reserved data fields", () => {
         const snapshot = fromEdgeArrays({
             directed: false,

@@ -73,6 +73,29 @@ describe("the CPU path (WebGPU disabled)", () => {
         }
     });
 
+    it('a simulation with gpu: "require" reports layouterror instead of running on the CPU', async () => {
+        const cy = mainGraph();
+        const layout = cy.layout({
+            name: "graphty-forceatlas2",
+            boundingBox: BOX,
+            maxIter: 20,
+            gpu: "require",
+        } as LayoutOptions);
+        const errors: unknown[] = [];
+        layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+        const stop = layout.promiseOn("layoutstop");
+        layout.run();
+        await stop;
+        expect(errors).toHaveLength(1);
+        expect((errors[0] as Error).message).toMatch(/require.*disabled/);
+        expect(
+            cy
+                .nodes()
+                .toArray()
+                .every((n) => n.position().x === 0),
+        ).toBe(true);
+    });
+
     it('gpu: "off" runs on the CPU and says so; "require" rejects', async () => {
         const cy = mainGraph();
         const r = await cy.graphtyPageRankAsync({ gpu: "off" });
@@ -199,6 +222,19 @@ interface Fake {
     lose(why: string): void;
     /** Makes the next pageRank reject, as a device error mid-run would. */
     failNext: boolean;
+    /** Called on every simulation step, before the step checks its snapshot is still uploaded. */
+    onStep?: () => void;
+}
+
+/**
+ * Rejects work on a snapshot the device already released, as a real device does ("used in submit while destroyed").
+ * @param fake - the fake
+ * @param s - the snapshot
+ */
+function assertResident(fake: Fake, s: GraphSnapshot): void {
+    if (fake.released.includes(s)) {
+        throw new Error("Buffer residency: used in submit while destroyed");
+    }
 }
 
 /**
@@ -228,23 +264,32 @@ function fakeProvider(decline?: string): Fake {
             fake.lose = lose;
             const accelerator: GpuAccelerator = {
                 kind: "fake",
-                pageRank: (s, o) => {
-                    fake.pageRankCalls++;
+                pageRank: async (s, o) => {
+                    // each call takes longer than the one before, so concurrent calls finish in order
+                    const delay = 5 * fake.pageRankCalls++;
                     if (fake.failNext) {
                         fake.failNext = false;
-                        return Promise.reject(new Error("E_DEVICE_LOST: the device was lost mid-run"));
+                        throw new Error("E_DEVICE_LOST: the device was lost mid-run");
                     }
-                    return Promise.resolve(pageRank(s, o));
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    assertResident(fake, s);
+                    return pageRank(s, o);
                 },
                 forceAtlas2: (options): LayoutSimulation => {
                     // the CPU simulation behind an asynchronous step, as a GPU simulation has
                     const sim = new ForceAtlas2Simulation(options);
+                    let loaded: GraphSnapshot | null = null;
                     return {
                         load: (snap, p) => {
+                            loaded = snap;
                             sim.load(snap, p);
                         },
                         step: async (k) => {
                             await Promise.resolve();
+                            fake.onStep?.();
+                            if (loaded !== null) {
+                                assertResident(fake, loaded);
+                            }
                             sim.step(k);
                         },
                         get settled() {
@@ -365,6 +410,31 @@ describe("the device lifecycle (a fake provider)", () => {
         expect(fake.released).toHaveLength(1);
         await cy.graphtyPageRankAsync({ weight: (e: cytoscape.EdgeSingular) => e.data("w") as number });
         expect(fake.released).toHaveLength(2);
+    });
+
+    it("two concurrent runs writing their fields both finish, and the shared snapshot is released after both", async () => {
+        const fake = fakeProvider();
+        const cy = mainGraph();
+        // the first run's field write changes the data while the second is still on the device
+        const [a, b] = await Promise.all([
+            cy.graphtyPageRankAsync({ field: "pr" }),
+            cy.graphtyPageRankAsync({ field: "pr2" }),
+        ]);
+        expect([a.backend.ran, b.backend.ran]).toEqual(["gpu", "gpu"]);
+        expect(typeof cy.nodes()[0].data("pr2")).toBe("number");
+        expect(fake.released).toHaveLength(1);
+    });
+
+    it("a data change during a GPU simulation does not release its snapshot until the simulation ends", async () => {
+        const fake = fakeProvider();
+        const cy = mainGraph();
+        fake.onStep = () => {
+            cy.nodes()[0].data("touched", true);
+        };
+        const { backend, errors } = await layoutRun(cy, { name: "graphty-forceatlas2" });
+        expect(errors).toEqual([]);
+        expect(backend?.ran).toBe("gpu");
+        expect(fake.released).toHaveLength(1);
     });
 
     it("a new provider disposes the old device", async () => {

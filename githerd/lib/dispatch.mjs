@@ -213,73 +213,126 @@ export function agentReady(number, issue, { state, config, now }) {
 }
 
 /**
- * Works out the runs the state calls for (every kind but backlog and refresh, which need the
- * others' answer or issue text), raising the limit escalations it finds on the way.
+ * Why the open incident's fix run waits, or null when it need not.
+ * @param {DispatchContext} ctx the context
+ * @param {any} incident the open incident
+ * @returns {string | null} the reason
+ */
+function masterRedWait(ctx, incident) {
+    const { state, now, startedAt } = ctx;
+    if (now.getTime() < Date.parse(incident.holdUntil)) return "15 minute hold";
+    if (sessionClaims(state, "master", now, startedAt)) return "a session claims master";
+    const fixPrOpened = Object.values(state.prs ?? {}).some(
+        (/** @type {any} */ p) => byOwner(state, p.author) && p.createdAt && p.createdAt > incident.openedAt,
+    );
+    return fixPrOpened ? "an owner's PR was opened after the red" : null;
+}
+
+/**
+ * Row 1: master red. Wants a fix run, waits, or raises an escalation once the fix runs gave up.
  * @param {DispatchContext} ctx the context
  * @param {(args: any) => void} raise raises an escalation
  * @param {string[]} unhandled collects incidents no run will handle
  * @param {DispatchResult["waiting"]} waiting collects items not wanted yet, and why
- * @param {ReturnType<typeof workQueue>} queue the work queue, whose order the PR runs follow
+ * @returns {Item | null} the item, or null
+ */
+function masterRedItem(ctx, raise, unhandled, waiting) {
+    const { state } = ctx;
+    const incident = Object.values(state.incidents ?? {}).find((/** @type {any} */ i) => i.status === "open");
+    if (!incident || (state.master?.verdict ?? "unknown") !== "red") return null;
+    const confirmed = Date.parse(incident.confirmedAt ?? incident.openedAt);
+    incident.holdUntil ??= new Date(confirmed + MASTER_RED_HOLD_MS).toISOString();
+    const jobs = failingJobs(incident);
+    const runs = (incident.runs ?? []).filter((/** @type {any} */ r) => counts(state, r.run));
+    const target = { kind: "master-red", target: "master" };
+    const reason = masterRedWait(ctx, incident);
+    if (reason) {
+        waiting.push({ item: target, reason });
+        return null;
+    }
+    if (runs.length === 0 || (runs.length === 1 && runs[0].failingJobs.join("\n") !== jobs.join("\n"))) {
+        return { ...target, event: "master-red-confirmed", incident: incident.id, failingJobs: jobs };
+    }
+    if (!runs.some((/** @type {any} */ r) => state.runs?.[r.run]?.status === "running")) {
+        const summary = state.runs?.[runs.at(-1).run]?.structured?.summary;
+        raise({
+            key: `master-red:${incident.id}`,
+            kind: "master-red",
+            target: "master",
+            summary: `master red (${incident.id}): the fix runs ended without a fix`,
+            detail: typeof summary === "string" ? `${RUN_TEXT} ${summary}` : undefined,
+        });
+        unhandled.push(incident.id);
+    }
+    return null;
+}
+
+/**
+ * The run a queued PR calls for: a conflict fix, a check fix, or an answer to the owner's rejection.
+ * @param {any} rec the PR record
+ * @param {string} target the PR target
+ * @returns {Item} the item
+ */
+function prItem(rec, target) {
+    if (rec.ownerRejected) return { kind: "pr-fix", event: "owner-rejected", target, rejected: true };
+    const failing = Object.values(rec.required ?? {}).includes("FAILURE");
+    if (failing && !rec.ownerGate) return { kind: "pr-fix", event: "pr-check-failed", target };
+    return { kind: "pr-conflict", event: "pr-conflicting", target };
+}
+
+/**
+ * Why a PR's run waits, or null when it can start.
+ * @param {DispatchContext} ctx the context
+ * @param {any} rec the PR record
+ * @param {Item} item the item
+ * @param {any[]} runs the PR's runs that count
+ * @returns {string | null} the reason
+ */
+function prWait(ctx, rec, item, runs) {
+    const { state, now, startedAt } = ctx;
+    const t = now.getTime();
+    if (runs.filter((/** @type {any} */ r) => t - Date.parse(r.at) < DAY).length >= PR_RUNS_PER_DAY) {
+        return `${PR_RUNS_PER_DAY} runs in 24 hours`;
+    }
+    if (
+        sessionClaims(state, item.target, now, startedAt) ||
+        sessionClaims(state, `branch:${rec.headRef}`, now, startedAt)
+    ) {
+        return "claimed by a session";
+    }
+    if (sessionOnBranch(state, rec.headRef, now, startedAt)) return `a session works on ${rec.headRef}`;
+    if (t - Date.parse(rec.headChangedAt) < RECENT_HEAD_MS && !state.pushedByGitherd?.[rec.headSha]) {
+        return "head changed in the last 30 minutes";
+    }
+    return null;
+}
+
+/**
+ * Rows 8, 10 and 12: pull requests, in the work queue's order. The queue leaves out drafts, other
+ * authors' PRs and PRs waiting on the owner, and holds stacked PRs and every PR while master is
+ * red (row 9).
+ * @param {DispatchContext} ctx the context
+ * @param {(args: any) => void} raise raises an escalation
+ * @param {DispatchResult["waiting"]} waiting collects items not wanted yet, and why
+ * @param {ReturnType<typeof workQueue>} queue the work queue
  * @returns {Item[]} the items
  */
-function wanted(ctx, raise, unhandled, waiting, queue) {
-    const { state, config, now, startedAt } = ctx;
-    const t = now.getTime();
+function prItems(ctx, raise, waiting, queue) {
+    const { state, now } = ctx;
+    const verdict = state.master?.verdict ?? "unknown";
     /** @type {Item[]} */
     const items = [];
-    const verdict = state.master?.verdict ?? "unknown";
-
-    // Row 1: master red.
-    const incident = Object.values(state.incidents ?? {}).find((/** @type {any} */ i) => i.status === "open");
-    if (incident && verdict === "red") {
-        const confirmed = Date.parse(incident.confirmedAt ?? incident.openedAt);
-        incident.holdUntil ??= new Date(confirmed + MASTER_RED_HOLD_MS).toISOString();
-        const fixPrOpened = Object.values(state.prs ?? {}).some(
-            (/** @type {any} */ p) => byOwner(state, p.author) && p.createdAt && p.createdAt > incident.openedAt,
-        );
-        const jobs = failingJobs(incident);
-        const runs = (incident.runs ?? []).filter((/** @type {any} */ r) => counts(state, r.run));
-        const target = { kind: "master-red", target: "master" };
-        if (t < Date.parse(incident.holdUntil)) waiting.push({ item: target, reason: "15 minute hold" });
-        else if (sessionClaims(state, "master", now, startedAt)) {
-            waiting.push({ item: target, reason: "a session claims master" });
-        } else if (fixPrOpened) waiting.push({ item: target, reason: "an owner's PR was opened after the red" });
-        else if (runs.length === 0 || (runs.length === 1 && runs[0].failingJobs.join("\n") !== jobs.join("\n"))) {
-            items.push({ ...target, event: "master-red-confirmed", incident: incident.id, failingJobs: jobs });
-        } else if (!runs.some((/** @type {any} */ r) => state.runs?.[r.run]?.status === "running")) {
-            const last = state.runs?.[runs.at(-1).run];
-            const summary = last?.structured?.summary;
-            raise({
-                key: `master-red:${incident.id}`,
-                kind: "master-red",
-                target: "master",
-                summary: `master red (${incident.id}): the fix runs ended without a fix`,
-                detail: typeof summary === "string" ? `${RUN_TEXT} ${summary}` : undefined,
-            });
-            unhandled.push(incident.id);
-        }
-    }
-
-    // Rows 8, 10 and 12: pull requests, in the work queue's order. The queue leaves out drafts,
-    // other authors' PRs and PRs waiting on the owner, and holds stacked PRs and every PR while
-    // master is red (row 9).
     for (const [number, rec] of Object.entries(state.prs ?? {})) syncAttempts(state, number, rec, now);
     for (const q of queue.items) {
         if (q.kind !== "pr") continue;
         const number = q.target.slice(3);
         const rec = state.prs[number];
-        const attempts = rec.attempts;
-        const failing = Object.values(rec.required ?? {}).includes("FAILURE");
-        /** @type {Item} */
-        let item = { kind: "pr-conflict", event: "pr-conflicting", target: q.target };
-        if (rec.ownerRejected) item = { kind: "pr-fix", event: "owner-rejected", target: q.target, rejected: true };
-        else if (failing && !rec.ownerGate) item = { kind: "pr-fix", event: "pr-check-failed", target: q.target };
+        const item = prItem(rec, q.target);
         if (q.waiting) {
             if (verdict !== "red") waiting.push({ item, reason: q.waiting });
             continue;
         }
-
-        const runs = attempts.runs.filter((/** @type {any} */ r) => counts(state, r.id));
+        const runs = rec.attempts.runs.filter((/** @type {any} */ r) => counts(state, r.id));
         const limit = PR_LIMITS[/** @type {"pr-fix" | "pr-conflict"} */ (item.kind)];
         if (runs.filter((/** @type {any} */ r) => r.kind === item.kind).length >= limit) {
             raise({
@@ -290,32 +343,21 @@ function wanted(ctx, raise, unhandled, waiting, queue) {
             });
             continue;
         }
-        if (runs.filter((/** @type {any} */ r) => t - Date.parse(r.at) < DAY).length >= PR_RUNS_PER_DAY) {
-            waiting.push({ item, reason: `${PR_RUNS_PER_DAY} runs in 24 hours` });
-        } else if (
-            sessionClaims(state, item.target, now, startedAt) ||
-            sessionClaims(state, `branch:${rec.headRef}`, now, startedAt)
-        ) {
-            waiting.push({ item, reason: "claimed by a session" });
-        } else if (sessionOnBranch(state, rec.headRef, now, startedAt)) {
-            waiting.push({ item, reason: `a session works on ${rec.headRef}` });
-        } else if (t - Date.parse(rec.headChangedAt) < RECENT_HEAD_MS && !state.pushedByGitherd?.[rec.headSha]) {
-            waiting.push({ item, reason: "head changed in the last 30 minutes" });
-        } else {
-            items.push(item);
-        }
+        const reason = prWait(ctx, rec, item, runs);
+        if (reason) waiting.push({ item, reason });
+        else items.push(item);
     }
+    return items;
+}
 
-    // Row 6: release trouble.
-    for (const esc of Object.values(state.escalations ?? {})) {
-        const release =
-            esc.kind === "release-failed" || esc.kind === "release-stalled" || esc.key.startsWith("lane-stuck:");
-        if (release && !esc.resolvedAt && !esc.run) {
-            items.push({ kind: "release", event: esc.kind, target: "task:release", escalation: esc.key });
-        }
-    }
-
-    // Row 16: triage.
+/**
+ * Row 16: triage of the owner's open issues that miss a required label.
+ * @param {DispatchContext} ctx the context
+ * @param {DispatchResult["waiting"]} waiting collects items not wanted yet, and why
+ * @returns {Item | null} the item, or null
+ */
+function triageItem(ctx, waiting) {
+    const { state, config, now, startedAt } = ctx;
     const lastTriage = Date.parse(state.schedule?.lastTriageAt ?? "") || 0;
     const untriaged = Object.entries(state.issues?.byNumber ?? {})
         .filter(
@@ -329,12 +371,42 @@ function wanted(ctx, raise, unhandled, waiting, queue) {
         .map(([n]) => Number(n))
         .sort((a, b) => a - b)
         .slice(0, TRIAGE_BATCH);
-    if (untriaged.length) {
-        const [first, ...rest] = untriaged.map((n) => `issue:${n}`);
-        const item = { kind: "triage", event: "issue-unlabeled", target: first, batch: rest };
-        if (t - lastTriage < TRIAGE_EVERY_MS) waiting.push({ item, reason: "one triage run per 30 minutes" });
-        else items.push(item);
+    if (!untriaged.length) return null;
+    const [first, ...rest] = untriaged.map((n) => `issue:${n}`);
+    const item = { kind: "triage", event: "issue-unlabeled", target: first, batch: rest };
+    if (now.getTime() - lastTriage >= TRIAGE_EVERY_MS) return item;
+    waiting.push({ item, reason: "one triage run per 30 minutes" });
+    return null;
+}
+
+/**
+ * Works out the runs the state calls for (every kind but backlog and refresh, which need the
+ * others' answer or issue text), raising the limit escalations it finds on the way.
+ * @param {DispatchContext} ctx the context
+ * @param {(args: any) => void} raise raises an escalation
+ * @param {string[]} unhandled collects incidents no run will handle
+ * @param {DispatchResult["waiting"]} waiting collects items not wanted yet, and why
+ * @param {ReturnType<typeof workQueue>} queue the work queue, whose order the PR runs follow
+ * @returns {Item[]} the items
+ */
+function wanted(ctx, raise, unhandled, waiting, queue) {
+    /** @type {Item[]} */
+    const items = [];
+    const red = masterRedItem(ctx, raise, unhandled, waiting);
+    if (red) items.push(red);
+    items.push(...prItems(ctx, raise, waiting, queue));
+
+    // Row 6: release trouble.
+    for (const esc of Object.values(ctx.state.escalations ?? {})) {
+        const release =
+            esc.kind === "release-failed" || esc.kind === "release-stalled" || esc.key.startsWith("lane-stuck:");
+        if (release && !esc.resolvedAt && !esc.run) {
+            items.push({ kind: "release", event: esc.kind, target: "task:release", escalation: esc.key });
+        }
     }
+
+    const triage = triageItem(ctx, waiting);
+    if (triage) items.push(triage);
     return items;
 }
 
@@ -410,12 +482,12 @@ function recordStart(state, item, id, now) {
     const issue = (/** @type {string} */ target) => state.issues?.byNumber?.[target.slice("issue:".length)];
     const targets = [item.target, ...(item.batch ?? [])];
     switch (item.kind) {
-        case "master-red":
-            (state.incidents[/** @type {string} */ (item.incident)].runs ??= []).push({
-                run: id,
-                failingJobs: item.failingJobs ?? [],
-            });
+        case "master-red": {
+            const incident = state.incidents[/** @type {string} */ (item.incident)];
+            incident.runs ??= [];
+            incident.runs.push({ run: id, failingJobs: item.failingJobs ?? [] });
             break;
+        }
         case "pr-fix":
         case "pr-conflict":
             state.prs[item.target.slice(3)].attempts.runs.push({ id, kind: item.kind, at: iso });
@@ -447,7 +519,7 @@ function recordStart(state, item, id, now) {
  * @returns {Promise<DispatchResult>} what started, what waits, and which incidents no run handles
  */
 export async function dispatch(ctx) {
-    const { state, config, mode, now } = ctx;
+    const { state, now } = ctx;
     const raise = ctx.raise ?? ((args) => escalate(state, args, { daemon: true }, now));
     /** @type {DispatchResult} */
     const result = { started: [], waiting: [], masterRedUnhandled: [], slotsFull: false };
@@ -475,29 +547,14 @@ export async function dispatch(ctx) {
             .flatMap((/** @type {any} */ r) => [r.target, ...(r.batch ?? [])]),
     );
     const held = ctx.holdUntil && now.getTime() < ctx.holdUntil.getTime();
-    let stopped = held ? "runs are held after a restart" : null;
+    const gate = { stopped: held ? "runs are held after a restart" : null };
     for (const item of items) {
         const targets = [item.target, ...(item.batch ?? [])];
         if (targets.some((t) => busy.has(t))) {
             result.waiting.push({ item, reason: "a run on this target is in flight" });
             continue;
         }
-        const admitted = stopped ? null : admit(state, config, mode, item.kind, now, item.profile);
-        const refused = /** @type {{ok: false, reason: string, never?: boolean} | null} */ (
-            admitted && !admitted.ok ? admitted : null
-        );
-        // A run that can never fit the day's limit waits without holding up the rest.
-        if (refused && !refused.never) {
-            stopped = refused.reason;
-            result.slotsFull = true;
-        }
-        if (!admitted?.ok) {
-            result.waiting.push({ item, reason: /** @type {string} */ (refused?.never ? refused.reason : stopped) });
-            if (item.kind === "master-red" && !held) {
-                result.masterRedUnhandled.push(/** @type {string} */ (item.incident));
-            }
-            continue;
-        }
+        if (!admitItem(ctx, item, gate, result, Boolean(held))) continue;
         const launched = await ctx.launch(item);
         if (!launched.ok) {
             result.waiting.push({ item, reason: /** @type {{reason: string}} */ (launched).reason });
@@ -509,4 +566,29 @@ export async function dispatch(ctx) {
         result.started.push({ item, id: launched.id });
     }
     return result;
+}
+
+/**
+ * Asks the run limits whether an item may start. Once one item is refused for a limit that can
+ * clear, `gate.stopped` holds that reason and every later item waits on it; a run that can never
+ * fit the day's limit waits without holding up the rest.
+ * @param {DispatchContext} ctx the context
+ * @param {Item} item the item
+ * @param {{stopped: string | null}} gate why starting has stopped this pass, if it has
+ * @param {DispatchResult} result collects waiting items and unhandled incidents
+ * @param {boolean} held true while runs are held after a restart
+ * @returns {boolean} true when the item may start
+ */
+function admitItem(ctx, item, gate, result, held) {
+    const { state, config, mode, now } = ctx;
+    const admitted = gate.stopped ? null : admit(state, config, mode, item.kind, now, item.profile);
+    if (admitted?.ok) return true;
+    const refused = /** @type {{ok: false, reason: string, never?: boolean} | null} */ (admitted);
+    if (refused && !refused.never) {
+        gate.stopped = refused.reason;
+        result.slotsFull = true;
+    }
+    result.waiting.push({ item, reason: /** @type {string} */ (refused?.never ? refused.reason : gate.stopped) });
+    if (item.kind === "master-red" && !held) result.masterRedUnhandled.push(/** @type {string} */ (item.incident));
+    return false;
 }

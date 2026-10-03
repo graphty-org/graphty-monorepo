@@ -34,7 +34,7 @@ keeps and loses; tasks below name the module they rework.
 
 Each spike: the question, the experiment, the pass condition, the fallback if it fails, and the
 tasks that wait for it. Results of the spikes run so far, with commands and output, are in
-`evidence/platform-facts.md` section 7; two more ran there that have no row: the tmux driving
+`evidence/platform-facts.md` sections 7 and 8; two more ran in section 7 that have no row: the tmux driving
 probe (7.3) and the MCP call-length probe (7.4). Spikes that write to GitHub use a docs-only pull request with no version
 plan, after the reference worktree's release dry-run shows no bump, and record the cost.
 
@@ -80,13 +80,21 @@ plan, after the reference worktree's release dry-run shows no bump, and record t
 | Spike | Question and experiment | Pass | Fallback | Blocks |
 |---|---|---|---|---|
 | S23 | Does a shared `NX_CACHE_DIRECTORY` work across worktrees (hits on the second worktree, no corruption under two concurrent builds)? | Hits and clean builds | Per-worktree cache; the push bound is raised to the cold-build time | 4.2 |
+| | **Ran 2026-10-03 [PF 8.1]: passes without the variable. Nx 22.7 already shares the main checkout's cache with every worktree; two concurrent cold builds were clean and identical. With `NX_CACHE_DIRECTORY` set, Nx reported a hit and restored nothing, so it is never set. Design 4.8 and 7.1 changed** | | | |
 | S24 | With `flock` added to `tools/prepush.sh`, are waiters visible in `/proc/locks` and is the lock released when the holder is SIGKILLed? | Both | Count `prepush.sh` processes | 4.1 |
+| | **Ran 2026-10-03 [PF 8.2]: release passes when the holder's whole process group dies (a shell step inherits the descriptor). `/proc/locks` fails: it hides a lock taken by `exec 9>file; flock 9` and its waiters. Holder and waiters come from `/proc/<pid>/fdinfo` instead. Design 4.8 changed** | | | |
 | S25 | On a container restart, does PID 1's start time change while `boot_id` stays? Observe at the next restart | As expected | Treat any unexplained pid mismatch as a restart | 1.9 |
+| | **Ran 2026-10-03 [PF 8.3], at a real container restart: passes, `boot_id` unchanged and PID 1's start time changed** | | | |
 | S26 | With servherd passing `autorestart` and `exp_backoff_restart_delay` to pm2, does a killed daemon come back? (No supervisord entry: the owner's decision 3 in design 12.3) | Yes | The MCP-server, launcher and `githerd ensure` restarters only | 2.1 |
+| | **Ran 2026-10-03 [PF 8.4]: passes. pm2 with both options restarted a SIGKILLed process in 155 to 254 ms; through today's servherd it stays dead. A container restart kills pm2 itself, which the session launchers and `githerd ensure` already cover** | | | |
 | S27 | Is githubstatus.com's components JSON readable without auth, and does it name Actions? | Yes | The two-heads symptom alone | 1.4 |
+| | **Ran 2026-10-03 [PF 8.5]: passes; HTTP 200 without auth, Actions has id `br0l2tvcx85d`, `If-None-Match` gets 304** | | | |
 | S28 | Does `git commit-tree -S` in a scratch repository succeed non-interactively with the owner's gpg-agent from a process started like a worker? | Signed object created in under a second | Probe by a signed commit in the job's worktree on a throwaway branch | 5.2 |
+| | **Ran 2026-10-03 [PF 8.6]: passes in 6 ms with the owner's SSH signing variables (`GIT_CONFIG_*` from his user settings); without them git uses his gpg key and fails (pinentry needs a terminal). Design 7.1 changed: the variables go on the worker line and on the daemon's own git commands; no `GPG_TTY`** | | | |
 | S29 | Does a real rejects-only Finish comment match the parser? Is `visual-review update <pr>` safe to run unattended (no prompt, exits non-zero on a non-baseline conflict)? | A fixture from a real comment parses; update behaves | Owner item with the exact command for baseline-only conflicts | 3.4 |
+| | **Ran 2026-10-03 [PF 8.7]: passes. Real comments (a rejects-only one on 641, a mixed one on 409) match the marker and their blocks parse; copies are fixtures in `evidence/spikes-2026-10-03/`. `visual-review update` prompts for nothing and exits 1 with nothing changed on a refusal, but pushes with `--no-verify`, so the daemon runs it inside its push queue (design 3.3 changed)** | | | |
 | S31 | Does `nx release --dry-run` in the reference worktree say whether anything would publish (version plans present or not)? | Clear yes or no | Release pending only from npm against tags and version commits | 1.6 |
+| | **Ran 2026-10-03 [PF 8.8]: passes; 7 s, "No files would be changed" or one "New version <v> written to manifest" line per bumped project. nx ignores `release-hold.json`, so the dry-run runs after `tools/release-hold.mjs apply` (design 4.3 and 4.9 changed)** | | | |
 
 ---
 
@@ -104,7 +112,7 @@ proves it against the recorded month. Nothing runs against GitHub.
 | 1.3 Lane facts | Lane verdict for every workflow, red-since, green and CI-green commits, queue age | Replay: the 11.5-hour stretch of 10-01 gives four keys with the true red-since | Facts match the record |
 | 1.4 Classifier | The ordered classes of design 4.4 with one pattern table and a fixture per pattern from the recorded logs; drift diff of `Set up job` | One test per pattern; replay: the 10 Build and 7 Chromatic bursts become shared incidents at the second pull request; audit failures on dependency-free pull requests are master-side at the first | Every recorded failure gets a class a person agrees with (printed list reviewed in the commit) |
 | 1.5 `githerd/merge` decision and stacks (`prs.mjs`) | Lines 1 to 8 of design 4.6 and the status each yields (`success`, `failure` with the first failing line, `pending` only while evaluating); stack chains; patch id excluding `visual-baselines/**` | Unit tests per line; replay: every merge that landed while a gating lane was red would have had `failure`, and every other `failure` is printed for review | The printed list is reviewed |
-| 1.6 Release truth | Tags against npm against version commits; release pending with the dry-run answer (stubbed until S31); gate notice reading | Fixtures for each half-state, a 409, an expired-artifact skip | Each case gives the right incident or none |
+| 1.6 Release truth | Tags against npm against version commits; release pending with the dry-run answer (its per-project "New version" lines, after `tools/release-hold.mjs apply`; S31); gate notice reading | Fixtures for each half-state, a 409, an expired-artifact skip | Each case gives the right incident or none |
 | 1.7 Incident procedure | The outcome table of design 4.5 as a pure function of re-run results and suspects | Unit tests per row | The flaky-benchmark scenario reverts nothing |
 | 1.8 Queue and records (`queue.mjs`, `board.mjs`) | Job kinds, states, deadlines with pauses, budgets, queue order, claims with snapshot versions and cycle refusal, the invariant check | Unit tests per transition and per pause; invariant violations produce faults | Every state has a tested exit |
 | 1.9 State, liveness and fatal mode (`store.mjs`, `daemon.mjs`, `proc.mjs`) | `~/.githerd/` layout, `alive` and `progress`, start counter, lock with fixed cwd, spool, ledger replay, container restart by PID 1 start time, fatal mode on uncaught exceptions | Crash tests: kill mid-write; three starts in 10 minutes enter fatal mode; a stale lock is taken | No test leaves a process |
@@ -138,8 +146,8 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 
 | Task | Build | Test | Done when |
 |---|---|---|---|
-| 4.1 Lock in the gate | `tools/prepush.sh` takes `flock` on a lock file outside every worktree and writes its holder to a sidecar file (after S24) | Two concurrent gates serialize; a killed holder releases | Merged to master |
-| 4.2 Shared Nx cache | `NX_CACHE_DIRECTORY` for workers and the daemon (after S23) | Second worktree hits the cache | Documented in `githerd/CLAUDE.md` |
+| 4.1 Lock in the gate | `tools/prepush.sh` takes `flock` on a lock file outside every worktree, writes its holder to a sidecar file, and starts its background SonarQube step with the lock's descriptor closed; githerd reads holder and waiters from `/proc/<pid>/fdinfo`, never `/proc/locks` (S24) | Two concurrent gates serialize; a gate killed with its process group releases; a killed gate's SonarQube step does not keep the lock; the waiter count is right | Merged to master |
+| 4.2 Shared Nx cache | Nothing to configure: Nx 22.7 shares the main checkout's cache with every worktree (S23). `NX_CACHE_DIRECTORY` is left out of every environment githerd starts, and a job worktree's preparation fails when a built package has no `dist` | A fresh worktree's build hits the cache and has its outputs; the environment builder never passes the variable | Documented in `githerd/CLAUDE.md` |
 | 4.3 Project settings | Register githerd's MCP server and hooks in `.claude/settings.json`, pointing at `~/.githerd/graphty-monorepo/current/` | Owner session start prints the status line | Merged to master |
 | 4.4 Config | `githerd.config.json` with bounds for every number and the model allow list | Config tests | Merged to master |
 
@@ -148,8 +156,8 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 | Task | Build | Test | Done when |
 |---|---|---|---|
 | 5.1 Reference worktree (`worktrees.mjs`) | Locked detached worktree at the green commit, refreshed on moves; audit exactly as `ci.yml` runs it; commitlint; release dry-run; gate on the green commit; failures are platform faults | Fake repository tests; the 10-02 advisory fixture fails the audit | Facts from it feed milestone 1's functions |
-| 5.2 Job worktrees | Detached worktrees, lock, install, Nx build, smoke test, holder detection, salvage branches, removal without `--force`, signing probe (after S28) | Fake repository tests | A failed preparation is `faulted`, never a session |
-| 5.3 Generated settings and environment | `settings.json`, `mcp.json`, `env -i` allow-list, runtime allow overlay (after S12, S18) | Snapshot tests of generated files | S12 and S18 pass with them |
+| 5.2 Job worktrees | Detached worktrees, lock, install, Nx build, smoke test, holder detection, salvage branches, removal without `--force`, signing probe with the SSH signing variables (S28) | Fake repository tests | A failed preparation is `faulted`, never a session |
+| 5.3 Generated settings and environment | `settings.json`, `mcp.json`, `env -i` allow-list (with the owner's `GIT_CONFIG_*` signing variables, S28), runtime allow overlay (after S12, S18) | Snapshot tests of generated files | S12 and S18 pass with them |
 | 5.4 The guard (`bin/githerd-guard.mjs`, `shellwords.mjs`) | Every refusal of design 10.1, the write log, Edit and Write path checks, the Agent and browser caps (after S33) | One test per refusal and per allowed alternative | Guard tests pass |
 | 5.5 MCP tools (`mcp.mjs`, `schema.mjs`) | The eleven tools with schemas, protocol version, session identification | Schema tests; refused calls have no effect | Tools answer against a fake daemon |
 | 5.6 Hooks | SessionStart, UserPromptSubmit, Stop gate, StopFailure, Notification, PostToolUse news, spool and fail-open counting (after S13 to S17, S32) | Hook tests with recorded inputs from `platform/exp3*/hook-input.log` | Hooks never make a network call |
@@ -194,8 +202,8 @@ real occurrence of each situation it acts on, with would-dos matching what shoul
 ### Dependencies at a glance
 
 Spikes in group A gate milestone 3; group B gates milestone 5; group C gates milestones 2 and 4.
-Milestone 1 starts at once: its tasks stub the answers of S4, S5, S6, S9, S11, S25, S27 and S31
-and are finished when those spikes report. Milestone 6 needs 5. Milestone 8 needs everything before
+Milestone 1 starts at once: its tasks stub the answers of S4, S5, S6, S9 and S11 and are finished
+when those spikes report (S25, S27 and S31 reported on 2026-10-03). Milestone 6 needs 5. Milestone 8 needs everything before
 it, and each of its steps needs only the groups before it.
 
 ---

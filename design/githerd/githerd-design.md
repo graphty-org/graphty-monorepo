@@ -230,7 +230,7 @@ adversarial review added (section 3.10). Columns:
 | A pull request that changes nothing fails | Its file list cannot affect the failing key: no package source for a build key, no `pnpm-lock.yaml` or `package.json` for an audit key | Master-side shared incident at the first such pull request; no `pr` job | D; W `incident` | As above |
 | Intermittent failure on a pull request | Key named by an open `intermittent` issue | One daemon re-run per head; workers cannot re-run (guard) | D | Green head |
 | Textual merge conflict | `mergeable == false` on the single pull request GET, re-read when master moves; `null` is no data; two sightings. Conflicts are classified with `git merge-tree` against `origin/master`, the tip GitHub judges against | A `pr` job merges the CI-green commit and resolves. A path in conflict on 3 or more pull requests in 7 days gets an issue to remove the hot spot | D; W `pr` | `mergeable == true` and checks running on the new head |
-| Conflict only in visual baseline images | `merge-tree` against `origin/master` whose conflicting paths are all under `visual-baselines/` | The daemon runs `visual-review update <pr>` [R13], which accepts nothing and approves nothing; if the tool refuses because another file conflicts, a `pr` job | D; W `pr` | Mergeable |
+| Conflict only in visual baseline images | `merge-tree` against `origin/master` whose conflicting paths are all under `visual-baselines/` | The daemon runs `visual-review update <pr>` [R13], which accepts nothing and approves nothing; it pushes with `--no-verify`, so it runs as an entry of the push queue (4.8) with the signing variables (7.1) [S29]; if the tool refuses because another file conflicts (exit 1, nothing changed), a `pr` job | D; W `pr` | Mergeable |
 | Semantic conflict between pull requests | No signal before a merge [CAT 9] | Mergify merges master into each pull request and waits for its checks on that head, so the second of two related pull requests is always tested on a base containing the first. Master's lanes are the backstop | Mergify; D | The second pull request is green on a base containing the first |
 | Branch far behind master | `behind_by` from compare, read only when a reason below applies | Mergify updates it when it reaches the front of its queue. githerd updates it only when its failing key is fixed on master, its stack base moved, or it is unparked | D | The base contains what it needs |
 | Visual captures out of date | The review record names the master commit it compared against; master's baselines changed since | Not updated speculatively by githerd: Mergify updates it when it reaches the front of the queue, so the owner re-reviews once | D | Visual gate green on the head |
@@ -468,7 +468,10 @@ request at zero remaining returns 304 or 403 is [S4].
 - **Green commit** and **CI-green commit** (1.4).
 - **Release truth**: npm's versions against master's tags and version commits [INC1 2].
 - **Release pending**: a green commit that `nx release --dry-run` in the reference worktree says
-  would publish [S31], not on npm 2 hours after its lanes went green.
+  would publish [S31], not on npm 2 hours after its lanes went green. The dry-run runs after
+  `node tools/release-hold.mjs apply`, as `release.yml` does, because nx itself ignores
+  `release-hold.json`, and puts `nx.json` back afterwards; the answer is its per-project "New version <v> written to manifest" lines,
+  none meaning nothing would publish (about 7 s on a warm machine).
 - **Queue age**: per queued gating job, now minus `created_at`, against the worst pickup time ever
   seen on that runner label [S9].
 - **Pull request facts**: author, base, draft, head, `mergeable`, files, commits (breaking marks),
@@ -674,10 +677,18 @@ Workers never run `git push` (the guard refuses it). They call `githerd_push`. T
 6. rings the worker with the result.
 
 The pre-push gate takes a machine-wide `flock` itself (a plan task changes `tools/prepush.sh`,
-because today it takes none [R11], [R12]); the kernel releases it when a holder dies, owner
-sessions wait on the same lock, and its waiters are counted from `/proc/locks` [S24]. All
-worktrees share one Nx cache directory (`NX_CACHE_DIRECTORY`), so a fresh worktree's first gate is
-not a cold build [R16], [S23]. A push is bounded at twice the gate's measured duration.
+because today it takes none [R11], [R12]); owner sessions wait on the same lock. The kernel
+releases it only when every process holding its descriptor is gone, and every step a shell starts
+inherits it, so the gate runs its background SonarQube step (its own process group) with the
+descriptor closed, and the daemon starts each push in its own process group and kills the group
+[S24]. Holder and waiters are read from `/proc/<pid>/fdinfo` of the processes that have the lock
+file open (the holder's has a `lock:` line, a waiter's none), with the holder's sidecar file for
+its name; `/proc/locks` is not used, because it hides a lock whose `flock` process has exited,
+which is how a script takes it [S24]. Every worktree already shares the main checkout's Nx cache:
+Nx 22.7 resolves the cache directory to the main worktree's `.nx/cache` on its own, so a fresh
+worktree's first gate is not a cold build [S23]. `NX_CACHE_DIRECTORY` is never set: with it, Nx
+reported cache hits and restored no output [S23]. A push is bounded at twice the gate's measured
+duration.
 
 Because the daemon runs the push, the permission classifier never judges it, a worker's death does
 not kill it, and its queue position is real.
@@ -687,7 +698,8 @@ not kill it, and its queue position is real.
 `.worktrees/githerd-ref`, locked with `git worktree lock`. When the green commit moves, the daemon
 switches it detached to the new commit, runs `pnpm install --frozen-lockfile` and the Nx build. It
 is used for: the audit exactly as `ci.yml` runs it [R5]; commitlint on titles; the release
-dry-run; running the gate once on the green commit to tell a shared local failure from a job's own.
+dry-run (for a pull request: a local, signed merge commit that is never pushed, then the
+dry-run); running the gate once on the green commit to tell a shared local failure from a job's own.
 Any failure in it is a platform fault (class 3), never a verdict on a pull request.
 
 ### 4.10 Hooks
@@ -946,13 +958,15 @@ Workers are prepared in parallel and started one at a time; only the span from `
 `githerd_claim` is serialized, and an incident skips that line.
 
 1. **Preconditions**: a free slot (8.1); load and memory under the limits; no usage stop; the
-   signing probe passes (`git commit-tree -S` in a scratch repository, milliseconds [S28]);
+   signing probe passes (`git commit-tree -S` in a scratch repository with the worker's exact
+   environment, 6 ms [S28]);
    `claude --version` equals the self-tested version.
 2. **Worktree**: `.worktrees/githerd-<job>`, detached at the green commit for new work or at the
    pull request's head for `pr` and `review` jobs; never a branch checkout, so a branch the owner
    has checked out elsewhere is never a conflict. `git worktree lock --reason "githerd job <id>"`.
-   `pnpm install --frozen-lockfile`, `pnpm exec nx run-many -t build` with the shared Nx cache, and
-   one package's smoke test. A failure is `faulted`, never a session. A `pr` job whose pull request
+   `pnpm install --frozen-lockfile`, `pnpm exec nx run-many -t build` with the shared Nx cache, a
+   check that every built package's `dist` exists (with `NX_CACHE_DIRECTORY` inherited from
+   anywhere, a cache hit reported success with no output [S23]), and one package's smoke test. A failure is `faulted`, never a session. A `pr` job whose pull request
    branch is checked out in any worktree with uncommitted changes or unpushed commits, live session
    or not, does not start; the board names that worktree.
 3. **Generated files** under `~/.githerd/graphty-monorepo/jobs/<id>/`: `settings.json`,
@@ -963,7 +977,7 @@ Workers are prepared in parallel and started one at a time; only the span from `
    ```
    tmux -L githerd new-window -d -t githerd -n <job> -c <worktree> \
      env -i HOME=$HOME USER=$USER LANG=$LANG TERM=xterm-256color PATH=<login shell PATH> \
-            SSH_AUTH_SOCK=$SSH_AUTH_SOCK GPG_TTY=<pane tty> NX_CACHE_DIRECTORY=<shared> \
+            SSH_AUTH_SOCK=$SSH_AUTH_SOCK <the GIT_CONFIG_* signing variables> \
             GITHERD_JOB=<id> GITHERD_NONCE=<nonce> \
      claude --model <opus-5.5 or fable> -n githerd-<job> --permission-mode default \
             --settings <jobs/id>/settings.json --mcp-config <jobs/id>/mcp.json \
@@ -977,6 +991,14 @@ Workers are prepared in parallel and started one at a time; only the span from `
    exports back), so the owner's own Stop and Notification hooks, which still run in a worker,
    cannot page from it. Claude Code sets about ten `CLAUDE*` variables of its own in every hook and
    Bash process; the self-test allows exactly those.
+
+   Commits are signed with the owner's SSH signing key, which his user settings select for every
+   Claude session through `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n` and `GIT_CONFIG_VALUE_n`
+   (`gpg.format=ssh`, `user.signingkey`). The daemon reads those variables from his user settings
+   and puts them on this line and on its own git commands (the signing probe, `visual-review
+   update`, the reference worktree's merges). Without them git falls back to his gpg key, whose
+   pinentry cannot run without a terminal: verified, the probe fails with "Inappropriate ioctl for
+   device" and leaves a `gpg-agent` behind (S28 in the plan). No `GPG_TTY` is passed.
 
    The rule "decide reversible questions yourself" is in the launch prompt, because the launch
    prompt counts as the user's words: Opus 5.5 obeys a Stop-hook reason that agrees with the user,
@@ -1522,7 +1544,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Queued pushes die at the tool timeout and livelock with recycling | The daemon runs pushes; jobs wait on `push` (4.8) |
 | Urgent fixes queued behind routine pushes | Priority in the push queue (4.8) |
 | A local gate failure looped every job | Local failure keys, shared local incidents, gate on the green commit (4.4, 4.9) |
-| Cold Nx cache in fresh worktrees | Shared `NX_CACHE_DIRECTORY` [R16], [S23]. Gate results cached by tree id: not adopted, the shared Nx cache covers it |
+| Cold Nx cache in fresh worktrees | Nx 22.7 shares the main checkout's cache with every worktree on its own; `NX_CACHE_DIRECTORY` is never set, because it made Nx report hits and restore nothing [S23]. Gate results cached by tree id: not adopted, the shared Nx cache covers it |
 | A full job for a title fix; commitlint without node_modules | Ring the open session or a `title` job; commitlint in the reference worktree (3.3) |
 | The owner's Finish commit forced a second review | Patch id excludes `visual-baselines/**` (4.6) |
 | The abandoned rule took pull requests waiting on the owner | Excluded; only githerd pull requests are taken (3.3) |

@@ -661,3 +661,242 @@ extra usage", and the analytics names `rate_limit_options_menu_select_extra_usag
 `rate_limit_options_menu_select_auto_resume`. Verdict: not testable without spending; record the
 first real occurrence. Design: no change. githerd already never types into an unknown screen; the
 menu's paid option is one more reason (8.3).
+
+---
+
+## 8. Machine and repository spikes run on 2026-10-03 (group C of the plan)
+
+Run on this machine (Docker container, kernel 5.15, Nx 22.7.12, pm2 6.0.14 as servherd ships it,
+git 2.x with the owner's settings) from `tmp/githerd/spikes-c/` in the githerd worktree. The scripts
+are copied to `spikes-2026-10-03/` beside this file with the spike's name as prefix. Two throwaway
+worktrees detached at master's tip (6f5b7ae7e) were made for 8.1 and 8.8 and removed afterwards
+with `git worktree remove` (no `--force`); every process the spikes started was gone at the end.
+One trap for anyone repeating these: the Claude Code Bash tool exports a `grep` shell function
+(ugrep with `-I`) into child scripts, and it silently reads nothing from `/proc/locks`; the scripts
+call `/usr/bin/grep`.
+
+### 8.1 S23: Nx already shares one cache across worktrees; `NX_CACHE_DIRECTORY` breaks it
+
+Nx 22.7 resolves its cache directory to the MAIN checkout's `.nx/cache` from any git worktree
+(`nx/dist/src/utils/cache-directory.js`: "In a git worktree this resolves to the main repo's cache
+dir so all worktrees share the same cache"). `s23-run.sh` gave two fresh worktrees the same
+never-built edit (an exported constant appended to `graph-format/src/constants.ts`), built five
+projects in both at the same time, removed `dist` and built each again, with `NX_CACHE_DIRECTORY`
+unset:
+
+```
+== phase 1: A and B at the same time, both cold
+A rc=0 B rc=0 together 11s
+  A: > nx run graph-format:build ... > nx run layout:build   (5 run, no cache)
+  B: > nx run graph-format:build ... > nx run layout:build   (5 run, no cache)
+  outputs (digest, files): A 131304f5271b1623 1348  B 131304f5271b1623 1348
+== phase 2: dist removed in both, each builds again
+A: rc=0 2s   > nx run graph-format:build  [local cache] ... (5 out of 5 tasks from the cache)
+B: rc=0 1s   > nx run graph-format:build  [local cache] ... (5 out of 5 tasks from the cache)
+  outputs (digest, files): A 131304f5271b1623 1348  B 131304f5271b1623 1348
+```
+
+The new entries landed in the main checkout (`.nx/cache/5431733782050306101`, among 3208); the
+worktrees have no `.nx/cache` of their own. A fresh worktree of master hit entries the main
+checkout had built hours earlier and restored them (`graph-format/dist`: 6 files).
+
+The same build with the variable the design planned to set:
+
+```
+$ NX_CACHE_DIRECTORY=<empty dir> nx run graph-format:build
+> nx run graph-format:build  [local cache]
+Nx read the output from the cache instead of running the command for 1 out of 1 tasks.
+dist after: ls: cannot access 'graph-format/dist': No such file or directory
+empty-cache now holds: run.json terminalOutputs
+```
+
+Nx reported a cache hit for a hash the main checkout had built and restored nothing: a "built"
+worktree with no build output. Verdict: passes, without the variable; with it, a silent broken
+build. Design: `NX_CACHE_DIRECTORY` is removed from the worker environment and from 4.8; the main
+checkout's cache is the shared one, so githerd never deletes or moves the main checkout's `.nx`,
+and a preparation checks that `dist` exists after the build rather than trusting the exit code.
+
+### 8.2 S24: a killed gate releases the lock, but the usual way of taking it hides it from `/proc/locks`
+
+`s24-run.sh` (gates that take the lock as a script does, `exec 9>file; flock 9`, then run a step):
+
+```
+== case 1: one holder, two waiters; SIGKILL the holder's bash only, then its step
+/proc/locks (the '->' lines are waiters):                  <- nothing listed
+waiters counted from /proc/locks: 0
+after SIGKILL of the holder bash only: lock held; the step still has fd 9 -> .../push.lock
+  C got the lock ... B got the lock                        <- only after the step was killed too
+after the step is killed too: lock free
+== case 2: SIGKILL of the holder's whole process group
+holder pgid 170392, waiters: 0
+after kill -9 -170392: lock free
+== case 3: holder exits normally, but a step left a detached child (like a daemon)
+detached child 170545, fd 9 ->                             <- a child Node spawns does not inherit it
+lock after the holder exited: free
+```
+
+`s24-forms.sh` compared the two ways of taking the lock:
+
+```
+== form 1: exec 9>file; flock 9
+  /proc/locks lines for the file: 0
+  pid 177879 (sleep) fd 9 fdinfo: lock: 1: FLOCK ADVISORY WRITE 0 103:07:144075746 0 EOF
+  pid 177911 (bash) fd 9 fdinfo:                                          <- a waiter: no lock line
+== form 2: flock file command
+  /proc/locks lines for the file: 2
+    13: FLOCK  ADVISORY  WRITE 178076 103:07:144075746 0 EOF
+    13: -> FLOCK  ADVISORY  WRITE 178103 103:07:144075746 0 EOF
+  SIGKILL the holding flock process 178076 only:
+  lock now: held, kept by its command
+  /proc/locks lines for the file: 0
+```
+
+The kernel records the pid of the process that called `flock`. In form 1 that is the short-lived
+`flock` command, so the owner pid is gone at once, and `/proc/locks` in this pid namespace skips the
+lock and every waiter queued behind it. Form 2 lists holder and waiters only while the `flock`
+process lives. What always works: `/proc/<pid>/fdinfo/<fd>` of every process that has the lock
+file open carries a `lock:` line for the holder and none for a waiter. The same scan showed another
+session's real `flock .../tmp/prepush.lock git push` waiting at the time.
+
+Verdict: release on SIGKILL passes, provided the whole process group dies (any step a shell starts
+inherits the descriptor and keeps the lock); waiter visibility in `/proc/locks` fails for the form
+a script uses. Design: the holder and the waiters are read from `fdinfo` (holder: open with a
+`lock:` line; waiter: open without one), with the holder's sidecar file for the name; the gate runs
+its background SonarQube step with the lock's descriptor closed (`9>&-`), because that step lives
+in its own process group and would otherwise keep the lock after a SIGKILLed gate; the daemon
+starts each push in its own process group and kills the group.
+
+### 8.3 S25: a container restart changes PID 1's start time and keeps `boot_id`
+
+The container restarted at 13:05 today; the host did not. Before (an earlier spike, 11:49 PDT) and
+after (13:14):
+
+```
+before: boot_id cd3c57e9-3ba7-4053-a243-28276cec4f12  pid1 starttime ticks 26505    btime 1791045732
+after:  boot_id cd3c57e9-3ba7-4053-a243-28276cec4f12  pid1 starttime ticks 1220476  btime 1791045732
+        PID 1: /sbin/docker-init -- sudo -E supervisord ..., started Sat Oct 3 13:05:36 2026
+```
+
+A reading from the night before (boot_id 3996c046-..., ticks 55133) predates the host's reboot at
+09:42, which changed both. Verdict: passes. Design: none; repo fact R21 is now measured.
+
+### 8.4 S26: pm2 with `autorestart` brings a killed process back in under 300 ms; servherd today does not
+
+Baseline through servherd (started with `servherd_start`, then `kill -9` of its pid):
+
+```
+PM2 log: App [servherd-githerd-spike-s26:7] exited with code [0] via signal [SIGKILL]
+5 s later: pgrep finds no process
+```
+
+`s26-run.mjs`, pm2 6.0.14 from servherd's own `node_modules`, on a private `PM2_HOME` (never the
+shared daemon), three SIGKILLs per trial:
+
+```
+[s26-off] options {"autorestart":false}
+  kill 1: pid 243116 -> not back within 8 s (status stopped, restarts 0)
+[s26-on] options {"autorestart":true,"exp_backoff_restart_delay":100}
+  kill 1: pid 243368 -> 243389 after 155 ms (status online, restarts 1)
+  kill 2: pid 243389 -> 243400 after 204 ms (status online, restarts 2)
+  kill 3: pid 243400 -> 243440 after 254 ms (status online, restarts 3)
+pm2.log: will restart in 100ms / 150ms / 225ms
+leftovers: none
+```
+
+The container restart showed the limit: pm2 itself died with the container and its new daemon
+started at 13:14:25, nine minutes later, when a session next called servherd; servherd has no code
+that restores its servers. Verdict: passes for a crash; a container restart is not covered.
+Design: none; 9.4 already counts on the session launchers and `githerd ensure` for that case.
+
+### 8.5 S27: githubstatus.com is readable without auth and names Actions
+
+```
+$ curl https://www.githubstatus.com/api/v2/components.json
+HTTP 200 application/json; charset=utf-8 4197 bytes
+Actions | operational | br0l2tvcx85d   (also Git Operations, Webhooks, API Requests, Pull Requests, ...)
+If-None-Match: <etag> -> HTTP 304;  cache-control: max-age=10, public
+```
+
+Verdict: passes; a conditional GET costs nothing. The id `br0l2tvcx85d` is stable; Statuspage's
+other values are `degraded_performance`, `partial_outage`, `major_outage`, `under_maintenance`.
+Design: none.
+
+### 8.6 S28: signing works non-interactively with the owner's SSH key, and fails with his gpg key
+
+The owner's git config signs with gpg key 82C5294EF3BBB742 (`commit.gpgsign true`), but his user
+settings' `env` sets `GIT_CONFIG_COUNT=2`, `gpg.format=ssh`, `user.signingkey=~/.ssh/git_signing_claude.pub`
+for every Claude session; the private key has no passphrase and no agent is running.
+`s28-run.sh` runs `git commit-tree -S` in a scratch repository under `setsid env -i HOME USER LANG
+TERM PATH`, stdin from `/dev/null`:
+
+```
+[worker env, owner's Claude git variables] exit=0 ms=6
+  gpgsig -----BEGIN SSH SIGNATURE-----
+[plain env -i, no Claude git variables (global gpg key)] exit=1 ms=1012
+  error: gpg failed to sign the data:
+  [GNUPG:] PINENTRY_LAUNCHED 180105 curses 1.2.1 - xterm-256color - - 1000/1000 -
+  gpg: signing failed: Inappropriate ioctl for device
+$ git -c gpg.ssh.allowedSignersFile=~/.ssh/git_allowed_signers verify-commit c91527cb6f
+Good "git" signature for apowers@ato.ms with ED25519 key SHA256:rBWydxtu1MUhJDHn5lKOT1pDExSS0slJzafG8ShWZSc
+```
+
+The failed gpg attempt left a `gpg-agent` running (stopped with `gpgconf --kill gpg-agent`).
+Verdict: passes in 6 ms with the SSH variables; without them a process started like a worker
+cannot sign at all. Design: the worker's `env -i` line and the daemon's own git commands (probe,
+`visual-review update`, the reference worktree's merge) carry the three `GIT_CONFIG_*` signing
+variables read from the owner's user settings; `GPG_TTY` is dropped; the probe uses exactly that
+environment, and a gpg error in it is a credential item as before.
+
+### 8.7 S29: real reject comments parse; `visual-review update` is safe unattended but skips the gate
+
+Four owner comments on GitHub carry the block (read-only search: pull requests 409, 490, 641).
+`s29-parse.mjs` applies githerd's marker test (`<!--\s*visual-review-rejects\b`, `lib/prs.mjs`)
+and parses the JSON between the marker line and `-->`:
+
+```
+s29-comment-mixed.md: marker true; block parsed; pr=409 items=2 commit=8937b6f900... files=components-lists-and-trees-tree--playground.dark.png ...
+s29-comment-rejects-only.md: marker true; block parsed; pr=641 items=28 commit=none files=algorithms-flow--bipartite-matching.png ...
+```
+
+The real block spans three lines and escapes `--` as `--` inside the JSON; githerd's test
+fixture is a one-line block with no fields, so the copies here replace it. A mixed Finish commits
+its accepts first (8937b6f900 at 17:21:17) and posts the comment after (17:23:18), so the comment
+is newer than the head, as githerd's "newer than the head" rule needs.
+
+`visual-review update <pr>` (`trusted/cli.mjs`, `updateFromMaster` in `lib/accept.mjs`) asks
+nothing: git runs with `GIT_TERMINAL_PROMPT=0` and hooks off. Exit 0 after a push, 1 with nothing
+changed for a conflict outside `visual-baselines/`, a branch that already has master, or a branch
+that moved during the update, 2 without a number. Its tests pass (`vitest run
+test/update.test.mjs`: 7 of 7, including "exits 1 with the files on a code conflict"). It was not
+run against a real pull request, because it pushes. Two things matter for githerd: it commits with
+whatever signing the caller's environment gives (8.6), and it pushes with `--no-verify`, so it
+neither runs the gate nor takes the push lock. Verdict: passes. Design: the daemon runs it as an
+entry of its own push queue, serialized with gate pushes, with the signing variables.
+
+### 8.8 S31: the release dry-run gives a clear answer in 7 seconds
+
+In a fresh worktree of master (`pnpm exec nx release --dry-run --skip-publish`, `NX_DAEMON=false`):
+
+```
+webgpu-graph-algorithms (no changes were detected using git history and the conventional commits standard)
+... the same for all 11 projects ...
+ NX   No files would be changed as a result of running versioning
+NOTE: The "dryRun" flag means no changes were made.            (real 6.6 s; git status clean)
+```
+
+After one local commit `fix(graph-format): ...` (never pushed; the worktree was removed):
+
+```
+graph-format  Resolved the current version as 1.3.0 from git tag "graph-format@1.3.0"
+graph-format  New version 1.3.1 written to manifest: graph-format/package.json
+graph-io  Applied semver relative bump "patch", because a dependency was bumped, to get new version 0.3.21
+... 15 "New version ... written" lines (some projects print theirs twice), dependents included
+```
+
+nx prints emoji before each line (dropped above); the ASCII phrases "New version <v> written to
+manifest: <project>/package.json" and "No files would be changed" are the stable parts. The
+dry-run does not apply `release-hold.json` (empty today); `release.yml` does, with
+`tools/release-hold.mjs apply`. Verdict: passes. Design: the reference worktree's dry-run runs
+`node tools/release-hold.mjs apply` first, as the repository's documented preview does, and reads
+the per-project "New version" lines; the merge it makes for a pull request's dry-run is a local,
+signed, never-pushed commit.

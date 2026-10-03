@@ -61,8 +61,10 @@ Each fact has a short id (R1, R2, ...) that the design cites.
   machine-readable block carries the" rejects (`visual-review/README.md`, lines 473 and 497-506).
 - **R15** `.claude/settings.json` on master holds only deny rules for reading secret files. It
   registers no hooks and no MCP servers.
-- **R16** `nx.json` sets `cacheDirectory: ".nx/cache"`, a path inside each checkout, so every new
-  worktree starts with an empty Nx cache.
+- **R16** `nx.json` sets `cacheDirectory: ".nx/cache"`. Nx 22.7 resolves that path against the
+  main checkout from any git worktree (`nx/dist/src/utils/cache-directory.js`), so every worktree
+  shares the main checkout's cache (measured 2026-10-03, platform facts 8.1). An earlier reading
+  of this entry, that each new worktree starts with an empty cache, was wrong.
 
 ## Measured durations (runs from 2026-09-28 on, successful runs only; `ci-durations.mjs`)
 
@@ -83,7 +85,7 @@ Each fact has a short id (R1, R2, ...) that the design cites.
 - **R20** `supervisord` runs in the container with `/usr/local/etc/supervisord.conf`, whose
   programs use `autorestart=unexpected`.
 - **R21** `/proc/sys/kernel/random/boot_id` is the host's (a container restart does not change it;
-  inferred from how Linux namespaces work, not tested by a restart). PID 1's start time
+  measured across the container restart of 2026-10-03, platform facts 8.3). PID 1's start time
   (`/proc/1/stat` field 22) belongs to the container and changes when it restarts.
 - **R22** The owner's `~/.claude/settings.json` sets no `permissions.defaultMode`, and its
   `autoMode.environment` describes a different repository (emergent-concepts-paper), which a

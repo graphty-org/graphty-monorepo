@@ -13,20 +13,28 @@ const element = document.querySelector("graphty-element")!;
 const box = document.querySelector<HTMLInputElement>("#find")!;
 const list = document.querySelector<HTMLUListElement>("#hits")!;
 
-box.addEventListener("input", () => {
+function show(): void {
     const found = element.session.find(box.value, { limit: 10 });
     list.replaceChildren(
-        ...found.records.map((hit) => {
+        ...found.records.flatMap((hit) => {
             const li = document.createElement("li");
-            li.textContent = hit.kind === "node" ? hit.name : `${hit.ends.source.name} - ${hit.ends.target.name}`;
+            if (hit.kind === "node") {
+                li.textContent = hit.name;
+            } else if (hit.kind === "edge") {
+                li.textContent = `${hit.ends.source.name} -> ${hit.ends.target.name}`;
+            } else {
+                return []; // a kind added in a later release: leave it out
+            }
             li.onclick = async () => {
                 await element.session.selection.apply(hit.target);
-                await element.zoomToSelection();
+                await element.zoomToSelection(); // frames a node, or an edge by its two ends
             };
-            return li;
+            return [li];
         }),
     );
-});
+}
+box.addEventListener("input", show);
+element.session.on("project:changed", show); // an undo or a new load changes what matches
 ```
 
 `find` is synchronous, so it can run on every keystroke. The first call after the data changes
@@ -50,7 +58,8 @@ same page shape as `session.data.nodePage()`.) Every hit has:
   otherwise the attribute's column key as `session.data.attributes()` reports it, such as
   `"data.name"`.
 - `target`: a selection target naming exactly this element, for `session.selection.apply`.
-- `excludedBy: { kind: "filter" }`, only when `session.visibility` hides the element. The time
+- `excludedBy: { kind: "filter" }`, only when `session.visibility` hides the element (the
+  element is hidden; it has nothing to do with the text typed). The time
   window is part of that filter, so it is reported the same way. Hidden elements are still found
   by default; your list decides how to show them. Pass `scope: "visible"` to leave them out
   instead, and then no hit carries `excludedBy`.
@@ -78,8 +87,9 @@ function label(hit: FindHit): string | null {
 ```
 
 The result is a page: `records`, `offset`, `total` (every hit, not just this page) and `revision`
-(it changes when the data does: call `find` again and compare, so a list held across an undo can
-tell it is stale). When `total` is more than `offset + records.length`, there are more hits to
+(it changes when the data does). The quick start simply calls `find` again on every
+`project:changed` event; `revision` is for a list you keep and want to check without redrawing,
+by calling `find` again and comparing the two. When `total` is more than `offset + records.length`, there are more hits to
 page to.
 
 ## What is searched
@@ -126,9 +136,20 @@ regular expression or an expression is not run while the reader types, because a
 pattern is usually invalid and some patterns are slow. Run it when the reader commits, with
 `session.selection.apply({ text: box.value })`.
 
-The two do not match alike yet. `selection.apply({ text })` searches nodes only, by id and
-attribute values; with an attribute prefix it wants the whole value (ignoring case), and
-`exact:` is case-sensitive. A later major release moves it onto the matcher `find` uses.
+Commit plain text by picking from the list instead: a hit's `target`, or a value row's. Only
+call `selection.apply({ text })` when `notSearchable` is set, because the two do not match alike
+yet. `selection.apply({ text })` searches nodes only, by id and attribute values; with an
+attribute prefix it wants the whole value (ignoring case), and `exact:` is case-sensitive there
+while `find` ignores case. So committing plain text through it can select something other than
+what the list showed. A later major release moves it onto the matcher `find` uses.
+
+```typescript
+box.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && element.session.find(box.value).notSearchable) {
+        void element.session.selection.apply({ text: box.value });
+    }
+});
+```
 
 ## Options
 

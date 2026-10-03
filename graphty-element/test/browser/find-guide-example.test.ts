@@ -31,20 +31,32 @@ describe("the finding guide's example", () => {
         const list = document.querySelector<HTMLUListElement>("#hits")!;
 
         // --- the guide's code ---
-        box.addEventListener("input", () => {
+        function show(): void {
             const found = element.session.find(box.value, { limit: 10 });
             list.replaceChildren(
-                ...found.records.map((hit) => {
+                ...found.records.flatMap((hit) => {
                     const li = document.createElement("li");
-                    li.textContent =
-                        hit.kind === "node" ? hit.name : `${hit.ends.source.name} - ${hit.ends.target.name}`;
+                    if (hit.kind === "node") {
+                        li.textContent = hit.name;
+                    } else if (hit.kind === "edge") {
+                        li.textContent = `${hit.ends.source.name} -> ${hit.ends.target.name}`;
+                    } else {
+                        return []; // a kind added in a later release: leave it out
+                    }
                     li.onclick = async () => {
                         await element.session.selection.apply(hit.target);
-                        await element.zoomToSelection();
+                        await element.zoomToSelection(); // frames a node, or an edge by its two ends
                     };
-                    return li;
+                    return [li];
                 }),
             );
+        }
+        box.addEventListener("input", show);
+        element.session.on("project:changed", show); // an undo or a new load changes what matches
+        box.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && element.session.find(box.value).notSearchable) {
+                void element.session.selection.apply({ text: box.value });
+            }
         });
         // --- end ---
 
@@ -60,11 +72,32 @@ describe("the finding guide's example", () => {
         box.dispatchEvent(new Event("input"));
         assert.deepEqual(
             [...list.children].map((li) => li.textContent),
-            ["Valjean - Javert"],
+            ["Valjean -> Javert"],
         );
         await (list.children[0] as HTMLLIElement).onclick?.(new PointerEvent("click"));
         assert.lengthOf(session.selection.edges, 1, "the click selected the edge");
         assert.strictEqual(framed, 1, "and framed it");
+
+        await session.data.addNodes([{ id: "n3", name: "Javert's brother" }]);
+        assert.lengthOf(list.children, 1, "still the edge: the box reads purs");
+        box.value = "jav";
+        box.dispatchEvent(new Event("input"));
+        await session.data.addNodes([{ id: "n4", name: "Javotte" }]);
+        assert.deepEqual(
+            [...list.children].map((li) => li.textContent),
+            ["Javert", "Javert's brother", "Javotte"],
+            "a data change redraws the list",
+        );
+
+        session.selection.clear();
+        box.value = "Javert";
+        box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.lengthOf(session.selection.nodes, 0, "Enter on plain text commits nothing");
+        box.value = "regex:^Jav";
+        box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
         session.dispose();
     });
 

@@ -1763,7 +1763,7 @@ export class Graphty extends LitElement {
     /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
-     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * Set, it places the 3D camera at this distance from the orbit center (never closer than the
      * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
      * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
      * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
@@ -2262,7 +2262,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * Center the camera on the selection -- its nodes and the ends of its edges -- keeping where
      * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options

@@ -5521,9 +5521,9 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Centre the camera on the selection, keeping where it stands.
+     * Center the camera on the selection, keeping where it stands.
      *
-     * The camera turns to look at the centre of the box around the selected nodes and the ends
+     * The camera turns to look at the center of the box around the selected nodes and the ends
      * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.

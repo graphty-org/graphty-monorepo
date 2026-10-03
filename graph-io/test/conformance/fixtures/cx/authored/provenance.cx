@@ -1,0 +1,13 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1,"n":"a"},{"@id":2,"n":"b"},{"@id":3,"n":"complex"}]},
+{"edges":[{"@id":5,"s":1,"t":2,"i":"increases"}]},
+{"citations":[{"@id":7,"dc:identifier":"pmid:12345","dc:title":"A paper","dc:contributor":["A. Author"],"dc:type":"URI","attributes":[{"n":"year","v":"2001","t":"integer"}]}]},
+{"supports":[{"@id":8,"citation":7,"text":"a supporting sentence","attributes":[]}]},
+{"edgeCitations":[{"po":[5],"citations":[7]}]},
+{"edgeSupports":[{"po":[5],"supports":[8]}]},
+{"nodeCitations":[{"po":[1,2],"citations":[7]}]},
+{"functionTerms":[{"po":3,"f":"bel:complexAbundance","args":[{"f":"bel:proteinAbundance","args":["HGNC:A"]},"HGNC:B"]}]},
+{"reifiedEdges":[{"node":3,"edge":5}]},
+{"status":[{"error":"","success":true}]}
+]

@@ -1,0 +1,8 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1}]},
+{"ndexStatus":{"externalId":"x","published":true,"nodeCount":1}},
+{"provenanceHistory":[{"entity":{"uri":"https://example.org","creationEvent":{"eventType":"create"}}}]},
+{"@context":[{"HGNC":"http://identifiers.org/hgnc/"}]},
+{"status":[{"error":"","success":true}]}
+]

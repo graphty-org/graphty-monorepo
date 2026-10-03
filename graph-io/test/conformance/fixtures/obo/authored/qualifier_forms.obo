@@ -1,0 +1,18 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+is_a: X:2 {a="1"}{b="2"}
+is_a: X:3 {a="1",b="x, y"}
+relationship: part_of X:2 {http://purl.obolibrary.org/obo/IAO_0010000="ax"}
+is_a: X:3 {a="1",b="x, y"}
+
+[Term]
+id: X:2
+
+[Term]
+id: X:3
+
+[Typedef]
+id: part_of

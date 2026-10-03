@@ -29,11 +29,12 @@
  * Usage: node tools/check-legacy-use.mjs              (exit 1 on any use)
  *        node tools/check-legacy-use.mjs --self-test  (prove each rule fires on a seeded fixture)
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+
+import { scratchWorkspace } from "./scratch-workspace.mjs";
 
 const ALGORITHMS = "@graphty/algorithms";
 const LAYOUT = "@graphty/layout";
@@ -332,11 +333,7 @@ function check(rootDir) {
  * replacement API is not.
  */
 function selfTest() {
-    const dir = mkdtempSync(join(tmpdir(), "legacy-use-"));
-    const write = (file, body) => {
-        mkdirSync(dirname(join(dir, file)), { recursive: true });
-        writeFileSync(join(dir, file), body);
-    };
+    const { dir, write } = scratchWorkspace("legacy-use-");
     try {
         write(
             "pnpm-workspace.yaml",

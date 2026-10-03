@@ -13,6 +13,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 
 import {
     APSP_TILE,
+    BC_SIGMA_EXPONENT_CAP,
     EXACT_TILES_PER_PASS,
     F32_INF_BITS,
     F32_SIGN_BIT,
@@ -76,6 +77,7 @@ const RADIX_DIGIT_MASK: u32 = ${RADIX_BINS - 1}u;
 const APSP_TILE: u32 = ${APSP_TILE}u;
 const GROUP_HASH_LOAD_FACTOR: u32 = ${GROUP_HASH_LOAD_FACTOR}u;
 const TRIANGLE_BINARY_SEARCH_RATIO: u32 = ${TRIANGLE_BINARY_SEARCH_RATIO}u;
+const BC_SIGMA_EXPONENT_CAP: i32 = ${BC_SIGMA_EXPONENT_CAP}i;
 const F32_MAX: f32 = 0x1.fffffep+127;
 override WG: u32 = ${WORKGROUP_SIZE}u;
 override USE_PERM: bool = false;
@@ -85,6 +87,8 @@ override SUBGROUP_MAX: u32 = 0u;
 
 fn linear_id(wid: vec3<u32>, lid: u32) -> u32 { return (wid.x + wid.y * MAX_WORKGROUPS_PER_DIM) * WG + lid; }
 fn group_id(wid: vec3<u32>) -> u32 { return wid.x + wid.y * MAX_WORKGROUPS_PER_DIM; }
+// betweenness: the power of two the counts of depth L + 1 are divided by, from the f32 bits of depth L's largest count
+fn sigma_shift(maxBits: u32) -> i32 { return max(0i, i32((maxBits >> 23u) & 0xffu) - 127i - BC_SIGMA_EXPONENT_CAP); }
 fn lowbias32(x0: u32) -> u32 {
     var x = x0;
     x = x ^ (x >> 16u);

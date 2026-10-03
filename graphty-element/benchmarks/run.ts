@@ -20,10 +20,13 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import { fromEdgeArrays, type GraphSnapshot, makeMask } from "@graphty/graph-format";
 import { barabasiAlbertGraph } from "@graphty/graph-samples/generators";
 
+// The harness is graph-format's, shared by relative path (graph-format is lower in the dependency chain).
+import { appendSession, bench, type BenchResult, benchTimed, printTable } from "../../graph-format/benchmarks/harness";
 import { revisionOf } from "../src/catalog/sets/hash";
 import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
 import { EDGE_ID_COLUMN, stableEdgeMember } from "../src/data/edgeIdentity";
@@ -35,7 +38,6 @@ import { addEdgeRow, digestOf, edgeMemberKey, resolveFixed, resolveScope } from 
 import { createSetsApi, sessionEdgeMember } from "../src/session/sets/SetsApi";
 import type { GraphSession } from "../src/session/types";
 import { ingestEdge, ingestNode } from "../test/helpers/rawIngest";
-import { appendSession, bench, type BenchResult, benchTimed, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
 const NODES = LARGE ? 1_000_000 : 100_000;
@@ -512,5 +514,5 @@ for (const name of names) {
     all.push(...results);
 }
 if (save && all.length > 0) {
-    console.log(`\nresults appended to ${appendSession(all)}`);
+    console.log(`\nresults appended to ${appendSession(all, fileURLToPath(new URL("results", import.meta.url)))}`);
 }

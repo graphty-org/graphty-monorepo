@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen, waitFor } from "../../../../test/test-utils";
+import { render, screen, TOOLTIP_FIND_OPTIONS, waitFor } from "../../../../test/test-utils";
 import { ACTIVITIES_REQUIRING_DATA } from "../../constants";
 import { ActivityRail } from "../ActivityRail";
 
@@ -99,13 +99,13 @@ describe("ActivityRail", () => {
             expect(styles.paddingRight).toBe("0px");
         });
 
-        it("draws the 16 px glyph the register reserves for rail items", () => {
+        it("draws the glyph in the library's 24 px glyph slot, as Figma's rail does", () => {
             render(<ActivityRail activeActivity={null} onActivityClick={vi.fn()} />);
 
             const glyph = item("Data").querySelector("svg");
 
-            expect(glyph?.getAttribute("width")).toBe("16");
-            expect(glyph?.getAttribute("height")).toBe("16");
+            expect(glyph?.getAttribute("width")).toBe("24");
+            expect(glyph?.getAttribute("height")).toBe("24");
         });
 
         it("pushes Settings and Help to the bottom with a growing spacer", () => {
@@ -332,7 +332,9 @@ describe("ActivityRail", () => {
 
             await user.hover(item("Help and keyboard shortcuts"));
 
-            expect(await screen.findByText("Help and keyboard shortcuts (?)")).toBeInTheDocument();
+            expect(
+                await screen.findByText("Help and keyboard shortcuts (?)", {}, TOOLTIP_FIND_OPTIONS),
+            ).toBeInTheDocument();
         });
 
         it("opens a disabled activity's reason on hover", async () => {
@@ -342,7 +344,7 @@ describe("ActivityRail", () => {
 
             await user.hover(item("Explore. Load data first"));
 
-            expect(await screen.findByText("Explore. Load data first")).toBeInTheDocument();
+            expect(await screen.findByText("Explore. Load data first", {}, TOOLTIP_FIND_OPTIONS)).toBeInTheDocument();
         });
     });
 
@@ -378,9 +380,7 @@ describe("ActivityRail", () => {
         });
 
         it("draws the open menu outside the rail, anchored beside the Help item", async () => {
-            render(
-                <ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu(vi.fn(), true)} />,
-            );
+            render(<ActivityRail activeActivity={null} onActivityClick={vi.fn()} helpMenu={helpMenu(vi.fn(), true)} />);
 
             // Mantine labels the menu by its opener.
             const menu = await screen.findByRole("menu", { name: "Help and keyboard shortcuts" });

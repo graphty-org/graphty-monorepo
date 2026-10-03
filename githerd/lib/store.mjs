@@ -583,7 +583,9 @@ export async function drainSpool(dir, handle) {
     const spool = join(dir, SPOOL);
     let names;
     try {
-        names = (await readdir(spool)).filter((n) => n.endsWith(".json")).sort();
+        names = (await readdir(spool))
+            .filter((n) => n.endsWith(".json"))
+            .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
     } catch (err) {
         if (err.code === "ENOENT") return { handled: 0, bad: [] };
         throw err;

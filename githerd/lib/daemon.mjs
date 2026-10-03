@@ -49,6 +49,7 @@ import { accessSync, constants, mkdirSync, readFileSync, renameSync, writeFileSy
 import { createServer } from "node:http";
 import { basename, delimiter, join } from "node:path";
 import { homedir } from "node:os";
+import { inspect } from "node:util";
 
 import { pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
@@ -1506,7 +1507,7 @@ export async function startDaemon({
      * @param {unknown} err what was thrown
      */
     const onUncaught = (err) => {
-        const stack = String(/** @type {Error} */ (err)?.stack ?? err);
+        const stack = err instanceof Error ? (err.stack ?? err.message) : inspect(err);
         ledger({ kind: "exception", stack });
         enterFatal(`uncaught exception: ${stack}`);
     };

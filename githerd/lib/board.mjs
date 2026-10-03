@@ -333,7 +333,7 @@ export function byOwner(state, who) {
 const HOUR = 60 * MINUTE;
 
 /** The job kinds of design 5.1. A kind exists only if GitHub or the machine can check it done. */
-const KINDS = ["incident", "pr", "issue", "triage", "review", "title", "major"];
+const KINDS = new Set(["incident", "pr", "issue", "triage", "review", "title", "major"]);
 
 /**
  * Every state and the states it may move to (design 5.3). `cancelled` is an exit of every
@@ -416,7 +416,7 @@ const VERIFY_POLLS = 2;
  * @returns {Job} the record
  */
 export function newJob({ kind, target, id, priority = null, reason = "", facts = {} }, now) {
-    if (!KINDS.includes(kind)) throw new Error(`unknown job kind ${kind}`);
+    if (!KINDS.has(kind)) throw new Error(`unknown job kind ${kind}`);
     const working = kind === "incident" ? WORKING_MS.incident : WORKING_MS.other;
     return {
         id: id ?? `${kind}-${target}`,

@@ -52,6 +52,11 @@
             "import": "./dist/neo4j.js",
             "default": "./dist/neo4j.js"
         },
+        "./xgmml": {
+            "types": "./dist/xgmml.d.ts",
+            "import": "./dist/xgmml.js",
+            "default": "./dist/xgmml.js"
+        },
         "./cx2": {
             "types": "./dist/cx2.d.ts",
             "import": "./dist/cx2.js",
@@ -66,6 +71,11 @@
             "types": "./dist/obo.d.ts",
             "import": "./dist/obo.js",
             "default": "./dist/obo.js"
+        },
+        "./cys": {
+            "types": "./dist/cys.d.ts",
+            "import": "./dist/cys.js",
+            "default": "./dist/cys.js"
         }
     },
     "sideEffects": false,
@@ -115,6 +125,9 @@
         "csv",
         "json",
         "neo4j",
+        "xgmml",
+        "cys",
+        "cytoscape",
         "graph-format"
     ],
     "license": "MIT",

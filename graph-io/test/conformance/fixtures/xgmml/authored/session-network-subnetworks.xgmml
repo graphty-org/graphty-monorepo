@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="155" label="Set 1" cy:view="0" cy:registered="0" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <att>
+    <graph id="171" label="Na" cy:registered="1">
+      <node id="183" label="Node 1"><att><graph xlink:href="207-Set+2.xgmml#223"/></att></node>
+      <node id="182" label="Node 2"/>
+      <node id="181" label="Node 3"><att><graph xlink:href="#186"/></att></node>
+      <edge id="185" label="Node 1 (interaction) Node 2" source="183" target="182" cy:directed="1"/>
+      <edge id="184" label="Node 2 (interaction) Node 3" source="182" target="181" cy:directed="1"/>
+    </graph>
+  </att>
+  <att>
+    <graph id="186" label="Na.1" cy:registered="1">
+      <node xlink:href="#181"/>
+      <node xlink:href="#182"/>
+      <node id="196" label="Node 4"><att><graph xlink:href="#197"/></att></node>
+      <edge xlink:href="#184"/>
+      <edge id="199" label="Node 4 (interaction) Node 4" source="196" target="196" cy:directed="1"/>
+    </graph>
+  </att>
+  <att>
+    <graph id="197" label="Na.1.1" cy:registered="1">
+      <node xlink:href="#196"/>
+    </graph>
+  </att>
+</graph>

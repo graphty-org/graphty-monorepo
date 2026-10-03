@@ -123,7 +123,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 
 - The Web Component library is **graphty-element** (not "graphty")
@@ -277,6 +277,8 @@ The `tools/` directory contains build scripts:
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
 ### Secret Scan and Secret Files
@@ -293,6 +295,37 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.
+
+### SonarQube
+
+The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
+SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
+fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
+already has never blocks, even on a touched line. It runs in the background while the tests run.
+The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
+come from the environment or `.env`; never print the token or put it on a command line. Design and
+the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
+
+When the step fails:
+
+- **A finding on your changed lines: fix it.** That is the default, every time. Rerun the step
+  with `node tools/sonar-gate.mjs` (about a minute) after committing the fix.
+- **A false positive: `// NOSONAR(<rule>): <reason>`** on that line (the rule key, such as
+  `S2245`, and a reason of 10 or more characters; a bare `NOSONAR` or one naming a vulnerability
+  rule fails the push). A rule that is wrong for a whole file goes in
+  `sonar.issue.ignore.multicriteria` in `sonar-project.properties`, with a comment giving the
+  reason. Say in your reply which suppressions you added and why.
+- **Never bypass without saying so.** A `Sonar-Bypass: <reason>` trailer on the HEAD commit is for
+  a server defect or an emergency the owner agreed to, never for a finding nobody wants to fix; it
+  does not cover vulnerabilities or hotspots. `git push --no-verify` skips the whole gate (the build,
+  the tests, the LFS upload). If you use either, say so in your reply, with the reason.
+- **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
+  project): a setup problem. Report it to the owner with the message; do not work around it.
+- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+  next push from the owner's network checks the whole branch. Mention it in your reply.
+
+Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
+package at a time, never as part of feature work.
 
 ### Starting Servers
 
@@ -394,7 +427,7 @@ All packages: 80% lines/functions/statements, 75% branches
 | `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
-| `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |

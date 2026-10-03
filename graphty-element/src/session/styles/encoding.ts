@@ -85,6 +85,7 @@ import {
 import { defaultPaletteFor, overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
+    clamp,
     groupCount,
     isScaleMiss,
     quantileThresholds,
@@ -344,17 +345,6 @@ function readCategory(value: unknown): string | null {
 }
 
 /**
- * Hold a number inside an interval.
- * @param value - The number.
- * @param low - The lower bound.
- * @param high - The upper bound.
- * @returns The number, moved to the nearest bound when it was outside.
- */
-function hold(value: number, low: number, high: number): number {
-    return Math.max(low, Math.min(high, value));
-}
-
-/**
  * Whether a value carries red, green and blue components.
  * @param value - The value to test.
  * @returns True when it is a colour written as components rather than as a string.
@@ -472,7 +462,7 @@ function percentileValue(sorted: readonly number[], percentile: number): number 
         return Number.NaN;
     }
 
-    const at = ((sorted.length - 1) * hold(percentile, 0, 100)) / 100;
+    const at = ((sorted.length - 1) * clamp(percentile, 0, 100)) / 100;
     const below = Math.floor(at);
     const above = Math.min(below + 1, sorted.length - 1);
 
@@ -762,7 +752,7 @@ function converterFor(descriptor: ChannelDescriptor): ChannelConverter {
             return (scaled): EncodedValue | undefined => {
                 const value = typeof scaled === "number" ? scaled : readNumber(scaled);
 
-                return Number.isFinite(value) ? hold(value, low, high) : undefined;
+                return Number.isFinite(value) ? clamp(value, low, high) : undefined;
             };
         }
         case "enum":

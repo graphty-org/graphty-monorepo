@@ -1,0 +1,30 @@
+{
+    "format": "cys",
+    "description": "Cytoscape session files (authored by test/conformance/tools/make_cys_fixtures.py)",
+    "files": [
+        {
+            "path": "karate-3x.cys",
+            "source": "created from test/corpus/gml/karate.gml (Zachary 1977, Newman's copy http://www-personal.umich.edu/~mejn/netdata/)",
+            "license": "Academic",
+            "expectedNodes": 34,
+            "expectedEdges": 78,
+            "features": ["cytoscape-3", "undirected", "tables", "view", "social-network"]
+        },
+        {
+            "path": "authored-3x.cys",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 3,
+            "expectedEdges": 2,
+            "features": ["cytoscape-3", "subnetworks", "tables", "virtual-columns", "views", "groups"]
+        },
+        {
+            "path": "authored-2x.cys",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["cytoscape-2", "cysession", "selection"]
+        }
+    ]
+}

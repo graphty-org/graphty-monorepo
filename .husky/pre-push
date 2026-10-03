@@ -7,6 +7,12 @@
 # interactions and storybook projects are CI-only; tools/prepush.sh says why, with
 # the wall clock each one costs.
 #
+# It also runs "SonarQube (changed lines)" (tools/sonar-gate.mjs, in the background): a new SonarQube
+# issue or security hotspot on a line this push adds or changes fails the push. Off the owner's network
+# it passes with a warning. For a false positive: `// NOSONAR(<rule>): <reason>` on the line, or a
+# reasoned path entry in sonar-project.properties. Emergencies only: a `Sonar-Bypass: <reason>` trailer
+# on the HEAD commit (it never covers vulnerabilities or security hotspots).
+#
 # To skip this hook: git push --no-verify (this skips the Git LFS upload too; after such a push of
 # baseline images, run `git lfs push origin <branch>`)
 # To run manually: pnpm run prepush:fast

@@ -1,3 +1,4 @@
+import { opacityToAlphaHex, parseAlphaFromHexa, SWATCH_COLORS_HEXA } from "@graphty/compact-mantine";
 import {
     ActionIcon,
     Box,
@@ -11,9 +12,6 @@ import {
     TextInput,
 } from "@mantine/core";
 import React, { useEffect, useState } from "react";
-
-import { SWATCH_COLORS_HEXA } from "../../../constants/colors";
-import { opacityToAlphaHex, parseAlphaFromHexa } from "../../../utils/color-utils";
 
 interface CompactColorInputProps {
     /** Hex color value (e.g., "#5B8FF9") */

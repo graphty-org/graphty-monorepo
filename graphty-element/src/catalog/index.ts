@@ -75,6 +75,7 @@ export type {
     Selector,
     StaticStyle,
     StyleDocument,
+    SuggestedName,
     ThemeDescriptor,
 } from "./types";
 export {

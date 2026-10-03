@@ -434,6 +434,11 @@ describe("dot importer: the grammar", () => {
         expect(cell(snapshot, "graph", "ranksep", 0)).toBe(3);
         expect(cell(snapshot, "graph", "label", 0)).toBe("G label");
         expect(snapshot.graph.get("label")?.dtype).toBe("string");
+        // typed by the text's grammar, like a node attribute: "3" is i32, "2.0" stays f64
+        const typed = await load("digraph { graph [whole=3, real=2.0, flag=true]; a }");
+        expect(typed.snapshot.graph.get("whole")?.dtype).toBe("i32");
+        expect(typed.snapshot.graph.get("real")?.dtype).toBe("f64");
+        expect(typed.snapshot.graph.get("flag")?.dtype).toBe("bool");
     });
 
     it("reports attributes of a subgraph that is not a cluster and keeps its nodes", async () => {

@@ -85,10 +85,10 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * pair x 2 MODE) + bfs-fused 5 (P8-T7: the graph pair, no declared override) + bfs-bottom-up 5 (P8-T8: the graph
  * pair of the reverse core, no declared override; the subgroup twin is not a matrix axis) + bfs-bitset-build 1 +
  * bfs-unvisited-flags 1 (P8-T8) + bfs-next-degree 1 (issue #391) + sssp-relax 5 (P8-T9: the graph pair, no declared override) + bf-relax 3 (P8-T10:
- * the defaults plus the UNDIRECTED axis, no group 0) + closeness-sweep 5 (P8-T11: the graph pair, no declared
- * override) + closeness-reduce 1 (P8-T11); P9 = bc-finalize 3 + bc-forward 3 + bc-backward 3 + bc-edge-gather 3 (1 + 2
+ * the defaults plus the UNDIRECTED axis, no group 0) + closeness-level 1 (no graph group, no declared override);
+ * P9 = bc-finalize 3 + bc-forward 3 + bc-backward 3 + bc-edge-gather 3 (1 + 2
  * SCALED; their rowPtr / colIdx are group-1 state, not the graph group) + bc-gather 1 + bc-forward-edge 5 (1 + 2 UNDIRECTED x
- * 2 SCALED) + bc-count 1 + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE);
+ * 2 SCALED) + bc-count 1 + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE) + closeness-rowsum 1;
  * P11 = coo-emit 5 (1 + 2 INDEXED x 2 WEIGHTED) + run-flags 1 + coo-scatter 5 (1 + 2 SORTED_INPUT x 2 WEIGHTED) +
  * orient-flags 1 + tri-intersect 4 (1 + 3 SEARCH) + group-by-key-row 7 (1 + 3 TIER x 2 WEIGHTED) + lpa-step 1 +
  * mst-best 5 (1 + 2 PASS x 2 WEIGHTED) + mst-link 1. The
@@ -102,8 +102,8 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
         P3: 157,
         P4: 40,
         P7: 69,
-        P8: 46,
-        P9: 28,
+        P8: 41,
+        P9: 29,
         P11: 30,
     });
 

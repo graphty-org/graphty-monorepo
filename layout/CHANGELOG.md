@@ -1,3 +1,17 @@
+## 2.1.0 (2026-10-03)
+
+### 🚀 Features
+
+- **layout:** export a machine-readable LAYOUTS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.9 (2026-10-03)
 
 ### 🩹 Fixes

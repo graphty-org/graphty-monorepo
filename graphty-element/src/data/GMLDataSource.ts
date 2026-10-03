@@ -66,7 +66,7 @@ export class GMLDataSource extends DataSource {
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
         const imported = await importWhole(
             gmlImporter,
-            await this.getContent(),
+            await this.getInput(),
             // The graphics block stays whole in the record, and `value` stays an attribute: the
             // element reads its weight from the record, not from the importer.
             { ids: "canonical", positions: false, weightFrom: null },

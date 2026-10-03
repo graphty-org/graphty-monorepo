@@ -59,7 +59,7 @@ function isSectionOpenMap(value: unknown): value is SectionOpenMap {
  * @param value - the persisted value to test.
  * @returns true when the value is a finite number.
  */
-function isFiniteNumber(value: unknown): value is number {
+export function isFiniteNumber(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value);
 }
 

@@ -47,6 +47,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
+import type { ProjectApi } from "./projectFile";
 import type { ResultsApi } from "./results";
 import type {
     Caveats,
@@ -1298,6 +1299,8 @@ export interface GraphSession {
     readonly canRedo: boolean;
     /** The steps, the cursor, the pending work and the budget. */
     readonly history: SessionHistory;
+    /** Saving the whole session to one project file and opening one again. */
+    readonly project: ProjectApi;
     /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records

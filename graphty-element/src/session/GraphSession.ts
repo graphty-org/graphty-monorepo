@@ -78,6 +78,7 @@ import {
 } from "./project/Dispatcher";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
@@ -310,6 +311,8 @@ interface SessionParts {
     readonly watchers: Watchers;
     /** The one path every change to project state takes; the styles API already writes through it. */
     readonly dispatcher: Dispatcher;
+    /** Saved results waiting for the runs a project open starts; the executor answers from it. */
+    readonly canned: CannedOutcomes;
 }
 
 /**
@@ -395,6 +398,7 @@ class Session implements ElementSession {
     readonly views: SessionViews;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
+    readonly project: ProjectApi;
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
@@ -491,6 +495,7 @@ class Session implements ElementSession {
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.project = projectOf(this, this.dispatcher, parts.canned);
     }
 
     /**
@@ -2089,6 +2094,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return spec;
     };
+    const canned: CannedOutcomes = new Map();
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -2109,7 +2115,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
         },
         setName: (id: SetId) => sets.get(id)?.name,
-        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
+        execute: sharingIndexes(
+            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
+            snapshot,
+            () => dispatcher.state.graph.token,
+        ),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
@@ -2485,6 +2495,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         planning,
         watchers,
         dispatcher,
+        canned,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

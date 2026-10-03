@@ -392,6 +392,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     canUndo: READ,
     canRedo: READ,
     history: READ,
+    project: READ,
     transaction: HISTORY,
     estimate: READ,
     plan: READ,
@@ -1536,6 +1537,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],
             },
+        },
+    },
+    {
+        name: "ProjectApi",
+        file: "src/session/projectFile.ts",
+        half: "session",
+        doors: {
+            name: exempt("The project's name labels the file; it is written by the next save, not a step."),
+            dirty: READ,
+            toDocument: READ,
+            save: READ,
+            open: exempt(
+                "Opens a file as one transaction: every write goes through the session's own doors, " +
+                    "which have rows of their own.",
+            ),
         },
     },
     {

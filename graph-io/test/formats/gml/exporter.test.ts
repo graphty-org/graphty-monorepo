@@ -484,6 +484,20 @@ describe("gmlExporter: keys", () => {
         );
     });
 
+    it("refuses an edge column named directed, which the importer reads as the edge's direction", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        const e = builder.addEdge(1, 2);
+        builder.setEdgeValue("directed", e, false);
+        const snapshot = builder.freeze();
+        const notes = gmlExporter.check(snapshot);
+        expect(codes(notes)).toContain(RESERVED_KEY_CODE);
+        await expectExportError(snapshot, undefined, "E_UNSUPPORTED");
+        const text = await gmlExporter.exportToString(snapshot, { sanitizeKeys: "mangle" });
+        const back = await importGml(text);
+        expect(back.edgeCount).toBe(1);
+        expect(back.edges.get("directed_2")?.value(0)).toBe(0);
+    });
+
     it("refuses column names that collide with structural keys", async () => {
         const builder = new GraphBuilder({ directed: false });
         const a = builder.addNode(1);

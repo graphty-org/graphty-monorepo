@@ -29,6 +29,9 @@ import { describe, expect, it } from "vitest";
 import { countUnrepresentableIds } from "../../src/common/export.js";
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cxImporter } from "../../src/formats/cx/importer.js";
+import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
+import { cx2Importer } from "../../src/formats/cx2/importer.js";
 import { dotExporter } from "../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
@@ -68,6 +71,11 @@ interface Pair {
 }
 
 const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
+    cx: { exporter: null, importer: cxImporter as GraphImporter<AnyImportOptions> },
+    cx2: {
+        exporter: cx2Exporter as GraphExporter<AnyExportOptions>,
+        importer: cx2Importer as GraphImporter<AnyImportOptions>,
+    },
     csv: {
         exporter: csvExporter as GraphExporter<AnyExportOptions>,
         importer: csvImporter as GraphImporter<AnyImportOptions>,
@@ -440,6 +448,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_GRAPHML_HIERARCHY_REORDERED", { global: ["ids", "topology", "nodes.*:*", "edges.*:*"] }],
     // direction and pairs
     ["W_NEO4J_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
+    ["W_CX2_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CSV_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_MIXED_DIRECTION", { global: DIRECTION }],
@@ -453,10 +462,12 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_EDGE_IDS_GENERATED", { global: ["edges.id:extra", "edges.key:extra", "edges.Id:extra"] }],
     ["W_EDGE_IDS_DROPPED", { column: MISSING_CLASS }],
     ["W_GRAPHML_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
+    ["W_GEXF_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
     // whole tables
     ["W_GRAPH_ATTRIBUTES_DROPPED", { global: ["graph.*:missing"] }],
     ["W_CSV_NODE_TABLE", { global: ["nodes.*:missing"] }],
     ["W_NONFINITE_AS_NULL", { global: ["nodes.*:value", "edges.*:value", "graph.*:value", "weights"] }],
+    ["W_CX2_NONFINITE_AS_NULL", { global: ["nodes.*:value", "edges.*:value", "graph.*:value", "weights"] }],
     // roles and names
     ["W_ROLE_DROPPED", { column: ROLE_CLASS }],
     ["W_CSV_ROLE_NAME", { column: ROLE_CLASS }],
@@ -512,6 +523,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_PAJEK_POSITION_STRIDE", { column: MISSING_CLASS }],
     ["W_LIST_UNSUPPORTED", { column: MISSING_CLASS }],
     ["W_JSON_UNSUPPORTED", { column: MISSING_CLASS }],
+    ["W_CX2_JSON_AS_STRING", { column: DTYPE_CLASS }],
     ["W_COMPONENTS_FLATTENED", { column: MISSING_CLASS }],
     ["W_GEXF_KIND_DROPPED", { column: MISSING_CLASS }],
     ["W_TEMPORAL_TABLE_SHAPE", { column: MISSING_CLASS }],
@@ -597,7 +609,8 @@ function explains(note: LossNote, kind: DiffKind): boolean {
 
 /** The name a rename note says the column reads back under (`... reads back as "<name>"`), or null. */
 function readsBackAs(note: LossNote): string | null {
-    const m = /reads back as "([^"]+)"/.exec(note.message);
+    // a renamed key (GML's x_context for @context) reads back under the name it is written as
+    const m = /reads back as "([^"]+)"/.exec(note.message) ?? /is written as "([^"]+)"/.exec(note.message);
     return m === null ? null : m[1];
 }
 

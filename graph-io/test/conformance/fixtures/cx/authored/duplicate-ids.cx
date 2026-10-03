@@ -1,0 +1,6 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1,"n":"first"},{"@id":2},{"@id":1,"r":"HGNC:1"}]},
+{"edges":[{"@id":7,"s":1,"t":2,"i":"kept"},{"@id":7,"s":2,"t":1,"i":"skipped"}]},
+{"status":[{"error":"","success":true}]}
+]

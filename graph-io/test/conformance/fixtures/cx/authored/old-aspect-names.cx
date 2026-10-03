@@ -1,0 +1,10 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1,"n":"a"},{"@id":2,"n":"b"}]},
+{"edges":[{"@id":3,"s":1,"t":2}]},
+{"subNetworks":[{"@id":50,"nodes":[1,2],"edges":[3]}]},
+{"networkRelations":[{"c":50,"name":"Legacy network"}]},
+{"hiddenAttributes":[{"n":"layoutAlgorithm","v":"Grid Layout"}]},
+{"visualProperties":[{"properties_of":"nodes","applies_to":1,"properties":{"NODE_SIZE":"35.0"}},{"properties_of":"nodes:default","properties":{"NODE_SHAPE":"ELLIPSE"}}]},
+{"status":[{"error":"","success":true}]}
+]

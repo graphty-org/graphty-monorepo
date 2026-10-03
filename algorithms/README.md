@@ -73,6 +73,39 @@ and `right` still read a bare `Uint32Array` as a node mask, as they always have.
 | Matching and isomorphism | `maximumBipartiteMatching`, `greedyBipartiteMatching`, `isGraphIsomorphic`, `findAllIsomorphisms`                                                                                                                                                                                                        |
 | Link prediction          | `commonNeighborsScore`, `commonNeighborsPrediction`, `commonNeighborsForPairs`, `getTopCandidatesForNode`, `evaluateCommonNeighbors`, `adamicAdarScore`, `adamicAdarPrediction`, `adamicAdarForPairs`, `getTopAdamicAdarCandidatesForNode`, `evaluateAdamicAdar`, `compareAdamicAdarWithCommonNeighbors` |
 
+### The catalog
+
+`ALGORITHMS` describes every algorithm above except the two `DeltaPageRank` classes, keyed by export name, so an
+integration can register them all without keeping its own table. Each entry's `fn` is called as
+`fn(graph, ...inputs, options)`.
+
+<!-- doc-check -->
+
+```typescript
+import { ALGORITHMS } from "@graphty/algorithms";
+
+const dijkstra = ALGORITHMS.dijkstra;
+console.log(dijkstra.direction, dijkstra.weights); // any always
+console.log(dijkstra.inputs.map((i) => `${i.name}: ${i.kind}`).join(", ")); // source: node
+console.log(dijkstra.result, dijkstra.values.join(", ")); // shortest-paths dist, predArc
+console.log(dijkstra.dispatch, dijkstra.accelerator); // sssp sssp
+
+const undirectedOnly = Object.values(ALGORITHMS).filter((a) => a.direction === "undirected");
+console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponents, kCoreDecomposition, louvain, leiden, girvanNewman, primMST
+```
+
+- `direction`: `"any"`, `"directed"` or `"undirected"`; an algorithm throws on the other kind of graph.
+- `weights`: `"never"`, `"always"`, `"by-default"` (read unless `weighted: false`) or `"on-request"` (read only
+  with `weighted: true`).
+- `inputs`: the positional arguments between the graph and the options, each a name and a kind (`"node"`,
+  `"node-values"`, `"node-labels"`, `"seed-labels"`, `"node-pairs"`, `"heuristic"`, `"graph"`).
+- `requiredOptions`: options with no default, such as `spectralClustering`'s `k`.
+- `result` and `values`: what it returns, and the paths of its per-node (or per-edge) arrays.
+- `dispatch` and `accelerator`: the `accelerated(acc)` method that runs it, and the `AlgorithmAccelerator` method
+  that can take it over (null when it always runs on the CPU).
+
+A test runs every algorithm to check its entry, so the catalog changes when an algorithm does.
+
 ## GPU Acceleration
 
 `accelerated(accelerator)` runs the same algorithms through an accelerator such as

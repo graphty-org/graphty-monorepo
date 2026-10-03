@@ -226,7 +226,8 @@ too. See [Columns, Runs and Progress](./vocabulary#progress).
 ### graphty-label-change
 
 How many node labels the element draws, and why the rest are not, changed. The detail is
-`{ labeled, nodeHidden, hiddenByOverlap }`, the same as `element.nodeLabelCounts`. It fires once
+`{ labeled, nodeHidden, hiddenByOverlap }` (the exported type `NodeLabelCounts`), the same as
+`element.nodeLabelCounts`. It fires once
 the view has stopped changing, never during a camera gesture or while a layout is moving nodes.
 
 ```javascript

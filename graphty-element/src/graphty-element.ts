@@ -3987,4 +3987,10 @@ declare global {
     interface HTMLElementTagNameMap {
         "graphty-element": Graphty;
     }
+
+    // The same promise for events: without an entry here `addEventListener` hands the listener a
+    // bare `Event`, and reading `e.detail` needs a cast.
+    interface HTMLElementEventMap {
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
 }

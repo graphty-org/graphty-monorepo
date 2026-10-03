@@ -489,20 +489,26 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
                 set: { "node.label": "A LONG LABEL FOR THIS NODE" },
             });
             await g.setCameraState(PILED_VIEW);
-            tag.layoutBehavior = { labels: { declutter: true } };
 
             // The guide's code, as written.
             const element = document.querySelector("graphty-element")!;
             const status = document.querySelector<HTMLElement>("#label-status")!;
             const showAll = document.querySelector<HTMLInputElement>("#show-all-labels")!;
 
-            function render(): void {
-                const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+            // Label every node, with its id as the words.
+            await element.session.styles.add({
+                name: "Labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.labelStyle": { enabled: true } },
+            });
+            element.layoutBehavior = { labels: { declutter: true } }; // off by default
+
+            function render({ labeled, hiddenByOverlap }: NodeLabelCounts): void {
                 status.textContent = `${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`;
             }
-
-            render();
-            element.addEventListener("graphty-label-change", render);
+            render(element.nodeLabelCounts);
+            element.addEventListener("graphty-label-change", (e) => render(e.detail));
             showAll.onchange = () => {
                 element.layoutBehavior = { labels: { declutter: !showAll.checked } };
             };

@@ -322,3 +322,184 @@ describe("node labels do not overlap", () => {
         }
     });
 });
+
+describe("session.labels counts what the overlap rule hid", () => {
+    let container: HTMLElement | undefined;
+    let graph: Graph | undefined;
+
+    afterEach(() => {
+        graph?.dispose();
+        container?.remove();
+    });
+
+    async function piled(declutter: boolean): Promise<Graph> {
+        container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const g = new Graph(container);
+        graph = g;
+        await g.init();
+        const session = g.getSession();
+        if (declutter) {
+            await session.labels.setDeclutter(true);
+        }
+
+        await g.addNodes(PILED);
+        await g.addEdges(EDGES);
+        await g.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(g).waitForCompletion();
+        await session.styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+        });
+        await operationQueueOf(g).waitForCompletion();
+        for (let at = 0; at < FRAMES; at++) {
+            g.scene.render();
+            await new Promise<void>((done) => {
+                setTimeout(done, FRAME_MS);
+            });
+        }
+
+        await g.setCameraState(PILED_VIEW);
+        g.scene.render();
+
+        return g;
+    }
+
+    /**
+     * The nodes whose label is enabled but not drawn, read off the meshes.
+     * @param g - The graph.
+     * @returns The ids, sorted.
+     */
+    function hiddenOnScreen(g: Graph): string[] {
+        return ["hub", "left", "right"]
+            .filter((id) => {
+                const mesh = g.getNode(id)?.label?.labelMesh;
+                return mesh?.isEnabled() === true && !mesh.isVisible;
+            })
+            .sort();
+    }
+
+    it("counts the two labels it hid, and names the nodes whose labels are not drawn", async () => {
+        const g = await piled(true);
+        const { labels } = g.getSession();
+
+        assert.deepEqual(labels.counts(), { requested: 3, drawn: 1, hiddenByOverlap: 2 });
+        assert.deepEqual([...labels.hiddenIds()].map(String).sort(), hiddenOnScreen(g));
+        assert.deepEqual(hiddenOnScreen(g), ["left", "right"]);
+    });
+
+    it("counts every label drawn and none hidden while the rule is off", async () => {
+        const g = await piled(false);
+        const { labels } = g.getSession();
+
+        assert.isFalse(labels.declutter);
+        assert.deepEqual(labels.counts(), { requested: 3, drawn: 3, hiddenByOverlap: 0 });
+        assert.deepEqual(labels.hiddenIds(), []);
+    });
+
+    it("publishes labels:changed when the camera, the switch or undo moves what is hidden", async () => {
+        const g = await piled(true);
+        const session = g.getSession();
+        const heard: { hiddenByOverlap: number }[] = [];
+        session.on("labels:changed", (counts) => heard.push(counts));
+
+        // Look away: a label out of view hides nothing, so nothing is hidden, though all three
+        // are still asked for.
+        await g.setCameraState({ position: { x: 0, y: 0.6, z: -11 }, target: { x: 0, y: 0.6, z: -20 } });
+        g.scene.render();
+        assert.isAbove(heard.length, 0, "a camera move that changed what is hidden is published");
+        assert.deepEqual(session.labels.counts(), { requested: 3, drawn: 3, hiddenByOverlap: 0 });
+
+        await g.setCameraState(PILED_VIEW);
+        g.scene.render();
+        assert.strictEqual(session.labels.counts().hiddenByOverlap, 2);
+
+        heard.length = 0;
+        await session.labels.setDeclutter(false);
+        g.scene.render();
+        assert.deepEqual(session.labels.counts(), { requested: 3, drawn: 3, hiddenByOverlap: 0 });
+        assert.deepEqual(hiddenOnScreen(g), [], "turned off: every label is drawn");
+        assert.lengthOf(heard, 1);
+
+        await session.undo();
+        g.scene.render();
+        assert.isTrue(session.labels.declutter, "undo turns the rule back on");
+        assert.strictEqual(session.labels.counts().hiddenByOverlap, 2);
+        assert.deepEqual(hiddenOnScreen(g), ["left", "right"]);
+    });
+
+    it("drops the count when the label layer goes", async () => {
+        const g = await piled(true);
+        const session = g.getSession();
+        const [layer] = session.styles.list().filter((each) => each.name === "labels");
+        assert.isOk(layer);
+
+        await session.styles.remove(layer.id);
+        await operationQueueOf(g).waitForCompletion();
+        for (let at = 0; at < FRAMES; at++) {
+            g.scene.render();
+            await new Promise<void>((done) => {
+                setTimeout(done, FRAME_MS);
+            });
+        }
+        assert.deepEqual(session.labels.counts(), { requested: 0, drawn: 0, hiddenByOverlap: 0 });
+    });
+});
+
+describe("the labels guide's example (docs/guide/labels.md)", () => {
+    // Undo is not exercised here: two flips of the switch within a second are one step (config.set
+    // merges sets of the same key recorded close together); the test above covers undo.
+    it("labels, hides overlapping names, says how many, and shows them all again", async () => {
+        const container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const g = new Graph(container);
+        try {
+            await g.init();
+            await g.addNodes(PILED.map((node) => ({ ...node, name: `The node called ${node.id}` })));
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            await g.setCameraState(PILED_VIEW);
+
+            // The guide's code, with `element.session` and the status line.
+            const session = g.getSession();
+            const status = document.createElement("p");
+
+            await session.styles.add({
+                name: "Names",
+                target: "node",
+                selector: { match: "everything" },
+                encode: { "node.label": { by: "data.name", scale: "passthrough" } },
+            });
+
+            await session.labels.setDeclutter(true);
+            session.on("labels:changed", ({ requested, hiddenByOverlap }) => {
+                status.textContent = `${String(requested)} names, ${String(hiddenByOverlap)} hidden to avoid overlap`;
+            });
+
+            await operationQueueOf(g).waitForCompletion();
+            for (let at = 0; at < FRAMES; at++) {
+                g.scene.render();
+                await new Promise<void>((done) => {
+                    setTimeout(done, FRAME_MS);
+                });
+            }
+
+            assert.strictEqual(status.textContent, "3 names, 2 hidden to avoid overlap");
+            const hidden = session.labels.hiddenIds().includes("left");
+            assert.isTrue(hidden, "the leaf beside the hub loses to it");
+
+            await session.labels.setDeclutter(false);
+            g.scene.render();
+            assert.strictEqual(status.textContent, "3 names, 0 hidden to avoid overlap");
+        } finally {
+            g.dispose();
+            container.remove();
+        }
+    });
+});

@@ -374,6 +374,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     views: READ,
     layout: READ,
+    labels: READ,
     positions: READ,
     seededNodeCount: READ,
     status: READ,
@@ -581,9 +582,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutConfig: assigns({}, [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
-            // The getter reads all three pacing settings as they are in effect, so the row names them all.
-            layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } }, [
-                { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
+            // The getter reads the four project settings as they are in effect, so the row names them all.
+            layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 }, labels: { declutter: true } }, [
+                {
+                    op: "config.set",
+                    values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0, labels: { declutter: true } } },
+                },
             ]),
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
@@ -1602,6 +1606,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+        },
+    },
+    {
+        name: "SessionLabels",
+        file: "src/session/labels.ts",
+        half: "session",
+        doors: {
+            counts: READ,
+            hiddenIds: READ,
+            declutter: READ,
+            setDeclutter: calls(
+                [true],
+                [{ op: "config.set", values: { layoutBehavior: { labels: { declutter: true } } } }],
+            ),
         },
     },
     {

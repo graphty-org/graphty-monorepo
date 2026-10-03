@@ -173,20 +173,19 @@ describe("the configuration document", () => {
             const before = stateDigest(dispatcherOf(session).state);
 
             graph.setLayoutBehavior({
-                labels: { declutter: true },
                 node: { pinOnDrag: false },
                 layout: { maxInFlight: 3, iterationsPerStep: 4, zoomStepInterval: 2 },
             });
 
             assert.strictEqual(stateDigest(dispatcherOf(session).state), before);
             assert.lengthOf(session.history.steps, 0);
-            assert.isTrue(graph.styles.config.behavior.labels.declutter);
+            assert.isFalse(graph.styles.config.behavior.node.pinOnDrag);
             assert.strictEqual(graph.styles.config.behavior.layout.maxInFlight, 3);
 
             graph.setLayoutBehavior({ layout: { preSteps: 7 } });
             assert.lengthOf(session.history.steps, 1, "a project key is a step");
             assert.deepEqual(graph.getLayoutBehavior(), {
-                labels: { declutter: true },
+                labels: { declutter: false },
                 node: { pinOnDrag: false },
                 layout: {
                     maxInFlight: 3,
@@ -200,7 +199,25 @@ describe("the configuration document", () => {
 
             await session.undo();
             assert.strictEqual(graph.styles.config.behavior.layout.preSteps, 0);
-            assert.isTrue(graph.styles.config.behavior.labels.declutter, "undo leaves the view's preferences alone");
+            assert.isFalse(graph.styles.config.behavior.node.pinOnDrag, "undo leaves the view's preferences alone");
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
+        "saves the label overlap switch with the project, as a step undo takes back",
+        async () => {
+            const graph = await loadedGraph();
+            const session = graph.getSession();
+
+            graph.setLayoutBehavior({ labels: { declutter: true } });
+            assert.lengthOf(session.history.steps, 1);
+            assert.isTrue(graph.styles.config.behavior.labels.declutter, "in force at once");
+            assert.isTrue(session.labels.declutter);
+
+            await session.undo();
+            assert.isFalse(graph.styles.config.behavior.labels.declutter);
+            assert.deepEqual(graph.getLayoutBehavior()?.labels, { declutter: false });
         },
         TEST_TIMEOUT_MS,
     );

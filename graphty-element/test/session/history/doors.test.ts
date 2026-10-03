@@ -67,6 +67,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     NotesApi: (session) => session.notes,
     SessionViews: (session) => session.views,
     SessionLayout: (session) => session.layout,
+    SessionLabels: (session) => session.labels,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
     SessionVisibilityApi: (session) => session.visibility,

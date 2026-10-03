@@ -54,6 +54,7 @@ import { readProjectConfig } from "./commands/config";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { LabelReport, labelsOf, type SessionLabels } from "./labels";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
@@ -393,6 +394,7 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly views: SessionViews;
     readonly layout: SessionLayout;
+    readonly labels: SessionLabels;
     readonly paint: ElementPaint;
 
     /** Cancels every style edit still pending. */
@@ -490,6 +492,15 @@ class Session implements ElementSession {
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        const labelReport = new LabelReport((counts) => {
+            publish(this.watchers, "labels:changed", counts);
+        });
+        LABEL_REPORTS.set(this, labelReport);
+        this.labels = labelsOf(
+            labelReport,
+            () => this.config.layoutBehavior.labels.declutter,
+            (on) => this.config.set({ layoutBehavior: { labels: { declutter: on } } }),
+        );
     }
 
     /**
@@ -913,6 +924,23 @@ export function laneOf(session: GraphSession): ElementPositions {
     }
 
     return store.positions;
+}
+
+/** Each session's label report, beside it rather than on it so the published type gains nothing. */
+const LABEL_REPORTS = new WeakMap<GraphSession, LabelReport>();
+
+/**
+ * Where a renderer reports what the label overlap rule decided, for `session.labels` to read.
+ * @param session - A session built here.
+ * @returns Its label report.
+ */
+export function labelReportOf(session: GraphSession): LabelReport {
+    const report = LABEL_REPORTS.get(session);
+    if (report === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
+    }
+
+    return report;
 }
 
 /**

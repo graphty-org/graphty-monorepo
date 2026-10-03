@@ -11,6 +11,7 @@
  */
 
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { LabelCounts, SessionLabels } from "./labels";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";

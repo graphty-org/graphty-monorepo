@@ -1,6 +1,7 @@
 import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
 
 import type { Node } from "../Node";
+import { labelReportOf } from "../session/GraphSession";
 import type { GraphContext } from "./GraphContext";
 
 /** One labelled node, what the last pass saw of it, and where its words were on screen. */
@@ -49,6 +50,10 @@ const MIN_CELL = 16;
  * style. `setEnabled` is the visibility mask's switch (`Node.applyRenderState`), and a style is
  * the reader's answer to what a node looks like; this is a placement decision, so it has its own
  * switch. Turning the setting off shows every label again.
+ *
+ * EVERY DECISION IS REPORTED to the session, so `session.labels` can say how many labels were
+ * asked for and which the rule hid. While the setting is off nothing is hidden, and each frame
+ * only counts the labels asked for.
  *
  * ONE PER SCENE, created by the first node that draws a label, and kept on `scene.metadata`
  * the way `NodeEffects` keeps the glow layer.
@@ -149,6 +154,7 @@ export class LabelDeclutter {
                 this.showAll();
             }
 
+            this.report(this.countRequested(), []);
             return;
         }
 
@@ -200,12 +206,15 @@ export class LabelDeclutter {
         order.length = 0;
         let widthSum = 0;
         let heightSum = 0;
+        let requested = 0;
 
         for (const entry of this.entries.values()) {
             const mesh = this.observe(entry);
             if (!mesh?.isEnabled()) {
                 continue;
             }
+
+            requested++;
 
             // The label's centre from its NODE's world matrix, not its own. A label is a billboard,
             // so its own world matrix depends on the camera and is stale until the render
@@ -254,6 +263,7 @@ export class LabelDeclutter {
         }
 
         if (order.length === 0) {
+            this.report(requested, []);
             return;
         }
 
@@ -268,16 +278,52 @@ export class LabelDeclutter {
             bucket.length = 0;
         }
 
+        const hidden: (string | number)[] = [];
         for (const entry of order) {
             const clear = this.isClear(entry, size);
             if (clear) {
                 this.keep(entry, size);
+            } else {
+                hidden.push(entry.node.id);
             }
 
             if (entry.mesh) {
                 entry.mesh.isVisible = clear;
             }
         }
+
+        this.report(requested, hidden);
+    }
+
+    /**
+     * Tell the session what this decision drew, for `session.labels`.
+     * @param requested - The labels drawn on showing nodes before the rule.
+     * @param hidden - The nodes whose label the rule hid.
+     */
+    private report(requested: number, hidden: readonly (string | number)[]): void {
+        const session = this.context.getSession?.();
+        if (session) {
+            labelReportOf(session).report(requested, hidden);
+        }
+    }
+
+    /**
+     * The labels drawn on showing nodes, counted while the rule is off and hides nothing.
+     * @returns The count.
+     */
+    private countRequested(): number {
+        let requested = 0;
+        for (const node of this.entries.keys()) {
+            const mesh = node.label?.labelMesh;
+            if (!mesh || mesh.isDisposed()) {
+                // The label, or the node, is gone. A new label adds the node back.
+                this.entries.delete(node);
+            } else if (mesh.isEnabled()) {
+                requested++;
+            }
+        }
+
+        return requested;
     }
 
     /**

@@ -51,7 +51,12 @@ describe("session.config", () => {
         assert.isFalse(config.runAlgorithmsOnLoad);
         assert.deepEqual(config.background, { backgroundType: "color", color: "#F5F5F5" });
         assert.deepEqual(config.selectionStyle, { color: "#FFD700", scale: 1.45, opacity: 0.4 });
-        assert.deepEqual(config.layoutBehavior, { preSteps: 0, stepMultiplier: 1, minDelta: 0 });
+        assert.deepEqual(config.layoutBehavior, {
+            preSteps: 0,
+            stepMultiplier: 1,
+            minDelta: 0,
+            labels: { declutter: false },
+        });
         session.dispose();
     });
 

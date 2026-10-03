@@ -181,8 +181,21 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
-/** The three layout-behaviour settings a project file saves. The others are the view's. */
+/**
+ * The three layout-behaviour settings a project file saves under `layout`. The label overlap
+ * switch is saved too, under `labels`; the others are the view's.
+ */
 const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
+
+/**
+ * The project's pacing settings, without the label switch that sits beside them.
+ * @param saved - The project's layout behaviour.
+ * @returns The pacing settings.
+ */
+function pacingOf(saved: ProjectConfig["layoutBehavior"]): Omit<ProjectConfig["layoutBehavior"], "labels"> {
+    const { labels: _labels, ...pacing } = saved;
+    return pacing;
+}
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -1593,8 +1606,8 @@ export class Graph implements GraphContext {
      * means that field and not "reset every other pacing setting to its default", which is what
      * parsing a partial document against a schema of defaults would do.
      *
-     * `layout.preSteps`, `layout.stepMultiplier` and `layout.minDelta` are project settings:
-     * setting any of them is one step, which undo takes back. The rest -- label declutter, pin on
+     * `layout.preSteps`, `layout.stepMultiplier`, `layout.minDelta` and `labels.declutter` are
+     * project settings: setting any of them is one step, which undo takes back. The rest -- pin on
      * drag, the throughput settings, the fetchers -- are preferences of this view, and undo does
      * not touch them.
      *
@@ -1606,7 +1619,11 @@ export class Graph implements GraphContext {
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
         const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
-        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        const pacing = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        // The label overlap switch is saved with the project too, beside the pacing settings.
+        const declutter = behavior.labels?.declutter;
+        const project: Record<string, unknown> =
+            declutter === undefined ? pacing : { ...pacing, labels: { declutter } };
         // `layout.type` names the layout, whose one home is the `layout` slice.
         const { type } = layout;
         const current = this.viewSettings.behavior;
@@ -1620,13 +1637,15 @@ export class Graph implements GraphContext {
                 ),
             },
             node: { ...current.node, ...behavior.node },
-            labels: { ...current.labels, ...behavior.labels },
         };
+        delete view.labels;
 
         // Checked whole, the project half over the settings in force, before anything is written.
+        const saved = this.session.config.layoutBehavior;
         const parsed = GraphBehaviorOpts.parse({
             ...view,
-            layout: { ...view.layout, ...this.session.config.layoutBehavior, ...project },
+            layout: { ...view.layout, ...pacingOf(saved), ...pacing },
+            labels: { ...saved.labels, ...behavior.labels },
         });
 
         this.writeViewSettings((settings) => {
@@ -1666,17 +1685,18 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The layout behaviour: the view preferences somebody set on this graph, and the pacing
-     * settings saved with the project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in
-     * effect. Those three always read their value, so assigning one its default reads back even
-     * though it records no step.
+     * The layout behaviour: the view preferences somebody set on this graph, and the settings
+     * saved with the project (`preSteps`, `stepMultiplier`, `minDelta`, `labels.declutter`) as
+     * they are in effect. Those four always read their value, so assigning one its default reads
+     * back even though it records no step.
      * @returns The behaviour settings.
      */
     getLayoutBehavior(): GraphBehaviorConfig | undefined {
-        const project = this.session.config.layoutBehavior;
+        const saved = this.session.config.layoutBehavior;
         const merged: Record<string, unknown> = {
             ...this.viewSettings.behavior,
-            layout: { ...this.viewSettings.behavior.layout, ...project },
+            layout: { ...this.viewSettings.behavior.layout, ...pacingOf(saved) },
+            labels: saved.labels,
         };
         // Only what was set: no empty groups, so an untouched graph reads undefined.
         const set = Object.fromEntries(
@@ -1766,7 +1786,8 @@ export class Graph implements GraphContext {
             data: project.data,
             behavior: GraphBehaviorOpts.parse({
                 ...behavior,
-                layout: { ...behavior.layout, ...project.layoutBehavior },
+                layout: { ...behavior.layout, ...pacingOf(project.layoutBehavior) },
+                labels: project.layoutBehavior.labels,
             }),
         });
     }

@@ -578,6 +578,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { layoutBehavior: { minDelta: 0.5 } } },
     },
     {
+        name: "config.set layoutBehavior.labels.declutter",
+        variant: "layoutBehavior",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutBehavior: { labels: { declutter: true } } } },
+    },
+    {
         name: "positions.set: one node placed",
         tags: BOTH,
         command: { op: "positions.set", entries: [{ id: "n2", x: 5, y: 6, z: 7 }] },

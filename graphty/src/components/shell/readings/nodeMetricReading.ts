@@ -308,10 +308,9 @@ const DEGENERATE_READINGS: Readonly<Record<NodeMetricId, DegenerateReadings>> = 
     },
     degree: {
         nothingMeasured: ({ rankedCount }) =>
-            [
-                "No node has any links.",
-                `All ${formatProseCount(rankedCount)} measured nodes are on their own.`,
-            ].join(" "),
+            ["No node has any links.", `All ${formatProseCount(rankedCount)} measured nodes are on their own.`].join(
+                " ",
+            ),
         tiedWithTypical: ({ topId, topValue }) =>
             [
                 `${topId} is among the most connected, with ${formatProseCount(topValue)} links.`,
@@ -320,15 +319,11 @@ const DEGENERATE_READINGS: Readonly<Record<NodeMetricId, DegenerateReadings>> = 
     },
     pagerank: {
         nothingMeasured: ({ rankedCount }) =>
-            [
-                "No node scored any influence.",
-                `All ${formatProseCount(rankedCount)} measured nodes scored 0.`,
-            ].join(" "),
+            ["No node scored any influence.", `All ${formatProseCount(rankedCount)} measured nodes scored 0.`].join(
+                " ",
+            ),
         tiedWithTypical: ({ topId }) =>
-            [
-                `${topId} is among the most influential.`,
-                "At least half the measured nodes score as much.",
-            ].join(" "),
+            [`${topId} is among the most influential.`, "At least half the measured nodes score as much."].join(" "),
     },
 };
 

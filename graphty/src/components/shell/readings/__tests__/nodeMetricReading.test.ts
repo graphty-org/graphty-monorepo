@@ -280,9 +280,9 @@ describe("nodeMetricReading", () => {
     });
 
     it("keeps one decimal on a multiple below 10", () => {
-        expect(
-            nodeMetricReading({ ...SMALL_GRAPH.pagerank, topValue: 0.158, medianValue: 0.046 }),
-        ).toContain("3.4 times the typical node's");
+        expect(nodeMetricReading({ ...SMALL_GRAPH.pagerank, topValue: 0.158, medianValue: 0.046 })).toContain(
+            "3.4 times the typical node's",
+        );
     });
 
     it("uses the relative betweenness form spec 7405-7409 writes out, never a percentage", () => {
@@ -371,9 +371,9 @@ describe("nodeMetricReading", () => {
 
 describe("nodeMetricHeadline", () => {
     it("draws spec 7345's collapsed form", () => {
-        expect(
-            nodeMetricHeadline({ ...SMALL_GRAPH.betweenness, topId: "acct-4471", topValue: 0.41 }),
-        ).toBe("Main bridge: acct-4471 (0.41)");
+        expect(nodeMetricHeadline({ ...SMALL_GRAPH.betweenness, topId: "acct-4471", topValue: 0.41 })).toBe(
+            "Main bridge: acct-4471 (0.41)",
+        );
     });
 
     it("leads with the plain name of each capability", () => {

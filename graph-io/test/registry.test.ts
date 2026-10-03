@@ -44,16 +44,22 @@ function edges(s: GraphSnapshot): string[] {
     );
 }
 
+/** The built-in formats graph-io reads but does not write. */
+const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cx", "obo"]);
+
 describe("FormatRegistry", () => {
-    it("holds the eight built-in formats in GRAPH_FORMATS order, importers and exporters alike", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read, all but the read-only ones are written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        expect(registry.exporters().map((e) => e.format)).toEqual([...GRAPH_FORMATS]);
+        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
-            expect(registry.hasExporter(format)).toBe(true);
+            expect(registry.hasExporter(format)).toBe(!READ_ONLY_FORMATS.has(format));
             expect(registry.importer(format).format).toBe(format);
+        }
+        for (const format of written) {
             expect(registry.exporter(format).format).toBe(format);
         }
         expect(createRegistry()).not.toBe(registry);
@@ -61,7 +67,11 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        for (const fn of [(): unknown => registry.importer("nope"), (): unknown => registry.exporter("nope")]) {
+        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        for (const [fn, supported] of [
+            [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
+            [(): unknown => registry.exporter("nope"), written],
+        ] as const) {
             let caught: unknown;
             try {
                 fn();
@@ -71,7 +81,7 @@ describe("FormatRegistry", () => {
             expect(caught).toBeInstanceOf(GraphFormatError);
             expect(caught).toMatchObject({
                 code: "E_UNSUPPORTED",
-                details: { option: "format", found: "nope", supported: [...GRAPH_FORMATS] },
+                details: { option: "format", found: "nope", supported: [...supported] },
             });
         }
         expect(registry.hasImporter("nope")).toBe(false);

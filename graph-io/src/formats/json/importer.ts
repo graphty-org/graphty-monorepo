@@ -43,11 +43,14 @@ import {
 
 import { uniqueColumnName } from "../../common/attributes.js";
 import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
+    DANGLING_REFERENCE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
+    GRAPH_NOT_FOUND_CODE,
     HYPEREDGE_CODE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
@@ -56,13 +59,16 @@ import {
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
     SYNTAX_CODE,
+    TOO_LARGE_CODE,
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
-import { readText, throwIfAborted } from "../../common/input.js";
+import { readText, textChunks, throwIfAborted } from "../../common/input.js";
+import { MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
 import {
+    chooseGraph,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -72,7 +78,15 @@ import {
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
-import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import { sniffJsonDialectHead } from "../../sniff.js";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type GraphListing,
+    type ImportInput,
+    type ImportReport,
+} from "../../types.js";
 import {
     CLASSES_COLUMN,
     CYTOSCAPE_ELEMENT_KEYS,
@@ -92,9 +106,14 @@ import {
     sniffJsonDialect,
     SUFFIX,
 } from "./dialect.js";
+import { importObographs } from "./obographs.js";
 
-/** The format-specific options of the JSON importer. */
-export interface JsonImportOptions {
+/**
+ * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
+ * a JGF or OBO Graphs `graphs` array (the first by default); a graph's name is its `id`, else its
+ * label.
+ */
+export interface JsonImportOptions extends GraphChoiceOptions {
     /** The dialect to read; "auto" (default) sniffs the parsed document. */
     dialect?: JsonImportDialect | "auto" | undefined;
     /**
@@ -113,8 +132,18 @@ export interface JsonImportOptions {
      * every endpoint is an integer below the node count and no node id is a number.
      */
     indexLinks?: boolean | "auto" | undefined;
-    /** jgf: which graph of a `graphs` array to read; 0 by default. */
-    graphIndex?: number | undefined;
+    /**
+     * obographs: "curie" (default) reads `http://purl.obolibrary.org/obo/GO_0008150` as `GO:0008150`
+     * and `.../obo/go#regulates` as `regulates`, the identifiers the `.obo` file of the same ontology
+     * writes; "iri" keeps every IRI as written.
+     */
+    oboIds?: "curie" | "iri" | undefined;
+    /**
+     * obographs: "metadata" (default) keeps PROPERTY nodes and their subPropertyOf / inverseOf edges
+     * in `meta.extra.obographs`, as the OBO importer keeps `[Typedef]` frames; "nodes" makes them
+     * nodes and edges.
+     */
+    typedefs?: "metadata" | "nodes" | undefined;
     /**
      * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
      * from the document root (`"data.nodes"`); the object holding it is read as the graph record
@@ -171,8 +200,18 @@ export const JSON_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** Edge ids of mixed JSON types were stored as text. */
     EDGE_ID_STRINGIFIED: "W_EDGE_ID_STRINGIFIED",
-    /** A JGF `graphs` array holds more than one graph; only `graphIndex` is read. */
+    /** A JGF or OBO Graphs `graphs` array holds more than one graph; only the chosen one is read. */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
+    /** `graphIndex` is beyond the `graphs` array, or `graphName` names none of its graphs (fatal). */
+    GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
+    /** `graphName` names more than one graph of the `graphs` array (fatal). */
+    AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
+    /** obographs: an edge uses the outdated `subj` key of the OBO Graphs README; it is read as `sub`. */
+    OBOGRAPHS_SUBJ: "W_JSON_OBOGRAPHS_SUBJ",
+    /** obographs: an edge endpoint missing from `nodes` (a placeholder node is made, or the edge dropped under addMissingNodes false). */
+    DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
+    /** The document is longer than one JavaScript string can hold (fatal; category unsupported). */
+    TOO_LARGE: TOO_LARGE_CODE,
     /** JGF hyperedges under the "error" policy. */
     HYPEREDGE: HYPEREDGE_CODE,
     /** JGF hyperedges skipped under the default "skip" policy. */
@@ -258,7 +297,7 @@ const GRAPHOLOGY_EDGE_KEYS: ReadonlySet<string> = new Set(["key", "source", "tar
 const VIS_SOURCE_KEYS: readonly string[] = Object.freeze(["from"]);
 const VIS_TARGET_KEYS: readonly string[] = Object.freeze(["to"]);
 
-type JsonRecord = Record<string, unknown>;
+export type JsonRecord = Record<string, unknown>;
 
 /** An edge id column declared from a scan of the file's edge ids. */
 interface EdgeIdColumn {
@@ -286,6 +325,12 @@ interface ResolvedJsonOptions {
     readonly targetKey: string | null;
     readonly indexLinks: boolean | "auto";
     readonly graphIndex: number;
+    /** The caller's graphIndex / graphName, as given, for chooseGraph(). */
+    readonly choice: GraphChoiceOptions;
+    /** obographs: CURIE or IRI ids. */
+    readonly oboIds: "curie" | "iri";
+    /** obographs: PROPERTY nodes as metadata or as nodes. */
+    readonly typedefs: "metadata" | "nodes";
     /** The dotted path segments of the node array, or null for the root's own nodes key. */
     readonly nodesPath: readonly string[] | null;
     /** The dotted path segments of the edge array, or null for the edges / links key beside the nodes. */
@@ -313,6 +358,14 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
     if (!Number.isInteger(graphIndex) || graphIndex < 0) {
         throw unsupportedOption("graphIndex", graphIndex, ["a non-negative integer"]);
     }
+    const oboIds = o.oboIds ?? "curie";
+    if (oboIds !== "curie" && oboIds !== "iri") {
+        throw unsupportedOption("oboIds", oboIds, ["curie", "iri"]);
+    }
+    const typedefs = o.typedefs ?? "metadata";
+    if (typedefs !== "metadata" && typedefs !== "nodes") {
+        throw unsupportedOption("typedefs", typedefs, ["metadata", "nodes"]);
+    }
     const nodesPath = pathOption("nodesPath", o.nodesPath);
     const edgesPath = pathOption("edgesPath", o.edgesPath);
     if ((nodesPath !== null || edgesPath !== null) && dialect !== "auto" && !PATH_DIALECTS.has(dialect)) {
@@ -326,6 +379,9 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
         targetKey: keyOption("targetKey", o.targetKey),
         indexLinks,
         graphIndex,
+        choice: { graphIndex: o.graphIndex, graphName: o.graphName },
+        oboIds,
+        typedefs,
         nodesPath,
         edgesPath,
     };
@@ -666,7 +722,7 @@ class AttributeWriter {
 /**
  * Everything one import call shares between the dialect readers.
  */
-class ImportContext {
+export class ImportContext {
     readonly sink: GraphSink;
 
     readonly report: ImportReportBuilder;
@@ -1218,112 +1274,8 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     return root;
 }
 
-/** A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992). */
-const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
-
 /** How many of the integers kept as text the warning lists. */
 const BIG_INTEGERS_SHOWN = 10;
-
-/**
- * The prefix of the string a non-standard token is rewritten to (a NUL character first, which no
- * sensible attribute value starts with); reviveNonstandard() turns it back into the number.
- */
-const NONSTANDARD_SENTINEL = `${String.fromCharCode(0)}graph-io:`;
-
-/** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
-const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
-    ["-Infinity", -Infinity],
-    ["Infinity", Infinity],
-    ["NaN", NaN],
-];
-
-/** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
-const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
-
-/**
- * Rewrite the numbers JSON.parse cannot read exactly, outside strings and in value positions only:
- * NaN / Infinity / -Infinity become sentinel strings, an integer literal that is not a safe
- * integer becomes a string of its digits. A container stack tells a value position (after `:`,
- * `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays invalid.
- * @param text - the document text
- * @returns the rewritten text, the non-standard tokens seen and the integer literals quoted
- */
-function rewriteNumbers(text: string): { text: string; tokens: Set<string>; bigIntegers: string[] } {
-    const parts: string[] = [];
-    const tokens = new Set<string>();
-    const bigIntegers: string[] = [];
-    const arrays: boolean[] = [];
-    let expectValue = true;
-    let copied = 0;
-    let i = 0;
-    const n = text.length;
-    while (i < n) {
-        const ch = text[i];
-        if (ch === '"') {
-            i++;
-            while (i < n && text[i] !== '"') {
-                i += text[i] === "\\" ? 2 : 1;
-            }
-            i++;
-            expectValue = false;
-            continue;
-        }
-        if (ch === "{" || ch === "[") {
-            arrays.push(ch === "[");
-            expectValue = ch === "[";
-        } else if (ch === "}" || ch === "]") {
-            arrays.pop();
-            expectValue = false;
-        } else if (ch === ":") {
-            expectValue = true;
-        } else if (ch === ",") {
-            expectValue = arrays.length > 0 && arrays[arrays.length - 1];
-        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
-            expectValue = false;
-            const token = NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i));
-            let end = i;
-            let replacement: string | null = null;
-            if (token !== undefined) {
-                end = i + token[0].length;
-                tokens.add(token[0]);
-                replacement = JSON.stringify(`${NONSTANDARD_SENTINEL}${token[0]}`);
-            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
-                end = i + 1;
-                while (end < n && "0123456789+-.eE".includes(text[end])) {
-                    end++;
-                }
-                const literal = text.slice(i, end);
-                if (INTEGER_LITERAL.test(literal) && !Number.isSafeInteger(Number(literal))) {
-                    bigIntegers.push(literal);
-                    replacement = `"${literal}"`;
-                }
-            }
-            if (replacement !== null) {
-                parts.push(text.slice(copied, i), replacement);
-                copied = end;
-            }
-            i = Math.max(end, i + 1);
-            continue;
-        }
-        i++;
-    }
-    parts.push(text.slice(copied));
-    return { text: parts.join(""), tokens, bigIntegers };
-}
-
-/**
- * The JSON.parse reviver that turns the sentinel strings of rewriteNumbers() back into numbers.
- * @param _key - the member key (unused)
- * @param value - the parsed value
- * @returns the number for a sentinel string, the value otherwise
- */
-function reviveNonstandard(_key: string, value: unknown): unknown {
-    if (typeof value === "string" && value.startsWith(NONSTANDARD_SENTINEL)) {
-        const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(NONSTANDARD_SENTINEL.length));
-        return found === undefined ? value : found[1];
-    }
-    return value;
-}
 
 /**
  * The dialect to read: the forced one, else the shape rule of sniffJsonDialect(); a document
@@ -2339,36 +2291,138 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
 }
 
 /**
- * The graph object of a JGF document: `graph`, or `graphs[graphIndex]`.
+ * The graph object of a JGF document: `graph`, or the graph of `graphs` that graphIndex /
+ * graphName choose (chooseGraph()).
  * @param ctx - the context
  * @param root - the document
  * @returns the graph object; the import fails when there is none
  */
 function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
+    return isJsonObject(root.graph) ? root.graph : chosenGraph(ctx, root, "JGF");
+}
+
+/**
+ * The graph of a `graphs` array (JGF, OBO Graphs) that graphIndex / graphName choose, with
+ * W_MULTIPLE_GRAPHS when the others are skipped; importAll() reads graphs[graphIndex].
+ * @param ctx - the context
+ * @param root - the document
+ * @param what - the dialect's name, for the messages
+ * @returns the graph object; the import fails when there is none
+ */
+export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string): JsonRecord {
     const { report } = ctx;
-    if (isJsonObject(root.graph)) {
-        return root.graph;
-    }
     const graphs = arraySection(root.graphs, "graphs", report) ?? [];
     if (graphs.length === 0) {
-        report.fail(JSON_ISSUE.SHAPE, "a JGF document needs a graph object or a non-empty graphs array");
+        report.fail(JSON_ISSUE.SHAPE, `a ${what} document needs a graph object or a non-empty graphs array`);
     }
+    const index =
+        ctx.json.all === true ? ctx.json.graphIndex : chooseGraph(graphs.map(graphNameOf), ctx.json.choice, report);
     if (graphs.length > 1 && ctx.json.all !== true) {
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,
-            `the document holds ${graphs.length} graphs; only graphs[${ctx.json.graphIndex}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
+            `the document holds ${graphs.length} graphs; only graphs[${index}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
             { element: "graphs" },
         );
     }
-    if (ctx.json.graphIndex >= graphs.length) {
-        report.fail(JSON_ISSUE.SHAPE, `graphIndex ${ctx.json.graphIndex} is beyond the ${graphs.length} graph(s)`);
-    }
-    const graph = graphs[ctx.json.graphIndex];
+    const graph = graphs[index];
     if (!isJsonObject(graph)) {
-        return report.fail(JSON_ISSUE.SHAPE, `graphs[${ctx.json.graphIndex}] is not an object`);
+        return report.fail(JSON_ISSUE.SHAPE, `graphs[${index}] is not an object`);
     }
     return graph;
+}
+
+/**
+ * The name a graph of a `graphs` array is listed and chosen by: its `id`, else its `label` (JGF)
+ * or `lbl` (OBO Graphs).
+ * @param graph - the graph
+ * @returns the name, or null
+ */
+function graphNameOf(graph: unknown): string | null {
+    if (!isJsonObject(graph)) {
+        return null;
+    }
+    for (const key of ["id", "label", "lbl"]) {
+        if (typeof graph[key] === "string") {
+            return graph[key];
+        }
+    }
+    return null;
+}
+
+/**
+ * How many elements a nodes or edges section holds: an array's length, an object's key count, 0
+ * when absent, null for anything else.
+ * @param section - the section
+ * @returns the count, or null
+ */
+function countOf(section: unknown): number | null {
+    if (section === undefined || section === null) {
+        return 0;
+    }
+    if (Array.isArray(section)) {
+        return section.length;
+    }
+    return isJsonObject(section) ? Object.keys(section).length : null;
+}
+
+/**
+ * The graphs of a parsed document, for listGraphs(): each entry of a JGF or OBO Graphs `graphs`
+ * array with its name and counts; any other document holds one graph.
+ * @param root - the parsed document
+ * @param dialect - its dialect
+ * @returns the listings
+ */
+function listingsOf(root: unknown, dialect: JsonImportDialect): GraphListing[] {
+    if ((dialect === "jgf" || dialect === "obographs") && isJsonObject(root)) {
+        if (Array.isArray(root.graphs) && !isJsonObject(root.graph)) {
+            return root.graphs.map((graph: unknown, index) => ({
+                index,
+                name: graphNameOf(graph),
+                nodes: isJsonObject(graph) ? countOf(graph.nodes) : null,
+                edges: isJsonObject(graph) ? countOf(graph.edges) : null,
+            }));
+        }
+        if (isJsonObject(root.graph)) {
+            const { graph } = root;
+            return [{ index: 0, name: graphNameOf(graph), nodes: countOf(graph.nodes), edges: countOf(graph.edges) }];
+        }
+    }
+    return [{ index: 0, name: null, nodes: null, edges: null }];
+}
+
+/** The longest string V8 makes (2^29 - 24 UTF-16 code units); a longer document cannot be one JSON.parse input. */
+const MAX_TEXT_LENGTH = 2 ** 29 - 24;
+
+/**
+ * Read the whole input as one string, failing with E_TOO_LARGE (category unsupported) before the
+ * join when it is longer than one JavaScript string can hold (OBO Graphs files such as
+ * ncbitaxon.json are; design 7.1 defers streaming the JSON reader).
+ * @param input - the input
+ * @param report - the report
+ * @param options - cancellation, progress and encoding
+ * @returns the text
+ */
+async function readJsonText(
+    input: ImportInput,
+    report: ImportReportBuilder,
+    options: ResolvedImportOptions,
+): Promise<string> {
+    if (typeof input === "string") {
+        return readText(input, report, options);
+    }
+    const parts: string[] = [];
+    let length = 0;
+    for await (const chunk of textChunks(input, report, options)) {
+        length += chunk.length;
+        if (length > MAX_TEXT_LENGTH) {
+            const message = `the document is longer than ${MAX_TEXT_LENGTH} characters, the most one JavaScript string holds`;
+            report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
+            throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
+        }
+        parts.push(chunk);
+    }
+    return parts.length === 1 ? parts[0] : parts.join("");
 }
 
 /**
@@ -2823,7 +2877,10 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             return 0;
         }
-        return SNIFF_KEYS.some((key) => trimmed.includes(key)) ? 0.9 : 0.5;
+        const score = SNIFF_KEYS.some((key) => trimmed.includes(key)) ? 0.9 : 0.5;
+        // a top-level array is a graph only as Cytoscape.js elements (`[{"data": ...}]`): a CX or
+        // CX2 document (`[{"metaData": ...}]`, `[{"CXVersion": ...}]`) is another format's
+        return trimmed.startsWith("[") && sniffJsonDialectHead(trimmed) !== "cytoscape" ? Math.min(score, 0.3) : score;
     },
 
     /**
@@ -2841,10 +2898,30 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readText(input, report, resolved);
+        const text = await readJsonText(input, report, resolved);
         const { root, dialect } = documentOf(parseDocument(text, report), json, report);
         readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
+    },
+
+    /**
+     * List the graphs of a JSON document without importing them: each entry of a JGF or OBO
+     * Graphs `graphs` array with its name (`id`, else its label) and node and edge counts; any
+     * other document holds one graph.
+     * @param input - the text, bytes or stream
+     * @param options - format-specific and common options
+     * @returns one listing per graph
+     */
+    async listGraphs(
+        input: ImportInput,
+        options?: JsonImportOptions & CommonImportOptions,
+    ): Promise<readonly GraphListing[]> {
+        const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
+        const json = resolveJsonOptions(options);
+        const report = new ImportReportBuilder("json", resolved.errorLimit);
+        const text = await readJsonText(input, report, resolved);
+        const { root, dialect } = documentOf(parseDocument(text, report), json, report);
+        return listingsOf(root, dialect);
     },
 
     /**
@@ -2863,12 +2940,9 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
         const json = resolveJsonOptions(options);
         const first = new ImportReportBuilder("json", resolved.errorLimit);
-        const text = await readText(input, first, resolved);
+        const text = await readJsonText(input, first, resolved);
         const { root, dialect } = documentOf(parseDocument(text, first), json, first);
-        const graphs =
-            dialect === "jgf" && isJsonObject(root) && !isJsonObject(root.graph) && Array.isArray(root.graphs)
-                ? root.graphs.length
-                : 1;
+        const graphs = listingsOf(root, dialect).length;
         const reports: ImportReport[] = [];
         for (let i = 0; i < Math.max(graphs, 1); i++) {
             const report = i === 0 ? first : new ImportReportBuilder("json", resolved.errorLimit);
@@ -2899,7 +2973,8 @@ function readGraph(
     options: (JsonImportOptions & CommonImportOptions) | undefined,
 ): void {
     const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
-    reportSinkOptions(sink, options, report);
+    // the obographs reader refuses missing endpoints itself, so addMissingNodes false holds on any sink
+    reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);
     if (dialect === "cytoscape") {
         importCytoscape(ctx, root);
@@ -2928,6 +3003,9 @@ function readGraph(
             break;
         case "tree":
             importTree(ctx, doc);
+            break;
+        case "obographs":
+            importObographs(ctx, doc);
             break;
         default: {
             const name: string = dialect;

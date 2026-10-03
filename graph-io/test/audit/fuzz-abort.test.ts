@@ -26,12 +26,15 @@ import { CORPUS_FORMATS, type CorpusFormat, readCorpusBytes, readCorpusText } fr
 /** One file per format, big enough to arrive in several 256-byte chunks. */
 const FILES: Readonly<Record<CorpusFormat, string>> = {
     csv: "got-edges.csv",
+    cx: "Direct-p53-effectors.cx",
+    cx2: "emt-network.cx2",
     dot: "root.gv",
     gexf: "airlines-sample.gexf",
     gml: "football.gml",
     graphml: "got-network.graphml",
     json: "miserables.json",
     neo4j: "karate-neo4j.csv",
+    obo: "taxrank.obo",
     pajek: "football.net",
 };
 

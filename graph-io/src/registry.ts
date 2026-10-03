@@ -19,12 +19,15 @@ import {
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
+import { cxImporter } from "./formats/cx/index.js";
+import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
 import { gexfExporter, gexfImporter } from "./formats/gexf/index.js";
 import { gmlExporter, gmlImporter } from "./formats/gml/index.js";
 import { graphmlExporter, graphmlImporter } from "./formats/graphml/index.js";
 import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
+import { oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import {
@@ -372,7 +375,11 @@ export function createRegistry(): FormatRegistry {
         .registerImporter(pajekImporter)
         .registerExporter(pajekExporter)
         .registerImporter(neo4jImporter)
-        .registerExporter(neo4jExporter);
+        .registerExporter(neo4jExporter)
+        .registerImporter(cx2Importer)
+        .registerExporter(cx2Exporter)
+        .registerImporter(cxImporter)
+        .registerImporter(oboImporter);
 }
 
 /** The default registry: every built-in format. */

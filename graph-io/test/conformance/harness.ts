@@ -13,7 +13,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
@@ -31,7 +31,10 @@ interface AttrCheck {
     readonly column?: string;
     /** The column role ("label", "position", ...), when no name is given. */
     readonly role?: string;
-    /** The expected value; numbers compare with a relative tolerance of 1e-6, arrays element-wise. */
+    /**
+     * The expected value; numbers compare with a relative tolerance of 1e-6, arrays element-wise;
+     * null: the cell is unset and the column has no default (a value the reader must refuse).
+     */
     readonly value: unknown;
 }
 
@@ -208,16 +211,31 @@ function plain(value: unknown): unknown {
 }
 
 /**
- * Loose equality for spot checks: numbers within a relative 1e-6, arrays element-wise, anything
- * else by its string form (so 1 and "1" of an inferred column agree).
+ * Loose equality for spot checks: numbers within a relative 1e-6, arrays element-wise, records
+ * key by key (a json cell; its string form would make any two records agree), null an unset cell,
+ * anything else by its string form (so 1 and "1" of an inferred column agree).
  * @param expected - the oracle's value
  * @param actual - graph-io's value
  * @returns true when they agree
  */
 function agrees(expected: unknown, actual: unknown): boolean {
     const a = plain(actual);
+    // Object.is, not ===: no narrowing, so the string comparison below still sees an unknown
+    if (Object.is(expected, null)) {
+        // an unset cell, or a null inside a json record
+        return a === undefined || a === null;
+    }
     if (Array.isArray(expected)) {
         return Array.isArray(a) && a.length === expected.length && expected.every((e, i) => agrees(e, a[i]));
+    }
+    if (expected !== null && typeof expected === "object") {
+        if (a === null || typeof a !== "object" || Array.isArray(a)) {
+            return false;
+        }
+        const e = expected as Record<string, unknown>;
+        const r = a as Record<string, unknown>;
+        const keys = Object.keys(e);
+        return keys.length === Object.keys(r).length && keys.every((k) => k in r && agrees(e[k], r[k]));
     }
     if (typeof expected === "number" && typeof a === "number") {
         if (Number.isNaN(expected)) {
@@ -226,6 +244,20 @@ function agrees(expected: unknown, actual: unknown): boolean {
         return expected === a || Math.abs(expected - a) <= 1e-6 * Math.max(1, Math.abs(expected));
     }
     return String(expected) === String(a);
+}
+
+/**
+ * A cell as a reader sees it: the value of a set row, the declared default of an unset one (CX2,
+ * GraphML and GEXF defaults answer for a missing value), else undefined.
+ * @param column - the column
+ * @param row - the row
+ * @returns the value
+ */
+function cellOf(column: Column, row: number): unknown {
+    if (column.isSet(row)) {
+        return column.value(row);
+    }
+    return column.meta.default === undefined ? undefined : column.value(row);
 }
 
 /**
@@ -276,7 +308,7 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
             );
             continue;
         }
-        const actual = column.isSet(index) ? column.value(index) : undefined;
+        const actual = cellOf(column, index);
         if (!agrees(check.value, actual)) {
             problems.push(
                 `node ${JSON.stringify(check.id)} ${where}: expected ${JSON.stringify(check.value)}, got ${JSON.stringify(plain(actual))}`,
@@ -309,7 +341,7 @@ function checkResult(expected: Expected, result: ImportGraphResult, problems: st
         const column = snapshot.edges.get(check.column);
         let actual: unknown;
         if (column !== null) {
-            actual = column.isSet(e) ? column.value(e) : undefined;
+            actual = cellOf(column, e);
         } else if (check.column === "weight") {
             actual = weightOf(snapshot, arc);
         } else {

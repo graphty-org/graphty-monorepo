@@ -120,17 +120,18 @@ describe("InspectorHeader", () => {
                held pin rendered identically to an empty one -- the same defect the product
                owner reported for the latch that used to sit two slots away in this row.
                With the latch gone this is the row's only remaining measurement of the
-               shared ActionIcon `light` treatment and its 1px accent boundary. */
+               shared ActionIcon `light` treatment: Figma's selected ground with a brand
+               glyph (the old 1px accent boundary is gone, compact-mantine breaking change 8). */
             const { rerender } = render(
                 <InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} pinned={false} />,
             );
 
             const empty = screen.getByTestId("inspector-pin");
             const emptyGround = window.getComputedStyle(empty).backgroundColor;
+            const emptyInk = window.getComputedStyle(empty).color;
 
             expect(empty).toHaveAttribute("data-variant", "subtle");
             expect(empty).toHaveAttribute("aria-pressed", "false");
-            expect(window.getComputedStyle(empty).borderTopColor).toBe("rgba(0, 0, 0, 0)");
 
             rerender(<InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} pinned />);
 
@@ -139,7 +140,7 @@ describe("InspectorHeader", () => {
             expect(held).toHaveAttribute("data-variant", "light");
             expect(held).toHaveAttribute("aria-pressed", "true");
             expect(window.getComputedStyle(held).backgroundColor).not.toBe(emptyGround);
-            expect(window.getComputedStyle(held).borderTopColor).not.toBe("rgba(0, 0, 0, 0)");
+            expect(window.getComputedStyle(held).color).not.toBe(emptyInk);
             expect(held).toHaveAccessibleName("Pin as A");
             expect(held.querySelector('[data-glyph="pin"]')).not.toBeNull();
         });

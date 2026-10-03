@@ -30,6 +30,7 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "pins",
     "arrangement",
     "config",
+    "attributes",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -75,6 +76,7 @@ function snapshot(state: ProjectState): ProjectState {
         sets: new Map(state.sets),
         views: new Map(state.views),
         notes: new Map(state.notes),
+        attributes: new Map(state.attributes),
     });
 }
 

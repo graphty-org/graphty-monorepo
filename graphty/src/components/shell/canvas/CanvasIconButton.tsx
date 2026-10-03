@@ -16,7 +16,6 @@ import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 import { Tooltip } from "@mantine/core";
 import React, { useCallback } from "react";
 
-import { TOOLTIP_DELAY_MS } from "../constants";
 import { CANVAS_SPACE } from "./canvasLayout";
 
 /**
@@ -93,11 +92,7 @@ export function CanvasIconButton(props: CanvasIconButtonProps): React.JSX.Elemen
     }
 
     return (
-        <Tooltip
-            label={canvasTooltipText(label, chip, disabled ? disabledReason : undefined)}
-            openDelay={TOOLTIP_DELAY_MS}
-            position="top"
-        >
+        <Tooltip label={canvasTooltipText(label, chip, disabled ? disabledReason : undefined)} position="top">
             <button
                 type="button"
                 aria-label={label}

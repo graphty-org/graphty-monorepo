@@ -1,10 +1,5 @@
 import { POPOUT_GAP } from "../../../constants/popout";
-import type {
-    PopoutAlignment,
-    PopoutPhysicalPlacement,
-    PopoutPlacement,
-    PopoutPosition,
-} from "../../../types/popout";
+import type { PopoutAlignment, PopoutPhysicalPlacement, PopoutPlacement, PopoutPosition } from "../../../types/popout";
 import { type Direction, isRtl } from "../../../utils/rtl";
 
 // The panel is placed with fixed `left` and `top` rather than with the logical
@@ -12,7 +7,7 @@ import { type Direction, isRtl } from "../../../utils/rtl";
 // calculation over viewport coordinates from getBoundingClientRect, which are
 // physical in both reading directions; expressing them logically would mean
 // converting them back through the viewport width and would move the panel by a
-// scrollbar's width. Reading direction is honoured where it actually belongs
+// scrollbar's width. Reading direction is honored where it actually belongs
 // instead: in which side "start" and "end" name, resolved by resolvePlacement
 // and applied to the inline axis below.
 
@@ -47,10 +42,7 @@ interface CalculatePositionOptions {
  * @param direction - The reading direction in force
  * @returns The physical side of the anchor the panel sits on
  */
-export function resolvePlacement(
-    placement: PopoutPlacement,
-    direction: Direction,
-): PopoutPhysicalPlacement {
+export function resolvePlacement(placement: PopoutPlacement, direction: Direction): PopoutPhysicalPlacement {
     if (placement === "start") {
         return isRtl(direction) ? "right" : "left";
     }
@@ -69,7 +61,7 @@ export function resolvePlacement(
  * along one element while placing it against another.
  * @param anchorRect - The bounding rectangle of the element the panel is placed against
  * @param panelWidth - The width of the panel in pixels, as it actually renders
- * @param gap - The gap between anchor and panel (default: POPOUT_GAP = 8px)
+ * @param gap - The gap between anchor and panel (default: POPOUT_GAP, 0 -- docked flush)
  * @param options - Placement, alignment, panel height, cross-axis anchor and reading direction
  * @returns The calculated position { left, top }
  */
@@ -125,11 +117,7 @@ export function calculatePopoutPosition(
  * @param panelHeight - Height of the panel in pixels
  * @returns The top position in pixels
  */
-function calculateVerticalAlignment(
-    anchorRect: DOMRect,
-    alignment: PopoutAlignment,
-    panelHeight: number,
-): number {
+function calculateVerticalAlignment(anchorRect: DOMRect, alignment: PopoutAlignment, panelHeight: number): number {
     switch (alignment) {
         case "start":
             return anchorRect.top;

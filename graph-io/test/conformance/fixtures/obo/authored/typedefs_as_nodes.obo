@@ -1,0 +1,18 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+relationship: part_of X:2
+
+[Term]
+id: X:2
+
+[Typedef]
+id: part_of
+name: part of
+is_transitive: true
+is_a: overlaps
+
+[Typedef]
+id: overlaps

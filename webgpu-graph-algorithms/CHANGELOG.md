@@ -1,3 +1,49 @@
+## 0.6.26 (2026-10-03)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** pad a zero-width seeding box ([#720](https://github.com/graphty-org/graphty-monorepo/issues/720))
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.0.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.25 (2026-10-03)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** count betweenness paths past 2^32 exactly ([#719](https://github.com/graphty-org/graphty-monorepo/issues/719))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.8
+- Updated layout to 2.0.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.24 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.7
+- Updated layout to 2.0.7
+
+## 0.6.23 (2026-10-02)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** record the SM clock of every benchmark group ([#703](https://github.com/graphty-org/graphty-monorepo/issues/703))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.22 (2026-10-02)
 
 ### 🚀 Features

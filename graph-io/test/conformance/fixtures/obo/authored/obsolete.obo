@@ -1,0 +1,14 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+is_obsolete: true
+replaced_by: X:2
+consider: X:3
+
+[Term]
+id: X:2
+
+[Term]
+id: X:3

@@ -1,3 +1,50 @@
+## 0.3.19 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-io:** read CX version 1, collections included ([605d8d61](https://github.com/graphty-org/graphty-monorepo/commit/605d8d61))
+- **graph-io:** read and write CX2, the NDEx and Cytoscape exchange format ([#307](https://github.com/graphty-org/graphty-monorepo/issues/307))
+- **graph-io:** report a repeated GEXF attribute as the shared W_DUPLICATE_ATTRIBUTE ([b7b43759](https://github.com/graphty-org/graphty-monorepo/commit/b7b43759))
+- **graph-io:** read CX documents element by element ([6af50573](https://github.com/graphty-org/graphty-monorepo/commit/6af50573))
+
+### 🩹 Fixes
+
+- **graph-io:** defects in the CX and CX2 readers found in review ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2))
+- **graph-io:** a CX2 visual property never overwrites the attribute of its name ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2))
+- **graph-io:** reserve the GML edge key directed and note numeric GEXF edge ids ([f9e8691c](https://github.com/graphty-org/graphty-monorepo/commit/f9e8691c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.18 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-io:** keep OBO frames of an unknown type as metadata ([1fb5f317](https://github.com/graphty-org/graphty-monorepo/commit/1fb5f317))
+- **graph-io:** read OBO Graphs JSON as the obographs dialect ([305c11bc](https://github.com/graphty-org/graphty-monorepo/commit/305c11bc))
+- **graph-io:** read the OBO flat file format of the Gene Ontology ([3e6b0da0](https://github.com/graphty-org/graphty-monorepo/commit/3e6b0da0))
+
+### 🩹 Fixes
+
+- **graph-io:** keep every OBO qualifier and read quotes, comments and language tags as the guides do ([b900d96a](https://github.com/graphty-org/graphty-monorepo/commit/b900d96a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.17 (2026-10-02)
+
+### 🚀 Features
+
+- **graph-io:** list the graphs of an input and choose one ([00ac9052](https://github.com/graphty-org/graphty-monorepo/commit/00ac9052))
+- **graph-io:** decode zip entry names in the shared input module ([29e314fe](https://github.com/graphty-org/graphty-monorepo/commit/29e314fe))
+- **graph-io:** shared issue codes for the Cytoscape and OBO importers ([83684a9f](https://github.com/graphty-org/graphty-monorepo/commit/83684a9f))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.16 (2026-10-02)
 
 ### 🧱 Updated Dependencies

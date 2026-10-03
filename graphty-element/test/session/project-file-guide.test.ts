@@ -51,6 +51,39 @@ describe("the project file guide's examples", () => {
         later.dispose();
     });
 
+    it("catching the unsaved-changes refusal", async () => {
+        const session = createGraphSession();
+        const file = (await session.project.save()).text;
+        await session.project.rename("Draft");
+        let asked = false;
+        try {
+            await session.project.open(file);
+        } catch (error) {
+            if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
+                asked = true;
+                await session.project.open(file, { discard: true });
+            } else {
+                throw error;
+            }
+        }
+
+        assert.isTrue(asked, "opening over unsaved changes is refused");
+        assert.isFalse(session.project.dirty);
+        session.dispose();
+    });
+
+    it("project:status does not fire at startup, and on() returns a stop function", async () => {
+        const session = createGraphSession();
+        const seen: boolean[] = [];
+        const stop = session.on("project:status", ({ dirty }) => seen.push(dirty));
+        assert.deepEqual(seen, []);
+        await session.project.rename("Pioneers");
+        stop();
+        await session.undo();
+        assert.deepEqual(seen, [true]);
+        session.dispose();
+    });
+
     it("refuses a file a newer element wrote", async () => {
         const session = createGraphSession();
         try {

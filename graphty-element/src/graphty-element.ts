@@ -2,14 +2,19 @@ import type { DuplicatePolicy } from "@graphty/graph-format";
 import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
+import {
+    type AccelerationCapabilities,
+    type AccelerationController,
+    type AccelerationPolicy,
+    isAccelerationPolicy,
+} from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
+import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -25,8 +30,9 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
+import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
-import type { ProjectSaveOptions, ProjectSaveReport } from "./session/projectFile";
+import type { ProjectSaveOptions, ProjectSaveReport, ProjectStatus } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
@@ -100,7 +106,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
-    #unwatchDocument: (() => void) | null = null;
+    #unwatchProjectStatus: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
@@ -469,9 +475,9 @@ export class Graphty extends LitElement {
             this.#mirrorProgressChange(change);
         });
         // The project's name and unsaved state, for a title bar or a Save button beside the tag.
-        this.#unwatchDocument ??= session.on("document:changed", (change) => {
+        this.#unwatchProjectStatus ??= session.on("project:status", (change) => {
             this.dispatchEvent(
-                new CustomEvent("graphty-document-change", { detail: change, bubbles: true, composed: true }),
+                new CustomEvent("graphty-project-status", { detail: change, bubbles: true, composed: true }),
             );
         });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
@@ -589,8 +595,8 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
-        this.#unwatchDocument?.();
-        this.#unwatchDocument = null;
+        this.#unwatchProjectStatus?.();
+        this.#unwatchProjectStatus = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchProgress?.();
@@ -3993,4 +3999,37 @@ declare global {
     interface HTMLElementTagNameMap {
         "graphty-element": Graphty;
     }
+
+    // The DOM events the element dispatches about itself. Every one is prefixed, so declaring them
+    // on every element names nothing a page could already be using, and
+    // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
+    interface HTMLElementEventMap {
+        "graphty-run-change": CustomEvent<Pick<RunChange, "run" | "phase">>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<{
+            readonly reason: SessionEventMap["history:changed"]["reason"];
+            readonly version: number;
+            readonly position: number;
+            readonly steps: number;
+            readonly canUndo: boolean;
+            readonly canRedo: boolean;
+        }>;
+        "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+    }
 }
+
+/**
+ * The DOM events `<graphty-element>` dispatches about itself, by name. Each one bubbles, crosses
+ * shadow roots, and carries plain values as its `detail`.
+ */
+export type GraphtyElementEventMap = {
+    [K in keyof HTMLElementEventMap as K extends `graphty-${string}` ? K : never]: HTMLElementEventMap[K];
+};

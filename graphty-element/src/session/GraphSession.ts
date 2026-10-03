@@ -497,7 +497,7 @@ class Session implements ElementSession {
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
-                publish(this.watchers, "document:changed", change);
+                publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
         });

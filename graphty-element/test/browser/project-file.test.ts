@@ -134,7 +134,7 @@ describe("the project file on a renderer", () => {
                     }
                 });
             });
-            element.session.on("document:changed", ({ name, dirty }) => {
+            element.session.on("project:status", ({ name, dirty }) => {
                 document.title = `${dirty ? "* " : ""}${name ?? "Untitled"}`;
             });
             // --- end of the example ---

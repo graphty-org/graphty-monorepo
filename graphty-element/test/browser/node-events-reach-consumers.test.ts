@@ -105,7 +105,7 @@ describe("the DOM mirror of a node event", () => {
         const details: NodeEventDetail[] = [];
 
         element.addEventListener("graphty-node-drag-end", (event) => {
-            details.push((event as CustomEvent<NodeEventDetail>).detail);
+            details.push(event.detail);
         });
 
         const node = element.graph.getNode("a");
@@ -127,7 +127,7 @@ describe("the DOM mirror of a node event", () => {
         const details: NodeEventDetail[] = [];
 
         element.addEventListener("graphty-node-hover", (event) => {
-            details.push((event as CustomEvent<NodeEventDetail>).detail);
+            details.push(event.detail);
         });
 
         const node = element.graph.getNode("a");

@@ -35,24 +35,46 @@ openInput.addEventListener("change", () => {
         }
     });
 });
-element.session.on("document:changed", ({ name, dirty }) => {
+element.session.on("project:status", ({ name, dirty }) => {
     document.title = `${dirty ? "* " : ""}${name ?? "Untitled"}`;
 });
 ```
 
 - **`element.downloadProject()`** saves the project and hands it to the reader as
-  `<project name>.graphty.json`. Pass `{ fileName }` to choose the name yourself.
+  `<project name>.graphty.json`. A project with no name downloads as `project.graphty.json`, a
+  fixed file name rather than words for the reader: pass `{ fileName }` to choose the name
+  yourself. It resolves to the [save report](#saving-without-a-download); its `leftOut` lists a
+  run still computing, which the file does not hold.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
   fresh undo history.
 - **`project.dirty`** is true when something the file saves has changed since the last save or
   open. Opening a project over unsaved changes is refused with `E_UNSAVED_CHANGES` unless you pass
-  `{ discard: true }`, so ask the reader first.
-- **`document:changed`** fires when the name or `dirty` changes. The element also dispatches it as
-  the DOM event `graphty-document-change`, with `{ name, dirty }` as its `detail`.
+  `{ discard: true }`, which means "discard the session's unsaved changes". Check `project.dirty`
+  and ask the reader first, as the example does.
+- **`project:status`** fires when the name or `dirty` changes, and not when the page starts: until
+  then read `project.name` (null) and `project.dirty` (false) yourself. `session.on` returns a
+  function that stops listening. The element also dispatches the change as the DOM event
+  `graphty-project-status`, with `{ name, dirty }` as its typed `detail`.
 
 graphty-element writes no words for the reader: the text in the example (the confirmation, the
-title) is the page's own.
+title, "Untitled") is the page's own.
+
+To catch the refusal instead of checking `dirty` first, test the error's code:
+
+```typescript
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await project.open(file);
+} catch (error) {
+    if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES" && confirm("Discard unsaved changes?")) {
+        await project.open(file, { discard: true });
+    } else {
+        throw error;
+    }
+}
+```
 
 ## Saving without a download
 
@@ -62,14 +84,15 @@ title) is the page's own.
 ```typescript
 const { text, report } = await session.project.save();
 report.bytes; // the file's size
-report.written; // the member kinds in the file
+report.written; // the members in the file, such as "graphty-data" (see "The file")
 report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_PENDING", params: { id } }
 ```
 
 Store `text` wherever you keep files. Two options shape the file:
 
-- `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"`, `"graphty-notes"` or
-  `"graphty-view-state"` (the selection).
+- `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"` (the style layers),
+  `"graphty-notes"` (the notes) or `"graphty-view-state"` (the selection). This option is what
+  you chose to leave out; the report's `leftOut` is what the element could not write, as codes.
 - `extensions: { "com.example.app": { panel: "values" } }` stores your own data under a
   reverse-domain name, at most 64 KB of JSON each. `open` hands it back as `report.extensions`.
   Keep your interface's state there, and nothing about the graph.
@@ -90,7 +113,9 @@ The selection and your extensions never set it.
 ## What did not come back
 
 Opening never fails half way through. A part that cannot be restored is left out and listed in
-`report.problems`, each as a code and its values:
+`report.problems`, each as a code and its values. An `E_` code here means that one part was
+skipped, not that the open failed; the open failed only if `open` threw. `slice` is the part the
+problem is about, one of the `report.restored` values below:
 
 | Code                    | Params                   | What happened                                                           |
 | ----------------------- | ------------------------ | ----------------------------------------------------------------------- |
@@ -101,8 +126,25 @@ Opening never fails half way through. A part that cannot be restored is left out
 | `W_UNKNOWN_KIND`        | `index`, `kind`          | A member this release does not read; skipped                            |
 | `E_UNSUPPORTED_VERSION` | `index`, `kind`, `found` | A member written by a newer release; skipped                            |
 
-`report.restored` lists the parts that came back (`"graph"`, `"config"`, `"layout"`,
-`"arrangement"`, `"pins"`, `"runs"`, `"styles"`, `"visibility"`, `"sets"`, `"views"`, `"notes"`).
+`id` is the run, style layer or set the problem is about. `needs` is the list of data paths the
+layer reads that nothing in this session provides, such as
+`"algorithmResults.graphty.degree.value"`. `index` and `kind` name a member of the file by its
+position and kind. An `E_UNSUPPORTED_VERSION` here skips one member; the same code thrown (below)
+refuses the whole file.
+
+`report.restored` lists the parts that came back. Each part comes from one member of the file:
+
+| Part                                                        | From the member       |
+| ----------------------------------------------------------- | --------------------- |
+| `"graph"`                                                   | `graphty-data`        |
+| `"config"`, `"layout"`, `"visibility"`, `"sets"`, `"views"` | `graphty-session`     |
+| `"arrangement"`, `"pins"`                                   | `graphty-arrangement` |
+| `"runs"`                                                    | `graphty-results`     |
+| `"styles"`                                                  | `graphty-style`       |
+| `"notes"`                                                   | `graphty-notes`       |
+
+`config` is the settings, `arrangement` where each node stands, `pins` the pinned nodes,
+`visibility` the filter and time window, `sets` the kept sets, and `views` the saved camera views.
 Both lists may gain values in a minor release; leave out a code you do not know.
 
 A file that cannot be opened at all is refused with a `GraphtyError`, and the session is left as
@@ -120,9 +162,10 @@ it was:
 
 ## Other graphty documents
 
-`open` also takes a graphty document that is not a project, such as a saved style or notes. Then
-`report.opened` is `"document"` and the file's styles and notes are added to the session as one
-undoable step, without replacing anything and without asking about unsaved changes.
+`open` also takes a graphty document that is not a project, such as a saved style or notes: one
+with no `graphty-session` member. Then `report.opened` is `"document"` (rather than `"project"`)
+and the file's styles and notes are added to the session as one undoable step, without replacing
+anything and without asking about unsaved changes.
 
 ## What is not saved
 
@@ -133,7 +176,7 @@ undoable step, without replacing anything and without asking about unsaved chang
 
 ## The file
 
-A graphty document (`kind: "graphty-document"`, version 1) whose members are:
+You need this section only to read or write the file yourself. A graphty document (`kind: "graphty-document"`, version 1) whose members are:
 
 | Member                | Holds                                                              |
 | --------------------- | ------------------------------------------------------------------ |

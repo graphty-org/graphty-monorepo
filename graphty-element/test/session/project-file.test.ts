@@ -329,7 +329,7 @@ describe("the project file", () => {
         const { harness } = withDegree();
         const { session } = harness;
         const heard: { name: string | null; dirty: boolean }[] = [];
-        session.on("document:changed", (change) => heard.push(change));
+        session.on("project:status", (change) => heard.push(change));
 
         assert.isFalse(session.project.dirty);
         await session.data.addNodes([{ id: "a" }]);

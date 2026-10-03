@@ -47,7 +47,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
-import type { DocumentChange, ProjectApi } from "./projectFile";
+import type { ProjectApi,ProjectStatus } from "./projectFile";
 import type { ResultsApi } from "./results";
 import type {
     Caveats,
@@ -779,9 +779,9 @@ export interface SessionEventMap {
     "progress:changed": ProgressChange;
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
-     * changed. Mirrored on the element as `graphty-document-change`.
+     * changed. Mirrored on the element as `graphty-project-status`.
      */
-    "document:changed": DocumentChange;
+    "project:status": ProjectStatus;
 }
 
 /**

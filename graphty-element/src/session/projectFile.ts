@@ -88,7 +88,10 @@ export interface ProjectSaveReport {
     readonly bytes: number;
     /** The member kinds written, in file order. */
     readonly written: readonly string[];
-    /** What is not in the file: a run still computing is `W_RUN_PENDING` with its `id`. */
+    /**
+     * What the element could not write, as codes: a run still computing is `W_RUN_PENDING` with
+     * its `id`. What you chose to leave out with the `leaveOut` option is not listed here.
+     */
     readonly leftOut: readonly ProjectProblem[];
 }
 
@@ -102,7 +105,7 @@ export interface SavedProject {
 /** How `project.open` reads a file. */
 export interface ProjectOpenOptions {
     /**
-     * Open a project over unsaved changes, discarding them. Without it, opening a project while
+     * Discard the session's unsaved changes: open a project over them. Without it, opening a project while
      * `project.dirty` is true is refused with `E_UNSAVED_CHANGES`.
      */
     readonly discard?: boolean;
@@ -118,7 +121,8 @@ export interface ProjectOpenOptions {
 export interface ProjectOpenReport {
     /**
      * What the file was: `"project"` (it holds a `graphty-session` member, and replaced the
-     * session) or `"document"` (a style, notes or data document, added to the session).
+     * session) or `"document"` (a graphty document that is not a project, such as a saved style
+     * or notes, whose contents were added to the session).
      *
      * OPEN UNION: later releases add values.
      */
@@ -133,8 +137,11 @@ export interface ProjectOpenReport {
     readonly extensions: Readonly<Record<string, unknown>>;
 }
 
-/** Published as `document:changed` whenever the project's name or `dirty` changes. */
-export interface DocumentChange {
+/**
+ * Published as `project:status` whenever the project's name or `dirty` changes, and mirrored on the
+ * element as `graphty-project-status`. Nothing is published at startup.
+ */
+export interface ProjectStatus {
     readonly name: string | null;
     readonly dirty: boolean;
 }
@@ -1094,7 +1101,7 @@ function nameOfFile(fileName: string | undefined): string | null {
  * @param canned - Where saved results wait for the runs an open starts; the session's executor
  *     answers from it.
  * @param hooks - What the session lends it.
- * @param hooks.announce - Publishes `document:changed`.
+ * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @returns The API.
  */
@@ -1102,7 +1109,7 @@ export function projectOf(
     session: GraphSession,
     dispatcher: Dispatcher,
     canned: CannedOutcomes,
-    hooks: { readonly announce: (change: DocumentChange) => void; readonly isDerived: (id: RunId) => boolean },
+    hooks: { readonly announce: (change: ProjectStatus) => void; readonly isDerived: (id: RunId) => boolean },
 ): ProjectApi {
     const { announce, isDerived } = hooks;
     // Clean means: the history's cursor is on the step that was on top at the last save or open
@@ -1110,7 +1117,7 @@ export function projectOf(
     let marker: string | null = null;
     let lost = false;
     let top: string | null = null;
-    let last: DocumentChange = { name: null, dirty: false };
+    let last: ProjectStatus = { name: null, dirty: false };
     const topNow = (): string | null => session.history.steps[session.history.position - 1]?.id ?? null;
     const isDirty = (): boolean => lost || topNow() !== marker;
     const nameNow = (): string | null => session.config.name ?? null;

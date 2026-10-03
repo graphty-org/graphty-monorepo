@@ -39,6 +39,9 @@ graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
 
+# githerd's replay data: GitHub's recorded answers, one record per line
+githerd/test/replay/data/
+
 # Generated benchmark reports
 algorithms/benchmark-results/
 

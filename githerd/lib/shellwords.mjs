@@ -204,25 +204,36 @@ class Parser {
             return true;
         }
         if (c !== "<" && c !== ">") return false;
+        if (d !== "(" && !(c === "<" && d === "<")) {
+            this.redirect(st);
+            return true;
+        }
         if (d === "(") {
             this.endWord(st);
             st.i = this.list(st.i + 2, true);
-        } else if (c === "<" && d === "<") {
+        } else if (s[st.i + 2] === "<") {
             this.endWord(st);
-            if (s[st.i + 2] === "<") {
-                st.next = "herestring";
-                st.i += 3;
-            } else {
-                this.heredoc(st);
-            }
+            st.next = "herestring";
+            st.i += 3;
         } else {
-            if (st.word !== null && /^\d+$/.test(st.word)) st.word = null;
             this.endWord(st);
-            st.i++;
-            if (s[st.i] === ">" || s[st.i] === "&" || s[st.i] === "|") st.i++;
-            st.next = "target";
+            this.heredoc(st);
         }
         return true;
+    }
+
+    /**
+     * Reads a plain redirection operator (`<`, `>`, `>>`, `>&`, `>|`, `<&`), dropping a file
+     * descriptor number written just before it; the next word is its target.
+     * @param {ListState} st the list being parsed, at the operator
+     */
+    redirect(st) {
+        const s = this.s;
+        if (st.word !== null && /^\d+$/.test(st.word)) st.word = null;
+        this.endWord(st);
+        st.i++;
+        if (s[st.i] === ">" || s[st.i] === "&" || s[st.i] === "|") st.i++;
+        st.next = "target";
     }
 
     /**
@@ -464,25 +475,34 @@ function unwrap(cmd, depth) {
     for (;;) {
         argv = stripLeading(argv, assign);
         if (argv.length === 0) return [];
-        const name = baseName(argv[0]);
-        const rest = argv.slice(1);
-        if (name === "eval") return nested(rest.join(" "));
-        if (SHELLS.has(name)) {
-            const script = shellScript(rest);
-            if (script === null) break;
-            return script === undefined ? [] : nested(script);
-        }
-        if (name === "env") {
-            const env = envOptions(rest, assign);
-            if (env.split !== undefined) return nested(env.split);
-            argv = rest.slice(env.k);
-            continue;
-        }
-        const skip = WRAPPERS[name];
-        if (skip === undefined) break;
-        argv = rest.slice(skip(rest));
+        const next = unwrapOnce(baseName(argv[0]), argv.slice(1), assign);
+        if (next === null) return [{ ...cmd, argv, assign }];
+        if (next.line !== undefined) return nested(next.line);
+        argv = next.argv ?? [];
     }
-    return [{ ...cmd, argv, assign }];
+}
+
+/**
+ * Sees through one wrapper word.
+ * @param {string} name the command name
+ * @param {string[]} rest its arguments
+ * @param {string[]} assign collects assignments given to `env`
+ * @returns {{line?: string, argv?: string[]} | null} a command line to parse again, the wrapped
+ *   command's words, or null when `name` is not a wrapper
+ */
+function unwrapOnce(name, rest, assign) {
+    if (name === "eval") return { line: rest.join(" ") };
+    if (SHELLS.has(name)) {
+        const script = shellScript(rest);
+        if (script === null) return null;
+        return script === undefined ? { argv: [] } : { line: script };
+    }
+    if (name === "env") {
+        const env = envOptions(rest, assign);
+        return env.split === undefined ? { argv: rest.slice(env.k) } : { line: env.split };
+    }
+    const skip = WRAPPERS[name];
+    return skip === undefined ? null : { argv: rest.slice(skip(rest)) };
 }
 
 /**

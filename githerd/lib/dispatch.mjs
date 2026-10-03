@@ -514,6 +514,30 @@ function recordStart(state, item, id, now) {
 }
 
 /**
+ * Every run this pass could start, in priority order: the wanted rows, a due refresh, the extra
+ * items the caller passes, and a backlog run when nothing else is wanted.
+ * @param {DispatchContext} ctx the context
+ * @param {(args: any) => void} raise raises an escalation
+ * @param {DispatchResult} result collects waiting items and unhandled incidents
+ * @returns {Promise<Item[]>} the items
+ */
+async function candidates(ctx, raise, result) {
+    const queue = workQueue(ctx);
+    const items = wanted(ctx, raise, result.masterRedUnhandled, result.waiting, queue);
+    const refresh = await refreshItem(ctx);
+    if (refresh) items.push(refresh);
+    items.push(...(ctx.extra ?? []));
+    if (!items.some((i) => !i.kind.startsWith("retriage-"))) {
+        const backlog = backlogItem(ctx, queue);
+        if (backlog) items.push(backlog);
+    }
+    // PR fixes and conflicts share one place, so the queue's oldest-first order holds across both.
+    const rank = (/** @type {string} */ kind) => PRIORITY.indexOf(kind === "pr-conflict" ? "pr-fix" : kind);
+    items.sort((a, b) => rank(a.kind) - rank(b.kind));
+    return items;
+}
+
+/**
  * One dispatcher pass: works out the runs the state calls for and starts them in priority order.
  * @param {DispatchContext} ctx the context
  * @returns {Promise<DispatchResult>} what started, what waits, and which incidents no run handles
@@ -527,18 +551,7 @@ export async function dispatch(ctx) {
         result.slotsFull = true;
         return result;
     }
-    const queue = workQueue(ctx);
-    const items = wanted(ctx, raise, result.masterRedUnhandled, result.waiting, queue);
-    const refresh = await refreshItem(ctx);
-    if (refresh) items.push(refresh);
-    items.push(...(ctx.extra ?? []));
-    if (!items.some((i) => !i.kind.startsWith("retriage-"))) {
-        const backlog = backlogItem(ctx, queue);
-        if (backlog) items.push(backlog);
-    }
-    // PR fixes and conflicts share one place, so the queue's oldest-first order holds across both.
-    const rank = (/** @type {string} */ kind) => PRIORITY.indexOf(kind === "pr-conflict" ? "pr-fix" : kind);
-    items.sort((a, b) => rank(a.kind) - rank(b.kind));
+    const items = await candidates(ctx, raise, result);
 
     // Targets with a run in flight: their follow-up waits for that run to end.
     const busy = new Set(

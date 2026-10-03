@@ -222,8 +222,11 @@ export function runSettings({ kind, guard, gpgAgentSocket = null, stateDir = nul
  * @returns {string} the quoted word
  */
 function quote(word) {
-    return /^[\w./=:@-]+$/.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`;
+    return /^[\w./=:@-]+$/.test(word) ? word : `'${word.replaceAll("'", QUOTE_IN_QUOTES)}'`;
 }
+
+/** A single quote inside a single-quoted shell word: close, escaped quote, reopen. */
+const QUOTE_IN_QUOTES = String.raw`'\''`;
 
 /**
  * Writes `.githerd/run-gitconfig`: the owner's name, email and signing key, signed commits, and
@@ -271,7 +274,8 @@ export function checkInit(init, kind) {
     if (init.permissionMode !== "auto") return `permission mode ${init.permissionMode}`;
     const servers = init.mcp_servers ?? [];
     if (servers.length !== 1 || servers[0].name !== "githerd" || servers[0].status !== "connected") {
-        return `MCP servers ${JSON.stringify(servers.map((s) => `${s.name}:${s.status}`))}`;
+        const names = servers.map((s) => s.name + ":" + s.status);
+        return `MCP servers ${JSON.stringify(names)}`;
     }
     // StructuredOutput is how claude returns the --json-schema result; every run has it.
     const tools = (init.tools ?? []).filter((t) => !t.startsWith("mcp__") && t !== "StructuredOutput");

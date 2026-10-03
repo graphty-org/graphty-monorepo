@@ -1,6 +1,6 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
+import { type LayoutResult, rescaleInPlace } from "../positions";
 import { seedPositions } from "../simulation/seed";
 import { toLayoutSnapshot } from "../simulation/snapshot";
 import { layoutDim, startColumn } from "./start";
@@ -18,11 +18,20 @@ export interface ArfOptions {
     readonly a?: number | undefined;
     /** The iteration cap; default 1000. The run also stops once the summed force falls to 1e-6. */
     readonly maxIter?: number | undefined;
+    /**
+     * When given (or when `center` is), the result is rescaled so the farthest node is `scale` from `center`, as every
+     * other one-shot layout's is; default 1 then. When neither is given the result keeps the scale the forces settled
+     * at.
+     */
+    readonly scale?: number | undefined;
+    /** The centre the result is rescaled about (missing components are 0); see `scale`. */
+    readonly center?: ArrayLike<number> | undefined;
 }
 
 /**
- * The attractive and repulsive forces layout (networkx's `arf_layout`). Its result is not rescaled: the forces
- * settle at their own scale, which `scaling` sets.
+ * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
+ * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
+ * from `center`.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node
@@ -85,6 +94,9 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
             }
             error += Math.sqrt(squares);
         }
+    }
+    if (options.scale !== undefined || options.center !== undefined) {
+        rescaleInPlace(p, dim, options.scale ?? 1, options.center);
     }
     return { positions: Float32Array.from(p), dim, n };
 }

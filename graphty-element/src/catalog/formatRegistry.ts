@@ -18,8 +18,13 @@
  * a consumer can see, select, and then be told does not exist.
  */
 
+import type { GraphListing } from "@graphty/graph-io";
+
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
 import { type FormatDescriptor, type FormatId, KNOWN_FORMAT_IDS } from "./types";
+
+/** Lists the graphs a file holds, given its text or its bytes. */
+export type GraphLister = (input: string | Uint8Array) => Promise<readonly GraphListing[]>;
 
 /** One format a third party registered: what a picker reads, and how a file is recognised. */
 export interface RegisteredFormat {
@@ -36,6 +41,11 @@ export interface RegisteredFormat {
      * else's bytes, and a guess that fails is an answer rather than a failed import.
      */
     readonly detect?: (sample: string) => boolean;
+    /**
+     * Lists the graphs a file of this format holds. Optional: only a format whose file can hold
+     * several declares it, and `listGraphs` from `./catalog` answers null for the rest.
+     */
+    readonly listGraphs?: GraphLister;
 }
 
 const registry = createPluginRegistry<RegisteredFormat, FormatDescriptor>({

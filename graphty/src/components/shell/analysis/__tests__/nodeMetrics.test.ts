@@ -15,6 +15,7 @@ import type { GraphSession, Histogram, RankingEntry, ResultSummary, RunResult } 
 import { describe, expect, it } from "vitest";
 
 import {
+    formatMetricValue,
     METRIC_DISTRIBUTION_MAX_BINS,
     metricDistribution,
     NODE_METRIC_DEFINITIONS,
@@ -420,5 +421,39 @@ describe("metricDistribution", () => {
 
         expect(asked).toEqual({ bins: METRIC_DISTRIBUTION_MAX_BINS, scale: "auto" });
         expect(stub.started).toEqual([]);
+    });
+});
+
+describe("formatMetricValue", () => {
+    it("prints a count exactly, grouped", () => {
+        expect(formatMetricValue(12, true)).toBe("12");
+        expect(formatMetricValue(1234, true)).toBe("1,234");
+        expect(formatMetricValue(12.4, true)).toBe("12");
+    });
+
+    it("keeps two significant figures below 1, so 0.0034 does not become 0.00", () => {
+        expect(formatMetricValue(0.0034, false)).toBe("0.0034");
+        expect(formatMetricValue(0.41, false)).toBe("0.41");
+        expect(formatMetricValue(0.041, false)).toBe("0.041");
+    });
+
+    it("rounds to two decimals at or above 1, grouped", () => {
+        expect(formatMetricValue(41.276, false)).toBe("41.28");
+        expect(formatMetricValue(1234.567, false)).toBe("1,234.57");
+    });
+
+    it("drops trailing zeros, which claim a precision the value does not carry", () => {
+        expect(formatMetricValue(0.5, false)).toBe("0.5");
+        expect(formatMetricValue(2.5, false)).toBe("2.5");
+    });
+
+    it("prints a measured zero as 0 and keeps a negative sign", () => {
+        expect(formatMetricValue(0, false)).toBe("0");
+        expect(formatMetricValue(-0.25, false)).toBe("-0.25");
+    });
+
+    it("reads a non-finite value as 0", () => {
+        expect(formatMetricValue(Number.POSITIVE_INFINITY, false)).toBe("0");
+        expect(formatMetricValue(Number.NaN, false)).toBe("0");
     });
 });

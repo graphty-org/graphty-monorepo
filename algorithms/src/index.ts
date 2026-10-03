@@ -11,6 +11,9 @@
 // The algorithms, their options and their results.
 export * from "./indexed/index.js";
 
+// Id-keyed views of results, for a caller holding its own node ids.
+export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id.js";
+
 /**
  * The algorithms under their 2.x namespace, types included (`indexed.PageRankResult`).
  * @deprecated Every algorithm is a top-level export since 3.0.0: `indexed.pageRank` is `pageRank`. Removed in 4.0.0.
@@ -18,7 +21,7 @@ export * from "./indexed/index.js";
 export * as indexed from "./indexed/index.js";
 
 // Errors the algorithms throw.
-export { ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
+export { type AlgorithmErrorCode, ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
 
 // General-purpose data structures.
 export * from "./data-structures/index.js";

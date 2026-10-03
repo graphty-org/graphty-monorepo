@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
 import { fireEvent, render, screen, within } from "../../../../test/test-utils";
-import type { LayerItem } from "../../../layout/LeftSidebar";
+import type { LayerItem } from "../../../shell/panel/StyleLayerList";
 import { ShellProvider } from "../../../shell/ShellContext";
 import { StyleLayerPropertiesPanel } from "../StyleLayerPropertiesPanel";
 
@@ -178,6 +178,15 @@ describe("StyleLayerPropertiesPanel", () => {
         await user.click(within(group("Color")).getByTestId("compact-color-input-reset"));
 
         expect(onUpdate).toHaveBeenCalledWith("layer-4", { set: undefined });
+    });
+
+    it("opens the swatch on a component color clamped into range, without its alpha", () => {
+        const components = makeLayer("layer-5", "Components", {
+            set: { "node.color": { r: 300, g: -5, b: 127.6, a: 0.5 } },
+        });
+        renderPanel(<StyleLayerPropertiesPanel layer={components} />);
+
+        expect(within(group("Color")).getByLabelText("Color hex value")).toHaveValue("FF0080");
     });
 
     it("draws a bound channel's control disabled, naming what it reads", () => {

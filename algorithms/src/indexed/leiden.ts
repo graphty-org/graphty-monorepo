@@ -1,5 +1,6 @@
 import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { exactEdgeWeights } from "./label-propagation.js";
@@ -385,14 +386,17 @@ function pass(
  */
 export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenResult {
     if (s.directed) {
-        throw new Error("Leiden requires an undirected graph. Pass s.toUndirected().snapshot.");
+        throw withCode(
+            new Error("Leiden requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
     }
     const resolution = options.resolution ?? 1;
     const randomSeed = options.randomSeed ?? 42;
     const maxIterations = options.maxIterations ?? 100;
     const threshold = options.threshold ?? 1e-7;
     if (!Number.isInteger(randomSeed)) {
-        throw new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`);
+        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
     const given = exactEdgeWeights(s) ?? s.edgeList().weights;
@@ -400,7 +404,10 @@ export function leiden(s: GraphSnapshot, options: LeidenOptions = {}): LeidenRes
     for (let e = 0; e < edgeW.length; e++) {
         const w = edgeW[e];
         if (!(w >= 0) || w === Infinity) {
-            throw new RangeError(`edge ${e} has weight ${w}; Leiden needs finite, non-negative weights`);
+            throw withCode(
+                new RangeError(`edge ${e} has weight ${w}; Leiden needs finite, non-negative weights`),
+                "E_BAD_WEIGHT",
+            );
         }
     }
     const base = levelOf(s, edgeW);

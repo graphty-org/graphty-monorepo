@@ -4,7 +4,6 @@ import {
     formatCount,
     formatCountPair,
     formatCountsTitle,
-    formatExactCount,
     formatExactCountPair,
     formatSampleLine,
 } from "../formatCounts";
@@ -53,18 +52,6 @@ describe("formatCounts", () => {
 
         it("rounds up into the M scale rather than writing 1000k", () => {
             expect(formatCount(999600)).toBe("1.0M");
-        });
-    });
-
-    describe("exact values", () => {
-        it("keeps separators at every magnitude", () => {
-            expect(formatExactCount(120418)).toBe("120,418");
-            expect(formatExactCount(1104206)).toBe("1,104,206");
-        });
-
-        it("reads anything unusable as zero", () => {
-            expect(formatExactCount(Number.NaN)).toBe("0");
-            expect(formatExactCount(-4)).toBe("0");
         });
     });
 

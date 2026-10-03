@@ -63,6 +63,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# SonarQube scanner work directory, for scans run by hand (tools/sonar-gate.mjs and
+# tools/sonar-baseline.mjs write theirs under the git common directory instead)
+.scannerwork/
+
 # Coverage
 coverage/
 .nyc_output/

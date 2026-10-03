@@ -43,6 +43,8 @@ const config: KnipConfig = {
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",
+                // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
+                "@sonar/scan",
             ],
         },
 
@@ -288,7 +290,15 @@ const config: KnipConfig = {
 
         // compact-mantine package
         "compact-mantine": {
-            entry: ["tests/**/*.test.{ts,tsx}", "stories/**/*.stories.tsx"],
+            // The theme's component extensions and its stylesheet modules are loaded with
+            // import.meta.glob (src/theme/components/index.ts, src/theme/global-styles.ts), which
+            // knip cannot follow, so they are entries of their own.
+            entry: [
+                "src/theme/components/*.ts!",
+                "src/theme/css/*.css.ts!",
+                "tests/**/*.test.{ts,tsx}",
+                "stories/**/*.stories.tsx",
+            ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [

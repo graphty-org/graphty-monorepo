@@ -85,6 +85,32 @@ When the element fix genuinely cannot land first -- a release is in flight, the 
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
 record. It is not done until the element is fixed and the workaround is deleted.
 
+### graphty-element is neutral about presentation
+
+**graphty-element owns the graph: its data, the computation over it, and drawing it on the canvas.
+Applications own everything around the graph: what information to show, how to arrange and group
+it, what to call it, and how the controls behave.**
+
+The owner's rule (2026-10-03): "graphty-element MUST be neutral about how information is displayed
+and MUST NOT be opinionated about presentation or information structure. the division of labor is
+that graphty app (or other apps that use graphty-element) will make ALL presentation decisions, and
+all the logic for manging data and rendering it lives in graphty-element."
+
+This is not the Model/View split of MVC: graphty-element also owns a view (the canvas it draws,
+styled through style layers) and its controls (what a click, drag, zoom or keyboard walk on the
+canvas does). The line runs around the graph, not between layers. Concretely, a graphty-element API
+returns neutral, structured facts -- values, descriptors, error and event codes with their
+parameters -- and never:
+
+- reader-facing sentences or default English text (return `{ code, params }`; the app writes the
+  words)
+- headings, section groupings or display order for a panel (the Style tab's sections, the Analyze
+  popover's categories)
+- choices of what to show a reader, or how much of it
+
+A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
+a reader sees it is the application's.
+
 ### Easy things easy, hard things possible
 
 Every public API and extension point has a simple path and an advanced path. The simple path's
@@ -123,7 +149,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
 
@@ -281,6 +307,8 @@ The `tools/` directory contains build scripts:
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
 ### Secret Scan and Secret Files
@@ -297,6 +325,37 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.
+
+### SonarQube
+
+The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
+SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
+fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
+already has never blocks, even on a touched line. It runs in the background while the tests run.
+The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
+come from the environment or `.env`; never print the token or put it on a command line. Design and
+the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
+
+When the step fails:
+
+- **A finding on your changed lines: fix it.** That is the default, every time. Rerun the step
+  with `node tools/sonar-gate.mjs` (about a minute) after committing the fix.
+- **A false positive: `// NOSONAR(<rule>): <reason>`** on that line (the rule key, such as
+  `S2245`, and a reason of 10 or more characters; a bare `NOSONAR` or one naming a vulnerability
+  rule fails the push). A rule that is wrong for a whole file goes in
+  `sonar.issue.ignore.multicriteria` in `sonar-project.properties`, with a comment giving the
+  reason. Say in your reply which suppressions you added and why.
+- **Never bypass without saying so.** A `Sonar-Bypass: <reason>` trailer on the HEAD commit is for
+  a server defect or an emergency the owner agreed to, never for a finding nobody wants to fix; it
+  does not cover vulnerabilities or hotspots. `git push --no-verify` skips the whole gate (the build,
+  the tests, the LFS upload). If you use either, say so in your reply, with the reason.
+- **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
+  project): a setup problem. Report it to the owner with the message; do not work around it.
+- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+  next push from the owner's network checks the whole branch. Mention it in your reply.
+
+Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
+package at a time, never as part of feature work.
 
 ### Starting Servers
 
@@ -403,7 +462,7 @@ All packages: 80% lines/functions/statements, 75% branches
 | `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
-| `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
@@ -444,6 +503,20 @@ type setting), so decide a package's next major before the first breaking commit
 version plan in a temporary release group for exactly this reason; the group is gone, and every
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
+
+To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
+reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
+"2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other
+package still releases, and the graphty.app deploy, which runs only from `release.yml`, still
+happens. **Never disable `release.yml`** to stop one package: that stops every package and the
+deploy. The release job runs `tools/release-hold.mjs apply`, which leaves the held projects out of
+nx.json's `release.projects` in its checkout, so a held package is neither versioned from its own
+commits nor patch-bumped as a dependent of a released one (`--projects` alone does not stop that:
+with `updateDependents: "auto"` nx adds a filtered-out dependent back). A held package keeps its
+last tag, so when it leaves the list the next release bumps it from every commit since that tag.
+CI rejects an unknown project name, a missing reason or date, and a list that holds everything
+(`pnpm run check:release-hold`). To preview a hold, run `node tools/release-hold.mjs apply`, then
+`pnpm exec nx release --dry-run --skip-publish`, then `git restore nx.json`.
 
 Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
 a commit is listed under a package's "Breaking Changes" only when its scope names that package (or
@@ -742,6 +815,18 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
+
+### Merging
+
+Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
+a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
+date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
+`Lint PR Title` succeed. Nobody turns on auto-merge by hand.
+
+- To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
+  Adding `hold` also takes an already-queued pull request out of the queue.
+- Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
+  request with it on would merge anyway.
 
 ### Breaking changes and major releases
 

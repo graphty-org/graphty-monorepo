@@ -1,0 +1,14 @@
+/* Settings: the section list beside the chosen section. */
+
+.ws-settings {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 16px;
+    min-height: 320px;
+}
+
+@media (max-width: 720px) {
+    .ws-settings {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

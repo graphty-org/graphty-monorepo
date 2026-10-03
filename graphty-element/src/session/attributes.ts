@@ -17,7 +17,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { AttributeDescriptor, AttributeType } from "../catalog/types";
+import type { AttributeDescriptor, AttributeLevel, AttributeType } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
@@ -137,6 +137,59 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
     return accumulator.unique.size <= Math.max(2, Math.sqrt(total));
 }
 
+/** Most groups an integer column of codes can hold and still read as a category. */
+const INTEGER_CODE_CAP = 12;
+
+/** A column name that says its values identify a record. */
+const ID_NAME = /^(id|key|uuid|guid)$|_id$|[a-z]Id$/u;
+
+/**
+ * Whether an integer attribute is a set of group codes -- 0, 1, 2 ... or 1, 2, 3 ... with every
+ * code in between used and each one repeated -- rather than a count or a measurement.
+ *
+ * A guess, and the reason `data.declare` exists: a count of 0 to 5 reads as six groups here.
+ * @param accumulator - what the walk saw
+ * @param total - how many records of that kind there are
+ * @returns true when the codes read as categories
+ */
+function isIntegerCodes(accumulator: Accumulator, total: number): boolean {
+    const { unique, min, max } = accumulator;
+    if (unique === null || unique.size >= accumulator.present || (min !== 0 && min !== 1)) {
+        return false;
+    }
+
+    return max - min + 1 === unique.size && unique.size <= Math.max(INTEGER_CODE_CAP, Math.sqrt(total));
+}
+
+/**
+ * What an attribute measures, worked out from its name and its values.
+ * @param name - the attribute's key
+ * @param type - its settled type
+ * @param accumulator - what the walk saw
+ * @param total - how many records of that kind there are
+ * @returns the level
+ */
+function inferLevel(name: string, type: AttributeType, accumulator: Accumulator, total: number): AttributeLevel {
+    const distinct = accumulator.unique !== null && accumulator.unique.size === accumulator.present;
+    if ((type === "string" || type === "integer") && distinct && accumulator.present > 1 && ID_NAME.test(name)) {
+        return "id";
+    }
+
+    switch (type) {
+        case "category":
+        case "boolean":
+            return "category";
+        case "integer":
+            return isIntegerCodes(accumulator, total) ? "category" : "quantity";
+        case "number":
+            return "quantity";
+        case "time":
+            return "time";
+        default:
+            return "text";
+    }
+}
+
 /**
  * Turn one accumulator into the descriptor a consumer reads.
  * @param name - the attribute's key
@@ -158,6 +211,8 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         technicalName: name,
         kind,
         type,
+        level: inferLevel(name, type, accumulator, total),
+        levelSource: "inferred",
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),

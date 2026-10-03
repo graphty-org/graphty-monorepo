@@ -227,6 +227,15 @@ export const ATTRIBUTE_TYPES = ["string", "number", "integer", "boolean", "time"
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 /**
+ * What an attribute measures, which decides how a channel reads it: one color per category, a
+ * ramp or a size range for a quantity, nothing by default for free text or an identifier.
+ */
+export const ATTRIBUTE_LEVELS = ["category", "quantity", "time", "text", "id"] as const;
+
+/** What an attribute measures. See {@link ATTRIBUTE_LEVELS}. */
+export type AttributeLevel = (typeof ATTRIBUTE_LEVELS)[number];
+
+/**
  * How expensive a computation is, in the one vocabulary every estimate uses. "instant" is
  * cheap enough to run without asking; "unbounded" cannot be estimated in advance at all.
  */
@@ -808,6 +817,10 @@ export interface AttributeDescriptor {
     technicalName: string;
     kind: "node" | "edge";
     type: AttributeType;
+    /** What the attribute measures, which decides the scale a binding with none reads it through. */
+    level: AttributeLevel;
+    /** Whether {@link AttributeDescriptor.level} was worked out from the values or declared with `data.declare`. */
+    levelSource: "inferred" | "declared";
     origin: "imported" | "joined" | "computed" | "result";
     /** The fraction of elements that carry a value, from 0 to 1. */
     completeness: number;

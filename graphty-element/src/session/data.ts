@@ -14,7 +14,7 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId, ScopeInput } from "../catalog/types";
+import type { AttributeDescriptor, AttributeLevel, EdgeId, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -26,12 +26,14 @@ import {
     type DataMutation,
     type DataService,
     type ImportSource,
+    LEVEL_KEY,
     SOURCE_VALUE,
 } from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import { nearestNames } from "./results/ResultsApi";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -66,6 +68,10 @@ interface DataWrites {
     importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+    /** Dispatch `data.declare`. */
+    declare(path: string, level: AttributeLevel): Promise<unknown>;
+    /** The `config` slice now, where declared levels are kept. */
+    config(): ReadonlyMap<string, unknown>;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -690,7 +696,43 @@ export class SessionData implements SessionDataApi {
     attributes(): readonly AttributeDescriptor[] {
         const derived = this.derivedFor(this.current());
         derived.attributes ??= describeAttributes(derived.snapshot, this.records);
-        return derived.attributes;
+        const config = this.writes.config();
+        const declared = derived.attributes.filter((each) => config.has(`${LEVEL_KEY}${each.path}`));
+        if (declared.length === 0) {
+            return derived.attributes;
+        }
+
+        // ponytail: rebuilt per call while a level is declared; cache on the config slice's
+        // write count if a render loop reads it.
+        return Object.freeze(
+            derived.attributes.map((each) => {
+                const level = config.get(`${LEVEL_KEY}${each.path}`) as AttributeLevel | undefined;
+                return level === undefined ? each : Object.freeze({ ...each, level, levelSource: "declared" as const });
+            }),
+        );
+    }
+
+    /**
+     * Say what an attribute measures, as one undoable step.
+     * @param path - the attribute's path
+     * @param declaration - the level it measures
+     * @param declaration.level - the level
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a path no record carries.
+     */
+    async declare(path: string, declaration: { readonly level: AttributeLevel }): Promise<void> {
+        this.requireLive("declare");
+        const paths = this.attributes().map((each) => each.path);
+        if (!paths.includes(path)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ATTRIBUTE",
+                message: `No record carries an attribute at "${path}", so there is nothing to declare.`,
+                source: "data",
+                details: { path, available: paths, candidates: nearestNames(path, paths) },
+            });
+        }
+
+        await this.writes.declare(path, declaration.level);
     }
 
     /**

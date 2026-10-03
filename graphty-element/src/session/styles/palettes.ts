@@ -229,7 +229,7 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
  * @param groups - How many distinct groups the column actually holds; 0 for a continuous scale.
  * @returns The palette's id.
  */
-function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups: number): PaletteId {
+export function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups: number): PaletteId {
     if (registry.describe(scale)?.domainKind !== "categorical") {
         return DEFAULT_PALETTE;
     }

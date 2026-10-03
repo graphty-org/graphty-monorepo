@@ -72,6 +72,7 @@
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
+    AttributeDescriptor,
     Binding,
     Channel,
     EdgeId,
@@ -119,7 +120,7 @@ import { sealedSet } from "../sealed";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
-import type { PreparedBinding } from "./encoding";
+import { type DefaultBinding, defaultBinding, type PreparedBinding } from "./encoding";
 import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
 import {
     type ExplainSources,
@@ -148,7 +149,14 @@ import {
     specOf,
     type ValidationResult,
 } from "./Layer";
-import { buildLegend, type EncodingLookup, type FieldWords, type LegendBlock, type LegendSources } from "./legend";
+import {
+    buildLegend,
+    type EncodingLookup,
+    type FieldWords,
+    type LegendBlock,
+    type LegendOptions,
+    type LegendSources,
+} from "./legend";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
@@ -353,10 +361,25 @@ export interface StylesApi {
      *
      * SYNCHRONOUS, and it measures nothing: every figure in it was worked out when the bindings
      * were prepared. It therefore exists headlessly, in a Node test, and at any export scale.
+     * @param options - `maxCategories`: how many categories a block lists before the rest roll
+     *     into one "other" row that lists them in `rolledUp`.
      * @returns One block per channel a layer paints from the data, BOTTOM FIRST -- the same order
      *     {@link StylesApi.list} returns. Empty when nothing is bound to paint.
+     * @throws A `GraphtyError` with code `E_OPTION_RANGE` when `maxCategories` is not a whole
+     *     number of at least 1.
      */
-    legend(): readonly LegendBlock[];
+    legend(options?: LegendOptions): readonly LegendBlock[];
+    /**
+     * What binding an attribute to a channel with no scale and no range would do, before
+     * writing it: the scale and range the element would pick for the attribute's level, the
+     * palette, and whether the pairing is worth offering, with the reason when it is not.
+     * @param path - The attribute's path, such as `"data.group"`.
+     * @param channel - The channel, such as `"node.color"`.
+     * @returns The default binding.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_ATTRIBUTE` for a path no record carries and
+     *     `E_UNKNOWN_CHANNEL` for a channel the element does not have.
+     */
+    defaultBinding(path: Path, channel: Channel): DefaultBinding;
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -594,6 +617,13 @@ export interface StylesSources {
      * @returns The words, or undefined when nothing in the session names that path.
      */
     readonly field?: (path: Path, target: SelectorTarget) => FieldWords | undefined;
+    /**
+     * The attribute one path names, with its level, for {@link StylesApi.defaultBinding}.
+     * Absent, no path resolves.
+     * @param path - The column path.
+     * @returns The attribute, or undefined when no record carries it.
+     */
+    readonly attribute?: (path: Path) => AttributeDescriptor | undefined;
     /**
      * What paints the elements a change touched.
      *
@@ -2120,8 +2150,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        legend(): readonly LegendBlock[] {
-            return buildLegend(legendSources);
+        legend(options?: LegendOptions): readonly LegendBlock[] {
+            return buildLegend(legendSources, options);
+        },
+
+        defaultBinding(path: Path, channel: Channel): DefaultBinding {
+            const attribute = sources.attribute?.(path);
+            if (attribute === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNKNOWN_ATTRIBUTE",
+                    message: `No record carries an attribute at "${path}", so there is nothing to bind.`,
+                    source: "style",
+                    details: { path },
+                });
+            }
+
+            return defaultBinding(attribute, channel, scales);
         },
 
         async settled(): Promise<void> {

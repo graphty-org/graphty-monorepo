@@ -360,6 +360,7 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
 export type {
     ChannelExplanation,
+    DefaultBinding,
     ElementLayerSpec,
     EncodingRun,
     EncodingSpec,
@@ -370,6 +371,7 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendOptions,
     LegendSwatch,
     RepaintReason,
     RepaintReport,

@@ -492,6 +492,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
     legend: READ,
+    defaultBinding: READ,
     settled: READ,
     explain: READ,
     resolveToStatic: calls(
@@ -1351,6 +1352,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             lastImport: READ,
             source: READ,
             attributes: READ,
+            declare: {
+                kind: "dispatches",
+                op: "data.declare",
+                call: {
+                    kind: "call",
+                    args: ["data.doorLevel", { level: "category" }],
+                    // A level is declared on an attribute some record carries.
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-level", doorLevel: 1 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "data.declare", path: "data.doorLevel", level: "category" }],
+            },
             statistics: READ,
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),

@@ -23,6 +23,7 @@ import {
 import type { CameraState } from "../camera/types";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
+    AttributeDescriptor,
     EdgeId,
     EdgeMember,
     EdgeReading,
@@ -51,6 +52,7 @@ import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
+import { LEVEL_KEY } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
@@ -1496,6 +1498,17 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
 }
 
 /**
+ * The attribute one path names, of the kind a layer paints.
+ * @param data - The session's data.
+ * @param path - The column path.
+ * @param target - Whether the layer paints nodes or edges.
+ * @returns The attribute, or undefined when no record of that kind carries the path.
+ */
+function attributeAt(data: SessionDataApi, path: Path, target: "node" | "edge"): AttributeDescriptor | undefined {
+    return data.attributes().find((each) => each.path === path && each.kind === target);
+}
+
+/**
  * The words one column goes by, for a legend that says "Connections" rather than
  * "results.degree.value".
  * @param data - The session's data surface.
@@ -1832,6 +1845,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            declare: (path, level) => dispatcher.dispatch({ op: "data.declare", path, level }),
+            config: () => dispatcher.state.config,
         },
         {
             revision: () => inputs.tick.value,
@@ -2296,6 +2311,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            level: (path, target) => attributeAt(data, path, target)?.level,
         }),
         snapshot,
     );
@@ -2339,6 +2355,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
+        attribute: (path: Path) => data.attributes().find((each) => each.path === path),
         repaint: painter.repaint,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
@@ -2380,6 +2397,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (edits.length > 0) {
             await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
         }
+    });
+
+    // The `config` hook for declared levels: a binding that names no scale reads its attribute by
+    // its level, so a declaration, its undo and its redo repaint the layers reading that path.
+    dispatcher.lane.register("config", async (rendered, target, dirty) => {
+        const paths = [...dirty]
+            .filter((key) => key.startsWith(LEVEL_KEY) && rendered.config.get(key) !== target.config.get(key))
+            .map((key) => key.slice(LEVEL_KEY.length));
+        const readers = target.styles.filter((entry) => entry.reads.some((path) => paths.includes(path)));
+        if (readers.length === 0) {
+            return;
+        }
+
+        painter.invalidate();
+        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        const fromIndex = target.styles.indexOf(readers[0]);
+        await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
     });
 
     // The `notes` hook: a note written, edited, removed, merged, undone or redone moves the

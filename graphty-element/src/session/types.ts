@@ -31,6 +31,7 @@ import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
+    AttributeLevel,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
@@ -459,6 +460,19 @@ export interface SessionDataApi {
      * @returns the descriptors, node attributes first, each kind in first-seen order
      */
     attributes(): readonly AttributeDescriptor[];
+    /**
+     * Say what an attribute measures, overriding the level {@link SessionDataApi.attributes}
+     * inferred, as one undoable step. A binding that names no scale reads the attribute by this
+     * level from then on: `"category"` gets one color per value, `"quantity"` a ramp or a size
+     * range.
+     * @param path - the attribute's path, such as `"data.group"`
+     * @param declaration - what it measures
+     * @param declaration.level - the level: `"category"`, `"quantity"`, `"time"`, `"text"` or `"id"`
+     * @returns settles once the step is recorded and the picture repainted
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a path no record carries and
+     *     `E_BAD_COMMAND` for a level that is not one of `ATTRIBUTE_LEVELS`.
+     */
+    declare(path: string, declaration: { readonly level: AttributeLevel }): Promise<void>;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics
@@ -914,6 +928,8 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
+    /** Settles once the declaration is recorded and the pass that repaints it has run. */
+    "data.declare": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

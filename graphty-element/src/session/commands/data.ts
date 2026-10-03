@@ -7,6 +7,8 @@
  * - `data.import`: a load through a registered data source, replacing the graph or adding to it.
  * - `data.expand`: the neighbourhood a double-click fetched, added as one step. The fetched
  *   records are in the command, so redo never fetches again.
+ * - `data.declare`: what an attribute measures, kept in the `config` slice under
+ *   `level:<path>` so it is saved and undone like a setting.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -23,7 +25,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import { ATTRIBUTE_LEVELS, type AttributeLevel, type EdgeId, type NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -130,8 +132,18 @@ interface DataExpandCommand {
     readonly target?: string;
 }
 
+/** `data.declare`: what an attribute measures, overriding the inferred level. */
+interface DataDeclareCommand {
+    readonly op: "data.declare";
+    readonly path: string;
+    readonly level: AttributeLevel;
+}
+
 /** Every data op. */
-export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand;
+export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand;
+
+/** The `config` slice key a declared level is kept under, before the attribute's path. */
+export const LEVEL_KEY = "level:";
 
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
@@ -469,5 +481,26 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     },
 };
 
+const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
+    op: "data.declare",
+    undo: { kind: "undoable", label: (command) => `Declared ${command.path} a ${command.level}` },
+    moves: false,
+    draws: true,
+    keys: (command) => [`config/${LEVEL_KEY}${command.path}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        if (!(ATTRIBUTE_LEVELS as readonly string[]).includes(command.level)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `"${command.level}" is not a level. The levels are: ${ATTRIBUTE_LEVELS.join(", ")}.`,
+                source: "data",
+                details: { path: command.path, level: command.level, available: ATTRIBUTE_LEVELS },
+            });
+        }
+
+        ctx.draft.config.set(`${LEVEL_KEY}${command.path}`, command.level);
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand] as const;
+export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare] as const;

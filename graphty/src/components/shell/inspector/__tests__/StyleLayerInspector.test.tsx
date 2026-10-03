@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
 import { render, screen, within } from "../../../../test/test-utils";
-import type { LayerItem } from "../../../layout/LeftSidebar";
+import type { LayerItem } from "../../panel/StyleLayerList";
 import { ShellProvider } from "../../ShellContext";
 import { StyleLayerInspector, type StyleLayerSource } from "../StyleLayerInspector";
 

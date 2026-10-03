@@ -70,6 +70,8 @@ export const DOT_LOSS = Object.freeze({
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
     /** A role-less column named `label` reads back with the label role. */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
+    /** A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. */
+    CLUSTER_MARKED: "W_DOT_CLUSTER_MARKED",
 });
 
 /** The roles DOT has a slot for (the label attribute, key, ports, clusters); every other role is reported. */
@@ -509,6 +511,21 @@ class ExportPlan {
                     }
                 }
             }
+        }
+        let unmarked = 0;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
+            if (!marked && this.children.childrenOf(i).length > 0) {
+                unmarked++;
+            }
+        }
+        if (unmarked > 0) {
+            note(
+                DOT_LOSS.CLUSTER_MARKED,
+                `${unmarked} parent node(s) are written as a node and a cluster of the same name and read back with "${CLUSTER_COLUMN}" true`,
+                CLUSTER_COLUMN,
+                unmarked,
+            );
         }
         const mutual = this.folding.mutualCount;
         if (mutual > 0) {

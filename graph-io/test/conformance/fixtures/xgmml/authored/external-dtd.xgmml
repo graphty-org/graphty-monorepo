@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph SYSTEM "file:///etc/passwd">
+<graph label="never fetched">
+  <node id="a"/>
+</graph>

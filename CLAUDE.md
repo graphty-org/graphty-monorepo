@@ -277,6 +277,8 @@ The `tools/` directory contains build scripts:
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
 ### Secret Scan and Secret Files
@@ -293,6 +295,37 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.
+
+### SonarQube
+
+The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
+SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
+fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
+already has never blocks, even on a touched line. It runs in the background while the tests run.
+The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
+come from the environment or `.env`; never print the token or put it on a command line. Design and
+the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
+
+When the step fails:
+
+- **A finding on your changed lines: fix it.** That is the default, every time. Rerun the step
+  with `node tools/sonar-gate.mjs` (about a minute) after committing the fix.
+- **A false positive: `// NOSONAR(<rule>): <reason>`** on that line (the rule key, such as
+  `S2245`, and a reason of 10 or more characters; a bare `NOSONAR` or one naming a vulnerability
+  rule fails the push). A rule that is wrong for a whole file goes in
+  `sonar.issue.ignore.multicriteria` in `sonar-project.properties`, with a comment giving the
+  reason. Say in your reply which suppressions you added and why.
+- **Never bypass without saying so.** A `Sonar-Bypass: <reason>` trailer on the HEAD commit is for
+  a server defect or an emergency the owner agreed to, never for a finding nobody wants to fix; it
+  does not cover vulnerabilities or hotspots. `git push --no-verify` skips the whole gate (the build,
+  the tests, the LFS upload). If you use either, say so in your reply, with the reason.
+- **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
+  project): a setup problem. Report it to the owner with the message; do not work around it.
+- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+  next push from the owner's network checks the whole branch. Mention it in your reply.
+
+Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
+package at a time, never as part of feature work.
 
 ### Starting Servers
 

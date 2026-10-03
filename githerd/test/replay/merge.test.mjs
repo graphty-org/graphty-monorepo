@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { selectGroups } from "../../../webgpu-graph-algorithms/scripts/bench-groups.js";
+
 import { classify } from "../../lib/classify.mjs";
 import { emptyFacts, foldRuns } from "../../lib/lanes.mjs";
 import { mergeDecision } from "../../lib/prs.mjs";
@@ -26,13 +28,59 @@ const merged = /** @type {Record<string, {files: string[], commitCount: number, 
 );
 const OWNER = "apowers313";
 const MASTER = "repos/graphty-org/graphty-monorepo/actions/runs?branch=master&per_page=100";
+/**
+ * The `paths` globs of hosts.yml's `pull_request` trigger, as prefixes (`x/**`) or whole paths.
+ * @returns {string[]} the globs
+ */
+function hostsPaths() {
+    const text = readFileSync(new URL("../../../.github/workflows/hosts.yml", import.meta.url), "utf8");
+    const trigger = /\n {4}pull_request:\n {8}paths:\s*\[([^\]]*)\]/.exec(text);
+    if (!trigger) throw new Error("hosts.yml has no pull_request paths");
+    return [...trigger[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+}
+const HOSTS_GLOBS = hostsPaths();
+
+/**
+ * Whether a gating lane can affect a pull request, from the sources the design cites rather than
+ * from the merge decision: CI from anything; Hosts from the paths of hosts.yml's pull request
+ * trigger; GPU from a file `scripts/bench-groups.js` maps to a benchmark group (every file under
+ * the package's src/, so one group with an empty set stands for all of them), the lane's scripts
+ * and benchmarks, and gpu.yml.
+ * @param {string} workflow the lane
+ * @param {string[]} files the recorded changed paths (cut paths end in `/`)
+ * @returns {boolean} true when it can
+ */
+function canAffect(workflow, files) {
+    if (workflow === "Hosts") {
+        return files.some((f) =>
+            HOSTS_GLOBS.some((g) => (g.endsWith("/**") ? f.startsWith(g.slice(0, -2)) : f === g)),
+        );
+    }
+    if (workflow === "GPU") {
+        const benched = selectGroups(files, new Map([["any", new Set()]])).groups.length > 0;
+        return (
+            benched ||
+            files.some(
+                (f) =>
+                    f.startsWith("webgpu-graph-algorithms/scripts/") ||
+                    f.startsWith("webgpu-graph-algorithms/benchmarks/") ||
+                    f === ".github/workflows/gpu.yml",
+            )
+        );
+    }
+    return true;
+}
+
 const CONFIG = { gating: /** @type {const} */ ({ CI: "required", GPU: "required", Hosts: "if-run" }), ci: "CI" };
 
 /**
  * Every merge of the record with the code-red gating lanes at its moment and the status githerd
  * would have posted on its head just before it merged.
  * @returns {{number: number, at: string, title: string, red: string[], affected: string[],
- *   status: ReturnType<typeof mergeDecision>}[]} one entry per merge, in time order
+ *   holds: Record<string, boolean>, canAffect: Record<string, boolean>,
+ *   status: ReturnType<typeof mergeDecision>}[]} one entry per merge, in time order; `holds` is
+ *   whether the decision holds it on line 2 with only that lane red, `canAffect` whether the lane
+ *   can affect it by the workflows' own paths
  */
 function replayMerges() {
     const replay = createReplay();
@@ -93,15 +141,21 @@ function replayMerges() {
                 releaseBumps: [],
             };
             const status = mergeDecision(pr, { login: OWNER, redLanes });
-            const affected = redLanes
-                .filter((l) => mergeDecision(pr, { login: OWNER, redLanes: [l] }).line === 2)
-                .map((l) => l.workflow);
+            const affected = redLanes.filter((l) => canAffect(l.workflow, rec.files)).map((l) => l.workflow);
+            const holds = Object.fromEntries(
+                Object.keys(CONFIG.gating).map((w) => [
+                    w,
+                    mergeDecision(pr, { login: OWNER, redLanes: [{ workflow: w, since: p.mergedAt }] }).line === 2,
+                ]),
+            );
             out.push({
                 number: p.number,
                 at: p.mergedAt,
                 title: p.title,
                 red: redLanes.map((l) => l.workflow),
                 affected,
+                holds,
+                canAffect: Object.fromEntries(Object.keys(CONFIG.gating).map((w) => [w, canAffect(w, rec.files)])),
                 status,
             });
         }
@@ -115,6 +169,15 @@ describe("githerd/merge over the recorded merges", () => {
     it("covers every merge of the record", () => {
         expect(list).toHaveLength(Object.keys(merged).length);
         expect(list.every((m) => m.status.state !== "pending")).toBe(true);
+    });
+
+    it("holds a merge on a red lane exactly when that lane's own paths say it can affect the merge", () => {
+        for (const m of list) expect(m.holds, `#${m.number}`).toEqual(m.canAffect);
+        // The record exercises both answers for both path-scoped lanes.
+        for (const w of ["GPU", "Hosts"]) {
+            expect(list.some((m) => m.canAffect[w])).toBe(true);
+            expect(list.some((m) => !m.canAffect[w])).toBe(true);
+        }
     });
 
     it("would have held every merge that landed while a gating lane that can affect it was red", () => {

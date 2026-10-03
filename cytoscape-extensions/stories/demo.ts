@@ -15,24 +15,21 @@ import {
     type SampleGraph,
     wattsStrogatzGraph,
 } from "@graphty/graph-samples/generators";
-import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
+import cytoscape, { type Collection, type Core, type ElementDefinition } from "cytoscape";
 
 import graphtyCytoscape, { configureWebGpu } from "../src/index.js";
+import { type Network, NETWORKS } from "./catalog.js";
 
 cytoscape.use(graphtyCytoscape);
 
-const NETWORKS = [
-    "barabasi-albert",
-    "planted-partition",
-    "erdos-renyi",
-    "watts-strogatz",
-    "grid",
-    "random-tree",
-] as const;
-type Network = (typeof NETWORKS)[number];
+/**
+ * True inside a visual-review capture (its URL carries chromatic=true, as Chromatic's does). Captures leave out run
+ * times, which differ on every run.
+ */
+const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
 
 /** Node counts; "large" and "huge" are where the GPU is meant to pay off. */
-const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };
+export const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };
 type Size = keyof typeof SIZES;
 
 /** The backend control: "auto" lets the extension decide, "cpu" passes gpu: "off", "gpu" passes gpu: "require". */
@@ -78,7 +75,7 @@ export const networkArgs: RunArgs = {
 };
 
 /** A seeded network of about `n` nodes, per generator. */
-const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph> = {
+export const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph> = {
     "barabasi-albert": (n, seed) => barabasiAlbertGraph({ n, m: 2, seed }),
     "planted-partition": (n, seed) => {
         const groups = Math.max(4, Math.round(Math.sqrt(n) / 5));
@@ -97,7 +94,7 @@ const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph> = {
  * @param g - the graph
  * @returns the elements
  */
-function elementsOf(g: SampleGraph): ElementDefinition[] {
+export function elementsOf(g: SampleGraph): ElementDefinition[] {
     const els: ElementDefinition[] = [];
     for (let i = 0; i < g.nodeCount; i++) {
         els.push({ group: "nodes", data: { id: `n${i}` } });
@@ -118,9 +115,85 @@ const STYLE = [
         style: { width: 8, height: 8, "background-color": "#7a8aa6", "border-width": 0 },
     },
     { selector: "node[color]", style: { "background-color": "data(color)" } },
-    { selector: "edge", style: { width: 0.5, "line-color": "#b8c0cc", "curve-style": "haystack" } },
+    { selector: "edge", style: { width: 0.5, "line-color": "#b8c0cc", "curve-style": "straight" } },
     { selector: "edge[color]", style: { "line-color": "data(color)", width: 2 } },
 ];
+
+let live: Core[] = [];
+
+/**
+ * A Cytoscape core in `container` with the demo's style; retireAll() destroys it.
+ * @param container - the element to draw in
+ * @param elements - the graph
+ * @returns the core
+ */
+export function newCore(container: HTMLElement, elements: ElementDefinition[] = []): Core {
+    const big = elements.length > 5_000;
+    const cy = cytoscape({
+        container,
+        // haystack edges draw fastest, but each picks a random end point inside its nodes, so they are kept for the
+        // large networks no snapshot shows
+        style: big ? [...STYLE, { selector: "edge", style: { "curve-style": "haystack" } }] : STYLE,
+        // ponytail: cheap viewport tricks only; Cytoscape's WebGL renderer is the upgrade for 50k nodes
+        hideEdgesOnViewport: big,
+        textureOnViewport: big,
+        elements,
+        layout: { name: "preset" },
+    });
+    live.push(cy);
+    // for poking at from the browser console
+    (window as unknown as { cy?: Core }).cy = cy;
+    return cy;
+}
+
+/** Destroys every core the demo made, before a story draws new ones. */
+export function retireAll(): void {
+    for (const cy of live) {
+        cy.destroy();
+    }
+    live = [];
+}
+
+/**
+ * Marks a story root as the element visual-review waits on: its whenDone() resolves once the runs it started have
+ * finished, successfully or not (visual-review.config.json names the selector and the method).
+ * @param root - the story root
+ * @param done - the runs' promise; it must not reject
+ */
+export function markDone(root: HTMLElement, done: () => Promise<void>): void {
+    root.dataset.demo = "";
+    Object.assign(root, { whenDone: () => done().then(freeze) });
+}
+
+/**
+ * In a capture, covers every live core with a picture of it drawn by cy.png(). Cytoscape's own canvas is not the same
+ * from one run to the next: it draws from textures it builds in idle frames, and it redraws when the window resizes,
+ * which a full-page screenshot does. cy.png() draws every element directly, the same way every time.
+ * @returns when the pictures are in place
+ */
+async function freeze(): Promise<void> {
+    if (!CAPTURE) {
+        return;
+    }
+    await Promise.all(
+        live.map(async (cy) => {
+            const img = new Image();
+            img.src = cy.png({ full: false, scale: window.devicePixelRatio, bg: "#ffffff" });
+            img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:10;";
+            await img.decode();
+            cy.container()?.append(img);
+        }),
+    );
+}
+
+/**
+ * Reports a failed run: visual-review fails a capture whose console holds "graphty demo failed".
+ * @param what - what failed
+ * @param e - the error
+ */
+export function reportFailure(what: string, e: unknown): void {
+    console.error(`graphty demo failed: ${what}:`, e);
+}
 
 /** What the status line reports about one run. */
 export interface Outcome {
@@ -143,8 +216,6 @@ interface Demo {
     setStatus(text: string, kind?: "info" | "ok" | "error"): void;
 }
 
-let current: Core | null = null;
-
 /**
  * Renders the demo frame and runs `run` once the network is in place; a "Run again" button repeats it.
  * @param args - the story's args
@@ -159,8 +230,7 @@ export function renderDemo(
     run: (d: Demo) => Promise<Outcome>,
     load?: (cy: Core) => Promise<string>,
 ): HTMLElement {
-    current?.destroy();
-    current = null;
+    retireAll();
 
     const root = document.createElement("div");
     root.style.cssText = "display:flex;flex-direction:column;height:100vh;font:13px system-ui,sans-serif;";
@@ -197,23 +267,11 @@ export function renderDemo(
     const go = async (): Promise<void> => {
         button.disabled = true;
         try {
-            current?.destroy();
+            retireAll();
             setStatus("Generating the network...");
             await new Promise((r) => setTimeout(r, 0)); // let the frame paint first
             const g = load === undefined ? GENERATE[args.network](SIZES[args.size], args.seed) : undefined;
-            const big = (g?.nodeCount ?? 0) > 5_000;
-            const cy = cytoscape({
-                container: canvas,
-                style: STYLE,
-                // ponytail: cheap viewport tricks only; Cytoscape's WebGL renderer is the upgrade for 50k nodes
-                hideEdgesOnViewport: big,
-                textureOnViewport: big,
-                elements: g === undefined ? [] : elementsOf(g),
-                layout: { name: "preset" },
-            });
-            current = cy;
-            // for poking at from the browser console
-            (window as unknown as { cy?: Core }).cy = cy;
+            const cy = newCore(canvas, g === undefined ? [] : elementsOf(g));
             const graph =
                 g === undefined
                     ? await (load as (cy: Core) => Promise<string>)(cy)
@@ -223,20 +281,24 @@ export function renderDemo(
             const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });
             const ms = Math.round(out.ms ?? performance.now() - t0);
             const why = out.detail ? `\n${out.ran === "gpu" ? "device" : "why the CPU"}: ${out.detail}` : "";
+            const time = CAPTURE ? "" : ` in ${ms.toLocaleString()} ms`;
             setStatus(
-                `${title} on ${graph}\nran on ${out.ran.toUpperCase()} in ${ms.toLocaleString()} ms${why}${out.note ? `\n${out.note}` : ""}`,
+                `${title} on ${graph}\nran on ${out.ran.toUpperCase()}${time}${why}${out.note ? `\n${out.note}` : ""}`,
                 "ok",
             );
         } catch (e) {
             setStatus(`${title} failed: ${(e as Error).message}`, "error");
-            console.warn(e);
+            reportFailure(title, e);
         } finally {
             button.disabled = false;
         }
     };
-    button.onclick = () => void go();
     // the canvas needs its size before Cytoscape mounts
-    requestAnimationFrame(() => void go());
+    let running = new Promise<void>((resolve) => requestAnimationFrame(() => resolve(go())));
+    button.onclick = () => {
+        running = go();
+    };
+    markDone(root, () => running);
     return root;
 }
 
@@ -255,17 +317,22 @@ export const PALETTE = [
 ];
 
 /**
- * Colors every node from `value`: low values pale, high values dark red.
+ * Colors every node (or every element of `eles`) from `value`: low values pale, high values dark red.
  * @param cy - the core
- * @param value - each node's value; undefined leaves the node uncolored
+ * @param value - each element's value; undefined leaves the element uncolored
+ * @param eles - what to color; default every node
  */
-export function colorByValue(cy: Core, value: (id: string) => number | undefined): void {
-    const vals = cy.nodes().map((n) => value(n.id()));
+export function colorByValue(
+    cy: Core,
+    value: (id: string) => number | undefined,
+    eles: Collection = cy.elements("node"),
+): void {
+    const vals = eles.map((n) => value(n.id()));
     const finite = vals.filter((v): v is number => v !== undefined && Number.isFinite(v));
     const lo = Math.min(...finite);
     const hi = Math.max(...finite);
     cy.batch(() => {
-        cy.nodes().forEach((n, i) => {
+        eles.forEach((n, i) => {
             const v = vals[i];
             if (v === undefined || !Number.isFinite(v)) {
                 n.removeData("color");
@@ -274,27 +341,5 @@ export function colorByValue(cy: Core, value: (id: string) => number | undefined
             const t = hi > lo ? (v - lo) / (hi - lo) : 1;
             n.data("color", `hsl(0, ${Math.round(30 + 60 * t)}%, ${Math.round(85 - 50 * t)}%)`);
         });
-    });
-}
-
-/**
- * The layout run before an algorithm, so the result has a readable picture: ForceAtlas2 (fixed 100 iterations,
- * seeded, on the CPU so the picture does not depend on the backend) up to 2,000 nodes, a seeded random layout above.
- * @param cy - the core
- * @param seed - the seed
- */
-export function placeForAlgorithm(cy: Core, seed: number): Promise<void> {
-    const big = cy.nodes().length > 2_000;
-    return new Promise((resolve, reject) => {
-        const l = cy.layout({
-            name: big ? "graphty-random" : "graphty-forceatlas2",
-            seed,
-            maxIter: 100,
-            gpu: "off",
-            animate: false,
-        } as cytoscape.LayoutOptions);
-        l.one("layoutstop", () => resolve());
-        l.one("layouterror", (_e: unknown, err: Error) => reject(err));
-        l.run();
     });
 }

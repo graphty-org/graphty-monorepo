@@ -1,43 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { Collection, NodeCollection } from "cytoscape";
 
-import { ASYNC_ALGORITHM_NAMES, type Backend } from "../src/index.js";
-import {
-    colorByValue,
-    networkArgs,
-    networkArgTypes,
-    type Outcome,
-    PALETTE,
-    placeForAlgorithm,
-    renderDemo,
-    type RunArgs,
-} from "./demo.js";
+import { ALGORITHM_GROUPS, type AlgorithmGroupName } from "./catalog.js";
+import { networkArgs, networkArgTypes, renderDemo, type RunArgs } from "./demo.js";
+import { placeForAlgorithm, runAlgorithm } from "./run.js";
 
 interface AlgorithmArgs extends RunArgs {
     algorithm: string;
     directed: boolean;
 }
-
-/** The parts of every result shape the demo reads. */
-type AnyResult = Partial<{
-    backend: Backend;
-    score(n: string): number | undefined;
-    distanceTo(n: string): number;
-    depth(n: string): number | undefined;
-    modularity: number;
-    totalWeight: number;
-}>;
-
-type Method = (o: Record<string, unknown>) => unknown;
-
-/** Algorithms that start from one node: they get root "#n0". */
-const ROOTED = new Set([
-    "dijkstra",
-    "bellmanFord",
-    "breadthFirstSearch",
-    "directionOptimizedBfs",
-    "personalizedPageRank",
-]);
 
 /**
  * Story render: lays the network out, runs the algorithm and colors the result.
@@ -46,48 +16,10 @@ const ROOTED = new Set([
  */
 function render(args: AlgorithmArgs): HTMLElement {
     const method = `graphty${args.algorithm.charAt(0).toUpperCase()}${args.algorithm.slice(1)}`;
-    const hasGpu = ASYNC_ALGORITHM_NAMES.includes(`${method}Async`);
-    return renderDemo(args, method, async ({ cy, gpuMode, extra, setStatus }): Promise<Outcome> => {
+    return renderDemo(args, method, async ({ cy, gpuMode, extra, setStatus }) => {
         await placeForAlgorithm(cy, args.seed);
         setStatus(`${method}: running...`);
-        const options: Record<string, unknown> = { directed: args.directed, ...extra };
-        if (ROOTED.has(args.algorithm)) {
-            options[args.algorithm === "personalizedPageRank" ? "personalization" : "root"] ??= "#n0";
-        }
-        const eles = cy.elements() as unknown as Record<string, Method>;
-        let r: AnyResult;
-        const t0 = performance.now();
-        if (hasGpu) {
-            r = (await eles[`${method}Async`]({ ...options, gpu: gpuMode })) as AnyResult;
-        } else if (args.backend === "gpu") {
-            throw new Error(`${method} has no GPU implementation; pick auto or cpu`);
-        } else {
-            r = eles[method](options) as AnyResult;
-        }
-        const ms = performance.now() - t0;
-        let note = "";
-        if (Array.isArray(r)) {
-            const parts = r as NodeCollection[];
-            cy.batch(() => parts.forEach((c, i) => c.data("color", PALETTE[i % PALETTE.length])));
-            note = `${parts.length.toLocaleString()} clusters${r.modularity !== undefined ? `, modularity ${r.modularity.toFixed(4)}` : ""}`;
-        } else if (r.score) {
-            colorByValue(cy, (id) => r.score?.(`#${id}`));
-            note = "darker red = higher score";
-        } else if (r.distanceTo) {
-            colorByValue(cy, (id) => r.distanceTo?.(`#${id}`));
-            note = "distance from n0: darker red = farther";
-        } else if (r.depth) {
-            colorByValue(cy, (id) => r.depth?.(`#${id}`));
-            note = "hops from n0: darker red = deeper";
-        } else if (r.totalWeight !== undefined) {
-            (r as unknown as Collection).data("color", "#e15759");
-            note = `the tree in red, total weight ${r.totalWeight}`;
-        }
-        const b = r.backend;
-        if (!b) {
-            return { ran: "cpu", detail: "no GPU implementation of this algorithm", note, ms };
-        }
-        return { ran: b.ran, detail: b.ran === "gpu" ? b.device : b.reason, note, ms };
+        return runAlgorithm(cy, args.algorithm, { gpuMode, directed: args.directed, extra });
     });
 }
 
@@ -100,62 +32,33 @@ export default meta;
 
 type Story = StoryObj<AlgorithmArgs>;
 
-/** Scores per node, colored pale (low) to dark red (high). */
-export const Centrality: Story = {
-    args: { ...networkArgs, algorithm: "pageRank", directed: false },
-    argTypes: {
-        algorithm: {
-            control: "select",
-            options: [
-                "pageRank",
-                "personalizedPageRank",
-                "eigenvectorCentrality",
-                "katzCentrality",
-                "hits",
-                "closenessCentrality",
-                "betweennessCentrality",
-                "degreeCentrality",
-                "kCoreDecomposition",
-                "triangleCount",
-            ],
-        },
-    },
-};
+/**
+ * A story for one group: its first algorithm on the group's network, any of the others from the control.
+ * @param group - the group
+ * @returns the story
+ */
+function storyOf(group: AlgorithmGroupName): Story {
+    const g = ALGORITHM_GROUPS[group];
+    return {
+        args: { ...networkArgs, network: g.network, directed: g.directed, algorithm: g.algorithms[0] },
+        argTypes: { algorithm: { control: "select", options: g.algorithms } },
+    };
+}
+
+/** Scores per node (or per edge), colored pale (low) to dark red (high). */
+export const Centrality = storyOf("Centrality");
 
 /** Partitions, one color per cluster. */
-export const Communities: Story = {
-    args: { ...networkArgs, network: "planted-partition", algorithm: "louvain", directed: false },
-    argTypes: {
-        algorithm: {
-            control: "select",
-            options: [
-                "louvain",
-                "leiden",
-                "labelPropagation",
-                "labelPropagationSynchronous",
-                "connectedComponents",
-                "weaklyConnectedComponents",
-                "markovClustering",
-                "girvanNewman",
-            ],
-        },
-    },
-};
+export const Communities = storyOf("Communities");
 
-/** Paths and walks from node n0, and spanning trees. */
-export const PathsAndTrees: Story = {
-    args: { ...networkArgs, algorithm: "dijkstra", directed: false },
-    argTypes: {
-        algorithm: {
-            control: "select",
-            options: [
-                "dijkstra",
-                "bellmanFord",
-                "breadthFirstSearch",
-                "directionOptimizedBfs",
-                "kruskalMST",
-                "primMST",
-            ],
-        },
-    },
-};
+/** Paths and walks from the first node, and spanning trees. */
+export const PathsAndTrees = storyOf("PathsAndTrees");
+
+/** Components, cycles, orderings, bipartiteness, matchings and isomorphism, on a directed random tree. */
+export const Structure = storyOf("Structure");
+
+/** Maximum flow and minimum cuts: the two sides and the cut edges. */
+export const FlowsAndCuts = storyOf("FlowsAndCuts");
+
+/** Link prediction: scores of node pairs, predicted links, and the evaluations against held-out edges. */
+export const LinkPrediction = storyOf("LinkPrediction");

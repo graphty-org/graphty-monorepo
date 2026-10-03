@@ -180,7 +180,8 @@ describe("the adapters that run through accelerated()", () => {
                they sum in a different order, so they agree to that tolerance and not past it.
                Asking for more would be asking two correct answers to be the same answer. */
             const s = referenceSnapshot(graph.getDataManager(), "directed");
-            const reference = byId(s, pageRank(s).scores);
+            // the element reads no weight unless one is named
+            const reference = byId(s, pageRank(s, { weighted: false }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 assert.approximately(
                     result.node(id)?.value as number,

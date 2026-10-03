@@ -100,7 +100,8 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
         // Brandes is one synchronous call into `@graphty/algorithms` and cannot be interrupted
         // from here. The element's own half -- reading the scores back out -- is chunked below.
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.betweennessCentrality(s, sampled ? { k: drawn } : undefined),
+            // Path lengths count edges (the caveat says so); @graphty/algorithms reads weights by default.
+            dispatch.betweennessCentrality(s, sampled ? { k: drawn, weighted: false } : { weighted: false }),
         );
         context.signal.throwIfAborted();
 

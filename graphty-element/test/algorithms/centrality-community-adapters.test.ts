@@ -256,7 +256,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const graph = await graphWith(fixture);
             const { values, precision } = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
-            const reference = byId(s, betweennessCentrality(s).scores);
+            const reference = byId(s, betweennessCentrality(s, { weighted: false }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(values.get(id), reference.get(id) as number, `betweenness of ${String(id)}`);
             }
@@ -267,7 +267,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const graph = await graphWith(fixture);
             const { values } = await measured(graph, new ClosenessCentralityAlgorithm(graph));
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
-            const reference = byId(s, closenessCentrality(s).scores);
+            const reference = byId(s, closenessCentrality(s, { weighted: false }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(values.get(id), reference.get(id) as number, `closeness of ${String(id)}`);
             }
@@ -280,8 +280,13 @@ describe("centrality and community adapters on the index-based ports", () => {
                 const s = referenceSnapshot(graph.getDataManager(), "undirected");
                 const reference = byId(
                     s,
-                    eigenvectorCentrality(s, { normalized, maxIterations: 1000, tolerance: 1e-6, mode: "total" })
-                        .scores,
+                    eigenvectorCentrality(s, {
+                        weighted: false,
+                        normalized,
+                        maxIterations: 1000,
+                        tolerance: 1e-6,
+                        mode: "total",
+                    }).scores,
                 );
                 for (const id of graph.getDataManager().nodes.keys()) {
                     close(values.get(id), reference.get(id) as number, `eigenvector of ${String(id)}`);
@@ -445,7 +450,10 @@ describe("centrality and community adapters on the index-based ports", () => {
             const graph = await graphWith({ ...WEIGHTED_MULTI, directed: true });
             const { values } = await measured(graph, new EigenvectorCentralityAlgorithm(graph, { mode }));
             const s = referenceSnapshot(graph.getDataManager(), "directed");
-            const reference = byId(s, eigenvectorCentrality(s, { maxIterations: 1000, tolerance: 1e-6, mode }).scores);
+            const reference = byId(
+                s,
+                eigenvectorCentrality(s, { weighted: false, maxIterations: 1000, tolerance: 1e-6, mode }).scores,
+            );
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(values.get(id), reference.get(id) as number, `eigenvector ${mode} of ${String(id)}`);
             }
@@ -466,6 +474,7 @@ describe("centrality and community adapters on the index-based ports", () => {
         const reference = byId(
             s,
             eigenvectorCentrality(s, {
+                weighted: false,
                 maxIterations: 1000,
                 tolerance: 1e-6,
                 mode: "total",

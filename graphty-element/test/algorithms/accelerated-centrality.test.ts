@@ -173,7 +173,7 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new HITSAlgorithm(graph));
                 const s = referenceSnapshot(graph.getDataManager(), "directed");
-                const reference = hits(s);
+                const reference = hits(s, { weighted: false });
                 const hubs = byId(s, reference.hubs);
                 const authorities = byId(s, reference.authorities);
                 assert.strictEqual(precision, "f64");
@@ -190,7 +190,7 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new KatzCentralityAlgorithm(graph));
                 const s = referenceSnapshot(graph.getDataManager(), "undirected");
-                const reference = byId(s, katzCentrality(s).scores);
+                const reference = byId(s, katzCentrality(s, { weighted: false }).scores);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
                     close(value.value, reference.get(id), `score of ${String(id)}`);
@@ -201,7 +201,7 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
                 const graph = await graphWith(opts);
                 const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
                 const s = referenceSnapshot(graph.getDataManager(), "undirected");
-                const reference = byId(s, eigenvectorCentrality(s, { maxIterations: 1000 }).scores);
+                const reference = byId(s, eigenvectorCentrality(s, { weighted: false, maxIterations: 1000 }).scores);
                 assert.strictEqual(precision, "f64");
                 for (const [id, value] of values) {
                     close(value.value, reference.get(id), `score of ${String(id)}`);
@@ -215,8 +215,8 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             const katzRun = await measured(graph, new KatzCentralityAlgorithm(graph, { normalized: false }));
             const directed = referenceSnapshot(graph.getDataManager(), "directed");
             const undirected = referenceSnapshot(graph.getDataManager(), "undirected");
-            const hitsRef = byId(directed, hits(directed, { normalized: false }).hubs);
-            const katzRef = byId(undirected, katzCentrality(undirected, { normalized: false }).scores);
+            const hitsRef = byId(directed, hits(directed, { weighted: false, normalized: false }).hubs);
+            const katzRef = byId(undirected, katzCentrality(undirected, { weighted: false, normalized: false }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 close(hitsRun.values.get(id)?.hub, hitsRef.get(id), `hub of ${String(id)}`);
                 close(katzRun.values.get(id)?.value, katzRef.get(id), `katz of ${String(id)}`);

@@ -213,7 +213,7 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
             const graph = await graphWith(LES_MIS);
             const { values, caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
-            const reference = byId(s, betweennessCentrality(s).scores);
+            const reference = byId(s, betweennessCentrality(s, { weighted: false }).scores);
             for (const [id, value] of values) {
                 assert.strictEqual(value, reference.get(id), `score of ${String(id)}`);
             }
@@ -226,7 +226,7 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
             const graph = await graphWith(LES_MIS);
             const { values, caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph, { k: 12 }));
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
-            const reference = byId(s, betweennessCentrality(s, { k: 12 }).scores);
+            const reference = byId(s, betweennessCentrality(s, { weighted: false, k: 12 }).scores);
             for (const [id, value] of values) {
                 assert.strictEqual(value, reference.get(id), `score of ${String(id)}`);
             }

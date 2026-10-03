@@ -114,7 +114,8 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.closenessCentrality(s, sampled ? { k: drawn } : undefined),
+            // Distance counts edges (the caveat says so); @graphty/algorithms reads weights by default.
+            dispatch.closenessCentrality(s, sampled ? { k: drawn, weighted: false } : { weighted: false }),
         );
         context.signal.throwIfAborted();
 

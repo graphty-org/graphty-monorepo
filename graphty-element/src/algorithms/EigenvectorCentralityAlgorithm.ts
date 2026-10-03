@@ -195,6 +195,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                     maxIterations,
                     tolerance,
                     mode,
+                    // Edge weights are not read (the caveat says so); @graphty/algorithms reads them by default.
+                    weighted: false,
                     // Keyed by node id; a node the map does not name starts at 1, as it always has.
                     startVector:
                         startVector === undefined

@@ -200,7 +200,8 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             message: `Hub and authority scores refine each other, up to ${String(maxIterations)} passes.`,
         });
         const { value: results, precision } = await run((dispatch, s) =>
-            dispatch.hits(s, { maxIterations, tolerance, normalized }),
+            // Edge weights are not read (the caveat says so); @graphty/algorithms reads them by default.
+            dispatch.hits(s, { maxIterations, tolerance, normalized, weighted: false }),
         );
         context.signal.throwIfAborted();
 

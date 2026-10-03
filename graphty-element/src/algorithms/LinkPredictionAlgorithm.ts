@@ -97,21 +97,15 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
         const { method, topK } = this.schemaOptions;
 
         context.report({ phase: "Scoring pairs", total: null });
-        // The port lists an undirected pair twice, once each way round and lower index first, so
-        // keep the lower-index-first copy.
+        // The port lists each undirected pair once, so its topK is the number of pairs.
         const member = METHODS[method];
         const { snapshot, run } = this.accelerated(member, "undirected");
-        const { value: ranked, precision } = await run((dispatch, s) => dispatch[member](s));
-        const pairs: { source: string | number; target: string | number; score: number }[] = [];
-        for (let k = 0; k < ranked.scores.length && pairs.length < topK; k++) {
-            if (ranked.sources[k] < ranked.targets[k]) {
-                pairs.push({
-                    source: snapshot.ids.idOf(ranked.sources[k]),
-                    target: snapshot.ids.idOf(ranked.targets[k]),
-                    score: ranked.scores[k],
-                });
-            }
-        }
+        const { value: ranked, precision } = await run((dispatch, s) => dispatch[member](s, { topK }));
+        const pairs = Array.from(ranked.scores, (score, k) => ({
+            source: snapshot.ids.idOf(ranked.sources[k]),
+            target: snapshot.ids.idOf(ranked.targets[k]),
+            score,
+        }));
         context.signal.throwIfAborted();
 
         return {

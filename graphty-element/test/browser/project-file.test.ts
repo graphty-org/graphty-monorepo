@@ -117,28 +117,24 @@ describe("the project file on a renderer", () => {
 
             // --- the guide's example, as written there ---
             const { project } = element.session;
-            const saveButton = document.querySelector("#save")!;
             const openInput = document.querySelector<HTMLInputElement>("#open")!;
-            saveButton.addEventListener("click", () => {
-                void element.downloadProject();
-            });
+            const showStatus = (): void => {
+                document.title = `${project.dirty ? "* " : ""}${project.name ?? "Untitled"}`;
+            };
+            showStatus();
+            element.session.on("project:status", showStatus);
+            document.querySelector("#save")!.addEventListener("click", () => void element.downloadProject());
             openInput.addEventListener("change", () => {
                 const file = openInput.files?.[0];
-                if (!file || (project.dirty && !confirm("Discard unsaved changes?"))) {
-                    return;
+                if (file && (!project.dirty || confirm("Discard unsaved changes?"))) {
+                    void project.open(file, { discard: true }).then((report) => {
+                        report.problems.forEach((problem) => console.warn(problem.code, problem.params));
+                    });
                 }
-
-                void project.open(file, { discard: true }).then((report) => {
-                    for (const problem of report.problems) {
-                        console.warn(problem.code, problem.params);
-                    }
-                });
-            });
-            element.session.on("project:status", ({ name, dirty }) => {
-                document.title = `${dirty ? "* " : ""}${name ?? "Untitled"}`;
             });
             // --- end of the example ---
 
+            assert.strictEqual(document.title, "Untitled", "the page sets its title before any change");
             await element.session.data.addNodes([{ id: "ada" }, { id: "grace" }]);
             await element.session.project.rename("Pioneers");
             assert.strictEqual(document.title, "* Pioneers");

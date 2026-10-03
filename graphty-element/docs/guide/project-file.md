@@ -18,42 +18,42 @@ import "@graphty/graphty-element";
 
 const element = document.querySelector("graphty-element")!;
 const { project } = element.session;
-const saveButton = document.querySelector("#save")!;
 const openInput = document.querySelector<HTMLInputElement>("#open")!;
-saveButton.addEventListener("click", () => {
-    void element.downloadProject();
-});
+const showStatus = (): void => {
+    document.title = `${project.dirty ? "* " : ""}${project.name ?? "Untitled"}`;
+};
+showStatus();
+element.session.on("project:status", showStatus);
+document.querySelector("#save")!.addEventListener("click", () => void element.downloadProject());
 openInput.addEventListener("change", () => {
     const file = openInput.files?.[0];
-    if (!file || (project.dirty && !confirm("Discard unsaved changes?"))) {
-        return;
+    if (file && (!project.dirty || confirm("Discard unsaved changes?"))) {
+        void project.open(file, { discard: true }).then((report) => {
+            report.problems.forEach((problem) => console.warn(problem.code, problem.params));
+        });
     }
-
-    void project.open(file, { discard: true }).then((report) => {
-        for (const problem of report.problems) {
-            console.warn(problem.code, problem.params);
-        }
-    });
-});
-element.session.on("project:status", ({ name, dirty }) => {
-    document.title = `${dirty ? "* " : ""}${name ?? "Untitled"}`;
 });
 ```
 
+- **The import** registers `<graphty-element>` and types it, so `querySelector("graphty-element")`
+  returns the element with its `session` and `downloadProject`.
 - **`element.downloadProject()`** saves the project and hands it to the reader as
   `<project name>.graphty.json`. A project with no name downloads as `project.graphty.json`, a
   fixed file name rather than words for the reader: pass `{ fileName }` to choose the name
-  yourself. It resolves to the [save report](#saving-without-a-download); its `leftOut` lists a
-  run still computing, which the file does not hold.
+  yourself. It is a save: it clears `dirty` when it hands the file over, since the element
+  cannot see whether the reader then kept or canceled the download. It resolves to the
+  [save report](#saving-without-a-download), whose `leftOut` lists a run still computing, which
+  the file does not hold. It rejects only as `project.save()` does, with `E_BAD_COMMAND` for an
+  `extensions` name or value it cannot store.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
   fresh undo history.
 - **`project.dirty`** is true when something the file saves has changed since the last save or
   open. Opening a project over unsaved changes is refused with `E_UNSAVED_CHANGES` unless you pass
-  `{ discard: true }`, which means "discard the session's unsaved changes". Check `project.dirty`
-  and ask the reader first, as the example does.
-- **`project:status`** fires when the name or `dirty` changes, and not when the page starts: until
-  then read `project.name` (null) and `project.dirty` (false) yourself. `session.on` returns a
+  `{ discard: true }`, which means "discard the session's unsaved changes"; `discard: false` is the
+  same as leaving it out. Check `project.dirty` and ask the reader first, as the example does.
+- **`project:status`** fires when the name or `dirty` changes, and not when the page starts, so
+  the example also calls `showStatus()` once itself. `session.on` returns a
   function that stops listening. The element also dispatches the change as the DOM event
   `graphty-project-status`, with `{ name, dirty }` as its typed `detail`.
 
@@ -90,8 +90,9 @@ report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_P
 
 Store `text` wherever you keep files. Two options shape the file:
 
-- `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"` (the style layers),
-  `"graphty-notes"` (the notes) or `"graphty-view-state"` (the selection). This option is what
+- `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"` (the style layers, which
+  open as the `"styles"` slice), `"graphty-notes"` (the notes, the `"notes"` slice) or
+  `"graphty-view-state"` (the selection). This option is what
   you chose to leave out; the report's `leftOut` is what the element could not write, as codes.
 - `extensions: { "com.example.app": { panel: "values" } }` stores your own data under a
   reverse-domain name, at most 64 KB of JSON each. `open` hands it back as `report.extensions`.
@@ -114,8 +115,8 @@ The selection and your extensions never set it.
 
 Opening never fails half way through. A part that cannot be restored is left out and listed in
 `report.problems`, each as a code and its values. An `E_` code here means that one part was
-skipped, not that the open failed; the open failed only if `open` threw. `slice` is the part the
-problem is about, one of the `report.restored` values below:
+skipped, not that the open failed; the open failed only if `open` threw. `slice` is the slice of
+the project the problem is about, one of the `report.restored` values below:
 
 | Code                    | Params                   | What happened                                                           |
 | ----------------------- | ------------------------ | ----------------------------------------------------------------------- |
@@ -125,16 +126,21 @@ problem is about, one of the `report.restored` values below:
 | `W_DATA_DIFFERS`        | `slice`, `id`            | The data was edited by hand; the run's per-edge values are left out     |
 | `W_UNKNOWN_KIND`        | `index`, `kind`          | A member this release does not read; skipped                            |
 | `E_UNSUPPORTED_VERSION` | `index`, `kind`, `found` | A member written by a newer release; skipped                            |
+| `E_UNSUPPORTED`         | `kind` (and `index`)     | A member this kind of open does not apply; skipped                      |
+| `E_BAD_DOCUMENT`        | `index`                  | A malformed member; skipped                                             |
 
-`id` is the run, style layer or set the problem is about. `needs` is the list of data paths the
+Any other code (such as `E_BAD_SELECTOR` for a style layer) means a slice could not be
+restored for that reason, with `slice`, and `id` when it is about one item; a note that was
+skipped also has `pointer`, where it sat in the file. `id` is the run, style layer or set the
+problem is about. `needs` is the list of data paths the
 layer reads that nothing in this session provides, such as
 `"algorithmResults.graphty.degree.value"`. `index` and `kind` name a member of the file by its
 position and kind. An `E_UNSUPPORTED_VERSION` here skips one member; the same code thrown (below)
 refuses the whole file.
 
-`report.restored` lists the parts that came back. Each part comes from one member of the file:
+`report.restored` lists the slices that came back. Each slice comes from one member of the file:
 
-| Part                                                        | From the member       |
+| Slice                                                       | From the member       |
 | ----------------------------------------------------------- | --------------------- |
 | `"graph"`                                                   | `graphty-data`        |
 | `"config"`, `"layout"`, `"visibility"`, `"sets"`, `"views"` | `graphty-session`     |
@@ -165,7 +171,7 @@ it was:
 `open` also takes a graphty document that is not a project, such as a saved style or notes: one
 with no `graphty-session` member. Then `report.opened` is `"document"` (rather than `"project"`)
 and the file's styles and notes are added to the session as one undoable step, without replacing
-anything and without asking about unsaved changes.
+anything and without asking about unsaved changes. That step sets `dirty`, like any other change.
 
 ## What is not saved
 

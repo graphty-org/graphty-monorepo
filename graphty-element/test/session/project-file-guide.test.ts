@@ -72,6 +72,37 @@ describe("the project file guide's examples", () => {
         session.dispose();
     });
 
+    it("discard: false is the same as leaving discard out", async () => {
+        const session = createGraphSession();
+        const file = (await session.project.save()).text;
+        await session.project.rename("Draft");
+        try {
+            await session.project.open(file, { discard: false });
+            assert.fail("opening over unsaved changes must be refused");
+        } catch (error) {
+            assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_UNSAVED_CHANGES");
+        }
+
+        assert.strictEqual(session.project.name, "Draft");
+        session.dispose();
+    });
+
+    it("opening another graphty document over unsaved changes adds to them and sets dirty", async () => {
+        const session = createGraphSession();
+        await session.project.rename("Draft");
+        await session.project.save();
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [{ name: "Big", selector: { match: "everything" }, set: { "node.size": 3 } }],
+        };
+        const report = await session.project.open(JSON.stringify(style));
+        assert.strictEqual(report.opened, "document");
+        assert.isTrue(session.project.dirty);
+        assert.strictEqual(session.project.name, "Draft");
+        session.dispose();
+    });
+
     it("project:status does not fire at startup, and on() returns a stop function", async () => {
         const session = createGraphSession();
         const seen: boolean[] = [];

@@ -158,14 +158,19 @@ describe("session.data.preview", () => {
         const preview = await session.data.preview(source, { mapping });
         assert.deepEqual(preview.keys, { node: null, source: "from_station", target: "to_station" });
         assert.strictEqual(preview.weight, "trips");
-        assert.deepInclude(roles(preview, "edges"), {
-            from_station: "source",
-            to_station: "target",
-            trips: "weight",
-        });
+        // Built from pairs: the column names are snake case, which object keys may not be.
+        assert.deepInclude(
+            roles(preview, "edges"),
+            Object.fromEntries([
+                ["from_station", "source"],
+                ["to_station", "target"],
+                ["trips", "weight"],
+            ]),
+        );
         // The element could not tell these columns' roles by itself.
         const suggested = Object.fromEntries(table(preview, "edges").columns.map((c) => [c.name, c.suggested]));
-        assert.deepInclude(suggested, { from_station: "attribute", to_station: "attribute" });
+        assert.strictEqual(suggested.from_station, "attribute");
+        assert.strictEqual(suggested.to_station, "attribute");
         assertUntouched(session);
 
         await session.data.import(source, { mapping });

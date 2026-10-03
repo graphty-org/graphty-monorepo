@@ -278,6 +278,7 @@ export type {
     ProjectProblem,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSource,
     ProjectStatus,
     SavedProject,
 } from "./src/session/projectFile";

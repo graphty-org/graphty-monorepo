@@ -47,7 +47,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
-import type { ProjectApi,ProjectStatus } from "./projectFile";
+import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi } from "./results";
 import type {
     Caveats,

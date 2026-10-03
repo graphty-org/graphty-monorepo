@@ -146,6 +146,9 @@ export interface ProjectStatus {
     readonly dirty: boolean;
 }
 
+/** What `open` reads: a `File` or other `Blob`, the file's bytes, or its text (never an address). */
+export type ProjectSource = Blob | Uint8Array | string;
+
 /** Saving the whole session to one file, and opening one again. */
 export interface ProjectApi {
     /** The project's name: from the file it was opened from, or `rename`. Null until one is given. */
@@ -182,7 +185,7 @@ export interface ProjectApi {
      *     `E_BAD_DOCUMENT` for a malformed document, `E_UNSUPPORTED_VERSION` for a newer one, and
      *     `E_UNSUPPORTED` for one that requires a member kind this element does not read.
      */
-    open(source: Blob | Uint8Array | string, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
+    open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
 }
 
 /**
@@ -252,10 +255,23 @@ function encodeColumn(values: readonly unknown[]): SavedColumn {
     let binary = "";
     const bytes = new Uint8Array(view.buffer);
     for (let at = 0; at < bytes.length; at += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+        binary += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));
     }
 
     return { dtype: "f64", data: btoa(binary), ...(absent.length === 0 ? {} : { absent }) };
+}
+
+/**
+ * Set the rows a column lists as absent to null, ignoring an index outside the column.
+ * @param values - The column's values.
+ * @param absent - The rows the file lists as having no value.
+ */
+function markAbsent(values: unknown[], absent: unknown): void {
+    for (const at of Array.isArray(absent) ? (absent as unknown[]) : []) {
+        if (Number.isInteger(at) && (at as number) >= 0 && (at as number) < values.length) {
+            values[at as number] = null;
+        }
+    }
 }
 
 /**
@@ -276,14 +292,9 @@ function decodeColumn(column: unknown, length: number): unknown[] {
         const binary = atob(held.data);
         const [width, read] = reader;
         if (binary.length === length * width) {
-            const view = new DataView(Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer);
+            const view = new DataView(Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0).buffer);
             const values: unknown[] = Array.from({ length }, (_, at) => read(view, at * width));
-            for (const at of Array.isArray(held.absent) ? held.absent : []) {
-                if (Number.isInteger(at) && at >= 0 && at < length) {
-                    values[at as number] = null;
-                }
-            }
-
+            markAbsent(values, held.absent);
             return values;
         }
     }
@@ -310,6 +321,16 @@ function badDocument(details: Readonly<Record<string, unknown>> = {}): GraphtyEr
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * One column per field the rows carry.
+ * @param rows - Each row's values; undefined for a row with none.
+ * @returns The columns by field.
+ */
+function columns(rows: readonly (Readonly<Record<string, unknown>> | undefined)[]): Record<string, SavedColumn> {
+    const fields = new Set(rows.flatMap((row) => (row === undefined ? [] : Object.keys(row))));
+    return Object.fromEntries([...fields].map((field) => [field, encodeColumn(rows.map((row) => row?.[field]))]));
+}
+
+/**
  * The project settings worth saving: everything but who is writing, which belongs to the person,
  * and the name, which the document carries.
  * @param session - The session.
@@ -317,6 +338,7 @@ function badDocument(details: Readonly<Record<string, unknown>> = {}): GraphtyEr
  */
 function configOf(session: GraphSession): ProjectConfigPatch {
     const { data, runAlgorithmsOnLoad, background, selectionStyle, layoutBehavior } = session.config;
+    // NOSONAR(S7784): the JSON round trip drops undefined and non-JSON values, as the saved file will.
     return JSON.parse(
         JSON.stringify({
             data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
@@ -405,14 +427,6 @@ function write(
         }
 
         const edgeValues = edges.map((edge) => result.edge(edge.id));
-        const columns = (
-            rows: readonly (Readonly<Record<string, unknown>> | undefined)[],
-        ): Record<string, SavedColumn> => {
-            const fields = new Set(rows.flatMap((row) => (row === undefined ? [] : Object.keys(row))));
-            return Object.fromEntries(
-                [...fields].map((field) => [field, encodeColumn(rows.map((row) => row?.[field]))]),
-            );
-        };
         return {
             id,
             derived: isDerived(id),
@@ -573,28 +587,12 @@ async function textOf(source: Blob | Uint8Array | string, limit: number): Promis
 }
 
 /**
- * Parse a file and sort its members.
- * @param text - The file's text.
+ * The graphty document a parsed file is, or holds as a bare member, checked down to its members.
+ * @param value - The parsed file.
  * @returns The document.
+ * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT`, `E_BAD_DOCUMENT` or `E_UNSUPPORTED_VERSION`.
  */
-function readDocument(text: string): ReadDocument {
-    let value: unknown;
-    try {
-        value = JSON.parse(text);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_PARSE_FAILED",
-            message: "The file is not JSON.",
-            source: "data",
-            cause: error,
-        });
-    }
-
-    checkTree(value, 1);
-    if (!isObject(value)) {
-        throw unknownFormat();
-    }
-
+function documentOf(value: Record<string, unknown>): Record<string, unknown> {
     let document: Record<string, unknown>;
     if (value.kind === DOCUMENT_KIND) {
         document = value;
@@ -626,6 +624,33 @@ function readDocument(text: string): ReadDocument {
         throw badDocument({ member: "members" });
     }
 
+    return document;
+}
+
+/**
+ * Parse a file and sort its members.
+ * @param text - The file's text.
+ * @returns The document.
+ */
+function readDocument(text: string): ReadDocument {
+    let value: unknown;
+    try {
+        value = JSON.parse(text);
+    } catch (error) {
+        throw new GraphtyError({
+            code: "E_PARSE_FAILED",
+            message: "The file is not JSON.",
+            source: "data",
+            cause: error,
+        });
+    }
+
+    checkTree(value, 1);
+    if (!isObject(value)) {
+        throw unknownFormat();
+    }
+
+    const document = documentOf(value);
     const known = new Set<string>(MEMBER_KINDS);
     for (const kind of Array.isArray(document.requires) ? (document.requires as unknown[]) : []) {
         if (typeof kind !== "string" || !known.has(kind)) {

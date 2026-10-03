@@ -202,7 +202,7 @@ console.log(summary.max, summary.min, summary.top[0].id);
 
 The same values are published as columns under the run's id, which is what a style layer and a
 filter read: `results.<runId>.value`. A table reads them the same way, a page of records at a
-time, sorted by the run's values -- see [Result values as table columns](./javascript-api#result-values-as-table-columns).
+time, sorted by the run's values -- see [Result Columns](./result-columns).
 
 ## Running over part of the graph
 

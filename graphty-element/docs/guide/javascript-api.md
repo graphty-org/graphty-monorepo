@@ -169,7 +169,9 @@ session.data.nodePage({ scope: "selection" });
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
-// Read the page again when the graph changes (and, for a "selection" scope, the selection):
+// Read the page again when the graph changes (and, for a "selection" scope, the selection;
+// for result columns, the runs -- run:changed also fires on progress ticks, which the
+// revision check skips):
 const reread = () => {
     if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
         // read the page again and redraw
@@ -177,6 +179,7 @@ const reread = () => {
 };
 session.on("project:changed", reread);
 session.on("selection:changed", reread);
+session.on("run:changed", reread);
 ```
 
 Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
@@ -199,30 +202,8 @@ colon. Neither could represent a graph that holds two edges between one pair -- 
 
 ### Result values as table columns
 
-A table that ranks nodes by an algorithm shows the measure as a column and sorts by it. Name the
-run's field as a column, and sort by the same name; the element reads the values and sorts them,
-so the table never reads the result itself:
-
-```typescript
-const run = element.run("pagerank");
-await run;
-const column = `results.${run.id}.value`;
-
-const page = element.session.data.nodePage({
-    columns: [column],
-    sort: { key: column, descending: true },
-    limit: 50,
-});
-for (const record of page.records) {
-    console.log(record.id, record[column]); // the highest-ranked node first
-}
-```
-
-A column is a run's field, `results.<run>.<field>`, and each record carries its value under that
-same name. A node the run gave no value (outside its scope, or before it finished) has no key
-for the column and sorts last in either direction. `edgePage` takes edge fields the same way.
-When the run is run again, the page's `revision` changes, and the next page read shows the new
-values. Anything else in `columns` is refused with `E_OPTION_RANGE`.
+A page can carry an algorithm run's values as a column and sort by them -- see
+[Result Columns](./result-columns).
 
 ### Selection
 

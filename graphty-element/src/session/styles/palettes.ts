@@ -243,8 +243,7 @@ export function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups
     const tightestFit = [...palettesOfKind("categorical")]
         .filter((candidate) => paletteCapacity(candidate, groups).fits)
         .sort(
-            (left, right) =>
-                (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
+            (left, right) => (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
         );
 
     return tightestFit[0]?.id ?? DEFAULT_PALETTE;

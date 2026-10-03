@@ -234,12 +234,12 @@ describe("styles.legend({ maxCategories })", () => {
             other.rolledUp?.map((swatch) => swatch.color),
             all.swatches.slice(3).map((swatch) => swatch.color),
         );
-        assert.deepEqual(other.value, all.swatches.slice(3).map((swatch) => swatch.value));
-
-        assert.strictEqual(
-            await codeOf(() => graph.styles.legend({ maxCategories: 0 })),
-            "E_OPTION_RANGE",
+        assert.deepEqual(
+            other.value,
+            all.swatches.slice(3).map((swatch) => swatch.value),
         );
+
+        assert.strictEqual(await codeOf(() => graph.styles.legend({ maxCategories: 0 })), "E_OPTION_RANGE");
         graph.dispose();
     });
 });

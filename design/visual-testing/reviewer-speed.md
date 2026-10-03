@@ -5,14 +5,14 @@ is where the owner accepts or rejects every screenshot that differs from its bas
 an iPad, often with a hardware keyboard, in sittings of hundreds of images. This plan covers six
 open issues that make a long sitting slow:
 
-| Issue | What the owner asked for |
-| ----- | ------------------------ |
-| #855 | Accepting a component's group in the grid ("Accept 6") reloads the grid and jumps to the top |
-| #856 | Accept everything the current filter shows (all removed, all new), not only everything |
-| #857 | An option to hide the baseline (left) image |
-| #858 | A recommended zoom point: at 2x-8x, each item opens framed on where to look |
-| #859 | One way to move back and forward between targets, grid, projects and the item screen |
-| #860 | A compact control panel, laid out from the controls actually used, that fits an iPad |
+| Issue | What the owner asked for                                                                     |
+| ----- | -------------------------------------------------------------------------------------------- |
+| #855  | Accepting a component's group in the grid ("Accept 6") reloads the grid and jumps to the top |
+| #856  | Accept everything the current filter shows (all removed, all new), not only everything       |
+| #857  | An option to hide the baseline (left) image                                                  |
+| #858  | A recommended zoom point: at 2x-8x, each item opens framed on where to look                  |
+| #859  | One way to move back and forward between targets, grid, projects and the item screen         |
+| #860  | A compact control panel, laid out from the controls actually used, that fits an iPad         |
 
 Words: a **target** is one pull request (or the default branch's seed run); a **project** is one
 Storybook in it (compact-mantine, graphty-element, ...); an **item** is one screenshot; the
@@ -46,12 +46,12 @@ Scripts: `tmp/reviewer-speed/count-usage.mjs` and `count-409.mjs` (not committed
 
 ### Decisions
 
-| Decision | Count | Share |
-| -------- | ----: | ----: |
-| Accept | 1,080 | 97.5% |
-| Reject | 28 | 2.5% |
-| Exclude | 0 | 0% |
-| **Total** | **1,108** | |
+| Decision  |     Count | Share |
+| --------- | --------: | ----: |
+| Accept    |     1,080 | 97.5% |
+| Reject    |        28 |  2.5% |
+| Exclude   |         0 |    0% |
+| **Total** | **1,108** |       |
 
 - **Notes**: all 28 rejects carry a note (the page requires one); 0 of 1,080 accepts do.
 - **Bulk against one at a time**: 559 accepts were made in bulk and never opened; 549 decisions
@@ -87,12 +87,12 @@ lists the most used in the Keys overlay. Nothing is sent anywhere.
 
 ### Frequency tiers used for the layout
 
-| Tier | Controls | Basis |
-| ---- | -------- | ----- |
-| Every item | Accept, Next | 97.5% of decisions; accepting moves on |
-| Often | Previous, Reject (with its note), zoom, view (Flash, Highlight), a group's or a filter's Accept N | measured (reject, bulk) and stated (zoom, Highlight) |
-| Sometimes | Undo, Finish, project and target switch, Grid, Spotlight, Next change, filters | measured (Finish) or required on every target |
-| Rare | Exclude, a note on an accept, Outline, Blink, Spotlight flash, Details, Copy link | measured 0 (Exclude, accept notes) or asked to be hidden (Outline) |
+| Tier       | Controls                                                                                          | Basis                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Every item | Accept, Next                                                                                      | 97.5% of decisions; accepting moves on                             |
+| Often      | Previous, Reject (with its note), zoom, view (Flash, Highlight), a group's or a filter's Accept N | measured (reject, bulk) and stated (zoom, Highlight)               |
+| Sometimes  | Undo, Finish, project and target switch, Grid, Spotlight, Next change, filters                    | measured (Finish) or required on every target                      |
+| Rare       | Exclude, a note on an accept, Outline, Blink, Spotlight flash, Details, Copy link                 | measured 0 (Exclude, accept notes) or asked to be hidden (Outline) |
 
 ## 2. #855: accepting a group reloads the grid and jumps to the top
 
@@ -211,11 +211,11 @@ Built before #857 and #858 so their two new options go straight into it.
 
 Measured in Chromium at iPad sizes on the story screen:
 
-| Window | Controls take | Rows of controls | Each pane |
-| ------ | ------------- | ---------------- | --------- |
-| 820 x 1180 (iPad Air, portrait) | 465 px (39%) | header 2, decision bar 3, status 2 lines, item line 2 lines, view bar 2 | 386 x 683 |
-| 1180 x 820 (landscape) | 346 px (42%) | header 1, decision bar 2, status 1, item line 2, view bar 2 | 566 x 443 |
-| 744 x 1133 (iPad mini, portrait) | 465 px (41%) | as portrait | 348 x 636 |
+| Window                           | Controls take | Rows of controls                                                        | Each pane |
+| -------------------------------- | ------------- | ----------------------------------------------------------------------- | --------- |
+| 820 x 1180 (iPad Air, portrait)  | 465 px (39%)  | header 2, decision bar 3, status 2 lines, item line 2 lines, view bar 2 | 386 x 683 |
+| 1180 x 820 (landscape)           | 346 px (42%)  | header 1, decision bar 2, status 1, item line 2, view bar 2             | 566 x 443 |
+| 744 x 1133 (iPad mini, portrait) | 465 px (41%)  | as portrait                                                             | 348 x 636 |
 
 The decision bar spends a whole row on the note box (0 accept notes in 1,108 decisions) and gives
 Exclude (0 uses) a button as large as Accept. The view bar spends a row on Outline, which the

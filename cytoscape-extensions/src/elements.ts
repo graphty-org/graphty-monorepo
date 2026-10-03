@@ -4,7 +4,7 @@
  * carry every data field across.
  */
 
-import { type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { type Column, type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import type { Collection, ElementDefinition } from "cytoscape";
 
 /** Data fields Cytoscape gives a meaning of its own; a column with one of these names is not copied into data. */
@@ -21,49 +21,67 @@ function plain(v: unknown): unknown {
 
 /**
  * Cytoscape element definitions for a snapshot. Node ids are the snapshot's ids as strings. Every node and edge
- * column becomes a data field of the same name (except the reserved `id`, `source`, `target` and `parent`), a
- * node column with the role "position" becomes the node's position, and edge weights become `data.weight` when
- * no column already holds them. Edges get no id: Cytoscape assigns one, so an edge id can never collide with a
- * node id.
+ * column becomes a data field of the same name (except the reserved `id`, `source`, `target` and `parent`), and:
+ * - a node column with the role "position" becomes the node's position (x and y; a z is dropped);
+ * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
+ *   clusters carry it) becomes `data.parent`;
+ * - an edge column with the role "id" becomes the edge's id when that id is not a node id and not used by an
+ *   earlier edge; otherwise the edge gets no id and Cytoscape assigns one;
+ * - the edge weights become `data.weight`: the weight column when the file had one, else the snapshot's weights
+ *   when it is weighted.
  * @param snapshot - the snapshot
  * @returns the nodes, then the edges
  */
 export function snapshotToElements(snapshot: GraphSnapshot): ElementDefinition[] {
-    const nodeCols = [...snapshot.nodes].filter((c) => !RESERVED.has(c.meta.name) && c.meta.role !== "id");
+    const kept = (c: Column): boolean => !RESERVED.has(c.meta.name) && c.meta.role !== "id" && c.meta.role !== "parent";
+    const nodeCols = [...snapshot.nodes].filter(kept);
     const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
     const nodeData = nodeCols.filter((c) => c !== position);
-    const edgeCols = [...snapshot.edges].filter((c) => !RESERVED.has(c.meta.name) && c.meta.role !== "id");
-    const weights = edgeCols.some((c) => c.meta.name === "weight" || c.meta.role === "weight")
-        ? null
-        : snapshot.weights;
+    const parent = snapshot.nodes.byRole("parent");
+    const edgeCols = [...snapshot.edges].filter(kept);
+    const named = edgeCols.some((c) => c.meta.name === "weight");
+    const weightColumn = edgeCols.find((c) => c.meta.role === "weight");
+    const edgeIds = snapshot.edges.byRole("id");
     const ids: string[] = [];
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        ids.push(String(snapshot.ids.idOf(i)));
+    }
+    const nodeIds = new Set(ids);
     const out: ElementDefinition[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const id = String(snapshot.ids.idOf(i));
-        ids.push(id);
         const data: Record<string, unknown> = {};
         for (const c of nodeData) {
             if (c.isSet(i)) {
                 data[c.meta.name] = plain(c.value(i));
             }
         }
-        data.id = id;
+        data.id = ids[i];
+        const p = parent?.isSet(i) === true ? parent.value(i) : undefined;
+        if (typeof p === "number" && p !== i && p < ids.length) {
+            data.parent = ids[p];
+        }
         const el: ElementDefinition = { group: "nodes", data: data as ElementDefinition["data"] };
-        const p = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : undefined;
-        if (p !== undefined && Number.isFinite(p[0]) && Number.isFinite(p[1])) {
-            el.position = { x: p[0], y: p[1] };
+        const xy = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : undefined;
+        if (xy !== undefined && Number.isFinite(xy[0]) && Number.isFinite(xy[1])) {
+            el.position = { x: xy[0], y: xy[1] };
         }
         out.push(el);
     }
+    const usedEdgeIds = new Set<string>();
     for (let e = 0; e < snapshot.edgeCount; e++) {
         const data: Record<string, unknown> = {};
         for (const c of edgeCols) {
             if (c.isSet(e)) {
-                data[c.meta.name] = plain(c.value(e));
+                data[c === weightColumn && !named ? "weight" : c.meta.name] = plain(c.value(e));
             }
         }
-        if (weights !== null) {
-            data.weight = weights[snapshot.edgeToArc[e]];
+        if (weightColumn === undefined && !named && snapshot.weights !== null) {
+            data.weight = snapshot.weights[snapshot.edgeToArc[e]];
+        }
+        const id = edgeIds?.isSet(e) === true ? String(edgeIds.value(e)) : undefined;
+        if (id !== undefined && !nodeIds.has(id) && !usedEdgeIds.has(id)) {
+            usedEdgeIds.add(id);
+            data.id = id;
         }
         data.source = ids[snapshot.edgeSource(e)];
         data.target = ids[snapshot.edgeTarget(e)];
@@ -73,26 +91,28 @@ export function snapshotToElements(snapshot: GraphSnapshot): ElementDefinition[]
 }
 
 /**
- * A column of data values: f64 when every set value is a finite number, bool when every one is a boolean, string
+ * A column of data values: f64 when every set value is a number (NaN and the infinities included), bool when every one is a boolean, string
  * when every one is a string, json otherwise. A missing value (undefined or null) is an unset row.
  * @param values - one value per row
+ * @param label - whether this is the `label` field: a string one gets the role "label", so a format with a label
+ * of its own (GEXF, Pajek, DOT, ...) writes it there and reads it back under the same name
  * @returns the column, or undefined when no row has a value
  */
-function column(values: unknown[]): ColumnInput | undefined {
+function column(values: unknown[], label: boolean): ColumnInput | undefined {
     const set = values.filter((v) => v !== undefined && v !== null);
     if (set.length === 0) {
         return undefined;
     }
     const rows = values.map((v) => (v === undefined ? null : v));
     const all = (test: (v: unknown) => boolean): boolean => set.every(test);
-    if (all((v) => typeof v === "number" && Number.isFinite(v))) {
+    if (all((v) => typeof v === "number")) {
         return { data: rows, decl: { dtype: "f64" } };
     }
     if (all((v) => typeof v === "boolean")) {
         return { data: rows, decl: { dtype: "bool" } };
     }
     if (all((v) => typeof v === "string")) {
-        return { data: rows, decl: { dtype: "string" } };
+        return { data: rows, decl: { dtype: "string", ...(label ? { role: "label" } : {}) } };
     }
     return { data: rows, decl: { dtype: "json" } };
 }
@@ -113,7 +133,10 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
     }
     const out: Record<string, ColumnInput> = {};
     for (const name of names) {
-        const c = column(records.map((r) => r[name]));
+        const c = column(
+            records.map((r) => r[name]),
+            name === "label",
+        );
         if (c !== undefined) {
             out[name] = c;
         }
@@ -124,7 +147,10 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
 /**
  * A snapshot of a collection with every data field as a column and every node's position as a "position" column,
  * for an exporter. Edges whose endpoints are not both in the collection are left out. A numeric edge field named
- * `weight` becomes the snapshot's edge weights when every edge has one.
+ * `weight` becomes the snapshot's edge weights when every edge has one. Edge ids become an "id" column, and a
+ * compound node's parent a "parent" column when the parent is in the collection too (a parent outside it is left
+ * out, so the node is written as a top-level node). Hidden elements are written like any other: pass
+ * `cy.elements(":visible")` to leave them out.
  * @param eles - the collection
  * @param options - the direction
  * @param options.directed - write a directed graph (default false)
@@ -153,6 +179,7 @@ export function elementsToSnapshot(
         xy[2 * i] = p.x;
         xy[2 * i + 1] = p.y;
     });
+    const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
     const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));
     let weights: Float64Array<ArrayBuffer> | undefined;
     const w = edgeColumns.weight;
@@ -169,7 +196,13 @@ export function elementsToSnapshot(
         nodeColumns: {
             ...columns(nodes.map((n) => n.data() as Record<string, unknown>)),
             position: { data: xy, decl: { dtype: "f64", components: 2, role: "position" } },
+            ...(parents.some((p) => p !== null)
+                ? { parent: { data: parents, decl: { dtype: "u32", role: "parent", refersTo: "node" } } }
+                : {}),
         },
-        edgeColumns,
+        edgeColumns: {
+            ...edgeColumns,
+            id: { data: edges.map((e) => e.id()), decl: { dtype: "string", role: "id", unique: true } },
+        },
     });
 }

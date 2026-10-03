@@ -5,12 +5,14 @@
  */
 
 import {
+    checkExport,
     type ExportGraphOptions,
     exportGraphToString,
     importGraph,
     type ImportGraphOptions,
     type ImportInput,
     type ImportReport,
+    type LossNote,
 } from "@graphty/graph-io";
 import type { Collection, ElementDefinition } from "cytoscape";
 
@@ -41,10 +43,17 @@ export type ImportOptions = Omit<ImportGraphOptions, "format">;
  * Options of graphtyExport: graph-io's export options for the format, plus whether to write a directed graph.
  * `sanitizeIds` defaults to "mangle" here (graph-io's default is "error"): GML and CX2 take only integer ids,
  * Cytoscape's are strings, so they are numbered and the original kept in an attribute graphtyImport restores.
+ * JSON is written as Cytoscape JSON (`dialect: "cytoscape"`, the shape `cy.json()` and `cy.add()` use), which keeps
+ * edge ids, compound parents and positions; pass `dialect: "node-link"` for the NetworkX shape.
  */
 export interface ExportOptions extends ExportGraphOptions {
     /** Write the graph as directed. Default false. */
     readonly directed?: boolean | undefined;
+    /**
+     * Called before writing with what the format cannot hold (positions in GraphML, lists and objects in DOT,
+     * ...), one note per column and kind of loss; not called when nothing is lost. Without it a loss is silent.
+     */
+    readonly onLoss?: ((notes: readonly LossNote[]) => void) | undefined;
 }
 
 /** A file read into Cytoscape element definitions. */
@@ -82,13 +91,26 @@ export async function importElements(
 }
 
 /**
- * Writes a collection as a graph file: every data field, and each node's position.
+ * Writes a collection as a graph file: every data field, each node's position and compound parent, and each
+ * edge's id, as far as the format holds them (`onLoss` hears about the rest).
  * @param eles - the nodes and the edges between them
  * @param format - the format
  * @param options - graph-io's export options for the format, plus `directed`
  * @returns the file's text
  */
 export function exportElements(eles: Collection, format: ExportFormat, options: ExportOptions = {}): Promise<string> {
-    const { directed, ...rest } = options;
-    return exportGraphToString(elementsToSnapshot(eles, { directed }), format, { sanitizeIds: "mangle", ...rest });
+    const { directed, onLoss, ...rest } = options;
+    const snapshot = elementsToSnapshot(eles, { directed });
+    const graphOptions = {
+        sanitizeIds: "mangle" as const,
+        ...(format === "json" ? { dialect: "cytoscape" } : {}),
+        ...rest,
+    };
+    if (onLoss !== undefined) {
+        const notes = checkExport(snapshot, format, graphOptions);
+        if (notes.length > 0) {
+            onLoss(notes);
+        }
+    }
+    return exportGraphToString(snapshot, format, graphOptions);
 }

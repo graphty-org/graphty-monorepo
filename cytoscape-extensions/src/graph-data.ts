@@ -6,7 +6,7 @@
 
 import type { ImportInput, ImportReport } from "@graphty/graph-io";
 import type { FetchDatasetOptions } from "@graphty/graph-samples";
-import type { Collection, CollectionReturnValue, Core } from "cytoscape";
+import type { Collection, CollectionReturnValue, Core, ElementDefinition } from "cytoscape";
 
 import type { ExportFormat, ExportOptions, ImportFormat, ImportOptions } from "./io.js";
 import type { GeneratorName, GeneratorOptions } from "./samples.js";
@@ -46,8 +46,9 @@ export interface GraphtyGraphData {
      */
     graphtyImport(input: ImportInput, format?: ImportFormat, options?: ImportOptions): Promise<ImportedGraph>;
     /**
-     * Writes the graph as a file's text: every data field, and each node's position. On a collection: its nodes,
-     * and those of its edges whose two ends are among them.
+     * Writes the graph as a file's text: every data field, each node's position and parent, and each edge's id, as
+     * far as the format holds them (`options.onLoss` hears about the rest). Hidden elements are written too. On a
+     * collection: its nodes, and those of its edges whose two ends are among them.
      */
     graphtyExport(format: ExportFormat, options?: ExportOptions): Promise<string>;
 }
@@ -64,6 +65,22 @@ declare module "cytoscape" {
 type Register = (type: string, name: string, registrant: unknown) => void;
 
 /**
+ * Adds element definitions to a core. An edge whose id the core already holds loses it and gets one from
+ * Cytoscape, so a second import into the same core does not fail on edge ids the file chose.
+ * @param cy - the core
+ * @param elements - the definitions; edge data may be changed
+ * @returns the added elements
+ */
+function addTo(cy: Core, elements: ElementDefinition[]): CollectionReturnValue {
+    for (const el of elements) {
+        if (el.group === "edges" && el.data.id !== undefined && cy.getElementById(el.data.id).nonempty()) {
+            delete el.data.id;
+        }
+    }
+    return cy.add(elements);
+}
+
+/**
  * Registers graphtyGenerate, graphtyDataset, graphtyImport and graphtyExport.
  * @param cytoscape - the cytoscape function
  */
@@ -71,12 +88,12 @@ export function registerGraphData(cytoscape: Register): void {
     cytoscape("core", "graphtyGenerate", async function (this: Core, name: GeneratorName, options: unknown) {
         const { generateElements } = await import("./samples.js");
         const r = generateElements(name, options as never);
-        return { elements: this.add(r.elements), directed: r.directed };
+        return { elements: addTo(this, r.elements), directed: r.directed };
     });
     cytoscape("core", "graphtyDataset", async function (this: Core, name: string, options?: FetchDatasetOptions) {
         const { datasetElements } = await import("./samples.js");
         const r = await datasetElements(name, options);
-        return { elements: this.add(r.elements), directed: r.directed };
+        return { elements: addTo(this, r.elements), directed: r.directed };
     });
     cytoscape(
         "core",
@@ -84,7 +101,7 @@ export function registerGraphData(cytoscape: Register): void {
         async function (this: Core, input: ImportInput, format?: ImportFormat, options?: ImportOptions) {
             const { importElements } = await import("./io.js");
             const r = await importElements(input, format, options);
-            return { elements: this.add(r.elements), directed: r.directed, format: r.format, report: r.report };
+            return { elements: addTo(this, r.elements), directed: r.directed, format: r.format, report: r.report };
         },
     );
     const exportFn = async (eles: Collection, format: ExportFormat, options?: ExportOptions): Promise<string> => {

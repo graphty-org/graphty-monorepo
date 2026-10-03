@@ -307,17 +307,41 @@ How the data maps:
   (`cy.elements().remove()`) or use a fresh one before loading a second graph.
 - **Attributes** become data fields of the same name: a generator's ground truth (`community`,
   `side`, `layer`), a dataset's columns (`club`, `label`, `latitude`, ...), a file's attributes. Edge
-  weights become `data.weight`. A column named `id`, `source`, `target` or `parent` is not copied,
-  because Cytoscape gives those fields a meaning of its own.
-- **Positions** in a file (GEXF, GML, DOT, Pajek, Cytoscape JSON) become node positions. Export
-  writes every node's position.
-- **Exported data**: every data field of every node and edge becomes an attribute; a numeric edge
-  field `weight` present on every edge becomes the edge weight. Edge ids are not written.
+  weights become `data.weight`, also when only some edges have one. A plain attribute named `id`,
+  `source`, `target` or `parent` is not copied, because Cytoscape gives those fields a meaning of its
+  own.
+- **Edge ids** in the file (GraphML, GEXF, GML, DOT, CSV, Cytoscape JSON) become the edges' ids. An
+  edge whose id is a node id, repeats an earlier edge's, or is already in the core gets an id from
+  Cytoscape instead, so importing never fails on an edge id.
+- **Compound nodes**: a node's parent (Cytoscape JSON `parent`, GraphML nested graphs, DOT
+  clusters) becomes `data.parent`, so the compound comes back as a compound.
+- **Positions** in a file (GEXF, GML, DOT, Pajek, CX2, Cytoscape JSON) become node positions; a z
+  coordinate is dropped. A node the file gives no position stays where Cytoscape puts it (the
+  origin).
+- **Parallel and reversed edges** stay separate edges, each with its own source and target, also
+  in an undirected export.
+
+On export:
+
+- **What is written**: every data field of every node and edge, each node's position, each edge's
+  id, and each node's parent when the parent is exported too (a node whose parent is left out is
+  written as a top-level node). A numeric edge field `weight` becomes the edge weight. A string
+  field `label` goes to the format's own label (GEXF, Pajek and DOT have one), so it reads back as
+  `label`.
+- **Hidden elements** are written like any other. Export `cy.elements(":visible")` to leave them
+  out.
+- **What a format cannot hold** (positions in GraphML, lists and objects in DOT and Pajek, booleans
+  in GML, ...) is left out or converted, and nothing says so unless you ask: pass
+  `onLoss: (notes) => console.warn(notes)` and it is called with one note per column and kind of
+  loss before the file is written. Lists and objects survive Cytoscape JSON and GML; GraphML, GEXF,
+  Neo4j and CX2 write them as JSON text, which reads back as a string.
 - **Integer-id formats**: GML and CX2 take only integer ids. Export numbers the nodes and keeps
   each original id in an attribute that graphtyImport restores, so a round trip keeps the ids. Pass
   `sanitizeIds: "error"` to refuse instead.
-- **JSON** is written as node-link JSON. Pass `dialect: "cytoscape"` for Cytoscape's own JSON,
-  which also carries positions.
+- **JSON** is written as Cytoscape JSON, the shape `cy.json()` and `cy.add()` use, which keeps edge
+  ids, parents and positions. It has no direction flag, so it reads back as directed. Pass
+  `dialect: "node-link"` for NetworkX's node-link JSON, which keeps the direction but not parents
+  or edge ids, and whose positions read back as a `position` data field.
 
 ### Sample data licenses
 

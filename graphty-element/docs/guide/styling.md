@@ -379,6 +379,47 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+## Letting the element choose the scale
+
+Leave `scale` and `range` off a binding and the element picks them from what the attribute
+measures -- its **level**, one of `category`, `quantity`, `time`, `text` or `id`:
+
+```typescript
+const { session } = element;
+await session.data.addNodes([
+    { id: "a", group: 1, score: 3.2 },
+    { id: "b", group: 2, score: 8.9 },
+    { id: "c", group: 1, score: 5.0 },
+]);
+
+// A group code gets one color per group; a measurement gets a size range you can see.
+await session.styles.add({
+    name: "Group and score",
+    target: "node",
+    selector: { match: "everything" },
+    encode: { "node.color": { by: "data.group" }, "node.size": { by: "data.score" } },
+});
+
+session.styles.defaultBinding("data.score", "node.color"); // { level: "quantity", scale: "linear", ... }
+await session.data.declare("data.score", { level: "category" }); // one undoable step
+session.styles.legend({ maxCategories: 8 }); // past 8 groups, one "other" row lists the rest
+```
+
+- `session.data.attributes()` reports each attribute's `level`, and `levelSource` says whether it
+  was inferred from the values or declared. Inference reads text with few distinct values and
+  integer codes such as 0, 1, 2 as categories, other numbers as quantities, and an all-distinct
+  column named like `id` or `user_id` as an id. When it guesses wrong, `data.declare` overrides
+  it, and every binding that names no scale repaints.
+- A category is read through `ordinal` for color (one color per group). A quantity is read
+  through `linear`, and a size, width or opacity with no `range` answers in a range a reader can
+  see: node size 0.5 to 3, edge width 2 to 12, opacity 0.2 to 1.
+- `styles.defaultBinding(path, channel)` says all of that before anything is written, and
+  `suitable: false` with a `reason` when the pairing says nothing a reader can see -- a color per
+  value of an id, or a size for a category, which has no order.
+- `styles.legend({ maxCategories })` keeps the largest categories of each categorical block and
+  rolls the rest into one "other" row whose `rolledUp` lists them, so a legend on screen and one
+  drawn into an export list the same rows.
+
 ## Painting an algorithm's result
 
 A finished run knows what it measured, so the shortest route from a result to a picture is to let

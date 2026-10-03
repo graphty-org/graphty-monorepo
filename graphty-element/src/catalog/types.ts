@@ -77,7 +77,14 @@ export type SetId = string;
 /** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
 export type ScopeId = SetId;
 
-/** A JMESPath expression over the published result root. */
+/**
+ * A column key: `data.<name>` for a data column, `results.<run>.<field>` for a run's result.
+ *
+ * The part after the root is the column's name LITERALLY, never an expression: a column named
+ * `shared chapters` or `a.b` has the path `data.shared chapters` or `data.a.b`. Wherever a path is
+ * taken as a path (a selector's `path`, a filter) it reads that column. To put one INSIDE an
+ * expression, pass it through `quotePath` first, which quotes every segment that needs it.
+ */
 export type Path = string;
 
 /** A JMESPath predicate. The same dialect everywhere an expression is accepted. */
@@ -812,6 +819,7 @@ export interface FunctionDescriptor {
 
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
+    /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
     path: Path;
     /** The bracketed form a formula uses, such as "[betweenness_centrality]". */
     token: string;

@@ -6,8 +6,13 @@ import { defineConfig } from "vitest/config";
 // headless Cytoscape needs no DOM. @graphty/* resolve through their dist/, so build them first (nx does).
 export default defineConfig({
     resolve: {
-        // the package's `imports` field maps "#gpu-platform" to dist/; the tests run the source
-        alias: { "#gpu-platform": fileURLToPath(new URL("src/gpu-platform-node.ts", import.meta.url)) },
+        alias: {
+            // the package's `imports` field maps "#gpu-platform" to dist/; the tests run the source
+            "#gpu-platform": fileURLToPath(new URL("src/gpu-platform-node.ts", import.meta.url)),
+            // CYTOSCAPE_DIR runs the suite against another Cytoscape 3.x (CI tests the oldest and newest the peer
+            // range admits); the type check in test/consumer-types.test.ts follows it too
+            ...(process.env.CYTOSCAPE_DIR ? { cytoscape: process.env.CYTOSCAPE_DIR } : {}),
+        },
     },
     test: {
         globals: true,

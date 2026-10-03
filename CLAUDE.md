@@ -452,12 +452,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 23 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 24 parallel test jobs on a push to master or a manual dispatch:
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
 - `graph-samples`
-- `cytoscape-extensions`
+- `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`

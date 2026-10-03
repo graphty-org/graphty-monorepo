@@ -2,6 +2,8 @@ import {
     type AdjacencyView,
     type GraphSnapshot,
     INVALID_INDEX,
+    type NodeRef,
+    resolveNode,
     type ReverseView,
     type U32,
 } from "@graphty/graph-format";
@@ -26,15 +28,15 @@ export interface BfsResult {
     readonly predArc: U32;
     /**
      * Node indices along the tree from the start to `target` inclusive; empty when `target` was not visited.
-     * @param target - The node index to walk back from
+     * @param target - The node to walk back from: its index, or `{ id }`
      */
-    pathTo(target: number): U32;
+    pathTo(target: NodeRef): U32;
     /**
      * LOGICAL EDGE indices of the tree edges along that path, one fewer than `pathTo`; empty when `target` was not
      * visited.
-     * @param target - The node index to walk back from
+     * @param target - The node to walk back from: its index, or `{ id }`
      */
-    pathEdges(target: number): U32;
+    pathEdges(target: NodeRef): U32;
 }
 
 /**
@@ -48,7 +50,7 @@ export function treePaths(
     g: AdjacencyView,
     start: number,
     predArc: U32,
-): { pathTo(target: number): U32; pathEdges(target: number): U32 } {
+): { pathTo(target: NodeRef): U32; pathEdges(target: NodeRef): U32 } {
     return {
         pathTo: (target) => walkPredArcs(g, predArc, start, target),
         pathEdges: (target) => walkPredEdges(g, predArc, start, target),
@@ -71,28 +73,31 @@ export interface BfsOptions extends ArcOrderOption {
     /** Stop expanding at this depth; unbounded when omitted. */
     readonly maxDepth?: number | undefined;
     /**
-     * Stop when this node index is taken off the queue, before its neighbours are expanded. Every
-     * node discovered by then stays in `order`; the target's own position in `order` ends the
-     * prefix of nodes that were expanded.
+     * Stop when this node (an index, or `{ id }`) is taken off the queue, before its neighbours are
+     * expanded. Every node discovered by then stays in `order`; the target's own position in
+     * `order` ends the prefix of nodes that were expanded.
      * @throws RangeError when it is not a node index
      */
-    readonly target?: number | undefined;
+    readonly target?: NodeRef | undefined;
 }
 
 /**
- * Check a start (or target) node index.
+ * Resolve and check a start (or target) node: an index, or `{ id }` looked up in the snapshot's id map.
  * @param g - The adjacency
- * @param start - The node index
- * @param what - What the index is, for the error message
- * @throws RangeError when `start` is not a node index of `g`
+ * @param start - The node index, or `{ id }`
+ * @param what - What the node is, for the error message
+ * @returns The node index
+ * @throws RangeError when `start` is not a node index of `g`; GraphFormatError E_UNKNOWN_NODE for an unknown id
  */
-export function checkStart(g: AdjacencyView, start: number, what = "start"): void {
-    if (!Number.isInteger(start) || start < 0 || start >= g.nodeCount) {
+export function checkStart(g: AdjacencyView, start: NodeRef, what = "start"): number {
+    const index = resolveNode(g, start);
+    if (!Number.isInteger(index) || index < 0 || index >= g.nodeCount) {
         throw withCode(
-            new RangeError(`${what} node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`),
+            new RangeError(`${what} node index ${String(index)} is out of range for ${String(g.nodeCount)} nodes`),
             "E_BAD_NODE",
         );
     }
+    return index;
 }
 
 /**
@@ -102,12 +107,11 @@ export function checkStart(g: AdjacencyView, start: number, what = "start"): voi
  * @returns The target, or INVALID_INDEX for none
  * @throws RangeError when `target` is set and is not a node index of `g`
  */
-export function checkTarget(g: AdjacencyView, target: number | undefined): number {
+export function checkTarget(g: AdjacencyView, target: NodeRef | undefined): number {
     if (target === undefined) {
         return INVALID_INDEX;
     }
-    checkStart(g, target, "target");
-    return target;
+    return checkStart(g, target, "target");
 }
 
 /**
@@ -160,13 +164,13 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
  * Breadth-first search over out-neighbours. Takes any `AdjacencyView`, so `s.reverse()` gives an
  * in-neighbour BFS with no extra code.
  * @param g - The adjacency to traverse
- * @param start - The node index to start from
+ * @param startNode - The node to start from: its index, or `{ id }`
  * @param options - Traversal options
  * @returns The visit order, the parent array, the depth array and the visited count
  * @public
  */
-export function breadthFirstSearch(g: AdjacencyView, start: number, options: BfsOptions = {}): BfsResult {
-    checkStart(g, start);
+export function breadthFirstSearch(g: AdjacencyView, startNode: NodeRef, options: BfsOptions = {}): BfsResult {
+    const start = checkStart(g, startNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
@@ -258,17 +262,17 @@ function twinArc(s: GraphSnapshot, a: number, u: number, v: number): number {
  * parent, so the result does not depend on which steps ran: `depth` equals `breadthFirstSearch`'s,
  * and `order` lists the visited nodes level by level, ascending within a level.
  * @param s - The snapshot to traverse
- * @param source - The node index to start from
+ * @param sourceNode - The node to start from: its index, or `{ id }`
  * @param options - The switching thresholds
  * @returns The visit order, the parent array, the depth array and the visited count
  * @public
  */
 export function directionOptimizedBfs(
     s: GraphSnapshot,
-    source: number,
+    sourceNode: NodeRef,
     options: DirectionOptimizedBfsOptions = {},
 ): BfsResult {
-    checkStart(s, source);
+    const source = checkStart(s, sourceNode);
     const { nodeCount, rowPtr, colIdx } = s;
     const alpha = options.alpha ?? 15;
     const beta = options.beta ?? 18;

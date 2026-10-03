@@ -266,7 +266,7 @@ describe("constants.ts (contract 3.2)", () => {
 
     it("pins the betweenness batch constants (design 8.4, 10.1)", () => {
         expect(BC_BATCH_BUDGET_FRACTION).toBe(0.25);
-        expect(BC_MAX_BATCH).toBe(64);
+        expect(BC_MAX_BATCH).toBe(256);
         expect(BC_EDGE_PARALLEL_GAMMA).toBe(2);
         expect(BC_BACKWARD_LEVELS_PER_SUBMIT).toBe(64);
     });

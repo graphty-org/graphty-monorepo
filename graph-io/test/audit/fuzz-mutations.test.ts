@@ -30,6 +30,7 @@ import { describe, expect, it } from "vitest";
 import { registry } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
 import { CORPUS_FORMATS, corpusFiles, type CorpusFormat, readCorpusBytes } from "../helpers/corpus.js";
+import { makeZip } from "../helpers/zip.js";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -306,6 +307,66 @@ const TOKENS: Readonly<Record<CorpusFormat, readonly string[]>> = {
         '"status"',
         '"success"',
         "\n",
+    ],
+    cys: [
+        "PK\u0003\u0004",
+        "PK\u0001\u0002",
+        "PK\u0005\u0006",
+        "PK\u0006\u0006",
+        "PK\u0006\u0007",
+        "PK\u0007\u0008",
+        "\u0000",
+        "\u0000\u0000\u0000\u0000",
+        "\u0008\u0000",
+        "\u0001",
+        "/",
+        ".version",
+        "networks/",
+        "views/",
+        "tables/",
+        ".cytable",
+        ".xgmml",
+        "cytables.xml",
+        "cysession.xml",
+    ],
+    xgmml: [
+        "<",
+        ">",
+        "</",
+        "/>",
+        '"',
+        "'",
+        "=",
+        "&",
+        ";",
+        "<node",
+        "<edge",
+        "</node>",
+        "</edge>",
+        "id=",
+        "source=",
+        "target=",
+        "<att",
+        "name=",
+        "value=",
+        "type=",
+        "cy:type=",
+        'type="list"',
+        "<graphics",
+        "xlink:href=",
+        "cy:directed=",
+        "<graph",
+        "</graph>",
+        "<!--",
+        "-->",
+        "<![CDATA[",
+        "]]>",
+        "&amp;",
+        "&#",
+        "<?",
+        "?>",
+        "\n",
+        "&#xd83d;",
     ],
     json: [
         "{",
@@ -703,7 +764,7 @@ describe("fuzz audit: structural attacks", () => {
 
     describe("a 50 MB attribute value as one in-memory document", () => {
         const big = "x".repeat(50 * MB);
-        const documents: Readonly<Record<CorpusFormat, string>> = {
+        const documents: Readonly<Record<CorpusFormat, string | Uint8Array>> = {
             json: `{"nodes":[{"id":"a","v":"${big}"}],"links":[]}`,
             cx: `[{"nodes":[{"@id":1,"n":"${big}"}]}]`,
             cx2: `[{"CXVersion":"2.0"},{"nodes":[{"id":1,"v":{"name":"${big}"}}]},{"status":[{"success":true}]}]`,
@@ -718,6 +779,16 @@ describe("fuzz audit: structural attacks", () => {
             neo4j: `:ID,name,:LABEL\n1,"${big}",P\n`,
             pajek: `*Vertices 1\n1 "${big}"\n*Edges\n1 1\n`,
             obo: `format-version: 1.4\n\n[Term]\nid: X:1\nname: ${big}\n`,
+            xgmml: `<graph><node id="a" label="${big}"/></graph>`,
+            cys: makeZip([
+                { name: "S/3.0.0.version", data: "" },
+                {
+                    // stored: 50 MB of one letter deflates above the 1000:1 ratio limit
+                    name: "S/networks/1-N.xgmml",
+                    method: 0,
+                    data: `<graph id="1" cy:registered="0" xmlns:cy="http://www.cytoscape.org"><att><graph id="2" cy:registered="1"><node id="3" label="${big}"/></graph></att></graph>`,
+                },
+            ]),
         };
         for (const format of CORPUS_FORMATS) {
             it(`${format}: completes with a snapshot or an ImportError`, async () => {

@@ -1,0 +1,4 @@
+<xgmml:graph xmlns:xgmml="http://www.cs.rpi.edu/XGMML" label="prefixed">
+  <xgmml:node id="a"/><xgmml:node id="b"/>
+  <xgmml:edge source="a" target="b"/>
+</xgmml:graph>

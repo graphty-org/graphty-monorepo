@@ -21,6 +21,7 @@ export const CORPUS_FORMATS = [
     "csv",
     "cx",
     "cx2",
+    "cys",
     "dot",
     "gexf",
     "gml",
@@ -29,6 +30,7 @@ export const CORPUS_FORMATS = [
     "neo4j",
     "obo",
     "pajek",
+    "xgmml",
 ] as const;
 
 /**
@@ -145,6 +147,19 @@ export function malformedPath(format: CorpusFormat, name: string): string {
  */
 export function readCorpusText(format: CorpusFormat, name: string): string {
     return readFileSync(corpusPath(format, name), "utf-8");
+}
+
+/** The corpus formats whose files are binary (a zip): they are read as bytes, never as text. */
+export const BINARY_CORPUS_FORMATS: ReadonlySet<CorpusFormat> = new Set<CorpusFormat>(["cys"]);
+
+/**
+ * A corpus file as an importer reads it in memory: text for a text format, bytes for a binary one.
+ * @param format - the format directory
+ * @param name - the file name
+ * @returns the content
+ */
+export function readCorpusInput(format: CorpusFormat, name: string): string | Uint8Array {
+    return BINARY_CORPUS_FORMATS.has(format) ? readCorpusBytes(format, name) : readCorpusText(format, name);
 }
 
 /**

@@ -140,6 +140,11 @@ run_step "Formatting (changed files)" "pnpm run format:check:changed"
 if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
 fi
+# The same for each part of cytoscape-extensions as a browser application bundles it
+# (cytoscape-extensions/size-budgets.json). Needs the build above. About 5 seconds.
+if affected cytoscape-extensions; then
+    run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
+fi
 
 # Every tool a package's scripts run or its *.config.* files import is declared by that package,
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.

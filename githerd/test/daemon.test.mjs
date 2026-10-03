@@ -662,7 +662,7 @@ describe("the poll loop", () => {
             breakingCheckedFor: B,
             ownerGate: true,
             gateJob: 555,
-            stuck: ["waiting on owner: visual review"],
+            stuck: ["waiting on owner: visual review", "native auto-merge armed: bypasses githerd/merge"],
         });
         const calls = gh.calls.map((c) => c.args[c.args.length - 1]);
         expect(calls.filter((p) => p.includes("/pulls/7/commits"))).toHaveLength(1);

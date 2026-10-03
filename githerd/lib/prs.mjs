@@ -36,8 +36,8 @@ import { execFileSync } from "node:child_process";
  *   autoMerge: boolean, mergeable: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   ownerGate: boolean, ownerRejected: boolean, stackedOn: number | null,
- *   lastActivityAt: string, [key: string]: unknown,
- * }} PrRecord
+ *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
+ * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head
  */
 
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"]);
@@ -235,26 +235,6 @@ export function countsAsBreaking(rec) {
 }
 
 /**
- * Whether design section 8 would turn auto-merge on for this PR.
- * @param {PrRecord} rec the record
- * @param {MasterView} master the default branch's verdict
- * @param {string | null | undefined} login the owner, the account gh is logged in as; only the
- *   owner's PRs are eligible
- * @returns {boolean} true when eligible
- */
-export function autoMergeEligible(rec, master, login) {
-    return (
-        !rec.draft &&
-        !countsAsBreaking(rec) &&
-        rec.baseRef === master.branch &&
-        !rec.labels.includes("breaking-hold") &&
-        !rec.touchesNoAutoMerge &&
-        Boolean(login) &&
-        rec.author === login
-    );
-}
-
-/**
  * The reasons a PR is not merging, in the order of design section 6.5.
  * @param {number} number the PR number
  * @param {PrRecord} rec its record
@@ -272,7 +252,7 @@ export function whyStuck(number, rec, ctx) {
     const pending = Object.keys(rec.required).filter((n) => ["PENDING", "MISSING"].includes(rec.required[n]));
 
     if (rec.draft) reasons.push("draft");
-    if (master.verdict === "red" && master.fixPr !== number) reasons.push("held: master is red");
+    if (rec.mergeStatus?.state === "failure") reasons.push(rec.mergeStatus.description);
     if (rec.conflictSightings >= 2) reasons.push("conflicting");
     if (rec.ownerRejected) reasons.push("owner rejected images: fix needed");
     else if (rec.ownerGate) reasons.push("waiting on owner: visual review");
@@ -284,7 +264,7 @@ export function whyStuck(number, rec, ctx) {
     if (failing.length && master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
         reasons.push("failure predates master fix");
     }
-    if (!rec.autoMerge && autoMergeEligible(rec, master, ctx.login)) reasons.push("auto-merge off");
+    if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
     if (rec.touchesNoAutoMerge) reasons.push("owner merges: touches githerd or CI config");
     if (pending.length) reasons.push("checks pending");
 

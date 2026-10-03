@@ -61,8 +61,8 @@ export const DEFAULTS = Object.freeze({
 const FORBIDDEN = {
     pushToDefaultBranch: "githerd never pushes to the default branch",
     forcePush: "githerd never force-pushes",
-    merge: "githerd never merges directly; it only turns auto-merge on",
-    directMerge: "githerd never merges directly; it only turns auto-merge on",
+    merge: "githerd never merges; Mergify does, gated by githerd/merge",
+    directMerge: "githerd never merges; Mergify does, gated by githerd/merge",
     autoMergeBreaking: "githerd never advances a breaking change",
     approveVisual: "githerd never approves visual changes",
     acceptVisual: "githerd never approves visual changes",

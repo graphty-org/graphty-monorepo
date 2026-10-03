@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { normalizeConfig } from "../lib/config.mjs";
-import { autoMergeEligible, countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
+import { countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 const config = normalizeConfig(JSON.parse(readFileSync(new URL("../../githerd.config.json", import.meta.url), "utf8")));
@@ -42,7 +42,7 @@ function node(over = {}) {
         headRefOid: "h1",
         baseRefName: "master",
         mergeable: "MERGEABLE",
-        autoMergeRequest: { mergeMethod: "MERGE" },
+        autoMergeRequest: null,
         labels: { nodes: [] },
         author: { login: "apowers313" },
         commits: {
@@ -109,10 +109,18 @@ describe("mergeability", () => {
     });
 
     it("the #519 shape (auto-merge on, checks green) is conflicting", () => {
-        const n519 = node({ number: 519, mergeable: "CONFLICTING", headRefOid: "926098474" });
+        const n519 = node({
+            number: 519,
+            mergeable: "CONFLICTING",
+            headRefOid: "926098474",
+            autoMergeRequest: { mergeMethod: "MERGE" },
+        });
         const rec = polls([n519], [n519])["519"];
         expect(rec.autoMerge).toBe(true);
-        expect(whyStuck(519, rec, { master: GREEN, config, now: Date.parse(NOW) })).toEqual(["conflicting"]);
+        expect(whyStuck(519, rec, { master: GREEN, config, now: Date.parse(NOW) })).toEqual([
+            "conflicting",
+            "native auto-merge armed: bypasses githerd/merge",
+        ]);
     });
 
     it("the #490 shape (auto-merge on, a non-required check failing) is conflicting", () => {
@@ -288,11 +296,13 @@ describe("whyStuck", () => {
         expect(stuck(polls([node({ isDraft: true })])["704"])).toContain("draft");
     });
 
-    it("held while master is red, unless it is the master fix", () => {
+    it("shows the githerd/merge failure, not a repository-wide master hold", () => {
         const rec = polls([node()])["704"];
-        const red = { ...GREEN, verdict: "red" };
-        expect(stuck(rec, { master: red })).toEqual(["held: master is red"]);
-        expect(stuck(rec, { master: { ...red, fixPr: 704 } })).toEqual([]);
+        expect(stuck(rec, { master: { ...GREEN, verdict: "red" } })).toEqual([]);
+        rec.mergeStatus = { state: "failure", description: "held: GPU lane red since 10-01 15:37 UTC", line: 2 };
+        expect(stuck(rec)).toEqual(["held: GPU lane red since 10-01 15:37 UTC"]);
+        rec.mergeStatus = { state: "pending", description: "githerd is evaluating", line: null };
+        expect(stuck(rec)).toEqual([]);
     });
 
     it("stacked on the PR whose head is its base, or on a branch", () => {
@@ -304,17 +314,10 @@ describe("whyStuck", () => {
         expect(stuck(polls([upper])["704"])).toContain("stacked: waiting on branch feat/base");
     });
 
-    it("auto-merge off for an eligible PR, not for another author or an unresolved login", () => {
-        const mine = polls([node({ autoMergeRequest: null })])["704"];
-        expect(stuck(mine)).toEqual(["auto-merge off"]);
-        expect(autoMergeEligible(mine, GREEN, "apowers313")).toBe(true);
-        expect(autoMergeEligible(mine, GREEN, null)).toBe(false);
-        expect(stuck(mine, { login: null })).toEqual([]);
-        const other = polls([node({ autoMergeRequest: null, author: { login: "someone" } })])["704"];
-        expect(autoMergeEligible(other, GREEN, "apowers313")).toBe(false);
-        expect(stuck(other)).toEqual([]);
-        const held = polls([node({ autoMergeRequest: null, labels: { nodes: [{ name: "breaking-hold" }] } })])["704"];
-        expect(stuck(held)).toEqual([]);
+    it("names native auto-merge, which bypasses githerd/merge, whenever it is armed", () => {
+        expect(stuck(polls([node()])["704"])).toEqual([]);
+        const armed = polls([node({ autoMergeRequest: { mergeMethod: "MERGE" } })])["704"];
+        expect(stuck(armed)).toEqual(["native auto-merge armed: bypasses githerd/merge"]);
     });
 
     it("claimed by a live claim", () => {
@@ -344,14 +347,16 @@ describe("whyStuck", () => {
         );
         const rec = polls([n], [n])["704"];
         rec.touchesNoAutoMerge = true;
-        const red = { ...GREEN, verdict: "red" };
-        expect(stuck(rec, { master: red, sessions: { s: { branch: "fix/x" } } })).toEqual([
+        rec.autoMerge = true;
+        rec.mergeStatus = { state: "failure", description: "held: CI lane red since 10-01 15:37 UTC", line: 2 };
+        expect(stuck(rec, { sessions: { s: { branch: "fix/x" } } })).toEqual([
             "draft",
-            "held: master is red",
+            "held: CI lane red since 10-01 15:37 UTC",
             "conflicting",
             "breaking: held for a grouped major",
             "stacked: waiting on branch feat/base",
             "required check failing: All Checks Pass",
+            "native auto-merge armed: bypasses githerd/merge",
             "owner merges: touches githerd or CI config",
             "checks pending",
             "worked by session s",

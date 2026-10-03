@@ -51,3 +51,18 @@ export type {
     SsspResultLike,
 } from "./indexed/accelerator.js";
 export { accelerated } from "./indexed/accelerator.js";
+
+// The machine-readable catalog of the algorithms above: direction, weights, inputs, result and accelerator.
+export {
+    type AcceleratorMethod,
+    type AlgorithmCategory,
+    type AlgorithmEntry,
+    type AlgorithmInput,
+    type AlgorithmInputKind,
+    type AlgorithmName,
+    type AlgorithmResultKind,
+    ALGORITHMS,
+    type DispatcherMethod,
+    type GraphDirection,
+    type WeightUse,
+} from "./catalog.js";

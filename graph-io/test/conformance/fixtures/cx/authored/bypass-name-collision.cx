@@ -1,0 +1,7 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1}]},
+{"nodeAttributes":[{"po":1,"n":"NODE_SIZE","v":"an attribute"}]},
+{"cyVisualProperties":[{"properties_of":"nodes","applies_to":1,"properties":{"NODE_SIZE":"40.0","NODE_FILL_COLOR":"#FF0000"}}]},
+{"status":[{"error":"","success":true}]}
+]

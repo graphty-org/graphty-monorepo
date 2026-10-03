@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.17",
+    "version": "0.3.19",
     "description": "Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -51,6 +51,16 @@
             "types": "./dist/neo4j.d.ts",
             "import": "./dist/neo4j.js",
             "default": "./dist/neo4j.js"
+        },
+        "./cx2": {
+            "types": "./dist/cx2.d.ts",
+            "import": "./dist/cx2.js",
+            "default": "./dist/cx2.js"
+        },
+        "./cx": {
+            "types": "./dist/cx.d.ts",
+            "import": "./dist/cx.js",
+            "default": "./dist/cx.js"
         },
         "./obo": {
             "types": "./dist/obo.d.ts",

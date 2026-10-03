@@ -5,7 +5,7 @@
  * that daemon over HTTP. stdout carries JSON-RPC lines only; anything else goes to stderr.
  *
  * The daemon always runs the default branch's copy of the package, archived into
- * `<root>/.githerd/versions/<version>-<hash8>/`, so a worktree's unmerged code never becomes the
+ * `~/.githerd/<checkout name>/versions/<version>-<hash8>/`, so a worktree's unmerged code never becomes the
  * shared daemon. It is started through servherd under the name `githerd`; because servherd 1.1
  * starts every process with pm2's autorestart off, the launcher re-creates the pm2 process with
  * autorestart on after every `start`.
@@ -32,6 +32,7 @@ import { DEFAULTS, defaultBranch, repoRoot, resolveConfig } from "./config.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
 import { identify, sameProcess } from "./proc.mjs";
+import { defaultStateDir } from "./store.mjs";
 import { sessionTools } from "./tools.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -60,7 +61,7 @@ const KEEP_VERSIONS = 3;
  * @typedef {object} LauncherContext
  * @property {string} root the repository's main checkout
  * @property {string} name the daemon's servherd name, `githerd` unless set
- * @property {string} stateDir `<root>/.githerd` unless set
+ * @property {string} stateDir `~/.githerd/<checkout name>` unless set
  * @property {Record<string, string | undefined>} env the environment the launcher passes on
  * @property {import("./config.mjs").Config | null} config the config; null when invalid
  * @property {string[]} servherd the servherd command
@@ -115,7 +116,7 @@ export function pm2Command(servherd, env) {
  * @param {{cwd?: string, env?: Record<string, string | undefined>, now?: () => Date,
  *   pkgDir?: string, healthWaitMs?: number, name?: string, stateDir?: string}} [options] where the
  *   launcher runs; `name` defaults to `GITHERD_NAME` or `githerd` (a separate daemon, for the
- *   development daemon and the smoke test), `stateDir` to `<root>/.githerd`
+ *   development daemon and the smoke test), `stateDir` to `~/.githerd/<checkout name>`
  * @returns {{kind: "outside"} | {kind: "unconfigured", root: string, reason: string}
  *   | {kind: "ready", ctx: LauncherContext, problem: string | null}} outside a repository, not
  *   configured, or ready; `problem` names an invalid config, which the daemon reports in turn
@@ -152,7 +153,7 @@ export function launcherContext({
         ctx: {
             root,
             name,
-            stateDir: stateDir ?? join(root, ".githerd"),
+            stateDir: stateDir ?? defaultStateDir(root, env.HOME),
             env,
             config,
             servherd,
@@ -515,7 +516,7 @@ export async function ensureDaemon(ctx) {
             const dir = await materialize(ctx, target);
             const env = ["-e", "PORT={{port}}"];
             if (ctx.env.GITHERD_CONFIG) env.push("-e", `GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`);
-            if (ctx.stateDir !== join(ctx.root, ".githerd")) env.push("-e", `GITHERD_STATE_DIR=${ctx.stateDir}`);
+            env.push("-e", `GITHERD_STATE_DIR=${ctx.stateDir}`);
             const daemon = join(dir, "bin", "githerd-daemon.mjs");
             const data = await servherd(ctx, ["start", "-n", ctx.name, ...env, "--", "node", daemon]);
             if (data.action !== "existing") await enableAutorestart(ctx, data.server);

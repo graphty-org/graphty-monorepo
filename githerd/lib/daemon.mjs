@@ -22,10 +22,26 @@
  * and is never read from the config. While it is unresolved no run starts and a `blocked`
  * escalation stays open.
  *
- * Fencing: after binding, the daemon writes `daemon.json` with its process identity. Before every
- * poll and every state write it reads the file again; when the file names another live process,
- * this daemon stops without writing anything. A daemon that finds such a file at startup never
- * binds at all.
+ * State lives in `~/.githerd/<repository>/` (design section 9.1), whatever the cwd.
+ *
+ * Start (design section 9.2): take the lock (`lock`: pid, start time, cwd), or exit when a live
+ * daemon holds it; a stale lock is taken. Then record the start in `starts`: the third start within
+ * 10 minutes boots straight into fatal mode with the last exception as the reason. A PID 1 start
+ * time other than the one in the previous `alive` means the container restarted, and every recorded
+ * run is void. After loading state, the spool of hook events left while the daemon was down is
+ * drained into the ledger.
+ *
+ * Fencing: before every poll and every state write the daemon reads the lock again; when it names
+ * another live process, this daemon stops without writing anything. After binding it writes
+ * `daemon.json` with its identity and port for the launcher and the CLI.
+ *
+ * Liveness (design section 9.4): `alive` is rewritten every 10 s by a timer of its own, so slow
+ * work never looks like death; `progress` names the step the daemon is in and since when.
+ *
+ * Fatal mode (design section 9.6): on a crash loop, or an uncaught exception or rejection when
+ * `fatalOnUncaught` is set (the daemon process sets it), the daemon writes `FATAL`, stops polling,
+ * keeps answering `/health` with the reason, answers every other request with 503 "githerd is
+ * DOWN: <reason>", and pages once. The next start that is not a crash loop clears it.
  */
 
 import { execFile } from "node:child_process";
@@ -46,14 +62,31 @@ import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { createNotifier } from "./notify.mjs";
 import { pagesFor } from "./paging.mjs";
-import { identify, sameProcess } from "./proc.mjs";
+import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { updatePrs, whyStuck } from "./prs.mjs";
 import { NEXT, SKIP } from "./queue.mjs";
 import { createRetriage } from "./retriage.mjs";
 import { authenticate, runTools } from "./run-tools.mjs";
 import { admit, createRunner, ownerIdentity, recoverRuns, writeRunGitconfig } from "./runner.mjs";
-import { appendLedger, loadState, readLedger, saveState } from "./store.mjs";
+import {
+    appendLedger,
+    clearFatal,
+    CRASH_LOOP,
+    defaultStateDir,
+    drainSpool,
+    loadState,
+    otherHolder,
+    readLedger,
+    readLiveness,
+    recordStart,
+    releaseLock,
+    saveState,
+    takeLock,
+    writeAlive,
+    writeFatal,
+    writeProgress,
+} from "./store.mjs";
 import { sessionTools } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
 import { createWorktree, readTree, removeWorktree, sweepWorktrees } from "./worktrees.mjs";
@@ -182,30 +215,11 @@ function readOverride(dir) {
 }
 
 /**
- * Reads `daemon.json`.
- * @param {string} dir the state directory
- * @returns {any} its contents, or null when missing or unreadable
+ * The first line of a text, for surfaces that show one line.
+ * @param {string} text the text
+ * @returns {string} its first line
  */
-function readDaemonFile(dir) {
-    try {
-        return JSON.parse(readFileSync(join(dir, "daemon.json"), "utf8"));
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Whether `daemon.json` names a live process other than this one.
- * @param {string} dir the state directory
- * @param {{pid: number, startTime: string, bootId: string}} self this process
- * @returns {any} the other daemon's record, or null
- */
-function otherLiveDaemon(dir, self) {
-    const rec = readDaemonFile(dir);
-    if (!rec || !Number.isInteger(rec.pid)) return null;
-    if (rec.pid === self.pid && rec.startTime === self.startTime && rec.bootId === self.bootId) return null;
-    return sameProcess(rec) ? rec : null;
-}
+const firstLine = (text) => text.split("\n", 1)[0];
 
 /**
  * Today's next incident id.
@@ -229,7 +243,10 @@ function nextIncidentId(incidents, iso) {
  * @param {() => Date} [options.now] the clock
  * @param {Record<string, string | undefined>} [options.env] the environment: `GITHERD_CONFIG`,
  *   `PATH`, and the secrets the outgoing-text check refuses
- * @param {string} [options.stateDir] where state lives; `<root>/.githerd` by default
+ * @param {string} [options.stateDir] where state lives; `~/.githerd/<root's name>` by default
+ * @param {number} [options.aliveMs] how often `alive` is rewritten
+ * @param {boolean} [options.fatalOnUncaught] enter fatal mode on an uncaught exception or rejection
+ *   of this process instead of exiting; the daemon process sets it, tests that run in-process do not
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
  * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
@@ -246,7 +263,9 @@ export async function startDaemon({
     git = gitExec,
     now = () => new Date(),
     env = process.env,
-    stateDir = join(root, ".githerd"),
+    stateDir = defaultStateDir(root, env.HOME),
+    aliveMs = 10_000,
+    fatalOnUncaught = false,
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
@@ -271,12 +290,57 @@ export async function startDaemon({
         );
 
     mkdirSync(stateDir, { recursive: true });
-    const other = otherLiveDaemon(stateDir, self);
-    if (other) {
-        say("error", `daemon.json names live daemon pid ${other.pid} on port ${other.port}; exiting without writing`);
+    const lock = takeLock(stateDir, self);
+    if (!lock.ok) {
+        const { holder } = /** @type {{holder: any}} */ (lock);
+        say("error", `the lock names live daemon pid ${holder.pid} (cwd ${holder.cwd}); exiting without writing`);
         finish({ reason: "fenced" });
         return /** @type {Daemon} */ ({ fenced: true, done });
     }
+    const { stale } = /** @type {{stale: any}} */ (lock);
+    if (stale) say("info", `took a stale lock from pid ${stale.pid ?? "unknown"}`);
+    const previous = readLiveness(stateDir);
+    const started = recordStart(stateDir, startedAtDate);
+    /** @type {string | null} the fatal reason, the first line of which every refusal shows */
+    let fatal = null;
+    /** @type {string | null} set when booting into fatal mode, entered once the notifier exists */
+    let bootFatal = null;
+    if (started.crashLoop) {
+        const exceptions = (await readLedger(stateDir)).filter((e) => e.kind === "exception");
+        const last = exceptions.at(-1)?.stack ?? "none recorded";
+        bootFatal = `crash loop: ${CRASH_LOOP.starts} starts within 10 minutes; last exception: ${last}`;
+    } else {
+        clearFatal(stateDir);
+    }
+    const pid1Start = containerStart();
+    const containerRestarted = Boolean(previous.alive?.pid1Start && previous.alive.pid1Start !== pid1Start);
+    /**
+     * Rewrites `progress`.
+     * @param {string} name the step
+     */
+    const step = (name) => {
+        try {
+            writeProgress(stateDir, name, now().toISOString());
+        } catch (err) {
+            say("error", `progress: ${/** @type {Error} */ (err).message}`);
+        }
+    };
+    /** Rewrites `alive`. */
+    const beat = () => {
+        try {
+            writeAlive(stateDir, {
+                pid: self.pid,
+                startTime: self.startTime,
+                version,
+                pid1Start,
+                at: now().toISOString(),
+            });
+        } catch (err) {
+            say("error", `alive: ${/** @type {Error} */ (err).message}`);
+        }
+    };
+    beat();
+    step("start");
 
     const loaded = await loadState(stateDir, { now });
     const state = loaded.state;
@@ -294,7 +358,13 @@ export async function startDaemon({
     state.runs ??= {};
     // Resolved again by the first poll; a login saved by an earlier process is not trusted.
     state.trust = { login: null, resolvedAt: null, error: null, hidden: state.trust?.hidden ?? {} };
-    const recovered = recoverRuns(state, { now: now() });
+    // After a container restart every recorded pid is void: no run is killed, every one is lost.
+    const recovered = recoverRuns(state, {
+        now: now(),
+        ...(containerRestarted ? { bootId: "container-restarted" } : {}),
+    });
+    if (containerRestarted)
+        say("info", `the container restarted (PID 1 start time ${previous.alive.pid1Start} -> ${pid1Start})`);
     for (const id of recovered.lost) say("info", `run ${id} lost: the machine restarted since it started`);
     for (const id of recovered.interrupted) say("info", `run ${id} interrupted by the restart`);
 
@@ -336,7 +406,7 @@ export async function startDaemon({
     function fence(rec) {
         if (fenced) return;
         fenced = true;
-        say("error", `daemon.json now names live daemon pid ${rec.pid} on port ${rec.port}; exiting without writing`);
+        say("error", `the lock now names live daemon pid ${rec.pid}; exiting without writing`);
         void halt({ reason: "fenced" });
     }
 
@@ -346,7 +416,7 @@ export async function startDaemon({
      */
     function mayWrite() {
         if (fenced || loaded.readOnly) return false;
-        const rec = otherLiveDaemon(stateDir, self);
+        const rec = otherHolder(stateDir, self);
         if (rec) fence(rec);
         return !fenced;
     }
@@ -1037,10 +1107,11 @@ export async function startDaemon({
 
     /**
      * One poll attempt: skipped while another runs. `loopTickAt` is set whether or not GitHub
-     * answers.
-     * @returns {Promise<{skipped?: true, fenced?: true, ok?: boolean}>} what happened
+     * answers. In fatal mode it does nothing and returns the reason.
+     * @returns {Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} what happened
      */
     async function poll() {
+        if (fatal) return { fatal: firstLine(fatal) };
         if (busy || stopping || fenced) return { skipped: true };
         if (loaded.readOnly) {
             // Never polls, but the loop still ticks, so launchers do not take it for wedged.
@@ -1050,6 +1121,7 @@ export async function startDaemon({
         busy = true;
         const t = now();
         loopTickAt = t.toISOString();
+        step("poll");
         try {
             if (!mayWrite()) return { fenced: true };
             if (!config) {
@@ -1094,6 +1166,7 @@ export async function startDaemon({
             return { ok: lastPollOkAt === loopTickAt };
         } finally {
             busy = false;
+            if (!fenced) step("idle");
         }
     }
 
@@ -1105,7 +1178,7 @@ export async function startDaemon({
         } catch (err) {
             say("error", `poll: ${/** @type {Error} */ (err).message}`);
         }
-        if (stopping || fenced) return;
+        if (stopping || fenced || fatal) return;
         const ms = (config?.pollSeconds ?? 180) * 1000 * intervalFactor;
         nextPollAt = new Date(now().getTime() + ms).toISOString();
         timer = setTimeout(tick, ms);
@@ -1214,6 +1287,7 @@ export async function startDaemon({
         githubDownSince: state.github.downSince ?? null,
         runsInFlight: Object.values(state.runs ?? {}).filter((r) => r.status === "running").length,
         notifyBrokenSince: state.notify?.brokenSince ?? null,
+        fatal: fatal && firstLine(fatal),
     });
 
     /**
@@ -1275,6 +1349,7 @@ export async function startDaemon({
         };
         try {
             if (req.method === "GET" && req.url === "/health") return send(200, health());
+            if (fatal) return send(503, { error: `githerd is DOWN: ${firstLine(fatal)}` });
             if (req.method === "POST" && req.url === "/rpc") {
                 // A caller without a session header (the owner's CLI) is not registered as a session.
                 const session = req.headers["x-githerd-session"];
@@ -1389,7 +1464,64 @@ export async function startDaemon({
         });
     }
     await save();
-    if (autoPoll) timer = setTimeout(tick, 0);
+    if (containerRestarted) {
+        ledger({ kind: "event", event: "container-restart", from: previous.alive.pid1Start, to: pid1Start });
+    }
+    const aliveTimer = setInterval(() => {
+        if (!fenced) beat();
+    }, aliveMs);
+    aliveTimer.unref();
+
+    /**
+     * Enters fatal mode (design section 9.6): `FATAL`, no more polls, every request but /health
+     * refused with the reason, one page.
+     * @param {string} reason why; its first line is what every surface shows
+     */
+    function enterFatal(reason) {
+        if (fatal || fenced) return;
+        fatal = reason;
+        if (timer) clearTimeout(timer);
+        timer = null;
+        say("error", `fatal: ${firstLine(reason)}`);
+        try {
+            writeFatal(stateDir, reason);
+        } catch (err) {
+            say("error", `FATAL: ${/** @type {Error} */ (err).message}`);
+        }
+        ledger({ kind: "fatal", reason });
+        notifier.send({
+            key: `fatal:${firstLine(reason)}`,
+            status: "error",
+            message: `githerd is DOWN: ${firstLine(reason)}`,
+            bypass: true,
+        });
+        notifier
+            .flush()
+            .then(save)
+            .catch((err) => say("error", `fatal page: ${err.message}`));
+    }
+
+    /**
+     * An uncaught exception or rejection: recorded, then fatal mode instead of exiting.
+     * @param {unknown} err what was thrown
+     */
+    const onUncaught = (err) => {
+        const stack = String(/** @type {Error} */ (err)?.stack ?? err);
+        ledger({ kind: "exception", stack });
+        enterFatal(`uncaught exception: ${stack}`);
+    };
+    if (fatalOnUncaught) {
+        process.on("uncaughtException", onUncaught);
+        process.on("unhandledRejection", onUncaught);
+    }
+
+    if (bootFatal) enterFatal(bootFatal);
+    else if (!loaded.readOnly) {
+        // Hook events left while the daemon was down; their handling arrives with the hooks.
+        const drained = await drainSpool(stateDir, (e) => ledger({ kind: "spooled", spooled: e }));
+        for (const name of drained.bad) say("error", `spool: ${name} did not parse and was removed`);
+    }
+    if (autoPoll && !fatal) timer = setTimeout(tick, 0);
 
     /**
      * Stops polling and closes the server.
@@ -1400,6 +1532,10 @@ export async function startDaemon({
         stopping = true;
         if (timer) clearTimeout(timer);
         timer = null;
+        clearInterval(aliveTimer);
+        process.off("uncaughtException", onUncaught);
+        process.off("unhandledRejection", onUncaught);
+        if (!fenced) releaseLock(stateDir, self);
         await Promise.all(writes);
         server.closeAllConnections();
         await new Promise((resolve) => server.close(() => resolve(undefined)));
@@ -1423,6 +1559,8 @@ export async function startDaemon({
 
     return {
         fenced: false,
+        fatal: () => fatal,
+        containerRestarted,
         done,
         port: boundPort,
         url: `http://127.0.0.1:${boundPort}`,
@@ -1445,8 +1583,12 @@ export async function startDaemon({
  * @property {string} [url] `http://127.0.0.1:<port>`
  * @property {string} [stateDir] the state directory
  * @property {any} [state] the live state object
- * @property {() => Promise<{skipped?: true, fenced?: true, ok?: boolean}>} [poll] one poll now
+ * @property {() => Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} [poll] one
+ *   poll now
  * @property {() => Promise<void>} [shutdown] the SIGTERM path
+ * @property {() => string | null} [fatal] the fatal reason, null while not in fatal mode
+ * @property {boolean} [containerRestarted] true when PID 1 started since the previous daemon's
+ *   last `alive`
  * @property {(message: unknown, context?: any) => Promise<any>} [rpc] answers one JSON-RPC message
  * @property {() => Promise<void>} [flushNotifications] delivers queued pages
  * @property {ReturnType<typeof createRunner> | null} [runner] starts and stops judgment runs; null

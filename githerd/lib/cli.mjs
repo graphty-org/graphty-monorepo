@@ -18,7 +18,7 @@ import { notifyCommandProblem } from "./daemon.mjs";
 import { ensureDaemon, launcherContext, ours, pm2Options, probe, servherd, targetCode, waitFor } from "./launcher.mjs";
 import { createNotifier } from "./notify.mjs";
 import { sameProcess } from "./proc.mjs";
-import { readLedger, STATE_SCHEMA } from "./store.mjs";
+import { defaultStateDir, readLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
 const USAGE = `usage: githerd <command>
@@ -225,7 +225,7 @@ export async function runCli(argv, options = {}) {
         err(`githerd: ${/** @type {Error} */ (e).message}`);
         return 2;
     }
-    const stateDir = env.GITHERD_STATE_DIR ? resolve(cwd, env.GITHERD_STATE_DIR) : join(root, ".githerd");
+    const stateDir = env.GITHERD_STATE_DIR ? resolve(cwd, env.GITHERD_STATE_DIR) : defaultStateDir(root, env.HOME);
     const ctxOptions = { cwd, env, now, stateDir, ...(healthWaitMs ? { healthWaitMs } : {}) };
 
     /**

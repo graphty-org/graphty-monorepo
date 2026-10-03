@@ -4,12 +4,15 @@
  * repository's main checkout as its working directory (design section 3.2).
  *
  * Environment: `PORT` (required), `GITHERD_CONFIG` (a config file instead of the default
- * branch's), `GITHERD_STATE_DIR` (instead of `<root>/.githerd`), `GITHERD_DEV` (the development
+ * branch's), `GITHERD_STATE_DIR` (instead of `~/.githerd/<repository>`), `GITHERD_DEV` (the development
  * daemon: never above dry-run, pages to the ledger only), `GITHERD_DEV_NOTIFY=1` (deliver the
  * development daemon's pages anyway).
  *
  * `--once` runs one poll, prints the status text and exits: a check against the real repository
  * that touches nothing but its state directory, never pages, and starts no judgment run.
+ *
+ * An uncaught exception or rejection puts the long-running daemon in fatal mode instead of ending
+ * the process (design section 9.6).
  */
 
 import { repoRoot } from "../lib/config.mjs";
@@ -37,7 +40,7 @@ const daemon = await startDaemon({
     root,
     port,
     autoPoll: !once,
-    ...(once ? { quiet: true, runs: false } : {}),
+    ...(once ? { quiet: true, runs: false } : { fatalOnUncaught: true }),
     ...(process.env.GITHERD_STATE_DIR ? { stateDir: process.env.GITHERD_STATE_DIR } : {}),
 });
 if (daemon.fenced) process.exit(1);

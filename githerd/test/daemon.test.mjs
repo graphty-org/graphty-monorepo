@@ -1,21 +1,31 @@
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
-import { identify } from "../lib/proc.mjs";
-import { readLedger } from "../lib/store.mjs";
+import { containerStart, identify } from "../lib/proc.mjs";
+import { readLedger, spoolEvent } from "../lib/store.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
 const DAEMON_BIN = fileURLToPath(new URL("../bin/githerd-daemon.mjs", import.meta.url));
 const FAKE_CLAUDE = fileURLToPath(new URL("helpers/fake-claude.mjs", import.meta.url));
+const PACKAGE_DIR = fileURLToPath(new URL("..", import.meta.url));
 
 const A = "a".repeat(40);
 const B = "b".repeat(40);
@@ -197,6 +207,7 @@ async function start(options = {}) {
         },
         now: () => clock,
         env: { GITHERD_CONFIG: configFile, PATH: process.env.PATH },
+        stateDir: join(dir, ".githerd"),
         autoPoll: false,
         log: (line) => lines.push(line),
         ...options,
@@ -315,6 +326,7 @@ describe("HTTP endpoints", () => {
                 "githubDownSince",
                 "runsInFlight",
                 "notifyBrokenSince",
+                "fatal",
             ].sort(),
         );
         expect(before).toMatchObject({
@@ -328,6 +340,7 @@ describe("HTTP endpoints", () => {
             loopTickAt: null,
             runsInFlight: 0,
             notifyBrokenSince: null,
+            fatal: null,
         });
 
         clock = new Date("2026-10-02T12:03:00Z");
@@ -791,24 +804,25 @@ describe("unreadable state", () => {
 });
 
 describe("fencing", () => {
-    it("exits without writing when daemon.json names another live daemon at startup", async () => {
+    it("exits without writing when the lock names another live daemon at startup", async () => {
         const other = sleeper();
         await new Promise((r) => other.once("spawn", r));
         const stateDir = join(dir, ".githerd");
         mkdirSync(stateDir);
-        const record = `${JSON.stringify({ ...identify(other.pid), port: 1, root: dir })}\n`;
-        writeFileSync(join(stateDir, "daemon.json"), record);
+        const record = `${JSON.stringify({ ...identify(other.pid), cwd: "/elsewhere" })}\n`;
+        writeFileSync(join(stateDir, "lock"), record);
 
         const daemon = await start();
         expect(daemon.fenced).toBe(true);
         expect(await daemon.done).toEqual({ reason: "fenced" });
-        expect(readFileSync(join(stateDir, "daemon.json"), "utf8")).toBe(record);
+        expect(readFileSync(join(stateDir, "lock"), "utf8")).toBe(record);
+        expect(readdirSync(stateDir)).toEqual(["lock"]);
         expect(existsSync(join(stateDir, "state.json"))).toBe(false);
         expect(existsSync(join(stateDir, "ledger.jsonl"))).toBe(false);
         expect(gh.calls).toEqual([]);
     });
 
-    it("stops before the next poll when another live daemon takes daemon.json", async () => {
+    it("stops before the next poll when another live daemon takes the lock", async () => {
         const daemon = await start();
         await poll(daemon);
         const stateDir = join(dir, ".githerd");
@@ -817,7 +831,7 @@ describe("fencing", () => {
 
         const other = sleeper();
         await new Promise((r) => other.once("spawn", r));
-        writeFileSync(join(stateDir, "daemon.json"), JSON.stringify({ ...identify(other.pid), port: 1 }));
+        writeFileSync(join(stateDir, "lock"), JSON.stringify(identify(other.pid)));
         clock = new Date("2026-10-02T12:03:00Z");
         expect(await daemon.poll()).toEqual({ fenced: true });
         expect(await daemon.done).toEqual({ reason: "fenced" });
@@ -826,16 +840,20 @@ describe("fencing", () => {
         await expect(fetch(`${daemon.url}/health`)).rejects.toThrow();
     });
 
-    it("ignores a daemon.json whose process is gone", async () => {
+    it("takes a stale lock and releases its own at shutdown", async () => {
         const stateDir = join(dir, ".githerd");
         mkdirSync(stateDir);
-        writeFileSync(
-            join(stateDir, "daemon.json"),
-            JSON.stringify({ pid: process.pid, startTime: "1", bootId: "gone", port: 1 }),
-        );
+        writeFileSync(join(stateDir, "lock"), JSON.stringify({ pid: process.pid, startTime: "1", bootId: "gone" }));
         const daemon = await start();
         expect(daemon.fenced).toBe(false);
+        expect(lines.some((l) => l.includes(`took a stale lock from pid ${process.pid}`))).toBe(true);
+        expect(JSON.parse(readFileSync(join(stateDir, "lock"), "utf8"))).toEqual({
+            ...identify(process.pid),
+            cwd: process.cwd(),
+        });
         expect(JSON.parse(readFileSync(join(stateDir, "daemon.json"), "utf8")).port).toBe(daemon.port);
+        await daemon.shutdown();
+        expect(existsSync(join(stateDir, "lock"))).toBe(false);
     });
 });
 
@@ -1150,6 +1168,159 @@ describe("the one-poll check", () => {
     });
 });
 
+/**
+ * Waits for a condition, checking every 20 ms; fails after 15 s.
+ * @param {() => unknown} check returns truthy when done
+ * @param {string} what for the failure message
+ * @returns {Promise<any>} the check's value
+ */
+async function until(check, what) {
+    const end = Date.now() + 15_000;
+    for (;;) {
+        const value = await check();
+        if (value) return value;
+        if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+        await new Promise((r) => setTimeout(r, 20));
+    }
+}
+
+/**
+ * Reads a JSON file of the test's state directory.
+ * @param {string} name the file
+ * @returns {any} its value, or null when missing
+ */
+function stateFile(name) {
+    const file = join(dir, ".githerd", name);
+    return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+}
+
+describe("liveness", () => {
+    it("writes alive at start and on its own timer, and progress around each poll", async () => {
+        const daemon = await start({ aliveMs: 10 });
+        expect(stateFile("alive")).toEqual({
+            pid: process.pid,
+            startTime: identify(process.pid).startTime,
+            version: expect.any(String),
+            pid1Start: containerStart(),
+            at: clock.toISOString(),
+        });
+        expect(stateFile("progress")).toEqual({ step: "start", since: clock.toISOString() });
+
+        clock = new Date("2026-10-02T12:03:00Z");
+        await until(() => stateFile("alive").at === clock.toISOString(), "the alive timer");
+        await poll(daemon);
+        expect(stateFile("progress")).toEqual({ step: "idle", since: clock.toISOString() });
+        expect(stateFile("starts")).toEqual(["2026-10-02T12:00:00.000Z"]);
+    });
+
+    it("voids every recorded run when PID 1 started since the last alive", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "alive"), JSON.stringify({ pid: 1, pid1Start: "0" }));
+        writeFileSync(
+            join(stateDir, "state.json"),
+            JSON.stringify({
+                schema: 1,
+                runs: { "run-1": { status: "running", kind: "triage", process: identify(process.pid) } },
+            }),
+        );
+        const daemon = await start();
+        expect(daemon.containerRestarted).toBe(true);
+        expect(daemon.state.runs["run-1"].status).toBe("lost");
+        await daemon.shutdown();
+        const events = (await readLedger(stateDir)).filter((e) => e.event === "container-restart");
+        expect(events).toEqual([expect.objectContaining({ from: "0", to: containerStart() })]);
+    });
+
+    it("sees no container restart when PID 1 is the one alive recorded", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(join(stateDir, "alive"), JSON.stringify({ pid: 1, pid1Start: containerStart() }));
+        expect((await start()).containerRestarted).toBe(false);
+    });
+
+    it("drains the hook events spooled while it was down into the ledger", async () => {
+        const stateDir = join(dir, ".githerd");
+        await spoolEvent(stateDir, { kind: "stop", session: "s1" }, { now: () => clock });
+        const daemon = await start();
+        await daemon.shutdown();
+        expect((await readLedger(stateDir)).filter((e) => e.kind === "spooled")).toEqual([
+            expect.objectContaining({ spooled: { ts: clock.toISOString(), kind: "stop", session: "s1" } }),
+        ]);
+        expect(readdirSync(join(stateDir, "spool"))).toEqual([]);
+    });
+});
+
+describe("fatal mode", () => {
+    it("boots into fatal mode on the third start within 10 minutes, and leaves it on a later start", async () => {
+        const stateDir = join(dir, ".githerd");
+        mkdirSync(stateDir);
+        writeFileSync(
+            join(stateDir, "ledger.jsonl"),
+            `${JSON.stringify({ ts: "2026-10-02T11:59:00Z", kind: "exception", stack: "Error: boom" })}\n`,
+        );
+        for (const at of ["2026-10-02T12:00:00Z", "2026-10-02T12:04:00Z"]) {
+            clock = new Date(at);
+            const d = await start();
+            expect(d.fatal()).toBeNull();
+            await d.shutdown();
+        }
+        clock = new Date("2026-10-02T12:08:00Z");
+        const calls = gh.calls.length;
+        const daemon = await start();
+        const reason = "crash loop: 3 starts within 10 minutes; last exception: Error: boom";
+        expect(daemon.fatal()).toBe(reason);
+        expect(readFileSync(join(stateDir, "FATAL"), "utf8")).toBe(`${reason}\n`);
+        expect(await daemon.poll()).toEqual({ fatal: reason });
+        expect(gh.calls).toHaveLength(calls);
+        expect((await (await fetch(`${daemon.url}/health`)).json()).fatal).toBe(reason);
+        const refused = await fetch(`${daemon.url}/rpc`, { method: "POST", body: "{}" });
+        expect(refused.status).toBe(503);
+        expect(await refused.json()).toEqual({ error: `githerd is DOWN: ${reason}` });
+        await daemon.flushNotifications();
+        expect(pages()).toEqual([{ status: "error", message: `githerd is DOWN: ${reason}` }]);
+        await daemon.shutdown();
+
+        clock = new Date("2026-10-02T12:30:00Z");
+        const later = await start();
+        expect(later.fatal()).toBeNull();
+        expect(existsSync(join(stateDir, "FATAL"))).toBe(false);
+    });
+
+    it("enters fatal mode on an uncaught exception instead of exiting", async () => {
+        const stateDir = join(dir, ".githerd");
+        const script = join(dir, "throws.mjs");
+        writeFileSync(
+            script,
+            `import { startDaemon } from ${JSON.stringify(pathToFileURL(join(PACKAGE_DIR, "lib", "daemon.mjs")).href)};
+const d = await startDaemon({
+    root: ${JSON.stringify(dir)},
+    port: 0,
+    stateDir: ${JSON.stringify(stateDir)},
+    env: { GITHERD_CONFIG: ${JSON.stringify(configFile)}, PATH: process.env.PATH },
+    autoPoll: false,
+    runs: false,
+    quiet: true,
+    fatalOnUncaught: true,
+    log: () => {},
+});
+process.stdout.write(d.url + "\\n");
+setTimeout(() => { throw new Error("boom"); }, 0);
+`,
+        );
+        const child = spawn(process.execPath, [script], { detached: true, stdio: ["ignore", "pipe", "inherit"] });
+        children.push(child);
+        let out = "";
+        child.stdout.on("data", (d) => (out += d));
+        const url = (await until(() => /^http\S+/m.exec(out), "the daemon's url"))[0];
+        await until(() => existsSync(join(stateDir, "FATAL")), "FATAL");
+        expect(readFileSync(join(stateDir, "FATAL"), "utf8")).toMatch(/^uncaught exception: Error: boom\n {4}at /);
+        expect((await (await fetch(`${url}/health`)).json()).fatal).toBe("uncaught exception: Error: boom");
+        expect((await fetch(`${url}/rpc`, { method: "POST", body: "{}" })).status).toBe(503);
+        expect(child.exitCode).toBeNull();
+    });
+});
+
 describe("the daemon process", () => {
     it("leaves a valid state file on SIGTERM", async () => {
         isolateGit();
@@ -1169,6 +1340,7 @@ describe("the daemon process", () => {
             stdio: ["ignore", "pipe", "pipe"],
             env: {
                 PATH: `${bin}:${process.env.PATH}`,
+                HOME: dir,
                 PORT: "0",
                 GITHERD_CONFIG: configFile,
                 GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
@@ -1179,7 +1351,8 @@ describe("the daemon process", () => {
         let out = "";
         child.stdout.on("data", (d) => (out += d));
         child.stderr.on("data", (d) => (out += d));
-        const stateFile = join(root, ".githerd", "state.json");
+        // The state directory is under HOME, named for the checkout, never inside it.
+        const stateFile = join(dir, ".githerd", "repo", "state.json");
         // The daemon saves once it is listening, and again after its first poll.
         await new Promise((resolve, reject) => {
             child.stdout.on("data", () => {

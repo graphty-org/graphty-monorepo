@@ -1238,10 +1238,12 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 
 ### 9.2 Start sequence
 
-1. Record the start in `starts`. Three starts within 10 minutes: boot straight into fatal mode
+1. Take the lock (pid, process start time). A live holder: exit. Remove servherd entries named
+   `githerd` whose cwd is not the fixed cwd. The lock comes first so a second daemon refused by a
+   live holder is not counted as a start: three near-simultaneous starts from hooks would
+   otherwise trip the crash-loop rule.
+2. Record the start in `starts`. Three starts within 10 minutes: boot straight into fatal mode
    with the last exception as the reason.
-2. Take the lock (pid, process start time). A live holder: exit. Remove servherd entries named
-   `githerd` whose cwd is not the fixed cwd.
 3. Load config: master's if valid, else `config.last-good.json` with a banner, else fatal mode.
 4. Load state (`state.json`, `.bak`, rebuild).
 5. If PID 1's start time differs from the one recorded in `alive`, the container restarted [R21]:

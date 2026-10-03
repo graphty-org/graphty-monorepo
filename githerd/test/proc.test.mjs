@@ -3,7 +3,7 @@ import { once } from "node:events";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bootId, identify, sameProcess } from "../lib/proc.mjs";
+import { bootId, containerStart, identify, sameProcess } from "../lib/proc.mjs";
 
 /** @type {import("node:child_process").ChildProcess[]} */
 const children = [];
@@ -95,5 +95,12 @@ describe("sameProcess", () => {
         process.kill(-child.pid, "SIGKILL");
         await exited;
         expect(sameProcess(record)).toBe(false);
+    });
+});
+
+describe("containerStart", () => {
+    it("is PID 1's start time", () => {
+        expect(containerStart()).toBe(identify(1).startTime);
+        expect(containerStart()).toMatch(/^\d+$/);
     });
 });

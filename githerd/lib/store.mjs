@@ -1,5 +1,6 @@
 /**
- * The daemon's state file and ledger in `<root>/.githerd/` (design sections 5.1, 5.7 and 5.8).
+ * The daemon's state directory, `~/.githerd/<repository>/` (design section 9.1): state.json, the
+ * ledger, the liveness files, the lock, the start counter, the spool and FATAL.
  *
  * state.json is rewritten whole on every change: a uniquely named temporary file is written and
  * fsynced, the old file is copied to state.json.bak, and the temporary file is renamed over it. A
@@ -11,8 +12,12 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { appendFile, copyFile, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
+
+import { sameProcess } from "./proc.mjs";
 
 /** The state schema this code reads and writes. */
 export const STATE_SCHEMA = 1;
@@ -20,7 +25,17 @@ export const STATE_SCHEMA = 1;
 /** How long new runs are held after an empty-state start, so sessions can re-claim. */
 export const RUN_HOLD_MS = 10 * 60 * 1000;
 
+/** Three starts within this window boot straight into fatal mode (design section 9.2). */
+export const CRASH_LOOP = { starts: 3, withinMs: 10 * 60 * 1000 };
+
 const STATE = "state.json";
+const LOCK = "lock";
+const STARTS = "starts";
+const ALIVE = "alive";
+const PROGRESS = "progress";
+const FATAL = "FATAL";
+const SPOOL = "spool";
+const STALE_TMP = /^state\.json\.\d+\.[0-9a-f]+\.tmp$/;
 const LEDGER = "ledger.jsonl";
 const ROTATED = /^ledger-(\d{4}-\d{2})\.jsonl$/;
 
@@ -78,8 +93,9 @@ async function readStateFile(file) {
 /**
  * @typedef {object} LoadResult
  * @property {any} state the state to run with
- * @property {"state" | "bak" | "new" | "empty"} source where it came from: "new" when no state
- *   file has ever been written, "empty" when files existed but none could be read
+ * @property {"state" | "bak" | "ledger" | "new" | "empty"} source where it came from: "ledger"
+ *   when neither file could be read and the ledger's record lines rebuilt it, "new" when nothing
+ *   was ever written, "empty" when files existed but nothing could be read or rebuilt
  * @property {boolean} readOnly true when the file has a newer schema than this code: serve status
  *   from it, never save it, and escalate
  * @property {string[]} errors why each unreadable file was rejected
@@ -92,9 +108,11 @@ async function readStateFile(file) {
  */
 
 /**
- * Loads state.json, then state.json.bak, then starts empty. An older schema is migrated forward
- * after copying the file to state.json.pre-migrate-<schema>. A file that could not be read is
- * renamed to `<name>.corrupt-<time>` once another file or an empty state is chosen.
+ * Loads state.json, then state.json.bak, then the ledger's record lines (`replayLedger`), then
+ * starts empty. An older schema is migrated forward after copying the file to
+ * state.json.pre-migrate-<schema>. A file that could not be read is renamed to
+ * `<name>.corrupt-<time>` once another source is chosen. Temporary files a killed save left behind
+ * are removed: only the lock holder loads, so none of them is being written.
  * @param {string} dir the .githerd directory
  * @param {{now?: () => Date, migrations?: Record<number, (state: object) => object>}} [options] the clock and the
  *   migrations to apply
@@ -102,6 +120,11 @@ async function readStateFile(file) {
  */
 export async function loadState(dir, { now = () => new Date(), migrations = MIGRATIONS } = {}) {
     const errors = [];
+    try {
+        for (const name of await readdir(dir)) if (STALE_TMP.test(name)) await unlink(join(dir, name));
+    } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+    }
     /** @type {string[]} the unreadable files */
     const bad = [];
     let missing = 0;
@@ -156,6 +179,9 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
         }
         return { state, source, readOnly: false, errors, kept: await keep(), recovery: null };
     }
+    const rebuilt = await replayLedger(dir);
+    if (rebuilt)
+        return { state: rebuilt, source: "ledger", readOnly: false, errors, kept: await keep(), recovery: null };
     const state = { schema: STATE_SCHEMA };
     if (missing === 2) return { state, source: "new", readOnly: false, errors, kept: [], recovery: null };
     const at = now();
@@ -318,4 +344,265 @@ export async function readLedger(dir, { since } = {}) {
     if (!since) return entries;
     const from = since.toISOString();
     return entries.filter((e) => typeof e.ts === "string" && e.ts >= from);
+}
+
+/**
+ * Rebuilds state from the ledger's record lines, every month of them. A line
+ * `{kind: "record", collection, id, record}` is the whole record after a change; `record: null`
+ * removes it. Whoever changes a job, claim, session, order, policy, veto or setting appends one, so
+ * the last line per (collection, id) is the record as it was last saved.
+ * @param {string} dir the state directory
+ * @returns {Promise<{schema: number} & Record<string, any> | null>} the state, or null when the
+ *   ledger has no record lines
+ */
+export async function replayLedger(dir) {
+    /** @type {{schema: number} & Record<string, any>} */
+    const state = { schema: STATE_SCHEMA };
+    let found = false;
+    for (const e of await readLedger(dir, { since: new Date(0) })) {
+        if (e.kind !== "record" || typeof e.collection !== "string" || typeof e.id !== "string") continue;
+        found = true;
+        const records = (state[e.collection] ??= {});
+        if (e.record === null) delete records[e.id];
+        else records[e.id] = e.record;
+    }
+    return found ? state : null;
+}
+
+/**
+ * The state directory of a repository whose main checkout is `root`: `~/.githerd/<its name>/`,
+ * outside every checkout, so a daemon started from any worktree finds the same lock.
+ * @param {string} root the main checkout
+ * @param {string} [home] the home directory
+ * @returns {string} the directory
+ */
+export function defaultStateDir(root, home = homedir()) {
+    return join(home, ".githerd", basename(root));
+}
+
+/**
+ * Replaces a small file whole: written beside it, then renamed over it.
+ * @param {string} file the path
+ * @param {string} text the contents
+ */
+function replaceFile(file, text) {
+    const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+    writeFileSync(tmp, text);
+    renameSync(tmp, file);
+}
+
+/**
+ * Reads a small JSON file.
+ * @param {string} file the path
+ * @returns {any} its value, or null when it is missing or unreadable
+ */
+function readJson(file) {
+    try {
+        return JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * @typedef {{pid: number, startTime: string, bootId: string}} Identity
+ */
+
+/**
+ * Whether a lock record names this process.
+ * @param {any} rec the record
+ * @param {Identity} self this process
+ * @returns {boolean} true when pid, start time and boot id match
+ */
+const isSelf = (rec, self) => rec.pid === self.pid && rec.startTime === self.startTime && rec.bootId === self.bootId;
+
+/**
+ * The live process the lock names, other than `self`.
+ * @param {string} dir the state directory
+ * @param {Identity} self this process
+ * @returns {any} the holder's record, or null when the lock is free, stale or ours
+ */
+export function otherHolder(dir, self) {
+    const rec = readJson(join(dir, LOCK));
+    if (!rec || !Number.isInteger(rec.pid) || isSelf(rec, self)) return null;
+    return sameProcess(rec) ? rec : null;
+}
+
+/**
+ * Takes the daemon lock: `lock` holds this process's identity and its cwd. A lock whose process is
+ * dead, or is another process under a reused pid, is stale and taken.
+ * @param {string} dir the state directory
+ * @param {Identity} self this process
+ * @param {string} [cwd] recorded so a daemon started from the wrong directory can be named
+ * @returns {{ok: true, stale: any} | {ok: false, holder: any}} taken (with the stale record it
+ *   replaced, if any), or the live holder
+ */
+export function takeLock(dir, self, cwd = process.cwd()) {
+    const file = join(dir, LOCK);
+    const text = `${JSON.stringify({ ...self, cwd })}\n`;
+    let stale = null;
+    for (;;) {
+        try {
+            writeFileSync(file, text, { flag: "wx" });
+            return { ok: true, stale };
+        } catch (err) {
+            if (err.code !== "EEXIST") throw err;
+        }
+        const holder = otherHolder(dir, self);
+        if (holder) return { ok: false, holder };
+        // ponytail: two starters that both find the lock stale can both take it; the loser sees
+        // the winner in the lock before its first write and fences itself (the daemon's mayWrite).
+        stale = readJson(file) ?? { unreadable: true };
+        try {
+            unlinkSync(file);
+        } catch (err) {
+            if (err.code !== "ENOENT") throw err;
+        }
+    }
+}
+
+/**
+ * Removes the lock if it still names this process.
+ * @param {string} dir the state directory
+ * @param {Identity} self this process
+ */
+export function releaseLock(dir, self) {
+    const rec = readJson(join(dir, LOCK));
+    if (rec && isSelf(rec, self)) unlinkSync(join(dir, LOCK));
+}
+
+/**
+ * Records a start in `starts` (the last 10 start times) and says whether it completes a crash loop.
+ * @param {string} dir the state directory
+ * @param {Date} at the start time
+ * @returns {{starts: string[], crashLoop: boolean}} the recorded starts, and whether `CRASH_LOOP`
+ *   of them (this one included) fall within its window
+ */
+export function recordStart(dir, at) {
+    const file = join(dir, STARTS);
+    const before = readJson(file);
+    const starts = [
+        ...(Array.isArray(before) ? before.filter((s) => typeof s === "string") : []),
+        at.toISOString(),
+    ].slice(-10);
+    replaceFile(file, `${JSON.stringify(starts)}\n`);
+    const from = at.getTime() - CRASH_LOOP.withinMs;
+    return { starts, crashLoop: starts.filter((s) => Date.parse(s) > from).length >= CRASH_LOOP.starts };
+}
+
+/**
+ * Writes `alive`: who is running, written every 10 s by a timer independent of the reconcile.
+ * @param {string} dir the state directory
+ * @param {{pid: number, startTime: string, version: string, pid1Start: string | null, at: string}} rec
+ *   the record
+ */
+export function writeAlive(dir, rec) {
+    replaceFile(join(dir, ALIVE), `${JSON.stringify(rec)}\n`);
+}
+
+/**
+ * Writes `progress`: the step the daemon is in and when it began.
+ * @param {string} dir the state directory
+ * @param {string} step the step
+ * @param {string} since when it began
+ */
+export function writeProgress(dir, step, since) {
+    replaceFile(join(dir, PROGRESS), `${JSON.stringify({ step, since })}\n`);
+}
+
+/**
+ * Writes `FATAL` with the reason.
+ * @param {string} dir the state directory
+ * @param {string} reason why githerd cannot go on
+ */
+export function writeFatal(dir, reason) {
+    replaceFile(join(dir, FATAL), `${reason}\n`);
+}
+
+/**
+ * Removes `FATAL`.
+ * @param {string} dir the state directory
+ */
+export function clearFatal(dir) {
+    try {
+        unlinkSync(join(dir, FATAL));
+    } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+    }
+}
+
+/**
+ * What the liveness files say, for restarters, the CLI and the next start.
+ * @param {string} dir the state directory
+ * @returns {{alive: any, progress: any, fatal: string | null, lock: any}} each file's contents, null
+ *   when missing
+ */
+export function readLiveness(dir) {
+    let fatal = null;
+    try {
+        fatal = readFileSync(join(dir, FATAL), "utf8").trimEnd();
+    } catch {
+        // no FATAL
+    }
+    return {
+        alive: readJson(join(dir, ALIVE)),
+        progress: readJson(join(dir, PROGRESS)),
+        fatal,
+        lock: readJson(join(dir, LOCK)),
+    };
+}
+
+/**
+ * Leaves a hook event for the daemon while it is down: one file per event in `spool/`, written
+ * beside its final name and renamed, so the drain never reads half an event.
+ * @param {string} dir the state directory
+ * @param {Record<string, unknown>} event the event
+ * @param {{now?: () => Date}} [options] the clock
+ * @returns {Promise<string>} the file's name
+ */
+export async function spoolEvent(dir, event, { now = () => new Date() } = {}) {
+    const spool = join(dir, SPOOL);
+    await mkdir(spool, { recursive: true });
+    const name = `${now().getTime()}-${process.pid}-${randomBytes(4).toString("hex")}.json`;
+    const tmp = join(spool, `${name}.tmp`);
+    await appendFile(tmp, asciiJson({ ts: now().toISOString(), ...event }));
+    await rename(tmp, join(spool, name));
+    return name;
+}
+
+/**
+ * Hands every spooled event to `handle`, oldest first, removing each once handled. A handler that
+ * throws stops the drain and leaves that event and the rest for the next one. An event that does not
+ * parse is removed and reported.
+ * @param {string} dir the state directory
+ * @param {(event: any) => unknown} handle what to do with one event
+ * @returns {Promise<{handled: number, bad: string[]}>} how many were handled, and the unparseable
+ *   files' names
+ */
+export async function drainSpool(dir, handle) {
+    const spool = join(dir, SPOOL);
+    let names;
+    try {
+        names = (await readdir(spool)).filter((n) => n.endsWith(".json")).sort();
+    } catch (err) {
+        if (err.code === "ENOENT") return { handled: 0, bad: [] };
+        throw err;
+    }
+    let handled = 0;
+    const bad = [];
+    for (const name of names) {
+        const file = join(spool, name);
+        let event;
+        try {
+            event = JSON.parse(await readFile(file, "utf8"));
+        } catch {
+            bad.push(name);
+            await unlink(file);
+            continue;
+        }
+        await handle(event);
+        await unlink(file);
+        handled++;
+    }
+    return { handled, bad };
 }

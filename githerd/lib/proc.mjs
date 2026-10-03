@@ -2,6 +2,10 @@
  * Process identity (design section 5.8). A pid alone is never trusted: pids are reused, and after a
  * container restart every recorded pid may name an unrelated process. A recorded process is
  * `{pid, startTime, bootId}`, and it is the same process only if all three still match.
+ *
+ * A container restart keeps the boot id (the host did not reboot) but gives PID 1 a new start time
+ * (evidence/platform-facts.md section 8.3), so `containerStart` is what tells the daemon that every
+ * pid and tmux pane it recorded is void.
  */
 
 import { readFileSync } from "node:fs";
@@ -55,4 +59,17 @@ export function sameProcess(record, { cmdlineIncludes } = {}) {
         return false;
     }
     return cmdline.split("\0").join(" ").includes(cmdlineIncludes);
+}
+
+/**
+ * When this container's PID 1 started, in clock ticks since the host booted. It changes on every
+ * container restart and every host reboot.
+ * @returns {string | null} the start time, or null when PID 1 cannot be read
+ */
+export function containerStart() {
+    try {
+        return identify(1)?.startTime ?? null;
+    } catch {
+        return null;
+    }
 }

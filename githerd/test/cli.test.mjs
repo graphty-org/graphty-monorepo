@@ -43,6 +43,12 @@ let daemons;
 /** @type {number[]} processes the test's scripts started outside the fake servherd */
 let strays;
 
+/**
+ * The checkout's state directory under the test's HOME.
+ * @returns {string} the directory
+ */
+const stateDir = () => join(dir, "home", ".githerd", "main");
+
 beforeAll(() => isolateGit());
 
 /**
@@ -333,7 +339,7 @@ describe("mode", () => {
     it("lowers the mode through override.json, refuses acting, and clears", async () => {
         const d = await daemon();
         const health = async () => (await (await fetch(`${d.url}/health`)).json()).mode;
-        const override = join(root, ".githerd", "override.json");
+        const override = join(stateDir(), "override.json");
 
         const paused = await cli(["mode", "paused"]);
         expect(paused.code).toBe(0);
@@ -356,7 +362,7 @@ describe("mode", () => {
 
 describe("ledger", () => {
     it("prints entries, filtered by kind, target and age", async () => {
-        const state = join(root, ".githerd");
+        const state = join(stateDir());
         mkdirSync(state, { recursive: true });
         const now = new Date();
         const old = new Date(now.getTime() - 3 * 86_400_000);
@@ -381,7 +387,7 @@ describe("ledger", () => {
 
 describe("runs and run", () => {
     it("lists recent runs newest first and shows one with its files", async () => {
-        const state = join(root, ".githerd");
+        const state = join(stateDir());
         expect((await cli(["runs"])).out).toBe("no runs");
         mkdirSync(join(state, "runs", "run-a"), { recursive: true });
         writeFileSync(
@@ -478,7 +484,7 @@ describe("dev", () => {
             join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
         ]);
         expect(existsSync(join(devState, "daemon.json"))).toBe(true);
-        expect(existsSync(join(root, ".githerd", "daemon.json"))).toBe(false);
+        expect(existsSync(join(stateDir(), "daemon.json"))).toBe(false);
         const status = await cli(["status"], { extraEnv: { GITHERD_STATE_DIR: devState } });
         expect(status.code).toBe(0);
     });

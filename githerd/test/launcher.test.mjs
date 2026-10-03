@@ -89,7 +89,12 @@ function calls() {
 
 const starts = () => calls().filter((c) => c.argv.includes("start") && c.argv[0] !== "pm2");
 const registry = () => JSON.parse(readFileSync(join(fake, "registry.json"), "utf8"));
-const daemonFile = () => JSON.parse(readFileSync(join(root, ".githerd", "daemon.json"), "utf8"));
+/**
+ * The checkout's state directory under the test's HOME.
+ * @returns {string} the directory
+ */
+const stateDir = () => join(dir, "home", ".githerd", "main");
+const daemonFile = () => JSON.parse(readFileSync(join(stateDir(), "daemon.json"), "utf8"));
 
 /**
  * Writes the package into the main checkout and pushes it to origin.
@@ -196,6 +201,8 @@ beforeEach(() => {
     delete env.GITHERD_URL;
     delete env.GITHERD_RUN_TOKEN;
     delete env.PM2_HOME;
+    delete env.GITHERD_STATE_DIR;
+    env.HOME = join(dir, "home");
     writeConfig();
 
     launchers = [];
@@ -263,7 +270,7 @@ describe("startup", () => {
 
         const hash = git(root, "rev-parse", "origin/master:githerd");
         const version = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")).version;
-        const copy = join(root, ".githerd", "versions", `${version}-${hash.slice(0, 8)}`);
+        const copy = join(stateDir(), "versions", `${version}-${hash.slice(0, 8)}`);
         expect(JSON.parse(readFileSync(join(copy, "version.json"), "utf8"))).toEqual({ version, codeHash: hash });
 
         const [start] = starts();
@@ -319,7 +326,7 @@ describe("startup", () => {
         await ensureDaemon(ctx);
         const [start] = starts();
         const daemon = start.argv[start.argv.length - 1];
-        expect(daemon.startsWith(join(root, ".githerd", "versions"))).toBe(true);
+        expect(daemon.startsWith(join(stateDir(), "versions"))).toBe(true);
         expect(readFileSync(join(daemon, "..", "..", "lib", "version.mjs"), "utf8")).toBe(
             readFileSync(join(PACKAGE_DIR, "lib", "version.mjs"), "utf8"),
         );
@@ -355,7 +362,7 @@ describe("startup", () => {
 
 describe("the start lock", () => {
     it("five launchers against a stale lock make exactly one servherd start", async () => {
-        const lock = join(root, ".githerd", "start.lock");
+        const lock = join(stateDir(), "start.lock");
         mkdirSync(lock, { recursive: true });
         // A dead owner: no live process has this identity.
         writeFileSync(join(lock, "owner.json"), JSON.stringify({ pid: 999_999, startTime: "1", bootId: bootId() }));
@@ -365,14 +372,14 @@ describe("the start lock", () => {
             l.send({ jsonrpc: "2.0", id: i + 1, method: "tools/call", params: { name: "githerd_status" } }),
         );
         const replies = await Promise.all(five.map((l, i) => l.reply(i + 1)));
-        for (const r of replies) expect(r.result.isError).toBeUndefined();
+        for (const r of replies) expect(r.result.isError, JSON.stringify(r.result)).toBeUndefined();
         expect(starts()).toHaveLength(1);
         expect(existsSync(lock)).toBe(false);
-        expect(readdirSync(join(root, ".githerd")).filter((n) => n.startsWith("start.lock"))).toEqual([]);
+        expect(readdirSync(join(stateDir())).filter((n) => n.startsWith("start.lock"))).toEqual([]);
     });
 
     it("does not steal a young lock with no owner.json, and steals an old one", async () => {
-        const lock = join(root, ".githerd", "start.lock");
+        const lock = join(stateDir(), "start.lock");
         mkdirSync(lock, { recursive: true });
         await expect(ensureDaemon(context({ healthWaitMs: 300 }))).rejects.toThrow(/another launcher/);
         expect(existsSync(lock)).toBe(true);
@@ -429,8 +436,8 @@ describe("restarts and upgrades", () => {
         servers.push(server);
         await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
         const port = /** @type {any} */ (server.address()).port;
-        mkdirSync(join(root, ".githerd"), { recursive: true });
-        writeFileSync(join(root, ".githerd", "daemon.json"), JSON.stringify({ port }));
+        mkdirSync(join(stateDir()), { recursive: true });
+        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port }));
 
         const result = await ensureDaemon(context());
         expect(result).toEqual({ url: `http://127.0.0.1:${port}`, action: "waiting" });
@@ -451,7 +458,7 @@ describe("restarts and upgrades", () => {
         const later = () => new Date(Date.now() + 16 * 60_000);
         await expect(ensureDaemon(context({ healthWaitMs: 1000, now: later }))).rejects.toThrow(/failed to start/);
         expect(starts()).toHaveLength(2);
-        const log = readFileSync(join(root, ".githerd", "launcher.log"), "utf8");
+        const log = readFileSync(join(stateDir(), "launcher.log"), "utf8");
         expect(log).toMatch(/ error githerd daemon failed to start: /);
         const pages = readFileSync(notifyLog, "utf8")
             .trim()
@@ -477,12 +484,12 @@ describe("the session proxy", () => {
             jitterMs: 0,
             log: () => {},
         });
-        await until(() => existsSync(join(root, ".githerd", "daemon.json")) && starts().length === 1, "the cold start");
+        await until(() => existsSync(join(stateDir(), "daemon.json")) && starts().length === 1, "the cold start");
         const first = await until(async () => (await health().catch(() => null))?.pid, "the first daemon");
         // The heartbeat registered the session with the daemon.
         await until(() => {
             try {
-                const { sessions } = JSON.parse(readFileSync(join(root, ".githerd", "state.json"), "utf8"));
+                const { sessions } = JSON.parse(readFileSync(join(stateDir(), "state.json"), "utf8"));
                 return Object.keys(sessions ?? {}).includes("main-4242");
             } catch {
                 return false; // not written yet

@@ -198,6 +198,28 @@ function checkNx(args) {
  */
 function checkGit(cmd, args, config, cwd) {
     if (cmd.assign.some((a) => a.startsWith("GIT_CONFIG"))) deny("git: GIT_CONFIG variables are not allowed in runs");
+    const { k, dir, settings } = gitOptions(args, cwd);
+    for (const setting of settings) checkGitSetting(setting);
+    const sub = args[k];
+    const rest = args.slice(k + 1);
+    if (sub === undefined) return;
+    if (GIT_DENIED.has(sub)) deny(`git ${sub}: runs never use git ${sub}`);
+    if (sub.startsWith("credential")) deny("git credential: runs have no credentials");
+    if (sub === "config") rest.forEach((r) => checkGitSetting(`${r}=`));
+    if (sub === "checkout") checkCheckout(rest, config, dir);
+    if (rest.includes("--no-gpg-sign")) deny(`git ${sub} --no-gpg-sign: every commit is signed`);
+    if (sub === "commit" || sub === "merge") checkGitMessage(cmd, sub, rest, dir);
+}
+
+/**
+ * Reads git's global options: the directory `-C` moves to and the settings `-c` and
+ * `--config-env` give.
+ * @param {string[]} args the words after `git`
+ * @param {string} cwd the current directory
+ * @returns {{k: number, dir: string, settings: string[]}} the subcommand's index, the directory and
+ *   the settings
+ */
+function gitOptions(args, cwd) {
     let k = 0;
     let dir = cwd;
     /** @type {string[]} */
@@ -209,24 +231,24 @@ function checkGit(cmd, args, config, cwd) {
         if (a.startsWith("--config-env=")) settings.push(a.slice("--config-env=".length));
         k += GIT_VALUE_OPTIONS.has(a) ? 2 : 1;
     }
-    for (const setting of settings) checkGitSetting(setting);
-    const sub = args[k];
-    const rest = args.slice(k + 1);
-    if (sub === undefined) return;
-    if (GIT_DENIED.has(sub)) deny(`git ${sub}: runs never use git ${sub}`);
-    if (sub.startsWith("credential")) deny("git credential: runs have no credentials");
-    if (sub === "config") rest.forEach((r) => checkGitSetting(`${r}=`));
-    if (sub === "checkout") checkCheckout(rest, config, dir);
-    if (rest.includes("--no-gpg-sign")) deny(`git ${sub} --no-gpg-sign: every commit is signed`);
-    if (sub === "commit" || sub === "merge") {
-        const texts = [...rest, ...cmd.input];
-        rest.forEach((r, m) => {
-            const file = r === "-F" || r === "--file" ? rest[m + 1] : /^(-F|--file=)(.+)/.exec(r)?.[2];
-            if (file !== undefined && file !== "-") texts.push(readFileSync(resolve(dir, file), "utf8"));
-        });
-        const reasons = checkOutgoing(texts.join("\n"), {});
-        if (reasons.length > 0) deny(`git ${sub}: the message ${reasons.join(", ")}`);
-    }
+    return { k, dir, settings };
+}
+
+/**
+ * Checks the message of a commit or merge, from its arguments, a `-F` file and standard input.
+ * @param {SimpleCommand} cmd the command
+ * @param {string} sub `commit` or `merge`
+ * @param {string[]} rest the words after the subcommand
+ * @param {string} dir the directory git runs in
+ */
+function checkGitMessage(cmd, sub, rest, dir) {
+    const texts = [...rest, ...cmd.input];
+    rest.forEach((r, m) => {
+        const file = r === "-F" || r === "--file" ? rest[m + 1] : /^(-F|--file=)(.+)/.exec(r)?.[2];
+        if (file !== undefined && file !== "-") texts.push(readFileSync(resolve(dir, file), "utf8"));
+    });
+    const reasons = checkOutgoing(texts.join("\n"), {});
+    if (reasons.length > 0) deny(`git ${sub}: the message ${reasons.join(", ")}`);
 }
 
 /**
@@ -279,18 +301,30 @@ function check(input, config) {
         if (typeof params.command !== "string") throw new Error("Bash input without a command");
         for (const cmd of splitCommands(params.command)) checkCommand(cmd, config, cwd);
     } else if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit") {
-        const file = params.file_path ?? params.notebook_path;
-        if (typeof file !== "string") throw new Error(`${tool} input without a file path`);
-        const rel = relative(config.root, resolve(cwd, file));
-        // The file tools are not sandboxed: outside the working tree they could reach githerd's
-        // state, the main checkout's git config or the owner's settings.
-        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-            deny(`${tool} ${file}: runs edit only files inside their working tree`);
-        }
-        // git and its hooks run with the daemon's privileges as well as the run's.
-        if (isProtected(rel, [".git", ".git/", ".husky/"])) deny(`${tool} ${rel}: runs never edit git or hook files`);
-        if (isProtected(rel, config.protectedPaths)) deny(`${tool} ${rel}: protected paths are never edited by runs`);
+        checkFileTool(tool, params, config, cwd);
     }
+}
+
+/**
+ * Checks a file-editing tool call: only files inside the working tree, never git, hook or
+ * protected files.
+ * @param {string} tool the tool name
+ * @param {any} params the tool input
+ * @param {GuardConfig} config the run's guard settings
+ * @param {string} cwd the current directory
+ */
+function checkFileTool(tool, params, config, cwd) {
+    const file = params.file_path ?? params.notebook_path;
+    if (typeof file !== "string") throw new Error(`${tool} input without a file path`);
+    const rel = relative(config.root, resolve(cwd, file));
+    // The file tools are not sandboxed: outside the working tree they could reach githerd's
+    // state, the main checkout's git config or the owner's settings.
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+        deny(`${tool} ${file}: runs edit only files inside their working tree`);
+    }
+    // git and its hooks run with the daemon's privileges as well as the run's.
+    if (isProtected(rel, [".git", ".git/", ".husky/"])) deny(`${tool} ${rel}: runs never edit git or hook files`);
+    if (isProtected(rel, config.protectedPaths)) deny(`${tool} ${rel}: protected paths are never edited by runs`);
 }
 
 /**

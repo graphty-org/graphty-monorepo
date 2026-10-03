@@ -231,7 +231,7 @@ adversarial review added (section 3.10). Columns:
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
 | Own check failure | Check runs on a changed head, failing keys from the jobs API, 1 call | Classifier; class "own" makes a `pr` job that resumes the session that made the pull request when there is one | D; W `pr` | Required checks green on the current head |
-| Shared failure across pull requests while master is green | The same key on 2 or more other open pull requests within 6 hours [INC1 3], [OD 7] | One shared incident; `pr` jobs on that key are not created (an existing one is held). Done-condition is the canary rule, not every pull request | D; W `incident` | The key passes on master's fix and on one canary pull request |
+| Shared failure across pull requests while master is green | The same key on 1 or more other open pull requests within 6 hours (the second pull request) [INC1 3], [OD 7] | One shared incident; `pr` jobs on that key are not created (an existing one is held). Done-condition is the canary rule, not every pull request | D; W `incident` | The key passes on master's fix and on one canary pull request |
 | A pull request that changes nothing fails | Its file list cannot affect the failing key: no package source for a build key, no `pnpm-lock.yaml` or `package.json` for an audit key | Master-side shared incident at the first such pull request; no `pr` job | D; W `incident` | As above |
 | Intermittent failure on a pull request | Key named by an open `intermittent` issue | One daemon re-run per head; workers cannot re-run (guard) | D | Green head |
 | Textual merge conflict | `mergeable == false` on the single pull request GET, re-read when master moves; `null` is no data; two sightings. Conflicts are classified with `git merge-tree` against `origin/master`, the tip GitHub judges against | A `pr` job merges the CI-green commit and resolves. A path in conflict on 3 or more pull requests in 7 days gets an issue to remove the hot spot | D; W `pr` | `mergeable == true` and checks running on the new head |
@@ -504,7 +504,7 @@ list, the annotations, the exit code, the runner label and the pull request's fi
 | 3 | **Outside or platform** | Third-party 5xx, ETIMEDOUT, ECONNRESET naming a remote host; registry or corepack errors; "Actions degraded"; queued past the pickup bound | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
 | 4 | **Environment drift** | The `Set up job` and tool-version diff between the last green and first red run is non-empty; "automatically failed because it uses a deprecated version" | Incident with the diff attached; never a revert; never an intermittent issue |
 | 5 | **Inherited** | The same key is red on master | Wait on the master incident |
-| 6 | **Shared or master-side** | The same key on 2 or more other open pull requests within 6 hours; or the pull request's diff cannot affect the key (an audit key with no dependency file changed; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
+| 6 | **Shared or master-side** | The same key on 1 or more other open pull requests within 6 hours (the second pull request); or the pull request's diff cannot affect the key (an audit key with no dependency file changed, the dependency files being `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `.npmrc`; a build key with no package source changed); or a local gate key that also fails on the green commit | One shared incident at the first such pull request; no `pr` job (and no "join" escape) |
 | 7 | **Known intermittent** | An open `intermittent` issue names the key | One daemon re-run of that head |
 | 8 | **Own** | Anything else | A `pr` job |
 
@@ -516,7 +516,7 @@ storage `BlobNotFound` document, which is "no log", not an error.
 
 ### 4.5 The master incident procedure
 
-On the first sighting of a red gating run on master, classified "code" (classes 4 to 8 do not
+On the first sighting of a red gating run on master, classified "code" (classes 5 to 8 do not
 apply on master; anything not in classes 1 to 4 is code):
 
 1. **Merge hold** on the pull requests that lane can affect (4.6, line 2): `githerd/merge` turns

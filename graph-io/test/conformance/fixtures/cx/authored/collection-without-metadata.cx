@@ -1,0 +1,10 @@
+[
+{"nodes":[{"@id":1,"n":"a"},{"@id":2,"n":"b"},{"@id":3,"n":"c"}]},
+{"edges":[{"@id":10,"s":1,"t":2},{"@id":11,"s":2,"t":3}]},
+{"nodeAttributes":[{"po":2,"n":"score","v":"1.0","d":"double"},{"po":2,"n":"score","v":"2.0","d":"double","s":200}]},
+{"cartesianLayout":[{"node":1,"x":1,"y":1,"view":1000},{"node":2,"x":2,"y":2,"view":1000},{"node":2,"x":20,"y":20,"view":2000},{"node":3,"x":30,"y":30,"view":2000}]},
+{"networkAttributes":[{"n":"name","v":"Collection"},{"n":"shared","v":"for all"},{"n":"local","v":"second only","s":200}]},
+{"cySubNetworks":[{"@id":100,"nodes":[1,2],"edges":[10]},{"@id":200,"nodes":[2,3],"edges":[11]}]},
+{"cyNetworkRelations":[{"c":100,"r":"subnetwork","name":"First"},{"p":100,"c":1000,"r":"view"},{"c":200,"r":"subnetwork","name":"Second"},{"p":200,"c":2000,"r":"view"}]},
+{"status":[{"error":"","success":true}]}
+]

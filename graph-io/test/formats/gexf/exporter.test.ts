@@ -298,6 +298,17 @@ describe("gexfExporter: check() loss notes (design 8.5)", () => {
         return builder;
     }
 
+    it("notes a numeric edge id column, which reads back as strings", async () => {
+        const builder = build();
+        builder.declareEdgeColumn({ name: "id", dtype: "f64", role: "id" });
+        builder.setEdgeValue("id", 0, 239);
+        const snapshot = builder.freeze();
+        expect(gexfExporter.check(snapshot).map((n) => n.code)).toContain(GEXF_LOSS.EDGE_ID_TEXT);
+        const back = new GraphBuilder({ directed: true });
+        await gexfImporter.import(await gexfExporter.exportToString(snapshot), back);
+        expect(back.freeze().edges.byRole("id")?.value(0)).toBe("239");
+    });
+
     it("reports u32 / u8 dtypes and writes them as long / integer", async () => {
         const builder = build();
         const u32 = builder.declareNodeColumn({ name: "count", dtype: "u32" });

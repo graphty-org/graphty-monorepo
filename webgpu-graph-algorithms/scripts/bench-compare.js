@@ -8,6 +8,8 @@
  *                                    (computed through scripts/runner-class.js, the ONE copy of the rule, so it names the
  *                                    same file the harness wrote) and the 10-second nvidia-smi sample
  *   benchmarks/out/<class>.json      the sessions `pnpm run bench` appended on this runner (the LAST is the run under test)
+ *   gpu-clocks.json                  optional: the SM clock gpu.yml recorded per benchmark group (gpu-report.js --clocks),
+ *                                    quoted beside a regression
  *   benchmarks/results/<class>.json  the checked-in baseline of the class: the PINNED baseline is the best median and the
  *                                    best minimum EVERY session of that file has ever recorded for a row, not the last
  *                                    session's
@@ -67,8 +69,13 @@
  * that line, among them both roundtrip rows and every rung of the exact ladder but 65k. That is deliberate, because
  * on this hardware a sub-millisecond row cannot be measured to better than the tenth of a millisecond the clock drop
  * moves it; the cost is that a slowdown confined to the small rungs has to be caught by the larger rungs of the same
- * ladder, which run the same kernels. When the gate does go red on a small row, the first thing to check is still the clock rather
- * than the code: `nvidia-smi --query-gpu=clocks.sm,pstate` while the bench runs says which it was.
+ * ladder, which run the same kernels. When the gate does go red, the first thing to check is still the clock rather than
+ * the code. gpu.yml records it (issue #703): nvidia-smi logs the SM clock, P-state and power draw every 200 ms while
+ * the bench runs, `gpu-report.js --clocks` reduces the log to each group's min and median clock in gpu-clocks.json
+ * (uploaded with the results), and a regression's message below quotes its group's line. A min far under the median,
+ * or a median under the card's maximum, is the power governor, not the code. That record is why it is known that the
+ * 10k layout-fr rows swung x1.0 to x3.6 in the profiler's GPU time on unchanged code: the lane now locks the SM
+ * clock for the bench (gpu.yml), so the governor no longer decides the reading.
  *
  * RE-PINNING IS NO LONGER AUTOMATIC, and that is the point. Running `pnpm run bench` again and appending the
  * session no longer moves the baseline: the file keeps the best numbers it has ever held. When a row is
@@ -272,6 +279,31 @@ function row(status, r, baseline, target) {
 }
 
 /**
+ * The SM clock gpu.yml recorded for each regressed group (gpu-clocks.json, written by gpu-report.js --clocks), one
+ * line per group, so the failure says whether the card's clock was down while the row ran.
+ * @param {ReadonlySet<string>} groups - the groups holding a regression
+ * @returns {string[]} the lines
+ */
+function clockLines(groups) {
+    const file = resolve("gpu-clocks.json");
+    if (!existsSync(file)) {
+        return ["no SM clock record (gpu-clocks.json): check the clock before the code (finding G3-F1)"];
+    }
+    const record = JSON.parse(readFileSync(file, "utf8"));
+    const byGroup = new Map((Array.isArray(record.groups) ? record.groups : []).map((g) => [g.group, g]));
+    return [...groups].map((name) => {
+        const g = byGroup.get(name);
+        if (g === undefined || g.samples === 0) {
+            return `${name}: no SM clock sample while it ran`;
+        }
+        const states = Object.entries(g.pstates)
+            .map(([p, n]) => `${p} x${String(n)}`)
+            .join(", ");
+        return `${name}: SM clock min ${String(g.smMinMHz)} MHz, median ${String(g.smMedianMHz)} MHz of ${String(g.maxSmMHz)} MHz max over ${String(g.samples)} samples (${states}); power median ${String(g.powerMedianW)} W`;
+    });
+}
+
+/**
  * Applies the four rules.
  * @returns {number} the exit code
  */
@@ -352,6 +384,7 @@ function main() {
         return targetVerdict();
     }
     let regressions = 0;
+    const regressedGroups = new Set();
     let noisy = 0;
     let tooSmall = 0;
     for (const r of current.results) {
@@ -378,12 +411,16 @@ function main() {
             continue;
         }
         regressions += 1;
+        regressedGroups.add(r.group);
         console.log(row("REGRESSION", r, base, targetOf(r)));
     }
     if (regressions > 0) {
         console.log(
             `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the best of the ${String(baseline.sessions)} session(s) of class ${cls}, by at least ${String(FLOOR_MS)} ms`,
         );
+        for (const line of clockLines(regressedGroups)) {
+            console.log(line);
+        }
         targetVerdict();
         return 1;
     }

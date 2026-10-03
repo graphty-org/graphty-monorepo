@@ -67,6 +67,7 @@ export { sssp } from "./algorithms/sssp.js";
 export { allPairsShortestPath } from "./algorithms/all-pairs.js";
 // ==================== algorithms (P11: structure and community, design 3.3 lines 806-807, 8.5, 8.6)
 export { labelPropagation } from "./algorithms/label-propagation.js";
+export { minimumSpanningTree } from "./algorithms/mst.js";
 export { triangleCount } from "./algorithms/triangles.js";
 
 // ==================== layouts and the accelerator (P3; the two P5 factories; P4's calibrateLayout, spec 2.2)
@@ -98,6 +99,7 @@ export type {
     LabelResultLike,
     LayoutAccelerator,
     LayoutSimulation,
+    MstOptions,
     MstResultLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -108,7 +110,7 @@ export type {
 // ==================== types: the P8 traversal results (spec 3.3 lines 830-832, 9.7); the option types are the seam's
 // BfsOptions / SsspOptions / HitsOptionsLike above (P8 PD-19)
 export type { LabelPropagationOptions } from "./types/community.js";
-export type { GpuTriangleResult } from "./types/structure.js";
+export type { GpuMstResult, GpuTriangleResult } from "./types/structure.js";
 export type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./types/traversal.js";
 
 // ==================== types: the betweenness results (spec 3.3 lines 833-834); the option type is the seam's

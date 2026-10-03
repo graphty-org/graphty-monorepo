@@ -4747,6 +4747,87 @@ describe("AppShell", () => {
     /* Pinning a node to the canvas                                                */
     /* -------------------------------------------------------------------------- */
 
+    /* Issue #188: notes typed in the inspector went nowhere. They are graphty-element's
+       `session.notes`; the shell reads them from there and writes them back, and the element's
+       history makes the delete undoable. */
+    describe("notes from the element's session", () => {
+        async function loadCat() {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            const stub = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            return { container, session: stub.styles.session };
+        }
+
+        it("writes a typed note to the selected node and lists it in the inspector", async () => {
+            const { container, session } = await loadCat();
+            const nodeId = CAT_SOCIAL_NETWORK.nodes[0].id;
+
+            reportSelection(container, nodeId);
+
+            const input = await screen.findByTestId("node-note-input");
+
+            fireEvent.change(input, { target: { value: "Seen at the vet" } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(session.notes.list({ target: { node: nodeId } }).map((note) => note.text)).toEqual([
+                "Seen at the vet",
+            ]);
+            expect(await screen.findByRole("button", { name: "Delete note: Seen at the vet" })).toBeInTheDocument();
+        });
+
+        it("deletes a note through the element, and the element's undo brings it back", async () => {
+            const { container, session } = await loadCat();
+            const nodeId = CAT_SOCIAL_NETWORK.nodes[0].id;
+
+            act(() => {
+                session.notes.add({ text: "Check the owner", targets: [{ node: nodeId }] });
+            });
+            reportSelection(container, nodeId);
+
+            fireEvent.click(await screen.findByRole("button", { name: "Delete note: Check the owner" }));
+
+            expect(session.notes.list()).toHaveLength(0);
+            await waitFor(() => {
+                expect(screen.queryByRole("button", { name: "Delete note: Check the owner" })).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByRole("button", { name: "Delete note: Check the owner" })).toBeInTheDocument();
+        });
+
+        it("focuses the node's note input on N", async () => {
+            const { container } = await loadCat();
+
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+            await screen.findByTestId("node-note-input");
+
+            fireEvent.keyDown(window, { key: "n" });
+
+            await waitFor(() => {
+                expect(screen.getByTestId("node-note-input")).toHaveFocus();
+            });
+        });
+
+        it("counts the notes about the whole graph as its case notes", async () => {
+            const { session } = await loadCat();
+
+            expect(screen.getByRole("button", { name: "Add a case note" })).toBeInTheDocument();
+
+            act(() => {
+                session.notes.add({ text: "Graph-wide", targets: [{ graph: true }] });
+                session.notes.add({ text: "About a node", targets: [{ node: CAT_SOCIAL_NETWORK.nodes[0].id }] });
+            });
+
+            expect(await screen.findByRole("button", { name: "1 case note" })).toBeInTheDocument();
+        });
+    });
+
     describe("the node inspector's Pin verb", () => {
         /**
          * Watches the session's pin verbs on the mounted host.

@@ -19,15 +19,12 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query } from "../catalog/types";
 import { GraphtyError } from "../errors";
+import { RevisionCache } from "./revision";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
-import {
-    columnsFor,
-    compileExpressionPredicate,
-    quotePath,
-    type SelectorSource,
-    type SelectorTarget,
-} from "./styles/predicate";
-import type { FindHit, FindKind, FindResult, FindValue } from "./types";
+import { searchOf, type SelectionTarget } from "./selection/targets";
+import { columnsFor, compileExpressionPredicate, type SelectorSource, type SelectorTarget } from "./styles/predicate";
+import { matchText, normalizeText } from "./text";
+import type { FindEnd, FindHit, FindKind, FindResult, FindValueRow } from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -36,6 +33,11 @@ interface QueryEngineParts {
      * @returns The snapshot as it stands now.
      */
     readonly snapshot: () => GraphSnapshot;
+    /**
+     * The input revision: the find index is rebuilt when it moves.
+     * @returns Any value; a change means the data changed.
+     */
+    readonly revision: () => unknown;
     /** Where values are read: the same source the style layers read. */
     readonly elements: Required<Pick<SelectorSource, "edgeIdOf" | "nodeIdOf">> & SelectorSource;
     /**
@@ -51,7 +53,7 @@ interface QueryEngineParts {
      */
     readonly searchPaths: () => readonly Path[];
     /**
-     * The edge attribute paths a find reads, beside the id. Absent, edges are found by id only.
+     * The edge attribute paths a find reads. Absent, a find lists no edges.
      * @returns The paths, such as `data.kind`.
      */
     readonly edgeSearchPaths?: () => readonly Path[];
@@ -73,14 +75,6 @@ interface QueryEngineParts {
      * @returns True when it is left out.
      */
     readonly excluded?: (target: SelectorTarget, index: number) => boolean;
-}
-
-/** What {@link QueryEngine.search} reads beside the text, already checked. */
-export interface SearchRequest {
-    /** The most hits, and the most value rows. */
-    readonly limit: number;
-    /** What to list. */
-    readonly kinds: ReadonlySet<FindKind>;
 }
 
 /** The session's query engine. */
@@ -130,7 +124,7 @@ export interface QueryEngine {
      * @param request - The limit and the kinds.
      * @returns The hits, the value rows and the total.
      */
-    search(text: string, request: SearchRequest): FindResult;
+    search(text: string, request: SearchRequest): SearchAnswer;
 }
 
 /**
@@ -140,6 +134,7 @@ export interface QueryEngine {
  */
 export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
     const { elements } = parts;
+    const findIndex = new RevisionCache<FindIndex>(parts.revision);
 
     const compile = (where: Query, target: SelectorTarget): ReturnType<typeof compileExpressionPredicate> =>
         compileExpressionPredicate(where, columnsFor(elements, target));
@@ -234,163 +229,287 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         unresolvedPathsOf: (where) => unresolvedOf(compile(where, "node").paths),
         pathsOf: (where) => compile(where, "node").paths,
         find,
-        search: (text, request) => search(parts, text, request),
+        search: (text, request) =>
+            search(
+                parts,
+                findIndex.get(`${parts.labelPath?.() ?? ""}\0${parts.idPath?.() ?? ""}`, () => buildIndex(parts)),
+                text,
+                request,
+            ),
     };
 }
 
-/** How well a hit matched: lower ranks first. */
-const enum Rank {
-    ExactName = 0,
-    NameStart = 1,
-    Name = 2,
-    ExactValue = 3,
-    Value = 4,
+/** One distinct value of one column, with the elements that carry it. */
+interface IndexedValue {
+    /** The value as the column holds it. */
+    readonly value: string | number | boolean;
+    /** The value as the matcher compares it. */
+    readonly norm: string;
+    /** Whether only a whole match counts: true for numbers and booleans. */
+    readonly wholeOnly: boolean;
+    /** The dense indices of the elements carrying it, in graph order. */
+    readonly members: number[];
+    /** The selection target naming every member, built on first use. */
+    target?: SelectionTarget;
 }
 
-/**
- * How well one value matched.
- * @param isName - Whether the value is the element's id or label.
- * @param exact - Whether it is the text, ignoring case.
- * @param start - Whether it starts with the text.
- * @returns The rank.
- */
-function rankOf(isName: boolean, exact: boolean, start: boolean): Rank {
-    if (!isName) {
-        return exact ? Rank.ExactValue : Rank.Value;
-    }
-
-    if (exact) {
-        return Rank.ExactName;
-    }
-
-    return start ? Rank.NameStart : Rank.Name;
+/** One searched column of one kind. */
+interface IndexedColumn {
+    /** `"id"`, or the attribute's literal column key. */
+    readonly path: Path;
+    /** Whether this column names the element (its id or its label): it ranks above the rest. */
+    readonly names: boolean;
+    /** Its distinct values. */
+    readonly values: IndexedValue[];
 }
 
+/** One kind's half of the find index. */
+interface IndexedKind {
+    /** The searched columns, the id first, then `attributes()` order. */
+    readonly columns: readonly IndexedColumn[];
+    /** Each element's id, by dense index. */
+    readonly ids: readonly (NodeId | EdgeId)[];
+}
+
+/** The find index: built once per revision, then read by every call. */
+interface FindIndex {
+    readonly node: IndexedKind;
+    readonly edge: IndexedKind;
+    /** Each node's name, by dense index. */
+    readonly names: readonly string[];
+    /** Each edge's ends, as node indices. */
+    readonly ends: readonly (readonly [number, number])[];
+}
+
+/** What {@link QueryEngine.search} reads beside the text, already checked. */
+export interface SearchRequest {
+    /** The first hit to return. */
+    readonly offset: number;
+    /** The most hits to return. */
+    readonly limit: number;
+    /** What to list. */
+    readonly kinds: ReadonlySet<FindKind>;
+    /** The elements in scope, or null for the whole graph. */
+    readonly scope: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> } | null;
+}
+
+/** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
+export type SearchAnswer = Pick<FindResult, "records" | "total" | "values" | "notSearchable">;
+
+/** Where a match fell, in rank order within a tier. */
+const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
+
+/** No match yet, in a rank array. */
+const NO_RANK = 255;
+
+/** How many value rows a find lists. */
+const VALUE_ROWS = 3;
+
 /**
- * The find box's search: one pass over each kind, ranking every element by its best match.
+ * Build the find index: one walk of each kind's searched columns.
  * @param parts - What the engine reads.
- * @param text - What was typed.
- * @param request - The limit and the kinds.
- * @returns The hits, the value rows and the total.
+ * @returns The index.
  */
-function search(parts: QueryEngineParts, text: string, request: SearchRequest): FindResult {
-    const wanted = text.trim().toLowerCase();
-    if (wanted === "") {
-        return { elements: [], values: [], total: 0 };
-    }
-
+function buildIndex(parts: QueryEngineParts): FindIndex {
     const graph = parts.snapshot();
     const { elements } = parts;
     const labelPath = parts.labelPath?.() ?? null;
-    const nameOf = (index: number): string => {
-        const label = labelPath === null ? undefined : elements.nodeValue(index, labelPath);
-        return typeof label === "string" || typeof label === "number"
-            ? String(label)
-            : String(elements.nodeIdOf(index));
-    };
-    const hits: (FindHit & { rank: Rank; order: number })[] = [];
-    // Every matched value, keyed by kind, path and value, counted in the same pass.
-    // Every element carrying a matched value contains the text, so the scan visits all of them.
-    const values = new Map<string, Omit<FindValue, "count"> & { count: number; exact: boolean }>();
-    const listValues = request.kinds.has("value");
-    const arrow = graph.directed ? " -> " : " -- ";
+    const idPath = parts.idPath?.() ?? null;
 
-    const scan = (target: SelectorTarget, count: number, paths: readonly Path[], namePath: Path | null): void => {
-        const listElements = request.kinds.has(target);
-        if (!listElements && !listValues) {
-            return;
-        }
-
-        const read = target === "node" ? elements.nodeValue : elements.edgeValue;
-        const idOf = target === "node" ? elements.nodeIdOf : elements.edgeIdOf;
+    const column = (path: Path, names: boolean, count: number, read: (index: number) => unknown): IndexedColumn => {
+        const byValue = new Map<string | number | boolean, IndexedValue>();
         for (let index = 0; index < count; index++) {
-            // The best match so far; a null rank means none yet.
-            const best: { rank: Rank | null; path: Path; value: string | number } = { rank: null, path: "", value: "" };
-            const consider = (path: Path, value: string | number, isName: boolean): void => {
-                const candidate = String(value).toLowerCase();
-                const at = candidate.indexOf(wanted);
-                if (at < 0) {
-                    return;
-                }
-
-                const rank = rankOf(isName, candidate.length === wanted.length, at === 0);
-                if (best.rank === null || rank < best.rank) {
-                    best.rank = rank;
-                    best.path = path;
-                    best.value = value;
-                }
-            };
-
-            const id = idOf(index);
-            // An edge's id is a counter the element assigned, which no reader typed; a node's is theirs.
-            if (target === "node") {
-                consider("id", id, true);
-            }
-            for (const path of paths) {
-                const value = read(index, path);
-                if (typeof value !== "string" && typeof value !== "number") {
-                    continue;
-                }
-
-                const isName = path === namePath;
-                consider(path, value, isName);
-                if (listValues && !isName && String(value).toLowerCase().includes(wanted)) {
-                    const key = JSON.stringify([target, path, value]);
-                    const row = values.get(key);
-                    if (row !== undefined) {
-                        row.count++;
-                    } else {
-                        values.set(key, {
-                            kind: target,
-                            path,
-                            value,
-                            count: 1,
-                            where: `${quotePath(path)} == \`${JSON.stringify(value).replace(/`/g, "\\`")}\``,
-                            exact: String(value).toLowerCase() === wanted,
-                        });
-                    }
-                }
-            }
-
-            if (best.rank === null || !listElements) {
+            const value = read(index);
+            if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
                 continue;
             }
 
-            const identity =
-                target === "node"
-                    ? { kind: "node" as const, id, label: nameOf(index) }
-                    : {
-                          kind: "edge" as const,
-                          id: elements.edgeIdOf(index),
-                          label: nameOf(graph.edgeSource(index)) + arrow + nameOf(graph.edgeTarget(index)),
-                      };
-            hits.push({
-                ...identity,
-                matched: { path: best.path, value: best.value },
-                ...(parts.excluded?.(target, index) === true ? { excludedBy: "filter" as const } : {}),
-                rank: best.rank,
-                order: hits.length,
-            });
+            let entry = byValue.get(value);
+            if (entry === undefined) {
+                // An id is text the reader types, whatever its type; a number or boolean value is not.
+                const wholeOnly = path !== "id" && typeof value !== "string";
+                entry = { value, norm: normalizeText(String(value)), wholeOnly, members: [] };
+                byValue.set(value, entry);
+            }
+
+            entry.members.push(index);
         }
+
+        return { path, names, values: [...byValue.values()] };
     };
 
-    const idPath = parts.idPath?.() ?? null;
-    scan(
-        "node",
-        graph.nodeCount,
-        parts.searchPaths().filter((path) => path !== idPath),
-        labelPath,
+    const nodeIds = Array.from({ length: graph.nodeCount }, (_, index) => elements.nodeIdOf(index));
+    const nodeColumns = [
+        column("id", true, graph.nodeCount, (index) => nodeIds[index]),
+        ...parts
+            .searchPaths()
+            .filter((path) => path !== idPath)
+            .map((path) =>
+                column(path, path === labelPath, graph.nodeCount, (index) => elements.nodeValue(index, path)),
+            ),
+    ];
+    const names = nodeIds.map((id, index) => {
+        const label = labelPath === null ? undefined : elements.nodeValue(index, labelPath);
+        return typeof label === "string" || typeof label === "number" ? String(label) : String(id);
+    });
+    const edgeIds = Array.from({ length: graph.edgeCount }, (_, index) => elements.edgeIdOf(index));
+    // An edge's id is a counter the element assigned, which no reader typed: it is not searched.
+    const edgeColumns = (parts.edgeSearchPaths?.() ?? []).map((path) =>
+        column(path, false, graph.edgeCount, (index) => elements.edgeValue(index, path)),
     );
-    scan("edge", graph.edgeCount, parts.edgeSearchPaths?.() ?? [], null);
+    const ends = edgeIds.map((_, index) => [graph.edgeSource(index), graph.edgeTarget(index)] as const);
 
-    hits.sort((a, b) => a.rank - b.rank || a.order - b.order);
-    const rows = [...values.values()].sort((a, b) => Number(b.exact) - Number(a.exact));
+    return { node: { columns: nodeColumns, ids: nodeIds }, edge: { columns: edgeColumns, ids: edgeIds }, names, ends };
+}
 
-    return {
-        elements: hits.slice(0, request.limit).map(({ rank: _rank, order: _order, ...hit }) => hit),
-        values: rows.slice(0, request.limit).map(({ exact: _exact, ...row }) => row),
-        total: hits.length,
+/**
+ * The find box's search over the index.
+ * @param parts - What the engine reads.
+ * @param index - The index for this revision.
+ * @param text - What was typed.
+ * @param request - The window, the kinds and the scope.
+ * @returns The hits, the value rows and the total.
+ */
+function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
+    const nothing = { records: [], total: 0, values: [] };
+    const typed = text.trim();
+    if (typed.startsWith("=")) {
+        return { ...nothing, notSearchable: "expression" };
+    }
+
+    const parsed = searchOf(typed);
+    if (parsed.mode === "regex") {
+        return { ...nothing, notSearchable: "regex" };
+    }
+
+    // `<attribute>:` names one column per kind; a prefix neither kind holds is plain text.
+    const only = new Map<FindKind, Path | null>();
+    let query = parsed.text;
+    if (parsed.mode === "attribute") {
+        const node = attributeOf(typed, ["id", ...index.node.columns.map((c) => c.path)]);
+        const edge = attributeOf(
+            typed,
+            index.edge.columns.map((c) => c.path),
+        );
+        if (node !== null || edge !== null) {
+            only.set("node", node?.path ?? null);
+            only.set("edge", edge?.path ?? null);
+            query = (node ?? edge)?.value ?? "";
+        }
+    }
+
+    const wanted = normalizeText(query);
+    if (wanted === "") {
+        return nothing;
+    }
+
+    const rows: { kind: FindKind; column: IndexedColumn; entry: IndexedValue; members: number[] }[] = [];
+    // Each element's best rank so far (NO_RANK for none) and the value it came from, per kind.
+    const best = {
+        node: {
+            rank: new Uint8Array(index.node.ids.length).fill(NO_RANK),
+            from: [] as [IndexedColumn, IndexedValue][],
+        },
+        edge: {
+            rank: new Uint8Array(index.edge.ids.length).fill(NO_RANK),
+            from: [] as [IndexedColumn, IndexedValue][],
+        },
     };
+
+    for (const kind of ["node", "edge"] as const) {
+        if (!request.kinds.has(kind)) {
+            continue;
+        }
+
+        const { columns, ids } = index[kind];
+        const { rank: ranks, from } = best[kind];
+        const inScope = request.scope?.[kind === "node" ? "nodes" : "edges"] as
+            | ReadonlySet<NodeId | EdgeId>
+            | undefined;
+        for (const column of columns) {
+            if (only.has(kind) && only.get(kind) !== column.path) {
+                continue;
+            }
+
+            for (const entry of column.values) {
+                const where = matchText(wanted, entry.norm);
+                if (where === null || ((entry.wholeOnly || parsed.mode === "exact") && where !== "whole")) {
+                    continue;
+                }
+
+                const rank = (column.names ? 0 : MATCH_ORDER.length) + MATCH_ORDER.indexOf(where);
+                const members =
+                    inScope === undefined ? entry.members : entry.members.filter((at) => inScope.has(ids[at]));
+                for (const at of members) {
+                    if (rank < ranks[at]) {
+                        ranks[at] = rank;
+                        from[at] = [column, entry];
+                    }
+                }
+
+                if (!column.names && members.length > 0) {
+                    rows.push({ kind, column, entry, members });
+                }
+            }
+        }
+    }
+
+    // One sort key per hit: rank first, then graph order, nodes before edges.
+    const nodeCount = index.node.ids.length;
+    const span = nodeCount + index.edge.ids.length;
+    const keys: number[] = [];
+    for (const [kind, offset] of [
+        ["node", 0],
+        ["edge", nodeCount],
+    ] as const) {
+        const ranks = best[kind].rank;
+        for (let at = 0; at < ranks.length; at++) {
+            if (ranks[at] !== NO_RANK) {
+                keys.push(ranks[at] * span + offset + at);
+            }
+        }
+    }
+
+    const sorted = Float64Array.from(keys).sort();
+    rows.sort((a, b) => b.members.length - a.members.length);
+
+    const records = Array.from(sorted.subarray(request.offset, request.offset + request.limit), (key): FindHit => {
+        const order = key % span;
+        const kind = order < nodeCount ? "node" : "edge";
+        const at = kind === "node" ? order : order - nodeCount;
+        const [column, entry] = best[kind].from[at];
+        const id = index[kind].ids[at];
+        const base = {
+            match: { path: column.path, value: entry.value },
+            ...(parts.excluded?.(kind, at) === true ? { excludedBy: { kind: "filter" as const } } : {}),
+        };
+        if (kind === "node") {
+            return { kind: "node", id, name: index.names[at], ...base, target: { nodes: [id] } };
+        }
+
+        const [source, target] = index.ends[at];
+        const end = (node: number): FindEnd => ({ id: index.node.ids[node], name: index.names[node] });
+        return {
+            kind: "edge",
+            id: String(id),
+            ends: { source: end(source), target: end(target) },
+            ...base,
+            target: { edges: [String(id)] },
+        };
+    });
+
+    const values = rows.slice(0, VALUE_ROWS).map(({ kind, column, entry, members }): FindValueRow => {
+        // ponytail: a value many elements carry makes a long id list; a where-target limited to
+        // one kind replaces it when the target grammar can say "nodes only".
+        const named = (): SelectionTarget => {
+            const ids = members.map((at) => index[kind].ids[at]);
+            return kind === "node" ? { nodes: ids } : { edges: ids.map(String) };
+        };
+        const target = members === entry.members ? (entry.target ??= named()) : named();
+        return { kind, path: column.path, value: entry.value, count: members.length, target };
+    });
+
+    return { records, total: sorted.length, values };
 }
 
 /**

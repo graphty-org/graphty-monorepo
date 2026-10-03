@@ -36,7 +36,6 @@ import type {
     EdgeId,
     LayoutId,
     Path,
-    Query,
     RunId,
     Scope,
     ScopeInput,
@@ -62,7 +61,7 @@ import type {
     RunsApi,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
-import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { ProgressChange } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
@@ -152,77 +151,101 @@ export interface RecordPage<TRecord> {
     readonly revision: string;
 }
 
-/** What {@link SessionDataApi.find} lists: nodes, edges, matched values. */
-export type FindKind = "node" | "edge" | "value";
+/** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
+export type FindKind = "node" | "edge";
 
-/** What {@link SessionDataApi.find} reads beside the text. */
+/** What {@link GraphSession.find} reads beside the text. Every field is optional. */
 export interface FindOptions {
-    /** The most element hits, and the most value rows, it returns. Default 20; `Infinity` for all. */
+    /** The most hits it returns. Default 20; `Infinity` for all. */
     readonly limit?: number;
-    /** What to list. Default all three: `["node", "edge", "value"]`. */
+    /** How many hits to skip, for paging. Default 0. */
+    readonly offset?: number;
+    /** What to list. Default `["node", "edge"]`. */
     readonly kinds?: readonly FindKind[];
+    /**
+     * Where to search. Default the whole graph: a hit the visibility filter hides is still
+     * listed, and carries `excludedBy`.
+     */
+    readonly scope?: ScopeInput;
+}
+
+/** One end of an edge hit. */
+export interface FindEnd {
+    /** The node's id. */
+    readonly id: NodeId;
+    /** The node's name: its label column's value, else its id as text. */
+    readonly name: string;
+}
+
+/** What every {@link FindHit} carries. */
+export interface FindHitBase {
+    /**
+     * Where the text was found. `path` is `"id"` for a node's id, else the attribute's literal
+     * column key (`AttributeDescriptor.path`, such as `"data.name"`). When several values match,
+     * this is the best-ranked one, ties going to the first in `data.attributes()` order.
+     */
+    readonly match: { readonly path: Path; readonly value: string | number | boolean };
+    /** Present when the element is in the graph but the visibility filter or time window hides it. */
+    readonly excludedBy?: { readonly kind: "filter" };
+    /** A selection target naming exactly this element, for `selection.apply`. */
+    readonly target: SelectionTarget;
 }
 
 /**
- * One node or edge the text found. `kind` says which, and narrows `id`: a node hit is picked with
- * `selection.apply({ nodes: [hit.id] })`, an edge hit with `{ edges: [hit.id] }`.
+ * One element the text found. `kind` narrows the rest.
+ *
+ * OPEN UNION: later releases add kinds (runs, layers, notes), so switch on `kind` with a default
+ * branch.
  */
-export type FindHit = (
-    | {
+export type FindHit =
+    | (FindHitBase & {
           /** A node. */
           readonly kind: "node";
           /** Its id. */
           readonly id: NodeId;
-      }
-    | {
-          /** An edge. */
+          /** Its label column's value (`data.knownFields.nodeLabelPath`), else its id as text. */
+          readonly name: string;
+      })
+    | (FindHitBase & {
+          /** An edge, found by its own attribute values only, never by its id or its ends. */
           readonly kind: "edge";
           /** Its element-assigned id. */
           readonly id: EdgeId;
-      }
-) & {
-    /**
-     * What to call it. A node: its label attribute (`data.knownFields.nodeLabelPath`), else its
-     * id. An edge: its two ends' labels, `"a -> b"` on a directed graph and `"a -- b"` otherwise.
-     */
-    readonly label: string;
-    /**
-     * Where the text was found: `"id"` for a node's id, or an attribute path such as
-     * `"data.name"`. An edge is found by its attributes, never by its element-assigned id.
-     */
-    readonly matched: { readonly path: Path; readonly value: string | number };
-    /** Present when the visibility filter or the time window leaves this element out. */
-    readonly excludedBy?: "filter";
-};
+          /** The nodes it joins: `source` is the one it leaves on a directed graph. */
+          readonly ends: { readonly source: FindEnd; readonly target: FindEnd };
+      });
 
-/** One attribute value the text found, with how many elements carry it. */
-export interface FindValue {
+/** One attribute value the text matched, with how many elements in scope carry it. */
+export interface FindValueRow {
     /** Whether nodes or edges carry it. */
-    readonly kind: "node" | "edge";
-    /** The attribute path, such as `"data.group"`. */
+    readonly kind: FindKind;
+    /** The attribute's literal column key, such as `"data.group"`. */
     readonly path: Path;
     /** The value. */
-    readonly value: string | number;
-    /**
-     * How many nodes (or edges) carry exactly this value. For a node row it is the `nodes` that
-     * `scope.count({ where })` gives; for an edge row, the edges `selection.apply({ where })` selects.
-     */
+    readonly value: string | number | boolean;
+    /** How many elements `target` selects: every one in scope carrying exactly this value. */
     readonly count: number;
-    /**
-     * The rule matching them, ready for `selection.apply({ where })`. A rule names a path, not a
-     * kind: when nodes and edges both carry `path`, it matches both.
-     */
-    readonly where: Query;
+    /** A selection target naming exactly those elements, for `selection.apply`. */
+    readonly target: SelectionTarget;
 }
 
-/** What a find box lists for one text. */
+/** What {@link GraphSession.find} answers: a page of hits, in the `RecordPage` shape, and value rows. */
 export interface FindResult {
-    /** Nodes and edges, best match first, at most `limit`. */
-    readonly elements: readonly FindHit[];
-    /** Matched attribute values, exact matches first, at most `limit`. */
-    readonly values: readonly FindValue[];
-    /** How many nodes and edges matched in all, before the limit. */
+    /** The hits in this window, best first. */
+    readonly records: readonly FindHit[];
+    /** Where the window starts. */
+    readonly offset: number;
+    /** How many hits there are in all. */
     readonly total: number;
+    /** The input revision the answer was read at; a different one means it is stale. */
+    readonly revision: string;
+    /** At most three matched attribute values, commonest first. */
+    readonly values: readonly FindValueRow[];
+    /**
+     * Set when the text is a `regex:` or `=` query, which find does not run: it lists nothing and
+     * `selection.apply({ text })` runs it on commit.
+     */
+    readonly notSearchable?: "regex" | "expression";
 }
 
 /**
@@ -449,9 +472,8 @@ export interface SessionRecordSource {
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
- * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
- * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * {@link edges}, which list every record and walk the graph to do it. Finding by text is
+ * `session.find`, synchronous too: it reads an index built once per revision.
  */
 export interface SessionDataApi {
     /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
@@ -513,19 +535,6 @@ export interface SessionDataApi {
      *     number of zero or more.
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
-    /**
-     * What a find box lists as the reader types, without selecting anything: the nodes and edges
-     * whose attribute values (or, for a node, id) contain the text (ignoring case), best first -- an exact label
-     * or id, then a label or id that starts with the text, then the rest -- and one row per
-     * matched attribute value with how many elements carry it. It never changes the selection or
-     * the history; hand a pick to `selection.apply` for that.
-     * @param text - What was typed; blank text finds nothing.
-     * @param options - The limit and the kinds to list; every field optional.
-     * @returns The hits, the value rows and the total.
-     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `limit` is not a whole number of zero or
-     *     more.
-     */
-    find(text: string, options?: FindOptions): FindResult;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.
@@ -1355,6 +1364,30 @@ export interface GraphSession {
      * @returns the fingerprint
      */
     fingerprint(): string;
+    /**
+     * What a find box lists as the reader types: the nodes and edges whose values contain the
+     * text, best first, and the commonest matched values. Selects nothing and records no step;
+     * hand a hit's or a row's `target` to `selection.apply` for that.
+     *
+     * Matching ignores case and accents and reads the text box grammar of
+     * `selection.apply({ text })`: plain text matches anywhere in a value, `exact:` only a whole
+     * value, and `<attribute>:` (`id:`, `type:`) only that attribute. `regex:` and a leading `=`
+     * are not run while typing; they set `notSearchable` and list nothing.
+     *
+     * A node is found by its id, its name and its attribute values; an edge by its own attribute
+     * values only. A number or boolean value matches only whole. Ranking promises only this: an
+     * exact name or id first, name and id matches before attribute values, ties in graph order.
+     *
+     * Synchronous: the first call after a change builds an index in one walk of the graph, and
+     * every later call in the same revision reads it. At the load limit (50,000 nodes with 20
+     * attributes each, 100,000 edges) the build takes about half a second and a later call 2 to
+     * 9 ms.
+     * @param text - What was typed. Blank text finds nothing.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad `limit`, `offset` or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult;
     /**
      * Do one thing, as a command.
      *

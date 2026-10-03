@@ -139,6 +139,8 @@ import type {
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
+    FindOptions,
+    FindResult,
     GraphSession,
     HistoryOutcome,
     PositionEntry,
@@ -770,6 +772,17 @@ class Session implements ElementSession {
      */
     fingerprint(): string {
         return this.sessionData.fingerprint();
+    }
+
+    /**
+     * What a find box lists, without selecting anything.
+     * @param text - What was typed.
+     * @param options - The window, the kinds and the scope.
+     * @returns A page of hits and at most three value rows.
+     * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
+     */
+    find(text: string, options?: FindOptions): FindResult {
+        return this.sessionData.find(text, options);
     }
 
     /**
@@ -2270,6 +2283,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
+        revision: () => inputs.tick.value,
         elements,
         answers: (path, target) => paths.answers(path, target),
         searchPaths: () =>

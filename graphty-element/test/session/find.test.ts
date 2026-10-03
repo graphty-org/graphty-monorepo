@@ -1,13 +1,13 @@
 /**
- * @file `session.data.find`: what a find box lists as the reader types, without selecting anything.
+ * @file `session.find`: what a find box lists as the reader types, without selecting anything.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession, isGraphtyError } from "../../session";
+import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
 
 /**
- * A small cast: nodes carry a name and a group, edges a kind.
+ * A small cast: nodes carry a name and a group, edges a kind and, like the nodes, a group.
  * @returns The session, loaded.
  */
 async function cast(): Promise<GraphSession> {
@@ -17,151 +17,248 @@ async function cast(): Promise<GraphSession> {
         { id: "n2", name: "Javert", group: 2 },
         { id: "n3", name: "Fantine", group: 3 },
         { id: "val", name: "Cosette", group: 2 },
-        { id: "n5", name: "Valjeanne", group: 4 },
+        { id: "n5", name: "Valjeanne", group: 12, note: "not Valjean" },
     ]);
     await session.data.addEdges([
-        { source: "n1", target: "n2", kind: "enemies" },
+        { source: "n1", target: "n2", kind: "enemies", group: 2 },
         { source: "n1", target: "val", kind: "family" },
     ]);
     await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
     return session;
 }
 
+/**
+ * The refusal code a call throws.
+ * @param call - The call.
+ * @returns The code, or what was thrown.
+ */
+function codeOf(call: () => unknown): unknown {
+    try {
+        call();
+    } catch (error) {
+        return isGraphtyError(error) ? error.code : error;
+    }
+
+    return "no error";
+}
+
+/**
+ * A hit as a compact row for comparing.
+ * @param hit - The hit.
+ * @returns Its kind, id and where it matched.
+ */
+function row(hit: FindHit): [string, string | number, string] {
+    return [hit.kind, hit.id, hit.match.path];
+}
+
 describe("finding without selecting", () => {
-    it("lists node hits by label with the attribute that matched, and changes nothing", async () => {
+    it("lists node hits by name with what matched, and changes neither the selection nor the history", async () => {
         const session = await cast();
         const { version } = session.history;
 
-        const found = session.data.find("valjean");
+        const found = session.find("valjean");
 
-        assert.deepEqual(
-            found.elements.map((hit) => [hit.kind, hit.id, hit.label, hit.matched.path, hit.matched.value]),
-            [
-                ["node", "n1", "Valjean", "data.name", "Valjean"],
-                ["node", "n5", "Valjeanne", "data.name", "Valjeanne"],
-            ],
-            "the exact name ranks before a longer one",
-        );
+        assert.deepEqual(found.records.map(row), [
+            ["node", "n1", "data.name"],
+            ["node", "n5", "data.name"],
+        ]);
+        const [first] = found.records;
+        assert.strictEqual(first.kind === "node" ? first.name : null, "Valjean");
+        assert.deepEqual(first.match, { path: "data.name", value: "Valjean" });
         assert.strictEqual(found.total, 2);
+        assert.strictEqual(found.offset, 0);
         assert.lengthOf(session.selection.nodes, 0, "the selection did not change");
         assert.strictEqual(session.history.version, version, "no step was recorded");
         session.dispose();
     });
 
-    it("ranks an exact id or name first, then names that start with the text, then the rest", async () => {
+    it("ranks an exact name or id first and names before attribute values, ties in graph order", async () => {
         const session = await cast();
 
-        const found = session.data.find("val");
-
+        assert.deepEqual(session.find("val").records.map(row), [
+            ["node", "val", "id"],
+            ["node", "n1", "data.name"],
+            ["node", "n5", "data.name"],
+        ]);
         assert.deepEqual(
-            found.elements.map((hit) => [hit.id, hit.matched.path]),
-            [
-                ["val", "id"],
-                ["n1", "data.name"],
-                ["n5", "data.name"],
-            ],
+            session.find("not").records.map(row),
+            [["node", "n5", "data.note"]],
+            "an attribute value is found",
         );
         session.dispose();
     });
 
-    it("finds edges by their values, named by their ends", async () => {
+    it("selects exactly the hit through its target", async () => {
         const session = await cast();
 
-        const found = session.data.find("enem", { kinds: ["edge"] });
+        const [hit] = session.find("javert").records;
+        await session.selection.apply(hit.target);
 
-        assert.lengthOf(found.elements, 1);
-        const [hit] = found.elements;
+        assert.deepEqual(session.selection.nodes, ["n2"]);
+        assert.lengthOf(session.selection.edges, 0);
+        session.dispose();
+    });
+
+    it("finds an edge by its own values, with its ends' ids and names, never by its id or its ends", async () => {
+        const session = await cast();
+
+        const found = session.find("enem");
+
+        assert.lengthOf(found.records, 1);
+        const [hit] = found.records;
         assert.strictEqual(hit.kind, "edge");
-        assert.deepEqual(hit.matched, { path: "data.kind", value: "enemies" });
-        assert.strictEqual(hit.label, "Valjean -> Javert");
-        assert.strictEqual(hit.kind === "edge" ? session.data.edge(hit.id)?.source : undefined, "n1");
-        assert.deepEqual(found.values, [], "only the kinds asked for");
+        assert.deepEqual(hit.match, { path: "data.kind", value: "enemies" });
+        assert.deepEqual(hit.kind === "edge" ? hit.ends : null, {
+            source: { id: "n1", name: "Valjean" },
+            target: { id: "n2", name: "Javert" },
+        });
+        await session.selection.apply(hit.target);
+        assert.lengthOf(session.selection.edges, 1);
+        assert.lengthOf(session.selection.nodes, 0);
+
+        assert.deepEqual(session.find("1", { kinds: ["edge"] }).records, [], 'edge ids are "0" and "1"');
+        assert.deepEqual(session.find("javert", { kinds: ["edge"] }).records, [], "an end's name finds no edge");
         session.dispose();
     });
 
-    it("lists one row per matched value, with the count scope.count gives and a rule to select it", async () => {
+    it("lists at most three value rows, commonest first, each target selecting exactly its count of one kind", async () => {
         const session = await cast();
 
-        const found = session.data.find("2", { kinds: ["value"] });
+        const { values } = session.find("2");
 
-        assert.deepEqual(found.elements, []);
-        assert.lengthOf(found.values, 1);
-        const [row] = found.values;
-        assert.deepInclude(row, { kind: "node", path: "data.group", value: 2, count: 3 });
-        const counted = await session.scope.count({ where: row.where });
-        assert.strictEqual(counted.nodes, row.count);
-
-        await session.selection.apply({ where: row.where });
+        assert.deepEqual(
+            values.map(({ kind, path, value, count }) => [kind, path, value, count]),
+            [
+                ["node", "data.group", 2, 3],
+                ["edge", "data.group", 2, 1],
+            ],
+            "the number 12 does not match a typed 2: numbers match only whole",
+        );
+        await session.selection.apply(values[0].target);
         assert.deepEqual([...session.selection.nodes].sort(), ["n1", "n2", "val"]);
-        session.dispose();
-    });
-
-    it("lists edge value rows whose rule selects exactly the counted edges", async () => {
-        const session = await cast();
-
-        const [row] = session.data.find("family", { kinds: ["value"] }).values;
-
-        assert.deepInclude(row, { kind: "edge", path: "data.kind", value: "family", count: 1 });
-        await session.selection.apply({ where: row.where });
-        assert.lengthOf(session.selection.edges, row.count);
+        assert.lengthOf(session.selection.edges, 0, "a node row selects no edges, though edges carry the path");
+        await session.selection.apply(values[1].target);
+        assert.lengthOf(session.selection.edges, 1);
         assert.lengthOf(session.selection.nodes, 0);
         session.dispose();
     });
 
-    it("never matches an edge by the counter id the element assigned it", async () => {
-        const session = await cast();
-
-        const found = session.data.find("1", { kinds: ["edge"] });
-
-        assert.deepEqual(found.elements, [], 'edge ids are "0" and "1", which no reader typed');
-        session.dispose();
-    });
-
-    it("says when a filter leaves a hit out", async () => {
+    it("says when a filter hides a hit", async () => {
         const session = await cast();
         await session.visibility.set({ kind: "member", of: { nodes: ["n2", "n3"] } });
 
-        const found = session.data.find("javert");
-        const hidden = session.data.find("valjean").elements[0];
-
-        assert.isUndefined(found.elements[0].excludedBy);
-        assert.strictEqual(hidden.excludedBy, "filter");
+        assert.isUndefined(session.find("javert").records[0].excludedBy);
+        assert.deepEqual(session.find("valjean").records[0].excludedBy, { kind: "filter" });
         session.dispose();
     });
 
-    it("stops at the limit but reports the total, and finds nothing for blank text", async () => {
+    it("searches only a scope when one is named, and counts value rows in it", async () => {
         const session = await cast();
 
-        const found = session.data.find("n", { limit: 2, kinds: ["node"] });
+        const found = session.find("2", { scope: { nodes: ["n1", "n3"] } });
 
-        assert.lengthOf(found.elements, 2);
-        assert.isAbove(found.total, 2);
-        assert.deepEqual(session.data.find("   "), { elements: [], values: [], total: 0 });
+        assert.deepEqual(
+            found.values.map((value) => [value.kind, value.count]),
+            [["node", 1]],
+        );
+        assert.deepEqual(session.find("valjean", { scope: { nodes: ["n5"] } }).records.map(row), [
+            ["node", "n5", "data.name"],
+        ]);
         session.dispose();
     });
 
-    it("falls back to the id as the label when no label attribute is set", async () => {
+    it("pages with offset and limit, reports the total and the revision, and finds nothing for blank text", async () => {
+        const session = await cast();
+
+        const page = session.find("n", { kinds: ["node"], offset: 1, limit: 2 });
+
+        assert.lengthOf(page.records, 2);
+        assert.strictEqual(page.offset, 1);
+        assert.isAbove(page.total, 3);
+        const blank = session.find("   ");
+        assert.deepEqual([blank.records, blank.values, blank.total], [[], [], 0]);
+
+        await session.data.addNodes([{ id: "n6", name: "Marius" }]);
+        assert.notStrictEqual(session.find("n").revision, page.revision, "a data change moves the revision");
+        assert.strictEqual(session.find("marius").records.length, 1, "and the index sees the new node");
+        session.dispose();
+    });
+
+    it("reads the text box grammar: exact:, <attribute>:, and refuses regex: and = while typing", async () => {
+        const session = await cast();
+
+        assert.deepEqual(session.find("exact:valjean").records.map(row), [["node", "n1", "data.name"]]);
+        assert.deepEqual(session.find("id:val").records.map(row), [["node", "val", "id"]]);
+        assert.deepEqual(session.find("kind:fam").records.map(row), [["edge", "1", "data.kind"]]);
+        assert.strictEqual(session.find("regex:^V").notSearchable, "regex");
+        assert.strictEqual(session.find("=group == `2`").notSearchable, "expression");
+        assert.lengthOf(session.find("regex:(").records, 0, "a half-typed pattern does not throw");
+        session.dispose();
+    });
+
+    it("ignores case and accents", async () => {
         const session = createGraphSession();
-        await session.data.addNodes([{ id: "ada" }]);
+        await session.data.addNodes([{ id: "a", city: "Montréal" }]);
 
-        assert.deepEqual(session.data.find("ADA").elements[0], {
-            kind: "node",
-            id: "ada",
-            label: "ada",
-            matched: { path: "id", value: "ada" },
-        });
+        assert.deepEqual(session.find("MONTREAL").records.map(row), [["node", "a", "data.city"]]);
         session.dispose();
     });
 
-    it("refuses a limit that is not a whole number", async () => {
-        const session = await cast();
-        let code: unknown;
-        try {
-            session.data.find("v", { limit: -1 });
-        } catch (error) {
-            code = isGraphtyError(error) ? error.code : error;
+    it("finds and selects numeric ids, and names a node by its id when no label column is set", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: 1 }, { id: 10 }]);
+
+        const found = session.find("1");
+
+        assert.deepEqual(found.records.map(row), [
+            ["node", 1, "id"],
+            ["node", 10, "id"],
+        ]);
+        const [hit] = found.records;
+        assert.strictEqual(hit.kind === "node" ? hit.name : null, "1");
+        await session.selection.apply(hit.target);
+        assert.deepEqual(session.selection.nodes, [1]);
+        session.dispose();
+    });
+
+    it("finds a column whose name holds spaces and dots by its literal key", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", "shared chapters": "twelve" },
+            { id: "b", "a.b": "twelve" },
+        ]);
+
+        const { values } = session.find("twelve");
+
+        assert.sameDeepMembers(
+            values.map(({ path, count }) => [path, count]),
+            [
+                ["data.shared chapters", 1],
+                ["data.a.b", 1],
+            ],
+        );
+        for (const value of values) {
+            await session.selection.apply(value.target);
+            assert.deepEqual(session.selection.nodes, [value.path === "data.a.b" ? "b" : "a"]);
         }
-        assert.strictEqual(code, "E_OPTION_RANGE");
+        session.dispose();
+    });
+
+    it("refuses a bad window or kind", async () => {
+        const session = await cast();
+
+        assert.strictEqual(
+            codeOf(() => session.find("v", { limit: -1 })),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => session.find("v", { offset: 1.5 })),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => session.find("v", { kinds: ["value" as "node"] })),
+            "E_OPTION_RANGE",
+        );
         session.dispose();
     });
 });

@@ -1,7 +1,7 @@
 /**
  * @file The quick start of the "Finding" guide (`docs/guide/find.md`), kept here so the documented
- * code keeps working: the guide's code on a standalone session, its comments turned into
- * assertions. The guide reaches the same session as `element.session`.
+ * code keeps working. The guide's listener is copied verbatim; the element is a standalone
+ * session with a `zoomToSelection` that records its call.
  */
 
 import { assert, describe, it } from "vitest";
@@ -9,33 +9,61 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession } from "../../session";
 
 describe("the finding guide's example", () => {
-    it("lists hits without selecting, then selects a pick and a value row", async () => {
+    it("lists hits as the reader types, then selects and frames the one they click", async () => {
         const session = createGraphSession();
         await session.data.addNodes([
-            { id: "n1", name: "Valjean", group: 2 },
-            { id: "n2", name: "Javert", group: 2 },
-            { id: "n3", name: "Fantine", group: 3 },
+            { id: "n1", name: "Valjean" },
+            { id: "n2", name: "Javert" },
         ]);
-        // Name nodes by their "name" attribute rather than their id
+        await session.data.addEdges([{ source: "n1", target: "n2", kind: "pursues" }]);
         await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
+        let framed = 0;
+        const element = {
+            session,
+            zoomToSelection: (): Promise<void> => {
+                framed++;
+                return Promise.resolve();
+            },
+        };
+        document.body.innerHTML = `<input id="find"><ul id="hits"></ul>`;
+        const box = document.querySelector<HTMLInputElement>("#find")!;
+        const list = document.querySelector<HTMLUListElement>("#hits")!;
 
-        const found = session.data.find("val", { limit: 10 });
-        assert.deepEqual(found.elements, [
-            { kind: "node", id: "n1", label: "Valjean", matched: { path: "data.name", value: "Valjean" } },
-        ]);
-        assert.strictEqual(found.total, 1);
-        assert.lengthOf(session.selection.nodes, 0, "finding selected nothing");
+        // --- the guide's code ---
+        box.addEventListener("input", () => {
+            const found = element.session.find(box.value, { limit: 10 });
+            list.replaceChildren(
+                ...found.records.map((hit) => {
+                    const li = document.createElement("li");
+                    li.textContent =
+                        hit.kind === "node" ? hit.name : `${hit.ends.source.name} - ${hit.ends.target.name}`;
+                    li.onclick = async () => {
+                        await element.session.selection.apply(hit.target);
+                        await element.zoomToSelection();
+                    };
+                    return li;
+                }),
+            );
+        });
+        // --- end ---
 
-        // The reader picks a hit: select it
-        const [hit] = found.elements;
-        await session.selection.apply(hit.kind === "node" ? { nodes: [hit.id] } : { edges: [hit.id] });
-        assert.deepEqual(session.selection.nodes, ["n1"]);
+        box.value = "jav";
+        box.dispatchEvent(new Event("input"));
+        assert.deepEqual(
+            [...list.children].map((li) => li.textContent),
+            ["Javert"],
+        );
+        assert.lengthOf(session.selection.nodes, 0, "typing selected nothing");
 
-        // Or a value row, "group is 2 (2 nodes)": select every node carrying it
-        const [row] = session.data.find("2", { kinds: ["value"] }).values;
-        assert.strictEqual(row.count, 2);
-        await session.selection.apply({ where: row.where });
-        assert.deepEqual(session.selection.nodes, ["n1", "n2"]);
+        box.value = "purs";
+        box.dispatchEvent(new Event("input"));
+        assert.deepEqual(
+            [...list.children].map((li) => li.textContent),
+            ["Valjean - Javert"],
+        );
+        await (list.children[0] as HTMLLIElement).onclick?.(new PointerEvent("click"));
+        assert.lengthOf(session.selection.edges, 1, "the click selected the edge");
+        assert.strictEqual(framed, 1, "and framed it");
         session.dispose();
     });
 });

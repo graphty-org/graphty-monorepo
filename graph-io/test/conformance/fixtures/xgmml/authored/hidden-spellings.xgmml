@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="1" label="Network" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <node id="a"><att name="h1" value="x" type="string" cy:hidden="true"/><att name="h2" value="x" type="string" cy:hidden="TRUE"/><att name="h3" value="x" type="string" cy:hidden="yes"/><att name="v" value="x" type="string" cy:hidden="0"/></node>
+</graph>

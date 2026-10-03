@@ -1288,6 +1288,10 @@ describe("fatal mode", () => {
         expect(readFileSync(join(stateDir, "FATAL"), "utf8")).toBe(`${reason}\n`);
         expect(await daemon.poll()).toEqual({ fatal: reason });
         expect(gh.calls).toHaveLength(calls);
+        // The loop still ticks, so after 3 poll intervals a launcher sees it up, not wedged.
+        clock = new Date("2026-10-02T12:20:00Z");
+        await daemon.poll();
+        expect((await (await fetch(`${daemon.url}/health`)).json()).loopTickAt).toBe(clock.toISOString());
         expect((await (await fetch(`${daemon.url}/health`)).json()).fatal).toBe(reason);
         const refused = await fetch(`${daemon.url}/rpc`, { method: "POST", body: "{}" });
         expect(refused.status).toBe(503);

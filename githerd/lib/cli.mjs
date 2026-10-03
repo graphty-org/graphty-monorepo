@@ -552,7 +552,7 @@ async function startDev(ctx, c, devState) {
 const SERVICE = {
     ensure: async (ctx, c) => {
         const r = await ensureDaemon(ctx);
-        c.out(`${r.action} ${r.url}`);
+        c.out(r.fatal ? `${r.action} ${r.url}: githerd is DOWN: ${r.fatal}` : `${r.action} ${r.url}`);
     },
     restart: async (ctx, c) => {
         await servherd(ctx, ["restart", ctx.name]);

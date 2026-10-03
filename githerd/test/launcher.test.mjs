@@ -408,6 +408,36 @@ describe("restarts and upgrades", () => {
         expect(calls().filter((c) => c.argv.includes("restart"))).toHaveLength(1);
     });
 
+    it("never restarts a daemon in fatal mode, however old its loop tick, and reports why it is down", async () => {
+        const hash = git(root, "rev-parse", "origin/master:githerd");
+        const server = createServer((req, res) => {
+            res.end(
+                JSON.stringify({
+                    name: "githerd",
+                    protocol: 1,
+                    root,
+                    codeHash: hash,
+                    port: /** @type {any} */ (server.address()).port,
+                    loopTickAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+                    runsInFlight: 0,
+                    fatal: "crash loop: 3 starts within 10 minutes; last exception: Error: boom",
+                }),
+            );
+        });
+        servers.push(server);
+        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
+        const port = /** @type {any} */ (server.address()).port;
+        mkdirSync(join(stateDir()), { recursive: true });
+        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port, pid: process.pid }));
+
+        expect(await ensureDaemon(context())).toEqual({
+            url: `http://127.0.0.1:${port}`,
+            action: "down",
+            fatal: "crash loop: 3 starts within 10 minutes; last exception: Error: boom",
+        });
+        expect(calls()).toEqual([]);
+    });
+
     it("upgrades to a new hash on the default branch", async () => {
         await ensureDaemon(context());
         pushPackage("second", (pkg) => writeFileSync(join(pkg, "lib", "extra.mjs"), "export {};\n"));

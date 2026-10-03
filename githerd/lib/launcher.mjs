@@ -488,8 +488,10 @@ async function page(ctx, message) {
 /**
  * Finds the repository's daemon, or starts, upgrades or restarts it (design section 3.1).
  * @param {LauncherContext} ctx the context
- * @returns {Promise<{url: string, action: "warm" | "waiting" | "started" | "restarted" | "other-launcher" | "run"}>}
- *   the daemon's URL and what was done; `waiting` means an upgrade waits for runs in flight
+ * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "started" | "restarted" | "other-launcher" | "run",
+ *   fatal?: string}>} the daemon's URL and what was done; `waiting` means an upgrade waits for runs
+ *   in flight; `down` means the daemon is up in fatal mode, with its reason in `fatal`: never
+ *   restarted for that, since only a change of its cause may end fatal mode (design 9.6)
  */
 export async function ensureDaemon(ctx) {
     if (ctx.env.GITHERD_URL) return { url: ctx.env.GITHERD_URL, action: "run" };
@@ -497,6 +499,8 @@ export async function ensureDaemon(ctx) {
     const url = (/** @type {any} */ h) => `http://127.0.0.1:${h.port}`;
 
     const warm = await probe(ctx);
+    if (ours(ctx, warm.health) && warm.health.codeHash === target.hash && warm.health.fatal)
+        return { url: url(warm.health), action: "down", fatal: warm.health.fatal };
     if (ours(ctx, warm.health)) {
         if (warm.health.codeHash === target.hash && ticking(ctx, warm.health))
             return { url: url(warm.health), action: "warm" };

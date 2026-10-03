@@ -1111,11 +1111,16 @@ export async function startDaemon({
 
     /**
      * One poll attempt: skipped while another runs. `loopTickAt` is set whether or not GitHub
-     * answers. In fatal mode it does nothing and returns the reason.
+     * answers. In fatal mode it only sets `loopTickAt` and returns the reason.
      * @returns {Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} what happened
      */
     async function poll() {
-        if (fatal) return { fatal: firstLine(fatal) };
+        if (fatal) {
+            // Never polls, but the loop still ticks: a launcher must see a daemon that is up and
+            // DOWN, not a wedged one to restart, or fatal mode ends without its cause changing.
+            loopTickAt = now().toISOString();
+            return { fatal: firstLine(fatal) };
+        }
         if (busy || stopping || fenced) return { skipped: true };
         if (loaded.readOnly) {
             // Never polls, but the loop still ticks, so launchers do not take it for wedged.
@@ -1182,7 +1187,7 @@ export async function startDaemon({
         } catch (err) {
             say("error", `poll: ${/** @type {Error} */ (err).message}`);
         }
-        if (stopping || fenced || fatal) return;
+        if (stopping || fenced) return;
         const ms = (config?.pollSeconds ?? 180) * 1000 * intervalFactor;
         nextPollAt = new Date(now().getTime() + ms).toISOString();
         timer = setTimeout(tick, ms);
@@ -1477,15 +1482,13 @@ export async function startDaemon({
     aliveTimer.unref();
 
     /**
-     * Enters fatal mode (design section 9.6): `FATAL`, no more polls, every request but /health
-     * refused with the reason, one page.
+     * Enters fatal mode (design section 9.6): `FATAL`, no more polls (the loop still ticks, so
+     * launchers see it up), every request but /health refused with the reason, one page.
      * @param {string} reason why; its first line is what every surface shows
      */
     function enterFatal(reason) {
         if (fatal || fenced) return;
         fatal = reason;
-        if (timer) clearTimeout(timer);
-        timer = null;
         say("error", `fatal: ${firstLine(reason)}`);
         try {
             writeFatal(stateDir, reason);
@@ -1532,7 +1535,7 @@ export async function startDaemon({
             say("error", `spool: left for the next start: ${/** @type {Error} */ (err).message}`);
         }
     }
-    if (autoPoll && !fatal) timer = setTimeout(tick, 0);
+    if (autoPoll) timer = setTimeout(tick, 0);
 
     /**
      * Stops polling and closes the server.

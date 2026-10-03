@@ -21,6 +21,11 @@ queue_rules:
       batch_size: 1
       update_method: merge
       merge_method: merge
+      # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
+      # change) takes an already-queued pull request out of the queue.
+      queue_conditions:
+          - label!=hold
+          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
       merge_conditions:
           - check-success=All Checks Pass
           - check-success=Lint PR Title

@@ -144,3 +144,15 @@ const MODULARITY_BAND_PHRASES: Readonly<Record<string, string>> = {
 export function modularityBandPhrase(band: FieldBand): string {
     return MODULARITY_BAND_PHRASES[band.id] ?? band.plainName.toLowerCase();
 }
+
+/**
+ * Pluralises a noun on a count, so a one-group run reads "1 group found." and "1 small part
+ * holds the rest" is not written in the plural. The spec's example strings are all plural; this
+ * only ever narrows away from them.
+ * @param count - the count the noun is attached to.
+ * @param singular - the singular noun.
+ * @returns the singular when the count is exactly 1, the "s" plural otherwise.
+ */
+export function pluralise(count: number, singular: string): string {
+    return count === 1 ? singular : `${singular}s`;
+}

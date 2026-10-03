@@ -81,6 +81,12 @@ const VALUE_EXPORTS = [
     "PAJEK_LOSS",
     "pajekExporter",
     "pajekImporter",
+    "XGMML_ISSUE",
+    "XGMML_LOSS",
+    "xgmmlExporter",
+    "xgmmlImporter",
+    "CYS_ISSUE",
+    "cysImporter",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",
@@ -227,6 +233,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["json", graphIo.jsonImporter, graphIo.jsonExporter],
             ["neo4j", graphIo.neo4jImporter, graphIo.neo4jExporter],
             ["pajek", graphIo.pajekImporter, graphIo.pajekExporter],
+            ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -236,16 +243,19 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO and CX version 1 are read-only: an importer, no exporter
+        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
         for (const [format, importer] of [
             ["obo", graphIo.oboImporter],
             ["cx", graphIo.cxImporter],
+            ["cys", graphIo.cysImporter],
         ] as const) {
             expect(importer.format).toBe(format);
             expect(graphIo.registry.importer(format)).toBe(importer);
             expect(graphIo.registry.hasExporter(format)).toBe(false);
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo", "cx"]));
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
+            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
+        );
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -271,6 +281,9 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             OBO_ISSUE: graphIo.OBO_ISSUE,
             PAJEK_ISSUE: graphIo.PAJEK_ISSUE,
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
+            XGMML_ISSUE: graphIo.XGMML_ISSUE,
+            CYS_ISSUE: graphIo.CYS_ISSUE,
+            XGMML_LOSS: graphIo.XGMML_LOSS,
         };
         for (const [name, table] of Object.entries(tables)) {
             expect(Object.isFrozen(table), name).toBe(true);

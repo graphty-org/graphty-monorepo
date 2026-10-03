@@ -29,7 +29,7 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
-import type { NodeRecordInput, RowUpdate } from "../types";
+import type { LoadMapping, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -109,6 +109,8 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
     readonly layout?: "recommended" | "keep";
+    /** The reader's column roles: the node id, edge endpoint and weight columns this load reads. */
+    readonly mapping?: LoadMapping;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**

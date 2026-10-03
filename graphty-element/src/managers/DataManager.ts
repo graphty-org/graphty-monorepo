@@ -971,6 +971,7 @@ export class DataManager implements Manager {
                 this.eventManager.emitDataAdded("edges", count, true, false, this.cause);
             },
             loadProgress: (progress) => {
+                this.dispatcher?.events.loadProgress?.(progress);
                 if (this.graphContext) {
                     this.eventManager.emitDataLoadingProgress(
                         progress.format,

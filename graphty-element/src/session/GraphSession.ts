@@ -460,6 +460,14 @@ class Session implements ElementSession {
             });
             beside?.(change);
         };
+        this.dispatcher.events.loadProgress = ({ format, nodeRecords, edgeRecords }) => {
+            publish(this.watchers, "data:progress", {
+                format,
+                read: nodeRecords + edgeRecords,
+                nodeRecords,
+                edgeRecords,
+            });
+        };
         this.dispatcher.events.history = (reason) => {
             version++;
             publish(this.watchers, "history:changed", { reason });
@@ -1832,6 +1840,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            scratch: () => createGraphSession({ config: { data: readData(), acceleration: { policy: "off" } } }),
         },
         {
             revision: () => inputs.tick.value,

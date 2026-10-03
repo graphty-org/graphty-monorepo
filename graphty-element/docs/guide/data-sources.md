@@ -84,6 +84,63 @@ you give one. A file read also records its `size` in bytes. The inline text and 
 are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
 answers `null`.
 
+## Preview a Load Before Loading It
+
+`session.data.preview` reads a source the way `import` would and tells you what the load would
+hold, without changing the graph or its undo history. Show it to the reader, let them fix a
+column the element guessed wrong, then load with the same fix:
+
+```typescript
+const { session } = element;
+const source = { config: { file } }; // trips.csv: source,target,trips
+
+const preview = await session.data.preview(source);
+preview.format; // "csv"
+for (const table of preview.tables) {
+    console.log(table.role, table.rowCount); // "nodes" 3, then "edges" 3
+    console.log(table.columns.map((column) => `${column.name}: ${column.role}`)); // "trips: attribute"
+}
+
+// The reader says the trips column is the weight.
+const mapping = { weight: "trips" };
+const checked = await session.data.preview(source, { mapping });
+checked.weight; // "trips"
+await session.data.import(source, { mapping }); // loads what `checked` described
+```
+
+Each column carries its `type`, what it measures (`level`: `"id"`, `"category"`, `"quantity"`,
+`"time"` or `"text"`), the `role` the load gives it (`"id"`, `"source"`, `"target"`, `"weight"`
+or `"attribute"`) and the role the element `suggested` by itself. `preview.keys` and
+`preview.weight` name the key and weight columns, `table.sample` holds the first few rows, and
+`preview.report` is the report `lastImport()` will return after the load.
+
+A mapping names any of `nodeId`, `source`, `target` and `weight` (a column name, or `null` for
+no weight). A source the load would refuse is refused by the preview with the same error code, so
+you can say why before the reader presses Load: `E_EDGE_ENDPOINTS_UNRESOLVED` lists the columns
+the file does carry -- preview again with `source` and `target` named -- and `E_TOO_LARGE`
+carries the limit it ran into in `error.details.limit`.
+
+A mapping can also say which table is which. One CSV file is named `"nodes"` or `"edges"` after
+the role it was read as, and two files after their file names:
+
+```typescript
+await session.data.preview(
+    { config: { nodeFile: tiesFile, edgeFile: peopleFile } }, // handed over the wrong way round
+    { mapping: { tables: { "people.csv": "nodes", "ties.csv": "edges" } } },
+);
+```
+
+### Load progress
+
+Every load publishes `data:progress` on the session after each chunk, with the running count of
+records read. A preview publishes none.
+
+```typescript
+session.on("data:progress", ({ read, nodeRecords, edgeRecords }) => {
+    status.textContent = `Read ${read.toLocaleString()} rows`;
+});
+```
+
 ## Replacing the Graph
 
 A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one

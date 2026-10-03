@@ -24,7 +24,15 @@ export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles }
 export { createAutoApplyPolicy } from "./autoApply";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { EncodingRun, EncodingSource, EncodingSpec } from "./EncodingSpec";
+export type {
+    ColumnEncodingSpec,
+    EncodingOptions,
+    EncodingProposal,
+    EncodingRefusalCode,
+    EncodingRun,
+    EncodingSource,
+    EncodingSpec,
+} from "./EncodingSpec";
 export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
 export type {
     CompiledLayer,

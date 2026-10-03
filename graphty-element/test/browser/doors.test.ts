@@ -241,7 +241,7 @@ describe("an assignment of a setting's default reads back", () => {
         ["edgeWeightPath", "weight"],
         ["runAlgorithmsOnLoad", false],
         ["directed", "auto"],
-        ["layoutBehavior", { layout: { preSteps: 0, stepMultiplier: 1, minDelta: 0 }, labels: { declutter: false } }],
+        ["layoutBehavior", { layout: { preSteps: 0, stepMultiplier: 1, minDelta: 0 } }],
     ];
 
     it(

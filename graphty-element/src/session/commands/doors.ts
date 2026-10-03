@@ -385,7 +385,6 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     views: READ,
     layout: READ,
-    labels: READ,
     positions: READ,
     seededNodeCount: READ,
     status: READ,
@@ -536,6 +535,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
+            nodeLabelCounts: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -593,23 +593,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutConfig: assigns({}, [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
-            // The getter reads the four project settings as they are in effect, so the row names them all.
-            layoutBehavior: assigns(
-                { layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 }, labels: { declutter: true } },
-                [
-                    {
-                        op: "config.set",
-                        values: {
-                            layoutBehavior: {
-                                preSteps: 5,
-                                stepMultiplier: 1,
-                                minDelta: 0,
-                                labels: { declutter: true },
-                            },
-                        },
-                    },
-                ],
-            ),
+            // The getter reads all three pacing settings as they are in effect, so the row names them all.
+            layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } }, [
+                { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
+            ]),
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -762,6 +749,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererRequest: READ,
             rendererStatus: READ,
             eventManager: READ,
+            nodeLabelCounts: READ,
+            onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
                 kind: "dispatches",
@@ -1327,6 +1316,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            onNodeLabelCounts: READ,
         },
     },
     {
@@ -1627,20 +1617,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
-        },
-    },
-    {
-        name: "SessionLabels",
-        file: "src/session/labels.ts",
-        half: "session",
-        doors: {
-            counts: READ,
-            hiddenIds: READ,
-            declutter: READ,
-            setDeclutter: calls(
-                [true],
-                [{ op: "config.set", values: { layoutBehavior: { labels: { declutter: true } } } }],
-            ),
         },
     },
     {

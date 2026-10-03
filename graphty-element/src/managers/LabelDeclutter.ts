@@ -1,8 +1,41 @@
 import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
 
 import type { Node } from "../Node";
-import { labelReportOf } from "../session/GraphSession";
 import type { GraphContext } from "./GraphContext";
+
+/**
+ * How many node labels the element is drawing, and why the rest are not.
+ *
+ * A node counts once however many label lines it has. Edge labels are not counted: the element
+ * never hides an edge label to avoid overlap.
+ *
+ * `labeled - nodeHidden - hiddenByOverlap` is the number of labels the element would draw. Some of
+ * those may be outside the current view; a label outside the view is never counted as hidden. A
+ * minor release may add another `hiddenBy...` count for a new reason; each is a separate subset of
+ * `labeled`.
+ * @since 3.7.0
+ */
+export interface NodeLabelCounts {
+    /** Nodes whose label has text to draw. */
+    readonly labeled: number;
+    /** Of those, nodes that are not drawn themselves (a filter or the time window hides them). */
+    readonly nodeHidden: number;
+    /**
+     * Of those, labels inside the current view that `layoutBehavior.labels.declutter` hid because
+     * they would overlap a label it kept. Always 0 while declutter is off. Depends on the camera
+     * and the size of the canvas.
+     */
+    readonly hiddenByOverlap: number;
+}
+
+/** The counts before any label is drawn. */
+export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+
+/**
+ * How many frames the labels must stay put before their counts are published, so a camera
+ * gesture or a moving layout publishes once when it stops rather than every frame.
+ */
+const QUIET_FRAMES = 10;
 
 /** One labelled node, what the last pass saw of it, and where its words were on screen. */
 interface Entry {
@@ -51,9 +84,11 @@ const MIN_CELL = 16;
  * the reader's answer to what a node looks like; this is a placement decision, so it has its own
  * switch. Turning the setting off shows every label again.
  *
- * EVERY DECISION IS REPORTED to the session, so `session.labels` can say how many labels were
- * asked for and which the rule hid. While the setting is off nothing is hidden, and each frame
- * only counts the labels asked for.
+ * THE COUNTS ARE PUBLISHED ONCE THE VIEW IS STILL: `counts` holds what the last pass saw, and
+ * after {@link QUIET_FRAMES} frames with nothing to re-decide, the context's
+ * `onNodeLabelCounts` is told when they differ from the last counts it was told. While the
+ * setting is off the same per-frame walk runs without projecting anything, so the counts follow
+ * labels added, removed, filtered or hidden by the time window.
  *
  * ONE PER SCENE, created by the first node that draws a label, and kept on `scene.metadata`
  * the way `NodeEffects` keeps the glow layer.
@@ -61,6 +96,8 @@ const MIN_CELL = 16;
 export class LabelDeclutter {
     /** How many full passes have run. Read by tests to prove a still scene is not re-measured. */
     passes = 0;
+    /** What the last pass saw. Read by `element.nodeLabelCounts`. */
+    counts: NodeLabelCounts = NO_NODE_LABELS;
 
     private readonly observer: Observer<Scene>;
     private readonly entries = new Map<Node, Entry>();
@@ -72,6 +109,9 @@ export class LabelDeclutter {
     private rows = 1;
     private dirty = true;
     private wasOn = false;
+    /** Frames since the last pass; publishing happens once, when this reaches QUIET_FRAMES. */
+    private quiet = 0;
+    private published: NodeLabelCounts = NO_NODE_LABELS;
     private camera: Camera | null = null;
     private readonly view = new Float64Array(16);
     private readonly projection = new Float64Array(16);
@@ -149,13 +189,9 @@ export class LabelDeclutter {
 
     /** Before every frame: decide whether placement could have changed, and if so, place. */
     run(): void {
-        if (!this.context.getStyles().config.behavior.labels.declutter) {
-            if (this.wasOn) {
-                this.showAll();
-            }
-
-            this.report(this.countRequested(), []);
-            return;
+        const on = this.context.getStyles().config.behavior.labels.declutter;
+        if (!on && this.wasOn) {
+            this.showAll();
         }
 
         const camera = this.scene.activeCamera;
@@ -163,9 +199,61 @@ export class LabelDeclutter {
             return;
         }
 
-        if (!this.wasOn || this.changed(camera)) {
-            this.wasOn = true;
-            this.place(camera);
+        if (on !== this.wasOn || this.changed(camera, on)) {
+            this.wasOn = on;
+            if (on) {
+                this.place(camera);
+            } else {
+                this.survey();
+            }
+
+            this.quiet = 0;
+        } else if (++this.quiet === QUIET_FRAMES) {
+            this.publish();
+        }
+    }
+
+    /** Tell the context the counts, when they differ from the last it was told. */
+    private publish(): void {
+        const { counts, published } = this;
+        if (
+            counts.labeled === published.labeled &&
+            counts.nodeHidden === published.nodeHidden &&
+            counts.hiddenByOverlap === published.hiddenByOverlap
+        ) {
+            return;
+        }
+
+        this.published = counts;
+        this.context.onNodeLabelCounts?.notifyObservers(counts);
+    }
+
+    /** The setting is off: count the labels without placing any. */
+    private survey(): void {
+        this.dirty = false;
+        let labeled = 0;
+        let nodeHidden = 0;
+        for (const entry of this.entries.values()) {
+            const mesh = this.observe(entry);
+            if (mesh) {
+                labeled++;
+                if (!mesh.isEnabled()) {
+                    nodeHidden++;
+                }
+            }
+        }
+
+        this.setCounts(labeled, nodeHidden, 0);
+    }
+
+    private setCounts(labeled: number, nodeHidden: number, hiddenByOverlap: number): void {
+        const { counts } = this;
+        if (
+            counts.labeled !== labeled ||
+            counts.nodeHidden !== nodeHidden ||
+            counts.hiddenByOverlap !== hiddenByOverlap
+        ) {
+            this.counts = Object.freeze({ labeled, nodeHidden, hiddenByOverlap });
         }
     }
 
@@ -218,15 +306,24 @@ export class LabelDeclutter {
         order.length = 0;
         let widthSum = 0;
         let heightSum = 0;
-        let requested = 0;
+        let labeled = 0;
+        let nodeHidden = 0;
 
         for (const entry of this.entries.values()) {
             const mesh = this.observe(entry);
-            if (!mesh?.isEnabled()) {
+            if (!mesh) {
                 continue;
             }
 
-            requested++;
+            labeled++;
+            // A label this pass does not place is never left hidden by an earlier one, so a label
+            // hidden for overlap and then scrolled away or filtered out is not counted or kept
+            // hidden for a reason that no longer holds.
+            mesh.isVisible = true;
+            if (!mesh.isEnabled()) {
+                nodeHidden++;
+                continue;
+            }
 
             // The label's centre from its NODE's world matrix, not its own. A label is a billboard,
             // so its own world matrix depends on the camera and is stale until the render
@@ -275,7 +372,7 @@ export class LabelDeclutter {
         }
 
         if (order.length === 0) {
-            this.report(requested, []);
+            this.setCounts(labeled, nodeHidden, 0);
             return;
         }
 
@@ -290,13 +387,13 @@ export class LabelDeclutter {
             bucket.length = 0;
         }
 
-        const hidden: (string | number)[] = [];
+        let hiddenByOverlap = 0;
         for (const entry of order) {
             const clear = this.isClear(entry, size);
             if (clear) {
                 this.keep(entry, size);
             } else {
-                hidden.push(entry.node.id);
+                hiddenByOverlap++;
             }
 
             if (entry.mesh) {
@@ -304,47 +401,29 @@ export class LabelDeclutter {
             }
         }
 
-        this.report(requested, hidden);
-    }
-
-    /**
-     * Tell the session what this decision drew, for `session.labels`.
-     * @param requested - The labels drawn on showing nodes before the rule.
-     * @param hidden - The nodes whose label the rule hid.
-     */
-    private report(requested: number, hidden: readonly (string | number)[]): void {
-        const session = this.context.getSession?.();
-        if (session) {
-            labelReportOf(session).report(requested, hidden);
-        }
-    }
-
-    /**
-     * The labels drawn on showing nodes, counted while the rule is off and hides nothing.
-     * @returns The count.
-     */
-    private countRequested(): number {
-        let requested = 0;
-        for (const node of this.entries.keys()) {
-            const mesh = node.label?.labelMesh;
-            if (!mesh || mesh.isDisposed()) {
-                // The label, or the node, is gone. A new label adds the node back.
-                this.entries.delete(node);
-            } else if (mesh.isEnabled()) {
-                requested++;
-            }
-        }
-
-        return requested;
+        this.setCounts(labeled, nodeHidden, hiddenByOverlap);
     }
 
     /**
      * Whether anything that decides placement differs from what the last pass saw.
      * @param camera - The camera the frame is drawn from.
-     * @returns True when the labels have to be placed again.
+     * @param on - Whether the setting is on. Off, only the labels themselves can change the counts.
+     * @returns True when the labels have to be placed (or, off, counted) again.
      */
-    private changed(camera: Camera): boolean {
-        if (this.dirty || camera !== this.camera) {
+    private changed(camera: Camera, on: boolean): boolean {
+        if (this.dirty) {
+            return true;
+        }
+
+        if (on && this.viewChanged(camera)) {
+            return true;
+        }
+
+        return this.labelsChanged();
+    }
+
+    private viewChanged(camera: Camera): boolean {
+        if (camera !== this.camera) {
             return true;
         }
 
@@ -364,6 +443,10 @@ export class LabelDeclutter {
             return true;
         }
 
+        return false;
+    }
+
+    private labelsChanged(): boolean {
         for (const entry of this.entries.values()) {
             const mesh = entry.node.label?.labelMesh ?? null;
             if (mesh !== entry.mesh || !mesh || mesh.isDisposed()) {

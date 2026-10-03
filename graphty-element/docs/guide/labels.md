@@ -1,8 +1,10 @@
 # Labels
 
-A node label is drawn when a style layer asks for one. When labelled nodes sit close together on
-screen, their words land on top of each other. The element can hide a label that would overlap one
-it keeps, and it tells you how many it hid and which, so you can say so to the reader.
+A node label is drawn when a style layer asks for one. When labeled nodes sit close together on
+screen, their words land on top of each other. Turn on `layoutBehavior.labels.declutter` and the
+element hides a label that would overlap one it keeps. `element.nodeLabelCounts` tells you how
+many labels there are and how many were hidden, so your page can say so and offer to show them
+all.
 
 ## Quick start
 
@@ -10,51 +12,51 @@ it keeps, and it tells you how many it hid and which, so you can say so to the r
 import "@graphty/graphty-element";
 
 const element = document.querySelector("graphty-element")!;
-const { session } = element;
-const status = document.querySelector("#label-status")!;
+const status = document.querySelector<HTMLElement>("#label-status")!;
+const showAll = document.querySelector<HTMLInputElement>("#show-all-labels")!;
 
-// Label every node with its name
-await session.styles.add({
-    name: "Names",
-    target: "node",
-    selector: { match: "everything" },
-    encode: { "node.label": { by: "data.name", scale: "passthrough" } },
-});
+function render(): void {
+    const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+    status.textContent = `${labeled} labels, ${hiddenByOverlap} hidden to avoid overlap`;
+}
 
-// Hide a name that would be drawn on top of another, and say how many are hidden
-await session.labels.setDeclutter(true);
-session.on("labels:changed", ({ requested, hiddenByOverlap }) => {
-    status.textContent = `${requested} names, ${hiddenByOverlap} hidden to avoid overlap`;
-});
-
-// Is this node's name one of the hidden ones?
-const hidden = session.labels.hiddenIds().includes("javert");
-
-// Show every name again. One step, which undo takes back
-await session.labels.setDeclutter(false);
+render();
+element.addEventListener("graphty-label-change", render);
+showAll.onchange = () => {
+    element.layoutBehavior = { labels: { declutter: !showAll.checked } };
+};
 ```
 
-- **Which label stays.** A selected node's label is kept first, then the label of the node with
-  more edges, then the node with the smaller id. Select a node and its name is drawn.
-- **The counts follow the picture.** `labels:changed` fires whenever what is hidden changes: the
-  camera moves, a node moves, a label layer is added or removed, the selection changes, or the
-  switch is flipped. `session.labels.counts()` reads the same numbers at any time.
-- **What the numbers mean.** `requested` is every label a style asks for on a node that is
-  showing, `hiddenByOverlap` is how many of those the rule hid, and `drawn` is the difference. A
-  label outside the view is not hidden by the rule, so it counts as drawn.
-- **The switch is saved with the project.** `setDeclutter` writes the same setting as
-  `session.config.set({ layoutBehavior: { labels: { declutter } } })` and as the element's
-  `layoutBehavior` property. It is off by default, so a graph draws every label a style asks for
-  until you turn it on.
-- **Without a screen there is nothing to hide.** A session with no element drawing it (one made
-  with `createGraphSession` in Node) counts zero.
+The element reports numbers only. The words, and whether to show the line at all, are yours.
 
-## Reference
+## What the counts mean
 
-| Member                             | What it is                                                           |
-| ---------------------------------- | -------------------------------------------------------------------- |
-| `session.labels.counts()`          | `{ requested, drawn, hiddenByOverlap }` as of the last frame         |
-| `session.labels.hiddenIds()`       | The ids of the nodes whose label is hidden, the most important first |
-| `session.labels.declutter`         | Whether the overlap rule is on                                       |
-| `session.labels.setDeclutter(on)`  | Turn the rule on or off; one undoable step                           |
-| `session.on("labels:changed", fn)` | `fn` gets the new counts whenever they or the hidden ids change      |
+`element.nodeLabelCounts` is `{ labeled, nodeHidden, hiddenByOverlap }`, as of the last drawn
+frame. All three are zero before a label is drawn, and reading it never forces a frame.
+
+| Field             | What it counts                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `labeled`         | Nodes whose label has text to draw. A node counts once, however many lines it has. |
+| `nodeHidden`      | Of those, nodes not drawn themselves: a filter or the time window hides them.      |
+| `hiddenByOverlap` | Of those, labels in view that declutter hid because they would overlap a kept one. |
+
+- `labeled - nodeHidden - hiddenByOverlap` is how many labels the element would draw. Some of
+  those may be outside the view: a label outside the view is never counted as hidden.
+- `hiddenByOverlap` is always 0 while declutter is off. It depends on the camera and the size of
+  the canvas, so an image exported at another size can hide a different number.
+- Edge labels are not counted. The element never hides an edge label to avoid overlap.
+- A later minor release may add another `hiddenBy...` count for a new reason. Each is a separate
+  part of `labeled`.
+
+## When `graphty-label-change` fires
+
+The event's `detail` is the same counts. It fires when a count changes, once the view has
+stopped changing: never during a camera gesture or while a layout is still moving nodes. It also
+fires once after the first frame that has labels.
+
+## The switch
+
+`layoutBehavior.labels.declutter` is off by default, so a graph draws every label a style asks for
+until you turn it on. Setting it is merged over the rest of `layoutBehavior` and takes effect on the
+next frame. It is a preference of the view: it is not an undo step and a project does not save it.
+Which label stays is described in [Styling](./styling#labels-that-would-overlap).

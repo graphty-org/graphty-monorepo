@@ -45,7 +45,6 @@ import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionSt
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
-import type { LabelCounts, SessionLabels } from "./labels";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
@@ -635,8 +634,8 @@ export interface ProjectConfig {
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
      * The layout-behaviour settings a project file saves. The rest of the element's
-     * `layoutBehavior` (pin on drag, throughput tuning) is a preference of the view and not a
-     * project setting.
+     * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
+     * view and not a project setting.
      */
     readonly layoutBehavior: {
         /** Simulation steps run before the first frame is drawn. */
@@ -645,11 +644,6 @@ export interface ProjectConfig {
         readonly stepMultiplier: number;
         /** The movement below which a simulation counts as settled. */
         readonly minDelta: number;
-        /** The node labels. */
-        readonly labels: {
-            /** Whether labels that would overlap on screen are hidden; see `session.labels`. */
-            readonly declutter: boolean;
-        };
     };
     /**
      * Who is writing: stamped on each note added from now on. Absent when no name is set, never
@@ -672,9 +666,7 @@ export interface ProjectConfigPatch {
     readonly runAlgorithmsOnLoad?: boolean;
     readonly background?: GraphBackgroundConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
-    readonly layoutBehavior?: Partial<Omit<ProjectConfig["layoutBehavior"], "labels">> & {
-        readonly labels?: Partial<ProjectConfig["layoutBehavior"]["labels"]>;
-    };
+    readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
 }
@@ -1219,8 +1211,6 @@ export interface GraphSession {
     readonly views: SessionViews;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
     readonly layout: SessionLayout;
-    /** How many node labels the overlap rule hid, and which, and the rule's switch. */
-    readonly labels: SessionLabels;
     /**
      * The element-owned node coordinates, read by dense node index, where a row no layout has
      * placed reads as unplaced rather than at the origin, with the verbs that place and pin nodes

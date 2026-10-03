@@ -5,7 +5,7 @@
  * path: every leaf of the zod `DataConfig` schema under `data.` (the id, label, weight and time
  * paths, the repeated-edge policy, the position scale, the id coercion, the on-load algorithms and
  * the direction), whether the on-load algorithms run, the background, the selection style, and
- * three layout-behaviour keys and the label overlap switch, and the author stamped on notes. The `DataConfig` leaves are read from the schema when this module
+ * three layout-behaviour keys, and the author stamped on notes. The `DataConfig` leaves are read from the schema when this module
  * loads, so a field added there joins the slice without an edit here.
  *
  * The slice holds only what has been set, as the caller gave it; a key that is absent reads as
@@ -72,7 +72,6 @@ function leavesOf(shape: Readonly<Record<string, z.ZodType>>, prefix: string): [
 }
 
 const LAYOUT = unwrap(GraphBehaviorOpts.shape.layout) as z.ZodObject;
-const LABELS = unwrap(GraphBehaviorOpts.shape.labels) as z.ZodObject;
 
 /** Every key of the `config` slice, with its group and schema. */
 export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, ConfigKey>([
@@ -87,7 +86,6 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
     ]),
-    ["layoutBehavior.labels.declutter", { group: "layoutBehavior", schema: LABELS.shape.declutter as z.ZodType }],
     // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
     [
         "author",
@@ -260,7 +258,6 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             preSteps: read("layoutBehavior.preSteps") as number,
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
-            labels: Object.freeze({ declutter: read("layoutBehavior.labels.declutter") as boolean }),
         }),
         ...(typeof author === "string" ? { author } : {}),
     });

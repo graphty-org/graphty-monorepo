@@ -6,6 +6,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -90,8 +91,11 @@ function symmetricRows(s: GraphSnapshot, weights: NumericVector | null): Symmetr
             for (let a = view.rowPtr[u]; a < view.rowPtr[u + 1]; a++) {
                 const weight = weights === null ? 1 : weights[arcOf(a)];
                 if (!(weight >= 0) || weight === Infinity) {
-                    throw new RangeError(
-                        `an arc has weight ${weight}; spectral clustering needs finite, non-negative weights`,
+                    throw withCode(
+                        new RangeError(
+                            `an arc has weight ${weight}; spectral clustering needs finite, non-negative weights`,
+                        ),
+                        "E_BAD_WEIGHT",
                     );
                 }
                 if (view.colIdx[a] !== u) {
@@ -445,17 +449,23 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
     const tolerance = options.tolerance ?? 1e-4;
     const seed = options.seed ?? 42;
     if (!Number.isInteger(k) || k < 1) {
-        throw new RangeError(`k must be a positive integer, got ${k}`);
+        throw withCode(new RangeError(`k must be a positive integer, got ${k}`), "E_BAD_OPTION");
     }
     if (!["unnormalized", "normalized", "randomWalk"].includes(type)) {
-        throw new RangeError(`unknown laplacianType "${type}"`);
+        throw withCode(new RangeError(`unknown laplacianType "${type}"`), "E_BAD_OPTION");
     }
     if (!Number.isInteger(maxIterations) || maxIterations < 0 || !(tolerance >= 0) || !Number.isInteger(seed)) {
-        throw new RangeError("maxIterations and seed must be integers, maxIterations and tolerance non-negative");
+        throw withCode(
+            new RangeError("maxIterations and seed must be integers, maxIterations and tolerance non-negative"),
+            "E_BAD_OPTION",
+        );
     }
     const weights = options.weights ?? s.weights;
     if (weights !== null && weights.length !== s.arcCount) {
-        throw new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`);
+        throw withCode(
+            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
+            "E_BAD_OPTION",
+        );
     }
     const n = s.nodeCount;
     if (k >= n) {

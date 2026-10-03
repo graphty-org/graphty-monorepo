@@ -1,4 +1,13 @@
-import { type AdjacencyView, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type ReverseView,
+    type U32,
+} from "@graphty/graph-format";
+
+import { withCode } from "../errors.js";
+import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 
 /** Result of the index-based BFS (graph-format design 14.2 Port 1). @public */
 export interface BfsResult {
@@ -10,6 +19,40 @@ export interface BfsResult {
     readonly depth: U32;
     /** How many nodes were visited. */
     readonly visitedCount: number;
+    /**
+     * The ARC each node was discovered through (`colIdx[predArc[v]] === v`), INVALID_INDEX for the start node and
+     * for unvisited nodes. `arcToEdge[predArc[v]]` is the tree edge, the exact one among parallel edges.
+     */
+    readonly predArc: U32;
+    /**
+     * Node indices along the tree from the start to `target` inclusive; empty when `target` was not visited.
+     * @param target - The node index to walk back from
+     */
+    pathTo(target: number): U32;
+    /**
+     * LOGICAL EDGE indices of the tree edges along that path, one fewer than `pathTo`; empty when `target` was not
+     * visited.
+     * @param target - The node index to walk back from
+     */
+    pathEdges(target: number): U32;
+}
+
+/**
+ * The path accessors of a traversal tree recorded as predecessor arcs.
+ * @param g - The adjacency the traversal ran on
+ * @param start - The traversal's start node
+ * @param predArc - The arc each node was discovered through
+ * @returns `pathTo` and `pathEdges`
+ */
+export function treePaths(
+    g: AdjacencyView,
+    start: number,
+    predArc: U32,
+): { pathTo(target: number): U32; pathEdges(target: number): U32 } {
+    return {
+        pathTo: (target) => walkPredArcs(g, predArc, start, target),
+        pathEdges: (target) => walkPredEdges(g, predArc, start, target),
+    };
 }
 
 /** The neighbour-order option the order-sensitive traversals share. @public */
@@ -45,7 +88,10 @@ export interface BfsOptions extends ArcOrderOption {
  */
 export function checkStart(g: AdjacencyView, start: number, what = "start"): void {
     if (!Number.isInteger(start) || start < 0 || start >= g.nodeCount) {
-        throw new RangeError(`${what} node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`);
+        throw withCode(
+            new RangeError(`${what} node index ${String(start)} is out of range for ${String(g.nodeCount)} nodes`),
+            "E_BAD_NODE",
+        );
     }
 }
 
@@ -78,7 +124,10 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
     }
     const { rowPtr, nodeCount } = g;
     if (arcOrder.length !== g.arcCount) {
-        throw new RangeError(`arcOrder has ${String(arcOrder.length)} entries, expected ${String(g.arcCount)}`);
+        throw withCode(
+            new RangeError(`arcOrder has ${String(arcOrder.length)} entries, expected ${String(g.arcCount)}`),
+            "E_BAD_OPTION",
+        );
     }
     const seen = new Uint8Array(arcOrder.length);
     for (let u = 0; u < nodeCount; u++) {
@@ -86,13 +135,19 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
         const end = rowPtr[u + 1];
         for (let a = begin; a < end; a++) {
             if (arcOrder[a] < begin || arcOrder[a] >= end) {
-                throw new RangeError(
-                    `arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`,
+                throw withCode(
+                    new RangeError(
+                        `arcOrder[${String(a)}] = ${String(arcOrder[a])} is not an arc of node ${String(u)}`,
+                    ),
+                    "E_BAD_OPTION",
                 );
             }
             if (seen[arcOrder[a]] === 1) {
-                throw new RangeError(
-                    `arcOrder[${String(a)}] = ${String(arcOrder[a])} repeats an arc of node ${String(u)}`,
+                throw withCode(
+                    new RangeError(
+                        `arcOrder[${String(a)}] = ${String(arcOrder[a])} repeats an arc of node ${String(u)}`,
+                    ),
+                    "E_BAD_OPTION",
                 );
             }
             seen[arcOrder[a]] = 1;
@@ -115,6 +170,7 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
     const { nodeCount, rowPtr, colIdx } = g;
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
+    const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const order = new Uint32Array(nodeCount);
     const maxDepth = options.maxDepth ?? INVALID_INDEX;
@@ -133,16 +189,25 @@ export function breadthFirstSearch(g: AdjacencyView, start: number, options: Bfs
             continue;
         }
         const end = rowPtr[u + 1];
-        for (let a = rowPtr[u]; a < end; a++) {
-            const v = colIdx[arcOrder === null ? a : arcOrder[a]];
+        for (let i = rowPtr[u]; i < end; i++) {
+            const a = arcOrder === null ? i : arcOrder[i];
+            const v = colIdx[a];
             if (depth[v] === INVALID_INDEX) {
                 depth[v] = d + 1;
                 parent[v] = u;
+                predArc[v] = a;
                 order[tail++] = v;
             }
         }
     }
-    return { order: order.subarray(0, tail), parent, depth, visitedCount: tail };
+    return {
+        order: order.subarray(0, tail),
+        parent,
+        depth,
+        visitedCount: tail,
+        predArc,
+        ...treePaths(g, start, predArc),
+    };
 }
 
 /** Options of {@link directionOptimizedBfs}. @public */
@@ -154,6 +219,34 @@ export interface DirectionOptimizedBfsOptions {
     readonly alpha?: number | undefined;
     /** Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes. Default 18. */
     readonly beta?: number | undefined;
+}
+
+/**
+ * On an undirected snapshot, the arc `u -> v` of the same logical edge as arc `a` (`v -> u`): the row of `u` is
+ * sorted by neighbour, so a binary search finds `v`'s run of parallel arcs and the one carrying the same edge.
+ * @param s - An undirected snapshot
+ * @param a - An arc out of `v`
+ * @param u - The arc's target
+ * @param v - The arc's source
+ * @returns The twin arc, out of `u`
+ */
+function twinArc(s: GraphSnapshot, a: number, u: number, v: number): number {
+    const { rowPtr, colIdx, arcToEdge } = s;
+    let lo = rowPtr[u];
+    let hi = rowPtr[u + 1];
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (colIdx[mid] < v) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    const end = rowPtr[u + 1];
+    while (lo < end && colIdx[lo] === v && arcToEdge[lo] !== arcToEdge[a]) {
+        lo++;
+    }
+    return lo;
 }
 
 /**
@@ -179,8 +272,9 @@ export function directionOptimizedBfs(
     const { nodeCount, rowPtr, colIdx } = s;
     const alpha = options.alpha ?? 15;
     const beta = options.beta ?? 18;
-    let reverse: AdjacencyView | null = null;
+    let reverse: ReverseView | null = null;
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
+    const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     // order[levelStart, tail) is the current frontier, sorted ascending.
     const order = new Uint32Array(nodeCount);
@@ -213,6 +307,7 @@ export function directionOptimizedBfs(
                     const u = reverse.colIdx[a];
                     if (depth[u] === d) {
                         parent[v] = u;
+                        predArc[v] = s.directed ? reverse.fwdArc[a] : twinArc(s, a, u, v);
                         depth[v] = d + 1;
                         order[tail++] = v;
                         break;
@@ -227,6 +322,7 @@ export function directionOptimizedBfs(
                     const v = colIdx[a];
                     if (depth[v] === INVALID_INDEX) {
                         parent[v] = u;
+                        predArc[v] = a;
                         depth[v] = d + 1;
                         order[tail++] = v;
                     }
@@ -239,5 +335,12 @@ export function directionOptimizedBfs(
         }
         levelStart = levelEnd;
     }
-    return { order: order.subarray(0, tail), parent, depth, visitedCount: tail };
+    return {
+        order: order.subarray(0, tail),
+        parent,
+        depth,
+        visitedCount: tail,
+        predArc,
+        ...treePaths(s, source, predArc),
+    };
 }

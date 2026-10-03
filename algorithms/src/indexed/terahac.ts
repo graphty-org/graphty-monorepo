@@ -1,5 +1,6 @@
 import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based TeraHAC, matching the legacy `teraHAC`. @public */
@@ -105,11 +106,11 @@ function pairwiseDistances(s: GraphSnapshot, useGraphDistance: boolean): Float64
 export function teraHAC(s: GraphSnapshot, options: TeraHacOptions = {}): TeraHacResult {
     const { linkage = "average", numClusters, distanceThreshold, useGraphDistance = true } = options;
     if (numClusters !== undefined && (numClusters < 1 || !Number.isInteger(numClusters))) {
-        throw new Error("numClusters must be a positive integer");
+        throw withCode(new Error("numClusters must be a positive integer"), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
     if (n === 0) {
-        throw new Error("Cannot cluster empty graph");
+        throw withCode(new Error("Cannot cluster empty graph"), "E_EMPTY_GRAPH");
     }
 
     // ponytail: dense n x n aggregate matrix, the same memory as legacy's distance matrix; a sparse

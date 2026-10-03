@@ -92,7 +92,12 @@
  * 7415-7418).
  */
 
-import { NODE_METRIC_DEFINITIONS, type NodeMetricId, type NodeMetricRanking } from "../analysis/nodeMetrics";
+import {
+    formatMetricValue,
+    NODE_METRIC_DEFINITIONS,
+    type NodeMetricId,
+    type NodeMetricRanking,
+} from "../analysis/nodeMetrics";
 import { formatCount, formatPercent, formatProseCount } from "./readingFormat";
 
 /**
@@ -130,12 +135,6 @@ export interface NodeMetricStatistics {
 export const NODE_METRIC_TOP_ROWS = 3;
 
 /**
- * The display rounding spec 2266-2272 sets -- "display rounds to the Settings > Defaults
- * decimal places (default 2)". The default is the constant until that setting is drawn.
- */
-const DISPLAY_DECIMAL_PLACES = 2;
-
-/**
  * The share of ranked nodes that must tie at the minimum before the body states it:
  * spec 2307's "a line 'Zero or near-zero: 912,400 nodes (91%)' when more than 10% tie at
  * the minimum". Strictly more than, as the spec says.
@@ -154,9 +153,6 @@ const NEAR_ZERO_VALUE_SHARE = 0.01;
 /** Below this ratio the multiple keeps one decimal; at or above it, it is a whole number. */
 const RATIO_DECIMAL_CEILING = 10;
 
-/** Guards `toFixed`, which throws above 100 digits, for a value a hair above zero. */
-const MAX_SIGNIFICANT_DECIMALS = 20;
-
 /**
  * The lead of the collapsed headline, one per metric.
  *
@@ -173,50 +169,6 @@ const HEADLINE_LEADS: Readonly<Record<NodeMetricId, string>> = {
     degree: "Most connected",
     pagerank: "Most influential",
 };
-
-/**
- * A metric value as the surface draws it.
- *
- * A metric the definitions declare `integerValued` prints exact through
- * {@link formatCount}: a degree is a count of links and "12.00 links" is not a thing
- * anyone measured. So does any value that happens to land exactly on an integer, which is
- * also what keeps a measured 0 out of the significant-figures branch below. Everything
- * else prints to {@link DISPLAY_DECIMAL_PLACES} decimals, WITH ONE DEPARTURE, stated here
- * in full because it is a departure from a spec line rather than an implementation
- * detail.
- *
- * Spec 2266-2272 sets display rounding at the Settings > Defaults decimal places, default
- * 2. Applied literally to a PageRank score of 0.0034 that gives "0.00", which is not a
- * rounded value but an erased one: every node in the lower half of a PageRank ranking
- * would print the same string and the column would stop being data. The setting exists to
- * make values comparable, so below 1 in magnitude it is read as
- * {@link DISPLAY_DECIMAL_PLACES} SIGNIFICANT figures instead -- 0.0034 stays "0.0034",
- * 0.41 stays "0.41" -- which keeps the same two-digit precision the setting asks for and
- * keeps the values distinguishable. At or above 1 the two readings coincide.
- * @param metric - which metric the value belongs to, which is what says whether it is a
- * count.
- * @param value - the value. A non-finite value reads "0", matching {@link formatCount}.
- * @returns the value as a string, e.g. 1234 -> "1,234", 41.276 -> "41.28", 0.0034 -> "0.0034".
- */
-export function formatMetricValue(metric: NodeMetricId, value: number): string {
-    if (!Number.isFinite(value)) {
-        return "0";
-    }
-
-    if (NODE_METRIC_DEFINITIONS[metric].integerValued || Number.isInteger(value)) {
-        return formatCount(value);
-    }
-
-    const magnitude = Math.abs(value);
-    if (magnitude < 1) {
-        const leadingZeros = -Math.floor(Math.log10(magnitude));
-        const decimals = Math.min(leadingZeros + DISPLAY_DECIMAL_PLACES - 1, MAX_SIGNIFICANT_DECIMALS);
-
-        return value.toFixed(decimals);
-    }
-
-    return value.toFixed(DISPLAY_DECIMAL_PLACES);
-}
 
 /**
  * The multiple the two ratio templates print: a whole number, or one decimal below 10,
@@ -251,7 +203,7 @@ function ratioSentence(statistics: NodeMetricStatistics, multipleSentence: (rati
     const ratio = topValue / medianValue;
 
     if (medianValue === 0 || !Number.isFinite(ratio)) {
-        return `Half the nodes score ${formatMetricValue(metric, medianValue)} or less.`;
+        return `Half the nodes score ${formatMetricValue(medianValue, NODE_METRIC_DEFINITIONS[metric].integerValued)} or less.`;
     }
 
     return multipleSentence(formatRatio(ratio));
@@ -356,10 +308,9 @@ const DEGENERATE_READINGS: Readonly<Record<NodeMetricId, DegenerateReadings>> = 
     },
     degree: {
         nothingMeasured: ({ rankedCount }) =>
-            [
-                "No node has any links.",
-                `All ${formatProseCount(rankedCount)} measured nodes are on their own.`,
-            ].join(" "),
+            ["No node has any links.", `All ${formatProseCount(rankedCount)} measured nodes are on their own.`].join(
+                " ",
+            ),
         tiedWithTypical: ({ topId, topValue }) =>
             [
                 `${topId} is among the most connected, with ${formatProseCount(topValue)} links.`,
@@ -368,15 +319,11 @@ const DEGENERATE_READINGS: Readonly<Record<NodeMetricId, DegenerateReadings>> = 
     },
     pagerank: {
         nothingMeasured: ({ rankedCount }) =>
-            [
-                "No node scored any influence.",
-                `All ${formatProseCount(rankedCount)} measured nodes scored 0.`,
-            ].join(" "),
+            ["No node scored any influence.", `All ${formatProseCount(rankedCount)} measured nodes scored 0.`].join(
+                " ",
+            ),
         tiedWithTypical: ({ topId }) =>
-            [
-                `${topId} is among the most influential.`,
-                "At least half the measured nodes score as much.",
-            ].join(" "),
+            [`${topId} is among the most influential.`, "At least half the measured nodes score as much."].join(" "),
     },
 };
 
@@ -445,7 +392,7 @@ export function nodeMetricHeadline(statistics: NodeMetricStatistics): string {
         return `${HEADLINE_LEADS[metric]}: none`;
     }
 
-    const value = formatMetricValue(metric, topValue);
+    const value = formatMetricValue(topValue, NODE_METRIC_DEFINITIONS[metric].integerValued);
     if (topValue === medianValue) {
         return `${HEADLINE_LEADS[metric]}: ${topId} (${value}, tied)`;
     }
@@ -527,7 +474,7 @@ export function nodeMetricResultBody(ranking: NodeMetricRanking): readonly NodeM
         .slice(0, NODE_METRIC_TOP_ROWS)
         .map((reading, index) => ({
             name: reading.label,
-            value: formatMetricValue(ranking.metric, reading.value),
+            value: formatMetricValue(reading.value, NODE_METRIC_DEFINITIONS[ranking.metric].integerValued),
             rank: index + 1,
             nodeId: reading.id,
         }));
@@ -537,7 +484,7 @@ export function nodeMetricResultBody(ranking: NodeMetricRanking): readonly NodeM
         rows.push({
             name: isNearZeroMinimum(minValue, maxValue)
                 ? "Zero or near-zero"
-                : `Lowest value (${formatMetricValue(metric, minValue)} ${NODE_METRIC_DEFINITIONS[metric].unitWord})`,
+                : `Lowest value (${formatMetricValue(minValue, NODE_METRIC_DEFINITIONS[metric].integerValued)} ${NODE_METRIC_DEFINITIONS[metric].unitWord})`,
             value: `${formatCount(tiedAtMinimum)} nodes (${formatPercent(tiedAtMinimum / rankedCount)})`,
         });
     }

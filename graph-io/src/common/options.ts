@@ -455,7 +455,7 @@ function encodingOption(value: unknown): string | null {
  * @param value - the value
  * @returns the JSON text of a primitive, or the type name otherwise
  */
-function describe(value: unknown): string {
+export function describe(value: unknown): string {
     switch (typeof value) {
         case "string":
             return JSON.stringify(value);

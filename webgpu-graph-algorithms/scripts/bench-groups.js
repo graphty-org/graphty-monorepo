@@ -65,6 +65,7 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/kernel/prelude.ts",
     "src/kernel/wgsl.ts",
     "src/browser/index.ts",
+    "src/managed.ts",
     "src/index.ts",
     "src/accelerator.ts",
     "src/algorithms/bellman-ford.ts",
@@ -145,6 +146,10 @@ export function kernelModules() {
  */
 function reachedSrc(roots, kernels) {
     const registry = join(PACKAGE_DIR, "src/kernels.ts");
+    // src/managed.ts (acquireAccelerator) imports createAccelerator and through it every algorithm and layout, and
+    // the node and browser entries import it; no benchmark calls it, so following it would put every algorithm in
+    // every group. It is in AFFECTS_EVERY_GROUP instead.
+    const managed = join(PACKAGE_DIR, "src/managed.ts");
     const seen = new Set();
     const stack = [...roots];
     while (stack.length > 0) {
@@ -153,7 +158,7 @@ function reachedSrc(roots, kernels) {
             continue;
         }
         seen.add(file);
-        for (const spec of relativeImports(file)) {
+        for (const spec of file === managed ? [] : relativeImports(file)) {
             const target = resolveImport(file, spec);
             if (target !== null && !(file === registry && spec.startsWith("./wgsl/"))) {
                 stack.push(target);

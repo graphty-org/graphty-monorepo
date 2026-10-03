@@ -29,7 +29,7 @@ Where the contract is silent, choose the simplest option consistent with the spe
 
 ```
 webgpu-graph-algorithms/
-+-- package.json                  # ESM only, sideEffects false, "." + "./browser" + "./node"; webgpu an optional peer + an exact devDependency
++-- package.json                  # ESM only, sideEffects false, "." + "./browser" + "./node" + "./acquire" (export conditions: browser/default -> dist/browser.js, node -> dist/node.js; types dist/acquire.d.ts); webgpu an optional peer + an exact devDependency
 +-- project.json                  # Nx project "webgpu-graph-algorithms" (cwd values are the monorepo's)
 +-- tsconfig.json                 # lint/typecheck: src/ test/ benchmarks/ scripts/*.d.ts + ../graph-format/src (paths); types node, vitest/globals, vite/client, @webgpu/types
 +-- tsconfig.build.json           # emit: src/ only, rootDir ".", outDir dist (-> dist/src/), stripInternal
@@ -63,6 +63,7 @@ webgpu-graph-algorithms/
 |   +-- algorithms/               # degree.ts (P1, the walking skeleton); from P7 no longer one file: scope.ts (the per-call scratch scope), pagerank.ts (pageRank, personalizedPageRank), power-iteration.ts (the shared driver), spectral.ts (hits, eigenvectorCentrality, katzCentrality), components.ts (connectedComponents, Afforest); P8's frontier family: bfs.ts (breadthFirstSearch; bfsWithTuning is the @internal seam), sssp.ts (sssp, the near-far queue; the shared routing helpers), bellman-ford.ts (bellmanFord), closeness.ts (closenessCentrality: the all-pairs sweep plus `closeness-rowsum` on small and weighted graphs, `closeness-level` -- one dispatch per level, push or pull chosen on the device -- otherwise, one `sssp` per source for a weighted graph above the all-pairs ceiling); betweenness.ts (betweennessCentrality, edgeBetweennessCentrality: the tagged k-source batches, `planBatchSize`, the @internal `betweennessWithTuning`); mst.ts (minimumSpanningTree: Boruvka's forest over the edge list, `mst-best` twice, `mst-link`, then `wcc-compress`; the forest of the total order (weight, edge index), so the edge set of `kruskalMST`); all-pairs.ts (allPairsShortestPath: blocked Floyd-Warshall over `apsp-init` and the three `apsp-fw` phases, `E_TOO_LARGE` above `floor(sqrt(maxStorageBufferBindingSize / 4))` nodes)
 |   +-- layouts/                  # repulsion-exact.ts (P1), seed.ts, inputs.ts, force-simulation.ts, forceatlas2.ts (P3), model-common.ts, fruchterman-reingold.ts, spring-electrical.ts (P5), repulsion-grid.ts (P4: the G1-G7 stage every model's grid tier records), calibrate.ts (P4: calibrateLayout)
 |   +-- accelerator.ts            # createAccelerator(ctx, options?): the three layout members, P7's seven algorithm members and P8's four traversal members (breadthFirstSearch, sssp, bellmanFord, closenessCentrality) and the two betweenness members, each `ctx.assertReady()` then its driver; never a throwing stub
+|   +-- managed.ts                # manageAccelerator: probe, context, verifyDevice, createAccelerator, re-acquire after loss, dispose; the runtime half comes from the entries (acquireAccelerator)
 |   +-- browser/index.ts          # the ./browser entry: the ONLY directory that may reference navigator
 |   +-- node/index.ts             # the ./node entry: the ONLY file that names the "webgpu" module, inside a dynamic import()
 +-- test/
@@ -80,7 +81,7 @@ webgpu-graph-algorithms/
 ```
 
 The layer rule (spec 3.2), enforced by the eslint zones AND `test/layers.test.ts` (import graph, cycles, greps):
-`device < context < memory < kernel < kernels.ts < primitives < algorithms / layouts < accelerator`. A lower
+`device < context < memory < kernel < kernels.ts < primitives < algorithms / layouts < accelerator < managed.ts < entries`. A lower
 layer never imports a higher one; `context.ts` is the one file that imports memory and kernel from below the
 primitives (it constructs them); `src/kernel/**` may `import type` from `src/memory/**` but never a value (the
 shared `Binding` / `ArcWindow` types live in `src/types/memory.ts`); `src/wgsl/**` is imported only by

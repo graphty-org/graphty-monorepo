@@ -187,6 +187,16 @@ closes, an added one goes last. With `sort`, numbers come before text, text sort
 keep the order they were added in. The order is computed once per revision, so paging through
 it costs only the records on each page.
 
+"The edge between two nodes" is plural, because a graph may hold more than one:
+
+```typescript
+const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // readonly Edge[]
+```
+
+In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
+colon. Neither could represent a graph that holds two edges between one pair -- see
+[Data Sources](./data-sources#two-edges-between-the-same-pair).
+
 ### Result values as table columns
 
 A table that ranks nodes by an algorithm shows the measure as a column and sorts by it. Name the
@@ -213,16 +223,6 @@ same name. A node the run gave no value (outside its scope, or before it finishe
 for the column and sorts last in either direction. `edgePage` takes edge fields the same way.
 When the run is run again, the page's `revision` changes, and the next page read shows the new
 values. Anything else in `columns` is refused with `E_OPTION_RANGE`.
-
-"The edge between two nodes" is plural, because a graph may hold more than one:
-
-```typescript
-const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // readonly Edge[]
-```
-
-In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
-colon. Neither could represent a graph that holds two edges between one pair -- see
-[Data Sources](./data-sources#two-edges-between-the-same-pair).
 
 ### Selection
 

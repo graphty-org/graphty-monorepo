@@ -39,10 +39,25 @@ export function initSentry(config?: SentryConfig): void {
         dsn,
         environment: effectiveConfig.environment,
         tracesSampleRate: effectiveConfig.isProd ? 0.1 : 1.0,
-        replaysSessionSampleRate: 0, // Privacy-first
-        replaysOnErrorSampleRate: 0,
+        // Started only once the reader has said Share usage data (workspace/privacy/usageData.ts),
+        // whose "What is collected" list promises a replay of each session with every text and
+        // input masked. The canvas is not recorded: replay draws no canvas without its canvas
+        // integration, which is not added.
+        replaysSessionSampleRate: 1.0,
+        replaysOnErrorSampleRate: 1.0,
+        integrations: [Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true })],
     });
     initialized = true;
+}
+
+/**
+ * Stop sending anything: the reader turned usage data off.
+ */
+export function stopSentry(): void {
+    if (initialized) {
+        void Sentry.close();
+    }
+    initialized = false;
 }
 
 /**

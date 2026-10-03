@@ -82,6 +82,7 @@ import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
+import { bindResultPath } from "./results/types";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -1459,7 +1460,8 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
     for (const run of runs.list()) {
         for (const field of run.fields) {
             if (field.kind === target) {
-                paths.push(field.path);
+                // A field declared by its algorithm names the run as "$" until bound to this one.
+                paths.push(bindResultPath(field.path, run.id));
             }
         }
     }
@@ -1515,7 +1517,7 @@ function fieldWordsOf(
 
         for (const run of runs.list()) {
             for (const field of run.fields) {
-                if (field.path === path && field.kind === target) {
+                if (bindResultPath(field.path, run.id) === path && field.kind === target) {
                     return { plainName: field.plainName, technicalName: field.technicalName };
                 }
             }

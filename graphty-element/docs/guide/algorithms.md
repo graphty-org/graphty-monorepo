@@ -399,35 +399,11 @@ await element.session.styles.encode({ run: degree, channel: "node.size" });
 Layers stack, so the two do not fight: one decides colour, the other decides size, and
 `session.styles.legend()` describes both.
 
-### What a run changed
+### What a run painted
 
-A run lands on top of the runs before it, so a second run that colors the nodes hides the first
-one's colors. A layer you wrote yourself that already colors every node wins instead, and the
-run's color is held back. Ask what happened, to tell the reader:
-
-```typescript
-await element.run("degree");
-const run = element.run("pagerank");
-await run;
-
-const landing = element.session.runs.landing(run.id);
-for (const { channel, from } of landing?.tookOver ?? []) {
-    const below = element.session.runs.get(from)?.label ?? from;
-    console.log(`${run.label} now paints ${channel}; ${below} moved below`);
-}
-for (const { channel, byLayer } of landing?.withheld ?? []) {
-    console.log(`${run.label} left ${channel} alone: layer ${byLayer} already paints it`);
-}
-```
-
-| Field      | Meaning                                                                     |
-| ---------- | --------------------------------------------------------------------------- |
-| `applied`  | The channels the run's layers paint, such as `"node.color"`                 |
-| `withheld` | `{ channel, byLayer }`: a suggestion your layer held back, and that layer   |
-| `tookOver` | `{ channel, from }`: a channel this run now paints over another run's layer |
-
-`landing()` returns `undefined` until the run has succeeded. `applied` and `tookOver` read the
-layers as they are now, so moving or removing a layer changes them.
+A run's suggested style is not always painted: a layer you wrote that already colors every node
+holds it back. `session.runs.painting(runId)` reports what happened to each suggestion. See
+[What a Run Painted](./run-painting).
 
 ## Custom Algorithms
 

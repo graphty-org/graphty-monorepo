@@ -68,6 +68,7 @@ export default defineConfig({
                         { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Renderer", link: "/guide/renderer" },
                         { text: "Algorithms", link: "/guide/algorithms" },
+                        { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Data Sources", link: "/guide/data-sources" },

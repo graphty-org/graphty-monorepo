@@ -50,12 +50,12 @@ describe("Inspector", () => {
             expect(INSPECTOR_HEADER_CLUSTER_WIDTH).toBe(80);
         });
 
-        it("leaves 167px of name band beside that cluster", () => {
-            expect(INSPECTOR_HEADER_NAME_BAND).toBe(167);
+        it("leaves 127px of name band beside that cluster in the 240px column", () => {
+            expect(INSPECTOR_HEADER_NAME_BAND).toBe(127);
         });
 
-        it("takes the 280px panel column and not the superseded 260", () => {
-            expect(INSPECTOR_WIDTH_DEFAULT).toBe(280);
+        it("takes the library's 240px panel column", () => {
+            expect(INSPECTOR_WIDTH_DEFAULT).toBe(240);
         });
 
         it("draws a 36px header", () => {

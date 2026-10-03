@@ -85,6 +85,32 @@ When the element fix genuinely cannot land first -- a release is in flight, the 
 the workaround is temporary and must say so: a comment naming the element defect, and a tracking
 record. It is not done until the element is fixed and the workaround is deleted.
 
+### graphty-element is neutral about presentation
+
+**graphty-element owns the graph: its data, the computation over it, and drawing it on the canvas.
+Applications own everything around the graph: what information to show, how to arrange and group
+it, what to call it, and how the controls behave.**
+
+The owner's rule (2026-10-03): "graphty-element MUST be neutral about how information is displayed
+and MUST NOT be opinionated about presentation or information structure. the division of labor is
+that graphty app (or other apps that use graphty-element) will make ALL presentation decisions, and
+all the logic for manging data and rendering it lives in graphty-element."
+
+This is not the Model/View split of MVC: graphty-element also owns a view (the canvas it draws,
+styled through style layers) and its controls (what a click, drag, zoom or keyboard walk on the
+canvas does). The line runs around the graph, not between layers. Concretely, a graphty-element API
+returns neutral, structured facts -- values, descriptors, error and event codes with their
+parameters -- and never:
+
+- reader-facing sentences or default English text (return `{ code, params }`; the app writes the
+  words)
+- headings, section groupings or display order for a panel (the Style tab's sections, the Analyze
+  popover's categories)
+- choices of what to show a reader, or how much of it
+
+A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
+a reader sees it is the application's.
+
 ### Easy things easy, hard things possible
 
 Every public API and extension point has a simple path and an advanced path. The simple path's
@@ -782,6 +808,18 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
+
+### Merging
+
+Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
+a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
+date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
+`Lint PR Title` succeed. Nobody turns on auto-merge by hand.
+
+- To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
+  Adding `hold` also takes an already-queued pull request out of the queue.
+- Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
+  request with it on would merge anyway.
 
 ### Breaking changes and major releases
 

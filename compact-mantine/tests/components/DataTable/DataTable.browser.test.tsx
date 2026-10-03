@@ -13,8 +13,9 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it } from "vitest";
 
-import { compactTheme, PANEL_GRID } from "../../../src";
+import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
+import { PANEL_GRID } from "../../../src/constants/panel";
 
 interface Node {
     id: string;
@@ -32,6 +33,10 @@ const COLUMNS: DataTableColumn<Node>[] = [
     { id: "label", header: "Node", value: (node) => node.label, width: 160 },
     { id: "degree", header: "Links", value: (node) => node.degree, align: "end", width: 80 },
 ];
+
+/** The default row (Figma's 32px list pitch, design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
+const ROW = 32;
+const PITCH = ROW + 1;
 
 /** The height of the scrolling area these tests measure against. */
 const VIEWPORT = 320;
@@ -67,7 +72,7 @@ describe("DataTable geometry", () => {
         renderTable(<DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />);
 
         const drawn = screen.getAllByTestId("data-table-row");
-        // The viewport holds eleven rows at the 28px pitch. Overscan draws eight
+        // The viewport holds seven rows at the 41px pitch. Overscan draws eight
         // more above and below, so anything under thirty is virtualization
         // working and two thousand is it not working at all.
         expect(drawn.length).toBeLessThan(30);
@@ -78,7 +83,7 @@ describe("DataTable geometry", () => {
             // The scrollbar is the length of all two thousand rows: that is
             // what makes the scroll position mean the same thing it would if
             // every row were really there.
-            expect(viewport.scrollHeight).toBeGreaterThanOrEqual(2000 * PANEL_GRID.DATA_PITCH);
+            expect(viewport.scrollHeight).toBeGreaterThanOrEqual(2000 * PITCH - 1);
         });
     });
 
@@ -91,14 +96,14 @@ describe("DataTable geometry", () => {
         expect(field.getBoundingClientRect().height).toBe(PANEL_GRID.CONTROL_HEIGHT);
     });
 
-    it("keeps the rows exactly one data pitch apart", () => {
+    it("keeps the rows one 40px row and one 1px grid line apart", () => {
         renderTable(<DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />);
 
         const rows = screen.getAllByTestId("data-table-row");
         const boxes = rows.map((row) => row.getBoundingClientRect()).sort((a, b) => a.top - b.top);
 
-        expect(boxes[0].height).toBeCloseTo(PANEL_GRID.DATA_PITCH, 1);
-        expect(boxes[1].top - boxes[0].top).toBeCloseTo(PANEL_GRID.DATA_PITCH, 1);
+        expect(boxes[0].height).toBeCloseTo(ROW, 1);
+        expect(boxes[1].top - boxes[0].top).toBeCloseTo(PITCH, 1);
     });
 
     it("swaps one set of rows for another as the table is scrolled", async () => {
@@ -107,7 +112,7 @@ describe("DataTable geometry", () => {
         expect(drawnRowIndexes()[0]).toBe(2);
 
         const viewport = screen.getByTestId("data-table-viewport");
-        viewport.scrollTop = 500 * PANEL_GRID.DATA_PITCH;
+        viewport.scrollTop = 500 * PITCH;
 
         await waitFor(() => {
             expect(drawnRowIndexes()[0]).toBeGreaterThan(480);
@@ -125,7 +130,7 @@ describe("DataTable geometry", () => {
         const header = screen.getAllByRole("columnheader")[0];
         const before = header.getBoundingClientRect().top;
 
-        viewport.scrollTop = 500 * PANEL_GRID.DATA_PITCH;
+        viewport.scrollTop = 500 * PITCH;
         await waitFor(() => {
             expect(drawnRowIndexes()[0]).toBeGreaterThan(480);
         });
@@ -258,12 +263,12 @@ describe("DataTable over a window of the rows", () => {
 
         const viewport = screen.getByTestId("data-table-viewport");
         await waitFor(() => {
-            expect(viewport.scrollHeight).toBeGreaterThan(TOTAL * PANEL_GRID.DATA_PITCH * 0.99);
+            expect(viewport.scrollHeight).toBeGreaterThan(TOTAL * PITCH * 0.99);
         });
         expect(screen.getByRole("grid").getAttribute("aria-rowcount")).toBe(String(TOTAL + 1));
         expect(ranges[0]?.[0]).toBe(0);
 
-        viewport.scrollTop = 60_000 * PANEL_GRID.DATA_PITCH;
+        viewport.scrollTop = 60_000 * PITCH;
 
         await waitFor(() => {
             expect(screen.getByText("Node 60000")).toBeTruthy();

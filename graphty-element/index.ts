@@ -110,6 +110,10 @@ export {
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
 
+// The shapes every session verb names things with: a data column, a run's result column, a coded
+// fact (graphty-element reports facts, never sentences) and a progress report
+export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+
 // Notes: text people write about the graph, as `element.session.notes`
 export type {
     Note,

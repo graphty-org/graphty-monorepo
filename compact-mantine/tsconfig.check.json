@@ -3,7 +3,9 @@
     "compilerOptions": {
         "composite": false,
         "noEmit": true,
-        "declaration": true
+        "declaration": true,
+        "target": "ES2022",
+        "module": "ES2022"
     },
     "include": ["src/**/*", "stories/**/*", "tests/**/*"],
     "exclude": ["node_modules", "dist"]

@@ -100,6 +100,7 @@ export default defineConfig({
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
+                        { text: "Columns, Runs & Progress", link: "/graphty-element/guide/vocabulary" },
                         { text: "Undo & History", link: "/graphty-element/guide/undo" },
                         { text: "Camera", link: "/graphty-element/guide/camera" },
                         { text: "Screenshots & Video", link: "/graphty-element/guide/screenshots" },

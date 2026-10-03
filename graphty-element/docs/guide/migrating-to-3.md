@@ -133,8 +133,9 @@ const text = myOwnCopyOfTheData; // keep your own reference to the payload you a
 
 ## Some layout behaviour settings are preferences
 
-`layoutBehavior`'s `pinOnDrag`, `declutter`, `maxInFlight`, `iterationsPerStep` and
-`zoomStepInterval` are not undoable. Nothing to change: they are preferences, as before.
+`layoutBehavior`'s `pinOnDrag`, `maxInFlight`, `iterationsPerStep` and `zoomStepInterval` are not
+undoable. Nothing to change: they are preferences, as before. (`labels.declutter` was one too until
+it became a project setting; see [Labels](./labels).)
 
 ```typescript
 element.layoutBehavior = { node: { pinOnDrag: true } }; // unchanged, and not a step

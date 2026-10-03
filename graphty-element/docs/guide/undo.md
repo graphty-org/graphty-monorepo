@@ -46,7 +46,8 @@ Not undoable, because a project does not save them:
 - a layout while it is moving, and playing or pausing it;
 - a run or a load that has not finished yet (see [Work still going](#work-still-going));
 - the acceleration policy, render settings and other preferences about this machine or view,
-  such as `pinOnDrag` and label declutter.
+  such as `pinOnDrag`. (The label overlap switch, `labels.declutter`, is a project setting and is
+  undoable; see [Labels](./labels).)
 
 Every op a session understands declares which side it is on. The table is published as data:
 

@@ -271,6 +271,8 @@ The element works this out again only when something that decides it changes -- 
 size of the viewport, a label, a node's position or visibility, the selection or the edges -- so a
 still graph pays almost nothing for it. On a camera that is moving it costs roughly 1 to 1.5 ms a
 frame per thousand labels. A saved configuration carries the setting as `behavior.labels.declutter`.
+It is a project setting, so turning it on or off is a step undo takes back, and
+`session.labels` says how many labels it hid and which: see [Labels](./labels).
 
 ### A tooltip on a node
 

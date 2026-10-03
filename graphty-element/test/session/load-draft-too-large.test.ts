@@ -51,7 +51,10 @@ describe("E_TOO_LARGE on a load", () => {
 
     it("counts a merge against the nodes already in the graph", async () => {
         const session = createGraphSession();
-        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes: [{ id: "x" }], edges: [] }) } });
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "x" }], edges: [] }) },
+        });
         const three = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [] });
         const draft = await session.data.prepare({ type: "json", config: { data: three } });
 
@@ -62,6 +65,40 @@ describe("E_TOO_LARGE on a load", () => {
             of: "nodes",
             graph: { nodes: 1, edges: 0 },
         });
+        session.dispose();
+    });
+
+    it("refuses an edge list whose endpoints alone pass the limit", async () => {
+        const session = createGraphSession();
+        const edges = { type: "csv", config: { data: "source,target\na,b\nc,d\n" } };
+
+        assert.deepEqual((await (await session.data.prepare(edges)).report()).tooLarge, {
+            limit: 3,
+            count: 4,
+            of: "nodes",
+            graph: { nodes: 0, edges: 0 },
+        });
+        assert.strictEqual((await refusal(session.data.import(edges)))?.code, "E_TOO_LARGE");
+        session.dispose();
+    });
+
+    it("counts the nodes edges create, and fits once those edges are left out", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File(["id\na\nb\n"], "people.csv"),
+                edgeFile: new File(["source,target\na,b\nb,y\ny,z\n"], "ties.csv"),
+            },
+        });
+
+        const added = await draft.report();
+        assert.strictEqual(added.tooLarge?.of, "nodes");
+        const leftOut = await draft.report({ unmatched: "leave-out" });
+        assert.isNull(leftOut.tooLarge);
+        assert.strictEqual(leftOut.counts.nodes, 2);
+        assert.strictEqual((await refusal(draft.load()))?.code, "E_TOO_LARGE");
+        await draft.load({ unmatched: "leave-out" });
+        assert.strictEqual(session.data.statistics().nodeCount, 2);
         session.dispose();
     });
 });

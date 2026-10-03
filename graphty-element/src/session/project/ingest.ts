@@ -486,6 +486,12 @@ export class Ingest<K extends KnownEdge> {
             this.edgesAdded(edges, endpoints, policy, false),
             DEFAULT_LIMITS.edgesDrawn,
         );
+        this.refuseAboveCeiling(
+            "nodes",
+            this.heldCounts().nodes,
+            this.endpointNodesAdded(edges, endpoints),
+            DEFAULT_LIMITS.renderCeiling,
+        );
 
         for (const edge of edges) {
             tally.edgeRecords++;
@@ -600,6 +606,36 @@ export class Ingest<K extends KnownEdge> {
         }
 
         return this.leaveOutUnmatched;
+    }
+
+    /**
+     * How many nodes this batch of edges would create: endpoints the graph does not hold yet,
+     * which the builder creates with the edge. None when unmatched edges are being left out,
+     * since an edge naming a missing node is then dropped rather than creating it.
+     * @param edges - the batch's records
+     * @param endpoints - the endpoint expressions
+     * @returns the count
+     */
+    private endpointNodesAdded(
+        edges: readonly Record<string | number, unknown>[],
+        endpoints: ResolvedEndpoints,
+    ): number {
+        const tally = this.loadTally;
+        if (tally !== null && this.leaveOutUnmatched && (tally.nodeRecords > 0 || this.loadBeganWithNodes)) {
+            return 0;
+        }
+
+        const { builder } = this.host.store();
+        const fresh = new Set<NodeIdType>();
+        for (const edge of edges) {
+            for (const id of [readEndpoint(edge, endpoints.source), readEndpoint(edge, endpoints.target)]) {
+                if (isStorableId(id) && !builder.hasNode(id) && this.measure?.nodes.has(id) !== true) {
+                    fresh.add(id);
+                }
+            }
+        }
+
+        return fresh.size;
     }
 
     /**

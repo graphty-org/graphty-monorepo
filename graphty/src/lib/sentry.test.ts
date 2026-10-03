@@ -15,6 +15,7 @@ const {
     mockInit,
     mockClose,
     mockReplay,
+    mockReplayStart,
     mockCaptureException,
     mockCaptureFeedback,
     mockAddAttachment,
@@ -25,7 +26,8 @@ const {
     const mockClearAttachments = vi.fn();
     const mockInit = vi.fn();
     const mockClose = vi.fn(() => Promise.resolve(true));
-    const mockReplay = vi.fn(() => ({ name: "Replay" }));
+    const mockReplayStart = vi.fn();
+    const mockReplay = vi.fn(() => ({ name: "Replay", start: mockReplayStart, stop: vi.fn(() => Promise.resolve()) }));
     const mockCaptureException = vi.fn();
     const mockCaptureFeedback = vi.fn();
     const mockGetCurrentScope = vi.fn(() => ({
@@ -36,6 +38,7 @@ const {
         mockInit,
         mockClose,
         mockReplay,
+        mockReplayStart,
         mockCaptureException,
         mockCaptureFeedback,
         mockAddAttachment,
@@ -118,6 +121,18 @@ describe("Sentry initialization", () => {
 
         expect(mockClose).toHaveBeenCalled();
         expect(isSentryEnabled()).toBe(false);
+    });
+
+    it("keeps one replay when usage data is turned off and on again", () => {
+        mockReplay.mockClear();
+        mockReplayStart.mockClear();
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+        stopSentry();
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+
+        // Sentry throws on a second replayIntegration() in one page.
+        expect(mockReplay).toHaveBeenCalledTimes(1);
+        expect(mockReplayStart).toHaveBeenCalledTimes(1);
     });
 
     it("should use lower traces sample rate in production", () => {

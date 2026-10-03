@@ -112,6 +112,16 @@ export function createMcpServer({ serverInfo, instructions, tools }) {
         if (msg.jsonrpc !== "2.0" || typeof msg.method !== "string") {
             return reply(msg.id, { error: { code: INVALID_REQUEST, message: "invalid request" } });
         }
+        return answer(msg, context);
+    }
+
+    /**
+     * Answers a well-formed request by its method.
+     * @param {Record<string, any>} msg the request
+     * @param {any} [context] passed to `tools` and to tool handlers
+     * @returns {Promise<Response>} the reply
+     */
+    async function answer(msg, context) {
         switch (msg.method) {
             case "initialize": {
                 const asked = msg.params?.protocolVersion;

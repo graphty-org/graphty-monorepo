@@ -93,52 +93,75 @@ async function checkBranch({
     // The run's own commits: what it added on top of its base, not master's commits a merge of the
     // green SHA brought in.
     const commits = lines(await git(dir, ["rev-list", head, `^${base}`, `^${greenSha}`]));
-    for (const sha of commits) {
-        const [sig, ...message] = (await git(dir, ["log", "-1", "--format=%G?%n%B", sha])).split("\n");
-        if (sig !== "G") reasons.push(`commit ${sha.slice(0, 9)} is not signed with a good signature (${sig})`);
-        for (const r of checkOutgoing(message.join("\n"), env))
-            reasons.push(`commit ${sha.slice(0, 9)}'s message ${r}`);
-        const parents = (await git(dir, ["rev-list", "--parents", "-n", "1", sha])).split(" ").slice(2);
-        for (const p of parents) {
-            if (p !== greenSha)
-                reasons.push(
-                    `merge ${sha.slice(0, 9)} merges ${p.slice(0, 9)}, not the green SHA ${greenSha.slice(0, 9)}`,
-                );
-        }
-    }
+    for (const sha of commits) reasons.push(...(await commitReasons(dir, sha, greenSha, env)));
     if (run.kind === "pr-conflict" && !(await hasGreenMerge(dir, commits, greenSha))) {
         reasons.push(`a pr-conflict run must merge the green SHA ${greenSha.slice(0, 9)}`);
     }
 
-    // A path whose content equals the green SHA's byte for byte is master's, not the run's: that is
-    // how taking master's side of a visual-baseline conflict passes.
-    const fromGreen = new Set(lines(await git(dir, ["diff", "--no-renames", "--name-only", greenSha, head])));
-    const own = lines(await git(dir, ["diff", "--no-renames", "--name-only", base, head])).filter((p) =>
-        fromGreen.has(p),
-    );
-    for (const p of own.filter((p) => isProtected(p, protectedPaths)))
-        reasons.push(`it changes the protected path ${p}`);
-    if (own.length > 0) {
-        const diff = await git(dir, [
-            "diff",
-            "--no-renames",
-            "--no-color",
-            "--no-ext-diff",
-            "-U0",
-            base,
-            head,
-            "--",
-            ...own,
-        ]);
-        const added = diff.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
-        for (const r of checkOutgoing(added.join("\n"), env)) reasons.push(`the diff ${r}`);
-    }
+    reasons.push(...(await diffReasons(dir, { base, head, greenSha, protectedPaths, env })));
 
     const verdict = state.master?.verdict;
     if (verdict !== "green" && !isIncidentRun(state, run)) {
         reasons.push(`master is ${verdict ?? "unknown"} and this is not the incident's master-red run`);
     }
     return { head, commits, reasons };
+}
+
+/**
+ * What is wrong with one of the run's commits: its signature, its message, or a merge of anything
+ * but the green SHA.
+ * @param {string} dir the main checkout
+ * @param {string} sha the commit
+ * @param {string} greenSha the green SHA
+ * @param {Record<string, string | undefined>} env the environment the message check reads
+ * @returns {Promise<string[]>} the reasons
+ */
+async function commitReasons(dir, sha, greenSha, env) {
+    const reasons = [];
+    const short = sha.slice(0, 9);
+    const [sig, ...message] = (await git(dir, ["log", "-1", "--format=%G?%n%B", sha])).split("\n");
+    if (sig !== "G") reasons.push(`commit ${short} is not signed with a good signature (${sig})`);
+    for (const r of checkOutgoing(message.join("\n"), env)) reasons.push(`commit ${short}'s message ${r}`);
+    const parents = (await git(dir, ["rev-list", "--parents", "-n", "1", sha])).split(" ").slice(2);
+    for (const p of parents.filter((p) => p !== greenSha)) {
+        reasons.push(`merge ${short} merges ${p.slice(0, 9)}, not the green SHA ${greenSha.slice(0, 9)}`);
+    }
+    return reasons;
+}
+
+/**
+ * What is wrong with the run's own changes: a protected path, or added text the outgoing check
+ * refuses. A path whose content equals the green SHA's byte for byte is master's, not the run's:
+ * that is how taking master's side of a visual-baseline conflict passes.
+ * @param {string} dir the main checkout
+ * @param {{base: string, head: string, greenSha: string, protectedPaths: string[],
+ *   env: Record<string, string | undefined>}} range what to compare and check against
+ * @returns {Promise<string[]>} the reasons
+ */
+async function diffReasons(dir, { base, head, greenSha, protectedPaths, env }) {
+    const reasons = [];
+    const fromGreen = new Set(lines(await git(dir, ["diff", "--no-renames", "--name-only", greenSha, head])));
+    const own = lines(await git(dir, ["diff", "--no-renames", "--name-only", base, head])).filter((p) =>
+        fromGreen.has(p),
+    );
+    for (const p of own.filter((p) => isProtected(p, protectedPaths))) {
+        reasons.push(`it changes the protected path ${p}`);
+    }
+    if (own.length === 0) return reasons;
+    const diff = await git(dir, [
+        "diff",
+        "--no-renames",
+        "--no-color",
+        "--no-ext-diff",
+        "-U0",
+        base,
+        head,
+        "--",
+        ...own,
+    ]);
+    const added = diff.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
+    for (const r of checkOutgoing(added.join("\n"), env)) reasons.push(`the diff ${r}`);
+    return reasons;
 }
 
 /**

@@ -94,7 +94,11 @@ export function registerGraphData(cytoscape: Register): void {
     cytoscape("core", "graphtyExport", function (this: Core, format: ExportFormat, options?: ExportOptions) {
         return exportFn(this.elements(), format, options);
     });
-    cytoscape("collection", "graphtyExport", function (this: Collection, format: ExportFormat, options?: ExportOptions) {
-        return exportFn(this, format, options);
-    });
+    cytoscape(
+        "collection",
+        "graphtyExport",
+        function (this: Collection, format: ExportFormat, options?: ExportOptions) {
+            return exportFn(this, format, options);
+        },
+    );
 }

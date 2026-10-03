@@ -49,11 +49,21 @@ const BUNDLED = DATASETS.filter((d) => d.hosting !== "remote")
     .sort((a, b) => a.nodes - b.nodes)
     .map((d) => d.name);
 
-const IMPORT_FORMATS: readonly ExportFormat[] = ["graphml", "gexf", "gml", "dot", "pajek", "csv", "json", "neo4j", "cx2"];
+const IMPORT_FORMATS: readonly ExportFormat[] = [
+    "graphml",
+    "gexf",
+    "gml",
+    "dot",
+    "pajek",
+    "csv",
+    "json",
+    "neo4j",
+    "cx2",
+];
 
 const CPU_LAYOUT: Pick<Outcome, "ran" | "detail"> = {
     ran: "cpu",
-    detail: "the layout is held on the CPU (gpu: \"off\") so the picture is the same on every machine",
+    detail: 'the layout is held on the CPU (gpu: "off") so the picture is the same on every machine',
 };
 
 /** Hides the network controls the frame defines but these stories do not use. */
@@ -195,7 +205,10 @@ export const ExportAndImport: StoryObj<ExportArgs> = {
                 if (!placed) {
                     await placeForAlgorithm(cy, args.seed);
                 }
-                const warnings = r.report.warningCount > 0 ? `, ${r.report.warningCount} warning${r.report.warningCount === 1 ? "" : "s"}` : "";
+                const warnings =
+                    r.report.warningCount > 0
+                        ? `, ${r.report.warningCount} warning${r.report.warningCount === 1 ? "" : "s"}`
+                        : "";
                 return {
                     ...CPU_LAYOUT,
                     note: `${text.length.toLocaleString()} characters of ${r.format}, read back as ${counts(cy)}${warnings}; positions ${placed ? "from the file" : "not in the format: laid out again"}`,

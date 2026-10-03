@@ -9,7 +9,8 @@ import { GENERATORS } from "../src/samples";
 
 cytoscape.use(graphtyCytoscape);
 
-const core = (elements: cytoscape.ElementDefinition[] = []): cytoscape.Core => cytoscape({ headless: true, elements, layout: { name: "preset" } });
+const core = (elements: cytoscape.ElementDefinition[] = []): cytoscape.Core =>
+    cytoscape({ headless: true, elements, layout: { name: "preset" } });
 
 const sample = (): cytoscape.ElementDefinition[] => [
     { data: { id: "a", label: "Alpha", size: 3, flag: true }, position: { x: 10, y: 20 } },
@@ -99,8 +100,18 @@ describe("graphtyExport and graphtyImport", () => {
             expect(a.data("size")).toBe(3);
             expect(a.data("flag")).toBe(true);
             expect(back.getElementById("c").data("label")).toBeUndefined();
-            expect(back.edges().map((e) => e.data("weight") as number).sort()).toEqual([0.5, 2]);
-            expect(back.edges().map((e) => e.data("kind") as string).sort()).toEqual(["x", "y"]);
+            expect(
+                back
+                    .edges()
+                    .map((e) => e.data("weight") as number)
+                    .sort(),
+            ).toEqual([0.5, 2]);
+            expect(
+                back
+                    .edges()
+                    .map((e) => e.data("kind") as string)
+                    .sort(),
+            ).toEqual(["x", "y"]);
             if (format === "json") {
                 expect(back.getElementById("b").position()).toEqual({ x: -5, y: 7.25 });
             }
@@ -114,7 +125,10 @@ describe("graphtyExport and graphtyImport", () => {
 
     it("writes a directed graph when asked", async () => {
         const back = core();
-        const r = await back.graphtyImport(await core(sample()).graphtyExport("graphml", { directed: true }), "graphml");
+        const r = await back.graphtyImport(
+            await core(sample()).graphtyExport("graphml", { directed: true }),
+            "graphml",
+        );
         expect(r.directed).toBe(true);
     });
 

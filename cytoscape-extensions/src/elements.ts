@@ -130,7 +130,10 @@ function columns(records: readonly Record<string, unknown>[]): Record<string, Co
  * @param options.directed - write a directed graph (default false)
  * @returns the snapshot
  */
-export function elementsToSnapshot(eles: Collection, options: { readonly directed?: boolean | undefined } = {}): GraphSnapshot {
+export function elementsToSnapshot(
+    eles: Collection,
+    options: { readonly directed?: boolean | undefined } = {},
+): GraphSnapshot {
     const nodes = eles.nodes();
     const index = new Map<string, number>();
     const ids = nodes.map((n, i) => {

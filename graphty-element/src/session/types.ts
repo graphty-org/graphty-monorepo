@@ -59,6 +59,7 @@ import type {
     RunQueue,
     RunRemoval,
     RunsApi,
+    WeightMeaning,
 } from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
@@ -151,38 +152,72 @@ export interface RecordPage<TRecord> {
     readonly revision: string;
 }
 
-/** Which neighbors of a node a {@link SessionDataApi.neighbors} page lists, and in what order. */
-export interface NeighborPageOptions {
+/**
+ * Which neighbors of a node a {@link SessionDataApi.neighbors} page lists, how they are weighed,
+ * and in what order. Every field is optional.
+ */
+export interface NeighborOptions {
+    /**
+     * Which edges to follow: arriving (`"in"`), leaving (`"out"`) or both (`"all"`), as the
+     * Neighborhood selection takes it. On an undirected graph all three are the same. Default
+     * `"all"`.
+     */
+    readonly direction?: SelectionDirection;
+    /**
+     * The edge weight, as runs take it: the literal name of an edge column, and whether a larger
+     * value means a stronger tie (`"strength"`, whose edges add up) or a longer one
+     * (`"distance"`, whose shortest edge counts). An edge with no number there weighs 1, as in a
+     * run, and is counted in {@link NeighborPage.missing}. `null` counts edges. Absent, the
+     * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
+     */
+    readonly weight?: WeightMeaning | null;
+    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    readonly scope?: ScopeInput;
+    /**
+     * The order. Absent: strongest first when the page has a weight (largest first for a
+     * strength, smallest first for a distance), else by name. Rows that sort equal keep the
+     * graph's own order.
+     */
+    readonly sort?: NeighborSort;
     /** The position of the page's first row in the ordered list. Default 0. */
     readonly offset?: number;
     /** The most rows the page holds; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
-    /**
-     * Which edges to follow on a directed graph: arriving (`in`), leaving (`out`) or both
-     * (`all`). An undirected graph follows every edge whatever this says. Default `"all"`.
-     */
-    readonly direction?: SelectionDirection;
-    /**
-     * The edge attribute whose values add up to a tie, such as `"weight"` or `"shared chapters"`.
-     * An edge whose value there is not a finite number adds nothing. Absent, each edge adds 1, so
-     * the tie is the number of edges between the two nodes.
-     */
-    readonly weight?: string;
-    /**
-     * `"tie"`, strongest first, or `"graph"`, the order the neighbors were added to the graph.
-     * Rows that sort equal keep the graph's order. Default `"tie"`.
-     */
-    readonly sort?: "tie" | "graph";
 }
 
-/** One neighbor of a node, and everything that joins the two. */
-export interface NeighborRow {
+/** What a neighbor page is sorted by: its `weight` or its `name`, smallest first unless `descending`. */
+export interface NeighborSort {
+    readonly by: "weight" | "name";
+    /** Largest first. Default false. */
+    readonly descending?: boolean;
+}
+
+/** One neighbor of a node. */
+export interface Neighbor {
     /** The neighbor's record, deep-frozen. */
     readonly node: NodeRecord;
-    /** Every edge between the node and this neighbor that the direction follows. */
-    readonly edges: readonly EdgeId[];
-    /** The edges' weights added up, or the number of edges when no weight was named. */
-    readonly tie: number;
+    /**
+     * The value at `data.knownFields.nodeLabelPath`, as text, else `String(node.id)`. Untrusted
+     * text from the data: render it as text, never as markup.
+     */
+    readonly name: string;
+    /** The edges' combined weight; the edge count when the page counts edges. */
+    readonly weight: number;
+    /** How many edges join the two along the direction followed, each counted once. */
+    readonly edgeCount: number;
+    /**
+     * Present when the neighbor is in the data but the session's visibility (a filter or the time
+     * window) hides it. Open: more kinds may be added.
+     */
+    readonly excludedBy?: { readonly kind: "filter" };
+}
+
+/** A {@link RecordPage} of neighbors, plus what the numbers measured. */
+export interface NeighborPage extends RecordPage<Neighbor> {
+    /** The weight the rows were combined by, or null when they count edges. */
+    readonly measuredBy: WeightMeaning | null;
+    /** How many of the edges walked had no number at the weight column and so weighed 1. */
+    readonly missing: number;
 }
 
 /**
@@ -409,9 +444,9 @@ export interface SessionRecordSource {
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
  * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
- * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
- * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
- * construction and are not part of this surface yet.
+ * {@link edges}, which list every record and walk the graph to do it, and {@link neighbors}, which
+ * walks one node's adjacency. Reads stay synchronous up to the element's load limits; a read that
+ * may need more later gets an `...Async` twin.
  */
 export interface SessionDataApi {
     /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
@@ -474,16 +509,20 @@ export interface SessionDataApi {
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
-     * One page of a node's neighbors, one row per neighbor, with every edge between the two summed
-     * into one tie: what an inspector reads to list "Valjean, 17 shared chapters". A self-loop is
-     * not a neighbor.
-     * @param id - the node; one the graph does not hold has no neighbors
-     * @param options - the direction, the weight, the order and the window; every field optional
-     * @returns the page, with the total and the revision it was read at
-     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     * Each distinct neighbor of a node once, with the combined weight of the edges between them.
+     *
+     * A neighbor is exactly a node `selection.apply({ neighborsOf: [id], direction })` selects,
+     * other than `id` itself: a self-loop never makes a node its own neighbor, and A->B with
+     * B->A under `"all"` is one neighbor with `edgeCount` 2. `total` counts neighbors, not edges.
+     * One walk of the node's adjacency, the order cached per revision.
+     * @param id - the node
+     * @param options - the direction, the weight, the scope, the order and the window
+     * @returns the page, with what it measured and the revision it was read at
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` (`details: { kind: "node", id }`) for an
+     *     id the graph does not hold, `E_UNKNOWN_ATTRIBUTE` for a weight column no edge carries,
+     *     and `E_OPTION_RANGE` for a bad `offset` or `limit`.
      */
-    neighbors(id: NodeId, options?: NeighborPageOptions): RecordPage<NeighborRow>;
+    neighbors(id: NodeId, options?: NeighborOptions): NeighborPage;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.

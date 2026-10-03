@@ -9,7 +9,7 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
+import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -3958,5 +3958,14 @@ if (registered === undefined) {
 declare global {
     interface HTMLElementTagNameMap {
         "graphty-element": Graphty;
+    }
+
+    // The node events, so `addEventListener("graphty-node-click", (e) => e.detail.nodeId)`
+    // compiles without a cast.
+    interface HTMLElementEventMap {
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
     }
 }

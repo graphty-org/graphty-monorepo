@@ -900,7 +900,9 @@ export class Ingest<K extends KnownEdge> {
         this.loadTally = tally;
         this.loadEndpoints = null;
 
-        const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
+        // The CSV source reads its own `edgeSource` / `edgeTarget` columns and hands every edge over
+        // as `source` / `target`, so reading those names again here would find nothing.
+        const named = (type === "csv" ? {} : opts) as { edgeSource?: unknown; edgeTarget?: unknown };
         const source = held?.source ?? named.edgeSource;
         const target = held?.target ?? named.edgeTarget;
         const endpointOverrides: AddEdgesOptions = {

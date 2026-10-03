@@ -169,6 +169,17 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("loads the edges a CSV source's own endpoint options name", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { data: TRIPS, edgeSource: "from_station", edgeTarget: "to_station" },
+        });
+
+        assert.strictEqual(session.data.statistics().edgeCount, 3);
+        session.dispose();
+    });
+
     it("reads column names with spaces, dots and quotes as themselves", async () => {
         const session = createGraphSession();
         const text = 'from station,to.station,"shared ""chapters"""\nx,y,4\ny,z,2\n';

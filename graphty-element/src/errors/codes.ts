@@ -139,6 +139,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_LAYER"
     /**
+     * A call names a node or an edge id this graph does not hold -- usually an id kept from
+     * before a load or a removal. The call itself is well formed. `details.kind` says whether a
+     * node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
+     * it holds.
+     */
+    | "E_UNKNOWN_ELEMENT"
+    /**
      * A saved document's content is malformed: not the kind it claims, a required member missing
      * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
      * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -389,6 +396,7 @@ const CODE_TABLE = {
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
+    E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",

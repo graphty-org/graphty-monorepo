@@ -28,6 +28,7 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -99,6 +100,8 @@ export class Graphty extends LitElement {
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchProgress: (() => void) | null = null;
+    readonly #progressAt = new Map<string, number>();
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -251,6 +254,31 @@ export class Graphty extends LitElement {
                 bubbles: true,
                 composed: true,
             }),
+        );
+    }
+
+    /**
+     * Mirror one progress report onto the DOM as `graphty-progress-change`.
+     *
+     * Steps are coalesced per task, at the run mirror's interval, so a fast load does not flood
+     * the page; the end of a task always arrives.
+     * @param change - What moved on, or stopped.
+     */
+    #mirrorProgressChange(change: ProgressChange): void {
+        const key = `${change.task}:${change.run ?? ""}`;
+        if (change.phase === "end") {
+            this.#progressAt.delete(key);
+        } else {
+            const now = Date.now();
+            if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#progressAt.set(key, now);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }),
         );
     }
 
@@ -411,6 +439,9 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        this.#unwatchProgress ??= session.on("progress:changed", (change) => {
+            this.#mirrorProgressChange(change);
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -528,6 +559,8 @@ export class Graphty extends LitElement {
         this.#unwatchHistory = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchProgress?.();
+        this.#unwatchProgress = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -1730,7 +1763,7 @@ export class Graphty extends LitElement {
     /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
-     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * Set, it places the 3D camera at this distance from the orbit center (never closer than the
      * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
      * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
      * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
@@ -2229,7 +2262,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * Center the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options
      * @returns Promise that resolves when the camera has moved

@@ -240,10 +240,15 @@ function describeLoad(
             Object.freeze({ [keys.source as string]: from, [keys.target as string]: to, ...rest }),
         );
         tables.push(
-            build("edges", edgeRecords, [
-                [keys.source, "source", records[0]?.source],
-                [keys.target, "target", records[0]?.target],
-            ], sample),
+            build(
+                "edges",
+                edgeRecords,
+                [
+                    [keys.source, "source", records[0]?.source],
+                    [keys.target, "target", records[0]?.target],
+                ],
+                sample,
+            ),
         );
     }
 

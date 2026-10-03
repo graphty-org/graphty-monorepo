@@ -359,7 +359,12 @@ export class SessionData implements SessionDataApi {
      */
     async preview(source: DataSourceInput, options: LoadPreviewOptions = {}): Promise<LoadPreview> {
         this.requireLive("preview");
-        return previewLoad(() => this.writes.scratch(), source, options.mapping, this.readConfig().knownFields.nodeIdPath);
+        return previewLoad(
+            () => this.writes.scratch(),
+            source,
+            options.mapping,
+            this.readConfig().knownFields.nodeIdPath,
+        );
     }
 
     /**

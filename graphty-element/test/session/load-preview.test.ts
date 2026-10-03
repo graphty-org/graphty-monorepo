@@ -159,13 +159,13 @@ describe("session.data.preview", () => {
         assert.deepEqual(preview.keys, { node: null, source: "from_station", target: "to_station" });
         assert.strictEqual(preview.weight, "trips");
         assert.deepInclude(roles(preview, "edges"), {
-            "from_station": "source",
-            "to_station": "target",
-            "trips": "weight",
+            from_station: "source",
+            to_station: "target",
+            trips: "weight",
         });
         // The element could not tell these columns' roles by itself.
         const suggested = Object.fromEntries(table(preview, "edges").columns.map((c) => [c.name, c.suggested]));
-        assert.deepInclude(suggested, { "from_station": "attribute", "to_station": "attribute" });
+        assert.deepInclude(suggested, { from_station: "attribute", to_station: "attribute" });
         assertUntouched(session);
 
         await session.data.import(source, { mapping });
@@ -226,7 +226,10 @@ describe("import with a mapping", () => {
             nodes: [{ id: "a" }, { id: "b" }],
             edges: [{ rel: { from: "a", to: "b" } }],
         });
-        await session.data.import({ type: "json", config: { data: json, edgeSource: "rel.from", edgeTarget: "rel.to" } });
+        await session.data.import({
+            type: "json",
+            config: { data: json, edgeSource: "rel.from", edgeTarget: "rel.to" },
+        });
 
         assert.strictEqual(session.data.lastImport()?.counts.edges, 1);
         session.dispose();

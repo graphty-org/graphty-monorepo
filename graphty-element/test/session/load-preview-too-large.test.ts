@@ -19,7 +19,9 @@ const FOUR = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { i
  * @param promise - the promise
  * @returns the error, or null when it resolved
  */
-async function refusal(promise: Promise<unknown>): Promise<{ code?: string; details?: Record<string, unknown> } | null> {
+async function refusal(
+    promise: Promise<unknown>,
+): Promise<{ code?: string; details?: Record<string, unknown> } | null> {
     return promise.then(
         () => null,
         (error: unknown) => error as { code?: string; details?: Record<string, unknown> },

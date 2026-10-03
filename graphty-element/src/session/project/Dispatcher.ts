@@ -301,7 +301,11 @@ interface DispatcherEvents {
         select(ids: TouchedIds): void;
     };
     /** `data:progress`: a chunk of a load is in the graph. Called by whichever ingest loads it. */
-    loadProgress?: (progress: { readonly format: string; readonly nodeRecords: number; readonly edgeRecords: number }) => void;
+    loadProgress?: (progress: {
+        readonly format: string;
+        readonly nodeRecords: number;
+        readonly edgeRecords: number;
+    }) => void;
 }
 
 /** One slot a queued command holds on the queue. */

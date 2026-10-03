@@ -2262,7 +2262,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * Centre the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options
      * @returns Promise that resolves when the camera has moved

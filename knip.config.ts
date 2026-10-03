@@ -235,8 +235,9 @@ const config: KnipConfig = {
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
+                "scripts/**/*.ts",
             ],
-            project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts"],
+            project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root

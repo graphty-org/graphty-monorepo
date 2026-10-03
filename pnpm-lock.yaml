@@ -522,6 +522,15 @@ importers:
         specifier: ^19.1.0
         version: 19.2.3(react@19.2.3)
     devDependencies:
+      '@graphty/graph-format':
+        specifier: workspace:*
+        version: link:../graph-format
+      '@graphty/graph-io':
+        specifier: workspace:*
+        version: link:../graph-io
+      '@graphty/graph-samples':
+        specifier: workspace:*
+        version: link:../graph-samples
       '@sentry/vite-plugin':
         specifier: ^4.6.1
         version: 4.6.1(encoding@0.1.13)
@@ -582,6 +591,9 @@ importers:
       storybook:
         specifier: ^9.1.20
         version: 9.1.20(@testing-library/dom@10.4.1)(prettier@3.7.4)(vite@7.3.6(@types/node@20.19.27)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))
+      tsx:
+        specifier: ^4.20.3
+        version: 4.21.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

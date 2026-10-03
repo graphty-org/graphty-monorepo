@@ -102,7 +102,7 @@ function run(argv, { cwd, env }) {
  */
 export function pm2Command(servherd, env) {
     if (env.GITHERD_PM2) return JSON.parse(env.GITHERD_PM2);
-    const last = servherd[servherd.length - 1];
+    const last = servherd.at(-1) ?? "";
     if (servherd[0] === "npx") return ["npx", "-y", "-p", last, "pm2"];
     try {
         return [process.execPath, createRequire(last).resolve("pm2/bin/pm2")];
@@ -185,9 +185,12 @@ function ownPkgDir() {
  * @returns {string} the prefix
  */
 function repoPrefix(dir) {
-    return execFileSync("git", ["rev-parse", "--show-prefix"], { cwd: dir, encoding: "utf8" })
-        .trim()
-        .replace(/\/$/, "");
+    const prefix = execFileSync(
+        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+        ["rev-parse", "--show-prefix"],
+        { cwd: dir, encoding: "utf8" },
+    );
+    return prefix.trim().replace(/\/$/, "");
 }
 
 /**
@@ -249,12 +252,16 @@ async function materialize(ctx, target) {
     try {
         await new Promise((resolve, reject) => {
             const env = { ...ctx.env, GIT_TERMINAL_PROMPT: "0" };
-            const archive = spawn("git", ["archive", `origin/${target.branch}:${ctx.pkgDir}`], {
-                cwd: ctx.root,
-                env,
-                stdio: ["ignore", "pipe", "pipe"],
-            });
-            const tar = spawn("tar", ["-x", "-C", tmp], { stdio: ["pipe", "ignore", "pipe"] });
+            const archive = spawn(
+                "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+                ["archive", `origin/${target.branch}:${ctx.pkgDir}`],
+                { cwd: ctx.root, env, stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const tar = spawn(
+                "tar", // NOSONAR(S4036): the system's tar from the owner's PATH, as tools/ runs it
+                ["-x", "-C", tmp],
+                { stdio: ["pipe", "ignore", "pipe"] },
+            );
             archive.stdout.pipe(tar.stdin);
             let stderr = "";
             archive.stderr.on("data", (d) => (stderr += d));
@@ -339,31 +346,52 @@ function takeLock(ctx) {
     const lock = join(ctx.stateDir, "start.lock");
     mkdirSync(ctx.stateDir, { recursive: true });
     for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            mkdirSync(lock);
-            writeFileSync(join(lock, "owner.json"), `${JSON.stringify(identify(process.pid))}\n`);
-            return true;
-        } catch (err) {
-            if (err.code !== "EEXIST") throw err;
-        }
+        if (makeLock(lock)) return true;
         if (!lockStale(ctx, lock)) continue; // released meanwhile, or not stale: the loop decides
-        const steal = `${lock}.steal`;
-        try {
-            mkdirSync(steal);
-        } catch (err) {
-            if (err.code !== "EEXIST") throw err;
-            // ponytail: a launcher killed while stealing leaves this behind; it is cleared after
-            // 60 s like an ownerless lock, so a start waits at most that long.
-            if (ctx.now().getTime() - mtimeOf(steal) > LOCK_STALE_MS) rmSync(steal, { recursive: true, force: true });
-            return false;
-        }
-        try {
-            if (lockStale(ctx, lock)) rmSync(lock, { recursive: true, force: true });
-        } finally {
-            rmSync(steal, { recursive: true, force: true });
-        }
+        if (!removeStale(ctx, lock)) return false;
     }
     return false;
+}
+
+/**
+ * Makes the start lock directory with this process's owner.json.
+ * @param {string} lock the lock directory
+ * @returns {boolean} false when it already exists
+ */
+function makeLock(lock) {
+    try {
+        mkdirSync(lock);
+    } catch (err) {
+        if (err.code === "EEXIST") return false;
+        throw err;
+    }
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify(identify(process.pid))}\n`);
+    return true;
+}
+
+/**
+ * Removes a stale start lock while holding `start.lock.steal`, judging it again first.
+ * @param {LauncherContext} ctx the context
+ * @param {string} lock the lock directory
+ * @returns {boolean} false when another launcher holds the steal
+ */
+function removeStale(ctx, lock) {
+    const steal = `${lock}.steal`;
+    try {
+        mkdirSync(steal);
+    } catch (err) {
+        if (err.code !== "EEXIST") throw err;
+        // ponytail: a launcher killed while stealing leaves this behind; it is cleared after
+        // 60 s like an ownerless lock, so a start waits at most that long.
+        if (ctx.now().getTime() - mtimeOf(steal) > LOCK_STALE_MS) rmSync(steal, { recursive: true, force: true });
+        return false;
+    }
+    try {
+        if (lockStale(ctx, lock)) rmSync(lock, { recursive: true, force: true });
+    } finally {
+        rmSync(steal, { recursive: true, force: true });
+    }
+    return true;
 }
 
 /**
@@ -410,11 +438,10 @@ function releaseLock(ctx) {
  */
 export async function waitFor(ctx, ready) {
     const until = Date.now() + ctx.healthWaitMs;
-    let last = "no answer";
     for (;;) {
         const { health, error } = await probe(ctx);
         if (health && ready(health)) return { health, error: null };
-        last = error ?? `daemon reports code ${health?.codeHash}`;
+        const last = error ?? `daemon reports code ${health?.codeHash}`;
         if (Date.now() >= until) return { health: null, error: last };
         await new Promise((r) => setTimeout(r, HEALTH_POLL_MS));
     }
@@ -496,78 +523,114 @@ async function page(ctx, message) {
 export async function ensureDaemon(ctx) {
     if (ctx.env.GITHERD_URL) return { url: ctx.env.GITHERD_URL, action: "run" };
     const target = await targetCode(ctx);
-    const url = (/** @type {any} */ h) => `http://127.0.0.1:${h.port}`;
-
-    const warm = await probe(ctx);
-    if (ours(ctx, warm.health) && warm.health.codeHash === target.hash && warm.health.fatal)
-        return { url: url(warm.health), action: "down", fatal: warm.health.fatal };
-    if (ours(ctx, warm.health)) {
-        if (warm.health.codeHash === target.hash && ticking(ctx, warm.health))
-            return { url: url(warm.health), action: "warm" };
-        if (warm.health.codeHash !== target.hash && warm.health.runsInFlight > 0)
-            return { url: url(warm.health), action: "waiting" };
-    }
-
+    const warm = warmAnswer(ctx, (await probe(ctx)).health, target, true);
+    if (warm) return warm;
     if (!takeLock(ctx)) {
         const { health, error } = await waitFor(ctx, (h) => ours(ctx, h) && h.codeHash === target.hash);
         if (!health) throw new Error(`another launcher is starting the daemon: ${error}`);
-        return { url: url(health), action: "other-launcher" };
+        return { url: daemonUrl(health), action: "other-launcher" };
     }
     try {
         const { record, health } = await probe(ctx);
-        if (ours(ctx, health) && health.codeHash === target.hash && ticking(ctx, health))
-            return { url: url(health), action: "warm" };
-
-        // A start that failed is not retried for 15 minutes, and pages once per code hash.
-        const failFile = join(ctx.stateDir, "start-failed.json");
-        const failed = readJson(failFile);
-        const failedBefore = failed?.codeHash === target.hash;
-        if (failedBefore && ctx.now().getTime() - Date.parse(failed.at) < RESTART_EVERY_MS) {
-            throw new Error(`${failed.reason} (at ${failed.at}; next try 15 minutes after that)`);
-        }
-
-        const live = record && sameProcess(record) ? record : null;
-        /** @type {"started" | "restarted"} */
-        let action;
-        if (live && record.codeHash === target.hash) {
-            // Online with the right code, but its loop is wedged or it does not answer.
-            const restartFile = join(ctx.stateDir, "last-restart.json");
-            const last = Date.parse(readJson(restartFile)?.at ?? "");
-            if (ctx.now().getTime() - last < RESTART_EVERY_MS) {
-                throw new Error(`daemon pid ${record.pid} is wedged; restarted less than 15 minutes ago`);
-            }
-            writeFileSync(restartFile, `${JSON.stringify({ at: ctx.now().toISOString(), pid: record.pid })}\n`);
-            logLine(ctx, "info", `restarting wedged daemon pid ${record.pid}`);
-            await servherd(ctx, ["restart", ctx.name]);
-            action = "restarted";
-        } else {
-            const dir = await materialize(ctx, target);
-            const env = ["-e", "PORT={{port}}"];
-            if (ctx.env.GITHERD_CONFIG) env.push("-e", `GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`);
-            env.push("-e", `GITHERD_STATE_DIR=${ctx.stateDir}`);
-            const daemon = join(dir, "bin", "githerd-daemon.mjs");
-            const data = await servherd(ctx, ["start", "-n", ctx.name, ...env, "--", "node", daemon]);
-            if (data.action !== "existing") await enableAutorestart(ctx, data.server);
-            logLine(ctx, "info", `servherd ${data.action} ${ctx.name} at ${target.version}-${target.hash.slice(0, 8)}`);
-            action = "started";
-        }
-        const { health: up, error } = await waitFor(
-            ctx,
-            (h) => ours(ctx, h) && h.codeHash === target.hash && h.pid !== live?.pid,
-        );
-        if (!up) {
-            const reason = `githerd daemon failed to start: ${error}`;
-            logLine(ctx, "error", reason);
-            const at = ctx.now().toISOString();
-            writeFileSync(failFile, `${JSON.stringify({ codeHash: target.hash, at, reason })}\n`);
-            if (!failedBefore) await page(ctx, reason);
-            throw new Error(reason);
-        }
-        rmSync(failFile, { force: true });
-        return { url: url(up), action };
+        return warmAnswer(ctx, health, target, false) ?? (await startOrRestart(ctx, target, record));
     } finally {
         releaseLock(ctx);
     }
+}
+
+/**
+ * A daemon's URL from its /health answer.
+ * @param {any} health the answer
+ * @returns {string} the URL
+ */
+const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
+
+/**
+ * What ensureDaemon answers without starting anything: a daemon on the current code that is up in
+ * fatal mode (`down`) or ticking (`warm`), or one on older code with runs in flight (`waiting`,
+ * only outside the start lock).
+ * @param {LauncherContext} ctx the context
+ * @param {any} health the /health answer, or null
+ * @param {{hash: string}} target the code the daemon should run
+ * @param {boolean} mayWait whether an upgrade may wait for runs in flight
+ * @returns {{url: string, action: "warm" | "down" | "waiting", fatal?: string} | null} the answer,
+ *   or null when the daemon must be started, upgraded or restarted
+ */
+function warmAnswer(ctx, health, target, mayWait) {
+    if (!ours(ctx, health)) return null;
+    const url = daemonUrl(health);
+    if (health.codeHash !== target.hash) return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
+    if (health.fatal) return { url, action: "down", fatal: health.fatal };
+    return ticking(ctx, health) ? { url, action: "warm" } : null;
+}
+
+/**
+ * Starts the daemon on the target code, or restarts a live one whose loop is wedged, and waits for
+ * it to answer. A start that failed is not retried for 15 minutes, and pages once per code hash.
+ * Called holding the start lock.
+ * @param {LauncherContext} ctx the context
+ * @param {{hash: string, version: string, branch: string}} target the code to run
+ * @param {any} record daemon.json, or null
+ * @returns {Promise<{url: string, action: "started" | "restarted"}>} the daemon and what was done
+ */
+async function startOrRestart(ctx, target, record) {
+    const failFile = join(ctx.stateDir, "start-failed.json");
+    const failed = readJson(failFile);
+    const failedBefore = failed?.codeHash === target.hash;
+    if (failedBefore && ctx.now().getTime() - Date.parse(failed.at) < RESTART_EVERY_MS) {
+        throw new Error(`${failed.reason} (at ${failed.at}; next try 15 minutes after that)`);
+    }
+    const live = record && sameProcess(record) ? record : null;
+    // Online with the right code, but its loop is wedged or it does not answer.
+    const wedged = live?.codeHash === target.hash;
+    if (wedged) await restartWedged(ctx, live);
+    else await startOn(ctx, target);
+    const { health: up, error } = await waitFor(
+        ctx,
+        (h) => ours(ctx, h) && h.codeHash === target.hash && h.pid !== live?.pid,
+    );
+    if (!up) {
+        const reason = `githerd daemon failed to start: ${error}`;
+        logLine(ctx, "error", reason);
+        const at = ctx.now().toISOString();
+        writeFileSync(failFile, `${JSON.stringify({ codeHash: target.hash, at, reason })}\n`);
+        if (!failedBefore) await page(ctx, reason);
+        throw new Error(reason);
+    }
+    rmSync(failFile, { force: true });
+    return { url: daemonUrl(up), action: wedged ? "restarted" : "started" };
+}
+
+/**
+ * Restarts a live daemon whose loop is wedged, at most once per 15 minutes.
+ * @param {LauncherContext} ctx the context
+ * @param {any} record its daemon.json
+ */
+async function restartWedged(ctx, record) {
+    const restartFile = join(ctx.stateDir, "last-restart.json");
+    const last = Date.parse(readJson(restartFile)?.at ?? "");
+    if (ctx.now().getTime() - last < RESTART_EVERY_MS) {
+        throw new Error(`daemon pid ${record.pid} is wedged; restarted less than 15 minutes ago`);
+    }
+    writeFileSync(restartFile, `${JSON.stringify({ at: ctx.now().toISOString(), pid: record.pid })}\n`);
+    logLine(ctx, "info", `restarting wedged daemon pid ${record.pid}`);
+    await servherd(ctx, ["restart", ctx.name]);
+}
+
+/**
+ * Starts the daemon through servherd on the target code, materialized from the default branch.
+ * @param {LauncherContext} ctx the context
+ * @param {{hash: string, version: string, branch: string}} target the code to run
+ */
+async function startOn(ctx, target) {
+    const dir = await materialize(ctx, target);
+    const env = ["-e", "PORT={{port}}"];
+    if (ctx.env.GITHERD_CONFIG) env.push("-e", `GITHERD_CONFIG=${ctx.env.GITHERD_CONFIG}`);
+    env.push("-e", `GITHERD_STATE_DIR=${ctx.stateDir}`);
+    const daemon = join(dir, "bin", "githerd-daemon.mjs");
+    const data = await servherd(ctx, ["start", "-n", ctx.name, ...env, "--", "node", daemon]);
+    if (data.action !== "existing") await enableAutorestart(ctx, data.server);
+    logLine(ctx, "info", `servherd ${data.action} ${ctx.name} at ${target.version}-${target.hash.slice(0, 8)}`);
 }
 
 /**
@@ -733,7 +796,8 @@ export async function runLauncher({
             });
         } catch {
             daemonUrl = null;
-            setTimeout(() => void ensure().catch(() => {}), Math.random() * jitterMs).unref();
+            const jitter = Math.random() * jitterMs; // NOSONAR(S2245): spreads restarts; not a secret
+            setTimeout(() => void ensure().catch(() => {}), jitter).unref();
         }
     }, heartbeatMs);
     beat.unref();
@@ -855,10 +919,10 @@ function currentBranch(cwd) {
  * @returns {string} trimmed stdout
  */
 function gitSync(cwd, ...args) {
-    return execFileSync("git", args, {
-        cwd,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-        timeout: 10_000,
-    }).trim();
+    const out = execFileSync(
+        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+        args,
+        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 },
+    );
+    return out.trim();
 }

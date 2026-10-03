@@ -27,52 +27,62 @@ await element.session.styles.add({
 });
 element.layoutBehavior = { labels: { declutter: true } }; // off by default
 
-function render({ labeled, hiddenByOverlap }: NodeLabelCounts): void {
-    status.textContent = `${labeled} labels, ${hiddenByOverlap} hidden to avoid overlap`;
+function render({ labeled, nodeHidden, hiddenByOverlap }: NodeLabelCounts): void {
+    const drawn = labeled - nodeHidden - hiddenByOverlap;
+    status.textContent = `${drawn} labels drawn, ${hiddenByOverlap} hidden to avoid overlap`;
 }
-render(element.nodeLabelCounts);
+render(element.nodeLabelCounts); // the counts so far; the event reports later changes
 element.addEventListener("graphty-label-change", (e) => render(e.detail));
 showAll.onchange = () => {
     element.layoutBehavior = { labels: { declutter: !showAll.checked } };
 };
 ```
 
-The checkbox starts unchecked, which matches declutter being on. The element reports numbers
-only. The words, and whether to show the line at all, are yours. Style layers are described in
-[Styling](./styling).
+`document.querySelector("graphty-element")` is typed as the element once the package is imported,
+so `nodeLabelCounts` and the event's `detail` need no cast. The checkbox starts unchecked, which
+matches declutter being on. The element reports numbers only. The words, and whether to show the
+line at all, are yours. Style layers are described in [Styling](./styling).
 
 ## What the counts mean
 
-`element.nodeLabelCounts` is `{ labeled, nodeHidden, hiddenByOverlap }`. It is a snapshot: a new
-plain object each time a count changes, never one that updates in place. It describes the most
-recent frame the element drew, so a change you make shows up after the next frame, which is
-usually within a few milliseconds. All three are zero before a label is drawn, and reading it
-never forces a frame.
+`element.nodeLabelCounts` is `{ labeled, nodeHidden, hiddenByOverlap }`. It is a snapshot: a new plain object each time a count changes, never one that updates in place. It
+describes the most recent frame the element drew, so a change you make shows up after the next
+frame, which is usually within a few milliseconds. All three are zero before a label is drawn, and
+reading it never forces a frame.
 
-| Field             | What it counts                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| `labeled`         | Nodes whose label has text to draw. A node counts once, however many lines it has. |
-| `nodeHidden`      | Of those, nodes that are not drawn at all, so neither is their label (see below).  |
-| `hiddenByOverlap` | Of those, labels in view that declutter hid because they would overlap a kept one. |
+`nodeHidden` and `hiddenByOverlap` are two separate reasons a label is not drawn, and a label is
+counted under one of them at most: a label whose node is hidden is never also counted as hidden by
+overlap. So `labeled - nodeHidden - hiddenByOverlap` is how many labels the element draws.
+
+| Field             | What it counts                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| `labeled`         | Nodes whose label has text to draw. A node counts once, however many lines it has.              |
+| `nodeHidden`      | Labels not drawn because their node is not drawn (see below).                                   |
+| `hiddenByOverlap` | Labels in view that declutter hid because they would overlap a kept one. Never a hidden node's. |
 
 - A node is not drawn when a filter hides it or when it falls outside the time window (the range
   of dates the graph is showing). The `graphty-visibility-change` event reports both: see [Events](./events#three-more-the-element-mirrors-on-its-own-account).
-- `labeled - nodeHidden - hiddenByOverlap` is how many labels the element draws. It is not how
-  many are on screen: a label outside the view still counts as drawn, and is never counted as
-  hidden. The element does not count labels in view.
+- The number drawn is not how many labels are on screen: a label outside the view still counts as
+  drawn, and is never counted as hidden. The element does not count labels in view.
 - `hiddenByOverlap` is always 0 while declutter is off. It depends on the camera and the size of
   the canvas, so an image exported at another size can hide a different number.
 - Edge labels are not counted. The element never hides an edge label to avoid overlap.
-- A later minor release may add another `hiddenBy...` count for a new reason. Each is a separate
-  part of `labeled`.
+- A later minor release may add another `hiddenBy...` count for a new reason, separate from these
+  two. When it does, the number drawn is `labeled` less every `hidden` count, so code that
+  subtracts only these two will overstate it. Check the release notes before upgrading a minor.
 
 ## When `graphty-label-change` fires
 
 The event's `detail` is the same `NodeLabelCounts` object `element.nodeLabelCounts` returns, and
-TypeScript types it as `CustomEvent<NodeLabelCounts>`. It fires when a count changes, once the
-view has stopped changing: never during a camera gesture or while a layout is still moving nodes.
-That includes turning declutter on or off on a still graph, and a filter that hides labeled nodes.
-It also fires once after the first frame that has labels.
+TypeScript types it as `CustomEvent<NodeLabelCounts>`. It bubbles and is composed, so a listener on
+an ancestor or outside a shadow root hears it too. It fires when a count changes, once the view has
+stopped changing: never during a camera gesture or while a layout is still moving nodes. That
+includes turning declutter on or off on a still graph, and a filter that hides labeled nodes. It
+also fires once after the first frame that has labels. It does not fire when a label's text changes
+and no count does.
+
+Read `element.nodeLabelCounts` once when you attach the listener, as the quick start does: if the
+counts were published before your listener existed, the event will not repeat them.
 
 ## The switch
 

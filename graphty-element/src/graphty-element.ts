@@ -3993,4 +3993,9 @@ declare global {
     interface HTMLElementEventMap {
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
+
+    // It bubbles and is composed, so a listener on the document is typed the same way.
+    interface DocumentEventMap {
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
 }

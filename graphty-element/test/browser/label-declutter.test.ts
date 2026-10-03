@@ -476,6 +476,12 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
         host.appendChild(tag);
         await tag.updateComplete;
         const g = tag.graph;
+        // The event bubbles, so a listener on the document hears it too.
+        const heardOnDocument: NodeLabelCounts[] = [];
+        const onDocument = (e: CustomEvent<NodeLabelCounts>): void => {
+            heardOnDocument.push(e.detail);
+        };
+        document.addEventListener("graphty-label-change", onDocument);
         try {
             await operationQueueOf(g).waitForCompletion();
             await g.addNodes(PILED);
@@ -504,8 +510,9 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             });
             element.layoutBehavior = { labels: { declutter: true } }; // off by default
 
-            function render({ labeled, hiddenByOverlap }: NodeLabelCounts): void {
-                status.textContent = `${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`;
+            function render({ labeled, nodeHidden, hiddenByOverlap }: NodeLabelCounts): void {
+                const drawn = labeled - nodeHidden - hiddenByOverlap;
+                status.textContent = `${String(drawn)} labels drawn, ${String(hiddenByOverlap)} hidden to avoid overlap`;
             }
             render(element.nodeLabelCounts);
             element.addEventListener("graphty-label-change", (e) => render(e.detail));
@@ -515,12 +522,14 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             // End of the guide's code.
 
             await operationQueueOf(g).waitForCompletion();
-            await waitFor(() => status.textContent === "3 labels, 2 hidden to avoid overlap");
+            await waitFor(() => status.textContent === "1 labels drawn, 2 hidden to avoid overlap");
 
             showAll.checked = true;
             showAll.dispatchEvent(new Event("change"));
-            await waitFor(() => status.textContent === "3 labels, 0 hidden to avoid overlap");
+            await waitFor(() => status.textContent === "3 labels drawn, 0 hidden to avoid overlap");
+            assert.deepEqual(heardOnDocument.at(-1), { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
         } finally {
+            document.removeEventListener("graphty-label-change", onDocument);
             host.remove();
         }
     });

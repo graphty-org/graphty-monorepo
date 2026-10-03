@@ -252,8 +252,8 @@ for (const channel of channelsFor("edge")) {
 
 ### Labels that would overlap
 
-By default every label a style asks for is drawn, so labelled nodes that sit close together on
-screen draw their words over each other. Turn on `labels.declutter` in the element's behaviour
+By default every label a style asks for is drawn, so labeled nodes that sit close together on
+screen draw their words over each other. Turn on `labels.declutter` in the element's behavior
 configuration to thin them out:
 
 ```javascript

@@ -334,6 +334,11 @@ describe("a node's neighbors with their weights", () => {
                 ["c", "filter"],
             ],
         );
+        assert.deepStrictEqual(
+            session.data.neighbors("a", { scope: "visible" }).records.map((row) => row.node.id),
+            ["b"],
+            "the visible scope leaves hidden neighbors out",
+        );
         session.dispose();
     });
 
@@ -356,6 +361,12 @@ describe("a node's neighbors with their weights", () => {
                 [1, 1],
                 ["__proto__", 1],
             ],
+        );
+        assert.isNull(page.measuredBy);
+        assert.strictEqual(page.missing, 0, "counting edges, no edge lacks a weight");
+        assert.isTrue(
+            page.records.every((row) => row.weight === row.edgeCount),
+            "a counted row's weight is its edge count",
         );
         session.dispose();
     });

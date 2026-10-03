@@ -115,6 +115,7 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
 // `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
+export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
 
 // Notes: text people write about the graph, as `element.session.notes`

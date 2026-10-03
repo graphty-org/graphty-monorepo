@@ -185,7 +185,11 @@ export interface NeighborOptions {
     readonly limit?: number;
 }
 
-/** What a neighbor page is sorted by: its `weight` or its `name`, smallest first unless `descending`. */
+/**
+ * What a neighbor page is sorted by: its `weight` or its `name`, smallest first unless
+ * `descending`. The direction is absolute, whatever the weight means: the default order is
+ * `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance.
+ */
 export interface NeighborSort {
     readonly by: "weight" | "name";
     /** Largest first. Default false. */
@@ -201,22 +205,29 @@ export interface Neighbor {
      * text from the data: render it as text, never as markup.
      */
     readonly name: string;
-    /** The edges' combined weight; the edge count when the page counts edges. */
+    /**
+     * The edges' combined weight. When {@link NeighborPage.measuredBy} is null the page counts
+     * edges, and this equals {@link Neighbor.edgeCount}.
+     */
     readonly weight: number;
     /** How many edges join the two along the direction followed, each counted once. */
     readonly edgeCount: number;
     /**
-     * Present when the neighbor is in the data but the session's visibility (a filter or the time
-     * window) hides it. Open: more kinds may be added.
+     * Present when the neighbor is in the data but the session's visibility filter hides it.
+     * `"filter"` covers `visibility.set()` and `visibility.setWindow()` alike: the time window is
+     * part of the one visibility filter. Open: more kinds may be added.
      */
     readonly excludedBy?: { readonly kind: "filter" };
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
 export interface NeighborPage extends RecordPage<Neighbor> {
-    /** The weight the rows were combined by, or null when they count edges. */
+    /** The weight the rows were combined by, or null when every row's `weight` is an edge count. */
     readonly measuredBy: WeightMeaning | null;
-    /** How many of the edges walked had no number at the weight column and so weighed 1. */
+    /**
+     * How many EDGES walked (not neighbors) had no number at the weight column and so weighed 1,
+     * as in a run. 0 when {@link measuredBy} is null.
+     */
     readonly missing: number;
 }
 

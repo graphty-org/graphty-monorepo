@@ -26,10 +26,10 @@ interface GraphtyDocument {
     extensions?: Record<string, unknown>; // reverse-domain keys; see "Extensions"
 }
 
-type Member = StyleMember | RecipeMember | DataMember | { kind: string; version: number };
+type Member = StyleMember | RecipeMember | DataMember | NotesMember | { kind: string; version: number };
 ```
 
-Every member has a `kind` and an integer `version`. Version 1 defines three kinds:
+Every member has a `kind` and an integer `version`. Version 1 defines four kinds:
 
 <!-- prettier-ignore -->
 | `kind` | Page | Holds |
@@ -37,9 +37,10 @@ Every member has a `kind` and an integer `version`. Version 1 defines three kind
 | `graphty-style` | [style.md](style.md) | a stack of style layers and the palettes they need |
 | `graphty-recipe` | [recipe.md](recipe.md) | a journal of analysis commands |
 | `graphty-data` | this page | a graph embedded in a graph-io JSON dialect |
+| `graphty-notes` | [notes.md](notes.md) | people's notes about the graph, its elements, sets and results |
 
 Member kinds starting `graphty-` are reserved for graphty-element. Any other kind MUST be a
-reverse-domain name (`org.example.notes`), so a third party's kind never collides with one a later
+reverse-domain name (`org.example.bookmarks`), so a third party's kind never collides with one a later
 release defines. A file MAY hold several members of one kind (a screen look and a print look,
 several recipes); at most one data member applies.
 
@@ -125,8 +126,8 @@ later version never adds a top-level member that close to one of those names.
    value in an open list, a new member kind. Removing or renaming a member, or changing what a
    value means, needs a new major version. The open lists are the member kinds, a recipe command's
    `op`, algorithm keys, layout ids, palette ids, JSON dialects, the import option names, a style's
-   channel names, selector kinds, scales, layer kinds and enumerated channel values, and the parts
-   of a run's `style`. A release that adds a value adds it to its copy of the version 1 schema,
+   channel names, selector kinds, scales, layer kinds and enumerated channel values, the parts
+   of a run's `style`, note target kinds and item key forms (notes.md). A release that adds a value adds it to its copy of the version 1 schema,
    which graphty-element exports and the schema's URL serves. A reader that does not know a value
    fails that one channel entry, layer or command, never a style or recipe member; a data member
    is skipped whole for a dialect it does not know, because reading it another way gives other
@@ -220,7 +221,11 @@ session.data.openDocument(src: string | Uint8Array, options?: {
     nodeColumns?: Record<string, string>; // the same for the node table only; wins over columns
     edgeColumns?: Record<string, string>; // the same for the edge table only; wins over columns
     run?: boolean; // default false
-    onRepeat?: { recipe?: "refuse" | "replace" | "add"; style?: "replace" | "add" | "refuse" };
+    onRepeat?: {
+        recipe?: "refuse" | "replace" | "add";
+        style?: "replace" | "add" | "refuse";
+        notes?: "keep-both" | "replace" | "keep-mine"; // default "keep-both" (notes.md, "Opening" rule 3)
+    };
     capSeconds?: number; // the per-command cost cap for recipes; default the element's own
     budget?: { totalSeconds?: number }; // one total budget for every recipe of the file; default 300
     openingSeconds?: number; // the opening budget (README, "Limits"); default 5
@@ -251,9 +256,9 @@ own is an entry of the report, never a rejection.
    the loaded graph, or, with none loaded or with `data: "replace"`, the file's embedded data
    imported into a scratch graph the session never sees. With no graph at all, the plan is
    unbound and every estimate `null`.
-2. **Order.** Data first, then recipes in file order, then styles in file order: the data must exist
-   before anything binds to its columns, and a style that paints a recipe's results comes after the
-   recipe. A run's own suggested colouring is added when the run completes, above every layer
+2. **Order.** Data first, then recipes in file order, then styles in file order, then notes: the
+   data must exist before anything binds to its columns, a style that paints a recipe's results
+   comes after the recipe, and a note binds to the data, the sets and the results before it. A run's own suggested colouring is added when the run completes, above every layer
    present then, the file's style layers included (recipe.md, "Commands" rule 8, says when a run
    paints nothing of its own).
 3. **References between members.** A style member path `results.<as>.<field>`, where `<as>` is the
@@ -263,7 +268,9 @@ own is an entry of the report, never a rejection.
    switched off in the state `waiting`, and graphty-element MUST switch it on when that run
    completes. A layer reading a command that will never run here -- its recipe skipped, left out
    by `members` or refused by `requires`, or the command skipped -- stays switched off, naming the
-   recipe or command, and never binds to a run of the reader's own with the same name.
+   recipe or command, and never binds to a run of the reader's own with the same name. A notes
+   member's `{ result }` and `{ item }` targets and its cites naming such an `as` are rewritten the
+   same way (notes.md, "Opening" rule 8).
 4. **One budget for the file.** Every recipe of the file is held to one total budget together,
    `budget.totalSeconds`, however and whenever its `run()` is called (recipe.md, "Running" rule 4).
 
@@ -271,7 +278,7 @@ own is an entry of the report, never a rejection.
 
 ```ts
 session.data.saveDocument(options?: {
-    members?: ("graphty-style" | "graphty-recipe" | "graphty-data")[]; // see rule 4
+    members?: ("graphty-style" | "graphty-recipe" | "graphty-data" | "graphty-notes")[]; // see rule 4
     name?: string;
     description?: string;
     style?: {
@@ -304,7 +311,8 @@ session.data.saveDocument(options?: {
 2. Software that writes a document MUST write `generator`, naming itself and its version.
 3. **Round trip.** Saving a session opened from a file keeps the file's shape. Every member opened
    from it keeps its place in `members`: one that applied is replaced in place by its regenerated
-   form, found by its template id (a style) or its `id` (a recipe); one that was skipped stays in
+   form, found by its template id (a style), its `id` (a recipe), or for a notes member by being
+   the file's only notes member or by its `name`; one that was skipped stays in
    place verbatim; new members are appended. A recipe opened from the file is written back as it
    was read unless the caller records a recipe with the same `id`, which replaces it only when
    every command of the opened recipe ran here or the caller passes `recipe.dropUnrun: true`
@@ -327,6 +335,11 @@ session.data.saveDocument(options?: {
       carry the data by accident. `data: { embed: true }` embeds the graph in `node-link`, its data
       columns only, never run results. `members` including `graphty-data` with no `data` option
       writes back the data member the file was opened with, as read.
+    - **the notes**: never, unless `members` includes `graphty-notes`. They are listed in
+      `report.leftOut` with their count, because notes are judgments about the data and a file
+      saved to share a technique must not carry them by accident. When they are written,
+      `session.notes.toDocument()` gives the member, and the report's notices give their count and
+      distinct authors (notes.md, "Saving").
 
     The report's notices list every literal a written selector or `where` compares with, and every
     member, layer and extension written back without being understood, with its size, so the
@@ -380,6 +393,7 @@ interface MemberReport {
     readonly problem?: Problem; // why the whole member was skipped
     readonly style?: StyleReport; // style.md, "Reading and applying"
     readonly recipe?: RecipeReport; // recipe.md, "The replay report"
+    readonly notes?: NotesReport; // notes.md, "Opening"
     readonly data?: {
         readonly dialect: string;
         readonly nodes: number | null;

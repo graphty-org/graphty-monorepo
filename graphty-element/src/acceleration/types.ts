@@ -497,14 +497,74 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // At the render ceiling: 0.29x to 0.55x at 50,000 nodes with 100,000 edges, 1.6x to 3.9x at
         // 100,000. Was 132,000.
         connectedComponents: 100_000,
-        // Wins by at most 2 ms inside the render ceiling and loses at 50,000 nodes with 100,000
-        // edges (0.81x to 0.92x); 2.6x to 4.3x at 100,000 nodes.
-        triangleCount: 100_000,
+        // No node floor: the triangle count is floored on its edges instead, in
+        // ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY.
         // Wins 1.1x to 2.8x at 5,000 to 20,000 nodes and loses at 50,000 nodes with 100,000 edges
-        // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000.
+        // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000. An edge
+        // floor was measured for it on 2026-10-01 and does not separate the wins from the losses:
+        // its CPU cost is arcs times passes, and the passes, which nothing knows before the run,
+        // decide it (a 100-edge-a-node graph converges in a few passes and loses at 70,000 edges).
         labelPropagation: 100_000,
+        // Weighted graphs (unweighted ones have their own floor below): 0.44x to 1.04x at 2,000,
+        // 0.72x to 1.06x at 3,000, 1.2x to 1.7x at 5,000, 2.9x to 3x at 10,000, 16x to 19x at
+        // 100,000 nodes with 1,000,000 edges. Measured 2026-09-30 against Kruskal's CPU port.
+        minimumSpanningTree: 5_000,
     },
 );
+
+/**
+ * The node count below which the element declines the accelerator for one capability when every
+ * edge of the graph weighs the same (as on a graph with no weight attribute), in place of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY}. Same
+ * method, same measurement, same override by `acceleration.minNodes`.
+ *
+ * Only the minimum spanning tree needs it. Kruskal's CPU implementation sorts the edges by
+ * weight, and with every weight equal that sort is already done, so the unweighted CPU run is
+ * five to ten times faster than the weighted one on the same graph while the device's run costs
+ * the same either way.
+ */
+export const ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        // Loses at every size the element holds (1.00x at best, 30,000 nodes); 0.72x to 1.58x at
+        // 20,000 nodes with 200,000 edges, 3.6x to 4.1x at 100,000 nodes with 1,000,000 edges.
+        minimumSpanningTree: 100_000,
+    });
+
+/**
+ * For a capability whose cost follows its edges, the smallest (edges x edges per node), that is
+ * edges squared over nodes, at which the device beat the CPU port. A capability listed here has
+ * no node floor: this one decides alone, and like the node floors it applies only while the
+ * consumer has not set `acceleration.minNodes` and not under `acceleration="required"`.
+ *
+ * The triangle count is the one capability it serves (the clustering coefficient runs on it). Its
+ * device call costs 6 to 15 ms almost whatever the graph inside the element's ceiling, while the
+ * CPU port's cost grows with the edges and with how many neighbors each node has to intersect,
+ * so a node floor had to sit above the 50,000-node ceiling to keep sparse graphs off the device
+ * (two edges a node at 50,000 nodes is a toss-up, 0.92x to 1.30x) and so kept dense graphs that
+ * win off it too.
+ *
+ * Measured 2026-10-01, RTX 4070 SUPER, headless Chromium, the method of the node floors: both arms
+ * through `@graphty/algorithms`' dispatcher, seeded uniform random graphs of 2, 3, 5, 10, 12, 15,
+ * 20, 25, 30, 40, 60 and 100 edges a node from 300 to 50,000 nodes, at most 100,000 edges, plus
+ * two R-MAT (skewed-degree) shapes; medians of 15 rounds (9 above 20,000 nodes), seven sweeps.
+ * Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x); just below, around
+ * 1,000,000, graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.98x at 1,012,500).
+ * The floor is 1,080,000, the smallest measured value at and above which every graph won, the
+ * rule the node floors follow; nothing between it and the losses was measured. Unlike the node
+ * floors this one routes runs inside the ceiling, so it also had to hold for the first run on a
+ * freshly loaded graph, which pays the upload: it does (1.06x to 10.7x at and above it). Neither the edge count alone (two edges a node lose at
+ * 100,000 edges, twenty win at 60,000) nor a wedge count from the degrees separates the wins from
+ * the losses. Skewed-degree graphs win below the floor (1.5x to 2x around 220,000 to 370,000);
+ * the floor leaves those on the CPU port, which is a few milliseconds lost, never a slower run.
+ * The table is in `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section
+ * "Edge-aware floors (2026-10-01)".
+ */
+export const ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        triangleCount: 1_080_000,
+    });
+
+/** Where and when the edge floors above were measured, as the plan's reason quotes it. */
+export const ACCELERATION_MIN_EDGES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-10-01";
 
 /**
  * For a run that searches from a set of sources, the smallest (sources x edges) at which the

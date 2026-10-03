@@ -396,7 +396,8 @@ All packages: 80% lines/functions/statements, 75% branches
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
+| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
+| `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
 
 ### Dead Links
@@ -683,6 +684,25 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.
+- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
+  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
+  only when its items take each file from master's contents to the pull request's. Agents never
+  edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
+  `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
+  register a passkey; never merge a pull request past a failing gate; and never call the page's
+  passkey, register, Finish or finish-prepare routes. Only the owner registers keys and approves.
+- CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
+  request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
+  exercised by the pull request after it; test it with the package's own tests.
+- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
+  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+  `parameters.chromatic` instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
+  above it.
+- A gate line about a missing or invalid approval is fixed only by the owner reviewing again
+  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
+  record.
+- Never create a passkey or a virtual authenticator against a real review server; Chromium's
+  virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
@@ -692,8 +712,11 @@ that starts the same server from the owner's own shell, which is how the owner s
   threshold does not, which is why it is forbidden.
 - The guide to setting it up and to the page (URL, keys, decisions, Finish, seeding) is
   `visual-review/README.md`, published as https://graphty.app/docs/visual-review/.
-- A merge conflict under `visual-baselines/`: take master's side for every file there and let CI
-  recapture; the owner reviews again what still differs.
+- A merge conflict under `visual-baselines/` only, or a capture older than master's baselines
+  ("merge master first"): run `node visual-review/trusted/cli.mjs update <pr>` (or press Update
+  from master on the review page). It merges master, takes master's side for every conflicting
+  file there in one signed commit, pushes, and CI recaptures; the owner reviews again what still
+  differs. It refuses, changing nothing, on a conflict anywhere else: merge that by hand.
 - After an accept commit lands on a pull request branch, update that branch from master by merge,
   never by rebase, so the accept commit and its record stay as the owner made them.
 

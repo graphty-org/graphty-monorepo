@@ -18,7 +18,7 @@
  * interfaces, published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
+import type { EdgeId, FieldBand, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
 import type { Caveats, Run } from "../runs/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -235,7 +235,7 @@ export const RESULT_FIELD_CONTRACT = {
         types: ["integer"],
     },
     normalization: {
-        meaning: "How the values were scaled before publication: \"max\", \"min-max\" or \"none\".",
+        meaning: 'How the values were scaled before publication: "max", "min-max" or "none".',
         scope: "graph",
         types: ["string"],
     },
@@ -881,6 +881,14 @@ export interface RunResult {
      * @returns The sentence.
      */
     reading(options?: ReadingOptions): string;
+    /**
+     * Which band of its interpretation scale a graph-level field's value falls in, such as
+     * "clear" for a community result's modularity above 0.3. The bands, their thresholds and
+     * their source are on the field's `interpretation` in the catalogue.
+     * @param field - The graph-level field, such as "modularity".
+     * @returns The band, or undefined when the field has no interpretation or no finite value.
+     */
+    band(field: string): FieldBand | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------

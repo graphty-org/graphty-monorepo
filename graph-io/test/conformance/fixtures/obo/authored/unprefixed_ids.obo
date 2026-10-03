@@ -1,0 +1,9 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: alpha
+is_a: beta
+
+[Term]
+id: beta

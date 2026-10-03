@@ -113,6 +113,14 @@ border at rest so that a column of them reads as a list of values rather than a
 grid of boxes. Keyboard focus still paints a visible ring; a mouse click does
 not, so the surface stays quiet under the pointer.
 
+The accent -- a filled `Button`, a checked box -- passes WCAG AA in both
+schemes: the theme sets `primaryShade: {light: 8, dark: 5}` and
+`autoContrast: true`, so the fill stands at least 3:1 off the panel and the text
+on it at least 4.5:1 (white in the light scheme, black in the dark one). Set
+your own `primaryColor` or `primaryShade` and you get yours instead. The one
+exception is a checked `Switch`: Mantine always paints its thumb white, so its
+track stays the darker light-scheme shade in both schemes.
+
 ### Components the theme restyles
 
 Pass no `size` prop and these render compact. Pass a size token and they step

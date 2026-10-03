@@ -13,6 +13,7 @@ import {
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
+    PathCountOverflowError,
     type ScoresResultLike,
     type SsspResultLike,
 } from "../../../src/index.js";
@@ -150,7 +151,8 @@ describe("accelerated(acc)", () => {
                 method: "minimumSpanningTree",
                 fake: (log) => ({ kind: "fake", minimumSpanningTree: (...a) => (log.push(a), Promise.resolve(mst)) }),
                 run: (d) => d.minimumSpanningTree(s, options),
-                args: [s, options],
+                // the member takes no options of its own: a weights override runs the CPU port (below)
+                args: [s],
                 sentinel: mst,
             },
         ];
@@ -233,6 +235,23 @@ describe("accelerated(acc)", () => {
         expect([...decorated.pathTo(c)]).toEqual([...cpu.pathTo(c)]);
         expect([...decorated.pathEdges(c)]).toEqual([...cpu.pathEdges(c)]);
         expect(decorated.pathEdges(c).length).toBe(2); // a->b->c, not the direct weight-5 edge
+    });
+
+    it("runs the CPU port for a minimum spanning tree over a weights override, which the accelerator does not take", async () => {
+        const s = cycle().toUndirected().snapshot;
+        const log: unknown[][] = [];
+        const fake: AlgorithmAccelerator = {
+            kind: "fake",
+            minimumSpanningTree: (...a) => (
+                log.push(a),
+                Promise.resolve({ edges: Uint32Array.of(0), totalWeight: 42 })
+            ),
+        };
+        const weights = new Float64Array(s.arcCount).fill(2);
+        const mst = await accelerated(fake).minimumSpanningTree(s, { weights });
+        expect(log).toHaveLength(0);
+        expect(mst.edges.length).toBe(2);
+        expect(mst.totalWeight).toBe(4);
     });
 
     it("runs the CPU port for the other three methods too", async () => {
@@ -743,6 +762,29 @@ describe("accelerated(acc)", () => {
             const boom = new Error("E_DEVICE_LOST");
             const fake: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.reject(boom) };
             await expect(accelerated(fake).betweennessCentrality(sixNodes())).rejects.toBe(boom);
+        });
+
+        it("rejects with PathCountOverflowError when the accelerator reports overflowed path counts", async () => {
+            const s = sixNodes();
+            const wrong = {
+                scores: new Float64Array(s.nodeCount),
+                iterations: 1,
+                converged: true,
+                sigmaOverflow: true,
+            };
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                betweennessCentrality: () => Promise.resolve(wrong),
+                edgeBetweennessCentrality: () =>
+                    Promise.resolve({ scores: new Float64Array(s.edgeCount), sigmaOverflow: true }),
+            };
+            await expect(accelerated(fake).betweennessCentrality(s)).rejects.toBeInstanceOf(PathCountOverflowError);
+            await expect(accelerated(fake).edgeBetweennessCentrality(s)).rejects.toThrow(
+                /edgeBetweennessCentrality.*shortest-path counts/,
+            );
+            const right = { ...wrong, sigmaOverflow: false };
+            const fine: AlgorithmAccelerator = { kind: "fake", betweennessCentrality: () => Promise.resolve(right) };
+            await expect(accelerated(fine).betweennessCentrality(s)).resolves.toBe(right);
         });
     });
 

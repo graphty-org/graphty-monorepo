@@ -84,7 +84,7 @@
                     "minLength": 1,
                     "maxLength": 128,
                     "pattern": "^graphty-[a-z0-9]+(-[a-z0-9]+)*$|^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$",
-                    "description": "A member kind. Kinds starting graphty- are reserved for graphty-element; any other kind is a reverse-domain name (org.example.notes). A reader skips a kind it does not know, however it is spelled."
+                    "description": "A member kind. Kinds starting graphty- are reserved for graphty-element; any other kind is a reverse-domain name (org.example.bookmarks). A reader skips a kind it does not know, however it is spelled."
                 },
                 "version": {
                     "type": "integer",
@@ -135,6 +135,21 @@
                     },
                     "then": {
                         "$ref": "https://graphty.app/schema/documents/graphty-data/v1.json"
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-notes"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-notes/v1.json"
                     }
                 }
             ]

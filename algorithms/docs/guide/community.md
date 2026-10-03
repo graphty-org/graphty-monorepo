@@ -133,9 +133,15 @@ console.log(held.labels[alice] === held.labels[bob]); // false
 ```
 
 `labelPropagationSynchronous(graph, { maxIterations, weighted })` updates every node at once from the previous
-pass and uses no random numbers, so it gives one answer per graph. Passes alternate between allowing only moves to a
-higher label and only to a lower one, which stops two neighbours trading labels for ever; it ends after one quiet pass
-of each kind. Some weighted graphs still cycle, and then it stops with `converged: false`.
+pass and uses no random numbers, so it gives one answer per graph. A node keeps its label while that label has the
+largest vote among its neighbours; otherwise it takes, of the labels tied for the largest vote, the one of lowest
+priority, where a label's priority is a fixed scramble of its value (the murmur3 finalizer). Ranking by the label
+itself would tie the result to the node numbering: on a path numbered in order the lowest label would win every tie and
+creep along one node per two passes, ending as one community. With the scramble a path or a cycle settles in a few
+passes into short runs of nodes, much as `labelPropagation` does, while a star or a dense community still ends as one.
+Passes alternate between allowing only moves to a label of higher priority and only to one of lower priority, which
+stops two neighbours trading labels for ever; it ends after one quiet pass of each kind. Some weighted graphs still
+cycle, and then it stops with `converged: false`.
 
 ## Modularity
 

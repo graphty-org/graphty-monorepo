@@ -19,7 +19,13 @@
             "options": {
                 "command": "npm run test:run",
                 "cwd": "layout"
-            }
+            },
+            "inputs": [
+                "default",
+                "^production",
+                "{workspaceRoot}/vitest.shared.config.ts",
+                "{workspaceRoot}/algorithms/stories/utils/graph-generators.ts"
+            ]
         },
         "test:ui": {
             "executor": "nx:run-commands",
@@ -41,7 +47,8 @@
                 "command": "npm run build-storybook",
                 "cwd": "layout"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build"],
+            "inputs": ["default", "^production", "{workspaceRoot}/algorithms/stories/utils/graph-generators.ts"]
         },
         "lint": {
             "executor": "nx:run-commands",

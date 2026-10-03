@@ -1,0 +1,7 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+! a comment line
+name: a

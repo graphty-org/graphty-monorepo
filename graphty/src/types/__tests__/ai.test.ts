@@ -20,9 +20,10 @@ vi.mock("@graphty/graphty-element/ai", () => ({
         cancel: vi.fn(),
         dispose: vi.fn(),
     })),
-    createProvider: vi.fn((config) => ({
+    createProvider: vi.fn((type: string) => ({
+        configure: vi.fn(),
         validateApiKey: vi.fn().mockResolvedValue(true),
-        config,
+        type,
     })),
 }));
 
@@ -97,7 +98,7 @@ describe("types/ai", () => {
         it("can create provider instances", async () => {
             const { getCreateProvider } = await import("../ai");
             const createProvider = await getCreateProvider();
-            const provider = createProvider({ provider: "openai", apiKey: "test-key" });
+            const provider = createProvider("openai");
 
             expect(provider).toBeDefined();
             expect(typeof provider.validateApiKey).toBe("function");
@@ -110,11 +111,10 @@ describe("types/ai", () => {
             const createProvider = await getCreateProvider();
 
             // Type checking - these should compile
-            createProvider({ provider: "openai" });
-            createProvider({ provider: "anthropic" });
-            createProvider({ provider: "google" });
-            createProvider({ provider: "mock" });
-            createProvider({ provider: "webllm" });
+            createProvider("openai");
+            createProvider("anthropic");
+            createProvider("google");
+            createProvider("mock");
         });
 
         it("exports AiStage type values", async () => {

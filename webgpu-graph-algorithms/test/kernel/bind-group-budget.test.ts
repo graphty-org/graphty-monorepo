@@ -63,12 +63,13 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bf-relax": 6,
     "closeness-sweep": 8,
     "closeness-reduce": 3,
-    "bc-finalize": 5,
+    "bc-finalize": 6,
     "bc-forward": 7,
-    "bc-backward": 6,
+    "bc-backward": 7,
     "bc-gather": 2,
-    "bc-edge-gather": 6,
+    "bc-edge-gather": 7,
     "bc-forward-edge": 7,
+    "bc-count": 8,
     "apsp-init": 5,
     "apsp-fw": 1,
     "coo-emit": 7,
@@ -78,6 +79,8 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "tri-intersect": 4,
     "group-by-key-row": 8,
     "lpa-step": 4,
+    "mst-best": 6,
+    "mst-link": 6,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

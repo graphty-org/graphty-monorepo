@@ -22,6 +22,7 @@ import { AccelerationController } from "../../src/acceleration/AccelerationContr
 import { narrowAlgorithms } from "../../src/acceleration/narrow";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
 import {
+    ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
 } from "../../src/acceleration/types";
@@ -50,6 +51,22 @@ const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
 function ring(n: number): MockGraphOpts {
     const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
     return { nodes, edges: nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` })) };
+}
+
+/**
+ * The complete graph on n nodes: n(n-1)/2 edges, so edges times edges per node is n(n-1)^2/4.
+ * @param n - The node count.
+ * @returns The records.
+ */
+function complete(n: number): MockGraphOpts {
+    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
+    const edges: { srcId: string; dstId: string }[] = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            edges.push({ srcId: `n${String(i)}`, dstId: `n${String(j)}` });
+        }
+    }
+    return { nodes, edges };
 }
 
 /**
@@ -179,7 +196,8 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
             "labelPropagation",
         ] as const) {
             assert.isFunction(narrowed[member], member);
-            assert.isAbove(FLOORS[member] ?? 0, 0, `${member} has a floor`);
+            const floor = FLOORS[member] ?? ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY[member] ?? 0;
+            assert.isAbove(floor, 0, `${member} has a floor`);
         }
     });
 
@@ -289,8 +307,6 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
     });
 
     describe("the clustering coefficient", () => {
-        const floor = FLOORS.triangleCount ?? NaN;
-
         it("with no accelerator, publishes the algorithms function's coefficient, counts and transitivity", async () => {
             const graph = await graphWith(LES_MIS);
             const output = await computed(new ClusteringCoefficientAlgorithm(graph));
@@ -332,18 +348,35 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
             assert.deepStrictEqual(output.graph, { transitivity: 3 / 5, triangleCount: 1 });
         });
 
-        it("at the floor reaches the accelerator, publishes its coefficient and says f32", async () => {
+        // The floor is on edges times edges per node, n(n-1)^2/4 for the complete graph on n nodes.
+        // The smallest complete graph that clears it goes to the device, the one a node smaller does not.
+        const floor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY.triangleCount ?? NaN;
+        const density = (n: number): number => (n * (n - 1) * (n - 1)) / 4;
+        let k = 3;
+        while (density(k) < floor) {
+            k++;
+        }
+
+        it("a dense graph at the floor reaches the accelerator, publishes its coefficient and says f32", async () => {
             const { fake, handed } = fourMemberFake();
-            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(ring(floor), fake)));
+            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(complete(k), fake)));
             assert.strictEqual(handed.triangleCount.length, 1);
             assert.strictEqual(output.caveats.precision, "f32");
             assert.deepInclude(nodeValues(output).get("n0"), { value: 0.25, triangles: 2 });
-            assert.deepStrictEqual(output.graph, { transitivity: 0.125, triangleCount: 7 });
         });
 
-        it("one node below the floor stays on the CPU port and says f64", async () => {
+        it("the same shape one node below the floor stays on the CPU port and says f64", async () => {
             const { fake, handed } = fourMemberFake();
-            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(ring(floor - 1), fake)));
+            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(complete(k - 1), fake)));
+            assert.strictEqual(handed.triangleCount.length, 0);
+            assert.strictEqual(output.caveats.precision, "f64");
+            const triangles = ((k - 1) * (k - 2) * (k - 3)) / 6;
+            assert.deepStrictEqual(output.graph, { transitivity: 1, triangleCount: triangles });
+        });
+
+        it("a sparse graph of 50,000 nodes stays on the CPU port and says f64", async () => {
+            const { fake, handed } = fourMemberFake();
+            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(ring(50_000), fake)));
             assert.strictEqual(handed.triangleCount.length, 0);
             assert.strictEqual(output.caveats.precision, "f64");
             assert.deepStrictEqual(output.graph, { transitivity: 0, triangleCount: 0 });

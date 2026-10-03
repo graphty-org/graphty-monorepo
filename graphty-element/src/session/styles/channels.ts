@@ -58,8 +58,8 @@
 
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
-import { EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
-import { NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
+import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import { defaultNodeStyle, NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -321,6 +321,24 @@ export interface ChannelDescriptor {
     readonly target: "node" | "edge";
     /** The name a person reads. */
     readonly plainName: string;
+    /**
+     * The name a person reads once the target is already said, in sentence case: "Marker" where
+     * {@link plainName} is "Node Marker". What a style editor writes beside the control, in a
+     * panel that already says it is styling nodes.
+     */
+    readonly shortName: string;
+    /** Which group of a style editor the channel sits in. */
+    readonly group: ChannelGroup;
+    /**
+     * The value the element draws when no layer sets the channel: the element's own default
+     * style where it states one, and otherwise what the renderer draws for an unset value. A
+     * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
+     * outline, no glow -- or when the renderer decides per element, as the pattern count does.
+     * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
+     * line's colour, so its default is the line's default and a layer that sets `edge.color`
+     * moves it too.
+     */
+    readonly default?: string | number | boolean;
     /** The kind of value it accepts. */
     readonly accepts: ChannelValueKind;
     /** Every value it accepts, when `accepts` is "enum". */
@@ -338,7 +356,19 @@ export interface ChannelDescriptor {
      * false, and what is lost when it is true. Absent when the channel is drawn as declared.
      */
     readonly caveat?: string;
+    /**
+     * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
+     * Present exactly when `renderable` is false; `caveat` is the longer note for an
+     * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
+     */
+    readonly unsupportedReason?: string;
 }
+
+/**
+ * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
+ * and text; an edge's in line, arrows and text.
+ */
+export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
 
 /**
  * Why an outline is a colour and nothing else, written once and read in two places.
@@ -394,7 +424,7 @@ const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
     'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
     "are what switch a caption on, so a layer that writes only the caption's appearance and no " +
-    "words draws nothing, exactly as `node.labelStyle` draws nothing without `node.label`.";
+    "words draws nothing.";
 
 /**
  * What a node tooltip narrows, written once and read by both of its channels.
@@ -417,21 +447,115 @@ const ARROW_CAPTION_CAVEAT =
 const NODE_TOOLTIP_CAVEAT =
     "A tooltip is drawn on hover and only on hover, so a graph at rest shows none: a layer that " +
     "writes one changes nothing until a reader points at the node. The words are what switch it " +
-    "on, so a layer that writes only the tooltip's appearance and no words draws nothing, " +
-    "exactly as `node.labelStyle` draws nothing without `node.label`. Only a NODE has a " +
-    "tooltip; `edge.tooltip` was withdrawn in 2.0 because an edge cannot be hovered.";
+    "on, so a layer that writes only the tooltip's appearance and no words draws nothing. " +
+    "Only a NODE has a tooltip; `edge.tooltip` was withdrawn in 2.0 because an edge cannot be hovered.";
 
 /**
- * Every channel, with what the element actually does with it.
+ * The colour an edge's line is drawn in by default, which is also the colour of both arrow caps:
+ * an unset cap colour follows the line it caps.
+ */
+const EDGE_LINE_DEFAULT_COLOR =
+    typeof defaultEdgeStyle.line?.color === "string" ? colorToHex(defaultEdgeStyle.line.color) : undefined;
+
+/** The six channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
+type ArrowEndChannel<End extends "Head" | "Tail"> =
+    `edge.arrow${End}${"" | "Size" | "Color" | "Opacity" | "Text" | "TextStyle"}`;
+
+/**
+ * The six channels of one arrow end, in table order. The head's and the tail's differ only in
+ * their names, their style paths and the tail's type default (an edge draws a head and no tail),
+ * so they are written once here and a change to one end cannot miss the other.
+ * @param end - Which end of the edge.
+ * @returns The end's channels: type, size, colour, opacity, caption and caption style.
+ */
+function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEndChannel<End>, ChannelDescriptor> {
+    const id = (suffix: string): { channel: Channel; target: "edge" } => ({
+        channel: `edge.arrow${end}${suffix}` as Channel,
+        target: "edge",
+    });
+    const rows: ChannelDescriptor[] = [
+        {
+            ...id(""),
+            plainName: `Arrow ${end}`,
+            shortName: end,
+            group: "arrows",
+            ...(end === "Tail" ? { default: "none" } : {}),
+            accepts: "enum",
+            values: ARROW_VALUES,
+            stylePath: `arrow${end}.type`,
+            renderable: true,
+        },
+        {
+            ...id("Size"),
+            plainName: `Arrow ${end} Size`,
+            shortName: `${end} size`,
+            group: "arrows",
+            default: 1,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.size`,
+            renderable: true,
+        },
+        {
+            ...id("Color"),
+            plainName: `Arrow ${end} Colour`,
+            shortName: `${end} color`,
+            group: "arrows",
+            default: EDGE_LINE_DEFAULT_COLOR,
+            accepts: "color",
+            stylePath: `arrow${end}.color`,
+            renderable: true,
+        },
+        {
+            ...id("Opacity"),
+            plainName: `Arrow ${end} Opacity`,
+            shortName: `${end} opacity`,
+            group: "arrows",
+            default: 1,
+            accepts: "number",
+            min: 0,
+            max: 1,
+            stylePath: `arrow${end}.opacity`,
+            renderable: true,
+        },
+        {
+            ...id("Text"),
+            plainName: `Arrow ${end} Caption`,
+            shortName: `${end} caption`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.text.text`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextStyle"),
+            plainName: `Arrow ${end} Caption Style`,
+            shortName: `${end} caption style`,
+            group: "arrows",
+            accepts: "labelStyle",
+            stylePath: `arrow${end}.text`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+    ];
+
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
+}
+
+/**
+ * Every channel as declared, before the defaults the element's default styles state are read in.
  *
  * The table is keyed by channel, so a channel added to the union without an entry here is a
  * compile error rather than a channel nothing knows how to paint.
  */
-export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = {
+const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.color": {
         channel: "node.color",
         target: "node",
         plainName: "Node Colour",
+        shortName: "Color",
+        group: "color",
         accepts: "color",
         stylePath: "texture.color",
         renderable: true,
@@ -440,6 +564,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.size",
         target: "node",
         plainName: "Node Size",
+        shortName: "Size",
+        group: "shape",
         accepts: "number",
         min: 0,
         stylePath: "shape.size",
@@ -449,6 +575,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.shape",
         target: "node",
         plainName: "Node Shape",
+        shortName: "Type",
+        group: "shape",
         accepts: "enum",
         values: NODE_SHAPE_VALUES,
         stylePath: "shape.type",
@@ -458,6 +586,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.label",
         target: "node",
         plainName: "Node Label",
+        shortName: "Label",
+        group: "text",
         accepts: "text",
         stylePath: "label.text",
         renderable: true,
@@ -466,6 +596,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.labelStyle",
         target: "node",
         plainName: "Node Label Style",
+        shortName: "Label style",
+        group: "text",
         accepts: "labelStyle",
         stylePath: "label",
         renderable: true,
@@ -474,6 +606,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.tooltip",
         target: "node",
         plainName: "Node Tooltip",
+        shortName: "Tooltip",
+        group: "text",
         accepts: "text",
         stylePath: "tooltip.text",
         renderable: true,
@@ -483,6 +617,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.tooltipStyle",
         target: "node",
         plainName: "Node Tooltip Style",
+        shortName: "Tooltip style",
+        group: "text",
         accepts: "labelStyle",
         stylePath: "tooltip",
         renderable: true,
@@ -492,6 +628,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.opacity",
         target: "node",
         plainName: "Node Opacity",
+        shortName: "Opacity",
+        group: "color",
+        default: 1,
         accepts: "number",
         min: 0,
         max: 1,
@@ -502,6 +641,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.outline",
         target: "node",
         plainName: "Node Outline",
+        shortName: "Outline",
+        group: "effects",
         accepts: "color",
         stylePath: "effect.outline.color",
         renderable: true,
@@ -511,6 +652,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.glow",
         target: "node",
         plainName: "Node Glow",
+        shortName: "Glow",
+        group: "effects",
         accepts: "color",
         stylePath: "effect.glow.color",
         renderable: true,
@@ -519,6 +662,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.glowStrength",
         target: "node",
         plainName: "Node Glow Strength",
+        shortName: "Glow strength",
+        group: "effects",
         accepts: "number",
         min: 0,
         stylePath: "effect.glow.strength",
@@ -528,6 +673,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.wireframe",
         target: "node",
         plainName: "Node Wireframe",
+        shortName: "Wireframe",
+        group: "effects",
+        default: false,
         accepts: "boolean",
         stylePath: "effect.wireframe",
         renderable: true,
@@ -536,6 +684,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.flat",
         target: "node",
         plainName: "Node Flat Shading",
+        shortName: "Flat shaded",
+        group: "effects",
+        default: false,
         accepts: "boolean",
         stylePath: "effect.flatShaded",
         renderable: true,
@@ -544,6 +695,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "node.marker",
         target: "node",
         plainName: "Node Marker",
+        shortName: "Marker",
+        group: "effects",
+        unsupportedReason: "The element draws no marker yet",
         accepts: "nothing",
         stylePath: "texture.icon",
         renderable: false,
@@ -555,6 +709,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.color",
         target: "edge",
         plainName: "Edge Colour",
+        shortName: "Color",
+        group: "line",
         accepts: "color",
         stylePath: "line.color",
         renderable: true,
@@ -563,6 +719,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.width",
         target: "edge",
         plainName: "Edge Width",
+        shortName: "Width",
+        group: "line",
         accepts: "number",
         min: 0,
         stylePath: "line.width",
@@ -572,6 +730,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.opacity",
         target: "edge",
         plainName: "Edge Opacity",
+        shortName: "Opacity",
+        group: "line",
+        default: 1,
         accepts: "number",
         min: 0,
         max: 1,
@@ -582,6 +743,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.style",
         target: "edge",
         plainName: "Edge Line Pattern",
+        shortName: "Line",
+        group: "line",
         accepts: "enum",
         values: EDGE_LINE_VALUES,
         stylePath: "line.type",
@@ -591,6 +754,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.patternCount",
         target: "edge",
         plainName: "Edge Pattern Count",
+        shortName: "Pattern count",
+        group: "line",
         accepts: "number",
         min: 2,
         stylePath: "line.patternCount",
@@ -605,6 +770,9 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.curvature",
         target: "edge",
         plainName: "Edge Curve",
+        shortName: "Curved",
+        group: "line",
+        default: false,
         accepts: "boolean",
         stylePath: "line.bezier",
         renderable: true,
@@ -612,118 +780,14 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
             "A switch, not an amount: the renderer offsets its control points by a fixed " +
             "fraction of the edge's length, so how far an edge bows cannot be set.",
     },
-    "edge.arrowHead": {
-        channel: "edge.arrowHead",
-        target: "edge",
-        plainName: "Arrow Head",
-        accepts: "enum",
-        values: ARROW_VALUES,
-        stylePath: "arrowHead.type",
-        renderable: true,
-    },
-    "edge.arrowHeadSize": {
-        channel: "edge.arrowHeadSize",
-        target: "edge",
-        plainName: "Arrow Head Size",
-        accepts: "number",
-        min: 0,
-        stylePath: "arrowHead.size",
-        renderable: true,
-    },
-    "edge.arrowHeadColor": {
-        channel: "edge.arrowHeadColor",
-        target: "edge",
-        plainName: "Arrow Head Colour",
-        accepts: "color",
-        stylePath: "arrowHead.color",
-        renderable: true,
-    },
-    "edge.arrowHeadOpacity": {
-        channel: "edge.arrowHeadOpacity",
-        target: "edge",
-        plainName: "Arrow Head Opacity",
-        accepts: "number",
-        min: 0,
-        max: 1,
-        stylePath: "arrowHead.opacity",
-        renderable: true,
-    },
-    "edge.arrowHeadText": {
-        channel: "edge.arrowHeadText",
-        target: "edge",
-        plainName: "Arrow Head Caption",
-        accepts: "text",
-        stylePath: "arrowHead.text.text",
-        renderable: true,
-        caveat: ARROW_CAPTION_CAVEAT,
-    },
-    "edge.arrowHeadTextStyle": {
-        channel: "edge.arrowHeadTextStyle",
-        target: "edge",
-        plainName: "Arrow Head Caption Style",
-        accepts: "labelStyle",
-        stylePath: "arrowHead.text",
-        renderable: true,
-        caveat: ARROW_CAPTION_CAVEAT,
-    },
-    "edge.arrowTail": {
-        channel: "edge.arrowTail",
-        target: "edge",
-        plainName: "Arrow Tail",
-        accepts: "enum",
-        values: ARROW_VALUES,
-        stylePath: "arrowTail.type",
-        renderable: true,
-    },
-    "edge.arrowTailSize": {
-        channel: "edge.arrowTailSize",
-        target: "edge",
-        plainName: "Arrow Tail Size",
-        accepts: "number",
-        min: 0,
-        stylePath: "arrowTail.size",
-        renderable: true,
-    },
-    "edge.arrowTailColor": {
-        channel: "edge.arrowTailColor",
-        target: "edge",
-        plainName: "Arrow Tail Colour",
-        accepts: "color",
-        stylePath: "arrowTail.color",
-        renderable: true,
-    },
-    "edge.arrowTailOpacity": {
-        channel: "edge.arrowTailOpacity",
-        target: "edge",
-        plainName: "Arrow Tail Opacity",
-        accepts: "number",
-        min: 0,
-        max: 1,
-        stylePath: "arrowTail.opacity",
-        renderable: true,
-    },
-    "edge.arrowTailText": {
-        channel: "edge.arrowTailText",
-        target: "edge",
-        plainName: "Arrow Tail Caption",
-        accepts: "text",
-        stylePath: "arrowTail.text.text",
-        renderable: true,
-        caveat: ARROW_CAPTION_CAVEAT,
-    },
-    "edge.arrowTailTextStyle": {
-        channel: "edge.arrowTailTextStyle",
-        target: "edge",
-        plainName: "Arrow Tail Caption Style",
-        accepts: "labelStyle",
-        stylePath: "arrowTail.text",
-        renderable: true,
-        caveat: ARROW_CAPTION_CAVEAT,
-    },
+    ...arrowEndChannels("Head"),
+    ...arrowEndChannels("Tail"),
     "edge.animationSpeed": {
         channel: "edge.animationSpeed",
         target: "edge",
         plainName: "Edge Animation Speed",
+        shortName: "Animation",
+        group: "line",
         accepts: "number",
         min: 0,
         stylePath: "line.animationSpeed",
@@ -734,6 +798,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.label",
         target: "edge",
         plainName: "Edge Label",
+        shortName: "Label",
+        group: "text",
         accepts: "text",
         stylePath: "label.text",
         renderable: true,
@@ -742,11 +808,71 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         channel: "edge.labelStyle",
         target: "edge",
         plainName: "Edge Label Style",
+        shortName: "Label style",
+        group: "text",
         accepts: "labelStyle",
         stylePath: "label",
         renderable: true,
     },
 };
+
+/**
+ * Read what sits at one dotted path of a style object.
+ * @param style - The style, or anything at all.
+ * @param path - The dotted path a channel declares, such as `texture.color`.
+ * @returns What sits there, or undefined when any step of the path is missing.
+ */
+export function atStylePath(style: unknown, path: string): unknown {
+    let held = style;
+
+    for (const segment of path.split(".")) {
+        if (typeof held !== "object" || held === null) {
+            return undefined;
+        }
+
+        held = (held as Record<string, unknown>)[segment];
+    }
+
+    return held;
+}
+
+/**
+ * What the element's own default style says for one channel, as a descriptor default.
+ *
+ * READ, NOT RESTATED, which is the same rule the element's base layers follow: the default node
+ * colour lives in `defaultNodeStyle`, and a second copy of it here would go on describing the old
+ * colour the day that one changes. Only a channel the default style says nothing about carries a
+ * `default` in the table above -- what the renderer draws when nothing is set.
+ * @param descriptor - The declared descriptor.
+ * @returns The default, or undefined when the default style says nothing for this channel.
+ */
+function shippedDefault(descriptor: ChannelDescriptor): string | number | boolean | undefined {
+    if (!descriptor.renderable) {
+        return undefined;
+    }
+
+    const value = atStylePath(descriptor.target === "node" ? defaultNodeStyle : defaultEdgeStyle, descriptor.stylePath);
+
+    if (descriptor.accepts === "color") {
+        return typeof value === "string" ? colorToHex(value) : undefined;
+    }
+
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : undefined;
+}
+
+/**
+ * Every channel, with what the element actually does with it and what a style editor needs to
+ * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
+ *
+ * The defaults are read from the element's default styles once, when this module loads.
+ */
+export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = Object.fromEntries(
+    Object.values(DECLARED).map((descriptor): [Channel, ChannelDescriptor] => {
+        const value = shippedDefault(descriptor) ?? descriptor.default;
+
+        return [descriptor.channel, value === undefined ? descriptor : { ...descriptor, default: value }];
+    }),
+) as Record<Channel, ChannelDescriptor>;
 
 /** Every channel name, in table order. */
 export const CHANNELS: readonly Channel[] = Object.keys(CHANNEL_DESCRIPTORS) as Channel[];

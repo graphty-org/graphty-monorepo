@@ -15,18 +15,66 @@
  * iPad) keeps one request open. POST /api/finish starts it and GET /api/finish-status reports its
  * step, then its result or error, so a reload finds the running Finish. The job is also written
  * to `<tmp>/state/finish.json`, so a server restarted during a Finish says it was interrupted.
+ * POST /api/update runs an update from the default branch (accept.mjs updateFromMaster) the same
+ * way, as the same job, so only one of them runs at a time.
+ *
+ * Passkeys: once any key is known (passkeys.json on the fetched default branch, or one this server
+ * registered whose pull request is not merged yet, `<tmp>/state/passkeys-pending.json`), Finish
+ * needs the owner's approval. A pending key approves only while the default branch holds none: once
+ * it does, only its keys count, as in the gate, so a key registered later (by anyone who can reach
+ * this page) approves nothing until its pull request merges. POST /api/finish-prepare builds the
+ * record and returns its hash as the WebAuthn challenge; POST /api/finish takes the approval,
+ * checks it, and commits exactly that record. The server decides whether approval is required, so
+ * leaving it out never skips it. The rpId is the host name of the page's own origin.
+ *
+ * The list of targets is cached: `GET /api/prs?cached=1` answers at once with the cache, its age,
+ * the progress of a refresh, why the last one failed and any network retry under way, and
+ * `?refresh=1` starts one in the background, so the page never waits on GitHub to change screens.
+ * The list is also kept in `<tmp>/state/list.json`, so a restarted server shows it at once and
+ * refreshes it behind. With `warm` the server refreshes at start and every two minutes, so the
+ * captures of a CI run that just finished are downloaded before the owner opens them. A target
+ * whose captures are still downloading is listed with `downloading: true` and its progress, and
+ * rebuilt in the cache when they land; `GET /api/pr/...` of a project still downloading answers
+ * 202 and moves its download to the front of the queue. What GitHub says about a finished run
+ * (its jobs and artifacts) is asked once and kept beside its downloads. Grid tiles load
+ * thumbnails (`GET /api/thumb/...`), scaled down in worker threads as soon as a capture lands and
+ * kept on disk.
  */
 
+import { execFileSync } from "node:child_process";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AcceptError, behindMaster, cleanReason, decisionProblem, finish } from "./accept.mjs";
-import { downloadCaptures, exec, getRun, newestCiRun, openPullRequests, visualJobs } from "./github.mjs";
+import {
+    AcceptError,
+    behindMaster,
+    cleanReason,
+    commitStatus,
+    decisionProblem,
+    finish,
+    legacyApprovals,
+    newerOnMaster,
+    prepareRecord,
+    proposeKey,
+    updateFromMaster,
+} from "./accept.mjs";
+import { PASSKEYS_FILE, parsePasskeys, recordHash, verifyApproval, verifyRegistration } from "./approval.mjs";
+import {
+    downloadCaptures,
+    exec,
+    getRun,
+    hurry,
+    newestCiRun,
+    openPullRequests,
+    retrying,
+    visualJobs,
+} from "./github.mjs";
 import { CONFIG_FILE } from "./config.mjs";
 import { validateResults } from "./results.mjs";
+import { scaled } from "./thumbs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -34,6 +82,7 @@ const STATIC = {
     "/review.js": ["../page/review.js", "text/javascript; charset=utf-8"],
     "/review.css": ["../page/review.css", "text/css; charset=utf-8"],
     "/pixelmatch.mjs": ["../vendor/pixelmatch.mjs", "text/javascript; charset=utf-8"],
+    "/passkey.js": ["../page/passkey.js", "text/javascript; charset=utf-8"],
 };
 const HEADERS = {
     "content-security-policy":
@@ -50,13 +99,25 @@ const HEADERS = {
 const componentOf = (id) => id.split("--")[0];
 
 const REVIEWABLE = new Set(["changed", "moved", "new", "unseeded", "removed", "unstable", "failed"]);
-const WRITES = new Set(["decide", "accept-all", "finish"]);
+const WRITES = new Set(["decide", "accept-all", "finish", "finish-prepare", "passkey-challenge", "register", "update"]);
+// A registration challenge is good for one use within this long; a prepared approval for this long.
+const CHALLENGE_MS = 5 * 60000;
+const APPROVAL_MS = 10 * 60000;
 // How long a page load waits for a run's captures to download before it lists the target as
 // downloading; the download goes on, and a reload picks it up.
 const PATIENCE = 1000;
 // An unknown target id refreshes from GitHub at most this often: a closed pull request's open
 // grid asks for dozens of images at once.
 const UNKNOWN_REFRESH = 60000;
+// With `warm`, the list is refreshed this often, so a CI run that finished meanwhile is downloaded
+// before the owner opens it.
+const POLL = 2 * 60000;
+
+/**
+ * The newest gh call waiting to retry after a network failure, for the page.
+ * @returns {{ error: string, attempt: number, of: number, until: number } | null} it, or null
+ */
+const networkTrouble = () => [...retrying].at(-1) ?? null;
 
 /**
  * The image a decision was taken on: the capture, or for a removed item its baseline.
@@ -209,10 +270,11 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
     let finishing = false;
     const jobFile = join(stateDir, "finish.json");
     /**
-     * The newest Finish, kept after it ends so a reload still shows its result.
-     * @type {{ id: number, target: string, pr: number | null, branch: string | null, running: boolean,
-     *     step: string | null, result: object | null, error: string | null, warnings: string[],
-     *     interrupted?: true } | null}
+     * The newest Finish (or update from the default branch, `kind: "update"`), kept after it ends
+     * so a reload still shows its result.
+     * @type {{ id: number, kind?: "update", target: string, pr: number | null, branch: string | null,
+     *     running: boolean, step: string | null, result: object | null, error: string | null,
+     *     warnings: string[], interrupted?: true } | null}
      */
     let job = null;
     try {
@@ -246,6 +308,71 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
         }
     };
     let signer = null;
+    const rpId = new URL(origin).hostname;
+    const pendingFile = join(stateDir, "passkeys-pending.json");
+    /** Registration challenges (base64url) and when each expires. */
+    const challenges = new Map();
+    /**
+     * The record each target's Finish was prepared with, waiting for its approval.
+     * @type {Map<string, { challenge: string, record: object, work: object, digest: string,
+     *     expires: number, legacy?: { items: object[], drop: string[] } | null }>}
+     */
+    const approvals = new Map();
+    // Fails closed: only a missing file means no pending key; any other failure throws.
+    const readPending = () => {
+        let text;
+        try {
+            text = readFileSync(pendingFile, "utf8");
+        } catch (err) {
+            if (err.code === "ENOENT") {
+                return [];
+            }
+            throw err;
+        }
+        try {
+            return parsePasskeys(text);
+        } catch (err) {
+            throw new Error(`${pendingFile} is invalid: ${err.message}`);
+        }
+    };
+    /**
+     * The keys an approval may come from: the fetched default branch's passkeys.json, and the
+     * keys this server registered that it does not hold yet. A git failure or an invalid file
+     * throws: approval is never skipped because a key could not be read. `trusted` is what may
+     * approve: the default branch's keys, or the pending ones while it has none.
+     * @returns {Promise<{ main: object[], pending: object[], trusted: object[] }>} the keys
+     */
+    async function knownKeys() {
+        const ref = `refs/remotes/origin/${defaultBranch}`;
+        const git = (args) => exec("git", args, { cwd: repo });
+        const listed = await git(["ls-tree", "--name-only", ref, "--", PASSKEYS_FILE]);
+        const text = listed === "" ? null : await git(["show", `${ref}:${PASSKEYS_FILE}`]);
+        let main = [];
+        try {
+            main = text === null ? [] : parsePasskeys(text);
+        } catch (err) {
+            throw new Error(`${PASSKEYS_FILE} on ${defaultBranch} is invalid: ${err.message}`);
+        }
+        const ids = new Set(main.map((k) => k.id));
+        const pending = readPending().filter((k) => !ids.has(k.id));
+        return { main, pending, trusted: main.length > 0 ? main : pending };
+    }
+    /** The passkey state the targets screen shows, read when the target list refreshes. */
+    let passkeyState = { main: [], pending: [], problem: null };
+    const readPasskeys = async () => {
+        if (results) {
+            return;
+        }
+        try {
+            passkeyState = { ...(await knownKeys()), problem: null };
+        } catch (err) {
+            passkeyState = { main: [], pending: [], problem: err.message };
+        }
+    };
+    /** An open pull request that registers a passkey, waiting for the owner to merge it. */
+    let passkeyPr = null;
+    /** The passkey pull request this server opened: listed until GitHub's list or the file has it. */
+    let passkeyOpened = null;
     const busy = (t) => finishing && job?.target === t.id;
     const BUSY = "a Finish is running on this target: wait for it to end";
 
@@ -265,12 +392,12 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
 
     /**
      * A target's saved decisions by `<project>/<file>`, each with the hash of the image it was
-     * taken on; `bulk` marks an accept from Accept all that was never opened one by one, `posted`
+     * taken on and of the baseline it was compared with (`base`); `bulk` marks an accept from Accept all that was never opened one by one, `posted`
      * a reject an earlier Finish already commented. A file that is not a decisions file is moved
      * aside, never overwritten, so the owner can still recover what it held.
      * @param {object} t the target
      * @returns {Record<string, { decision: string, reason: string | null, hash: string | null,
-     *     bulk?: true, posted?: true }>} the decisions
+     *     base?: string | null, bulk?: true, posted?: true }>} the decisions
      */
     const readState = (t) => {
         const file = stateFile(t);
@@ -316,19 +443,24 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
 
     /**
      * The decisions that apply to this run: those whose item is in it, with the image the decision
-     * was taken on, and still decidable that way. The others stay in the file.
+     * was taken on and the baseline it was compared with (`base`; a decision saved before it was
+     * kept matches any), and still decidable that way. The others stay in the file. So after the
+     * branch is updated from the default branch and captured again, a story whose capture and
+     * baseline are both unchanged keeps its decision, and one whose baseline moved comes back
+     * undecided.
      * @param {object} t the target
      * @returns {Map<string, { decision: string, reason: string | null, bulk?: true, posted?: true }>}
      *     by `<project>/<file>`
      */
     const decisionsOf = (t) => {
         const mine = new Map();
-        for (const [k, { hash, ...d }] of Object.entries(readState(t))) {
+        for (const [k, { hash, base, ...d }] of Object.entries(readState(t))) {
             const item = itemOf(t, k);
             const project = k.slice(0, k.indexOf("/"));
             if (
                 item &&
                 imageHash(item) === hash &&
+                (base === undefined || base === (item.baseline ?? null)) &&
                 !decisionProblem(item, d.decision, d.reason ?? null) &&
                 (d.decision === "reject" || acceptable(t, project))
             ) {
@@ -341,37 +473,120 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
     // `problem` is what CI said (the job failed, or no artifact); results.json can add its own.
     async function project(name, dir, problem) {
         const loaded = dir ? await loadResults(dir) : { results: null, problem: null };
+        if (loaded.results) {
+            prewarm(dir, loaded.results);
+        }
         return { project: name, dir, results: loaded.results, problem: problem ?? loaded.problem, logUrl: null };
     }
 
+    /**
+     * The gh runner for one finished run: what GitHub says about it (its jobs, its artifacts) no
+     * longer changes, so each answer is asked once and kept on disk beside the run's downloads,
+     * and pruned with them. A refresh then asks GitHub only for the pull requests and their newest
+     * runs. ponytail: an artifact that expires later is still listed as there; its download fails
+     * and says so, which only matters for a capture never downloaded in its 90 days.
+     * @param {{ id: number, attempt: number }} run the finished run
+     * @returns {Function} the gh runner
+     */
+    const kept = (run) => async (args, input) => {
+        if (args[0] !== "api") {
+            return gh(args, input);
+        }
+        const name = createHash("sha256").update(args.join(" ")).digest("hex").slice(0, 16);
+        const file = join(tmp, `${run.id}-${run.attempt}`, "gh", `${name}.json`);
+        const saved = await readFile(file, "utf8").catch(() => null);
+        if (saved !== null) {
+            return saved;
+        }
+        const answer = await gh(args, input);
+        try {
+            mkdirSync(dirname(file), { recursive: true });
+            writeFileSync(`${file}.tmp`, answer);
+            renameSync(`${file}.tmp`, file);
+        } catch (err) {
+            warnOnce(`could not keep GitHub's answers in ${dirname(file)}: ${err.message}`);
+        }
+        return answer;
+    };
+
     async function build(info, run) {
-        const jobs = await visualJobs(gh, run, run.attempt, names);
+        const g = run.status === "completed" ? kept(run) : gh;
+        const jobs = await visualJobs(g, run, run.attempt, names);
         const others = [];
-        const downloads = downloadCaptures(gh, run, names, tmp, others);
+        // Each project's capture as its download lands; `partial` is the target listed while the
+        // rest are still downloading, whose rows fill in one by one. `download` counts the
+        // artifacts and their bytes, for the page's progress.
+        const landed = new Map();
+        const download = { done: 0, total: names.length, bytesDone: 0, bytes: null, startedAt: Date.now() };
+        let sizes = {};
+        let partial = null;
+        const fill = async (name) => {
+            const p = await project(name, landed.get(name)?.dir, problemOf(name, landed.get(name), run, jobs));
+            p.logUrl = jobs[name]?.url ?? run.url;
+            p.bytes = sizes[name] ?? null;
+            partial.projects[names.indexOf(name)] = p;
+            await decorate(partial);
+        };
+        const downloads = downloadCaptures(
+            g,
+            run,
+            names,
+            tmp,
+            others,
+            (name, got) => {
+                landed.set(name, got);
+                if (got) {
+                    download.done++;
+                    download.bytesDone += got.bytes;
+                }
+                if (partial) {
+                    fill(name).catch((err) => console.error(`visual-review: ${name} of ${info.id}: ${err.message}`));
+                }
+            },
+            (planned) => {
+                sizes = planned;
+                download.total = Object.keys(planned).length;
+                download.bytes = Object.values(planned).reduce((a, b) => a + b, 0);
+            },
+        );
         downloads.catch(() => {}); // A download still running after PATIENCE fails on a later refresh.
         const downloaded = await Promise.race([
             downloads,
             new Promise((resolve) => setTimeout(resolve, PATIENCE, null).unref()),
         ]);
         if (!downloaded) {
-            return blank(info, "downloading the captures: reload in a moment", run);
+            // Listed as downloading, and rebuilt in the cache when the download lands, so the page
+            // (which asks again every few seconds) fills the rows in without a refresh.
+            downloads
+                .then(async () => {
+                    await refreshing?.catch(() => {});
+                    const shown = targets.get(info.id);
+                    if (shown?.downloading && shown.runId === run.id && shown.runAttempt === run.attempt) {
+                        const built = await build(info, run);
+                        await decorate(built);
+                        if (targets.get(info.id) === shown) {
+                            targets.set(info.id, built);
+                            save();
+                        }
+                    }
+                })
+                .catch((err) => console.error(`visual-review: rebuilding ${info.id} failed: ${err.message}`));
+            partial = blank(info, null, run);
+            partial.downloading = true;
+            partial.download = download;
+            for (const p of partial.projects) {
+                p.downloading = true;
+                p.bytes = sizes[p.project] ?? null;
+            }
+            for (const name of landed.keys()) {
+                await fill(name);
+            }
+            return partial;
         }
         const list = [];
         for (const name of names) {
-            const job = jobs[name];
-            const got = downloaded[name];
-            let problem = null;
-            if (got?.error) {
-                problem = retryLater("download failed", got.error);
-            } else if (got?.expired) {
-                problem = "artifact expired: re-run the visual job";
-            } else if (!got && run.status !== "completed" && job?.conclusion !== "failure") {
-                problem = "CI still running; reload when it finishes";
-            } else if (!got || job?.conclusion === "failure") {
-                problem = job ? "capture failed" : "no capture";
-            }
-            const p = await project(name, got?.dir, problem);
-            p.logUrl = job?.url ?? run.url;
+            const p = await project(name, downloaded[name]?.dir, problemOf(name, downloaded[name], run, jobs));
+            p.logUrl = jobs[name]?.url ?? run.url;
             list.push(p);
         }
         const warnings = others.map(
@@ -379,6 +594,24 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 `the run captured ${p}, which this server's ${CONFIG_FILE} does not list: serve from a checkout that has it`,
         );
         return { ...info, runId: run.id, runAttempt: run.attempt, runUrl: run.url, projects: list, warnings };
+    }
+
+    // Why a project's capture is missing, from its download and its CI job; null when it is there.
+    function problemOf(name, got, run, jobs) {
+        const job = jobs[name];
+        if (got?.error) {
+            return retryLater("download failed", got.error);
+        }
+        if (got?.expired) {
+            return "artifact expired: re-run the visual job";
+        }
+        if (!got && run.status !== "completed" && job?.conclusion !== "failure") {
+            return "CI still running; reload when it finishes";
+        }
+        if (!got || job?.conclusion === "failure") {
+            return job ? "capture failed" : "no capture";
+        }
+        return null;
     }
 
     const retryLater = (what, message) => `${what}: ${message.split("\n")[0]}; reload the page to retry`;
@@ -405,11 +638,32 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
     // Concurrent callers (the startup refresh, the page's first request) share one refresh.
     let refreshing = null;
     let refreshedAt = 0;
+    let loadedOnce = false;
+    /** Why the last refresh failed as a whole (no list at all), for the page; null once one works. */
+    let failure = null;
+    /** What the running refresh is doing, for the page: a step, a count, and when it began. */
+    let progress = null;
+    const step = (name, done = null, total = null) => {
+        if (progress) {
+            Object.assign(progress, { step: name, done, total });
+        }
+    };
     const refresh = () =>
-        (refreshing ??= load().finally(() => {
-            refreshing = null;
-            refreshedAt = Date.now();
-        }));
+        (refreshing ??= (async () => {
+            progress = { step: "starting", done: null, total: null, startedAt: Date.now() };
+            try {
+                await load();
+                loadedOnce = true;
+                failure = null;
+            } catch (err) {
+                failure = err.message.split("\n")[0];
+                throw err;
+            } finally {
+                refreshing = null;
+                refreshedAt = Date.now();
+                progress = null;
+            }
+        })());
 
     async function load() {
         const next = new Map();
@@ -442,6 +696,7 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             // master seed still loads.
             listWarnings = [];
             const kept = [...targets.values()].filter((t) => t.pr !== null);
+            step("listing pull requests");
             const prs = await openPullRequests(gh).catch((err) => {
                 if (!masterRun && kept.length === 0) {
                     throw err;
@@ -482,6 +737,8 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 }
             })();
             // Every pull request at once: one after another took about 40 s for 18 of them.
+            let found = 0;
+            step("finding CI runs", 0, prs.length);
             const built = await Promise.all(
                 prs.map(async (pr) => {
                     const info = {
@@ -498,12 +755,25 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                             : blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`);
                     } catch (err) {
                         return keptOr(info, err);
+                    } finally {
+                        step("finding CI runs", ++found, prs.length);
                     }
                 }),
             );
+            step("fetching branches");
             await fetched;
+            await readPasskeys();
+            // GitHub's list can lag a pull request just opened: keep it a while, until its key is merged.
+            const opened =
+                passkeyOpened &&
+                Date.now() - passkeyOpened.at < 5 * 60000 &&
+                !passkeyState.main.some((k) => k.id === passkeyOpened.id)
+                    ? passkeyOpened.number
+                    : null;
+            passkeyPr = prs.find((p) => p.branch.startsWith("visual/passkey-"))?.number ?? opened;
             for (const t of built) next.set(t.id, t);
             if (masterRun) {
+                step(`reading ${defaultBranch}'s CI run`);
                 const info = { id: "master", pr: null, title: defaultBranch, url: null, branch: null };
                 next.set(
                     "master",
@@ -513,32 +783,112 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 );
             }
         }
+        step("checking the baselines", 0, next.size);
+        let checked = 0;
         for (const t of next.values()) {
-            const first = t.projects.find((p) => p.results)?.results;
-            t.commit = first?.commit ?? null;
-            t.headSha = first?.headSha ?? null;
-            const base = t.pr === null ? t.commit : t.headSha;
-            t.earlier = await earlierAccepts(repo, t.headSha, t.pr, config.baselines);
-            // null: unknown, when the captured head was never fetched or git fails.
-            const known =
-                base !== null &&
-                (await exec("git", ["cat-file", "-e", `${base}^{commit}`], { cwd: repo }).then(
-                    () => true,
-                    () => false,
-                ));
-            t.mergeMasterFirst = false;
-            for (const p of t.projects) {
-                if (!t.local && p.results && base) {
-                    const behind = known ? await behindMaster(repo, base, p.project, config).catch(() => null) : null;
-                    if (behind !== false && t.mergeMasterFirst !== true) {
-                        t.mergeMasterFirst = behind;
-                    }
-                }
-            }
+            await decorate(t);
+            step("checking the baselines", ++checked, next.size);
         }
         signer = await signingIdentity(repo);
         targets = next;
+        save();
         prune();
+    }
+
+    const listFile = join(stateDir, "list.json");
+    /**
+     * Keeps the list of targets on disk, without the captures' results (results.json is read again
+     * from each capture's directory), so a restarted server shows it before GitHub answers.
+     */
+    function save() {
+        if (results) {
+            return;
+        }
+        try {
+            writeJson(listFile, {
+                at: Date.now(),
+                targets: [...targets.values()].map((t) => ({
+                    ...t,
+                    earlier: [...(t.earlier ?? [])],
+                    projects: t.projects.map((p) => ({ ...p, results: undefined })),
+                })),
+            });
+        } catch (err) {
+            const warning = `could not keep the list of targets (a restart would wait for GitHub): ${err.message}`;
+            console.error(`visual-review: ${warning}`);
+            if (!listWarnings.includes(warning)) {
+                listWarnings.push(warning);
+            }
+        }
+    }
+
+    /**
+     * The list a previous run of this server kept, shown until the first refresh replaces it. A
+     * capture whose directory is gone is listed as downloading: that refresh downloads it again.
+     */
+    async function restore() {
+        let saved;
+        try {
+            saved = JSON.parse(readFileSync(listFile, "utf8"));
+        } catch {
+            return; // Never saved, or unreadable: the first refresh builds the list.
+        }
+        try {
+            const next = new Map();
+            for (const t of saved.targets) {
+                const list = [];
+                for (const p of t.projects) {
+                    const there = p.dir && existsSync(join(p.dir, "results.json"));
+                    const loaded = there ? await project(p.project, p.dir, p.problem) : null;
+                    list.push(
+                        p.dir && !loaded?.results
+                            ? { ...p, dir: null, results: null, problem: null, downloading: true }
+                            : { ...p, results: loaded?.results ?? null },
+                    );
+                }
+                const downloading = t.downloading === true || list.some((p) => p.downloading);
+                next.set(t.id, { ...t, earlier: new Map(t.earlier), projects: list, downloading });
+            }
+            signer = await signingIdentity(repo);
+            await readPasskeys();
+            if (!loadedOnce) {
+                targets = next;
+                loadedOnce = true;
+                refreshedAt = saved.at;
+            }
+        } catch (err) {
+            console.error(`visual-review: ignoring the kept list in ${listFile}: ${err.message}`);
+        }
+    }
+
+    // A target's captured commits, its earlier accepts and whether it is behind the default branch.
+    async function decorate(t) {
+        const first = t.projects.find((p) => p.results)?.results;
+        t.commit = first?.commit ?? null;
+        t.headSha = first?.headSha ?? null;
+        const base = t.pr === null ? t.commit : t.headSha;
+        t.earlier = await earlierAccepts(repo, t.headSha, t.pr, config.baselines);
+        // null: unknown, when the captured head was never fetched or git fails.
+        const known =
+            base !== null &&
+            (await exec("git", ["cat-file", "-e", `${base}^{commit}`], { cwd: repo }).then(
+                () => true,
+                () => false,
+            ));
+        t.mergeMasterFirst = false;
+        for (const p of t.projects) {
+            p.newer = [];
+            if (!t.local && p.results && base) {
+                const behind = known ? await behindMaster(repo, base, p.project, config).catch(() => null) : null;
+                if (behind !== false && t.mergeMasterFirst !== true) {
+                    t.mergeMasterFirst = behind;
+                }
+                // What the review page lists as out of date when the project opens.
+                if (behind && t.pr !== null) {
+                    p.newer = await newerOnMaster(repo, base, p.project, config).catch(() => []);
+                }
+            }
+        }
     }
 
     // Deletes the downloads of runs no target shows any more (never state/). Not while a Finish
@@ -582,9 +932,40 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             commit: t.commit,
             headSha: t.headSha,
             mergeMasterFirst: t.mergeMasterFirst,
+            downloading: t.downloading === true,
+            // While downloading: how many artifacts and bytes have landed of how many, and since when
+            // (server time). `bytes` is null until GitHub has listed the artifacts.
+            download: t.downloading
+                ? { done: 0, total: names.length, bytesDone: 0, bytes: null, startedAt: null, ...t.download }
+                : null,
+            defaultBranch,
+            // Decisions the next Finish would publish (a reject an earlier Finish posted is not).
+            unpublished: [...decided.values()].filter((d) => !d.posted).length + legacyCount(t),
             warnings,
             signer,
             startCommand,
+            // What the targets screen and Finish's header say about the passkey. The Finish routes
+            // read the keys again themselves: this is for display only.
+            passkey: {
+                rpId,
+                required: passkeyState.problem !== null || passkeyState.main.length + passkeyState.pending.length > 0,
+                keys: [
+                    ...passkeyState.main.map(({ id, label, rpId: host }) => ({
+                        id,
+                        label,
+                        rpId: host,
+                        pending: false,
+                    })),
+                    ...passkeyState.pending.map(({ id, label, rpId: host }) => ({
+                        id,
+                        label,
+                        rpId: host,
+                        pending: true,
+                    })),
+                ],
+                problem: passkeyState.problem,
+                waiting: passkeyPr,
+            },
             projects: t.projects.map((p) => {
                 const counts = {};
                 for (const item of p.results?.items ?? []) {
@@ -596,14 +977,21 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 return {
                     project: p.project,
                     problem: p.problem,
+                    downloading: p.downloading === true,
+                    // The size of the project's artifact, while it downloads.
+                    bytes: p.downloading ? (p.bytes ?? null) : null,
                     logUrl: p.logUrl,
                     counts,
                     reviewable,
                     decided: mine.length,
                     undecided: reviewable - mine.length,
+                    // Accepts and exclusions an earlier Finish pushed, waiting for a new CI run.
+                    finished: mine.filter(([, d]) => d.posted && d.decision !== "reject").length,
                     notOpened: mine.filter(([, d]) => d.bulk).length,
                     acceptable: acceptable(t, p.project),
                     local: p.results?.local ?? null,
+                    // The default branch's baseline files this capture was not compared with.
+                    newer: p.newer ?? [],
                 };
             }),
         };
@@ -645,20 +1033,283 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             : body.runId === undefined || (body.runId === t.runId && body.runAttempt === t.runAttempt);
     const CHANGED = "the capture changed since the page loaded it (a new CI run or attempt): reload the page";
 
+    /**
+     * The decisions a Finish of `t` would apply now: every one but the rejects an earlier Finish
+     * already posted, in a fixed order, and a digest of them that changes when any of them does.
+     * @param {object} t the target
+     * @returns {{ list: { project: string, file: string, decision: string, reason: string | null }[],
+     *     digest: string }} the decisions and their digest
+     */
+    const finishList = (t) => {
+        const list = [...decisionsOf(t)]
+            .filter(([, v]) => !v.posted)
+            .sort(([a], [b]) => (a < b ? -1 : 1))
+            .map(([k, v]) => {
+                const at = k.indexOf("/");
+                return { project: k.slice(0, at), file: k.slice(at + 1), decision: v.decision, reason: v.reason };
+            });
+        return { list, digest: createHash("sha256").update(JSON.stringify(list)).digest("hex") };
+    };
+    const CHANGED_SINCE = "Decisions changed since this sheet opened: check the summary again.";
+
+    // What Finish's sheet states before it runs: what it commits and posts, and the status it sets.
+    // The passkey's challenge comes from POST /api/finish-prepare.
+    const finishPreview = (t) => {
+        const { list, digest } = finishList(t);
+        const s = summary(t);
+        const count = (d) => list.filter((x) => x.decision === d).length;
+        const unloaded = t.projects.filter((p) => !p.results).map((p) => p.project);
+        const undecided = s.projects.reduce((n, p) => n + p.undecided, 0);
+        const notes = list
+            .filter((x) => x.reason !== null && x.decision !== "exclude")
+            .map((x) => ({ decision: x.decision, project: x.project, file: x.file, note: x.reason }));
+        return {
+            accepts: count("accept"),
+            excludes: count("exclude"),
+            rejects: count("reject"),
+            acceptNotes: notes.filter((n) => n.decision === "accept").length,
+            notes,
+            notOpened: s.projects.reduce((n, p) => n + p.notOpened, 0),
+            undecided: s.projects
+                .filter((p) => p.undecided > 0)
+                .map((p) => ({ project: p.project, undecided: p.undecided })),
+            unloaded,
+            // Approvals from before passkeys a signed Finish signs again, and the unsigned records
+            // it removes.
+            legacy: legacyOf(t) && { files: legacyOf(t).items.length, records: legacyOf(t).drop },
+            status: commitStatus({
+                accepted: count("accept"),
+                rejected: count("reject"),
+                excluded: count("exclude"),
+                undecided,
+                unloaded,
+            }),
+            digest,
+        };
+    };
+
+    /**
+     * What a Finish of this target applies: its decisions (a reject an earlier Finish posted stays
+     * shown as rejected, never posted again), their digest, the captures, and what is left
+     * undecided or unloaded.
+     * @param {object} t the target
+     * @returns {{ list: object[], digest: string, captures: object, undecided: number,
+     *     unloaded: string[] }} the work
+     */
+    const finishWork = (t) => ({
+        ...finishList(t),
+        captures: capturesOf(t),
+        undecided: summary(t).projects.reduce((n, p) => n + p.undecided, 0),
+        unloaded: t.projects.filter((p) => !p.results).map((p) => p.project),
+    });
+
+    /**
+     * A pull request's approvals from before passkeys (legacyApprovals): what a signed Finish
+     * signs again and which unsigned records it removes. Cached per captured head and default
+     * branch tip; null when there are none or they cannot be read here.
+     */
+    const legacyCache = new Map();
+    const legacyOf = (t) => {
+        if (t.local || t.pr === null || !t.headSha) {
+            return null;
+        }
+        const base = `refs/remotes/origin/${defaultBranch}`;
+        let tip;
+        try {
+            tip = execFileSync("git", ["rev-parse", base], { cwd: repo }).toString("utf8").trim();
+        } catch {
+            return null;
+        }
+        const key = `${t.headSha}:${tip}`;
+        if (!legacyCache.has(t.id) || legacyCache.get(t.id).key !== key) {
+            let value = null;
+            try {
+                value = legacyApprovals({ repo, pr: t.pr, head: t.headSha, base: tip, config });
+            } catch (err) {
+                console.error(`visual-review: could not read the approvals of #${t.pr}: ${err.message}`);
+            }
+            legacyCache.set(t.id, { key, value });
+        }
+        return legacyCache.get(t.id).value;
+    };
+    // How many things a signed Finish of the old approvals publishes: the files it signs again,
+    // or, when none are left, the unsigned records it removes.
+    const legacyCount = (t) => {
+        const l = legacyOf(t);
+        return l === null ? 0 : l.items.length || l.drop.length;
+    };
+
+    const capturesOf = (t) =>
+        Object.fromEntries(
+            t.projects.filter((p) => p.results).map((p) => [p.project, { dir: p.dir, results: p.results }]),
+        );
+
+    /** Thumbnails being made, by the file they are kept in, and whether a tile is waiting for one. */
+    const making = new Map();
+
+    /**
+     * An image's thumbnail, made in a worker thread unless it is on disk already. A tile waiting
+     * for one (`urgent`) goes ahead of those made in advance, even of its own made in advance.
+     * @param {{ path: string, hash: string, file: string, dir: string }} where the image
+     * @param {boolean} urgent a tile is waiting for it
+     * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
+     */
+    function thumbOf(where, urgent) {
+        const kept = join(tmp, "thumbs", `${where.hash}.png`);
+        const was = making.get(kept);
+        if (was && (was.urgent || !urgent)) {
+            return was.done;
+        }
+        const done = (async () => {
+            // Made in advance, it was just found missing: reading here, for a thousand items at once,
+            // would fill Node's file thread pool and stall every other request's file reads.
+            const cached = urgent ? await readFile(kept).catch(() => null) : null;
+            if (cached) {
+                return [200, cached, "image/png"];
+            }
+            let small;
+            try {
+                small = await scaled(async () => {
+                    const full = await readImage(where);
+                    if (full[0] !== 200) {
+                        throw Object.assign(new Error(full[1].error), { answer: full });
+                    }
+                    return full[1];
+                }, urgent);
+            } catch (err) {
+                if (err.answer) {
+                    return err.answer;
+                }
+                throw err;
+            }
+            // Its own temporary name: the advance copy and a tile's may be written at once.
+            const part = `${kept}.${urgent ? "tile" : "ahead"}.tmp`;
+            try {
+                mkdirSync(dirname(kept), { recursive: true });
+                writeFileSync(part, small);
+                renameSync(part, kept);
+            } catch (err) {
+                warnOnce(`could not keep thumbnails in ${dirname(kept)}: ${err.message}`);
+            }
+            return [200, small, "image/png"];
+        })().finally(() => {
+            if (making.get(kept)?.done === done) {
+                making.delete(kept);
+            }
+        });
+        making.set(kept, { urgent, done });
+        return done;
+    }
+
+    /**
+     * Makes, in the background, the grid thumbnail of every item of a capture that needs a
+     * decision, so a grid opens with its tiles ready.
+     * @param {string} dir the capture's directory
+     * @param {{ items: object[] }} r its results.json
+     */
+    function prewarm(dir, r) {
+        for (const item of r.items) {
+            const kind = item.capture ? "capture" : "baseline";
+            const hash = item[kind];
+            if (REVIEWABLE.has(item.status) && hash && !existsSync(join(tmp, "thumbs", `${hash}.png`))) {
+                const own = kind === "capture" || item.baseline === item.capture;
+                const path = own ? join(dir, item.file) : join(dir, "baselines", item.file);
+                thumbOf({ path, hash, file: item.file, dir }, false).catch((err) =>
+                    warnOnce(`could not make the thumbnail of ${path}: ${err.message}`),
+                );
+            }
+        }
+    }
+
+    // The unpublished count after a write, so the page's Finish button stays current: the
+    // decisions, plus the files approved before passkeys that a signed Finish signs again.
+    const unpublishedOf = (t) => finishList(t).list.length + legacyCount(t);
+
+    /**
+     * Where a target's image is on this disk, by results.json.
+     * @param {string} id the target
+     * @param {string} name the project
+     * @param {string} kind "capture" or "baseline"
+     * @param {string} file the image's file name
+     * @returns {Promise<Array<unknown> | { path: string, hash: string, file: string, dir: string }>}
+     *     where the image is, or the answer to send instead
+     */
+    async function imageOf(id, name, kind, file) {
+        const { t, p } = await projectOf(id, name);
+        if (!t) {
+            return gone(id);
+        }
+        const item = p?.results.items.find((i) => i.file === file);
+        const hash = item && { capture: item.capture, baseline: item.baseline }[kind];
+        if (!hash) {
+            return [404, { error: "no such image" }];
+        }
+        // A moved item's baseline is its capture's bytes, so the artifact holds only the capture.
+        const own = kind === "capture" || item.baseline === item.capture;
+        const path = own ? join(p.dir, file) : join(p.dir, "baselines", file);
+        return { path, hash, file, dir: p.dir };
+    }
+
+    async function readImage({ path, hash, file, dir }) {
+        const bytes = await readFile(path).catch(() => null);
+        if (!bytes || createHash("sha256").update(bytes).digest("hex") !== hash) {
+            // CI hashed the bytes it uploaded, so the copy on this disk is damaged: drop it,
+            // and the next reload downloads it again.
+            console.error(
+                `visual-review: ${path} does not match results.json: downloading it again on the next reload`,
+            );
+            rmSync(join(dir, "results.json"), { force: true });
+            return [409, { error: `${file}: the downloaded copy is damaged; reload the page to download it again` }];
+        }
+        return [200, bytes, "image/png"];
+    }
+
     const routes = {
-        "GET /api/prs": async () => {
-            await refresh();
-            return [200, { targets: [...targets.values()].map(summary), warning: listWarnings.join("\n") || null }];
+        "GET /api/prs": async (_, __, query) => {
+            // ?cached=1 answers at once (starting the first load if there is none); ?refresh=1
+            // also starts a refresh. Neither waits for GitHub. After a first load that failed, only
+            // ?refresh=1 (the page's Retry) tries again.
+            await restored;
+            const cachedOnly = query?.get("cached") === "1" || query?.get("refresh") === "1";
+            if (cachedOnly) {
+                if (query.get("refresh") === "1" || (!loadedOnce && failure === null)) {
+                    refresh().catch((err) => console.error(`visual-review: refresh failed: ${err.message}`));
+                }
+            } else {
+                await refresh();
+            }
+            return [
+                200,
+                {
+                    targets: loadedOnce || !cachedOnly ? [...targets.values()].map(summary) : null,
+                    warning: listWarnings.join("\n") || null,
+                    defaultBranch,
+                    updatedAt: refreshedAt || null,
+                    now: Date.now(),
+                    refreshing: progress,
+                    // Why the last refresh got no list at all; a gh call waiting to retry.
+                    error: failure,
+                    network: networkTrouble(),
+                },
+            ];
         },
-        // One target's counts without refetching from GitHub, for Finish's confirmation.
-        "GET /api/target": async ([id]) => {
+        // One target's counts without refetching from GitHub; with ?finish=1, what Finish would do.
+        "GET /api/target": async ([id], _, query) => {
             const t = await targetOf(id);
-            return t ? [200, summary(t)] : gone(id);
+            if (!t) {
+                return gone(id);
+            }
+            return [200, query?.get("finish") === "1" ? { ...summary(t), finish: finishPreview(t) } : summary(t)];
         },
         "GET /api/pr": async ([id, name]) => {
             const { t, p } = await projectOf(id, name);
             if (!t) {
                 return gone(id);
+            }
+            if (t.projects.find((x) => x.project === name)?.downloading) {
+                // The reviewer is waiting for this one: it downloads next. The page asks again.
+                hurry((dir) => basename(dir) === name && dir.startsWith(join(tmp, `${t.runId}-`)));
+                return [202, { downloading: true, target: summary(t), network: networkTrouble(), now: Date.now() }];
             }
             if (!p) {
                 return [404, { error: "no such capture" }];
@@ -682,32 +1333,16 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             ];
         },
         "GET /api/img": async ([id, name, kind, file]) => {
-            const { t, p } = await projectOf(id, name);
-            if (!t) {
-                return gone(id);
+            const where = await imageOf(id, name, kind, file);
+            return Array.isArray(where) ? where : readImage(where);
+        },
+        // The same image scaled down for a grid tile, made once and kept by the image's hash.
+        "GET /api/thumb": async ([id, name, kind, file]) => {
+            const where = await imageOf(id, name, kind, file);
+            if (Array.isArray(where)) {
+                return where;
             }
-            const item = p?.results.items.find((i) => i.file === file);
-            const hash = item && { capture: item.capture, baseline: item.baseline }[kind];
-            if (!hash) {
-                return [404, { error: "no such image" }];
-            }
-            // A moved item's baseline is its capture's bytes, so the artifact holds only the capture.
-            const own = kind === "capture" || item.baseline === item.capture;
-            const path = own ? join(p.dir, file) : join(p.dir, "baselines", file);
-            const bytes = await readFile(path).catch(() => null);
-            if (!bytes || createHash("sha256").update(bytes).digest("hex") !== hash) {
-                // CI hashed the bytes it uploaded, so the copy on this disk is damaged: drop it,
-                // and the next reload downloads it again.
-                console.error(
-                    `visual-review: ${path} does not match results.json: downloading it again on the next reload`,
-                );
-                rmSync(join(p.dir, "results.json"), { force: true });
-                return [
-                    409,
-                    { error: `${file}: the downloaded copy is damaged; reload the page to download it again` },
-                ];
-            }
-            return [200, bytes, "image/png"];
+            return thumbOf(where, true);
         },
         "POST /api/decide": async (_, body) => {
             const { p, t } = await projectOf(String(body.id), body.project);
@@ -729,7 +1364,7 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 update(t, (saved) => {
                     delete saved[key];
                 });
-                return [200, { ok: true }];
+                return [200, { ok: true, unpublished: unpublishedOf(t) }];
             }
             if (!sameCapture(t, body, item)) {
                 return [409, { error: `${body.file}: ${CHANGED}` }];
@@ -765,9 +1400,9 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 return [409, { error: `${body.file} is already ${done}: Undo it first to change it` }];
             }
             update(t, (saved) => {
-                saved[key] = { decision: body.decision, reason, hash: imageHash(item) };
+                saved[key] = { decision: body.decision, reason, hash: imageHash(item), base: item.baseline ?? null };
             });
-            return [200, { ok: true }];
+            return [200, { ok: true, unpublished: unpublishedOf(t) }];
         },
         "POST /api/accept-all": async (_, body) => {
             const { p, t } = await projectOf(String(body.id), body.project);
@@ -799,12 +1434,164 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 for (const item of p.results.items) {
                     const key = `${body.project}/${item.file}`;
                     if (inScope(item) && !mine.has(key) && !decisionProblem(item, "accept", null)) {
-                        saved[key] = { decision: "accept", reason: null, bulk: true, hash: imageHash(item) };
+                        saved[key] = {
+                            decision: "accept",
+                            reason: null,
+                            bulk: true,
+                            hash: imageHash(item),
+                            base: item.baseline ?? null,
+                        };
                         accepted++;
                     }
                 }
             });
-            return [200, { accepted }];
+            return [200, { accepted, unpublished: unpublishedOf(t) }];
+        },
+        "GET /api/passkeys": async () => {
+            const { main, pending } = await knownKeys();
+            const show = (k, isPending) => ({ id: k.id, rpId: k.rpId, label: k.label ?? null, pending: isPending });
+            return [
+                200,
+                {
+                    rpId,
+                    keys: [...main.map((k) => show(k, false)), ...pending.map((k) => show(k, true))],
+                    required: main.length + pending.length > 0,
+                },
+            ];
+        },
+        "POST /api/passkey-challenge": async () => {
+            if (results) {
+                return [403, { error: "a local preview registers no passkey" }];
+            }
+            const now = Date.now();
+            for (const [c, expires] of challenges) {
+                if (expires < now) {
+                    challenges.delete(c);
+                }
+            }
+            const challenge = randomBytes(32).toString("base64url");
+            challenges.set(challenge, now + CHALLENGE_MS);
+            const { main, pending } = await knownKeys();
+            return [
+                200,
+                {
+                    challenge,
+                    userId: randomBytes(16).toString("base64url"),
+                    rpId,
+                    known: [...main, ...pending].map((k) => k.id),
+                },
+            ];
+        },
+        "POST /api/register": async (_, body) => {
+            const expires = challenges.get(body.challenge);
+            challenges.delete(body.challenge);
+            if (!expires || expires < Date.now()) {
+                return [409, { error: "the registration expired or was already used: press Register passkey again" }];
+            }
+            const why = verifyRegistration(body, { challenge: body.challenge, origin, rpId });
+            if (why) {
+                return [400, { error: `the passkey was not accepted: ${why}` }];
+            }
+            const { main, pending } = await knownKeys();
+            if ([...main, ...pending].some((k) => k.id === body.credentialId)) {
+                return [409, { error: "this passkey is already registered" }];
+            }
+            if (finishing) {
+                return [409, { error: "a Finish is running: register when it ends" }];
+            }
+            const label = typeof body.label === "string" ? body.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+            const entry = {
+                id: body.credentialId,
+                publicKey: body.publicKey,
+                rpId,
+                label: label || "passkey",
+                registeredAt: new Date().toISOString(),
+            };
+            let proposed;
+            try {
+                proposed = await proposeKey({ repo, gh, entry, config });
+            } catch (err) {
+                if (err instanceof AcceptError) {
+                    return [409, { error: err.message }];
+                }
+                throw err;
+            }
+            writeJson(pendingFile, { version: 1, keys: [...readPending(), entry] });
+            passkeyPr = Number(proposed.pullRequest.split("/").pop()) || passkeyPr;
+            passkeyOpened = { number: passkeyPr, id: entry.id, at: Date.now() };
+            await readPasskeys();
+            console.log(
+                `visual-review: registered passkey ${entry.id}; merge ${proposed.pullRequest} to enforce approvals`,
+            );
+            return [200, { entry, ...proposed }];
+        },
+        "POST /api/finish-prepare": async (_, body) => {
+            const t = await targetOf(String(body.id));
+            if (!t) {
+                return gone(String(body.id));
+            }
+            if (t.local) {
+                return [403, { error: "a local preview has no Finish" }];
+            }
+            if (finishing) {
+                return [409, { error: "a Finish is already running" }];
+            }
+            const { trusted: keys } = await knownKeys();
+            if (keys.length === 0) {
+                approvals.delete(t.id);
+                return [200, { required: false }];
+            }
+            const here = keys.filter((k) => k.rpId === rpId);
+            if (here.length === 0) {
+                const hosts = [...new Set(keys.map((k) => k.rpId))].join(", ");
+                return [
+                    409,
+                    {
+                        error: `no passkey is registered for ${rpId}: serve this page from the host your passkey is for (${hosts}), or register one here`,
+                    },
+                ];
+            }
+            const work = finishWork(t);
+            const legacy = legacyOf(t);
+            let prepared;
+            try {
+                prepared = await prepareRecord({
+                    repo,
+                    target: { pr: t.pr, branch: t.branch },
+                    projects: work.captures,
+                    decisions: work.list,
+                    now: new Date(),
+                    config,
+                    legacy,
+                });
+            } catch (err) {
+                if (err instanceof AcceptError) {
+                    return [409, { error: err.message }];
+                }
+                throw err;
+            }
+            const challenge = recordHash(prepared.record).toString("base64url");
+            approvals.set(t.id, {
+                challenge,
+                record: prepared.record,
+                work,
+                legacy,
+                digest: work.digest,
+                expires: Date.now() + APPROVAL_MS,
+            });
+            return [
+                200,
+                {
+                    required: true,
+                    challenge,
+                    rpId,
+                    allowCredentials: here.map((k) => k.id),
+                    record: prepared.record,
+                    accepts: prepared.accepts,
+                    excludes: prepared.excludes,
+                    rejects: prepared.rejects,
+                },
+            ];
         },
         "POST /api/finish": async (_, body) => {
             const t = await targetOf(String(body.id));
@@ -817,18 +1604,40 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             if (finishing) {
                 return [409, { error: "a Finish is already running" }];
             }
-            const mine = decisionsOf(t);
-            // A reject already posted by an earlier Finish stays shown as rejected, not posted again.
-            const list = [...mine]
-                .filter(([, v]) => !v.posted)
-                .map(([k, v]) => {
-                    const at = k.indexOf("/");
-                    return { project: k.slice(0, at), file: k.slice(at + 1), decision: v.decision, reason: v.reason };
-                });
-            const captures = Object.fromEntries(
-                t.projects.filter((p) => p.results).map((p) => [p.project, { dir: p.dir, results: p.results }]),
-            );
-            const undecided = summary(t).projects.reduce((n, p) => n + p.undecided, 0);
+            let work = finishWork(t);
+            // The page's sheet stated what Finish would do; a decision changed since (in another
+            // tab, say) would make that statement wrong.
+            if (body.digest !== undefined && body.digest !== work.digest) {
+                return [409, { error: CHANGED_SINCE }];
+            }
+            let approval = null;
+            let legacy = null;
+            const { main, trusted } = await knownKeys();
+            if (trusted.length > 0) {
+                if (!body.approval) {
+                    return [400, { error: "this Finish needs your passkey approval (Face ID): press Finish again" }];
+                }
+                const p = approvals.get(t.id);
+                if (!p || p.challenge !== body.challenge || p.expires < Date.now() || p.digest !== work.digest) {
+                    return [
+                        409,
+                        {
+                            error: "the approval is stale (made on another tab, expired, or the decisions changed): press Finish again",
+                        },
+                    ];
+                }
+                const record = { ...p.record, approval: body.approval };
+                const why = verifyApproval(record, trusted, { origin });
+                if (why) {
+                    return [403, { error: `the approval was refused: ${why}` }];
+                }
+                approvals.delete(t.id);
+                // The decisions the approved record was built from, not a fresh read of the state.
+                work = p.work;
+                legacy = p.legacy;
+                approval = { record, pendingKeys: main.length > 0 ? [] : trusted, origin };
+            }
+            const { list, captures, undecided } = work;
             finishing = true;
             job = {
                 id: (job?.id ?? 0) + 1,
@@ -852,13 +1661,78 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
                 projects: captures,
                 decisions: list,
                 undecided,
-                unloaded: t.projects.filter((p) => !p.results).map((p) => p.project),
+                unloaded: work.unloaded,
                 config,
+                ...(approval && { approval, legacy, now: new Date(approval.record.reviewedAt) }),
             });
             return [202, { job }];
         },
         "GET /api/finish-status": async () => [200, { job }],
+        // Update from the default branch: a background job like Finish, followed the same way.
+        "POST /api/update": async (_, body) => {
+            const t = await targetOf(String(body.id));
+            if (!t) {
+                return gone(String(body.id));
+            }
+            if (t.local || t.pr === null) {
+                return [403, { error: `only a pull request is updated from ${defaultBranch}` }];
+            }
+            if (finishing) {
+                return [409, { error: "a Finish or an update is already running" }];
+            }
+            finishing = true;
+            job = {
+                id: (job?.id ?? 0) + 1,
+                kind: "update",
+                target: t.id,
+                pr: t.pr,
+                branch: t.branch,
+                running: true,
+                step: "starting",
+                result: null,
+                error: null,
+                warnings: [],
+            };
+            persist(job);
+            runUpdate(job, t);
+            return [202, { job }];
+        },
     };
+
+    /**
+     * Runs one update from the default branch to its end, then refreshes the list so the target
+     * shows the new head waiting for CI. Decisions stay saved and apply again where the new capture
+     * and its baseline are unchanged. It never throws: nothing awaits it.
+     * @param {object} j the job
+     * @param {object} t the target
+     */
+    async function runUpdate(j, t) {
+        console.log(`visual-review: update of #${t.pr} from ${defaultBranch} started`);
+        try {
+            j.result = await updateFromMaster({
+                repo,
+                pr: t.pr,
+                branch: t.branch,
+                config,
+                progress: (step) => {
+                    j.step = step;
+                    persist(j);
+                },
+            });
+            console.log(`visual-review: update of #${t.pr} done: commit ${j.result.commit}`);
+        } catch (err) {
+            j.error = err.message;
+            console.error(`visual-review: update of #${t.pr} failed: ${j.error}`);
+        } finally {
+            j.running = false;
+            j.step = null;
+            finishing = false;
+            persist(j);
+        }
+        if (j.result) {
+            await refresh().catch((err) => console.error(`visual-review: refresh failed: ${err.message}`));
+        }
+    }
 
     /**
      * Runs one Finish to its end, recording its steps and outcome on `j` (and in the log). It
@@ -869,15 +1743,15 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
      * @param {object} input finish's input
      */
     async function runFinish(j, t, sent, input) {
-        // Drops the accepts and exclusions Finish pushed; rejects stay, keyed by image hash, so an
-        // unchanged rejected capture on the next CI run still reads as rejected, not undecided.
+        // Marks what Finish published, so no later Finish publishes it again. The accepts and
+        // exclusions it pushed stay shown as finished until a new CI run replaces this capture (their
+        // hash then no longer matches, or the item is unchanged); rejects stay keyed by image hash,
+        // so an unchanged rejected capture on the next CI run still reads as rejected.
         const clear = (posted) =>
             update(t, (saved) => {
                 for (const { project, file, decision } of sent) {
                     const k = `${project}/${file}`;
-                    if (decision !== "reject") {
-                        delete saved[k];
-                    } else if (posted && saved[k]) {
+                    if (saved[k] && (decision !== "reject" || posted)) {
                         saved[k].posted = true;
                     }
                 }
@@ -954,9 +1828,14 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
         return body;
     }
 
+    // The list a previous run of the server kept: read before any request for the list is answered.
+    const restored = warm && !results ? restore() : Promise.resolve();
     if (warm) {
-        // Download the captures now, so they are on disk before the page first asks.
-        refresh().catch((err) => console.error(`visual-review: startup refresh failed: ${err.message}`));
+        // Download the captures now, and again every POLL so that a CI run that finished meanwhile
+        // is on disk before the page first asks for it.
+        const failed = (when) => (err) => console.error(`visual-review: ${when} refresh failed: ${err.message}`);
+        restored.then(() => refresh().catch(failed("startup")));
+        setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
     return async (req, res) => {
@@ -982,7 +1861,11 @@ export function createApp({ repo, gh, config, tmp, token, origin, masterRun, res
             if (writes && req.headers.origin !== origin) {
                 return send(res, 403, { error: "foreign origin" });
             }
-            const [status, body, type] = await handler(args, writes ? await readBody(req) : undefined);
+            const [status, body, type] = await handler(
+                args,
+                writes ? await readBody(req) : undefined,
+                url.searchParams,
+            );
             return send(res, status, body, type);
         } catch (err) {
             // A malformed request (bad JSON, bad escape, oversized body) is the client's; the rest,

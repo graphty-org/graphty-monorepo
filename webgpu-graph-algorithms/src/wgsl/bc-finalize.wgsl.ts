@@ -5,8 +5,9 @@
  * entries at depth `L` are `S[ends[L] .. ends[L + 1])`. That log is Brandes' stack, so the backward pass walks the
  * same ranges from the deepest level up and nothing is ever copied between levels.
  *
- * Role 1 seeds the batch: the k seed entries the host wrote into `S[0 .. k)` get depth 0 and one shortest path,
- * `ends[0] = 0`, the append cursor `stackTop` (counters word 26) starts at k, the overflow flag (word 27) is cleared,
+ * Role 1 seeds the batch: the k seed entries the host wrote into `S[0 .. k)` get depth 0 and one shortest path (the
+ * u32 1, or under `SCALED` the bits of the f32 1.0), `levelMax[0]` the bits of 1.0 (the largest count at depth 0,
+ * which `bc-count` scales depth 1 from), `ends[0] = 0`, the append cursor `stackTop` (counters word 26) starts at k, the overflow flag (word 27) is cleared,
  * `level` (word 11) is U32_MAX so the first boundary lands on 0, and `done` (word 15) is cleared.
  *
  * Role 0 is the level boundary, recorded before every forward level: it advances `level`, closes the level just
@@ -25,8 +26,9 @@ fn bc_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         for (var i = 0u; i < P.k; i = i + 1u) {
             let t = S[i];
             depthK[t] = 0u;                                          // the source is at depth 0
-            sigmaK[t] = 1u;                                          // with one shortest path, itself
+            sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);       // with one shortest path, itself (f32 bits when SCALED)
         }
+        levelMax[0] = bitcast<u32>(1.0);                             // the largest count at depth 0
         ends[0] = 0u;
         atomicStore(&counters[26], P.k);                             // stackTop: the seeds are the log's first k entries
         atomicStore(&counters[27], 0u);                              // sigmaOverflow

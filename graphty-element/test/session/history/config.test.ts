@@ -123,4 +123,40 @@ describe("session.config", () => {
         await refuses(session, { selectionStyle: { scale: -1 } });
         session.dispose();
     });
+
+    it("sets the author as given, reads blank as no name, clears it with null, and undoes it as one step", async () => {
+        const session = createElementSession();
+        assert.isUndefined(session.config.author);
+
+        await session.config.set({ author: "  Ada Lovelace " });
+        assert.strictEqual(session.config.author, "  Ada Lovelace ", "trims nothing");
+        await session.config.set({ author: "   " });
+        assert.isUndefined(session.config.author, "white space is no name");
+        await session.config.set({ author: "Ada" });
+        await session.config.set({ author: null });
+        assert.isUndefined(session.config.author, "null clears");
+        session.dispose();
+
+        // Typing a name is one step: sets of the author recorded close together merge.
+        const typed = createElementSession();
+        await typed.config.set({ author: "A" });
+        await typed.config.set({ author: "Ada" });
+        assert.lengthOf(typed.history.steps, 1);
+        assert.strictEqual(typed.history.steps[0].label, 'Changed the setting "author"');
+        await typed.undo();
+        assert.isUndefined(typed.config.author);
+        await typed.redo();
+        assert.strictEqual(typed.config.author, "Ada");
+        typed.dispose();
+    });
+
+    it("refuses an author longer than 256 characters, or one that is not a string", async () => {
+        const session = createElementSession();
+
+        await refuses(session, { author: "x".repeat(257) });
+        await refuses(session, { author: 7 });
+        await session.config.set({ author: "\u{1F600}".repeat(256) });
+        assert.strictEqual(Array.from(session.config.author ?? "").length, 256, "counts code points");
+        session.dispose();
+    });
 });

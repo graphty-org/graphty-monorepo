@@ -326,6 +326,41 @@ async function withTemplateDegree(target: object): Promise<() => Promise<unknown
     return () => config.set({ runAlgorithmsOnLoad: false, data: { algorithms: [] } });
 }
 
+/** The note the notes doors write. */
+const DOOR_NOTE_INPUT = { text: "door note", targets: [{ node: "d1" }] };
+
+/** The notes member the merge door opens. */
+const DOOR_NOTES_DOCUMENT = {
+    kind: "graphty-notes",
+    version: 1,
+    notes: [{ id: "note_door", time: "2026-10-01T09:00:00.000Z", targets: [{ node: "d1" }], text: "door note" }],
+};
+
+/** The id of the note a notes door edits: minted, so known only once `around` has added it. */
+const DOOR_NOTE = { id: "" };
+
+/**
+ * A notes door that acts on a note, added before the spy is attached.
+ * @param args - The arguments, read once the note exists.
+ * @param expect - The commands the call must dispatch; their `id` reads the note's.
+ * @returns The door.
+ */
+function withDoorNote(args: () => readonly unknown[], expect: readonly unknown[]): Door {
+    return {
+        kind: "dispatches",
+        op: (expect[0] as { op: string }).op,
+        call: {
+            kind: "call",
+            args,
+            around: (target) => {
+                DOOR_NOTE.id = (target as { add(input: unknown): string }).add(DOOR_NOTE_INPUT);
+                return Promise.resolve(() => Promise.resolve());
+            },
+        },
+        expect,
+    };
+}
+
 /** The rows of `GraphSession`, shared with the element's wider form of it. */
 const SESSION: Readonly<Record<string, Door>> = {
     data: READ,
@@ -333,6 +368,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     results: READ,
     scope: READ,
     sets: READ,
+    notes: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -582,6 +618,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
@@ -842,6 +879,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(
@@ -1124,6 +1162,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onRest: RENDER,
             restoring: RENDER,
             replacing: RENDER,
+            graphWritesWaiting: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,
@@ -1284,6 +1323,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onDragEnd: GESTURE,
             setPositionDirect: GESTURE,
             getNode: READ,
+            sceneObservers: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1320,6 +1360,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Deep-frozen records, read a window at a time.
+            nodePage: READ,
+            edgePage: READ,
             lastImport: READ,
             source: READ,
             attributes: READ,
@@ -1511,6 +1554,47 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "NotesApi",
+        file: "src/session/notes/types.ts",
+        half: "session",
+        doors: {
+            list: READ,
+            get: READ,
+            status: READ,
+            authors: READ,
+            counts: READ,
+            toDocument: READ,
+            mergeDocument: calls(
+                [DOOR_NOTES_DOCUMENT, { name: "door.graphty.json" }],
+                [{ op: "note.merge", document: DOOR_NOTES_DOCUMENT, options: { name: "door.graphty.json" } }],
+            ),
+            add: calls([DOOR_NOTE_INPUT], [{ op: "note.add", note: DOOR_NOTE_INPUT }]),
+            update: withDoorNote(
+                () => [DOOR_NOTE.id, { text: "door edited" }],
+                [
+                    {
+                        op: "note.update",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                        patch: { text: "door edited" },
+                    },
+                ],
+            ),
+            remove: withDoorNote(
+                () => [DOOR_NOTE.id],
+                [
+                    {
+                        op: "note.remove",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                    },
+                ],
+            ),
+        },
+    },
+    {
         name: "SessionViews",
         file: "src/session/types.ts",
         half: "session",
@@ -1567,6 +1651,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: READ,
             selectionStyle: READ,
             layoutBehavior: READ,
+            author: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

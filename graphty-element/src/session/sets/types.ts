@@ -113,10 +113,13 @@ export type SetStatusReason =
  */
 export interface SetUser {
     /** What kind of thing names the set. OPEN UNION. */
-    readonly kind: "set" | "layer" | "filter" | "layout" | "run";
-    /** Its id: a set id, a layer id, a run id or a layout type. Absent for the visibility filter. */
+    readonly kind: "set" | "layer" | "filter" | "layout" | "run" | "note";
+    /** Its id: a set, layer, run or note id, or a layout type. Absent for the visibility filter. */
     readonly id?: string;
-    /** What to show for it: a layer's or set's name, "Visibility filter", "Layout (ngraph)". */
+    /**
+     * What to show for it: a layer's or set's name, "Visibility filter", "Layout (ngraph)", a
+     * note's first line cut to 80 characters.
+     */
     readonly label: string;
 }
 

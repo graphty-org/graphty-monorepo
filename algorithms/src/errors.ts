@@ -53,3 +53,25 @@ export class PathWalkError extends Error {
         );
     }
 }
+
+/**
+ * Thrown when an accelerator reports that the betweenness it computed is wrong because some pair of
+ * nodes has more shortest paths than its counters can hold. The counts overflowed partway through
+ * the run, so every score that depends on them is wrong, and none is returned.
+ *
+ * The CPU functions count in double precision and never throw this. Run the call without the
+ * accelerator (the CPU function of the same name) to get the scores.
+ */
+export class PathCountOverflowError extends Error {
+    override readonly name = "PathCountOverflowError";
+
+    /**
+     * Builds the error and its message.
+     * @param algorithm - The function whose counts overflowed, e.g. `"betweennessCentrality"`
+     */
+    constructor(readonly algorithm: string) {
+        super(
+            `${algorithm}: the accelerator's shortest-path counts overflowed, so its scores are wrong; run the CPU ${algorithm} instead`,
+        );
+    }
+}

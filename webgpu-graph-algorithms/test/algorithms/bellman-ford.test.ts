@@ -33,10 +33,12 @@ import { verifyDevice } from "../../src/primitives/verify.js";
 import { type SsspOptions } from "../../src/types/accelerator.js";
 import {
     bellmanFordReport,
+    descendingFan,
     fanIn,
     GRID_WITH_CYCLE_NODES,
     gridWithCycle,
     negativeDag,
+    racingCycle,
     ROUNDED_CYCLE_NODES,
     roundedCycle,
 } from "../helpers/bellman-ford.js";
@@ -55,7 +57,7 @@ import {
 } from "../helpers/graphs.js";
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { assertCheckPasses } from "../helpers/sabotage.js";
+import { assertCheckPasses, withSabotage } from "../helpers/sabotage.js";
 import { absorbPath, distBits, relSpread, ssspTolerance, weightedEdges, zeroPlateau } from "../helpers/sssp.js";
 import { expectPredArcAttains, expectTriangleInequality } from "../helpers/traversal-check.js";
 import { bellmanFordOracle, bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
@@ -518,17 +520,57 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(path);
     });
 
-    it("PD-12, the bound is real: on the fan-in whose 4,096 distinct ascending candidates land in one round, maxRetries 1 makes the losing lanes exhaust the bound (retryExhaustedRounds >= 1, dist still exact because the next round repairs a lost update) while under the default bound the reloaded value is the smallest candidate and no lane retries past its first failure (retryExhaustedRounds 0)", async (t) => {
+    it("PD-12 counts spurious failures only (issue #470): on the fan-in whose 4,096 distinct candidates land in one round, and on the descending fan whose one round before the decision round offers 4,096 candidates largest first, even maxRetries 1 leaves retryExhaustedRounds 0, dist exact and no negative cycle -- a lane that loses its exchange to another lane retries until it wins or is no longer an improvement", async (t) => {
         const ctx = await context(t);
         const fan = snapshotOf(fanIn(4096), { directed: true, label: "bf-fan-in" });
-        const want = bellmanFordOracle(fan, 0);
-        const bounded = await bellmanFordWithTuning(ctx, fan, 0, undefined, { maxRetries: 1 });
-        expect(bounded.retryExhaustedRounds, "retryExhaustedRounds under maxRetries 1").toBeGreaterThanOrEqual(1);
-        expectBitwiseEqual(distBits(bounded.result.dist), distBits(want.dist), "fan-in, maxRetries 1: dist");
-        expect(bounded.result.hasNegativeCycle).toBe(false);
-        const run = await checkRun(ctx, "fanIn4096 from 0", fan, 0);
-        expect(run.result.dist[4097]).toBe(2);
+        const descending = snapshotOf(descendingFan(4096), { directed: true, label: "bf-descending-fan" });
+        for (const [label, s] of [
+            ["fanIn4096", fan],
+            ["descendingFan4096", descending],
+        ] as const) {
+            const want = bellmanFordOracle(s, 0);
+            const bounded = await bellmanFordWithTuning(ctx, s, 0, undefined, { maxRetries: 1 });
+            expect(bounded.retryExhaustedRounds, `${label}: retryExhaustedRounds under maxRetries 1`).toBe(0);
+            expectBitwiseEqual(distBits(bounded.result.dist), distBits(want.dist), `${label}, maxRetries 1: dist`);
+            expect(bounded.result.hasNegativeCycle, `${label}, maxRetries 1: hasNegativeCycle`).toBe(false);
+            await checkRun(ctx, `${label} from 0`, s, 0);
+        }
         ctx.release(fan);
+        ctx.release(descending);
+    }, 120_000);
+
+    it("issue #470: a negative cycle whose decision round offers 4,096 descending candidates for one node from adjacent lanes is reported, not E_VALIDATION -- a lane that loses its exchange to another lane's improvement is not a spurious failure and never counts against the retry bound, so no lane exhausts it even at maxRetries 1", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(racingCycle(4096), { directed: true, label: "bf-racing-cycle" });
+        expect(bellmanFordOracle(s, 0).hasNegativeCycle, "the CPU oracle's verdict").toBe(true);
+        for (const tuning of [{}, { roundsPerBatch: 1 }, { maxRetries: 1 }, { maxRetries: 1, roundsPerBatch: 1 }]) {
+            const run = await bellmanFordWithTuning(ctx, s, 0, undefined, tuning);
+            expect(run.result.hasNegativeCycle, `hasNegativeCycle under ${JSON.stringify(tuning)}`).toBe(true);
+            expect(run.retryExhaustedRounds, `retryExhaustedRounds under ${JSON.stringify(tuning)}`).toBe(0);
+        }
+        ctx.release(s);
+    }, 120_000);
+
+    it("the driver's retryExhausted paths, reached through a kernel that counts every lost exchange (the kernel before issue #470): exhausted before the decision round it runs on and dist stays exact; exhausted IN the decision round it is E_VALIDATION, never a guess", async (t) => {
+        requireGpu(t);
+        const countsEveryLoss = {
+            name: "counts-every-lost-exchange",
+            find: "if (r.old_value == cur) {",
+            replace: "if (true) {",
+            minFactor: 10,
+            test: "test/algorithms/bellman-ford.test.ts",
+        };
+        await withSabotage("bf-relax", countsEveryLoss, async (ctx) => {
+            const fan = snapshotOf(fanIn(4096), { directed: true, label: "bf-fan-in-counted" });
+            const bounded = await bellmanFordWithTuning(ctx, fan, 0, undefined, { maxRetries: 1 });
+            expect(bounded.retryExhaustedRounds, "retryExhaustedRounds under maxRetries 1").toBeGreaterThanOrEqual(1);
+            expectBitwiseEqual(distBits(bounded.result.dist), distBits(bellmanFordOracle(fan, 0).dist), "dist");
+            expect(bounded.result.hasNegativeCycle).toBe(false);
+            ctx.release(fan);
+            const racing = snapshotOf(racingCycle(4096), { directed: true, label: "bf-racing-cycle-counted" });
+            await expectRejection(bellmanFordWithTuning(ctx, racing, 0, undefined, { maxRetries: 1 }), "E_VALIDATION");
+            ctx.release(racing);
+        });
     }, 120_000);
 
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {

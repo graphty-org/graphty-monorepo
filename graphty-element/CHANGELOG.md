@@ -1,3 +1,152 @@
+## 3.5.5 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.26
+- Updated graph-io to 0.3.19
+- Updated layout to 2.0.9
+
+## 3.5.4 (2026-10-03)
+
+### 🩹 Fixes
+
+- **graphty-element:** ship the MIT license text with the package ([f00e65d3](https://github.com/graphty-org/graphty-monorepo/commit/f00e65d3))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.25
+- Updated algorithms to 3.1.8
+- Updated graph-io to 0.3.18
+- Updated layout to 2.0.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.5.3 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.24
+- Updated algorithms to 3.1.7
+- Updated layout to 2.0.7
+
+## 3.5.2 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.17
+
+## 3.5.1 (2026-10-02)
+
+### 🔥 Performance
+
+- **graphty-element:** tear a whole graph down in linear time ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.23
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.5.0 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** route kruskal to the GPU above a measured floor ([252a19ed](https://github.com/graphty-org/graphty-monorepo/commit/252a19ed))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.22
+- Updated algorithms to 3.1.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.2 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** size a label from its first line of words, not a blank first line ([26eff59a](https://github.com/graphty-org/graphty-monorepo/commit/26eff59a))
+- **graphty-element:** fade labels from the camera's world position; grow multi-line labels ([52fd3d7e](https://github.com/graphty-org/graphty-monorepo/commit/52fd3d7e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.1 (2026-10-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** classify the layout manager's graph-writes-waiting hook in the door list ([11171693](https://github.com/graphty-org/graphty-monorepo/commit/11171693))
+- **graphty-element:** start a seeded layout over once per run of queued graph writes ([16cfdaa8](https://github.com/graphty-org/graphty-monorepo/commit/16cfdaa8))
+- **graphty-element:** keep an explicitly placed camera instead of auto-framing over it ([7cda8df4](https://github.com/graphty-org/graphty-monorepo/commit/7cda8df4))
+- **graphty-element:** restart a seeded layout when data arrives in a later write ([#650](https://github.com/graphty-org/graphty-monorepo/issues/650))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.21
+- Updated algorithms to 3.1.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.4.0 (2026-10-02)
+
+### 🚀 Features
+
+- **graphty-element:** name the modularity band in a community result's own reading ([d3ebb1ac](https://github.com/graphty-org/graphty-monorepo/commit/d3ebb1ac))
+- **graphty-element:** route the triangle count to the GPU on an edge floor ([#678](https://github.com/graphty-org/graphty-monorepo/pull/678))
+- **graphty-element:** publish an interpretation scale for modularity and RunResult.band() ([#546](https://github.com/graphty-org/graphty-monorepo/issues/546))
+- **graphty-element:** read node and edge records a page at a time ([#575](https://github.com/graphty-org/graphty-monorepo/issues/575))
+- **graphty-element:** ai key store restores itself and keeps the default provider ([#576](https://github.com/graphty-org/graphty-monorepo/issues/576), [#82](https://github.com/graphty-org/graphty-monorepo/issues/82))
+- **graphty-element:** add zoomToNodes to frame a set of nodes in 2D and 3D ([eec1e9b5](https://github.com/graphty-org/graphty-monorepo/commit/eec1e9b5))
+- **graphty-element:** give channel descriptors a short name, group, default and reason ([2680142b](https://github.com/graphty-org/graphty-monorepo/commit/2680142b))
+- **graphty-element:** export notes as columns on request, and report the notes left out ([b39b2dd3](https://github.com/graphty-org/graphty-monorepo/commit/b39b2dd3))
+- **graphty-element:** draw label and tooltip text bound to a note as plain text ([e97f6f36](https://github.com/graphty-org/graphty-monorepo/commit/e97f6f36))
+- **graphty-element:** read note counts and newest text through graphty.notes.* style paths ([be1d65a8](https://github.com/graphty-org/graphty-monorepo/commit/be1d65a8))
+- **graphty-element:** save and open notes with toDocument and mergeDocument ([e2ac4893](https://github.com/graphty-org/graphty-monorepo/commit/e2ac4893))
+- **graphty-element:** add the document error codes and the warning code union ([7dacc3bb](https://github.com/graphty-org/graphty-monorepo/commit/7dacc3bb))
+- **graphty-element:** select what a note is about, and list notes among a set's users ([db624628](https://github.com/graphty-org/graphty-monorepo/commit/db624628))
+- **graphty-element:** mirror note:changed as the graphty-note-change DOM event ([9df281ea](https://github.com/graphty-org/graphty-monorepo/commit/9df281ea))
+- **graphty-element:** add session.notes with undoable add, update and remove ([965b7a5c](https://github.com/graphty-org/graphty-monorepo/commit/965b7a5c))
+- **graphty-element:** add the author project setting ([5a13ed97](https://github.com/graphty-org/graphty-monorepo/commit/5a13ed97))
+
+### 🩹 Fixes
+
+- **graphty-element:** set the triangle edge floor at the smallest measured all-win value ([#678](https://github.com/graphty-org/graphty-monorepo/issues/678))
+- **graphty-element:** sort a page by a bigint value without throwing ([45ef70aa](https://github.com/graphty-org/graphty-monorepo/commit/45ef70aa))
+- **graphty-element:** set the triangle edge floor from seven sweeps ([8199b7a1](https://github.com/graphty-org/graphty-monorepo/commit/8199b7a1))
+- **graphty-element:** save a loaded edge's note by its position at save time ([7f009140](https://github.com/graphty-org/graphty-monorepo/commit/7f009140))
+- **graphty-element:** ai key store clear() keeps remembering on and skips non-string entries ([b15f68e6](https://github.com/graphty-org/graphty-monorepo/commit/b15f68e6))
+- **graphty-element:** zoomToNodes takes one id or several, and frames a lone node ([b3d539b9](https://github.com/graphty-org/graphty-monorepo/commit/b3d539b9))
+- **graphty-element:** save a note about a session-added edge by its position ([b681820e](https://github.com/graphty-org/graphty-monorepo/commit/b681820e))
+- **graphty-element:** keep the notes reader out of the extend entry point ([51567728](https://github.com/graphty-org/graphty-monorepo/commit/51567728))
+- **graphty-element:** report a graphty. column an export leaves out ([73a7bbc0](https://github.com/graphty-org/graphty-monorepo/commit/73a7bbc0))
+- **graphty-element:** read a notes file once, and bind its session edge ids to nothing ([06cd19a6](https://github.com/graphty-org/graphty-monorepo/commit/06cd19a6))
+
+### 🔥 Performance
+
+- **graphty-element:** build a WebGPU graph once, after the renderer opens ([#614](https://github.com/graphty-org/graphty-monorepo/issues/614))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.20
+- Updated @graphty/remote-logger to 2.0.1
+- Updated graph-samples to 0.1.14
+- Updated graph-format to 1.2.6
+- Updated algorithms to 3.1.4
+- Updated graph-io to 0.3.16
+- Updated layout to 2.0.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.0 (2026-10-02)
 
 ### 🚀 Features

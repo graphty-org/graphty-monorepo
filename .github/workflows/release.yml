@@ -36,7 +36,7 @@ jobs:
     # nothing, and a release never goes backwards.
     gate:
         name: Find the newest commit green on every lane
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
         permissions:
             actions: read
@@ -105,7 +105,7 @@ jobs:
 
     release:
         name: Release
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: gate
         if: ${{ needs.gate.outputs.release == 'true' }}
         permissions:
@@ -411,7 +411,7 @@ jobs:
     # the changelogs and the lockfile as nx release left them must still install, build and lint.
     verify-release-commit:
         name: Verify the release commit
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: release
         permissions:
             contents: read

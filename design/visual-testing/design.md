@@ -752,7 +752,9 @@ Tying each item to the contents it was approved over is what stops a replay: an 
 copied into a later pull request, or a decision the owner replaced later in the same pull
 request, moves nothing. If master changes the same baselines between Finish and merge, the
 record no longer starts from master's contents and the owner reviews again; git would conflict
-on those files anyway.
+on those files anyway. Update from master (`visual-review update <pr>`, or the page's button)
+resolves that conflict by taking master's side, which needs no record and no approval: the file
+then equals the base, so it is no change, and the recapture shows the owner what still differs.
 
 The gate also fails a story compared at a `diffThreshold` above 0.8 (at 1 nothing reads as
 changed; 0.8 is the highest any story uses) and a pull request that moves the baselines

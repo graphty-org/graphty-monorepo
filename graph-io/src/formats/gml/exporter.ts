@@ -140,7 +140,7 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
 ]);
 
 const NODE_RESERVED: ReadonlySet<string> = new Set(["id"]);
-const EDGE_RESERVED: ReadonlySet<string> = new Set(["source", "target"]);
+const EDGE_RESERVED: ReadonlySet<string> = new Set(["source", "target", "directed"]);
 const GRAPH_RESERVED: ReadonlySet<string> = new Set(["node", "edge", "directed", "multigraph"]);
 const TOP_RESERVED: ReadonlySet<string> = new Set(["graph"]);
 const NUMBER_TEXT = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;

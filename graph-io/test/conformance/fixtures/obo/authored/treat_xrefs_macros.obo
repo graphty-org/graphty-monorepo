@@ -1,0 +1,8 @@
+format-version: 1.4
+ontology: t
+treat-xrefs-as-is_a: CL
+treat-xrefs-as-equivalent: UBERON
+
+[Term]
+id: X:1
+xref: CL:0000001

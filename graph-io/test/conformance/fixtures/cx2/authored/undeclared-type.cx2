@@ -1,0 +1,6 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"ratio":{"d":"float"},"when":{"d":"date"},"plain":{"a":"p"}}}]},
+{"nodes":[{"id":1,"v":{"ratio":0.5,"when":"2026-10-02","p":"text"}},{"id":2,"v":{"ratio":2}}]},
+{"status":[{"error":"","success":true}]}
+]

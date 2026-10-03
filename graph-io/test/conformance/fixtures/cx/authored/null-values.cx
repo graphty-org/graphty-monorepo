@@ -1,0 +1,8 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"metaData":[{"name":"nodes","version":"1.0"},{"name":"nodeAttributes","version":"1.0"},{"name":"networkAttributes","version":"1.0"}]},
+{"nodes":[{"@id":1},{"@id":2}]},
+{"nodeAttributes":[{"po":1,"n":"a","v":null},{"po":2,"n":"a","v":"kept"},{"po":1,"n":"b","v":null,"d":"double"}]},
+{"networkAttributes":[{"n":"empty","v":null}]},
+{"status":[{"error":"","success":true}]}
+]

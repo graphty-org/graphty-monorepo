@@ -19,19 +19,24 @@ import {
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
+import { cxImporter } from "./formats/cx/index.js";
+import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
 import { gexfExporter, gexfImporter } from "./formats/gexf/index.js";
 import { gmlExporter, gmlImporter } from "./formats/gml/index.js";
 import { graphmlExporter, graphmlImporter } from "./formats/graphml/index.js";
 import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
+import { oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
+    type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
+    type GraphListing,
     type ImportInput,
     type ImportReport,
     type LossNote,
@@ -50,9 +55,10 @@ export type BuilderSeed = Omit<
  * The options of importGraph(): the common import options (which also seed the registry's
  * builder, design section 8.4), the format choice and the hints sniffing uses, the builder and
  * freeze options, and any format-specific option (`delimiter`, `dialect`, ...) passed through to
- * the importer unchanged.
+ * the importer unchanged. `graphIndex` / `graphName` choose one graph of an input that holds
+ * several, for the formats that list their graphs.
  */
-export interface ImportGraphOptions extends CommonImportOptions {
+export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOptions {
     /** The format name, or "auto" (default) to sniff it from the filename, MIME type and content. */
     readonly format?: string | undefined;
     /** The file name or path the input came from, a hint for sniffing. */
@@ -270,6 +276,26 @@ export class FormatRegistry {
     }
 
     /**
+     * The graphs of an input that can hold several, without importing them (a Cytoscape session's
+     * networks, a JGF `graphs` array), so a caller can offer a choice and then pass `graphIndex`
+     * or `graphName` to importGraph(). The format is named or sniffed as by importGraph().
+     * @param input - the text, bytes, stream or chunks to read
+     * @param options - the format, hints, common and format-specific import options
+     * @returns one listing per graph, in document order; null when the format's importer does not
+     * list its graphs (importGraph() then reads the first)
+     */
+    async listGraphs(input: ImportInput, options: ImportGraphOptions = {}): Promise<readonly GraphListing[] | null> {
+        const chosen = await this.choose(input, options);
+        try {
+            return chosen.importer.listGraphs === undefined
+                ? null
+                : await chosen.importer.listGraphs(chosen.source, importerOptions(options));
+        } finally {
+            await chosen.peeked?.close();
+        }
+    }
+
+    /**
      * The importer for an input: the named format, or the sniffed one.
      * @param input - the input
      * @param options - the importGraph options
@@ -349,7 +375,11 @@ export function createRegistry(): FormatRegistry {
         .registerImporter(pajekImporter)
         .registerExporter(pajekExporter)
         .registerImporter(neo4jImporter)
-        .registerExporter(neo4jExporter);
+        .registerExporter(neo4jExporter)
+        .registerImporter(cx2Importer)
+        .registerExporter(cx2Exporter)
+        .registerImporter(cxImporter)
+        .registerImporter(oboImporter);
 }
 
 /** The default registry: every built-in format. */
@@ -374,6 +404,16 @@ export function importGraph(input: ImportInput, options?: ImportGraphOptions): P
  */
 export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult[]> {
     return registry.importAllGraphs(input, options);
+}
+
+/**
+ * The graphs of an input that can hold several, through the default registry.
+ * @param input - the text, bytes, stream or chunks to read
+ * @param options - the format, hints, common and format-specific import options
+ * @returns one listing per graph, in document order; null when the format does not list its graphs
+ */
+export function listGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<readonly GraphListing[] | null> {
+    return registry.listGraphs(input, options);
 }
 
 /**

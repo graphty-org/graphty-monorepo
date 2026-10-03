@@ -1,3 +1,23 @@
+## 0.8.19 (2026-10-02)
+
+### 🩹 Fixes
+
+- **compact-mantine:** accent text contrast, labelled segmented controls, one colour callback ([#135](https://github.com/graphty-org/graphty-monorepo/issues/135), [#136](https://github.com/graphty-org/graphty-monorepo/issues/136), [#141](https://github.com/graphty-org/graphty-monorepo/issues/141))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.18 (2026-10-02)
+
+### 🚀 Features
+
+- **compact-mantine:** let DataTable draw a window of a larger list ([0284b3ad](https://github.com/graphty-org/graphty-monorepo/commit/0284b3ad))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.17 (2026-10-02)
 
 ### 🩹 Fixes

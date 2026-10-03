@@ -13,7 +13,7 @@
 
 import type { AdjacencyView, F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
-import { ConvergenceError } from "../errors.js";
+import { ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
@@ -85,6 +85,14 @@ export interface BellmanFordResultLike extends SsspResultLike {
 export interface EdgeScoresResultLike {
     readonly scores: NumericVector;
 }
+/**
+ * What an accelerator's betweenness reports beside its scores: `sigmaOverflow` true means some
+ * shortest-path count overflowed its counters, so the scores are wrong. The dispatcher turns it
+ * into a `PathCountOverflowError` rather than return them. @public
+ */
+export interface PathCountReport {
+    readonly sigmaOverflow?: boolean | undefined;
+}
 /** An all-pairs distance matrix, row-major, n by n. @public */
 export interface ApspResultLike {
     readonly dist: NumericVector;
@@ -140,11 +148,14 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
-    betweennessCentrality?(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<ScoresResultLike>;
+    betweennessCentrality?(
+        s: GraphSnapshot,
+        options?: BetweennessAcceleratorOptions,
+    ): Promise<ScoresResultLike & PathCountReport>;
     edgeBetweennessCentrality?(
         s: GraphSnapshot,
         options?: BetweennessAcceleratorOptions,
-    ): Promise<EdgeScoresResultLike>;
+    ): Promise<EdgeScoresResultLike & PathCountReport>;
     allPairsShortestPath?(s: GraphSnapshot, options?: SsspOptions): Promise<ApspResultLike>;
     kCoreDecomposition?(s: GraphSnapshot): Promise<CorenessResultLike>;
     triangleCount?(s: GraphSnapshot): Promise<{ readonly perNode: U32; readonly total: number }>;
@@ -305,13 +316,20 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `labelPropagationSynchronous` is the deterministic label propagation on both paths: the accelerator's
  * `labelPropagation` member (webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule) or
- * the synchronous port. The two share the rule family -- synchronous passes, the lowest of the best-voted
- * labels, an alternating direction guard -- but not every detail (which direction the first pass moves,
+ * the synchronous port. The two share the rule family -- synchronous passes, one best-voted label chosen
+ * by a fixed order, an alternating direction guard -- but not every detail (the order: the lowest label
+ * on the device, a scramble of the label in the port, which on a path numbered in order makes the device
+ * creep one node per two passes where the port settles in a few; which direction the first pass moves,
  * whether a label that ties for the lead is kept, and how a cycling run ends: the port stops when a pass
  * repeats the labels of two passes before and reports `converged: false`, the accelerator runs to
  * `maxIterations` and reports no `converged`), so on a tie the partitions can differ; they agree on
  * planted structure. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
+ *
+ * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override, which the
+ * accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
+ * order (weight, then edge index), so the edge SET is the same; the order of `edges` and the summation order of
+ * `totalWeight` may differ (webgpu-graph-algorithms' Boruvka lists the edges round by round).
  *
  * `triangleCount` goes to the accelerator whenever it has the member, and the result always carries the
  * clustering coefficient and the transitivity: an accelerator that returns only the seam's
@@ -379,6 +397,21 @@ function onCpu<T>(run: () => T): Promise<T> {
     return new Promise((resolve) => {
         resolve(run());
     });
+}
+
+/**
+ * An accelerator's betweenness result, refused when it reports overflowed path counts: those scores
+ * are wrong, and returning them would pass them off as the answer.
+ * @param result - the accelerator's result
+ * @param algorithm - the dispatcher method, for the error
+ * @returns the result unchanged
+ * @throws PathCountOverflowError when `sigmaOverflow` is true
+ */
+function checkPathCounts<R extends PathCountReport>(result: R, algorithm: string): R {
+    if (result.sigmaOverflow === true) {
+        throw new PathCountOverflowError(algorithm);
+    }
+    return result;
 }
 
 /**
@@ -766,8 +799,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined
-                ? acc.minimumSpanningTree(s, options)
+            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+                ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
             acc?.kCoreDecomposition !== undefined
@@ -803,11 +836,15 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc.betweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .betweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "betweennessCentrality"))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
-                ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .edgeBetweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "edgeBetweennessCentrality"))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
         closenessCentrality: (s, options) =>
             acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)

@@ -9,7 +9,8 @@
 - "networkx-3.1": networkx.readwrite.json_graph (node_link with the key the file uses,
   adjacency, cytoscape, tree).
 - "python-json-<dialect>": a counter over the parsed document that follows the dialect's spec
-  (networkx has no reader for JGF, Cytoscape.js, d3, graphology, vis, sigma).
+  (networkx has no reader for JGF, Cytoscape.js, d3, graphology, vis, sigma, OBO Graphs; the OBO
+  Graphs counter lives in oracle_obo.py).
 """
 import json
 import math
@@ -208,7 +209,15 @@ def sigma(doc):
     }
 
 
+def obographs(doc):
+    # OBO Graphs (the obographs dialect): oracle_obo.py restates the schema's mapping
+    from oracle_obo import obographs as count
+
+    return count(doc)
+
+
 COUNTERS = {
+    "python-json-obographs": obographs,
     "python-json-jgf": jgf,
     "python-json-cytoscape": cytoscape,
     "python-json-d3": d3,

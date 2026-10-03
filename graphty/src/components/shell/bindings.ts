@@ -430,6 +430,13 @@ export interface ShellKeyBinding {
     readonly note?: string;
 }
 
+/** Notes more than one binding row carries, written once. */
+const SELECTION_APP_SIDE_NOTE =
+    "NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.";
+const NO_TIME_SLIDER_TO_STEP_NOTE = "NOT SHIPPED: There is no time slider to step.";
+const NO_TIME_SLIDER_TO_JUMP_NOTE = "NOT SHIPPED: There is no time slider to jump in.";
+const SLIDER_FOCUS_NOTE = "Only while the slider has focus.";
+
 /**
  * The 5.6 binding table, in the spec's own order.
  */
@@ -558,7 +565,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         owner: "dispatcher",
         shipped: false,
         preventDefault: true,
-        note: "In the data table this equals Select all visible: the table keeps no selection of its own. NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
+        note: `In the data table this equals Select all visible: the table keeps no selection of its own. ${SELECTION_APP_SIDE_NOTE}`,
     },
     {
         id: "invertSelection",
@@ -567,7 +574,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
+        note: SELECTION_APP_SIDE_NOTE,
         preventDefault: false,
     },
     {
@@ -587,7 +594,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: app-side work. The element side is there -- `session.selection.apply(target, op)` takes a set operation, and `{invert: true}`, `{where}` and `{neighborsOf, depth, direction}` are all targets.",
+        note: SELECTION_APP_SIDE_NOTE,
         preventDefault: false,
     },
     {
@@ -796,9 +803,9 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         action: "Add a note to the selection",
         scope: "global",
         owner: "dispatcher",
-        shipped: false,
+        shipped: true,
         preventDefault: false,
-        note: "Focuses the inspector input; on iPad opens the inspector overlay; with nothing selected opens the case note. NOT SHIPPED: Notes have not shipped.",
+        note: "Focuses the inspector input; with nothing selected opens the case notes.",
     },
     {
         id: "toggleNotesLayer",
@@ -807,7 +814,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: Notes have not shipped.",
+        note: "NOT SHIPPED: graphty-element draws no notes layer on the canvas.",
         preventDefault: false,
     },
     {
@@ -866,7 +873,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: There is no time slider to step.",
+        note: NO_TIME_SLIDER_TO_STEP_NOTE,
         preventDefault: false,
     },
     {
@@ -876,7 +883,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: There is no time slider to step.",
+        note: NO_TIME_SLIDER_TO_STEP_NOTE,
         preventDefault: false,
     },
     {
@@ -886,7 +893,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: There is no time slider to jump in.",
+        note: NO_TIME_SLIDER_TO_JUMP_NOTE,
         preventDefault: false,
     },
     {
@@ -896,7 +903,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         scope: "global",
         owner: "dispatcher",
         shipped: false,
-        note: "NOT SHIPPED: There is no time slider to jump in.",
+        note: NO_TIME_SLIDER_TO_JUMP_NOTE,
         preventDefault: false,
     },
     {
@@ -907,7 +914,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         owner: "widget",
         shipped: true,
         preventDefault: false,
-        note: "Only while the slider has focus.",
+        note: SLIDER_FOCUS_NOTE,
     },
     {
         id: "timelineStep",
@@ -917,7 +924,7 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         owner: "widget",
         shipped: true,
         preventDefault: false,
-        note: "Only while the slider has focus.",
+        note: SLIDER_FOCUS_NOTE,
     },
     {
         id: "panelMoveFocus",
@@ -1034,11 +1041,7 @@ export function keyChipFor(id: ShellCommandId, apple: boolean = isApplePlatform(
 /**
  * One rung of the Escape ladder.
  */
-export type EscapeRungId =
-    | "cancelDragOrMarquee"
-    | "clearSelection"
-    | "closeTopmostTransient"
-    | "pauseTimelinePlayback";
+export type EscapeRungId = "cancelDragOrMarquee" | "clearSelection" | "closeTopmostTransient" | "pauseTimelinePlayback";
 
 /**
  * The Escape ladder: one rung per press, first match wins. The last rung ("nothing") is

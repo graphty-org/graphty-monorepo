@@ -1,0 +1,6 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"count":{"d":"integer","v":0},"flag":{"d":"boolean","v":false},"note":{"d":"string","v":""},"tags":{"d":"list_of_string","v":[]},"label":{"d":"string","v":"none"}}}]},
+{"nodes":[{"id":1},{"id":2,"v":{"count":5,"flag":true,"note":"x","tags":["t"],"label":"two"}}]},
+{"status":[{"error":"","success":true}]}
+]

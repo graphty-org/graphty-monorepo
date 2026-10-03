@@ -7,8 +7,14 @@
 
 import { type DuplicatePolicy, GraphFormatError, type GraphSink, type IdCoercion } from "@graphty/graph-format";
 
-import { type CommonExportOptions, type CommonImportOptions } from "../types.js";
-import { OPTION_IGNORED_CODE, SINK_OPTION_CODE } from "./codes.js";
+import { type CommonExportOptions, type CommonImportOptions, type GraphChoiceOptions } from "../types.js";
+import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
+    GRAPH_NOT_FOUND_CODE,
+    NO_GRAPH_CODE,
+    OPTION_IGNORED_CODE,
+    SINK_OPTION_CODE,
+} from "./codes.js";
 import { canonicalEncoding } from "./input.js";
 import { type ImportReportBuilder } from "./report.js";
 
@@ -186,6 +192,76 @@ export function reportUnusedOptions(
         recorded++;
     }
     return recorded;
+}
+
+/**
+ * The graph an importer reads from an input that holds several: the one `graphIndex` or
+ * `graphName` names, else the first. A choice that names no graph is E_GRAPH_NOT_FOUND, a name two
+ * graphs share is E_AMBIGUOUS_GRAPH_NAME, and an input with no graph at all is E_NO_GRAPH, each
+ * fatal (the report fails with ImportError).
+ * @param names - each graph's name (null for an unnamed graph), in document order
+ * @param options - the caller's graphIndex / graphName
+ * @param report - the report a failure is recorded in
+ * @returns the index of the graph to read; E_UNSUPPORTED for an option of the wrong type, or both
+ */
+export function chooseGraph(
+    names: readonly (string | null)[],
+    options: GraphChoiceOptions | undefined,
+    report: ImportReportBuilder,
+): number {
+    const { graphIndex, graphName } = options ?? {};
+    if (
+        graphIndex !== undefined &&
+        (typeof graphIndex !== "number" || !Number.isInteger(graphIndex) || graphIndex < 0)
+    ) {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `option graphIndex: ${describe(graphIndex)} is not a non-negative integer`,
+            {
+                option: "graphIndex",
+                found: graphIndex,
+            },
+        );
+    }
+    if (graphName !== undefined && typeof graphName !== "string") {
+        throw new GraphFormatError("E_UNSUPPORTED", `option graphName: ${describe(graphName)} is not a string`, {
+            option: "graphName",
+            found: graphName,
+        });
+    }
+    if (graphIndex !== undefined && graphName !== undefined) {
+        throw new GraphFormatError("E_UNSUPPORTED", "options graphIndex and graphName both choose a graph; pass one", {
+            option: "graphName",
+            found: graphName,
+        });
+    }
+    if (names.length === 0) {
+        return report.fail(NO_GRAPH_CODE, "the input holds no graph");
+    }
+    if (graphName !== undefined) {
+        const matches = names.flatMap((name, i) => (name === graphName ? [i] : []));
+        if (matches.length > 1) {
+            return report.fail(
+                AMBIGUOUS_GRAPH_NAME_CODE,
+                `graphName ${JSON.stringify(graphName)} names the graphs at indexes ${matches.join(", ")}; pass graphIndex`,
+                { element: graphName },
+            );
+        }
+        if (matches.length === 0) {
+            return report.fail(
+                GRAPH_NOT_FOUND_CODE,
+                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph(s)`,
+                { element: graphName },
+                { names: [...names] },
+            );
+        }
+        return matches[0];
+    }
+    const index = graphIndex ?? 0;
+    if (index >= names.length) {
+        return report.fail(GRAPH_NOT_FOUND_CODE, `graphIndex ${index} is beyond the ${names.length} graph(s)`);
+    }
+    return index;
 }
 
 /**

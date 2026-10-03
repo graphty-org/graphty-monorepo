@@ -293,6 +293,13 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+
+    /**
+     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
+     * the element last asked to frame the graph for a load or a new layout. The first-settlement
+     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     */
+    #cameraPlaced = false;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -617,7 +624,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring);
+                this.layoutManager.loadArrangement(restoring, wrote);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -729,6 +736,7 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -1476,8 +1484,12 @@ export class Graph implements GraphContext {
                         // should NOT trigger zoom to fit - the user's camera position should be preserved.
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
-                            // Force a final zoom to fit after layout has truly settled
-                            this.autoFrame();
+                            // Force a final zoom to fit after layout has truly settled, unless the
+                            // camera was placed since the load asked for framing: that placement
+                            // is the answer, and a slow machine settles after it as often as before.
+                            if (!this.#cameraPlaced) {
+                                this.autoFrame();
+                            }
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -3457,6 +3469,7 @@ export class Graph implements GraphContext {
      * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
+        this.#cameraPlaced = false;
         if (this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
         }
@@ -4616,6 +4629,13 @@ export class Graph implements GraphContext {
 
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
+
+        // An explicit placement answers any framing the element still owes on its own initiative
+        // (a data load, a new layout, the first settlement). Left outstanding, that request is
+        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
+        // one -- and moves the camera off the state just placed. A later load or layout asks again.
+        this.updateManager.disableZoomToFit();
+        this.#cameraPlaced = true;
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {

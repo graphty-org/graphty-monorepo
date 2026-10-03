@@ -395,6 +395,11 @@ function runSimulation(layout: LayoutThis, type: SimulationType): void {
  */
 function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutAccelerator | null): void {
     const o = layout.options;
+    if (accelerator === null && type === "spring-electrical") {
+        throw new Error(
+            `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because ${layout.backend?.reason ?? "none was available"}`,
+        );
+    }
     const cs = layoutSnapshot(o);
     const s = cs.snapshot;
     const n = s.nodeCount;

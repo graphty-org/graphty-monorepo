@@ -417,7 +417,9 @@ describe("the device lifecycle (a fake provider)", () => {
         const required = await layoutRun(cy, { name: "graphty-forceatlas2", gpu: "require" });
         expect(required.errors).toHaveLength(1);
         const se = await layoutRun(cy, { name: "graphty-spring-electrical" });
-        expect((se.errors[0] as Error).message).toMatch(/no CPU simulation/);
+        expect((se.errors[0] as Error).message).toMatch(
+            /no CPU simulation and runs only on the GPU; no GPU ran because .+/,
+        );
     });
 
     it('a simulation with gpu: "off" or accelerator: null stays on the CPU', async () => {

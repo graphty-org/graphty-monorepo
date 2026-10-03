@@ -82,6 +82,15 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
 ];
 
 /**
+ * The graph-io importer behind one of the element's built-in formats.
+ * @param id - The format id.
+ * @returns The importer, or undefined when the id is not a built-in format.
+ */
+export function builtInImporter(id: string): GraphImporter | undefined {
+    return BUILT_IN_IMPORTERS.find((entry) => entry.id === id)?.importer;
+}
+
+/**
  * How sure a graph-io sniffer must be before the element names its format from content alone.
  *
  * Below this a sniffer is tolerating the bytes, not recognising them: graph-io's GraphML answers

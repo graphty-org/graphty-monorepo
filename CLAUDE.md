@@ -427,7 +427,7 @@ All packages: 80% lines/functions/statements, 75% branches
 | `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
-| `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
@@ -468,6 +468,20 @@ type setting), so decide a package's next major before the first breaking commit
 version plan in a temporary release group for exactly this reason; the group is gone, and every
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
+
+To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
+reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
+"2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other
+package still releases, and the graphty.app deploy, which runs only from `release.yml`, still
+happens. **Never disable `release.yml`** to stop one package: that stops every package and the
+deploy. The release job runs `tools/release-hold.mjs apply`, which leaves the held projects out of
+nx.json's `release.projects` in its checkout, so a held package is neither versioned from its own
+commits nor patch-bumped as a dependent of a released one (`--projects` alone does not stop that:
+with `updateDependents: "auto"` nx adds a filtered-out dependent back). A held package keeps its
+last tag, so when it leaves the list the next release bumps it from every commit since that tag.
+CI rejects an unknown project name, a missing reason or date, and a list that holds everything
+(`pnpm run check:release-hold`). To preview a hold, run `node tools/release-hold.mjs apply`, then
+`pnpm exec nx release --dry-run --skip-publish`, then `git restore nx.json`.
 
 Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
 a commit is listed under a package's "Breaking Changes" only when its scope names that package (or

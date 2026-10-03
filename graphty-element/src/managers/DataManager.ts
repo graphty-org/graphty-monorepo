@@ -1021,6 +1021,7 @@ export class DataManager implements Manager {
                     );
                 }
             },
+            progress: (change) => this.dispatcher?.services.progress?.(change),
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;

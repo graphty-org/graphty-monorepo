@@ -63,6 +63,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
+import type { ProgressChange } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -868,8 +869,11 @@ export interface SessionEventMap {
      * committed. A write that was refused, or that changed nothing, publishes nothing.
      */
     "note:changed": NoteChange;
-    /** A chunk of a load is in the graph: the running count of records read. Not sent for a preview. */
-    "data:progress": LoadProgress;
+    /**
+     * A load or a run moved on, or stopped: one stream for every progress bar, which a session
+     * with no view publishes too. See {@link ProgressChange}.
+     */
+    "progress:changed": ProgressChange;
 }
 
 /**

@@ -19,7 +19,14 @@ const published = new Map<
 function execute(context: RunExecutionContext): Promise<RunOutcome> {
     const { nodes = [], edges = [] } = published.get(context.runId) ?? published.get(context.algorithm) ?? {};
     const field = (kind: "node" | "edge", type: "number" | "boolean") =>
-        ({ name: "value", plainName: "Value", technicalName: "value", kind, type, path: `results.${context.runId}.value` }) as const;
+        ({
+            name: "value",
+            plainName: "Value",
+            technicalName: "value",
+            kind,
+            type,
+            path: `results.${context.runId}.value`,
+        }) as const;
     return Promise.resolve({
         result: createRunResult({
             runId: context.runId,

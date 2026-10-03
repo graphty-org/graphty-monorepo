@@ -8,7 +8,7 @@
  * WebGL engine: the heads cost a draw call per shape rather than per edge, and heads of two
  * different colours in that one call still reach the screen in their own colours.
  */
-import { SceneInstrumentation } from "@babylonjs/core";
+import { Matrix, SceneInstrumentation, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -162,6 +162,65 @@ describe("arrowheads are drawn in bulk", () => {
             2,
             `${String(EDGE_COUNT)} heads cost ${String(withHeads - withoutHeads)} draw calls`,
         );
+    });
+
+    /**
+     * Count the blue pixels in a square around where the world origin lands on screen.
+     *
+     * Nothing in this graph sits at the origin -- the nodes are on a circle round it and no chord
+     * crosses it -- so a head drawn there is one that should not be drawn at all.
+     * @param half - Half the square's side, in pixels.
+     * @returns How many blue pixels the square holds.
+     */
+    async function bluePixelsAtOrigin(half: number): Promise<number> {
+        const { engine, scene } = graph;
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const camera = scene.activeCamera;
+        assert(camera, "the scene has a camera");
+        const onScreen = Vector3.Project(
+            Vector3.Zero(),
+            Matrix.Identity(),
+            scene.getTransformMatrix(),
+            camera.viewport.toGlobal(width, height),
+        );
+        // readPixels counts rows from the bottom; Project counts them from the top.
+        const x = Math.round(onScreen.x) - half;
+        const y = height - Math.round(onScreen.y) - half;
+        const pixels = (await engine.readPixels(x, y, half * 2, half * 2)) as unknown as Uint8Array;
+        let count = 0;
+
+        for (let at = 0; at < pixels.length; at += 4) {
+            if (pixels[at + 2] > 200 && pixels[at] + pixels[at + 1] < 80) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    it("draws nothing for a head its edge gave up", async () => {
+        // Group b's heads change shape, so each of those edges hands its "normal" slot back to a
+        // batch group a's heads keep alive. A handed-back slot holds a zero matrix, and the
+        // billboard shader read that as "a full-size head at the world origin" -- which in the
+        // 3D all-arrows story is where the tee edge's target node sits, so the tee drew a
+        // stray arrowhead beside it.
+        await session.styles.add({
+            name: "tee heads on group b",
+            target: "edge",
+            selector: { match: "expression", where: "data.group == 'b'" },
+            set: { "edge.arrowHead": "tee" },
+        });
+        await frame();
+
+        for (const edge of graph.getDataManager().edges.values()) {
+            const caps = edge.drawnCaps.filter((cap) => cap.end === "arrowHead").map((cap) => cap.name);
+            const wanted = edge.data.group === "b" ? "filled-tee-arrow" : "filled-triangle-arrow";
+            assert.deepEqual(caps, [wanted], `edge ${edge.id} draws one head, ${wanted}`);
+        }
+
+        assert.isAbove(await pixelsOf(2), ENOUGH, "the tee heads are on screen");
+        assert.equal(await bluePixelsAtOrigin(40), 0, "a given-up head is drawn at the origin");
     });
 
     it("draws heads of two colours in one batch, each in its own colour", async () => {

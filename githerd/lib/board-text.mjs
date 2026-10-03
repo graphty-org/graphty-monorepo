@@ -129,7 +129,8 @@ const RENDER = {
         if (!v.lanes) return ["MASTER: unknown"];
         const names = Object.keys(v.lanes.lanes).sort((a, b) => a.localeCompare(b));
         const red = names.filter((n) => v.lanes?.lanes[n].verdict === "red");
-        const lines = [`MASTER: ${red.length ? `red on ${red.join(", ")}` : "green"}`];
+        const verdict = red.length ? "red on " + red.join(", ") : "green";
+        const lines = [`MASTER: ${verdict}`];
         for (const n of names) lines.push(...laneLines(n, v.lanes.lanes[n]));
         const short = (/** @type {string | null} */ s) => s?.slice(0, 8) ?? "none";
         lines.push(`  green commit ${short(v.lanes.greenSha)}; CI-green commit ${short(v.lanes.ciGreenSha)}`);
@@ -164,10 +165,11 @@ const RENDER = {
         if (!items.length) return ["OWNER: nothing is waiting on you"];
         return [
             `OWNER (${items.length}):`,
-            ...items.map(
-                (i) =>
-                    `  ${i.id} [${i.kind}] ${i.question}${i.target ? ` (${i.target})` : ""}${i.raisedAt ? `, ${ago(i.raisedAt, now)}` : ""}`,
-            ),
+            ...items.map((i) => {
+                const where = i.target ? ` (${i.target})` : "";
+                const age = i.raisedAt ? ", " + ago(i.raisedAt, now) : "";
+                return `  ${i.id} [${i.kind}] ${i.question}${where}${age}`;
+            }),
         ];
     },
 
@@ -176,14 +178,15 @@ const RENDER = {
         if (!v.prs.length) return ["PULL REQUESTS: none open"];
         return [
             "PULL REQUESTS:",
-            ...v.prs.map((p) => `  #${p.number}${p.title ? ` ${p.title}` : ""} -- ${mergeWords(p.decision)}`),
+            ...v.prs.map((p) => `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}`),
         ];
     },
 
     push(v) {
         if (!v.pushQueue) return ["PUSH QUEUE: unknown"];
         const { holder, waiters } = v.pushQueue;
-        return [`PUSH QUEUE: ${holder ? `held by ${holder}` : "free"}, ${waiters} waiting`];
+        const who = holder ? "held by " + holder : "free";
+        return [`PUSH QUEUE: ${who}, ${waiters} waiting`];
     },
 
     jobs(v, now) {
@@ -205,8 +208,9 @@ const RENDER = {
                     s.job && `job ${s.job}`,
                     s.window && `window ${s.window}`,
                     s.seenAt && `seen ${ago(s.seenAt, now)}`,
-                ];
-                return `  ${s.name ?? id}${bits.some(Boolean) ? ` (${bits.filter(Boolean).join(", ")})` : ""}`;
+                ].filter(Boolean);
+                const extra = bits.length ? " (" + bits.join(", ") + ")" : "";
+                return `  ${s.name ?? id}${extra}`;
             }),
         ];
     },
@@ -218,7 +222,7 @@ const RENDER = {
         return [
             "ORDERS AND POLICIES:",
             ...orders.map(
-                (/** @type {any} */ o) => `  order ${o.id}: ${(o.issues ?? []).map((n) => `#${n}`).join(" ")}`,
+                (/** @type {any} */ o) => `  order ${o.id}: ${(o.issues ?? []).map((n) => "#" + n).join(" ")}`,
             ),
             ...policies.map((/** @type {any} */ p) => `  policy ${p.id}: ${p.text}`),
         ];
@@ -236,8 +240,8 @@ const RENDER = {
         const { alive, progress } = v.liveness;
         const lines = [
             "HEALTH:",
-            `  alive written ${ago(alive?.at, now)}${alive ? ` by pid ${alive.pid}, version ${alive.version}` : ""}`,
-            `  progress: ${progress ? `${progress.step} for ${span(now.getTime() - Date.parse(progress.since))}` : "none"}`,
+            `  alive written ${ago(alive?.at, now)}${alive ? " by pid " + alive.pid + ", version " + alive.version : ""}`,
+            `  progress: ${progress ? progress.step + " for " + span(now.getTime() - Date.parse(progress.since)) : "none"}`,
         ];
         const h = v.health;
         if (h) {
@@ -388,26 +392,49 @@ export function whyText(item, state, ledger, now) {
     for (const r of [...jobs, ...items]) names.add(r.id);
     const lines = ledger.filter((e) => concerns(e, names));
     if (!jobs.length && !items.length && !lines.length) return null;
-    const out = [];
-    for (const j of jobs) {
-        out.push(
-            `job ${j.id} (${j.kind}, ${j.target}): ${jobState(j, now)}`,
-            `  reason: ${j.reason || "none recorded"}`,
-        );
-        if (j.waitingFor) out.push(`  waiting for: ${JSON.stringify(j.waitingFor)}`);
-        for (const a of j.attempts ?? []) out.push(`  attempt ended ${when(a.endedAt)}: ${a.outcome}`);
-        if (j.facts && Object.keys(j.facts).length) out.push(`  facts: ${JSON.stringify(j.facts)}`);
-    }
+    const out = jobs.flatMap((j) => jobWhy(j, now));
     for (const i of items) {
         const status = i.endedAt ? `ended ${when(i.endedAt)}` : "open";
         out.push(`owner item ${i.id} [${i.kind}], ${status}: ${i.question}`);
     }
-    if (lines.length > WHY_LINES)
-        out.push(`ledger: ${lines.length - WHY_LINES} earlier lines not shown (githerd ledger --target ${item})`);
-    else if (lines.length) out.push("ledger:");
-    for (const e of lines.slice(-WHY_LINES)) {
-        const { ts, kind, ...rest } = e;
-        out.push(`  ${ts ? when(ts) : "?"} ${kind} ${JSON.stringify(rest)}`);
-    }
+    out.push(...ledgerWhy(lines, item));
     return out.join("\n");
+}
+
+/**
+ * A job's part of `githerd why`: its state, reason, wait, attempts and facts.
+ * @param {import("./board.mjs").Job} j the job
+ * @param {Date} now the current time
+ * @returns {string[]} the lines
+ */
+function jobWhy(j, now) {
+    const out = [
+        `job ${j.id} (${j.kind}, ${j.target}): ${jobState(j, now)}`,
+        `  reason: ${j.reason || "none recorded"}`,
+    ];
+    if (j.waitingFor) out.push(`  waiting for: ${JSON.stringify(j.waitingFor)}`);
+    for (const a of j.attempts ?? []) out.push(`  attempt ended ${when(a.endedAt)}: ${a.outcome}`);
+    if (j.facts && Object.keys(j.facts).length) out.push(`  facts: ${JSON.stringify(j.facts)}`);
+    return out;
+}
+
+/**
+ * The ledger part of `githerd why`: the last `WHY_LINES` lines, and how many earlier ones there are.
+ * @param {any[]} lines the ledger lines that name the item
+ * @param {string} item what the owner typed
+ * @returns {string[]} the lines
+ */
+function ledgerWhy(lines, item) {
+    if (!lines.length) return [];
+    const head =
+        lines.length > WHY_LINES
+            ? `ledger: ${lines.length - WHY_LINES} earlier lines not shown (githerd ledger --target ${item})`
+            : "ledger:";
+    return [
+        head,
+        ...lines.slice(-WHY_LINES).map((e) => {
+            const { ts, kind, ...rest } = e;
+            return `  ${ts ? when(ts) : "?"} ${kind} ${JSON.stringify(rest)}`;
+        }),
+    ];
 }

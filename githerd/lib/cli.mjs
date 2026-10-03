@@ -49,24 +49,8 @@ const EXEC_TIMEOUT_MS = 60_000;
 /** The servherd name of `githerd dev`, and its state directory in the worktree. */
 const DEV_NAME = "githerd-dev";
 const DEV_STATE = ".githerd-dev";
-/** The commands that work on a repository. */
-const COMMANDS = [
-    "status",
-    "board",
-    "why",
-    "ack",
-    "veto",
-    "ledger",
-    "runs",
-    "run",
-    "mode",
-    "ensure",
-    "restart",
-    "dev",
-    "doctor",
-];
 /** The modes `githerd mode` can set; raising to acting is a config change on the default branch. */
-const LOWER_MODES = ["dry-run", "paused"];
+const LOWER_MODES = new Set(["dry-run", "paused"]);
 
 /**
  * @typedef {object} CliOptions
@@ -161,11 +145,11 @@ function parseArgs(args) {
     const positional = [];
     /** @type {Record<string, string | true>} */
     const flags = {};
-    for (let i = 0; i < args.length; i++) {
-        const a = args[i];
+    const rest = [...args];
+    for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
         else if (a === "--json" || a === "--send-test") flags[a.slice(2)] = true;
-        else flags[a.slice(2)] = args[++i] ?? "";
+        else flags[a.slice(2)] = rest.shift() ?? "";
     }
     return { positional, flags };
 }
@@ -205,6 +189,22 @@ function daemonEnv(record) {
 }
 
 /**
+ * @typedef {object} Command what a command handler runs with
+ * @property {string} name the command
+ * @property {string[]} positional its positional arguments
+ * @property {Record<string, string | true>} flags its flags
+ * @property {string} cwd where it runs
+ * @property {Record<string, string | undefined>} env the environment
+ * @property {(line: string) => void} out standard output
+ * @property {(line: string) => void} err standard error
+ * @property {() => Date} now the clock
+ * @property {string} stateDir the repository's state directory
+ * @property {Parameters<typeof launcherContext>[0]} ctxOptions what the launcher needs
+ * @property {number} signTimeoutMs the doctor's signing timeout
+ * @property {AbortSignal} [signal] ends `githerd board`
+ */
+
+/**
  * Runs the githerd command line.
  * @param {string[]} argv the arguments after `githerd`
  * @param {CliOptions} [options] where and how
@@ -222,7 +222,6 @@ export async function runCli(argv, options = {}) {
         signal,
     } = options;
     const [command, ...rest] = argv;
-    const { positional, flags } = parseArgs(rest);
 
     if (command === "version" || command === "--version") {
         const { version, codeHash } = readVersion();
@@ -233,8 +232,8 @@ export async function runCli(argv, options = {}) {
         (command ? out : err)(USAGE);
         return command ? 0 : 2;
     }
-
-    if (!COMMANDS.includes(command)) {
+    const handler = Object.hasOwn(HANDLERS, command) ? HANDLERS[command] : null;
+    if (!handler) {
         err(USAGE);
         return 2;
     }
@@ -247,244 +246,338 @@ export async function runCli(argv, options = {}) {
     }
     const stateDir = env.GITHERD_STATE_DIR ? resolve(cwd, env.GITHERD_STATE_DIR) : defaultStateDir(root, env.HOME);
     const ctxOptions = { cwd, env, now, stateDir, ...(healthWaitMs ? { healthWaitMs } : {}) };
+    return handler({
+        name: command,
+        ...parseArgs(rest),
+        cwd,
+        env,
+        out,
+        err,
+        now,
+        stateDir,
+        ctxOptions,
+        signTimeoutMs,
+        signal,
+    });
+}
 
-    /**
-     * The daemon's port, or null after saying why there is none.
-     * @returns {Promise<number | null>} the port
-     */
-    const daemonPort = async () => {
-        const { record, health, error } = await probe(/** @type {any} */ ({ stateDir }));
-        if (health) return record.port;
-        err(`githerd daemon not reachable: ${error}; run githerd ensure`);
-        return null;
+/**
+ * The daemon's port, or null after saying why there is none.
+ * @param {Command} c the command
+ * @returns {Promise<number | null>} the port
+ */
+async function daemonPort(c) {
+    const { record, health, error } = await probe(/** @type {any} */ ({ stateDir: c.stateDir }));
+    if (health) return record.port;
+    c.err(`githerd daemon not reachable: ${error}; run githerd ensure`);
+    return null;
+}
+
+/**
+ * `status [section] [--json]`: the board once.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdStatus(c) {
+    const board = await boardText(c.stateDir, { section: c.positional[0], json: c.flags.json === true, now: c.now() });
+    (board.ok ? c.out : c.err)(board.text);
+    return board.ok ? 0 : 1;
+}
+
+/**
+ * `board`: the board, redrawn when the state changes, until the signal or SIGINT.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdBoard(c) {
+    const draw = async () => {
+        const board = await boardText(c.stateDir, { now: c.now() });
+        c.out(`\x1b[2J\x1b[H${board.text}`);
     };
+    await draw();
+    await redrawUntil(c.stateDir, draw, c.signal);
+    return 0;
+}
 
-    switch (command) {
-        case "status": {
-            const board = await boardText(stateDir, { section: positional[0], json: flags.json === true, now: now() });
-            (board.ok ? out : err)(board.text);
-            return board.ok ? 0 : 1;
-        }
+/**
+ * `why <item>`: the records and ledger lines that put an item in its state.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdWhy(c) {
+    const [item] = c.positional;
+    if (!item) {
+        c.err("usage: githerd why <item>");
+        return 2;
+    }
+    const ledger = await readLedger(c.stateDir, { since: new Date(0) });
+    const text = whyText(item, await offlineState(c.stateDir), ledger, c.now());
+    if (text === null) {
+        c.err(`nothing in state.json or the ledger names ${item}`);
+        return 1;
+    }
+    c.out(text);
+    return 0;
+}
 
-        case "board": {
-            const draw = async () => {
-                const board = await boardText(stateDir, { now: now() });
-                out(`\x1b[2J\x1b[H${board.text}`);
-            };
-            await draw();
-            await redrawUntil(stateDir, draw, signal);
-            return 0;
-        }
+/**
+ * `ack <key>` and `veto <proposal id>`: the owner's answers, through the daemon.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdOwner(c) {
+    const [target] = c.positional;
+    const ack = c.name === "ack";
+    if (!target) {
+        c.err(`usage: githerd ${c.name} <${ack ? "key" : "proposal id"}>`);
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const answer = await post(port, "/owner", ack ? { op: "ack", key: target } : { op: "veto", id: target });
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
 
-        case "why": {
-            const [item] = positional;
-            if (!item) {
-                err("usage: githerd why <item>");
-                return 2;
-            }
-            const text = whyText(
-                item,
-                await offlineState(stateDir),
-                await readLedger(stateDir, { since: new Date(0) }),
-                now(),
-            );
-            if (text === null) {
-                err(`nothing in state.json or the ledger names ${item}`);
-                return 1;
-            }
-            out(text);
-            return 0;
-        }
+/**
+ * Whether a ledger entry names a target.
+ * @param {any} e the entry
+ * @param {string | true | undefined} target the `--target` flag
+ * @returns {boolean} true when there is no target or the entry names it
+ */
+function namesTarget(e, target) {
+    if (!target) return true;
+    return e.target === target || (Array.isArray(e.targets) && e.targets.includes(target));
+}
 
-        case "ack":
-        case "veto": {
-            const [target] = positional;
-            if (!target) {
-                err(`usage: githerd ${command} <${command === "ack" ? "key" : "proposal id"}>`);
-                return 2;
-            }
-            const port = await daemonPort();
-            if (port === null) return 1;
-            const answer = await post(
-                port,
-                "/owner",
-                command === "ack" ? { op: "ack", key: target } : { op: "veto", id: target },
-            );
-            (answer.ok ? out : err)(answer.text ?? answer.error);
-            return answer.ok ? 0 : 1;
-        }
-
-        case "ledger": {
-            let since;
-            if (typeof flags.since === "string") {
-                since = parseSince(flags.since, now());
-                if (!since) {
-                    err(`githerd ledger: --since takes 30m, 12h, 1d or a date, not "${flags.since}"`);
-                    return 2;
-                }
-            }
-            const entries = (await readLedger(stateDir, since ? { since } : {})).filter(
-                (e) =>
-                    (!flags.kind || e.kind === flags.kind) &&
-                    (!flags.target ||
-                        e.target === flags.target ||
-                        (Array.isArray(e.targets) && e.targets.includes(flags.target))),
-            );
-            for (const e of entries) out(JSON.stringify(e));
-            return 0;
-        }
-
-        case "runs": {
-            const last = Number(flags.last ?? 10);
-            if (!Number.isInteger(last) || last < 1) {
-                err("githerd runs: --last takes a positive number");
-                return 2;
-            }
-            const state = readJson(join(stateDir, "state.json")) ?? readJson(join(stateDir, "state.json.bak"));
-            const runs = Object.entries(state?.runs ?? {})
-                .sort(([, a], [, b]) => String(b.startedAt ?? "").localeCompare(String(a.startedAt ?? "")))
-                .slice(0, last);
-            if (runs.length === 0) out("no runs");
-            for (const [id, r] of runs) {
-                const cost = typeof r.cost === "number" ? `$${r.cost.toFixed(2)}` : "-";
-                out([id, r.status ?? "-", r.kind ?? "-", r.target ?? "-", r.startedAt ?? "-", cost].join(" "));
-            }
-            return 0;
-        }
-
-        case "run": {
-            const [id] = positional;
-            if (!id || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
-                err("usage: githerd run <id>");
-                return 2;
-            }
-            const state = readJson(join(stateDir, "state.json")) ?? readJson(join(stateDir, "state.json.bak"));
-            const record = state?.runs?.[id];
-            const dir = join(stateDir, "runs", id);
-            if (!record && !existsSync(dir)) {
-                err(`no run ${id}`);
-                return 1;
-            }
-            out(JSON.stringify({ id, ...record }, null, 2));
-            if (existsSync(dir)) {
-                out(`files in ${dir}: ${readdirSync(dir).sort().join(" ")}`);
-                const result = join(dir, "result.json");
-                if (existsSync(result)) out(`result.json: ${readFileSync(result, "utf8").trim()}`);
-            }
-            return 0;
-        }
-
-        case "mode": {
-            const [mode] = positional;
-            const file = join(stateDir, "override.json");
-            if (mode === undefined) {
-                const found = launcherContext(ctxOptions);
-                const config = found.kind === "ready" ? found.ctx.config : null;
-                if (!config) {
-                    let why = "no config";
-                    if (found.kind === "unconfigured") why = found.reason;
-                    else if (found.kind === "ready" && found.problem) why = found.problem;
-                    err(`githerd mode: ${why}`);
-                    return 1;
-                }
-                const override = readJson(file)?.mode ?? null;
-                out(modeText(groupModes(config, override), await readLedger(stateDir, { since: new Date(0) })));
-                return 0;
-            }
-            if (mode === "acting") {
-                err(
-                    "githerd mode acting is refused: the mode is raised only by a githerd.config.json change merged to the default branch",
-                );
-                return 2;
-            }
-            if (mode === "clear") {
-                rmSync(file, { force: true });
-                out("mode override removed: githerd runs in the config's mode");
-                return 0;
-            }
-            if (!LOWER_MODES.includes(mode)) {
-                err("usage: githerd mode dry-run|paused|clear");
-                return 2;
-            }
-            mkdirSync(stateDir, { recursive: true });
-            writeFileSync(file, `${JSON.stringify({ mode, at: now().toISOString() })}\n`);
-            out(`mode override: ${mode} (it can only lower the config's mode; githerd mode clear removes it)`);
-            return 0;
-        }
-
-        case "ensure":
-        case "restart":
-        case "dev":
-        case "doctor": {
-            const dev = command === "dev";
-            if (dev && !env.GITHERD_CONFIG) {
-                err("githerd dev needs GITHERD_CONFIG: the development daemon never reads the default branch's config");
-                return 2;
-            }
-            const devState = dev ? join(worktreeTop(cwd), DEV_STATE) : stateDir;
-            const found = launcherContext({
-                ...ctxOptions,
-                ...(dev ? { name: DEV_NAME, stateDir: devState } : {}),
-            });
-            if (command === "doctor")
-                return doctor(found, { ctxOptions, env, out, now, signTimeoutMs, sendTest: !!flags["send-test"] });
-            if (found.kind === "outside") return 2;
-            if (found.kind === "unconfigured") {
-                err(found.reason);
-                return 1;
-            }
-            const { ctx, problem } = found;
-            if (problem) {
-                err(`githerd: config: ${problem}`);
-                return 1;
-            }
-            try {
-                if (command === "ensure") {
-                    const r = await ensureDaemon(ctx);
-                    out(`${r.action} ${r.url}`);
-                } else if (command === "restart") {
-                    await servherd(ctx, ["restart", ctx.name]);
-                    out(`restarted ${ctx.name}`);
-                } else {
-                    const before = (await probe(ctx)).record;
-                    const data = await servherd(ctx, [
-                        "start",
-                        "-n",
-                        DEV_NAME,
-                        "-e",
-                        "PORT={{port}}",
-                        "-e",
-                        `GITHERD_CONFIG=${resolve(cwd, /** @type {string} */ (env.GITHERD_CONFIG))}`,
-                        "-e",
-                        `GITHERD_STATE_DIR=${devState}`,
-                        "-e",
-                        "GITHERD_DEV=1",
-                        ...(env.GITHERD_DEV_NOTIFY === "1" ? ["-e", "GITHERD_DEV_NOTIFY=1"] : []),
-                        "--",
-                        "node",
-                        join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
-                    ]);
-                    const { health, error } = await waitFor(
-                        ctx,
-                        (h) => ours(ctx, h) && (data.action === "existing" || h.pid !== before?.pid),
-                    );
-                    if (!health) throw new Error(`${DEV_NAME} did not answer: ${error}`);
-                    out(
-                        `${DEV_NAME} ${data.action} at http://127.0.0.1:${health.port} (${health.mode}); state in ${devState}`,
-                    );
-                    out(`use it with GITHERD_STATE_DIR=${devState} githerd status`);
-                }
-                return 0;
-            } catch (e) {
-                err(`githerd ${command}: ${/** @type {Error} */ (e).message}`);
-                return 1;
-            }
-        }
-
-        default:
+/**
+ * `ledger [--since] [--target] [--kind]`: ledger entries, one JSON line each.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdLedger(c) {
+    const { flags } = c;
+    let since;
+    if (typeof flags.since === "string") {
+        since = parseSince(flags.since, c.now());
+        if (!since) {
+            c.err(`githerd ledger: --since takes 30m, 12h, 1d or a date, not "${flags.since}"`);
             return 2;
+        }
+    }
+    const entries = await readLedger(c.stateDir, since ? { since } : {});
+    for (const e of entries) {
+        if ((!flags.kind || e.kind === flags.kind) && namesTarget(e, flags.target)) c.out(JSON.stringify(e));
+    }
+    return 0;
+}
+
+/**
+ * The state file, or its backup.
+ * @param {string} stateDir the state directory
+ * @returns {any} the state, or null
+ */
+function savedState(stateDir) {
+    return readJson(join(stateDir, "state.json")) ?? readJson(join(stateDir, "state.json.bak"));
+}
+
+/**
+ * `runs [--last n]`: recent judgment runs, newest first.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdRuns(c) {
+    const last = Number(c.flags.last ?? 10);
+    if (!Number.isInteger(last) || last < 1) {
+        c.err("githerd runs: --last takes a positive number");
+        return 2;
+    }
+    const runs = Object.entries(savedState(c.stateDir)?.runs ?? {})
+        .sort(([, a], [, b]) => String(b.startedAt ?? "").localeCompare(String(a.startedAt ?? "")))
+        .slice(0, last);
+    if (runs.length === 0) c.out("no runs");
+    for (const [id, r] of runs) {
+        const cost = typeof r.cost === "number" ? `$${r.cost.toFixed(2)}` : "-";
+        c.out([id, r.status ?? "-", r.kind ?? "-", r.target ?? "-", r.startedAt ?? "-", cost].join(" "));
+    }
+    return 0;
+}
+
+/**
+ * `run <id>`: one run's record and files.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdRun(c) {
+    const [id] = c.positional;
+    if (!id || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+        c.err("usage: githerd run <id>");
+        return 2;
+    }
+    const record = savedState(c.stateDir)?.runs?.[id];
+    const dir = join(c.stateDir, "runs", id);
+    if (!record && !existsSync(dir)) {
+        c.err(`no run ${id}`);
+        return 1;
+    }
+    c.out(JSON.stringify({ id, ...record }, null, 2));
+    if (existsSync(dir)) {
+        const names = readdirSync(dir).sort((a, b) => a.localeCompare(b));
+        c.out(`files in ${dir}: ${names.join(" ")}`);
+        const result = join(dir, "result.json");
+        if (existsSync(result)) c.out(`result.json: ${readFileSync(result, "utf8").trim()}`);
+    }
+    return 0;
+}
+
+/**
+ * `mode`: each write group's mode and its ledger coverage. `mode dry-run|paused|clear`: lower the
+ * mode locally, or remove the override.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdMode(c) {
+    const [mode] = c.positional;
+    const file = join(c.stateDir, "override.json");
+    if (mode === undefined) return showModes(c, file);
+    if (mode === "acting") {
+        c.err(
+            "githerd mode acting is refused: the mode is raised only by a githerd.config.json change merged to the default branch",
+        );
+        return 2;
+    }
+    if (mode === "clear") {
+        rmSync(file, { force: true });
+        c.out("mode override removed: githerd runs in the config's mode");
+        return 0;
+    }
+    if (!LOWER_MODES.has(mode)) {
+        c.err("usage: githerd mode dry-run|paused|clear");
+        return 2;
+    }
+    mkdirSync(c.stateDir, { recursive: true });
+    writeFileSync(file, `${JSON.stringify({ mode, at: c.now().toISOString() })}\n`);
+    c.out(`mode override: ${mode} (it can only lower the config's mode; githerd mode clear removes it)`);
+    return 0;
+}
+
+/**
+ * Prints each write group's mode and its ledger coverage.
+ * @param {Command} c the command
+ * @param {string} file the override file
+ * @returns {Promise<number>} the exit code
+ */
+async function showModes(c, file) {
+    const found = launcherContext(c.ctxOptions);
+    const config = found.kind === "ready" ? found.ctx.config : null;
+    if (!config) {
+        let why = "no config";
+        if (found.kind === "unconfigured") why = found.reason;
+        else if (found.kind === "ready" && found.problem) why = found.problem;
+        c.err(`githerd mode: ${why}`);
+        return 1;
+    }
+    const override = readJson(file)?.mode ?? null;
+    c.out(modeText(groupModes(config, override), await readLedger(c.stateDir, { since: new Date(0) })));
+    return 0;
+}
+
+/**
+ * `ensure`, `restart`, `dev` and `doctor`: the commands that need the launcher's context.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdService(c) {
+    const dev = c.name === "dev";
+    if (dev && !c.env.GITHERD_CONFIG) {
+        c.err("githerd dev needs GITHERD_CONFIG: the development daemon never reads the default branch's config");
+        return 2;
+    }
+    const devState = dev ? join(worktreeTop(c.cwd), DEV_STATE) : c.stateDir;
+    const found = launcherContext({ ...c.ctxOptions, ...(dev ? { name: DEV_NAME, stateDir: devState } : {}) });
+    if (c.name === "doctor") return doctor(found, c);
+    if (found.kind === "outside") return 2;
+    if (found.kind === "unconfigured") {
+        c.err(found.reason);
+        return 1;
+    }
+    if (found.problem) {
+        c.err(`githerd: config: ${found.problem}`);
+        return 1;
+    }
+    try {
+        await SERVICE[c.name](found.ctx, c, devState);
+        return 0;
+    } catch (e) {
+        c.err(`githerd ${c.name}: ${/** @type {Error} */ (e).message}`);
+        return 1;
     }
 }
+
+/**
+ * Runs this working tree as the `githerd-dev` daemon, with its state in the worktree.
+ * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
+ * @param {Command} c the command
+ * @param {string} devState the development state directory
+ */
+async function startDev(ctx, c, devState) {
+    const before = (await probe(ctx)).record;
+    const data = await servherd(ctx, [
+        "start",
+        "-n",
+        DEV_NAME,
+        "-e",
+        "PORT={{port}}",
+        "-e",
+        `GITHERD_CONFIG=${resolve(c.cwd, /** @type {string} */ (c.env.GITHERD_CONFIG))}`,
+        "-e",
+        `GITHERD_STATE_DIR=${devState}`,
+        "-e",
+        "GITHERD_DEV=1",
+        ...(c.env.GITHERD_DEV_NOTIFY === "1" ? ["-e", "GITHERD_DEV_NOTIFY=1"] : []),
+        "--",
+        "node",
+        join(PACKAGE_DIR, "bin", "githerd-daemon.mjs"),
+    ]);
+    const { health, error } = await waitFor(
+        ctx,
+        (h) => ours(ctx, h) && (data.action === "existing" || h.pid !== before?.pid),
+    );
+    if (!health) throw new Error(`${DEV_NAME} did not answer: ${error}`);
+    c.out(`${DEV_NAME} ${data.action} at http://127.0.0.1:${health.port} (${health.mode}); state in ${devState}`);
+    c.out(`use it with GITHERD_STATE_DIR=${devState} githerd status`);
+}
+
+/** @type {Record<string, (ctx: import("./launcher.mjs").LauncherContext, c: Command, devState: string) => Promise<void>>} */
+const SERVICE = {
+    ensure: async (ctx, c) => {
+        const r = await ensureDaemon(ctx);
+        c.out(`${r.action} ${r.url}`);
+    },
+    restart: async (ctx, c) => {
+        await servherd(ctx, ["restart", ctx.name]);
+        c.out(`restarted ${ctx.name}`);
+    },
+    dev: startDev,
+};
+
+/** Every command that works on a repository, and its handler. */
+/** @type {Record<string, (c: Command) => Promise<number>>} */
+const HANDLERS = {
+    status: cmdStatus,
+    board: cmdBoard,
+    why: cmdWhy,
+    ack: cmdOwner,
+    veto: cmdOwner,
+    ledger: cmdLedger,
+    runs: cmdRuns,
+    run: cmdRun,
+    mode: cmdMode,
+    ensure: cmdService,
+    restart: cmdService,
+    dev: cmdService,
+    doctor: cmdService,
+};
 
 /**
  * The state as the files hold it: `state.json`, else `state.json.bak`, else rebuilt from the
@@ -581,165 +674,218 @@ async function redrawUntil(stateDir, draw, signal) {
  * @returns {string} the top
  */
 function worktreeTop(cwd) {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" }).trim();
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" }).trim(); // NOSONAR(S4036): the owner's git from his PATH, as in tools/
+}
+
+/**
+ * @typedef {(level: "ok" | "warn" | "FAIL", name: string, text: string) => void} Report prints one
+ *   doctor line
+ * @typedef {{cwd: string, env: Record<string, string | undefined>}} ExecPlace where a check runs
+ * @typedef {{env: Record<string, string | undefined>, now: () => Date, sendTest: boolean, report: Report}}
+ *   ServiceOptions how the service checks run and report
+ */
+
+/**
+ * The first line of a command's output.
+ * @param {string} text the output
+ * @returns {string} its first line, or `no output`
+ */
+function firstLine(text) {
+    return text.trim().split("\n")[0] || "no output";
 }
 
 /**
  * Runs the checks of design section 12 and prints one line per check: `ok`, `warn` or `FAIL`.
  * @param {ReturnType<typeof launcherContext>} found the launcher's view of the repository
- * @param {{ctxOptions: Parameters<typeof launcherContext>[0], env: Record<string, string | undefined>,
- *   out: (line: string) => void, now: () => Date, signTimeoutMs: number, sendTest: boolean}} options
- *   how to run
+ * @param {Command} c the command
  * @returns {Promise<number>} 1 when any check failed, else 0
  */
-async function doctor(found, { ctxOptions, env, out, now, signTimeoutMs, sendTest }) {
-    let failed = false;
-    const report = (
-        /** @type {"ok" | "warn" | "FAIL"} */ level,
-        /** @type {string} */ name,
-        /** @type {string} */ text,
-    ) => {
-        if (level === "FAIL") failed = true;
-        out(`${level.padEnd(4)} ${name}: ${text}`);
-    };
-    const first = (/** @type {string} */ text) => text.trim().split("\n")[0] || "no output";
-
-    // config
+async function doctor(found, c) {
     if (found.kind === "outside") return 2;
+    let failed = false;
+    /**
+     * Prints one line and remembers a failure.
+     * @type {Report}
+     */
+    const report = (level, name, text) => {
+        if (level === "FAIL") failed = true;
+        c.out(`${level.padEnd(4)} ${name}: ${text}`);
+    };
     const root = found.kind === "ready" ? found.ctx.root : found.root;
     const ctx = found.kind === "ready" ? found.ctx : null;
     if (found.kind === "unconfigured") report("FAIL", "config", `${found.reason}; nothing starts until it is`);
-    else if (found.kind === "ready" && found.problem) report("FAIL", "config", found.problem);
+    else if (found.problem) report("FAIL", "config", found.problem);
     else report("ok", "config", `${ctx?.config?.repo}, mode ${ctx?.config?.mode}`);
-    const opts = { cwd: root, env };
-
-    // gh auth and scopes
-    const auth = await exec(["gh", "auth", "status"], opts);
-    const ghPresent = !auth.missing;
-    if (auth.missing) report("FAIL", "gh", "gh not found on PATH: githerd reads GitHub through gh");
-    else if (auth.code !== 0) report("FAIL", "gh", `not logged in: ${first(auth.stderr + auth.stdout)}`);
-    else {
-        const scopes = /Token scopes:\s*(.*)/.exec(auth.stderr + auth.stdout)?.[1]?.trim();
-        if (!scopes) report("warn", "gh", "logged in; token scopes not shown");
-        else if (!/'repo'/.test(scopes)) report("FAIL", "gh", `the token lacks the repo scope (has ${scopes})`);
-        else report("ok", "gh", `logged in, scopes ${scopes}`);
-    }
-
+    const place = { cwd: root, env: c.env };
+    const ghPresent = await ghCheck(place, report);
     // servherd, the daemon, supervision and the notify command: only for a configured repository
-    const record = ctx ? await serviceChecks(ctx, { env, now, sendTest, report, first }) : null;
+    const sendTest = Boolean(c.flags["send-test"]);
+    const record = ctx ? await serviceChecks(ctx, { env: c.env, now: c.now, sendTest, report }) : null;
+    await signingCheck(place, daemonEnv(record), c.signTimeoutMs, report);
+    stateCheck(join(ctx?.stateDir ?? c.stateDir, "state.json"), report);
+    if (ghPresent && ctx?.config?.repo) await deployKeyCheck(ctx.config.repo, { root, env: c.env, report });
+    return failed ? 1 : 0;
+}
 
-    // a signed commit, in the daemon's environment when it is running
-    const fromDaemon = daemonEnv(record);
-    const signEnv = { ...(fromDaemon ?? env), GIT_TERMINAL_PROMPT: "0" };
+/**
+ * gh is installed, logged in, and its token has the repo scope.
+ * @param {ExecPlace} place where to run
+ * @param {Report} report how to report
+ * @returns {Promise<boolean>} whether gh is installed
+ */
+async function ghCheck(place, report) {
+    const auth = await exec(["gh", "auth", "status"], place);
+    if (auth.missing) {
+        report("FAIL", "gh", "gh not found on PATH: githerd reads GitHub through gh");
+        return false;
+    }
+    const text = auth.stderr + auth.stdout;
+    const scopes = /Token scopes:\s*(.*)/.exec(text)?.[1]?.trim();
+    if (auth.code !== 0) report("FAIL", "gh", `not logged in: ${firstLine(text)}`);
+    else if (!scopes) report("warn", "gh", "logged in; token scopes not shown");
+    else if (scopes.includes("'repo'")) report("ok", "gh", `logged in, scopes ${scopes}`);
+    else report("FAIL", "gh", `the token lacks the repo scope (has ${scopes})`);
+    return true;
+}
+
+/**
+ * A signed commit object can be made, in the daemon's environment when it is running.
+ * @param {ExecPlace} place where to run
+ * @param {Record<string, string> | null} fromDaemon the daemon's environment, or null
+ * @param {number} timeoutMs how long the signer gets
+ * @param {Report} report how to report
+ */
+async function signingCheck(place, fromDaemon, timeoutMs, report) {
+    const env = { ...(fromDaemon ?? place.env), GIT_TERMINAL_PROMPT: "0" };
     const where = fromDaemon ? "the daemon's environment" : "this shell's environment (no daemon running)";
-    const tree = await exec(["git", "hash-object", "-t", "tree", "/dev/null"], { cwd: root, env: signEnv });
+    const tree = await exec(["git", "hash-object", "-t", "tree", "/dev/null"], { cwd: place.cwd, env });
     const sign = await exec(["git", "commit-tree", "-S", "-m", "githerd doctor signing check", tree.stdout.trim()], {
-        cwd: root,
-        env: signEnv,
-        timeoutMs: signTimeoutMs,
+        cwd: place.cwd,
+        env,
+        timeoutMs,
     });
     if (sign.timedOut) {
         report(
             "FAIL",
             "signing",
-            `git commit-tree -S did not finish within ${signTimeoutMs / 1000} s in ${where}: the signer is waiting for a passphrase or pinentry`,
+            `git commit-tree -S did not finish within ${timeoutMs / 1000} s in ${where}: the signer is waiting for a passphrase or pinentry`,
         );
-    } else if (sign.code !== 0)
-        report("FAIL", "signing", `git commit-tree -S failed in ${where}: ${first(sign.stderr)}`);
-    else report("ok", "signing", `signed commit in ${where}`);
+    } else if (sign.code === 0) report("ok", "signing", `signed commit in ${where}`);
+    else report("FAIL", "signing", `git commit-tree -S failed in ${where}: ${firstLine(sign.stderr)}`);
+}
 
-    // the state file
-    const stateFile = join(ctx?.stateDir ?? /** @type {string} */ (ctxOptions?.stateDir), "state.json");
-    if (!existsSync(stateFile)) report("warn", "state", `no ${stateFile} yet`);
-    else {
-        const saved = readJson(stateFile);
-        if (!saved) report("FAIL", "state", `${stateFile} is unreadable; the daemon falls back to state.json.bak`);
-        else if (saved.schema > STATE_SCHEMA) {
-            report("FAIL", "state", `schema ${saved.schema} is newer than this githerd's ${STATE_SCHEMA}`);
-        } else report("ok", "state", `schema ${saved.schema}`);
+/**
+ * The state file is readable and of a schema this code reads.
+ * @param {string} stateFile the file
+ * @param {Report} report how to report
+ */
+function stateCheck(stateFile, report) {
+    if (!existsSync(stateFile)) {
+        report("warn", "state", `no ${stateFile} yet`);
+        return;
     }
+    const saved = readJson(stateFile);
+    if (!saved) report("FAIL", "state", `${stateFile} is unreadable; the daemon falls back to state.json.bak`);
+    else if (saved.schema > STATE_SCHEMA)
+        report("FAIL", "state", `schema ${saved.schema} is newer than this githerd's ${STATE_SCHEMA}`);
+    else report("ok", "state", `schema ${saved.schema}`);
+}
 
-    // a deploy key's private half in ~/.ssh
-    if (ghPresent && ctx?.config?.repo) await deployKeyCheck(ctx.config.repo, { root, env, report });
-    return failed ? 1 : 0;
+/**
+ * Parses the JSON that starts at the first `start` character of a command's output.
+ * @param {string} text the output
+ * @param {string} start `{` or `[`
+ * @returns {any} the value, or null when there is none
+ */
+function jsonFrom(text, start) {
+    try {
+        return JSON.parse(text.slice(text.indexOf(start)));
+    } catch {
+        return null;
+    }
 }
 
 /**
  * The doctor's checks of a configured repository: servherd answers, the daemon runs the default
  * branch's code, pm2 restarts it on a crash, and the notify command can run.
  * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
- * @param {{env: Record<string, string | undefined>, now: () => Date, sendTest: boolean,
- *   report: (level: "ok" | "warn" | "FAIL", name: string, text: string) => void,
- *   first: (text: string) => string}} options how to run and report
+ * @param {ServiceOptions} options how to run and report
  * @returns {Promise<any>} `daemon.json`, or null
  */
-async function serviceChecks(ctx, { env, now, sendTest, report, first }) {
-    const opts = { cwd: ctx.root, env };
-    // servherd
-    const list = await exec([...ctx.servherd, "--json", "list"], opts);
-    /** @type {any} */
-    let servers = null;
-    try {
-        const parsed = JSON.parse(list.stdout.slice(list.stdout.indexOf("{")));
-        if (parsed.success) servers = parsed.data.servers;
-    } catch {
-        // reported below
-    }
-    if (!servers) report("FAIL", "servherd", `not reachable: ${first(list.stderr || list.stdout)}`);
-    else {
+async function serviceChecks(ctx, { env, now, sendTest, report }) {
+    const list = await exec([...ctx.servherd, "--json", "list"], { cwd: ctx.root, env });
+    const parsed = jsonFrom(list.stdout, "{");
+    const servers = parsed?.success ? parsed.data.servers : null;
+    if (servers) {
         const entry = servers.find((/** @type {any} */ s) => s.server?.name === ctx.name);
         report("ok", "servherd", `${servers.length} servers; ${ctx.name} ${entry ? entry.status : "not registered"}`);
-    }
+    } else report("FAIL", "servherd", `not reachable: ${firstLine(list.stderr || list.stdout)}`);
+    const probed = await probe(ctx);
+    await daemonCheck(ctx, probed, report);
+    await supervisionCheck(ctx, report);
+    await notifyCheck(ctx, { env, now, sendTest, report });
+    return probed.record;
+}
 
-    // the daemon and its code
-    const { record, health, error } = await probe(ctx);
-    if (!health) report("FAIL", "daemon", `not reachable: ${error}; run githerd ensure`);
+/**
+ * The daemon answers and runs the default branch's code.
+ * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
+ * @param {{health: any, error: string | null}} probed the daemon's health answer, or why there is none
+ * @param {Report} report how to report
+ */
+async function daemonCheck(ctx, { health, error }, report) {
+    if (!health) {
+        report("FAIL", "daemon", `not reachable: ${error}; run githerd ensure`);
+        return;
+    }
+    let target = null;
+    try {
+        target = await targetCode(ctx);
+    } catch (e) {
+        report("warn", "code", /** @type {Error} */ (e).message);
+    }
+    const running = `daemon pid ${health.pid}, mode ${health.mode}, code ${String(health.codeHash).slice(0, 8)}`;
+    if (!target) report("ok", "daemon", running);
+    else if (health.codeHash === target.hash) report("ok", "daemon", `${running}, same as origin/${target.branch}`);
     else {
-        let target = null;
-        try {
-            target = await targetCode(ctx);
-        } catch (e) {
-            report("warn", "code", /** @type {Error} */ (e).message);
-        }
-        const running = `daemon pid ${health.pid}, mode ${health.mode}, code ${String(health.codeHash).slice(0, 8)}`;
-        if (!target) report("ok", "daemon", running);
-        else if (health.codeHash === target.hash) report("ok", "daemon", `${running}, same as origin/${target.branch}`);
-        else {
-            report(
-                "warn",
-                "daemon",
-                `${running}; origin/${target.branch} has ${target.hash.slice(0, 8)}, and the next launcher start upgrades it`,
-            );
-        }
+        const upgrade = `origin/${target.branch} has ${target.hash.slice(0, 8)}, and the next launcher start upgrades it`;
+        report("warn", "daemon", `${running}; ${upgrade}`);
     }
+}
 
-    // supervision: pm2 autorestart on the daemon's process
+/**
+ * pm2 restarts the daemon's process on a crash.
+ * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
+ * @param {Report} report how to report
+ */
+async function supervisionCheck(ctx, report) {
     const pm2Name = `servherd-${ctx.name}`;
     const jlist = await exec([...ctx.pm2, "jlist"], pm2Options(ctx));
-    let apps = null;
-    try {
-        apps = JSON.parse(jlist.stdout.slice(jlist.stdout.indexOf("[")));
-    } catch {
-        // reported below
-    }
+    const apps = jsonFrom(jlist.stdout, "[");
     const app = apps?.find((/** @type {any} */ a) => a.name === pm2Name);
-    if (!apps) report("FAIL", "supervision", `cannot list pm2 processes: ${first(jlist.stderr || jlist.stdout)}`);
+    if (!apps) report("FAIL", "supervision", `cannot list pm2 processes: ${firstLine(jlist.stderr || jlist.stdout)}`);
     else if (!app) report("FAIL", "supervision", `no pm2 process ${pm2Name}; run githerd ensure`);
-    else if (app.pm2_env?.autorestart !== true) {
+    else if (app.pm2_env?.autorestart === true)
+        report("ok", "supervision", `pm2 autorestart on for ${pm2Name} (${app.pm2_env.status})`);
+    else
         report(
             "FAIL",
             "supervision",
             `pm2 autorestart is off for ${pm2Name}: a crash stays down until a session opens`,
         );
-    } else report("ok", "supervision", `pm2 autorestart on for ${pm2Name} (${app.pm2_env.status})`);
+}
 
-    // the notify command
+/**
+ * The notify command can run, and with `--send-test` a page goes out.
+ * @param {import("./launcher.mjs").LauncherContext} ctx the launcher's context
+ * @param {ServiceOptions} options how to run and report
+ */
+async function notifyCheck(ctx, { env, now, sendTest, report }) {
     const notify = ctx.config?.notify ?? { command: null, maxPerHour: 6 };
     const problem = notifyCommandProblem(notify.command, env);
     if (notify.command === null) report("warn", "notify", "notify.command is null: pages only go to the ledger");
     else if (problem) report("FAIL", "notify", problem);
-    else if (!sendTest) report("ok", "notify", `${notify.command[0]} is executable (--send-test sends a page)`);
-    else {
+    else if (sendTest) {
         /** @type {any} */
         const state = {};
         const notifier = createNotifier({ notify, state, ledger: () => {}, now });
@@ -747,29 +893,33 @@ async function serviceChecks(ctx, { env, now, sendTest, report, first }) {
         await notifier.flush();
         if (state.notify.lastError) report("FAIL", "notify", `the test page failed: ${state.notify.lastError}`);
         else report("ok", "notify", "test page sent");
-    }
+    } else report("ok", "notify", `${notify.command[0]} is executable (--send-test sends a page)`);
+}
 
-    return record;
+/**
+ * The public half of a private key file: its `.pub` beside it, else derived by ssh-keygen.
+ * @param {string} file the private key
+ * @param {ExecPlace} place where to run ssh-keygen
+ * @returns {Promise<string | null>} the public key, or null when neither works
+ */
+async function publicHalf(file, place) {
+    const pub = readText(`${file}.pub`);
+    if (pub !== null) return pub;
+    const derived = await exec(["ssh-keygen", "-y", "-P", "", "-f", file], { ...place, timeoutMs: 10_000 });
+    return derived.code === 0 ? derived.stdout : null;
 }
 
 /**
  * Warns when a private key in `~/.ssh` belongs to one of the repository's deploy keys: the
  * release deploy key bypasses every ruleset (design section 14).
  * @param {string} repo `owner/name`
- * @param {{root: string, env: Record<string, string | undefined>,
- *   report: (level: "ok" | "warn" | "FAIL", name: string, text: string) => void}} options where to
+ * @param {{root: string, env: Record<string, string | undefined>, report: Report}} options where to
  *   run and how to report
  */
 async function deployKeyCheck(repo, { root, env, report }) {
     const res = await exec(["gh", "api", `repos/${repo}/keys`], { cwd: root, env });
-    /** @type {any[] | null} */
-    let keys = null;
-    try {
-        keys = JSON.parse(res.stdout);
-    } catch {
-        // reported below
-    }
-    if (res.code !== 0 || !Array.isArray(keys)) {
+    const keys = res.code === 0 ? jsonFrom(res.stdout, "[") : null;
+    if (!Array.isArray(keys)) {
         report("warn", "deploy keys", `cannot list ${repo}'s deploy keys: ${res.stderr.trim().split("\n")[0]}`);
         return;
     }
@@ -784,27 +934,14 @@ async function deployKeyCheck(repo, { root, env, report }) {
     }
     for (const name of names) {
         const file = join(ssh, name);
-        let text;
-        try {
-            text = readFileSync(file, "utf8");
-        } catch {
-            continue;
-        }
-        if (!text.includes("PRIVATE KEY")) continue;
-        let pub = readText(`${file}.pub`);
-        if (pub === null) {
-            const derived = await exec(["ssh-keygen", "-y", "-P", "", "-f", file], {
-                cwd: root,
-                env,
-                timeoutMs: 10_000,
-            });
-            pub = derived.code === 0 ? derived.stdout : null;
-        }
+        if (!readText(file)?.includes("PRIVATE KEY")) continue;
+        const pub = await publicHalf(file, { cwd: root, env });
         if (pub !== null && deploy.has(blob(pub))) {
+            const title = deploy.get(blob(pub));
             report(
                 "warn",
                 "deploy keys",
-                `${file} is the private key of deploy key "${deploy.get(blob(pub))}", which bypasses the master ruleset`,
+                `${file} is the private key of deploy key "${title}", which bypasses the master ruleset`,
             );
             return;
         }

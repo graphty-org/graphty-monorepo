@@ -16,6 +16,7 @@
 #   compact-mantine/storybook-static    -> /storybook/compact-mantine/
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
+#   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
@@ -48,6 +49,7 @@ copy graphty/storybook-static storybook/app
 copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
+copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then
@@ -117,6 +119,10 @@ cat > "$OUT/storybook/index.html" << 'EOF'
     <li>
       <a href="/storybook/layout/">layout</a>
       <div class="desc">Graph layout algorithm demonstrations</div>
+    </li>
+    <li>
+      <a href="/storybook/cytoscape-extensions/">cytoscape-extensions</a>
+      <div class="desc">Every graphty layout and algorithm running in Cytoscape.js, on the CPU and the GPU</div>
     </li>
   </ul>
   <p><a href="/">&larr; Back to graphty.app</a></p>

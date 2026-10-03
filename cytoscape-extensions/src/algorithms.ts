@@ -226,7 +226,9 @@ export type NodePair = readonly [NodeSelection, NodeSelection];
 
 /** Held-out edges and non-edges for the link-prediction evaluations. */
 interface EvaluateOptions extends AlgorithmOptions {
+    /** Node pairs that are edges (held out of the graph), which a good score ranks high. */
     readonly edges: readonly NodePair[];
+    /** Node pairs that are not edges, which a good score ranks low. */
     readonly nonEdges: readonly NodePair[];
 }
 
@@ -362,7 +364,7 @@ const UNWEIGHTED = new Set([
 // option overrides them. `weighted` is pinned separately: it is true exactly when the caller passed `weight`.
 const POWER = { maxIterations: 100, tolerance: 1e-6 } as const;
 const PAGERANK = { ...POWER, dampingFactor: 0.85 } as const;
-const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     pageRank: PAGERANK,
     personalizedPageRank: PAGERANK,
     deltaPageRank: PAGERANK,
@@ -375,7 +377,12 @@ const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
 };
 
 // Algorithms defined only for directed graphs: `directed` defaults to true.
-const DIRECTED = new Set(["topologicalSort", "stronglyConnectedComponents", "condensation", "deltaPageRank"]);
+export const DIRECTED: ReadonlySet<string> = new Set([
+    "topologicalSort",
+    "stronglyConnectedComponents",
+    "condensation",
+    "deltaPageRank",
+]);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Conversions between elements and indices
@@ -889,26 +896,65 @@ interface PointToPoint extends Rooted {
 interface WalkOptions extends Rooted {
     /** Stop when this node is reached; it is then `found`. */
     readonly goal?: NodeSelection;
+    /** Stop expanding at this many hops from the root; unbounded when absent. */
     readonly maxDepth?: number;
 }
 
 interface FlowOptions extends AlgorithmOptions, Omit<MaxFlowOptions, "weights"> {
+    /** The node the flow leaves. */
     readonly source: NodeSelection;
+    /** The node the flow arrives at. */
     readonly sink: NodeSelection;
 }
 
 interface IsomorphismOptions extends AlgorithmOptions {
     /** The collection to compare with, read with the same `directed`. */
     readonly other?: Collection;
+    /** Two nodes may be paired only when this returns true; by default any two may. */
     readonly nodeMatch?: (a: NodeSingular, b: NodeSingular) => boolean;
+    /** Two edges may be paired only when this returns true; by default any two may. */
     readonly edgeMatch?: (a: EdgeSingular, b: EdgeSingular) => boolean;
 }
 
 interface MatchingOptions extends AlgorithmOptions {
     /** One side of the bipartite graph; inferred when absent. */
     readonly left?: NodeSelection;
+    /** The other side; inferred when absent. */
     readonly right?: NodeSelection;
+    /** With `directed`: "both" (default) ignores direction; "out" joins a left node only to its out-neighbours. */
     readonly arcs?: "both" | "out";
+}
+
+/** A cap on path length. */
+interface Cutoff {
+    /** Stop relaxing beyond this distance; a node farther away reads as unreachable. Unbounded when absent. */
+    readonly cutoff?: number;
+}
+
+/** Sampled centrality. */
+interface Sampled {
+    /** Sampled: the nodes to run from, a selector or a collection; default every node. */
+    readonly sources?: NodeSelection;
+}
+
+/** One node pair. */
+interface PairOptions {
+    /** One node of the pair. */
+    readonly source: NodeSelection;
+    /** The other node of the pair. */
+    readonly target: NodeSelection;
+}
+
+/** Several node pairs. */
+interface PairsOptions {
+    /** The node pairs to score, each `[a, b]` of selectors or collections. */
+    readonly pairs: readonly NodePair[];
+}
+
+/** The nodes link prediction may propose. */
+interface Candidates {
+    /** The nodes to consider linking to `root`; default every node. */
+    readonly candidates?: NodeSelection;
 }
 
 interface MatchingResult {
@@ -974,7 +1020,10 @@ const IMPLS = {
         search(c, directionOptimizedBfs(c.s, req(c, o.root, "root"), c.rest), undefined),
     depthFirstSearch: (
         c: Ctx,
-        o: Omit<WalkOptions, "maxDepth"> & { readonly order?: "pre" | "post" },
+        o: Omit<WalkOptions, "maxDepth"> & {
+            /** "pre" (default) lists a node when it is first reached, "post" when everything below it is finished. */
+            readonly order?: "pre" | "post";
+        },
     ): SearchResult => {
         const target = indexOf(c.cs, o.goal, `${c.name}: goal`);
         return search(c, depthFirstSearch(c.s, req(c, o.root, "root"), { ...c.rest, target }), target);
@@ -984,12 +1033,9 @@ const IMPLS = {
         const order = topologicalSort(c.s);
         return order === null ? null : nodesAt(c, order);
     },
-    dijkstra: (c: Ctx, o: Rooted & { readonly cutoff?: number }): PathsResult | Promise<PathsResult> =>
+    dijkstra: (c: Ctx, o: Rooted & Cutoff): PathsResult | Promise<PathsResult> =>
         then(c.call("sssp", c.s, req(c, o.root, "root"), c.rest), (r) => paths(c, r)),
-    bellmanFord: (
-        c: Ctx,
-        o: Rooted & { readonly cutoff?: number },
-    ): MaybeAsync<PathsResult & { readonly hasNegativeWeightCycle: boolean }> =>
+    bellmanFord: (c: Ctx, o: Rooted & Cutoff): MaybeAsync<PathsResult & { readonly hasNegativeWeightCycle: boolean }> =>
         then(c.call("bellmanFord", c.s, req(c, o.root, "root"), c.rest), (r) => ({
             ...paths(c, r),
             hasNegativeWeightCycle: r.hasNegativeCycle,
@@ -998,7 +1044,13 @@ const IMPLS = {
         const r = bidirectionalDijkstra(c.s, req(c, o.root, "root"), req(c, o.goal, "goal"), c.rest);
         return { found: r.path.length > 0, distance: r.distance, path: pathOf(c, r.path, r.edges) };
     },
-    aStar: (c: Ctx, o: PointToPoint & { readonly heuristic?: (node: NodeSingular) => number }): PointPathResult => {
+    aStar: (
+        c: Ctx,
+        o: PointToPoint & {
+            /** An estimate of the distance left from a node to `goal`, never more than the real one. Default 0. */
+            readonly heuristic?: (node: NodeSingular) => number;
+        },
+    ): PointPathResult => {
         const h = o.heuristic;
         const r = astar(
             c.s,
@@ -1078,7 +1130,10 @@ const IMPLS = {
     eigenvectorCentrality: (
         c: Ctx,
         o: AlgorithmOptions &
-            Omit<EigenvectorOptions, "startVector"> & { readonly startVector?: (node: NodeSingular) => number } = {},
+            Omit<EigenvectorOptions, "startVector"> & {
+                /** Starting value of each node; default uniform. */
+                readonly startVector?: (node: NodeSingular) => number;
+            } = {},
     ): MaybeAsync<ScoreResult & { iterations: number; converged: boolean }> => {
         const startVector = o.startVector && vectorOf(c, o.startVector, "startVector");
         return then(c.call("eigenvectorCentrality", c.s, { ...c.rest, startVector }), (r) =>
@@ -1113,7 +1168,7 @@ const IMPLS = {
         ),
     closenessCentrality: (
         c: Ctx,
-        o: WeightedFlag<Omit<ClosenessOptions, "sources">> & { readonly sources?: NodeSelection } = {},
+        o: WeightedFlag<Omit<ClosenessOptions, "sources">> & Sampled = {},
     ): MaybeAsync<ScoreResult & { closeness(node: ElementRef): number | undefined }> => {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
         return then(c.call("closenessCentrality", c.s, { ...c.rest, sources, weighted: c.weighted }), (r) =>
@@ -1126,7 +1181,7 @@ const IMPLS = {
     ): number => nodeClosenessCentrality(c.s, req(c, o.root, "root"), { ...c.rest, weighted: c.weighted }),
     betweennessCentrality: (
         c: Ctx,
-        o: AlgorithmOptions & Omit<BetweennessOptions, "sources"> & { readonly sources?: NodeSelection } = {},
+        o: AlgorithmOptions & Omit<BetweennessOptions, "sources"> & Sampled = {},
     ): MaybeAsync<
         ScoreResult & {
             betweenness(node: ElementRef): number | undefined;
@@ -1155,11 +1210,13 @@ const IMPLS = {
     },
     edgeBetweennessCentrality: (
         c: Ctx,
-        o: AlgorithmOptions & {
-            readonly normalized?: boolean;
-            readonly k?: number;
-            readonly sources?: NodeSelection;
-        } = {},
+        o: AlgorithmOptions &
+            Sampled & {
+                /** Divide by `(n - 1)(n - 2)` on a directed graph, half that on an undirected one. Default false. */
+                readonly normalized?: boolean;
+                /** Sampled: how many source nodes to draw (the same count draws the same nodes every time). */
+                readonly k?: number;
+            } = {},
     ): MaybeAsync<ScoreResult> => {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
         return then(c.call("edgeBetweennessCentrality", c.s, { ...c.rest, sources }), (r) =>
@@ -1256,7 +1313,10 @@ const IMPLS = {
         then(c.call("labelPropagation", c.s, { ...c.rest, weighted: c.weighted }), (r) => propagated(c, r)),
     labelPropagationSynchronous: (
         c: Ctx,
-        _o: AlgorithmOptions & { readonly maxIterations?: number } = {},
+        _o: AlgorithmOptions & {
+            /** Iteration cap. */
+            readonly maxIterations?: number;
+        } = {},
     ): MaybeAsync<Partition<LpaReport>> =>
         then(c.call("labelPropagationSynchronous", c.s, { ...c.rest, weighted: c.weighted }), (r) => propagated(c, r)),
     labelPropagationSemiSupervised: (
@@ -1331,7 +1391,12 @@ const IMPLS = {
     },
     primMST: (
         c: Ctx,
-        o: AlgorithmOptions & { readonly root?: NodeSelection; readonly forest?: boolean } = {},
+        o: AlgorithmOptions & {
+            /** The node the tree grows from; default the first node. */
+            readonly root?: NodeSelection;
+            /** Grow a tree in every component instead of throwing on a disconnected graph. Default false. */
+            readonly forest?: boolean;
+        } = {},
     ): CollectionReturnValue & { totalWeight: number } => {
         const start = indexOf(c.cs, o.root, `${c.name}: root`);
         const r = primMST(c.s, { ...c.rest, start });
@@ -1354,15 +1419,9 @@ const IMPLS = {
         matched(c, greedyBipartiteMatching(c.s, { ...c.rest, left: maskOf(c, o.left), right: maskOf(c, o.right) })),
 
     // Link prediction. `directed` also selects the directed score (out-neighbours of u against in-neighbours of v).
-    commonNeighborsScore: (
-        c: Ctx,
-        o: AlgorithmOptions & { readonly source: NodeSelection; readonly target: NodeSelection },
-    ): number =>
+    commonNeighborsScore: (c: Ctx, o: AlgorithmOptions & PairOptions): number =>
         commonNeighborsScore(c.s, req(c, o.source, "source"), req(c, o.target, "target"), { directed: c.s.directed }),
-    adamicAdarScore: (
-        c: Ctx,
-        o: AlgorithmOptions & { readonly source: NodeSelection; readonly target: NodeSelection },
-    ): number =>
+    adamicAdarScore: (c: Ctx, o: AlgorithmOptions & PairOptions): number =>
         adamicAdarScore(c.s, req(c, o.source, "source"), req(c, o.target, "target"), { directed: c.s.directed }),
     commonNeighborsPrediction: (
         c: Ctx,
@@ -1372,13 +1431,13 @@ const IMPLS = {
         c: Ctx,
         _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed"> = {},
     ): PredictedLink[] => links(c, adamicAdarPrediction(c.s, { ...c.rest, directed: c.s.directed })),
-    commonNeighborsForPairs: (c: Ctx, o: AlgorithmOptions & { readonly pairs: readonly NodePair[] }): number[] =>
+    commonNeighborsForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>
         Array.from(commonNeighborsForPairs(c.s, pairsOf(c, o.pairs, "pairs"), { directed: c.s.directed })),
-    adamicAdarForPairs: (c: Ctx, o: AlgorithmOptions & { readonly pairs: readonly NodePair[] }): number[] =>
+    adamicAdarForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>
         Array.from(adamicAdarForPairs(c.s, pairsOf(c, o.pairs, "pairs"), { directed: c.s.directed })),
     topCandidatesForNode: (
         c: Ctx,
-        o: Rooted & Omit<CandidateOptions, "directed" | "candidates"> & { readonly candidates?: NodeSelection },
+        o: Rooted & Omit<CandidateOptions, "directed" | "candidates"> & Candidates,
     ): PredictedLink[] => {
         const candidates = o.candidates === undefined ? undefined : indicesOf(c.cs, o.candidates);
         return links(
@@ -1388,7 +1447,7 @@ const IMPLS = {
     },
     topAdamicAdarCandidatesForNode: (
         c: Ctx,
-        o: Rooted & Omit<CandidateOptions, "directed" | "candidates"> & { readonly candidates?: NodeSelection },
+        o: Rooted & Omit<CandidateOptions, "directed" | "candidates"> & Candidates,
     ): PredictedLink[] => {
         const candidates = o.candidates === undefined ? undefined : indicesOf(c.cs, o.candidates);
         return links(

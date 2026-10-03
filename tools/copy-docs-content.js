@@ -34,6 +34,12 @@ const contentMap = [
         dest: "layout",
         exclude: [".vitepress", "decisions"],
     },
+    // One page, index.md, which includes cytoscape-extensions/README.md when the site is built.
+    {
+        src: "cytoscape-extensions/docs",
+        dest: "cytoscape-extensions",
+        exclude: [".vitepress", "decisions"],
+    },
     // One page, index.md, which includes visual-review/README.md when the site is built.
     {
         src: "visual-review/docs",

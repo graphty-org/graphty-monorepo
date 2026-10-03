@@ -1,50 +1,52 @@
 # @graphty/cytoscape-extensions
 
-Every layout in [@graphty/layout](https://graphty.app/docs/layout/api/generated/) as a
-[Cytoscape.js](https://js.cytoscape.org/) 3.x layout extension (thirteen static layouts and the
-ForceAtlas2, Fruchterman-Reingold and spring-electrical force simulations), every algorithm in
-@graphty/algorithms as a Cytoscape collection and core method, and core methods that generate graphs,
-load sample datasets, and read and write graph files (GraphML, GEXF, GML, DOT, Pajek, CSV, JSON,
-Neo4j, CX2).
+Graph layouts, graph algorithms, graph generators, sample datasets and file import and export for
+[Cytoscape.js](https://js.cytoscape.org/) 3.x, with WebGPU acceleration where the browser (or Node) has it:
+
+- **Layouts**, registered as `graphty-<name>`: the ForceAtlas2, Fruchterman-Reingold and spring-electrical
+  force simulations, and every static layout of @graphty/layout (circular, shell, spectral, Kamada-Kawai,
+  radial, ...).
+- **Algorithms** as methods on every collection and on the core, named `graphty<Name>`: every algorithm of
+  @graphty/algorithms (PageRank, betweenness, Louvain, Leiden, Dijkstra, max flow, link prediction, ...).
+  The ones that have a GPU implementation also have an `...Async` twin that uses it.
+- **Graphs in and out**: seeded graph generators, sample datasets, and import and export of GraphML, GEXF,
+  GML, DOT, Pajek, CSV, JSON, Neo4j and CX2 files.
 
 Not published yet (the package is private while its API settles).
 
-## Example
+Try every layout and algorithm in the [demo](https://graphty.app/storybook/cytoscape-extensions/). This
+page is also published at [graphty.app/docs/cytoscape-extensions](https://graphty.app/docs/cytoscape-extensions/),
+next to the generated API documentation.
 
-```js
-import cytoscape from "cytoscape";
-import graphtyCytoscape from "@graphty/cytoscape-extensions";
-
-cytoscape.use(graphtyCytoscape); // registers every "graphty-<name>" layout
-
-const cy = cytoscape({
-    container: document.getElementById("cy"),
-    elements: [
-        { data: { id: "a" } },
-        { data: { id: "b" } },
-        { data: { id: "c" } },
-        { data: { source: "a", target: "b", w: 2 } },
-        { data: { source: "b", target: "c", w: 1 } },
-    ],
-});
-
-cy.layout({ name: "graphty-forceatlas2", animate: true, weight: "w" }).run();
-
-const pr = cy.elements().graphtyPageRank({ field: "rank" }); // also writes data("rank") for styles
-pr.rank("#a");
-cy.elements().graphtyDijkstra({ root: "#a", weight: "w" }).pathTo("#c"); // node, edge, node, ...
-cy.graphtyLouvain(); // the core method runs over cy.elements(): an array of node collections
-```
-
-## Installing and loading
+## Install
 
 ```sh
 npm install cytoscape @graphty/cytoscape-extensions @graphty/algorithms @graphty/layout @graphty/graph-format
 ```
 
-Cytoscape.js 3.31.0 or later is required: 3.31.0 is the first release that ships its own TypeScript
-typings, which this package's typings extend. CI runs the whole test suite against 3.31.0 and
-against the newest 3.x on npm.
+That is all, WebGPU included: there is no GPU package to import or set up (see [WebGPU](#webgpu)).
+
+## Quick start
+
+```js
+import cytoscape from "cytoscape";
+import graphtyCytoscape from "@graphty/cytoscape-extensions";
+
+cytoscape.use(graphtyCytoscape);
+
+const cy = cytoscape({
+    container: document.getElementById("cy"),
+    style: [{ selector: "node", style: { width: "mapData(rank, 0, 0.04, 10, 60)" } }],
+});
+await cy.graphtyGenerate("barabasi-albert", { n: 300, m: 2, seed: 1 }); // or cy.add() your own elements
+cy.elements().graphtyPageRank({ field: "rank" }); // writes data("rank"), which the style maps to a size
+cy.layout({ name: "graphty-forceatlas2", animate: true }).run();
+```
+
+Every layout and algorithm, with its options, their types and their defaults, is in the
+[Reference](#reference).
+
+## Loading
 
 ### ES modules
 
@@ -114,46 +116,22 @@ include the `DOM` lib even in a Node project. Use `"moduleResolution": "bundler"
 or `nodenext`, @graphty/layout's typings do not yet resolve (its declaration files import
 relative paths without a file extension), which with `skipLibCheck` off is a compile error.
 
+### Supported Cytoscape versions
+
+Cytoscape.js 3.31.0 or later is required: 3.31.0 is the first release that ships its own TypeScript
+typings, which this package's typings extend. CI runs the whole test suite against 3.31.0 and against
+the newest 3.x on npm.
+
 ## Layouts
 
-| Name                           | Kind       | Options of its own                                                                                                                                 |
-| ------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graphty-random`               | static     | `seed`                                                                                                                                             |
-| `graphty-circular`             | static     |                                                                                                                                                    |
-| `graphty-spiral`               | static     | `resolution`, `equidistant`                                                                                                                        |
-| `graphty-grid`                 | static     | `columns`                                                                                                                                          |
-| `graphty-shell`                | static     | `nlist`: the shells, innermost first, each a selector or a collection                                                                              |
-| `graphty-bipartite`            | static     | `top`: selector or collection of the first line (default: every other node); `align`, `aspectRatio`                                                |
-| `graphty-multipartite`         | static     | `subsets`: a node data field naming each node's layer (default `"subset"`), or the layers as selectors or collections; `align`                     |
-| `graphty-bfs`                  | static     | `root`: selector or collection of the start node (default the first node); `align`. Throws on a disconnected graph                                 |
-| `graphty-radial`               | static     | `root`: selector or collection of the centre node (default the node with the most neighbours)                                                      |
-| `graphty-planar`               | static     | Throws when the graph is not planar                                                                                                                |
-| `graphty-spectral`             | static     | `seed`                                                                                                                                             |
-| `graphty-kamada-kawai`         | static     | `weight`. Memory grows with the square of the node count                                                                                           |
-| `graphty-arf`                  | static     | `seed`, `scaling`, `a`, `maxIter`                                                                                                                  |
-| `graphty-forceatlas2`          | simulation | `weight`, `maxIter` (100), `scalingRatio`, `gravity`, `strongGravity`, `linlog`, `distributedAction`, `jitterTolerance`                            |
-| `graphty-fruchterman-reingold` | simulation | `weight`, `iterations` (50), `k`                                                                                                                   |
-| `graphty-spring-electrical`    | simulation | Needs a GPU (there is no CPU implementation; see [WebGPU](#webgpu)): `springLength`, `springCoefficient`, `gravity`, `dragCoefficient`, `timeStep` |
+```js
+cy.layout({ name: "graphty-kamada-kawai", boundingBox: { x1: 0, y1: 0, w: 800, h: 600 } }).run();
+cy.layout({ name: "graphty-forceatlas2", maxIter: 300, weight: "w", animate: true }).run();
+```
 
-Any option not listed in the next section is passed to the @graphty/layout function of the same
-name unchanged.
-
-## Options every layout takes
-
-| Option                                                                                | Default      | Meaning                                                                                                                                                                                               |
-| ------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boundingBox`                                                                         | the viewport | `{ x1, y1, w, h }` or `{ x1, y1, x2, y2 }`. The result is scaled so the node farthest from the centre sits half the box's shorter side away. A headless core's viewport is 1 x 1, so pass a box there |
-| `fit`, `padding`                                                                      | `true`, `30` | Fit the viewport to the result                                                                                                                                                                        |
-| `animate`                                                                             | `false`      | Static layouts: any truthy value tweens to the result. Simulations: `true` draws every frame; `"end"` computes, then tweens                                                                           |
-| `animationDuration`, `animationEasing`, `animateFilter`, `spacingFactor`, `transform` |              | As in Cytoscape's built-in layouts                                                                                                                                                                    |
-| `ready`, `stop`                                                                       |              | Called on `layoutready` and `layoutstop`                                                                                                                                                              |
-| `weight`                                                                              | none         | Edge data field holding the weight; a missing or non-numeric value counts as 1                                                                                                                        |
-| `seed`                                                                                | random       | Seed of every random draw, for repeatable results                                                                                                                                                     |
-| `dim`                                                                                 | `2`          | `3` runs the layout in 3D and projects the result onto the x-y plane                                                                                                                                  |
-| `randomize`                                                                           | `true`       | Simulations: start from random positions in the box, or (`false`) from the current ones                                                                                                               |
-| `refresh`                                                                             | `1`          | Simulations with `animate: true`: iterations per frame                                                                                                                                                |
-| `gpu`                                                                                 | `"auto"`     | Simulations: `"auto"`, `"off"` or `"require"`; see [WebGPU](#webgpu)                                                                                                                                  |
-| `accelerator`                                                                         | none         | Simulations: an accelerator you built and own (`createAccelerator` in @graphty/webgpu-graph-algorithms); overrides `gpu`; `null` forces the CPU                                                       |
+Each layout takes the options every layout takes (the box, `fit`, `animate`, `seed`, `weight`, `gpu`, ...)
+and options of its own; the [Reference](#reference) lists both. An option not listed there is passed to the
+@graphty/layout function of the same name unchanged.
 
 Locked nodes never move. The simulations also treat them as fixed while computing, so the rest of
 the graph arranges itself around them; with a locked node present the simulation keeps the
@@ -198,7 +176,7 @@ They follow Cytoscape's built-in algorithms:
 - **`field`** writes each element's value (what `score` or `cluster` returns) into
   `data(field)`, in one batch, so a stylesheet can map it: `width: "mapData(rank, 0, 1, 10, 60)"`.
 - **Other options** go to the @graphty/algorithms function unchanged (`dampingFactor`, `resolution`,
-  `maxIterations`, `randomSeed`, ...), over the defaults in [Defaults](#defaults).
+  `maxIterations`, `randomSeed`, ...), over this package's [Defaults](#defaults).
 - **Errors throw**: a required node option missing or matching nothing, a weight given to an
   algorithm that ignores weights, and the algorithm's own errors (an undirected-only algorithm on
   `directed: true`, a negative cycle).
@@ -319,40 +297,12 @@ usually stops sooner.
 
 ### Defaults
 
-These are this package's own defaults. They are passed to @graphty/algorithms and @graphty/layout
-explicitly on every call, so a later change of a library default does not change your results.
-Pass the option to override one.
-
-| Applies to                                                                                               | Default                                                          |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Edge weights, every algorithm and layout                                                                 | Every edge weighs 1 unless you pass `weight`                     |
-| `graphtyPageRank`, `graphtyPersonalizedPageRank`, `graphtyDeltaPageRank`                                 | `dampingFactor: 0.85`, `maxIterations: 100`, `tolerance: 1e-6`   |
-| `graphtyEigenvectorCentrality`, `graphtyHits`                                                            | `maxIterations: 100`, `tolerance: 1e-6`                          |
-| `graphtyKatzCentrality`                                                                                  | `alpha: 0.1`, `beta: 1`, `maxIterations: 100`, `tolerance: 1e-6` |
-| `graphtyLabelPropagation`, `graphtyLabelPropagationSynchronous`, `graphtyLabelPropagationSemiSupervised` | `maxIterations: 100`                                             |
-| `graphtyAllPairsShortestPath`                                                                            | `paths: true`                                                    |
-| `graphty-forceatlas2`                                                                                    | `maxIter: 100`                                                   |
-| `graphty-fruchterman-reingold`                                                                           | `iterations: 50`                                                 |
-
-The value of `tolerance` is fixed here, but how it is read is not yet the same on the CPU and the
-GPU (see [Precision](#webgpu)).
-
-## Naming decisions
-
-| Question                       | Decision                                                                                                                                                                                                    | Why                                                                                                                                                                                                                                                |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prefix of methods and layouts  | `graphty` on methods (`graphtyPageRank`), `graphty-` on layouts (`graphty-forceatlas2`)                                                                                                                     | Cytoscape silently replaces a layout registered twice and refuses a method whose name exists; the prefix avoids both, and keeps `graphtyPageRank` apart from the built-in `pageRank`                                                               |
-| Method name after the prefix   | The @graphty/algorithms function name, with a capital: `graphtyKruskalMST`, `graphtyTeraHAC`                                                                                                                | One name to look up in the algorithms documentation. Two exceptions: `graphtyAStar` (Cytoscape's spelling of `astar`) and `graphtyTopCandidatesForNode` / `graphtyTopAdamicAdarCandidatesForNode` (without the `get` of `getTopCandidatesForNode`) |
-| Layout name after the prefix   | The @graphty/layout name in kebab case: `graphty-kamada-kawai`, `graphty-fruchterman-reingold`                                                                                                              | Cytoscape's own layout names are lower case (`breadthfirst`, `cose`); kebab case keeps the words readable                                                                                                                                          |
-| GPU methods                    | A second method with the suffix `Async` (`graphtyPageRankAsync`), returning a promise of the same result plus `backend`                                                                                     | Cytoscape's algorithms are synchronous and return their result. A GPU run cannot be, and an option that changes the return type to a promise would break every caller that reads the result directly                                               |
-| Node options                   | `root` where a walk, path or layout starts; `goal` where a walk or path should end; `source` / `sink` for a flow; `source` / `target` for a node pair                                                       | `root` and `goal` are Cytoscape's names in `bfs`, `dijkstra` and `aStar`; `source` / `target` are Cytoscape's names for the two ends of an edge                                                                                                    |
-| Graph options                  | `directed`, `weight` (a data field or `edge => number`)                                                                                                                                                     | As Cytoscape's built-in algorithms take them                                                                                                                                                                                                       |
-| Writing results into the graph | `field`: the data field each element's value is written to                                                                                                                                                  | Cytoscape has no equivalent; a stylesheet maps data fields, so this is the one step between a result and a style                                                                                                                                   |
-| Result accessors               | Cytoscape's accessor names where Cytoscape has the algorithm (`rank`, `degree`, `closeness`, `betweenness`, `betweennessNormalized`, `distanceTo`, `pathTo`), plus `score(ele)` on every per-element result | Code written for the built-in can switch to the `graphty` method without changing how it reads the result; `score` reads any of them the same way                                                                                                  |
-| Result fields                  | `found`, `distance`, `path` (one path); `path`, `found` (a walk); `value`, `cut`, `partitionFirst`, `partitionSecond` (a cut); `hasNegativeWeightCycle` (Bellman-Ford and all pairs)                        | Cytoscape's names in `aStar`, `bfs`, `kargerStein` and `bellmanFord`; one name for each value, even where Cytoscape has no such algorithm                                                                                                          |
-| Clusters                       | An array of node collections, plus `cluster(node)`                                                                                                                                                          | What Cytoscape's `components()` and `markovClustering()` return                                                                                                                                                                                    |
-| Algorithm-specific options     | The @graphty/algorithms or @graphty/layout name, passed through unchanged (`dampingFactor`, `maxIterations`, `maxIter`, `iterations`)                                                                       | Renaming them here would make two names for each option; where the libraries disagree (`maxIter` against `iterations`), they are fixed there, not here                                                                                             |
-| GPU control                    | `gpu: "auto" \| "off" \| "require"` on every call, `configureWebGpu()` for settings that apply to every core                                                                                                | One option, the same on algorithms and layouts; the result's `backend` (`ran`, `reason`) says what happened                                                                                                                                        |
+The package passes its own defaults to @graphty/algorithms and @graphty/layout explicitly on every call,
+so a later change of a library default does not change your results. They are the values in code font in
+the Default column of the [Reference](#reference): for example PageRank's `dampingFactor` of `0.85` and
+ForceAtlas2's `maxIter` of `100`. Every edge weighs 1 unless you pass `weight`. Pass an option to override
+its default. The value of `tolerance` is fixed here, but the CPU and the GPU do not yet read it the same
+way (see "Precision" under [WebGPU](#webgpu)).
 
 ## Graphs in and out
 
@@ -421,17 +371,12 @@ On export:
   `dialect: "node-link"` for NetworkX's node-link JSON, which keeps the direction but not parents
   or edge ids, and whose positions read back as a `position` data field.
 
-### Sample data licenses
-
-The datasets are not the work of this package's authors, and they are not under its MIT license.
-Each has its own source, citation and license, listed in graph-samples' `DATASETS` (fields
-`citation`, `source`, `license`) and in [its NOTICE file](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-samples/NOTICE).
-In short: karate, florentine-families and davis-southern-women are published facts converted from
-networkx (BSD-3-Clause); les-miserables and knuth-miles are changed files derived from the Stanford
-GraphBase; football is CC BY 4.0; contiguous-usa and road-ny are public domain; openflights is
-ODbL 1.0; ogbn-arxiv is ODC-BY 1.0; political-books, dolphins, celegans-neural, political-blogs
-and com-dblp have no clear license ("free for scientific use"). Cite the source when you publish
-results from one, and check its license before you redistribute it.
+Every generator, dataset and format is listed in the [Reference](#reference). Each dataset is the work of
+its authors and is not under this package's MIT license: the Reference gives each one's license and
+source, and graph-samples' `DATASETS` (fields `citation`, `source`, `license`) and its
+[NOTICE file](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-samples/NOTICE) hold the
+full citations. Cite the source when you publish results from one, and check its license before you
+redistribute it.
 
 ## Using the graph-format snapshot directly
 
@@ -449,3 +394,785 @@ import { toSnapshot, writeData } from "@graphty/cytoscape-extensions";
 const { snapshot, nodes } = toSnapshot(cy.elements());
 writeData(nodes, pageRank(snapshot).scores, "rank");
 ```
+
+## Limits
+
+- **Memory.** `graphty-kamada-kawai` and `graphtyAllPairsShortestPath` hold a distance for every pair of
+  nodes, so their memory grows with the square of the node count: about 800 MB at 10,000 nodes.
+- **Graphs some layouts refuse.** `graphty-planar` throws on a graph that is not planar, and `graphty-bfs`
+  on a disconnected one. `graphty-spring-electrical` has no CPU implementation: without a GPU it emits
+  `layouterror`.
+- **Positions are 2D.** `dim: 3` runs a layout in 3D and keeps x and y.
+- **Compound nodes** are not laid out; Cytoscape sizes each parent from its children.
+- **One graph at a time.** Loading a graph whose node ids are already in the core throws, as `cy.add` does.
+- **GPU results are single precision.** They can differ from the CPU's in the last digits, and label
+  propagation can break ties differently (see "Precision" under [WebGPU](#webgpu)).
+- **The script-tag file is large.** It carries every generator, dataset and format, so it is several times
+  what a bundled application loads (see [Script tag](#script-tag)).
+
+## Naming
+
+| Question                       | Decision                                                                                                                                                                                                    | Why                                                                                                                                                                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prefix of methods and layouts  | `graphty` on methods (`graphtyPageRank`), `graphty-` on layouts (`graphty-forceatlas2`)                                                                                                                     | Cytoscape silently replaces a layout registered twice and refuses a method whose name exists; the prefix avoids both, and keeps `graphtyPageRank` apart from the built-in `pageRank`                                                               |
+| Method name after the prefix   | The @graphty/algorithms function name, with a capital: `graphtyKruskalMST`, `graphtyTeraHAC`                                                                                                                | One name to look up in the algorithms documentation. Two exceptions: `graphtyAStar` (Cytoscape's spelling of `astar`) and `graphtyTopCandidatesForNode` / `graphtyTopAdamicAdarCandidatesForNode` (without the `get` of `getTopCandidatesForNode`) |
+| Layout name after the prefix   | The @graphty/layout name in kebab case: `graphty-kamada-kawai`, `graphty-fruchterman-reingold`                                                                                                              | Cytoscape's own layout names are lower case (`breadthfirst`, `cose`); kebab case keeps the words readable                                                                                                                                          |
+| GPU methods                    | A second method with the suffix `Async` (`graphtyPageRankAsync`), returning a promise of the same result plus `backend`                                                                                     | Cytoscape's algorithms are synchronous and return their result. A GPU run cannot be, and an option that changes the return type to a promise would break every caller that reads the result directly                                               |
+| Node options                   | `root` where a walk, path or layout starts; `goal` where a walk or path should end; `source` / `sink` for a flow; `source` / `target` for a node pair                                                       | `root` and `goal` are Cytoscape's names in `bfs`, `dijkstra` and `aStar`; `source` / `target` are Cytoscape's names for the two ends of an edge                                                                                                    |
+| Graph options                  | `directed`, `weight` (a data field or `edge => number`)                                                                                                                                                     | As Cytoscape's built-in algorithms take them                                                                                                                                                                                                       |
+| Writing results into the graph | `field`: the data field each element's value is written to                                                                                                                                                  | Cytoscape has no equivalent; a stylesheet maps data fields, so this is the one step between a result and a style                                                                                                                                   |
+| Result accessors               | Cytoscape's accessor names where Cytoscape has the algorithm (`rank`, `degree`, `closeness`, `betweenness`, `betweennessNormalized`, `distanceTo`, `pathTo`), plus `score(ele)` on every per-element result | Code written for the built-in can switch to the `graphty` method without changing how it reads the result; `score` reads any of them the same way                                                                                                  |
+| Result fields                  | `found`, `distance`, `path` (one path); `path`, `found` (a walk); `value`, `cut`, `partitionFirst`, `partitionSecond` (a cut); `hasNegativeWeightCycle` (Bellman-Ford and all pairs)                        | Cytoscape's names in `aStar`, `bfs`, `kargerStein` and `bellmanFord`; one name for each value, even where Cytoscape has no such algorithm                                                                                                          |
+| Clusters                       | An array of node collections, plus `cluster(node)`                                                                                                                                                          | What Cytoscape's `components()` and `markovClustering()` return                                                                                                                                                                                    |
+| Algorithm-specific options     | The @graphty/algorithms or @graphty/layout name, passed through unchanged (`dampingFactor`, `maxIterations`, `maxIter`, `iterations`)                                                                       | Renaming them here would make two names for each option; where the libraries disagree (`maxIter` against `iterations`), they are fixed there, not here                                                                                             |
+| GPU control                    | `gpu: "auto" \| "off" \| "require"` on every call, `configureWebGpu()` for settings that apply to every core                                                                                                | One option, the same on algorithms and layouts; the result's `backend` (`ran`, `reason`) says what happened                                                                                                                                        |
+
+<!-- reference:begin (generated by scripts/reference.ts: run `npm run docs:reference`) -->
+
+## Reference
+
+Every option below is read from the package's TypeScript types and their doc comments, and each default from
+the value this package passes or, where it passes none, from the doc comment of the library that applies it.
+So this section always matches the code of the version you installed.
+
+### Options every layout takes
+
+| Option              | Type                                                   | Default      | Meaning                                                                                                                                                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `animate`           | `boolean \| "end"`                                     | `false`      | false: jump; "end" or any truthy value on a static layout: tween to the result; true on a simulation: draw every frame.                                                                                                                                                                                               |
+| `animationDuration` | `number`                                               | `500`        | Length of the tween, in milliseconds.                                                                                                                                                                                                                                                                                 |
+| `animationEasing`   | `string`                                               |              | Easing of the tween, as Cytoscape's built-in layouts take it (for example "ease-out").                                                                                                                                                                                                                                |
+| `animateFilter`     | `(node: NodeSingular, i: number) => boolean`           |              | Tween only the nodes for which this returns true; the others jump to their positions.                                                                                                                                                                                                                                 |
+| `fit`               | `boolean`                                              | `true`       | Fit the viewport to the result. Default true.                                                                                                                                                                                                                                                                         |
+| `padding`           | `number`                                               | `30`         | Space around the result when `fit` is true, in pixels.                                                                                                                                                                                                                                                                |
+| `boundingBox`       | `BoundingBox12 \| BoundingBoxWH`                       | the viewport | Where to place the result; default the viewport, which is 1 x 1 when headless.                                                                                                                                                                                                                                        |
+| `spacingFactor`     | `number`                                               |              | Expands (above 1) or compresses (below 1) the area the result takes up.                                                                                                                                                                                                                                               |
+| `transform`         | `(node: NodeSingular, position: Position) => Position` |              | Changes each final position: called with the node and its computed position, returns the position to use.                                                                                                                                                                                                             |
+| `ready`             | `LayoutHandler`                                        |              | Called on layoutready.                                                                                                                                                                                                                                                                                                |
+| `stop`              | `LayoutHandler`                                        |              | Called on layoutstop.                                                                                                                                                                                                                                                                                                 |
+| `dim`               | `2 \| 3`                                               | 2            | 2 (default) or 3; a 3D result is projected onto x-y.                                                                                                                                                                                                                                                                  |
+| `seed`              | `number`                                               |              | Seed of the layouts that draw random numbers; random when absent.                                                                                                                                                                                                                                                     |
+| `weight`            | `string`                                               | unweighted   | Edge data field holding the weight (forceatlas2, kamada-kawai, the simulations). Default: unweighted.                                                                                                                                                                                                                 |
+| `randomize`         | `boolean`                                              | `true`       | Simulations: start from random positions (true, default) or from the current ones. Locked nodes never move.                                                                                                                                                                                                           |
+| `refresh`           | `number`                                               | `1`          | Simulations with `animate: true`: iterations per frame. Default 1.                                                                                                                                                                                                                                                    |
+| `gpu`               | `GpuMode`                                              | "auto"       | Simulations: "auto" (default) runs on the core's GPU when the runtime has a usable WebGPU device (the run may then be asynchronous: listen for layoutstop); "off" runs on the CPU, synchronously when `animate` is false; "require" emits layouterror instead of running on the CPU. `layout.backend` says which ran. |
+| `accelerator`       | `LayoutAccelerator`                                    |              | Simulations: an accelerator the caller built and owns (for example the `createAccelerator` of `@graphty/webgpu-graph-algorithms`); overrides `gpu`. null forces the CPU.                                                                                                                                              |
+
+### Every layout
+
+Pass the name to `cy.layout({ name, ... })`. A **simulation** steps a force model and can run on the GPU; a
+**static** layout computes once on the CPU. An option that takes per-node arrays or a node column name is
+the @graphty/layout function's own and reads the graph-format snapshot of the laid-out nodes, in the node
+order of `toSnapshot(cy.nodes().not(":parent"))` (see [Using the graph-format snapshot
+directly](#using-the-graph-format-snapshot-directly)).
+
+#### `graphty-random` (static)
+
+No options of its own.
+
+#### `graphty-circular` (static)
+
+No options of its own.
+
+#### `graphty-spiral` (static)
+
+| Option        | Type      | Default | Meaning                                                                                            |
+| ------------- | --------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `resolution`  | `number`  | 0.35    | Angle between consecutive nodes, in radians, or the start angle when equidistant; default 0.35.    |
+| `equidistant` | `boolean` | false   | Space consecutive nodes one unit apart along the spiral instead of by equal angles; default false. |
+
+#### `graphty-grid` (static)
+
+| Option    | Type     | Default         | Meaning                                                                        |
+| --------- | -------- | --------------- | ------------------------------------------------------------------------------ |
+| `columns` | `number` | `ceil(sqrt(n))` | Number of columns, a positive integer; default `ceil(sqrt(n))`, a square grid. |
+
+#### `graphty-spectral` (static)
+
+No options of its own.
+
+#### `graphty-planar` (static)
+
+No options of its own.
+
+#### `graphty-arf` (static)
+
+| Option    | Type     | Default                               | Meaning                                                                                     |
+| --------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `scaling` | `number` | 1                                     | The repulsion scale; default 1.                                                             |
+| `a`       | `number` | 1.1 (every other pair has strength 1) | The spring strength between neighbours, > 1; default 1.1 (every other pair has strength 1). |
+| `maxIter` | `number` | 1000                                  | The iteration cap; default 1000. The run also stops once the summed force falls to 1e-6.    |
+
+#### `graphty-kamada-kawai` (static)
+
+| Option | Type                                                             | Default | Meaning                                                                                                                                                                                                                                                                                  |
+| ------ | ---------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dist` | `Float64Array<ArrayBufferLike> \| Float32Array<ArrayBufferLike>` |         | The ideal distance of every pair, `n * n` values row by row (for example `allPairsShortestPath(s).dist` from `@graphty/algorithms`). The diagonal is read as 0 and a non-finite entry as unreachable (1e6). Absent: the shortest paths of the graph, with its weights read as distances. |
+
+#### `graphty-shell` (static)
+
+| Option  | Type                       | Default | Meaning                             |
+| ------- | -------------------------- | ------- | ----------------------------------- |
+| `nlist` | `readonly NodeSelection[]` |         | shell: the shells, innermost first. |
+
+#### `graphty-multipartite` (static)
+
+| Option    | Type                                 | Default    | Meaning                                                                                                 |
+| --------- | ------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------- |
+| `subsets` | `string \| readonly NodeSelection[]` | "subset"   | multipartite: a node data field whose value names the layer (default "subset"), or the layers in order. |
+| `align`   | `LayerAlign`                         | `vertical` | Default `vertical`.                                                                                     |
+
+#### `graphty-bipartite` (static)
+
+| Option        | Type            | Default    | Meaning                                                  |
+| ------------- | --------------- | ---------- | -------------------------------------------------------- |
+| `top`         | `NodeSelection` |            | bipartite: the nodes of the first line.                  |
+| `align`       | `LayerAlign`    | `vertical` | Default `vertical`.                                      |
+| `aspectRatio` | `number`        | 4 / 3      | Width over height of the unscaled layout; default 4 / 3. |
+
+#### `graphty-bfs` (static)
+
+| Option  | Type            | Default    | Meaning                                       |
+| ------- | --------------- | ---------- | --------------------------------------------- |
+| `root`  | `NodeSelection` |            | bfs: the start node; radial: the centre node. |
+| `align` | `LayerAlign`    | `vertical` | Default `vertical`.                           |
+
+#### `graphty-radial` (static)
+
+| Option | Type            | Default | Meaning                                       |
+| ------ | --------------- | ------- | --------------------------------------------- |
+| `root` | `NodeSelection` |         | bfs: the start node; radial: the centre node. |
+
+#### `graphty-forceatlas2` (simulation)
+
+| Option              | Type                                                | Default | Meaning                                                                                                                                      |
+| ------------------- | --------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIter`           | `number`                                            | `100`   | Iteration cap; default 100. The run also ends once it settles (see `settleThreshold`).                                                       |
+| `jitterTolerance`   | `number`                                            | 1       | How much swinging a node may show before its speed is cut; higher is faster and less precise. Default 1.                                     |
+| `scalingRatio`      | `number`                                            | 2       | Strength of the repulsion between every pair of nodes; higher spreads the graph out. Default 2.                                              |
+| `gravity`           | `number`                                            | 1       | Pull toward the centre, which keeps disconnected parts from drifting apart. Default 1.                                                       |
+| `strongGravity`     | `boolean`                                           | false   | Gravity that grows with the distance from the centre instead of staying constant. Default false.                                             |
+| `distributedAction` | `boolean`                                           | false   | Divide each node's attraction by its mass, so well-connected nodes move less. Default false.                                                 |
+| `linlog`            | `boolean`                                           | false   | Logarithmic attraction (LinLog mode), which draws clusters tighter. Default false.                                                           |
+| `nodeMass`          | `string \| F32 \| Readonly<Record<NodeId, number>>` |         | A per-node mass (n values), the name of a numeric node column, the legacy id-keyed record, or null (role-`mass` column, else outDegree + 1). |
+| `nodeSize`          | `string \| F32 \| Readonly<Record<NodeId, number>>` |         | Accepted for compatibility with Gephi's options and not used yet: nodes are treated as points.                                               |
+| `dissuadeHubs`      | `boolean`                                           |         | Accepted for compatibility with Gephi's options and not used yet.                                                                            |
+| `settleThreshold`   | `number`                                            | 0.001   | Settle when the mean per-node displacement stays below settleThreshold \* rmsRadius for settleWindow iterations. Default 0.001.              |
+| `settleWindow`      | `number`                                            | 10      | How many quiet iterations in a row (see `settleThreshold`) count as settled. Default 10.                                                     |
+| `maxInFlight`       | `number`                                            | 2       | GPU simulations only; default 2.                                                                                                             |
+
+#### `graphty-fruchterman-reingold` (simulation)
+
+| Option            | Type                     | Default  | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `k`               | `number`                 |          | The ideal distance between neighbours; null or absent: `1 / sqrt(n)` of the unit square.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `iterations`      | `number`                 | `50`     | Iteration budget; default 50.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `cooling`         | `"linear" \| "adaptive"` | "linear" | The cooling schedule (default "linear"). "linear": the temperature falls from 0.1 to 0 over `iterations` steps, so the run always lasts the whole budget. "adaptive": Yifan Hu's step control -- the temperature grows by 1 / 0.9 after five consecutive iterations whose total force energy fell and shrinks by 0.9 whenever it rose, so the run settles on its own, usually in a few hundred iterations whatever the graph size; `iterations` is then only a cap. GPU simulations only; the CPU simulation ignores it. |
+| `settleThreshold` | `number`                 | 0.001    | Settle when the mean per-node displacement stays below settleThreshold \* rmsRadius for settleWindow iterations. Default 0.001.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `settleWindow`    | `number`                 | 10       | How many quiet iterations in a row (see `settleThreshold`) count as settled. Default 10.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `maxInFlight`     | `number`                 | 2        | GPU simulations only; default 2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+#### `graphty-spring-electrical` (simulation)
+
+| Option              | Type     | Default | Meaning                                                                                                                         |
+| ------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `springLength`      | `number` | 10      | The rest length of every edge's spring; default 10.                                                                             |
+| `springCoefficient` | `number` |         | Hooke's constant; null or absent: ngraph's 0.8 scaled down on graphs over a few hundred nodes (the GPU simulation's size rule). |
+| `gravity`           | `number` |         | ngraph's Coulomb constant (negative repels); null or absent: ngraph's -12 scaled down the same way.                             |
+| `dragCoefficient`   | `number` | 0.9     | Friction: the share of its velocity a node loses each iteration; default 0.9.                                                   |
+| `timeStep`          | `number` | 0.5     | Integration step; larger moves faster and less stably. Default 0.5.                                                             |
+| `settleThreshold`   | `number` | 0.001   | Settle when the mean per-node displacement stays below settleThreshold \* rmsRadius for settleWindow iterations. Default 0.001. |
+| `settleWindow`      | `number` | 10      | How many quiet iterations in a row (see `settleThreshold`) count as settled. Default 10.                                        |
+| `maxInFlight`       | `number` | 2       | GPU simulations only; default 2.                                                                                                |
+
+### Options every algorithm takes
+
+| Option     | Type                                         | Default             | Meaning                                                                                                                                                                                                                                                                           |
+| ---------- | -------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `directed` | `boolean`                                    | false               | Read the edges as directed (source to target). Default false, except where an algorithm says otherwise.                                                                                                                                                                           |
+| `weight`   | `string \| ((edge: EdgeSingular) => number)` | every edge weighs 1 | Edge data field holding the weight, or a function of the edge. Default: every edge weighs 1.                                                                                                                                                                                      |
+| `field`    | `string`                                     |                     | Write each element's value (what `score` or `cluster` returns) into `data(field)`.                                                                                                                                                                                                |
+| `gpu`      | `GpuMode`                                    | "auto"              | The `...Async` methods only: "auto" (default) runs on the GPU when the runtime has a usable WebGPU device, "off" runs on the CPU, "require" throws instead of running on the CPU when no device is available. The synchronous methods always run on the CPU and reject "require". |
+
+The algorithms defined only for directed graphs (`graphtyTopologicalSort`, `graphtyStronglyConnectedComponents`, `graphtyCondensation`, `graphtyDeltaPageRank`) default `directed` to `true`.
+
+### Every algorithm
+
+Each method below exists on every collection and on the core. A method marked **GPU** also has an
+`...Async` twin that takes the same options and may run on the GPU (see [WebGPU](#webgpu)).
+
+#### `graphtyAStar`
+
+| Option      | Type                             | Default  | Meaning                                                                                          |
+| ----------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `goal`      | `NodeSelection`                  | required | The node to reach.                                                                               |
+| `root`      | `NodeSelection`                  | required | The start node: a selector or a collection (its first node).                                     |
+| `heuristic` | `(node: NodeSingular) => number` | 0        | An estimate of the distance left from a node to `goal`, never more than the real one. Default 0. |
+
+#### `graphtyAdamicAdarForPairs`
+
+| Option  | Type                  | Default  | Meaning                                                             |
+| ------- | --------------------- | -------- | ------------------------------------------------------------------- |
+| `pairs` | `readonly NodePair[]` | required | The node pairs to score, each `[a, b]` of selectors or collections. |
+
+#### `graphtyAdamicAdarPrediction`
+
+| Option            | Type      | Default | Meaning                                                                                                                                                                                                                                  |
+| ----------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | false   | Also score pairs already joined by an arc u -> v. Default false.                                                                                                                                                                         |
+| `topK`            | `number`  | 10      | Keep only the first `topK` ranked pairs. For the whole-graph predictions a value that is not positive keeps them all; for a node's candidates the default is 10 and the value is a slice end, so 0 keeps none and -2 drops the last two. |
+
+#### `graphtyAdamicAdarScore`
+
+| Option   | Type            | Default  | Meaning                     |
+| -------- | --------------- | -------- | --------------------------- |
+| `source` | `NodeSelection` | required | One node of the pair.       |
+| `target` | `NodeSelection` | required | The other node of the pair. |
+
+#### `graphtyAllPairsShortestPath` (**GPU**)
+
+| Option     | Type                                         | Default | Meaning                                                                                                                                                                                                                                                                                 |
+| ---------- | -------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `method`   | `"auto" \| "floyd-warshall" \| "per-source"` |         | Strategy override. `"auto"` (the default): BFS rows on unit weights, Floyd-Warshall on any negative weight, Dijkstra rows below arcCount n^2 / 3, Floyd-Warshall otherwise. `"floyd-warshall"` always sweeps; `"per-source"` runs BFS or Dijkstra rows and throws on a negative weight. |
+| `paths`    | `boolean`                                    | false   | Record `predArc` so `pathTo` / `pathEdges` work; adds 4 n^2 bytes. Default false.                                                                                                                                                                                                       |
+| `maxNodes` | `number`                                     | 5,792   | Refuse larger graphs before allocating. Default 5,792.                                                                                                                                                                                                                                  |
+
+#### `graphtyBellmanFord` (**GPU**)
+
+| Option   | Type            | Default  | Meaning                                                                                              |
+| -------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `root`   | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                         |
+| `cutoff` | `number`        |          | Stop relaxing beyond this distance; a node farther away reads as unreachable. Unbounded when absent. |
+
+#### `graphtyBetweennessCentrality` (**GPU**)
+
+| Option       | Type            | Default    | Meaning                                                                                                                                                                                                                                                                                                          |
+| ------------ | --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalized` | `boolean`       | false      | Divide by the number of ordered pairs a node can sit between: `(n - 1)(n - 2)` directed, half that undirected; with `endpoints`, `n (n - 1)` and half that. Default false.                                                                                                                                       |
+| `k`          | `number`        |            | Sampled betweenness: how many distinct sources to draw when `sources` is not given. The draw is deterministic -- the same `(n, k)` draws the same sources every time, and the dispatcher hands an accelerator the drawn sources, so both paths run the same ones. With `sources` it must equal `sources.length`. |
+| `endpoints`  | `boolean`       | false      | Count a path's two ends as lying on it, as NetworkX's `endpoints=True` does. Default false. The legacy `betweennessCentrality` accepts this option and ignores it.                                                                                                                                               |
+| `sources`    | `NodeSelection` | every node | Sampled: the nodes to run from, a selector or a collection; default every node.                                                                                                                                                                                                                                  |
+
+#### `graphtyBidirectionalDijkstra`
+
+| Option | Type            | Default  | Meaning                                                      |
+| ------ | --------------- | -------- | ------------------------------------------------------------ |
+| `goal` | `NodeSelection` | required | The node to reach.                                           |
+| `root` | `NodeSelection` | required | The start node: a selector or a collection (its first node). |
+
+#### `graphtyBreadthFirstSearch` (**GPU**)
+
+| Option     | Type            | Default  | Meaning                                                                |
+| ---------- | --------------- | -------- | ---------------------------------------------------------------------- |
+| `goal`     | `NodeSelection` |          | Stop when this node is reached; it is then `found`.                    |
+| `maxDepth` | `number`        |          | Stop expanding at this many hops from the root; unbounded when absent. |
+| `root`     | `NodeSelection` | required | The start node: a selector or a collection (its first node).           |
+
+#### `graphtyClosenessCentrality` (**GPU**)
+
+| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                                                              |
+| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `normalized` | `boolean`       | false                | Scale by the fraction of other nodes reached (Wasserman and Faust), or with `harmonic` divide by `n - 1`. Default false.                                                                                                                                                                                                             |
+| `harmonic`   | `boolean`       | false                | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs. Default false.                                                                                                                                                                                                                              |
+| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff, as in the legacy functions. Default: every reachable node.                                                                                                                   |
+| `k`          | `number`        |                      | Sampled closeness: how many distinct sources to draw when `sources` is not given, by the same deterministic draw betweenness uses -- the same `(n, k)` draws the same sources every time, and the dispatcher hands an accelerator the drawn sources, so both paths run the same ones. With `sources` it must equal `sources.length`. |
+| `sources`    | `NodeSelection` | every node           | Sampled: the nodes to run from, a selector or a collection; default every node.                                                                                                                                                                                                                                                      |
+
+#### `graphtyCommonNeighborsForPairs`
+
+| Option  | Type                  | Default  | Meaning                                                             |
+| ------- | --------------------- | -------- | ------------------------------------------------------------------- |
+| `pairs` | `readonly NodePair[]` | required | The node pairs to score, each `[a, b]` of selectors or collections. |
+
+#### `graphtyCommonNeighborsPrediction`
+
+| Option            | Type      | Default | Meaning                                                                                                                                                                                                                                  |
+| ----------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | false   | Also score pairs already joined by an arc u -> v. Default false.                                                                                                                                                                         |
+| `topK`            | `number`  | 10      | Keep only the first `topK` ranked pairs. For the whole-graph predictions a value that is not positive keeps them all; for a node's candidates the default is 10 and the value is a slice end, so 0 keeps none and -2 drops the last two. |
+
+#### `graphtyCommonNeighborsScore`
+
+| Option   | Type            | Default  | Meaning                     |
+| -------- | --------------- | -------- | --------------------------- |
+| `source` | `NodeSelection` | required | One node of the pair.       |
+| `target` | `NodeSelection` | required | The other node of the pair. |
+
+#### `graphtyCompareAdamicAdarWithCommonNeighbors`
+
+| Option     | Type                  | Default  | Meaning                                                                           |
+| ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
+| `edges`    | `readonly NodePair[]` | required | Node pairs that are edges (held out of the graph), which a good score ranks high. |
+| `nonEdges` | `readonly NodePair[]` | required | Node pairs that are not edges, which a good score ranks low.                      |
+
+#### `graphtyCondensation`
+
+No options of its own.
+
+#### `graphtyConnectedComponents` (**GPU**)
+
+No options of its own.
+
+#### `graphtyDegreeCentrality`
+
+| Option       | Type                       | Default   | Meaning                                                                                        |
+| ------------ | -------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `mode`       | `"in" \| "out" \| "total"` | `"total"` | On a directed snapshot, which neighbours to count; ignored when undirected. Default `"total"`. |
+| `normalized` | `boolean`                  | false     | Divide by `n - 1`, the most neighbours a node can have. Default false.                         |
+
+#### `graphtyDegrees`
+
+No options of its own.
+
+#### `graphtyDeltaPageRank`
+
+| Option            | Type                                                | Default        | Meaning                                                                                             |
+| ----------------- | --------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                                            | `0.85`         | Probability of following a link; default 0.85.                                                      |
+| `maxIterations`   | `number`                                            | `100`          | Rounds (DeltaPageRank) or processed nodes (PriorityDeltaPageRank); default 100.                     |
+| `tolerance`       | `number`                                            | `0.000001`     | Stop when every pending delta is below this; default 1e-6.                                          |
+| `deltaThreshold`  | `number`                                            | tolerance / 10 | A delta below this is dropped rather than propagated; default tolerance / 10.                       |
+| `priority`        | `boolean`                                           |                | Process the largest pending delta first (`PriorityDeltaPageRank`, which ignores `personalization`). |
+| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` |                | The teleport set: a selection (uniform over it) or a weight per node.                               |
+
+#### `graphtyDepthFirstSearch`
+
+| Option  | Type              | Default  | Meaning                                                                                             |
+| ------- | ----------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `goal`  | `NodeSelection`   |          | Stop when this node is reached; it is then `found`.                                                 |
+| `root`  | `NodeSelection`   | required | The start node: a selector or a collection (its first node).                                        |
+| `order` | `"pre" \| "post"` | "pre"    | "pre" (default) lists a node when it is first reached, "post" when everything below it is finished. |
+
+#### `graphtyDijkstra` (**GPU**)
+
+| Option   | Type            | Default  | Meaning                                                                                              |
+| -------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `root`   | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                         |
+| `cutoff` | `number`        |          | Stop relaxing beyond this distance; a node farther away reads as unreachable. Unbounded when absent. |
+
+#### `graphtyDirectionOptimizedBfs`
+
+| Option  | Type            | Default  | Meaning                                                                                                                             |
+| ------- | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `root`  | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                                                        |
+| `alpha` | `number`        | 15       | Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes' out-arcs divided by `alpha`. Default 15. |
+| `beta`  | `number`        | 18       | Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes. Default 18.                                       |
+
+#### `graphtyEdgeBetweennessCentrality` (**GPU**)
+
+| Option       | Type            | Default    | Meaning                                                                                        |
+| ------------ | --------------- | ---------- | ---------------------------------------------------------------------------------------------- |
+| `sources`    | `NodeSelection` | every node | Sampled: the nodes to run from, a selector or a collection; default every node.                |
+| `normalized` | `boolean`       | false      | Divide by `(n - 1)(n - 2)` on a directed graph, half that on an undirected one. Default false. |
+| `k`          | `number`        |            | Sampled: how many source nodes to draw (the same count draws the same nodes every time).       |
+
+#### `graphtyEigenvectorCentrality` (**GPU**)
+
+| Option          | Type                             | Default    | Meaning                                                                                                                                                                                    |
+| --------------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `maxIterations` | `number`                         | `100`      | Iteration cap; default 100.                                                                                                                                                                |
+| `tolerance`     | `number`                         | `0.000001` | Per-node tolerance: the run stops when the L1 change is below `n * tolerance`; default 1e-6.                                                                                               |
+| `normalized`    | `boolean`                        | true       | Rescale the unit-length vector to [0, 1] by min-max, as the legacy function does; default true.                                                                                            |
+| `mode`          | `"in" \| "out" \| "total"`       |            | On a directed snapshot, which arcs feed a node: `"in"` (default, as networkx) the nodes pointing at it, `"out"` the nodes it points at, `"total"` both. Ignored on an undirected snapshot. |
+| `startVector`   | `(node: NodeSingular) => number` | uniform    | Starting value of each node; default uniform.                                                                                                                                              |
+
+#### `graphtyEvaluateAdamicAdar`
+
+| Option     | Type                  | Default  | Meaning                                                                           |
+| ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
+| `edges`    | `readonly NodePair[]` | required | Node pairs that are edges (held out of the graph), which a good score ranks high. |
+| `nonEdges` | `readonly NodePair[]` | required | Node pairs that are not edges, which a good score ranks low.                      |
+
+#### `graphtyEvaluateCommonNeighbors`
+
+| Option     | Type                  | Default  | Meaning                                                                           |
+| ---------- | --------------------- | -------- | --------------------------------------------------------------------------------- |
+| `edges`    | `readonly NodePair[]` | required | Node pairs that are edges (held out of the graph), which a good score ranks high. |
+| `nonEdges` | `readonly NodePair[]` | required | Node pairs that are not edges, which a good score ranks low.                      |
+
+#### `graphtyFindAllIsomorphisms`
+
+| Option      | Type                                                              | Default     | Meaning                                                                      |
+| ----------- | ----------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `other`     | `Collection<SingularElementReturnValue, SingularElementArgument>` |             | The collection to compare with, read with the same `directed`.               |
+| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean`                   | any two may | Two nodes may be paired only when this returns true; by default any two may. |
+| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean`                   | any two may | Two edges may be paired only when this returns true; by default any two may. |
+
+#### `graphtyGirvanNewman`
+
+| Option             | Type     | Default | Meaning                                                                                   |
+| ------------------ | -------- | ------- | ----------------------------------------------------------------------------------------- |
+| `maxCommunities`   | `number` |         | Stop once a level has at least this many communities of `minCommunitySize` or more nodes. |
+| `minCommunitySize` | `number` | 1       | Communities smaller than this do not count towards `maxCommunities`; default 1.           |
+| `maxIterations`    | `number` | 100     | Cap on rounds of edge removal; default 100.                                               |
+
+#### `graphtyGreedyBipartiteMatching`
+
+| Option  | Type              | Default | Meaning                                                                                                  |
+| ------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `left`  | `NodeSelection`   |         | One side of the bipartite graph; inferred when absent.                                                   |
+| `right` | `NodeSelection`   |         | The other side; inferred when absent.                                                                    |
+| `arcs`  | `"out" \| "both"` | "both"  | With `directed`: "both" (default) ignores direction; "out" joins a left node only to its out-neighbours. |
+
+#### `graphtyGrsbm`
+
+| Option           | Type     | Default | Meaning                                                                          |
+| ---------------- | -------- | ------- | -------------------------------------------------------------------------------- |
+| `maxDepth`       | `number` | 10      | Clusters at this depth are not split; default 10.                                |
+| `maxIterations`  | `number` | 100     | Iteration cap of the Fiedler-vector iteration; default 100.                      |
+| `tolerance`      | `number` | 1e-6    | Convergence tolerance of the Fiedler-vector iteration; default 1e-6.             |
+| `seed`           | `number` | 42      | Seed of the iteration's start vectors; default 42.                               |
+| `minClusterSize` | `number` | 2       | A cluster is split only when it has at least twice this many members; default 2. |
+
+#### `graphtyHasCycle`
+
+No options of its own.
+
+#### `graphtyHierarchicalClustering`
+
+| Option    | Type      | Default | Meaning                                                                                                |
+| --------- | --------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `linkage` | `Linkage` | single  | Cluster distance: the minimum, maximum or mean member distance, or Ward's scaled mean; default single. |
+
+#### `graphtyHits` (**GPU**)
+
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                                                          |
+| --------------- | --------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap; default 100.                                                                                                                                                                                                                                      |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change; default 1e-6.                                                                                                                                                                                           |
+| `normalized`    | `boolean` | true       | `false` rescales both vectors so their largest entry is 1, which is what the legacy function does when normalization is switched OFF -- the iteration itself always divides by the L2 norm. Default true, i.e. the L2-normalized vectors are returned unchanged. |
+
+#### `graphtyIsBipartite`
+
+| Option | Type              | Default | Meaning                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `arcs` | `"out" \| "both"` | "both"  | Which arcs of a directed snapshot to colour along. "both" (default) follows out- and in-arcs, which answers for the graph with direction ignored. "out" follows out-arcs only, as the legacy `bipartitePartition` does: roots are taken in index order and a node first reached through an in-arc is coloured as a new root, so the answer depends on node order. Ignored on an undirected snapshot. |
+
+#### `graphtyIsGraphIsomorphic`
+
+| Option      | Type                                                              | Default     | Meaning                                                                      |
+| ----------- | ----------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `other`     | `Collection<SingularElementReturnValue, SingularElementArgument>` |             | The collection to compare with, read with the same `directed`.               |
+| `nodeMatch` | `(a: NodeSingular, b: NodeSingular) => boolean`                   | any two may | Two nodes may be paired only when this returns true; by default any two may. |
+| `edgeMatch` | `(a: EdgeSingular, b: EdgeSingular) => boolean`                   | any two may | Two edges may be paired only when this returns true; by default any two may. |
+
+#### `graphtyKCoreDecomposition`
+
+No options of its own.
+
+#### `graphtyKargerMinCut`
+
+| Option       | Type     | Default | Meaning                                                                      |
+| ------------ | -------- | ------- | ---------------------------------------------------------------------------- |
+| `randomSeed` | `number` | 42      | Seed of the edge orders; one seed gives one result, bit for bit. Default 42. |
+| `iterations` | `number` | 100     | Independent contraction trials; the lightest cut found wins. Default 100.    |
+
+#### `graphtyKatzCentrality` (**GPU**)
+
+| Option          | Type      | Default    | Meaning                                                                             |
+| --------------- | --------- | ---------- | ----------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap; default 100.                                                         |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change; default 1e-6.              |
+| `normalized`    | `boolean` | true       | Rescale the scores to [0, 1] by min-max, as the legacy function does; default true. |
+| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbour's score; default 0.1.                     |
+| `beta`          | `number`  | `1`        | Base score every node starts with and keeps; default 1.                             |
+
+#### `graphtyKruskalMST`
+
+No options of its own.
+
+#### `graphtyLabelPropagation` (**GPU**)
+
+| Option          | Type     | Default | Meaning                                                                  |
+| --------------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `maxIterations` | `number` | `100`   | Work cap, in node visits per node (full-sweep equivalents); default 100. |
+| `randomSeed`    | `number` | 42      | Seed of the visit order and of the tie draws; default 42.                |
+
+#### `graphtyLabelPropagationSemiSupervised`
+
+| Option          | Type                                 | Default  | Meaning                                                                                                |
+| --------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| `maxIterations` | `number`                             | `100`    | Work cap, in node visits per node (full-sweep equivalents); default 100.                               |
+| `randomSeed`    | `number`                             | 42       | Seed of the visit order and of the tie draws; default 42.                                              |
+| `seeds`         | `string \| readonly NodeSelection[]` | required | Seed labels: the node data field holding them (nodes without it are free), or one selection per label. |
+
+#### `graphtyLabelPropagationSynchronous` (**GPU**)
+
+| Option          | Type     | Default | Meaning        |
+| --------------- | -------- | ------- | -------------- |
+| `maxIterations` | `number` | `100`   | Iteration cap. |
+
+#### `graphtyLeiden`
+
+| Option          | Type     | Default | Meaning                                                                                                                                                                                                                                                  |
+| --------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`    | `number` | 1       | Resolution gamma: above 1 favours smaller communities; default 1.                                                                                                                                                                                        |
+| `randomSeed`    | `number` | 42      | Seed of the visit orders; default 42.                                                                                                                                                                                                                    |
+| `maxIterations` | `number` | 100     | Cap on whole passes over the original graph, each running as many levels as it needs; default 100. The legacy `leiden` caps levels instead, so its `maxIterations: 1` is one level where this is one full pass. The result's `iterations` counts levels. |
+| `threshold`     | `number` | 1e-7    | Stop once a pass improves modularity by no more than this; default 1e-7.                                                                                                                                                                                 |
+
+#### `graphtyLouvain`
+
+| Option          | Type     | Default | Meaning                                                                             |
+| --------------- | -------- | ------- | ----------------------------------------------------------------------------------- |
+| `resolution`    | `number` | 1       | Resolution gamma: above 1 favours smaller communities; default 1.                   |
+| `maxIterations` | `number` | 100     | Cap on aggregation levels, and on node visits per node within a level; default 100. |
+| `tolerance`     | `number` | 1e-6    | Stop when a level improves modularity by less than this; default 1e-6.              |
+
+#### `graphtyMarkovClustering`
+
+| Option             | Type      | Default | Meaning                                                                       |
+| ------------------ | --------- | ------- | ----------------------------------------------------------------------------- |
+| `maxIterations`    | `number`  | 100     | Cap on expansion-inflation rounds; default 100.                               |
+| `tolerance`        | `number`  | 1e-6    | Stop when no matrix entry moved by more than this in a round; default 1e-6.   |
+| `expansion`        | `number`  | 2       | Matrix power of each expansion step, an integer of at least 1; default 2.     |
+| `inflation`        | `number`  | 2       | Element-wise power of each inflation step, above 0; default 2.                |
+| `pruningThreshold` | `number`  | 1e-5    | Entries below this are dropped after each inflation; default 1e-5.            |
+| `selfLoops`        | `boolean` | true    | Give every node a self-loop of weight 1 before the first round; default true. |
+
+#### `graphtyMaxFlow`
+
+| Option      | Type                                 | Default                        | Meaning                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`    | `NodeSelection`                      | required                       | The node the flow leaves.                                                                                                                                                                                                                                                                                                                                                             |
+| `sink`      | `NodeSelection`                      | required                       | The node the flow arrives at.                                                                                                                                                                                                                                                                                                                                                         |
+| `algorithm` | `"edmonds-karp" \| "ford-fulkerson"` | `"edmonds-karp"` for `maxFlow` | How augmenting paths are found: `"edmonds-karp"` (breadth-first, shortest paths first, O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Default `"edmonds-karp"` for `maxFlow` and `"ford-fulkerson"` for `minSTCut`. Both give the same source side and the same flow value up to floating-point rounding; the per-edge flows can differ where the maximum flow is not unique. |
+
+#### `graphtyMaximumBipartiteMatching`
+
+| Option  | Type              | Default | Meaning                                                                                                  |
+| ------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `left`  | `NodeSelection`   |         | One side of the bipartite graph; inferred when absent.                                                   |
+| `right` | `NodeSelection`   |         | The other side; inferred when absent.                                                                    |
+| `arcs`  | `"out" \| "both"` | "both"  | With `directed`: "both" (default) ignores direction; "out" joins a left node only to its out-neighbours. |
+
+#### `graphtyMinSTCut`
+
+| Option      | Type                                 | Default                        | Meaning                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`    | `NodeSelection`                      | required                       | The node the flow leaves.                                                                                                                                                                                                                                                                                                                                                             |
+| `sink`      | `NodeSelection`                      | required                       | The node the flow arrives at.                                                                                                                                                                                                                                                                                                                                                         |
+| `algorithm` | `"edmonds-karp" \| "ford-fulkerson"` | `"edmonds-karp"` for `maxFlow` | How augmenting paths are found: `"edmonds-karp"` (breadth-first, shortest paths first, O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Default `"edmonds-karp"` for `maxFlow` and `"ford-fulkerson"` for `minSTCut`. Both give the same source side and the same flow value up to floating-point rounding; the per-edge flows can differ where the maximum flow is not unique. |
+
+#### `graphtyModularity`
+
+| Option       | Type                                 | Default  | Meaning                                                                                               |
+| ------------ | ------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------- |
+| `resolution` | `number`                             | 1        | Resolution gamma: above 1 favours smaller communities; default 1.                                     |
+| `clusters`   | `string \| readonly NodeSelection[]` | required | The clusters (a partition result, or selections), or the node data field holding each node's cluster. |
+
+#### `graphtyNodeClosenessCentrality`
+
+| Option       | Type            | Default              | Meaning                                                                                                                                                                                                            |
+| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `root`       | `NodeSelection` | required             | The start node: a selector or a collection (its first node).                                                                                                                                                       |
+| `normalized` | `boolean`       | false                | Scale by the fraction of other nodes reached (Wasserman and Faust), or with `harmonic` divide by `n - 1`. Default false.                                                                                           |
+| `harmonic`   | `boolean`       | false                | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs. Default false.                                                                                                            |
+| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff, as in the legacy functions. Default: every reachable node. |
+
+#### `graphtyPageRank` (**GPU**)
+
+| Option            | Type                             | Default    | Meaning                                                                                                                                                                          |
+| ----------------- | -------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                         | `0.85`     | Probability of following a link; default 0.85.                                                                                                                                   |
+| `maxIterations`   | `number`                         | `100`      | Iteration cap; default 100.                                                                                                                                                      |
+| `tolerance`       | `number`                         | `0.000001` | Convergence tolerance on the per-iteration change; default 1e-6.                                                                                                                 |
+| `convergenceNorm` | `"l1" \| "max"`                  | `"l1"`     | How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over all nodes, `"max"` takes the largest single-node change, the legacy `pageRank` rule. |
+| `initialRanks`    | `(node: NodeSingular) => number` |            | Starting rank of each node.                                                                                                                                                      |
+
+#### `graphtyPersonalizedPageRank` (**GPU**)
+
+| Option            | Type                                                | Default    | Meaning                                                                                                                                                                          |
+| ----------------- | --------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                                            | `0.85`     | Probability of following a link; default 0.85.                                                                                                                                   |
+| `maxIterations`   | `number`                                            | `100`      | Iteration cap; default 100.                                                                                                                                                      |
+| `tolerance`       | `number`                                            | `0.000001` | Convergence tolerance on the per-iteration change; default 1e-6.                                                                                                                 |
+| `convergenceNorm` | `"l1" \| "max"`                                     | `"l1"`     | How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over all nodes, `"max"` takes the largest single-node change, the legacy `pageRank` rule. |
+| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` | required   | The teleport set: a selection (uniform over it) or a weight per node.                                                                                                            |
+| `initialRanks`    | `(node: NodeSingular) => number`                    |            | Starting rank of each node.                                                                                                                                                      |
+
+#### `graphtyPrimMST`
+
+| Option   | Type            | Default        | Meaning                                                                                    |
+| -------- | --------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| `root`   | `NodeSelection` | the first node | The node the tree grows from; default the first node.                                      |
+| `forest` | `boolean`       | false          | Grow a tree in every component instead of throwing on a disconnected graph. Default false. |
+
+#### `graphtySpectralClustering`
+
+| Option          | Type            | Default    | Meaning                                                                                                           |
+| --------------- | --------------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`        | 100        | Cap on k-means rounds; default 100.                                                                               |
+| `tolerance`     | `number`        | 1e-4       | k-means stops when no centroid moves further than this; default 1e-4.                                             |
+| `k`             | `number`        | required   | Number of clusters, a positive integer.                                                                           |
+| `laplacianType` | `LaplacianType` | normalized | `D - A`, `I - D^-1/2 A D^-1/2` (rows of the embedding scaled to unit length) or `I - D^-1 A`; default normalized. |
+| `seed`          | `number`        | 42         | Seed of the starting block and of the k-means seeding; default 42.                                                |
+
+#### `graphtyStoerWagner`
+
+No options of its own.
+
+#### `graphtyStronglyConnectedComponents`
+
+No options of its own.
+
+#### `graphtySyncClustering`
+
+| Option          | Type     | Default  | Meaning                                                                                                   |
+| --------------- | -------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `numClusters`   | `number` | required | Number of cluster centres: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). |
+| `maxIterations` | `number` | 100      | Iteration cap; default 100.                                                                               |
+| `tolerance`     | `number` | 1e-6     | Stop when the loss changes by less than this between iterations; default 1e-6.                            |
+| `seed`          | `number` | 42       | Seed of the embedding initialisation and the centre draws; default 42.                                    |
+| `learningRate`  | `number` | 0.01     | Gradient step; default 0.01.                                                                              |
+| `lambda`        | `number` | 0.1      | Weight of the neighbour-reconstruction and regularisation terms; default 0.1.                             |
+
+#### `graphtyTeraHAC`
+
+| Option              | Type                                            | Default                 | Meaning                                                                                                                                                                               |
+| ------------------- | ----------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linkage`           | `"single" \| "complete" \| "average" \| "ward"` | `"average"`             | How the distance between two clusters is read from their members' pairwise distances: the minimum, the maximum, the mean, or (`"ward"`) the mean of the squares; default `"average"`. |
+| `numClusters`       | `number`                                        | merge until one is left | Stop merging at this many clusters; a positive integer. Default: merge until one is left.                                                                                             |
+| `distanceThreshold` | `number`                                        | no threshold            | Stop at the first merge whose linkage distance is above this. Default: no threshold.                                                                                                  |
+| `useGraphDistance`  | `boolean`                                       |                         | Pairwise distance: hop count along out-arcs (true, the default), or 1 for an arc from the lower to the higher node index and 2 for none (false).                                      |
+
+#### `graphtyTopAdamicAdarCandidatesForNode`
+
+| Option            | Type            | Default    | Meaning                                                                                                                                                                                                                                  |
+| ----------------- | --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `root`            | `NodeSelection` | required   | The start node: a selector or a collection (its first node).                                                                                                                                                                             |
+| `includeExisting` | `boolean`       | false      | Also score pairs already joined by an arc u -> v. Default false.                                                                                                                                                                         |
+| `topK`            | `number`        | 10         | Keep only the first `topK` ranked pairs. For the whole-graph predictions a value that is not positive keeps them all; for a node's candidates the default is 10 and the value is a slice end, so 0 keeps none and -2 drops the last two. |
+| `candidates`      | `NodeSelection` | every node | The nodes to consider linking to `root`; default every node.                                                                                                                                                                             |
+
+#### `graphtyTopCandidatesForNode`
+
+| Option            | Type            | Default    | Meaning                                                                                                                                                                                                                                  |
+| ----------------- | --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `root`            | `NodeSelection` | required   | The start node: a selector or a collection (its first node).                                                                                                                                                                             |
+| `includeExisting` | `boolean`       | false      | Also score pairs already joined by an arc u -> v. Default false.                                                                                                                                                                         |
+| `topK`            | `number`        | 10         | Keep only the first `topK` ranked pairs. For the whole-graph predictions a value that is not positive keeps them all; for a node's candidates the default is 10 and the value is a slice end, so 0 keeps none and -2 drops the last two. |
+| `candidates`      | `NodeSelection` | every node | The nodes to consider linking to `root`; default every node.                                                                                                                                                                             |
+
+#### `graphtyTopologicalSort`
+
+No options of its own.
+
+#### `graphtyTriangleCount` (**GPU**)
+
+No options of its own.
+
+#### `graphtyWeaklyConnectedComponents` (**GPU**)
+
+No options of its own.
+
+### Generators
+
+`cy.graphtyGenerate(name, options)`. The options marked `?` are optional; a random generator's `seed`
+defaults to 0, and the same options give the same graph on every platform.
+
+| Name                            | Options                                                                                                                             | What it makes                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ak`                            | `k`                                                                                                                                 | The AK network of B. V. Cherkassky and A. V. Goldberg                                                 |
+| `balanced-tree`                 | `branching`, `height`, `weights?`, `seed?`                                                                                          | The balanced r-ary tree of height h, numbered breadth first                                           |
+| `barabasi-albert`               | `n`, `m`, `triadProbability?`, `seed?`, `weights?`                                                                                  | Barabasi-Albert preferential attachment                                                               |
+| `barbell`                       | `cliqueSize`, `pathLength`, `weights?`, `seed?`                                                                                     | The barbell                                                                                           |
+| `bianconi-barabasi`             | `n`, `m`, `fitness?`, `seed?`, `weights?`                                                                                           | The Bianconi-Barabasi fitness model                                                                   |
+| `bipartite-configuration-model` | `leftDegrees`, `rightDegrees`, `multiEdges?`, `seed?`, `weights?`                                                                   | The bipartite configuration model                                                                     |
+| `caveman`                       | `cliques`, `size`, `weights?`, `seed?`                                                                                              | The caveman graph                                                                                     |
+| `chung-lu`                      | `expectedDegrees`, `seed?`, `weights?`                                                                                              | The Chung-Lu expected-degree graph                                                                    |
+| `circular-ladder`               | `n`, `weights?`, `seed?`                                                                                                            | The circular ladder CL_n (the n-prism)                                                                |
+| `complete`                      | `n`, `weights?`, `seed?`                                                                                                            | The complete graph K_n                                                                                |
+| `complete-bipartite`            | `a`, `b`, `weights?`, `seed?`                                                                                                       | The complete bipartite graph K\_{a,b}                                                                 |
+| `complete-multipartite`         | `sizes`, `weights?`, `seed?`                                                                                                        | The complete multipartite graph K\_{s0, s1, ...}                                                      |
+| `configuration-model`           | `degrees`, `selfLoops?`, `multiEdges?`, `seed?`, `weights?`                                                                         | The configuration model                                                                               |
+| `connected-caveman`             | `cliques`, `size`, `weights?`, `seed?`                                                                                              | The connected caveman graph                                                                           |
+| `cycle`                         | `n`, `weights?`, `seed?`                                                                                                            | The cycle C_n                                                                                         |
+| `degree-corrected-sbm`          | `sizes`, `expectedDegrees`, `mixing`, `seed?`, `weights?`                                                                           | The degree-corrected stochastic block model                                                           |
+| `directed-configuration-model`  | `outDegrees`, `inDegrees`, `selfLoops?`, `multiEdges?`, `seed?`, `weights?`                                                         | The directed configuration model                                                                      |
+| `duplication-divergence`        | `n`, `retention`, `seed?`, `weights?`                                                                                               | The duplication-divergence model                                                                      |
+| `empty`                         | `n`, `weights?`, `seed?`                                                                                                            | The empty graph                                                                                       |
+| `erdos-renyi`                   | `n`, `p`, `directed?`, `seed?`, `weights?`                                                                                          | Gilbert's G(n, p) in O(n + m) by geometric skipping                                                   |
+| `erdos-renyi-gnm`               | `n`, `m`, `seed?`, `weights?`                                                                                                       | Erdos-Renyi's G(n, m)                                                                                 |
+| `forest-fire`                   | `n`, `forward`, `backward`, `maxBurn?`, `seed?`, `weights?`                                                                         | The forest fire model                                                                                 |
+| `genrmf`                        | `a`, `b`, `c1`, `c2`, `seed?`                                                                                                       | GENRMF, the max-flow family of D. Goldfarb and M. D. Grigoriadis                                      |
+| `grid`                          | `directed?`, `weights?`, `seed?`, `rows`, `cols`, `periodic?`, `diagonals?`, `obstacles?`, `positions?`                             | The rows x cols grid                                                                                  |
+| `grid-3d`                       | `rows`, `cols`, `layers`, `periodic?`, `diagonals?`, `directed?`, `obstacles?`, `positions?`, `weights?`, `seed?`                   | The rows x cols x layers grid                                                                         |
+| `grid-flow-network`             | `rows`, `cols`, `minCapacity?`, `maxCapacity?`, `seed?`                                                                             | A grid flow network, the shape of graph-cut image segmentation                                        |
+| `hexagonal-lattice`             | `rows`, `cols`, `positions?`, `weights?`, `seed?`                                                                                   | The hexagonal (honeycomb) lattice in its brick-wall form                                              |
+| `hyperbolic`                    | `n`, `averageDegree`, `exponent`, `temperature?`, `seed?`, `weights?`                                                               | A random hyperbolic graph                                                                             |
+| `hypercube`                     | `dimension`, `weights?`, `seed?`                                                                                                    | The hypercube Q_d                                                                                     |
+| `knn`                           | `n`, `k`, `dimension?`, `directed?`, `clusters?`, `spread?`, `seed?`, `weights?`                                                    | The k-nearest-neighbour graph of random points, the standard input of spectral clustering             |
+| `kronecker`                     | `initiator`, `power`, `edges?`, `selfLoops?`, `multiEdges?`, `permute?`, `directed?`, `seed?`, `weights?`                           | A stochastic Kronecker graph                                                                          |
+| `ladder`                        | `n`, `weights?`, `seed?`                                                                                                            | The ladder L_n                                                                                        |
+| `layered-flow-network`          | `layers`, `p`, `minCapacity?`, `maxCapacity?`, `seed?`                                                                              | A random layered flow network                                                                         |
+| `lfr`                           | `n`, `minDegree`, `maxDegree`, `degreeExponent`, `minCommunity`, `maxCommunity`, `communityExponent`, `mixing`, `seed?`, `weights?` | The LFR benchmark                                                                                     |
+| `lollipop`                      | `cliqueSize`, `pathLength`, `weights?`, `seed?`                                                                                     | The lollipop                                                                                          |
+| `mobius-ladder`                 | `n`, `weights?`, `seed?`                                                                                                            | The Moebius ladder M\_{2n}                                                                            |
+| `named`                         | `name`, `weights?`, `seed?`                                                                                                         | A named graph from the literature, by `name`.                                                         |
+| `newman-watts`                  | `n`, `k`, `p`, `seed?`, `weights?`                                                                                                  | The Newman-Watts small world                                                                          |
+| `path`                          | `n`, `weights?`, `seed?`                                                                                                            | The path P_n                                                                                          |
+| `petersen`                      | `weights?`, `seed?`                                                                                                                 | The Petersen graph                                                                                    |
+| `planted-partition`             | `groups`, `groupSize`, `pIn`, `pOut`, `seed?`, `weights?`                                                                           | The planted partition model                                                                           |
+| `price`                         | `n`, `citations`, `attractiveness?`, `seed?`, `weights?`                                                                            | Price's citation network                                                                              |
+| `random-apollonian`             | `n`, `seed?`, `weights?`                                                                                                            | The random Apollonian network                                                                         |
+| `random-bipartite`              | `n1`, `n2`, `p`, `perfectMatching?`, `seed?`, `weights?`                                                                            | The random bipartite graph G(n1, n2, p) in O(n + m)                                                   |
+| `random-dag`                    | `layers`, `p`, `seed?`, `weights?`                                                                                                  | A random layered DAG                                                                                  |
+| `random-geometric`              | `n`, `radius`, `dimension?`, `periodic?`, `seed?`, `weights?`                                                                       | The random geometric graph                                                                            |
+| `random-order-dag`              | `n`, `p`, `seed?`, `weights?`                                                                                                       | The random-order DAG                                                                                  |
+| `random-recursive-tree`         | `n`, `seed?`, `weights?`                                                                                                            | The random recursive tree                                                                             |
+| `random-regular`                | `n`, `d`, `seed?`, `weights?`                                                                                                       | A uniformly-ish random d-regular simple graph by the pairing algorithm of A. Steger and N. C. Wormald |
+| `random-tree`                   | `n`, `seed?`, `weights?`                                                                                                            | A uniformly random labelled tree                                                                      |
+| `ring-of-cliques`               | `cliques`, `size`, `weights?`, `seed?`                                                                                              | The ring of cliques, as networkx's `ring_of_cliques`                                                  |
+| `rmat`                          | `scale`, `edgeFactor?`, `a?`, `b?`, `c?`, `d?`, `selfLoops?`, `multiEdges?`, `permute?`, `directed?`, `seed?`, `weights?`           | R-MAT                                                                                                 |
+| `star`                          | `n`, `weights?`, `seed?`                                                                                                            | The star                                                                                              |
+| `stochastic-block-model`        | `sizes`, `probabilities`, `seed?`, `weights?`                                                                                       | The stochastic block model in O(n B + m)                                                              |
+| `triangular-lattice`            | `rows`, `cols`, `positions?`, `weights?`, `seed?`                                                                                   | The triangular lattice as a triangulated rows x cols grid                                             |
+| `watts-strogatz`                | `n`, `k`, `beta`, `seed?`, `weights?`                                                                                               | The Watts-Strogatz small world                                                                        |
+| `waxman`                        | `n`, `alpha`, `beta`, `seed?`, `weights?`                                                                                           | The Waxman graph                                                                                      |
+| `wheel`                         | `n`, `weights?`, `seed?`                                                                                                            | The wheel W_n                                                                                         |
+| `wilson-maze`                   | `rows`, `cols`, `seed?`, `weights?`                                                                                                 | A uniform spanning tree of the rows x cols grid, a perfect maze, by Wilson's algorithm                |
+
+### Datasets
+
+`cy.graphtyDataset(name)`. The bundled ones ship inside the package and load without a network; the hosted
+ones are downloaded from graphty.app. Each is the work of its authors, under its own license, not this
+package's: cite the source when you publish results from one, and check the license before you redistribute it.
+
+| Name                   | Nodes  | Edges   | Directed | Where   | License                                                                                                                                                                                                                                                                               | Source                                                                                                             |
+| ---------------------- | ------ | ------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `karate`               | 34     | 78      | no       | bundled | Facts published in a 1977 journal article; converted from the networkx 3.1 copy (BSD-3-Clause).                                                                                                                                                                                       | <https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py>                   |
+| `florentine-families`  | 15     | 20      | no       | bundled | Facts published in the cited articles; converted from the networkx 3.1 copy (BSD-3-Clause).                                                                                                                                                                                           | <https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py>                   |
+| `davis-southern-women` | 32     | 89      | no       | bundled | Facts published in a 1941 book; converted from the networkx 3.1 copy (BSD-3-Clause).                                                                                                                                                                                                  | <https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py>                   |
+| `les-miserables`       | 77     | 254     | no       | bundled | Derived from the Stanford GraphBase file jean.dat (copyright D. E. Knuth; may be freely copied and distributed, and a changed file must be renamed and identified as not part of the Stanford GraphBase -- this is such a changed file) through the networkx 3.1 copy (BSD-3-Clause). | <https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py>                   |
+| `football`             | 115    | 613     | no       | bundled | CC BY 4.0 (the figshare record of T. S. Evans).                                                                                                                                                                                                                                       | <https://figshare.com/articles/dataset/American_College_Football_Network_Files/93179>                              |
+| `political-books`      | 105    | 441     | no       | bundled | unclear: Mark Newman's data page says only "free for scientific use to the best of my knowledge"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.                                                                                                            | <https://web.archive.org/web/20240730210010id_/https://public.websites.umich.edu/~mejn/netdata/polbooks.zip>       |
+| `dolphins`             | 62     | 159     | no       | bundled | unclear: posted on Mark Newman's data page with the permission of D. Lusseau, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.                                                                                                     | <https://web.archive.org/web/20231115052843id_/https://www-personal.umich.edu/~mejn/netdata/dolphins.zip>          |
+| `contiguous-usa`       | 49     | 107     | no       | bundled | Public domain: works of the US federal government (17 U.S.C. 105). Borders derived from the Census county adjacency file; centres of population from https://www2.census.gov/geo/docs/reference/cenpop2020/CenPop2020_Mean_ST.txt                                                     | <https://www2.census.gov/geo/docs/reference/county_adjacency/county_adjacency2024.txt>                             |
+| `knuth-miles`          | 128    | 8128    | no       | bundled | Derived from the Stanford GraphBase file miles.dat (copyright 1992 Stanford University; "may be freely copied but please do not change it in any way") -- this is a changed file, converted to a graph, and is not part of the Stanford GraphBase.                                    | <https://mirrors.ctan.org/support/graphbase/miles.dat>                                                             |
+| `celegans-neural`      | 297    | 2345    | yes      | bundled | unclear: Mark Newman's data page says only "free for scientific use to the best of my knowledge"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.                                                                                                            | <https://web.archive.org/web/20231227004245id_/https://public.websites.umich.edu/~mejn/netdata/celegansneural.zip> |
+| `political-blogs`      | 1490   | 19022   | yes      | bundled | unclear: posted on Mark Newman's data page with the authors' permission, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.                                                                                                          | <https://web.archive.org/web/20240730122800id_/https://public.websites.umich.edu/~mejn/netdata/polblogs.zip>       |
+| `openflights`          | 3214   | 36906   | yes      | bundled | Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.                                                                                                         | <https://github.com/jpatokal/openflights/tree/e3bc6dedbcceb8b7b74248a00dcd6207254da6bd/data>                       |
+| `road-ny`              | 264346 | 733846  | yes      | hosted  | Public domain: derived from the US Census Bureau TIGER/Line files, a work of the US federal government; the challenge page states no further terms.                                                                                                                                   | <http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz>                                       |
+| `ogbn-arxiv`           | 169343 | 1166243 | yes      | hosted  | ODC-BY 1.0 (Open Data Commons Attribution License), as stated by the Open Graph Benchmark.                                                                                                                                                                                            | <http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip>                                                         |
+| `com-dblp`             | 317080 | 1049866 | no       | hosted  | unclear: SNAP states no license for its files; the underlying dblp data is CC0 1.0 (https://dblp.org/db/about/copyright.html).                                                                                                                                                        | <https://snap.stanford.edu/data/bigdata/communities/com-dblp.ungraph.txt.gz>                                       |
+
+### File formats
+
+| Format    | Import | Export |
+| --------- | ------ | ------ |
+| `gexf`    | yes    | yes    |
+| `graphml` | yes    | yes    |
+| `gml`     | yes    | yes    |
+| `dot`     | yes    | yes    |
+| `pajek`   | yes    | yes    |
+| `csv`     | yes    | yes    |
+| `json`    | yes    | yes    |
+| `neo4j`   | yes    | yes    |
+| `cx2`     | yes    | yes    |
+| `cx`      | yes    | no     |
+| `obo`     | yes    | no     |
+
+Import also takes `"auto"`, the default, which detects the format from the content.
+
+<!-- reference:end -->

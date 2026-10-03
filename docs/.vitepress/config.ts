@@ -16,6 +16,7 @@ function loadTypedocSidebar(path: string): Array<{ text: string; link: string }>
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");
 const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/typedoc-sidebar.json");
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
+const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/generated/typedoc-sidebar.json");
 
 export default defineConfig({
     vite: {
@@ -52,6 +53,7 @@ export default defineConfig({
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
                     { text: "layout", link: "/layout/api/generated/" },
+                    { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
             },
@@ -65,6 +67,7 @@ export default defineConfig({
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
                         { text: "layout", link: "/layout/api/generated/" },
+                        { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
@@ -74,6 +77,10 @@ export default defineConfig({
                         { text: "graphty-element Storybook", link: "https://graphty.app/storybook/graphty-element/" },
                         { text: "algorithms Storybook", link: "https://graphty.app/storybook/algorithms/" },
                         { text: "layout Storybook", link: "https://graphty.app/storybook/layout/" },
+                        {
+                            text: "cytoscape-extensions demo",
+                            link: "https://graphty.app/storybook/cytoscape-extensions/",
+                        },
                         { text: "GitHub", link: "https://github.com/graphty-org/graphty-monorepo" },
                     ],
                 },
@@ -173,6 +180,21 @@ export default defineConfig({
                 {
                     text: "API",
                     items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
+                },
+            ],
+            // One guide page (the package README) and the generated TypeDoc reference.
+            "/cytoscape-extensions/": [
+                {
+                    text: "cytoscape-extensions",
+                    items: [
+                        { text: "Guide", link: "/cytoscape-extensions/" },
+                        { text: "Demo", link: "https://graphty.app/storybook/cytoscape-extensions/" },
+                    ],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: cytoscapeTypedoc,
                 },
             ],
         },

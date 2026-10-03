@@ -82,7 +82,7 @@ const config: KnipConfig = {
                 // compiled by test/consumer-types.test.ts as a consumer would compile it
                 "test/consumer/consumer.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
+            project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
             // loads it at run time, and declaring it here is what lets a package manager hand it through (only

@@ -57,17 +57,25 @@ export interface GraphtyLayoutOptions {
     readonly eles?: Collection;
     /** false: jump; "end" or any truthy value on a static layout: tween to the result; true on a simulation: draw every frame. */
     readonly animate?: boolean | "end";
+    /** Length of the tween, in milliseconds. */
     readonly animationDuration?: number;
+    /** Easing of the tween, as Cytoscape's built-in layouts take it (for example "ease-out"). */
     readonly animationEasing?: string;
+    /** Tween only the nodes for which this returns true; the others jump to their positions. */
     readonly animateFilter?: (node: NodeSingular, i: number) => boolean;
     /** Fit the viewport to the result. Default true. */
     readonly fit?: boolean;
+    /** Space around the result when `fit` is true, in pixels. */
     readonly padding?: number;
     /** Where to place the result; default the viewport, which is 1 x 1 when headless. */
     readonly boundingBox?: BoundingBox12 | BoundingBoxWH;
+    /** Expands (above 1) or compresses (below 1) the area the result takes up. */
     readonly spacingFactor?: number;
+    /** Changes each final position: called with the node and its computed position, returns the position to use. */
     readonly transform?: (node: NodeSingular, position: Position) => Position;
+    /** Called on layoutready. */
     readonly ready?: LayoutHandler;
+    /** Called on layoutstop. */
     readonly stop?: LayoutHandler;
     /** 2 (default) or 3; a 3D result is projected onto x-y. */
     readonly dim?: 2 | 3;
@@ -139,7 +147,7 @@ interface LayoutThis {
 /** A static layout over the snapshot, given the options with element selections already turned into indices. */
 type StaticLayout = (s: GraphSnapshot, o: Record<string, unknown>, cs: CytoscapeSnapshot) => LayoutResult;
 
-const DEFAULTS = {
+export const DEFAULTS = {
     animate: false,
     animationDuration: 500,
     fit: true,
@@ -211,13 +219,13 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
 
 // This package's own iteration budgets for the simulations, passed explicitly so a change of a @graphty/layout
 // default does not change what a Cytoscape user gets; the caller's option overrides them.
-const SIMULATION_DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+export const SIMULATION_DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     forceatlas2: { maxIter: 100 },
     fruchtermanReingold: { iterations: 50 },
 };
 
 /** Registered name suffix -> @graphty/layout simulation type. */
-const SIMULATIONS: Readonly<Record<string, SimulationType>> = {
+export const SIMULATIONS: Readonly<Record<string, SimulationType>> = {
     forceatlas2: "forceatlas2",
     "fruchterman-reingold": "fruchtermanReingold",
     "spring-electrical": "spring-electrical",

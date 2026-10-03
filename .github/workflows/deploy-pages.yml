@@ -75,6 +75,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download cytoscape-extensions Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: ./cytoscape-extensions/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download unified docs
               uses: actions/download-artifact@v4
               with:

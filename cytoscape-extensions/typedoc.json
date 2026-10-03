@@ -1,0 +1,17 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": ["./src/index.ts", "./src/io.ts", "./src/samples.ts"],
+    "out": "./docs/api/generated",
+    "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+    "readme": "none",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeInternal": true,
+    "excludeExternals": true,
+    "hideGenerator": true,
+    "sanitizeComments": true,
+    "categorizeByGroup": true,
+    "sort": ["alphabetical"],
+    "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
+    "docsRoot": "./docs"
+}

@@ -115,7 +115,7 @@ export const FILE_LIST = ["file.open", "project.save", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
- * `registrations.test.ts`. A package may add commands not listed here.
+ * `commands/__tests__/registry.test.ts`. A package may add commands not listed here.
  */
 export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> = {
     frame: [

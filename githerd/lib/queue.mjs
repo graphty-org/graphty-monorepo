@@ -328,3 +328,128 @@ export function workQueue({ state, config, now }) {
     items.push(...[...prs, ...triage, ...ranked].map((x) => x.item));
     return { items, ownerWaiting: ownerWaiting.map((x) => x.item) };
 }
+
+// ---------------------------------------------------------------------------------------------
+// The job queue order (design section 5.4): finish before starting.
+// ---------------------------------------------------------------------------------------------
+
+/** Issue priorities, most urgent first. */
+const PRIORITIES = ["critical", "high", "medium", "low"];
+/** Labels that keep an issue job out of the queue. */
+const ISSUE_SKIP = new Set(["blocked", "needs-decision", "research"]);
+
+/**
+ * A queued job's tier in the order of design 5.4, and the words for it.
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {[number, string]} the tier (lower first) and its words
+ */
+function tier(job) {
+    const scope = job.facts?.scope;
+    switch (job.kind) {
+        case "incident":
+            if (scope === "master" || scope === "release") return [1, `${scope} incident`];
+            if (scope === "shared") return [1.5, "shared incident"];
+            return [8.5, "low-priority incident on a non-gating workflow"];
+        case "review":
+            return [2, "review"];
+        case "pr":
+            return [3, "pull request"];
+        case "title":
+            return [4, "pull request title"];
+        case "triage":
+            return scope === "new" ? [5, "triage of new issues"] : [8, `triage ${scope ?? "refresh"}`];
+        case "major":
+            return [6, "major the owner approved"];
+        default:
+            return [7, "issue"];
+    }
+}
+
+/**
+ * Why a queued job is skipped right now, or null.
+ * @param {import("./board.mjs").Job} job the job
+ * @param {{reviewQueueFull?: boolean}} ctx the review queue at its limit
+ * @returns {string | null} the reason
+ */
+function skipped(job, ctx) {
+    if (job.facts?.skip) return `${SKIP} (owner)`;
+    if (job.kind !== "issue") return null;
+    const label = (job.facts?.labels ?? []).find((/** @type {string} */ l) => ISSUE_SKIP.has(l));
+    if (label) return `labelled ${label}`;
+    if (ctx.reviewQueueFull && job.facts?.storybook)
+        return "the owner's review queue is full and it touches a Storybook";
+    return null;
+}
+
+/**
+ * An issue job's place among issues: in an open order first, then priority, bug before other
+ * types.
+ * @param {import("./board.mjs").Job} job the job
+ * @returns {{order: number, priority: number, bug: number}} lower first
+ */
+function issueRank(job) {
+    const p = PRIORITIES.indexOf(job.priority ?? "");
+    return {
+        order: job.facts?.order ?? Infinity,
+        priority: p === -1 ? PRIORITIES.length : p,
+        bug: job.facts?.bug ? 0 : 1,
+    };
+}
+
+/**
+ * An issue job's type in words.
+ * @param {any} facts the job's facts
+ * @returns {string} "bug" or "issue"
+ */
+const issueType = (facts) => (facts.bug ? "bug" : "issue");
+
+/**
+ * The reason line for a queued job.
+ * @param {import("./board.mjs").Job} job the job
+ * @param {string} words its tier's words
+ * @returns {string} the reason
+ */
+function jobReason(job, words) {
+    const f = job.facts ?? {};
+    const parts = [
+        f.next && `${NEXT} (owner)`,
+        job.kind === "issue" && Number.isFinite(f.order) && `in open order, position ${f.order + 1}`,
+        job.kind === "issue" ? `${job.priority ?? "unprioritized"} ${issueType(f)}` : words,
+        f.since && `${job.kind === "incident" ? "red" : "open"} since ${f.since}`,
+    ];
+    return parts.filter(Boolean).join(", ");
+}
+
+/**
+ * The queued jobs in the order of design 5.4, each with its one-line reason, and the queued jobs
+ * skipped right now with why. Within a tier: the owner's `githerd:next` first, then for issues the
+ * open order, priority and bug before other types, then oldest (`facts.since`: red since for an
+ * incident, opened for a pull request or issue), then id.
+ * @param {Record<string, import("./board.mjs").Job>} jobs the job records
+ * @param {{reviewQueueFull?: boolean}} [ctx] what limits apply now
+ * @returns {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[]}} the order
+ */
+export function jobOrder(jobs, ctx = {}) {
+    const items = [];
+    const skips = [];
+    for (const job of Object.values(jobs)) {
+        if (job.state !== "queued") continue;
+        const skip = skipped(job, ctx);
+        if (skip) skips.push({ job: job.id, reason: skip });
+        else items.push({ job, tier: tier(job) });
+    }
+    items.sort((a, b) => {
+        const ra = issueRank(a.job);
+        const rb = issueRank(b.job);
+        return (
+            a.tier[0] - b.tier[0] ||
+            Number(Boolean(b.job.facts?.next)) - Number(Boolean(a.job.facts?.next)) ||
+            ra.order - rb.order ||
+            ra.priority - rb.priority ||
+            ra.bug - rb.bug ||
+            String(a.job.facts?.since ?? "~").localeCompare(String(b.job.facts?.since ?? "~")) ||
+            a.job.id.localeCompare(b.job.id)
+        );
+    });
+    return { items: items.map((x) => ({ job: x.job.id, reason: jobReason(x.job, x.tier[1]) })), skipped: skips };
+}

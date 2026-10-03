@@ -807,7 +807,13 @@ A pull request that changes githerd's own config, hooks or worker instructions i
   waitingFor: null | { checks: sha } | { lane: name } | { release: sha } | { job: id, until }
             | { push: queueId } | { owner: item } | { local: taskId } | { github: since },
   expect: null | { until, reason },
-  steeredAt, kept, order, budget: { workingMinutes, attempts } }
+  steeredAt, kept, order, budget: { workingMinutes, attempts },
+  clock: null | { budgetMs, usedMs, at }, pausedBy: [pause...],  // a paused deadline keeps its
+                                                  // used time; `deadline` is null while paused
+  faults, verifyFailures, verifyPolls,            // counted faults; failed verifications in a
+                                                  // row; polls in `verifying` with no answer
+  joined: [target...], cancelledBy, fresh, evidenceFirst,
+  facts: { since, scope, bug, order, labels, next, skip, storybook } }  // what 5.4 orders by
 ```
 
 ### 5.3 States, deadlines and pauses
@@ -818,13 +824,13 @@ unknown; a usage stop (8.3); "Actions degraded" (CI waits only); machine load ab
 
 | State | Meaning | Leaves when | Deadline and what follows |
 |---|---|---|---|
-| `queued` | Waiting for a slot | Admitted -> `starting`; target closed -> `cancelled` | None; age and the gate holding it are on the board |
+| `queued` | Waiting for a slot | Admitted -> `starting`; an owner session claims it -> `starting`, then on as for any claim; target closed -> `cancelled` | None; age and the gate holding it are on the board |
 | `blocked` | Waiting on another job, an incident, or a stack base to merge | Blocker ends -> `queued` | Capped at 4 hours, then re-judged by its worker or requeued with the news; a wait that would close a cycle is refused |
 | `starting` | Worktree prepared, window open, waiting for `githerd_next` and `githerd_claim` | Claim -> `working`; join -> `cancelled`; wait -> `blocked` | Worktree 20 min -> `faulted`. Registry 30 s -> start failure. First call 3 min -> start failure, `queued` |
 | `working` | Doing the job | `githerd_wait` or `githerd_push` -> `waiting`; `githerd_ask_owner` or a permission prompt -> `parked`; `githerd_done` -> `verifying` | 4 h working time with no GitHub change (2 h for incidents) -> attempt ends with findings |
-| `waiting` | A declared condition: checks on a head, a lane, a release, a job, a push, a local background task, or GitHub itself. The session is idle and open; a waiting job whose session died stays waiting with none | Condition changes -> doorbell -> `working`; done holds -> `done` | Checks not started in 10 min -> doorbell. Running past twice their median -> doorbell. Local task output not growing for 20 min -> doorbell. Push bounded at twice the gate's duration |
-| `parked` | Waiting on an owner item; session ended unless a permission prompt keeps the window open for the owner | Owner answers -> `working` (resumed or fresh); answer was "not yet" -> `parked` on the same item, no page | None for the job; the invariant check requires the item to be open |
-| `verifying` | `githerd_done` received | Holds -> `done`; does not -> `working` with what is missing; only CI pending -> `waiting` | Two polls |
+| `waiting` | A declared condition: checks on a head, a lane, a release, a job, a push, a local background task, or GitHub itself. The session is idle and open; a waiting job whose session died stays waiting with none | Condition changes -> doorbell -> `working`; done holds -> `done`; third session death -> `faulted` | Checks not started in 10 min -> doorbell. Running past twice their median -> doorbell. Local task output not growing for 20 min -> doorbell. Push bounded at twice the gate's duration |
+| `parked` | Waiting on an owner item; session ended unless a permission prompt keeps the window open for the owner | Owner answers -> `working` (resumed or fresh); answer was "not yet" -> `parked` on the same item, no page; third session death -> `faulted` | None for the job; the invariant check requires the item to be open |
+| `verifying` | `githerd_done` received | Holds -> `done`; does not -> `working` with what is missing; only CI pending -> `waiting`; third session death -> `faulted` | Two polls |
 | `done` | Verified | Terminal | Session ended, servers stopped, worktree unlocked and removed once its pull request closes |
 | `failed` | Attempt or time budget spent | Terminal | Urgent: one owner item with findings. Others: board |
 | `cancelled` | Superseded, joined, duplicate, target closed or merged by someone else | Terminal, with a pointer; unpushed commits salvaged first | n/a |

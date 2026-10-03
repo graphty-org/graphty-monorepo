@@ -28,7 +28,7 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   reads GitHub content for a run with `byOwner` from `lib/board.mjs`. While the login is
   unresolved, no run starts.
 - **One work queue.** What githerd and the sessions work on next comes from `lib/queue.mjs`
-  (design section 10.2): deterministic rules, no weighted score, and a one-line reason on every
+  (design section 5.4): deterministic rules, no weighted score, and a one-line reason on every
   item. The dispatcher and `githerd_next` follow it; a new kind of work gets a place in it, not a
   separate order. Effort never gates work or reaches the owner: effort:high gets the
   `backlog-high` model and caps, and a run may split the issue with `githerd_split_issue`.

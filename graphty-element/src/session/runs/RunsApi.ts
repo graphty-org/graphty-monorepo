@@ -301,15 +301,15 @@ export interface SessionRunsApi extends RunsApi {
 // ---------------------------------------------------------------------------------------------
 
 /** What a run's numbers are qualified by before the work has said anything about them. */
+/** What a run with no captures keeps. */
+const NO_HELD: HeldCaptures = new Map();
+
 /** What a run landed as in a session with no style stack: nothing. */
 const NO_LANDING: RunLanding = Object.freeze({
     applied: Object.freeze([]),
     withheld: Object.freeze([]),
     tookOver: Object.freeze([]),
 });
-
-/** What a run with no captures keeps. */
-const NO_HELD: HeldCaptures = new Map();
 
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,

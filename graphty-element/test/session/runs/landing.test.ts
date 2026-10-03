@@ -123,7 +123,8 @@ describe("the algorithms guide's landing example", () => {
         const landing = session.runs.landing(run.id);
         const notes: string[] = [];
         for (const { channel, from } of landing?.tookOver ?? []) {
-            notes.push(`${run.label} now paints ${channel}; ${from} moved below`);
+            const below = session.runs.get(from)?.label ?? from;
+            notes.push(`${run.label} now paints ${channel}; ${below} moved below`);
         }
         for (const { channel, byLayer } of landing?.withheld ?? []) {
             notes.push(`${run.label} left ${channel} alone: layer ${byLayer} already paints it`);
@@ -131,7 +132,11 @@ describe("the algorithms guide's landing example", () => {
 
         assert.deepStrictEqual(landing?.applied, ["node.color"]);
         assert.lengthOf(notes, 1);
-        assert.match(notes[0], /now paints node\.color; degree moved below$/);
+        assert.strictEqual(
+            notes[0],
+            `${run.label} now paints node.color; ${session.runs.get("degree")?.label} moved below`,
+        );
+        assert.notStrictEqual(session.runs.get("degree")?.label, "degree", "the earlier run is named, not its id");
         session.dispose();
     });
 });

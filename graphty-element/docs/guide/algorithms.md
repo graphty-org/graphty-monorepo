@@ -399,7 +399,8 @@ await run;
 
 const landing = element.session.runs.landing(run.id);
 for (const { channel, from } of landing?.tookOver ?? []) {
-    console.log(`${run.label} now paints ${channel}; ${from} moved below`);
+    const below = element.session.runs.get(from)?.label ?? from;
+    console.log(`${run.label} now paints ${channel}; ${below} moved below`);
 }
 for (const { channel, byLayer } of landing?.withheld ?? []) {
     console.log(`${run.label} left ${channel} alone: layer ${byLayer} already paints it`);

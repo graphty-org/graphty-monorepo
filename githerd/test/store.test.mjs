@@ -282,8 +282,55 @@ describe("the lock", () => {
         const dead = { pid: process.pid, startTime: "1", bootId: self.bootId };
         writeFileSync(join(dir, "lock"), JSON.stringify(dead));
         expect(takeLock(dir, self)).toEqual({ ok: true, stale: dead });
+        // A torn file is a start caught mid-write until it is older than a write could take.
         writeFileSync(join(dir, "lock"), '{"pid": 4');
+        const old = new Date(Date.now() - 60_000);
+        utimesSync(join(dir, "lock"), old, old);
         expect(takeLock(dir, self)).toEqual({ ok: true, stale: { unreadable: true } });
+    });
+
+    it("lets exactly one of several starters take one stale lock", async () => {
+        const script = `import { takeLock } from ${JSON.stringify(STORE)};
+import { identify } from ${JSON.stringify(STORE.replace(/store\.mjs$/, "proc.mjs"))};
+const go = Date.now() + 300;
+while (Date.now() < go);
+const r = takeLock(${JSON.stringify(dir)}, identify(process.pid));
+process.stdout.write(JSON.stringify({ ok: r.ok }) + "\\n");
+process.stdin.resume();
+`;
+        for (let round = 0; round < 6; round++) {
+            writeFileSync(join(dir, "lock"), JSON.stringify({ pid: process.pid, startTime: "1", bootId: self.bootId }));
+            const children = Array.from({ length: 6 }, () =>
+                spawn(process.execPath, ["--input-type=module", "-e", script], {
+                    detached: true,
+                    stdio: ["pipe", "pipe", "inherit"],
+                }),
+            );
+            try {
+                const answers = await Promise.all(
+                    children.map(
+                        (c) =>
+                            new Promise((resolve, reject) => {
+                                let out = "";
+                                c.stdout.on("data", (d) => {
+                                    out += d;
+                                    if (out.endsWith("\n")) resolve(JSON.parse(out));
+                                });
+                                c.once("exit", (code) => reject(new Error(`starter exited with ${code}`)));
+                            }),
+                    ),
+                );
+                expect(answers.filter((a) => a.ok)).toHaveLength(1);
+            } finally {
+                for (const c of children) {
+                    const exited = once(c, "exit");
+                    process.kill(-c.pid, "SIGKILL");
+                    await exited;
+                }
+            }
+            for (const c of children) expect(() => process.kill(-c.pid, 0)).toThrow();
+            expect(existsSync(join(dir, "lock.steal"))).toBe(false);
+        }
     });
 
     it("reports a directory it cannot write", () => {
@@ -348,6 +395,22 @@ describe("the spool", () => {
             }),
         ).rejects.toThrow("no");
         expect(readdirSync(join(dir, "spool"))).toHaveLength(1);
+    });
+
+    it("skips an event another drainer removed meanwhile, instead of throwing or calling it bad", async () => {
+        let t = NOW.getTime();
+        const clock = () => new Date(t++);
+        const first = await spoolEvent(dir, { kind: "a" }, { now: clock });
+        const second = await spoolEvent(dir, { kind: "b" }, { now: clock });
+        const seen = [];
+        const drained = await drainSpool(dir, (e) => {
+            seen.push(e.kind);
+            // a second daemon drains both files while this one handles the first
+            rmSync(join(dir, "spool", first), { force: true });
+            rmSync(join(dir, "spool", second), { force: true });
+        });
+        expect(drained).toEqual({ handled: 1, bad: [] });
+        expect(seen).toEqual(["a"]);
     });
 
     it("removes and reports an event that does not parse, and finds nothing without a spool", async () => {

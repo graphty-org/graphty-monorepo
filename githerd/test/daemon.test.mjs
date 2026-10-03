@@ -1210,7 +1210,8 @@ describe("liveness", () => {
         await until(() => stateFile("alive").at === clock.toISOString(), "the alive timer");
         await poll(daemon);
         expect(stateFile("progress")).toEqual({ step: "idle", since: clock.toISOString() });
-        expect(stateFile("starts")).toEqual(["2026-10-02T12:00:00.000Z"]);
+        // A clean first start: nothing died, so no start is counted toward a crash loop.
+        expect(existsSync(join(dir, ".githerd", "starts"))).toBe(false);
     });
 
     it("voids every recorded run when PID 1 started since the last alive", async () => {
@@ -1251,6 +1252,18 @@ describe("liveness", () => {
     });
 });
 
+/**
+ * Leaves the lock of a daemon killed with SIGKILL: its process is gone, so the lock is stale.
+ * @param {string} stateDir the state directory
+ */
+function killed(stateDir) {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(
+        join(stateDir, "lock"),
+        JSON.stringify({ pid: process.pid, startTime: "1", bootId: identify(process.pid).bootId, cwd: dir }),
+    );
+}
+
 describe("fatal mode", () => {
     it("boots into fatal mode on the third start within 10 minutes, and leaves it on a later start", async () => {
         const stateDir = join(dir, ".githerd");
@@ -1261,12 +1274,14 @@ describe("fatal mode", () => {
         );
         for (const at of ["2026-10-02T12:00:00Z", "2026-10-02T12:04:00Z"]) {
             clock = new Date(at);
+            killed(stateDir);
             const d = await start();
             expect(d.fatal()).toBeNull();
             await d.shutdown();
         }
         clock = new Date("2026-10-02T12:08:00Z");
         const calls = gh.calls.length;
+        killed(stateDir);
         const daemon = await start();
         const reason = "crash loop: 3 starts within 10 minutes; last exception: Error: boom";
         expect(daemon.fatal()).toBe(reason);
@@ -1285,6 +1300,18 @@ describe("fatal mode", () => {
         const later = await start();
         expect(later.fatal()).toBeNull();
         expect(existsSync(join(stateDir, "FATAL"))).toBe(false);
+    });
+
+    it("never counts a start after a clean stop toward a crash loop", async () => {
+        const stateDir = join(dir, ".githerd");
+        for (const at of ["2026-10-02T12:00:00Z", "2026-10-02T12:02:00Z", "2026-10-02T12:04:00Z"]) {
+            clock = new Date(at);
+            const d = await start();
+            expect(d.fatal()).toBeNull();
+            await d.shutdown();
+        }
+        expect(existsSync(join(stateDir, "FATAL"))).toBe(false);
+        expect(existsSync(join(stateDir, "starts"))).toBe(false);
     });
 
     it("enters fatal mode on an uncaught exception instead of exiting", async () => {

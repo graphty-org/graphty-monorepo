@@ -301,7 +301,9 @@ export async function startDaemon({
     const { stale } = /** @type {{stale: any}} */ (lock);
     if (stale) say("info", `took a stale lock from pid ${stale.pid ?? "unknown"}`);
     const previous = readLiveness(stateDir);
-    const started = recordStart(stateDir, startedAtDate);
+    // Only a start that found a stale lock follows an unclean exit; a clean stop releases the lock,
+    // so planned restarts never add up to a crash loop.
+    const started = stale ? recordStart(stateDir, startedAtDate) : { crashLoop: false };
     /** @type {string | null} the fatal reason, the first line of which every refusal shows */
     let fatal = null;
     /** @type {string | null} set when booting into fatal mode, entered once the notifier exists */
@@ -1518,10 +1520,17 @@ export async function startDaemon({
     }
 
     if (bootFatal) enterFatal(bootFatal);
-    else if (!loaded.readOnly) {
-        // Hook events left while the daemon was down; their handling arrives with the hooks.
-        const drained = await drainSpool(stateDir, (e) => ledger({ kind: "spooled", spooled: e }));
-        for (const name of drained.bad) say("error", `spool: ${name} did not parse and was removed`);
+    else if (!loaded.readOnly && !fenced) {
+        // Hook events left while the daemon was down; their handling arrives with the hooks. Appended
+        // directly, so a failed append throws and leaves the event in the spool.
+        try {
+            const drained = await drainSpool(stateDir, (e) =>
+                appendLedger(stateDir, { kind: "spooled", spooled: e }, { now }),
+            );
+            for (const name of drained.bad) say("error", `spool: ${name} did not parse and was removed`);
+        } catch (err) {
+            say("error", `spool: left for the next start: ${/** @type {Error} */ (err).message}`);
+        }
     }
     if (autoPoll && !fatal) timer = setTimeout(tick, 0);
 

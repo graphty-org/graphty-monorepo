@@ -12,7 +12,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
@@ -25,7 +25,7 @@ export const STATE_SCHEMA = 1;
 /** How long new runs are held after an empty-state start, so sessions can re-claim. */
 export const RUN_HOLD_MS = 10 * 60 * 1000;
 
-/** Three starts within this window boot straight into fatal mode (design section 9.2). */
+/** Three starts after an unclean exit within this window boot straight into fatal mode (design 9.2). */
 export const CRASH_LOOP = { starts: 3, withinMs: 10 * 60 * 1000 };
 
 const STATE = "state.json";
@@ -428,9 +428,53 @@ export function otherHolder(dir, self) {
     return sameProcess(rec) ? rec : null;
 }
 
+/** A lock file that does not parse is a start caught mid-write until it is this old. */
+const TORN_LOCK_MS = 10_000;
+/** A steal marker this old was left by a starter killed while stealing. */
+const STEAL_STALE_MS = 60_000;
+
+/**
+ * The modification time of a path, or 0 when it is gone.
+ * @param {string} path the path
+ * @returns {number} milliseconds since the epoch
+ */
+function mtimeOf(path) {
+    try {
+        return statSync(path).mtimeMs;
+    } catch {
+        return 0;
+    }
+}
+
+/**
+ * Whether the lock may be removed: it exists and names no live process other than `self` (a dead
+ * process, a reused pid, or this process itself), or it does not parse and is older than a write.
+ * @param {string} dir the state directory
+ * @param {Identity} self this process
+ * @returns {boolean} true when stale
+ */
+function lockStale(dir, self) {
+    const file = join(dir, LOCK);
+    const rec = readJson(file);
+    if (rec && Number.isInteger(rec.pid)) return !otherHolder(dir, self);
+    const mtime = mtimeOf(file);
+    return mtime > 0 && Date.now() - mtime > TORN_LOCK_MS;
+}
+
+/**
+ * Waits a little without giving up the thread: the lock is taken before the event loop matters.
+ * @param {number} ms how long
+ */
+function pause(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /**
  * Takes the daemon lock: `lock` holds this process's identity and its cwd. A lock whose process is
- * dead, or is another process under a reused pid, is stale and taken.
+ * dead, or is another process under a reused pid, is stale and taken. Only the holder of
+ * `lock.steal` (a directory, so `mkdir` decides who holds it) removes a stale lock, and it judges
+ * the lock again first: two starters that both judged it stale a moment ago would otherwise both
+ * remove it, the second removing the lock the first had just written, and both would start.
  * @param {string} dir the state directory
  * @param {Identity} self this process
  * @param {string} [cwd] recorded so a daemon started from the wrong directory can be named
@@ -439,6 +483,7 @@ export function otherHolder(dir, self) {
  */
 export function takeLock(dir, self, cwd = process.cwd()) {
     const file = join(dir, LOCK);
+    const steal = `${file}.steal`;
     const text = `${JSON.stringify({ ...self, cwd })}\n`;
     let stale = null;
     for (;;) {
@@ -450,13 +495,23 @@ export function takeLock(dir, self, cwd = process.cwd()) {
         }
         const holder = otherHolder(dir, self);
         if (holder) return { ok: false, holder };
-        // ponytail: two starters that both find the lock stale can both take it; the loser sees
-        // the winner in the lock before its first write and fences itself (the daemon's mayWrite).
-        stale = readJson(file) ?? { unreadable: true };
         try {
-            unlinkSync(file);
+            mkdirSync(steal);
+        } catch (err) {
+            if (err.code !== "EEXIST") throw err;
+            if (Date.now() - mtimeOf(steal) > STEAL_STALE_MS) rmSync(steal, { recursive: true, force: true });
+            pause(10); // another starter is stealing: see what it leaves
+            continue;
+        }
+        try {
+            if (lockStale(dir, self)) {
+                stale = readJson(file) ?? { unreadable: true };
+                unlinkSync(file);
+            } else pause(10); // a start caught mid-write, or the lock is gone: try again
         } catch (err) {
             if (err.code !== "ENOENT") throw err;
+        } finally {
+            rmSync(steal, { recursive: true, force: true });
         }
     }
 }
@@ -472,7 +527,8 @@ export function releaseLock(dir, self) {
 }
 
 /**
- * Records a start in `starts` (the last 10 start times) and says whether it completes a crash loop.
+ * Records a start after an unclean exit in `starts` (the last 10 such start times) and says whether
+ * it completes a crash loop.
  * @param {string} dir the state directory
  * @param {Date} at the start time
  * @returns {{starts: string[], crashLoop: boolean}} the recorded starts, and whether `CRASH_LOOP`
@@ -571,9 +627,23 @@ export async function spoolEvent(dir, event, { now = () => new Date() } = {}) {
 }
 
 /**
+ * Removes a file, already gone counting as removed.
+ * @param {string} file the path
+ * @returns {Promise<void>}
+ */
+async function unlinkGone(file) {
+    try {
+        await unlink(file);
+    } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+    }
+}
+
+/**
  * Hands every spooled event to `handle`, oldest first, removing each once handled. A handler that
  * throws stops the drain and leaves that event and the rest for the next one. An event that does not
- * parse is removed and reported.
+ * parse is removed and reported. An event file that vanishes meanwhile was handled by someone else
+ * and is skipped.
  * @param {string} dir the state directory
  * @param {(event: any) => unknown} handle what to do with one event
  * @returns {Promise<{handled: number, bad: string[]}>} how many were handled, and the unparseable
@@ -594,16 +664,23 @@ export async function drainSpool(dir, handle) {
     const bad = [];
     for (const name of names) {
         const file = join(spool, name);
+        let text;
+        try {
+            text = await readFile(file, "utf8");
+        } catch (err) {
+            if (err.code === "ENOENT") continue; // drained by someone else meanwhile
+            throw err;
+        }
         let event;
         try {
-            event = JSON.parse(await readFile(file, "utf8"));
+            event = JSON.parse(text);
         } catch {
             bad.push(name);
-            await unlink(file);
+            await unlinkGone(file);
             continue;
         }
         await handle(event);
-        await unlink(file);
+        await unlinkGone(file);
         handled++;
     }
     return { handled, bad };

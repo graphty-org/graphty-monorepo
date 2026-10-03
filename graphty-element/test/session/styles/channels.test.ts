@@ -89,7 +89,7 @@ describe("the channel set", () => {
     it("splits into fourteen node channels and twenty-one edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 14);
         assert.strictEqual(channelsFor("edge").length, 21);
-        assert.deepEqual(
+        assert.sameMembers(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
         );
@@ -497,13 +497,20 @@ describe("toColorValue", () => {
 describe("the arrow-end channels", () => {
     // The head's and the tail's six channels come from one builder; the only intended difference
     // between the two ends is the name and the tail's "none" type default.
-    it("describes the tail exactly as the head, end name and type default aside", () => {
+    it("describes the tail exactly as the head, end name, type default and place aside", () => {
         for (const suffix of ["", "Size", "Color", "Opacity", "Text", "TextStyle"]) {
-            const { caveat: headCaveat, ...head } =
-                CHANNEL_DESCRIPTORS[`edge.arrowHead${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
-            const { caveat: tailCaveat, ...tail } =
-                CHANNEL_DESCRIPTORS[`edge.arrowTail${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
+            const {
+                caveat: headCaveat,
+                order: headOrder,
+                ...head
+            } = CHANNEL_DESCRIPTORS[`edge.arrowHead${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
+            const {
+                caveat: tailCaveat,
+                order: tailOrder,
+                ...tail
+            } = CHANNEL_DESCRIPTORS[`edge.arrowTail${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
             assert.strictEqual(tailCaveat, headCaveat, suffix);
+            assert.strictEqual(tailOrder, headOrder + 6, suffix);
             const asHead = JSON.parse(
                 JSON.stringify(tail).replaceAll("Tail", "Head").replaceAll("tail", "head"),
             ) as typeof head;
@@ -513,6 +520,66 @@ describe("the arrow-end channels", () => {
             } else {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
+        }
+    });
+});
+
+describe("the sections of a style editor", () => {
+    /** The sections each target's channels sit in, in the order a style editor draws them. */
+    const SECTIONS = {
+        node: ["fill", "size", "shape", "effects", "label", "tooltip"],
+        edge: ["line", "arrows", "label"],
+    };
+
+    it("puts every channel in a section of its own target", () => {
+        for (const channel of CHANNELS) {
+            const { section, target } = CHANNEL_DESCRIPTORS[channel];
+            assert.include(SECTIONS[target], section, `${channel} sits in a ${target} section`);
+        }
+    });
+
+    it("gives size a section of its own, beside fill", () => {
+        assert.deepEqual(
+            channelsFor("node")
+                .filter((descriptor) => descriptor.section === "size")
+                .map((descriptor) => descriptor.channel),
+            ["node.size"],
+        );
+        assert.deepEqual(
+            channelsFor("node")
+                .filter((descriptor) => descriptor.section === "fill")
+                .map((descriptor) => descriptor.channel),
+            ["node.color", "node.opacity"],
+        );
+    });
+
+    it("lists each target's channels section by section, in the editor's order", () => {
+        for (const target of ["node", "edge"] as const) {
+            const sections = channelsFor(target).map((descriptor) => descriptor.section);
+            const firstSeen = sections.filter((section, index) => sections.indexOf(section) === index);
+
+            assert.deepEqual(firstSeen, SECTIONS[target], `${target} sections in order`);
+            assert.deepEqual(
+                [...sections].sort((a, b) => SECTIONS[target].indexOf(a) - SECTIONS[target].indexOf(b)),
+                sections,
+                `${target} sections are contiguous`,
+            );
+        }
+
+        assert.deepEqual(
+            channelsFor("node")
+                .slice(0, 4)
+                .map((descriptor) => descriptor.channel),
+            ["node.color", "node.opacity", "node.size", "node.shape"],
+        );
+    });
+
+    it("numbers each target's channels by that order, from zero", () => {
+        for (const target of ["node", "edge"] as const) {
+            channelsFor(target).forEach((descriptor, index) => {
+                assert.strictEqual(descriptor.order, index, descriptor.channel);
+                assert.strictEqual(CHANNEL_DESCRIPTORS[descriptor.channel].order, index, descriptor.channel);
+            });
         }
     });
 });

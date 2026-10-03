@@ -330,6 +330,17 @@ export interface ChannelDescriptor {
     /** Which group of a style editor the channel sits in. */
     readonly group: ChannelGroup;
     /**
+     * The section of a style editor the channel sits in, under a heading of its own. A node's
+     * sections are, in order, fill, size, shape, effects, label and tooltip; an edge's are line,
+     * arrows and label. {@link channelsFor} lists a target's channels section by section.
+     */
+    readonly section: ChannelSection;
+    /**
+     * Where the channel comes among its target's channels, counting from zero: the order a style
+     * editor draws its rows in, section by section. The same as its index in {@link channelsFor}.
+     */
+    readonly order: number;
+    /**
      * The value the element draws when no layer sets the channel: the element's own default
      * style where it states one, and otherwise what the renderer draws for an unset value. A
      * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
@@ -369,6 +380,22 @@ export interface ChannelDescriptor {
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/**
+ * The sections a style editor draws a target's channels under, each with a heading. Size has a
+ * section of its own beside fill rather than sitting under shape, because people look for size
+ * first and do not look for it under shape.
+ */
+export type ChannelSection = "fill" | "size" | "shape" | "effects" | "label" | "tooltip" | "line" | "arrows";
+
+/** The sections of each target, in the order a style editor draws them. */
+const SECTION_ORDER: Readonly<Record<"node" | "edge", readonly ChannelSection[]>> = {
+    node: ["fill", "size", "shape", "effects", "label", "tooltip"],
+    edge: ["line", "arrows", "label"],
+};
+
+/** A channel as the table declares it: everything but its place in the order, which is worked out. */
+type DeclaredChannel = Omit<ChannelDescriptor, "order">;
 
 /**
  * Why an outline is a colour and nothing else, written once and read in two places.
@@ -468,17 +495,18 @@ type ArrowEndChannel<End extends "Head" | "Tail"> =
  * @param end - Which end of the edge.
  * @returns The end's channels: type, size, colour, opacity, caption and caption style.
  */
-function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEndChannel<End>, ChannelDescriptor> {
+function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEndChannel<End>, DeclaredChannel> {
     const id = (suffix: string): { channel: Channel; target: "edge" } => ({
         channel: `edge.arrow${end}${suffix}` as Channel,
         target: "edge",
     });
-    const rows: ChannelDescriptor[] = [
+    const rows: DeclaredChannel[] = [
         {
             ...id(""),
             plainName: `Arrow ${end}`,
             shortName: end,
             group: "arrows",
+            section: "arrows",
             ...(end === "Tail" ? { default: "none" } : {}),
             accepts: "enum",
             values: ARROW_VALUES,
@@ -490,6 +518,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end} Size`,
             shortName: `${end} size`,
             group: "arrows",
+            section: "arrows",
             default: 1,
             accepts: "number",
             min: 0,
@@ -501,6 +530,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end} Colour`,
             shortName: `${end} color`,
             group: "arrows",
+            section: "arrows",
             default: EDGE_LINE_DEFAULT_COLOR,
             accepts: "color",
             stylePath: `arrow${end}.color`,
@@ -511,6 +541,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end} Opacity`,
             shortName: `${end} opacity`,
             group: "arrows",
+            section: "arrows",
             default: 1,
             accepts: "number",
             min: 0,
@@ -523,6 +554,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end} Caption`,
             shortName: `${end} caption`,
             group: "arrows",
+            section: "arrows",
             accepts: "text",
             stylePath: `arrow${end}.text.text`,
             renderable: true,
@@ -533,6 +565,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end} Caption Style`,
             shortName: `${end} caption style`,
             group: "arrows",
+            section: "arrows",
             accepts: "labelStyle",
             stylePath: `arrow${end}.text`,
             renderable: true,
@@ -540,7 +573,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
         },
     ];
 
-    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, DeclaredChannel>;
 }
 
 /**
@@ -549,13 +582,14 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
  * The table is keyed by channel, so a channel added to the union without an entry here is a
  * compile error rather than a channel nothing knows how to paint.
  */
-const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
+const DECLARED: Readonly<Record<Channel, DeclaredChannel>> = {
     "node.color": {
         channel: "node.color",
         target: "node",
         plainName: "Node Colour",
         shortName: "Color",
         group: "color",
+        section: "fill",
         accepts: "color",
         stylePath: "texture.color",
         renderable: true,
@@ -566,6 +600,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Size",
         shortName: "Size",
         group: "shape",
+        section: "size",
         accepts: "number",
         min: 0,
         stylePath: "shape.size",
@@ -577,6 +612,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Shape",
         shortName: "Type",
         group: "shape",
+        section: "shape",
         accepts: "enum",
         values: NODE_SHAPE_VALUES,
         stylePath: "shape.type",
@@ -588,6 +624,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Label",
         shortName: "Label",
         group: "text",
+        section: "label",
         accepts: "text",
         stylePath: "label.text",
         renderable: true,
@@ -598,6 +635,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Label Style",
         shortName: "Label style",
         group: "text",
+        section: "label",
         accepts: "labelStyle",
         stylePath: "label",
         renderable: true,
@@ -608,6 +646,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Tooltip",
         shortName: "Tooltip",
         group: "text",
+        section: "tooltip",
         accepts: "text",
         stylePath: "tooltip.text",
         renderable: true,
@@ -619,6 +658,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Tooltip Style",
         shortName: "Tooltip style",
         group: "text",
+        section: "tooltip",
         accepts: "labelStyle",
         stylePath: "tooltip",
         renderable: true,
@@ -630,6 +670,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Opacity",
         shortName: "Opacity",
         group: "color",
+        section: "fill",
         default: 1,
         accepts: "number",
         min: 0,
@@ -643,6 +684,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Outline",
         shortName: "Outline",
         group: "effects",
+        section: "effects",
         accepts: "color",
         stylePath: "effect.outline.color",
         renderable: true,
@@ -654,6 +696,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow",
         shortName: "Glow",
         group: "effects",
+        section: "effects",
         accepts: "color",
         stylePath: "effect.glow.color",
         renderable: true,
@@ -664,6 +707,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow Strength",
         shortName: "Glow strength",
         group: "effects",
+        section: "effects",
         accepts: "number",
         min: 0,
         stylePath: "effect.glow.strength",
@@ -675,6 +719,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Wireframe",
         shortName: "Wireframe",
         group: "effects",
+        section: "effects",
         default: false,
         accepts: "boolean",
         stylePath: "effect.wireframe",
@@ -686,6 +731,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Flat Shading",
         shortName: "Flat shaded",
         group: "effects",
+        section: "effects",
         default: false,
         accepts: "boolean",
         stylePath: "effect.flatShaded",
@@ -697,6 +743,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Marker",
         shortName: "Marker",
         group: "effects",
+        section: "effects",
         unsupportedReason: "The element draws no marker yet",
         accepts: "nothing",
         stylePath: "texture.icon",
@@ -711,6 +758,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Colour",
         shortName: "Color",
         group: "line",
+        section: "line",
         accepts: "color",
         stylePath: "line.color",
         renderable: true,
@@ -721,6 +769,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Width",
         shortName: "Width",
         group: "line",
+        section: "line",
         accepts: "number",
         min: 0,
         stylePath: "line.width",
@@ -732,6 +781,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Opacity",
         shortName: "Opacity",
         group: "line",
+        section: "line",
         default: 1,
         accepts: "number",
         min: 0,
@@ -745,6 +795,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Line Pattern",
         shortName: "Line",
         group: "line",
+        section: "line",
         accepts: "enum",
         values: EDGE_LINE_VALUES,
         stylePath: "line.type",
@@ -756,6 +807,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Pattern Count",
         shortName: "Pattern count",
         group: "line",
+        section: "line",
         accepts: "number",
         min: 2,
         stylePath: "line.patternCount",
@@ -772,6 +824,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Curve",
         shortName: "Curved",
         group: "line",
+        section: "line",
         default: false,
         accepts: "boolean",
         stylePath: "line.bezier",
@@ -788,6 +841,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Animation Speed",
         shortName: "Animation",
         group: "line",
+        section: "line",
         accepts: "number",
         min: 0,
         stylePath: "line.animationSpeed",
@@ -800,6 +854,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Label",
         shortName: "Label",
         group: "text",
+        section: "label",
         accepts: "text",
         stylePath: "label.text",
         renderable: true,
@@ -810,6 +865,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Label Style",
         shortName: "Label style",
         group: "text",
+        section: "label",
         accepts: "labelStyle",
         stylePath: "label",
         renderable: true,
@@ -846,7 +902,7 @@ export function atStylePath(style: unknown, path: string): unknown {
  * @param descriptor - The declared descriptor.
  * @returns The default, or undefined when the default style says nothing for this channel.
  */
-function shippedDefault(descriptor: ChannelDescriptor): string | number | boolean | undefined {
+function shippedDefault(descriptor: DeclaredChannel): string | number | boolean | undefined {
     if (!descriptor.renderable) {
         return undefined;
     }
@@ -861,6 +917,15 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 }
 
 /**
+ * Where a channel's section comes among its target's sections.
+ * @param descriptor - The declared channel.
+ * @returns The section's index in {@link SECTION_ORDER}.
+ */
+function sectionRank(descriptor: DeclaredChannel): number {
+    return SECTION_ORDER[descriptor.target].indexOf(descriptor.section);
+}
+
+/**
  * Every channel, with what the element actually does with it and what a style editor needs to
  * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
  *
@@ -869,8 +934,16 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = Object.fromEntries(
     Object.values(DECLARED).map((descriptor): [Channel, ChannelDescriptor] => {
         const value = shippedDefault(descriptor) ?? descriptor.default;
+        // Section by section, and within a section in table order: the sort is stable.
+        const order = Object.values(DECLARED)
+            .filter((other) => other.target === descriptor.target)
+            .sort((a, b) => sectionRank(a) - sectionRank(b))
+            .indexOf(descriptor);
 
-        return [descriptor.channel, value === undefined ? descriptor : { ...descriptor, default: value }];
+        return [
+            descriptor.channel,
+            value === undefined ? { ...descriptor, order } : { ...descriptor, default: value, order },
+        ];
     }),
 ) as Record<Channel, ChannelDescriptor>;
 
@@ -908,8 +981,11 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  * The channels that paint one kind of element, which is what a channel picker offers once the
  * layer has said whether it paints nodes or edges.
  * @param target - Nodes or edges.
- * @returns Every channel for that target, in table order.
+ * @returns Every channel for that target, in the order a style editor draws them: section by
+ * section, as {@link ChannelDescriptor.order} numbers them.
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
-    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
+    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel])
+        .filter((descriptor) => descriptor.target === target)
+        .sort((a, b) => a.order - b.order);
 }

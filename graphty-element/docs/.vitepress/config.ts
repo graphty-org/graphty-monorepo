@@ -71,6 +71,7 @@ export default defineConfig({
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Data Sources", link: "/guide/data-sources" },
+                        { text: "Previewing a Load", link: "/guide/load-preview" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },
                         { text: "Undo & History", link: "/guide/undo" },

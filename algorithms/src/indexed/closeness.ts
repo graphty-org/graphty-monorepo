@@ -1,5 +1,6 @@
 import type { GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { resolveSources, type ScoresResult } from "./betweenness.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -272,7 +273,10 @@ export function nodeClosenessCentrality(
     options: Omit<ClosenessOptions, "sources" | "k"> = {},
 ): number {
     if (!Number.isInteger(node) || node < 0 || node >= s.nodeCount) {
-        throw new RangeError(`nodeClosenessCentrality: node must be an index in [0, ${s.nodeCount}), got ${node}`);
+        throw withCode(
+            new RangeError(`nodeClosenessCentrality: node must be an index in [0, ${s.nodeCount}), got ${node}`),
+            "E_BAD_NODE",
+        );
     }
     const search = searcher(s.nodeCount, adjacency(s, options, false), options.cutoff ?? Infinity);
     return exactScore(search, options, s.nodeCount, node);

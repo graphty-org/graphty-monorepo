@@ -46,6 +46,11 @@ function functionBodies(dump: string, name: string): string[] {
 describe("dense-row loops (G-ENV ENV-F8)", () => {
     it("carry no tint_loop_idx guard in the SPIR-V Dawn generates", (t) => {
         requireGpu(t);
+        if (process.platform !== "linux") {
+            // Dawn dumps SPIR-V only on its Vulkan backend, which Node reaches on Linux alone (Metal on macOS, D3D12
+            // on Windows dump MSL / HLSL, where the guard is spelled differently and the T4 regression never was)
+            t.skip(`Dawn's ${process.platform} backend dumps no SPIR-V`);
+        }
         if (!existsSync(resolve("dist/node.js"))) {
             if (underCi) {
                 throw new Error("dist/node.js is missing: build the package before the node project");
@@ -57,9 +62,17 @@ describe("dense-row loops (G-ENV ENV-F8)", () => {
         const dump = proc.stdout;
         const guarded = dump.includes("tint_loop_idx");
         console.warn(`[dense-loop-guard] this runtime ${guarded ? "guards" : "does not guard"} loops`);
+        // what the dump held, for a failure: the entry point and the row_ functions of each module, in order
+        const census = dump
+            .split("Dumped SPIRV disassembly")
+            .slice(1)
+            .map((m) =>
+                [...m.matchAll(/OpEntryPoint GLCompute %(\w+)|OpName %\S+ "(row_\w+)"/g)].map((x) => x[1] ?? x[2]),
+            );
+        const seen = `${census.length} SPIR-V modules, ${dump.length} bytes: ${census.map((m) => m.join("+")).join(", ")}; stderr: ${proc.stderr.slice(0, 500)}`;
         for (const name of ["row_sum_dense", "row_fold_dense", "row_force_dense"]) {
             const bodies = functionBodies(dump, name);
-            expect(bodies.length, `${name} found in the dump`).toBeGreaterThan(0);
+            expect(bodies.length, `${name} found in the dump (${seen})`).toBeGreaterThan(0);
             for (const body of bodies) {
                 expect(body.includes("tint_loop_idx"), `${name} is guarded`).toBe(false);
             }

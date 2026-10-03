@@ -389,14 +389,17 @@ One message is one undoable step. A command you register with
 
 `ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It
 restores itself after a reload: a new manager finds the keys an earlier page saved and turns
-remembering back on, so the host only enables, disables and sets keys.
+remembering back on, so the host only enables, disables and sets keys. Storage is encrypted with
+the browser's Web Crypto API, which is asynchronous: await `ready()` before reading restored
+keys, and await `enablePersistence()` before reading keys it loads.
 
 ```typescript
 import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
-const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+const keys = new ApiKeyManager();
+await keys.ready(); // keys saved by an earlier page are back
 
-keys.enablePersistence(); // save keys in localStorage, encrypted, from now on
+await keys.enablePersistence({ encryptionKey: passphrase }); // save keys from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -405,13 +408,28 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 ```
 
-With no argument, `enablePersistence()` encrypts with a built-in key: the keys are not stored
-in plain text, but anyone who can run script on the page can read them. Pass
-`{ encryptionKey }` (at least 10 characters) to use the reader's own password instead. The
-manager remembers that password in `sessionStorage`, so a reload in the same tab restores the
-keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })` again
-to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
+::: warning Without a passphrase, saved keys are only obscured
+With no argument, `enablePersistence()` uses a key built into graphty-element. That key is public
+in the package's source, so keys saved this way are obscured, not encrypted: anyone with access to
+the page (any script running on it) or to the browser profile can read them. They are only kept
+out of plain text.
+:::
+
+For real protection, pass `{ encryptionKey }`: a passphrase of at least 10 characters that you
+take from the user, for example from a field in your settings UI. Do not hard-code it in your
+page, which would make it as public as the built-in key. The manager derives an AES-GCM key from
+the passphrase with PBKDF2 (SHA-256, 600,000 iterations, a random salt) and encrypts every save
+with a fresh random IV, so you write no crypto code. A wrong passphrase reads nothing and leaves
+the stored keys untouched.
+
+The manager remembers the passphrase in `sessionStorage`, so a reload in the same tab restores
+the keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })`
+again to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
 (default `localStorage` and `"@graphty-ai-keys"`).
+
+Keys saved by graphty-element 3.x and earlier use a format Web Crypto cannot read. They are left
+in storage untouched and treated as no stored keys, so the reader enters them once more; the
+first save replaces them.
 
 ### Voice Input
 

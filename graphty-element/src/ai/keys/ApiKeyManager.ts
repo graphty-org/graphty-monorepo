@@ -1,10 +1,8 @@
 /**
  * API Key Manager Module - Session and persistent storage for API keys.
- * Uses encrypt-storage for AES encryption of persisted keys.
+ * Persisted keys are encrypted with the browser's Web Crypto API (AES-GCM, PBKDF2).
  * @module ai/keys/ApiKeyManager
  */
-
-import { EncryptStorage } from "encrypt-storage";
 
 import type { ProviderType } from "../providers";
 
@@ -15,10 +13,16 @@ type StorageType = "localStorage" | "sessionStorage";
  */
 export interface PersistenceConfig {
     /**
-     * Encryption key used to encrypt stored API keys (minimum 10 characters).
-     * Default: a built-in key, which keeps keys out of plain text at rest but does not protect them
-     * from anyone who can run script on the page. A custom key is remembered in `sessionStorage`
-     * for the rest of the tab's life, so persistence survives a reload and ends when the tab closes.
+     * A passphrase the user supplies (minimum 10 characters). The stored keys are encrypted with
+     * AES-GCM under a key derived from it with PBKDF2, so a host that passes the user's own
+     * passphrase gets real encryption without writing any crypto code. It is remembered in
+     * `sessionStorage` for the rest of the tab's life, so persistence survives a reload and ends
+     * when the tab closes.
+     *
+     * Default: a built-in key. KEYS SAVED WITHOUT A USER-SUPPLIED PASSPHRASE ARE ONLY OBSCURED, NOT
+     * ENCRYPTED: the built-in key is public in this package's source, so any script on the page,
+     * or anyone with access to the browser profile, can read them. They are just not stored as
+     * plain text.
      */
     encryptionKey?: string;
     /** Storage type (default: the constructor's, which defaults to "localStorage") */
@@ -46,54 +50,93 @@ const DEFAULT_STORAGE_PREFIX = "@graphty-ai-keys";
  */
 const DEFAULT_ENCRYPTION_KEY = "graphty-default-key";
 
-/** Minimum encryption key length required by encrypt-storage */
+/** Minimum encryption key length */
 const MIN_ENCRYPTION_KEY_LENGTH = 10;
 
-/** Item names inside the encrypted store */
+/** Item names inside the store */
 const KEYS_ITEM = "keys";
-const DEFAULT_PROVIDER_ITEM = "default-provider";
+/** Written only by versions before 4.0 (encrypt-storage); removed when the store is next saved */
+const LEGACY_DEFAULT_PROVIDER_ITEM = "default-provider";
+
+/** Marks a stored value written by this scheme: `gk1:` + base64(salt | iv | AES-GCM ciphertext) */
+const FORMAT_TAG = "gk1:";
+const SALT_BYTES = 16;
+const IV_BYTES = 12;
+const PBKDF2_ITERATIONS = 600_000;
+
+/** What a store holds once decrypted */
+interface StoredKeys {
+    keys: Record<string, string>;
+    defaultProvider: ProviderType | null;
+}
+
+/** An AES key derived from a passphrase and the salt it was derived with */
+interface DerivedKey {
+    passphrase: string;
+    salt: Uint8Array<ArrayBuffer>;
+    key: CryptoKey;
+}
 
 /**
  * Manages API keys for LLM providers.
  * Supports both session-only and persistent encrypted storage.
- * Uses encrypt-storage package for AES encryption when persistence is enabled.
+ *
+ * Reads and writes to storage are asynchronous (Web Crypto is). Keys in memory change at once;
+ * the encrypted copy follows. `ready()` resolves when every storage operation started so far has
+ * finished -- the restore on construction, `enablePersistence`'s load, and every save.
  *
  * Persistence restores itself: a manager constructed after a reload finds the keys an earlier
  * page persisted (with the built-in key, or with a custom key from the same tab) and turns
- * persistence back on. A host calls `enablePersistence()`, `disablePersistence()` and `setKey()`
- * and nothing else.
+ * persistence back on once `ready()` resolves. A host calls `enablePersistence()`,
+ * `disablePersistence()` and `setKey()` and nothing else.
+ *
+ * Keys saved by graphty-element before 4.0 (encrypt-storage's format) cannot be read with Web
+ * Crypto. They are left untouched and treated as no stored keys, so the reader enters them once
+ * more; the first save replaces them.
  */
 export class ApiKeyManager {
     private keys = new Map<ProviderType, string>();
     private defaultProvider: ProviderType | null = null;
     private persistenceConfig: Required<PersistenceConfig> | null = null;
-    private encryptStorage: EncryptStorage | null = null;
     private readonly storage: StorageType;
     private readonly prefix: string;
+    /** Every storage operation runs after the one before it */
+    private pending: Promise<void> = Promise.resolve();
+    /** Set once the host enables or disables persistence; the restore then stands aside */
+    private hostChosePersistence = false;
+    private derived: DerivedKey | null = null;
 
     /**
-     * Create a key manager and restore any keys a previous page persisted.
+     * Create a key manager and start restoring any keys a previous page persisted. Await
+     * `ready()` to see them.
      * @param options - Where persisted keys live
      */
     constructor(options: ApiKeyManagerOptions = {}) {
         this.storage = options.storage ?? "localStorage";
         this.prefix = options.prefix ?? DEFAULT_STORAGE_PREFIX;
-        try {
-            this.restorePersistence();
-        } catch {
-            // Storage blocked (a sandboxed frame, privacy mode): start session-only
-            this.persistenceConfig = null;
-            this.encryptStorage = null;
-        }
+        void this.enqueue(() => this.restorePersistence());
     }
 
     /**
-     * Enable persistent storage for API keys with AES encryption. Keys already in memory are
+     * Resolve when every storage operation started so far has finished.
+     * @returns A promise that resolves (never rejects) once storage has caught up
+     */
+    ready(): Promise<void> {
+        return this.pending;
+    }
+
+    /**
+     * Enable persistent storage for API keys with AES-GCM encryption. Keys already in memory are
      * saved, and keys already in storage under the same encryption key are loaded.
+     *
+     * Without `encryptionKey`, the keys are only obscured, not encrypted: anyone with access to
+     * the page or the browser profile can read them. Pass a passphrase the user supplies for real
+     * protection.
      * @param config - Persistence configuration (default: built-in encryption key)
+     * @returns A promise that resolves when stored keys are loaded and the store is saved
      * @throws Error if encryption key is empty or too short (minimum 10 characters)
      */
-    enablePersistence(config: PersistenceConfig = {}): void {
+    enablePersistence(config: PersistenceConfig = {}): Promise<void> {
         const encryptionKey = config.encryptionKey ?? DEFAULT_ENCRYPTION_KEY;
         if (encryptionKey.trim().length === 0) {
             throw new Error("Encryption key cannot be empty");
@@ -103,23 +146,20 @@ export class ApiKeyManager {
             throw new Error(`Encryption key must be at least ${MIN_ENCRYPTION_KEY_LENGTH} characters`);
         }
 
-        this.persistenceConfig = {
+        this.hostChosePersistence = true;
+        const persistenceConfig = {
             encryptionKey,
             storage: config.storage ?? this.storage,
             prefix: config.prefix ?? this.prefix,
         };
+        this.persistenceConfig = persistenceConfig;
 
         if (typeof window === "undefined") {
-            return;
-        }
-
-        this.encryptStorage = this.openStorage(this.persistenceConfig);
-        // A store this key cannot read is left alone rather than overwritten with nothing
-        if (this.loadPersistedKeys() !== "unreadable") {
-            this.persistKeys();
+            return this.pending;
         }
 
         this.rememberSessionKey(encryptionKey === DEFAULT_ENCRYPTION_KEY ? null : encryptionKey);
+        return this.enqueue(() => this.open(persistenceConfig));
     }
 
     /**
@@ -129,14 +169,20 @@ export class ApiKeyManager {
      * @param clearStorage - Whether to clear stored keys from storage (default: true)
      */
     disablePersistence(clearStorage = true): void {
-        if (clearStorage && this.encryptStorage) {
-            this.encryptStorage.removeItem(KEYS_ITEM);
-            this.encryptStorage.removeItem(DEFAULT_PROVIDER_ITEM);
+        const config = this.persistenceConfig;
+        if (clearStorage && config && typeof window !== "undefined") {
+            try {
+                const area = storageArea(config.storage);
+                area.removeItem(itemName(config, KEYS_ITEM));
+                area.removeItem(itemName(config, LEGACY_DEFAULT_PROVIDER_ITEM));
+            } catch {
+                // Storage blocked: there is nothing stored to clear
+            }
         }
 
+        this.hostChosePersistence = true;
         this.rememberSessionKey(null);
         this.persistenceConfig = null;
-        this.encryptStorage = null;
     }
 
     /**
@@ -160,11 +206,7 @@ export class ApiKeyManager {
         }
 
         this.keys.set(provider, trimmedKey);
-
-        // Persist if enabled
-        if (this.encryptStorage) {
-            this.persistKeys();
-        }
+        this.persistKeys();
     }
 
     /**
@@ -191,11 +233,7 @@ export class ApiKeyManager {
      */
     removeKey(provider: ProviderType): void {
         this.keys.delete(provider);
-
-        // Update persisted storage
-        if (this.encryptStorage) {
-            this.persistKeys();
-        }
+        this.persistKeys();
     }
 
     /**
@@ -212,10 +250,7 @@ export class ApiKeyManager {
      */
     setDefaultProvider(provider: ProviderType | null): void {
         this.defaultProvider = provider;
-
-        if (this.encryptStorage) {
-            this.persistKeys();
-        }
+        this.persistKeys();
     }
 
     /**
@@ -245,11 +280,22 @@ export class ApiKeyManager {
     }
 
     /**
+     * Run a storage operation after every earlier one. A failure (storage blocked) leaves the
+     * manager session-only for that operation and never breaks the chain.
+     * @param job - The operation
+     * @returns A promise for this operation, which never rejects
+     */
+    private enqueue(job: () => Promise<void>): Promise<void> {
+        this.pending = this.pending.then(job).catch(() => undefined);
+        return this.pending;
+    }
+
+    /**
      * Turn persistence back on if an earlier page left keys this manager can read: first with the
      * custom key remembered for this tab, then with the built-in key.
      */
-    private restorePersistence(): void {
-        if (typeof window === "undefined") {
+    private async restorePersistence(): Promise<void> {
+        if (typeof window === "undefined" || this.hostChosePersistence) {
             return;
         }
 
@@ -259,29 +305,118 @@ export class ApiKeyManager {
                 continue;
             }
 
-            const store = this.openStorage({ encryptionKey, storage: this.storage, prefix: this.prefix });
-            if (readKeys(store) !== null) {
-                this.enablePersistence({ encryptionKey });
+            const config = { encryptionKey, storage: this.storage, prefix: this.prefix };
+            if ((await this.read(config)) !== null && !this.hostChosePersistence) {
+                this.persistenceConfig = config;
+                await this.open(config);
                 return;
             }
         }
 
         // A remembered key that opens nothing is stale
-        if (sessionKey !== null) {
+        if (sessionKey !== null && !this.hostChosePersistence) {
             this.rememberSessionKey(null);
         }
     }
 
     /**
-     * Open the encrypted store for a configuration.
-     * @param config - The persistence configuration
-     * @returns The encrypted store
+     * Load the stored keys under a configuration into memory, then save the merged set -- unless
+     * the store cannot be read with this key, in which case it is left alone.
+     * @param config - The persistence configuration that was just turned on
      */
-    private openStorage(config: Required<PersistenceConfig>): EncryptStorage {
-        return new EncryptStorage(config.encryptionKey, {
-            prefix: config.prefix,
-            storageType: config.storage,
-        });
+    private async open(config: Required<PersistenceConfig>): Promise<void> {
+        const raw = storageArea(config.storage).getItem(itemName(config, KEYS_ITEM));
+        if (raw !== null) {
+            const stored = await this.read(config);
+            if (this.persistenceConfig !== config) {
+                return;
+            }
+
+            // A store this key cannot read (another passphrase, a pre-4.0 store) is left alone
+            if (stored === null) {
+                return;
+            }
+
+            // Keys in memory win over stored ones
+            for (const [provider, key] of Object.entries(stored.keys)) {
+                if (!this.keys.has(provider as ProviderType)) {
+                    this.keys.set(provider as ProviderType, key);
+                }
+            }
+
+            this.defaultProvider ??= stored.defaultProvider;
+        }
+
+        await this.save(config);
+    }
+
+    /** Queue a save of the keys and default provider when persistence is on. */
+    private persistKeys(): void {
+        const config = this.persistenceConfig;
+        if (config && typeof window !== "undefined") {
+            void this.enqueue(() => this.save(config));
+        }
+    }
+
+    /**
+     * Encrypt the keys and default provider as they are now and write them.
+     * @param config - The configuration the save was queued for; skipped if it is no longer current
+     */
+    private async save(config: Required<PersistenceConfig>): Promise<void> {
+        if (this.persistenceConfig !== config) {
+            return;
+        }
+
+        const plain: StoredKeys = { keys: Object.fromEntries(this.keys), defaultProvider: this.defaultProvider };
+        const derived =
+            this.derived?.passphrase === config.encryptionKey
+                ? this.derived
+                : await deriveKey(config.encryptionKey, crypto.getRandomValues(new Uint8Array(SALT_BYTES)));
+        this.derived = derived;
+        const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+        const cipher = await crypto.subtle.encrypt(
+            { name: "AES-GCM", iv },
+            derived.key,
+            new TextEncoder().encode(JSON.stringify(plain)),
+        );
+
+        // Persistence was turned off, or moved to another key, while this was encrypting
+        if (this.persistenceConfig !== config) {
+            return;
+        }
+
+        const area = storageArea(config.storage);
+        area.setItem(itemName(config, KEYS_ITEM), FORMAT_TAG + toBase64(derived.salt, iv, new Uint8Array(cipher)));
+        area.removeItem(itemName(config, LEGACY_DEFAULT_PROVIDER_ITEM));
+    }
+
+    /**
+     * Read and decrypt the store under a configuration.
+     * @param config - The persistence configuration
+     * @returns The stored keys, or null when absent, in another format, or not decryptable with
+     * this key
+     */
+    private async read(config: Required<PersistenceConfig>): Promise<StoredKeys | null> {
+        try {
+            const raw = storageArea(config.storage).getItem(itemName(config, KEYS_ITEM));
+            if (!raw?.startsWith(FORMAT_TAG)) {
+                return null;
+            }
+
+            const bytes = fromBase64(raw.slice(FORMAT_TAG.length));
+            const salt = bytes.slice(0, SALT_BYTES);
+            const iv = bytes.slice(SALT_BYTES, SALT_BYTES + IV_BYTES);
+            const derived = await deriveKey(config.encryptionKey, salt, this.derived);
+            const plain = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv },
+                derived.key,
+                bytes.slice(SALT_BYTES + IV_BYTES),
+            );
+            this.derived = derived;
+            return parseStored(JSON.parse(new TextDecoder().decode(plain)));
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -319,87 +454,111 @@ export class ApiKeyManager {
             // Storage blocked: persistence still works for this page, it just will not restore
         }
     }
-
-    /**
-     * Persist keys and the default provider to storage with AES encryption via encrypt-storage.
-     */
-    private persistKeys(): void {
-        if (!this.encryptStorage) {
-            return;
-        }
-
-        this.encryptStorage.setItem(KEYS_ITEM, Object.fromEntries(this.keys));
-        if (this.defaultProvider === null) {
-            this.encryptStorage.removeItem(DEFAULT_PROVIDER_ITEM);
-        } else {
-            this.encryptStorage.setItem(DEFAULT_PROVIDER_ITEM, this.defaultProvider);
-        }
-    }
-
-    /**
-     * Load persisted keys and the default provider into memory. Keys in memory win over stored ones.
-     * @returns "absent" when nothing is stored, "unreadable" when the stored keys cannot be
-     * decrypted with this encryption key, "loaded" otherwise
-     */
-    private loadPersistedKeys(): "absent" | "unreadable" | "loaded" {
-        const config = this.persistenceConfig;
-        if (!this.encryptStorage || !config) {
-            return "absent";
-        }
-
-        const storageArea = config.storage === "sessionStorage" ? sessionStorage : localStorage;
-        if (storageArea.getItem(`${config.prefix}:${KEYS_ITEM}`) === null) {
-            return "absent";
-        }
-
-        const keysObject = readKeys(this.encryptStorage);
-        if (keysObject === null) {
-            return "unreadable";
-        }
-
-        for (const [provider, key] of Object.entries(keysObject)) {
-            if (!this.keys.has(provider as ProviderType)) {
-                this.keys.set(provider as ProviderType, key);
-            }
-        }
-
-        this.defaultProvider ??= readDefaultProvider(this.encryptStorage);
-        return "loaded";
-    }
 }
 
 /**
- * Read and decrypt the stored keys.
- * @param store - The encrypted store
- * @returns The keys by provider, or null when absent or not decryptable with this store's key
+ * The browser storage area for a storage type.
+ * @param type - The storage type
+ * @returns The storage area
  */
-function readKeys(store: EncryptStorage): Record<string, string> | null {
-    try {
-        const value: unknown = store.getItem(KEYS_ITEM);
-        if (typeof value !== "object" || value === null) {
-            return null;
-        }
+function storageArea(type: StorageType): Storage {
+    return type === "sessionStorage" ? sessionStorage : localStorage;
+}
 
-        // A non-string entry (corrupt or tampered data) is skipped, never handed out as a key
-        return Object.fromEntries(Object.entries(value).filter(([, key]) => typeof key === "string")) as Record<
+/**
+ * The storage item name for an item in a store.
+ * @param config - The persistence configuration
+ * @param item - The item inside the store
+ * @returns The storage item name
+ */
+function itemName(config: Required<PersistenceConfig>, item: string): string {
+    return `${config.prefix}:${item}`;
+}
+
+/**
+ * Derive the AES-GCM key for a passphrase and salt with PBKDF2-SHA-256.
+ * @param passphrase - The passphrase
+ * @param salt - The salt
+ * @param cached - A key already derived, reused when passphrase and salt match
+ * @returns The derived key
+ */
+async function deriveKey(
+    passphrase: string,
+    salt: Uint8Array<ArrayBuffer>,
+    cached: DerivedKey | null = null,
+): Promise<DerivedKey> {
+    if (cached?.passphrase === passphrase && sameBytes(cached.salt, salt)) {
+        return cached;
+    }
+
+    const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(passphrase), "PBKDF2", false, [
+        "deriveKey",
+    ]);
+    const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+        material,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+    );
+    return { passphrase, salt, key };
+}
+
+/**
+ * Check two byte arrays for equality.
+ * @param a - First array
+ * @param b - Second array
+ * @returns True when they hold the same bytes
+ */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+    return a.length === b.length && a.every((byte, i) => byte === b[i]);
+}
+
+/**
+ * Concatenate byte arrays and encode them as base64.
+ * @param parts - The byte arrays
+ * @returns The base64 text
+ */
+function toBase64(...parts: Uint8Array[]): string {
+    let binary = "";
+    for (const part of parts) {
+        for (const byte of part) {
+            binary += String.fromCharCode(byte);
+        }
+    }
+
+    return btoa(binary);
+}
+
+/**
+ * Decode base64 text.
+ * @param text - The base64 text
+ * @returns The bytes
+ */
+function fromBase64(text: string): Uint8Array<ArrayBuffer> {
+    return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+}
+
+/**
+ * Validate decrypted store contents.
+ * @param value - The parsed JSON
+ * @returns The stored keys, with any non-string entry (corrupt or tampered data) skipped
+ */
+function parseStored(value: unknown): StoredKeys | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+
+    const { keys, defaultProvider } = value as { keys?: unknown; defaultProvider?: unknown };
+    if (typeof keys !== "object" || keys === null) {
+        return null;
+    }
+
+    return {
+        keys: Object.fromEntries(Object.entries(keys).filter(([, key]) => typeof key === "string")) as Record<
             string,
             string
-        >;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Read and decrypt the stored default provider.
- * @param store - The encrypted store
- * @returns The provider, or null
- */
-function readDefaultProvider(store: EncryptStorage): ProviderType | null {
-    try {
-        const value: unknown = store.getItem(DEFAULT_PROVIDER_ITEM);
-        return typeof value === "string" ? (value as ProviderType) : null;
-    } catch {
-        return null;
-    }
+        >,
+        defaultProvider: typeof defaultProvider === "string" ? (defaultProvider as ProviderType) : null,
+    };
 }

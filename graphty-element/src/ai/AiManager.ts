@@ -101,8 +101,9 @@ export class AiManager {
         this.disposed = false;
 
         // Configure key persistence if specified (before setting API key)
+        // Stored keys load asynchronously; Graph.enableAiControl awaits the key manager's ready()
         if (config.keyPersistence?.enabled) {
-            this.apiKeyManager.enablePersistence({
+            void this.apiKeyManager.enablePersistence({
                 encryptionKey: config.keyPersistence.encryptionKey,
                 storage: config.keyPersistence.storage ?? "localStorage",
                 prefix: config.keyPersistence.prefix,

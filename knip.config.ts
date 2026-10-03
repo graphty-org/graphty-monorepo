@@ -201,13 +201,12 @@ const config: KnipConfig = {
                 // webgpu-graph-algorithms: each is an OPTIONAL peer and an exact devDependency,
                 // imported from src so the element works without it and lights up with it. knip
                 // 5.77 reports every referenced optional peer, so they are ignored by name --
-                // without this the gate fails on five findings that are the package doing exactly
+                // without this the gate fails on four findings that are the package doing exactly
                 // what an optional peer is for.
                 "@ai-sdk/anthropic",
                 "@ai-sdk/google",
                 "@ai-sdk/openai",
                 "ai",
-                "encrypt-storage",
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.

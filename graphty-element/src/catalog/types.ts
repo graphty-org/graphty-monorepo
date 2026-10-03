@@ -259,7 +259,9 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
- * catalogue, the file format, or the element's inference from the values.
+ * catalogue, the file format, or the element's inference from the values. A data column reports
+ * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
+ * formats that write a column's measurement down.
  *
  * OPEN UNION: values may be added in a minor release.
  */
@@ -535,8 +537,8 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend names the
- *   grey "other: K groups".
+ *   first, and every remaining group is painted one dark grey (#505050). The legend lists the
+ *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an

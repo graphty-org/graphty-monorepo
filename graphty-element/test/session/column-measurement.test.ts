@@ -66,6 +66,12 @@ async function failure(call: () => unknown): Promise<{ code: string; details: Re
 }
 
 describe("what a column measures", () => {
+    it("lists no column before data is loaded", () => {
+        const graph = createGraphSession();
+        assert.deepEqual(graph.data.attributes(), []);
+        graph.dispose();
+    });
+
     it("is inferred from the value type alone", async () => {
         const graph = await session();
 
@@ -194,6 +200,10 @@ describe("encoding a column", () => {
         await graph.data.declare(kind, { measurement: "time" });
         const time = graph.styles.proposeEncoding({ column: kind, channel: "node.color" });
         assert.strictEqual(time.ok ? null : time.refusal.code, "E_UNSUPPORTED");
+
+        // A scale the caller names skips every refusal and is written as asked.
+        const named = graph.styles.proposeEncoding({ column: kind, channel: "node.size", scale: "linear" });
+        assert.deepInclude(named.ok ? named.binding : {}, { by: "data.kind", scale: "linear" });
         graph.dispose();
     });
 

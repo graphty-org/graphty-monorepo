@@ -26,12 +26,12 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 export { suggestStyles } from "./derive";
 export type {
     ColumnEncodingSpec,
+    EncodingOptions,
     EncodingProposal,
     EncodingRefusalCode,
     EncodingRun,
     EncodingSource,
     EncodingSpec,
-    EncodingTaste,
 } from "./EncodingSpec";
 export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
 export type {

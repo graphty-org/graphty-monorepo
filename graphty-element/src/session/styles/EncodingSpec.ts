@@ -95,7 +95,7 @@ export interface EncodingSpec {
      *
      * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colours in palette order,
      *   largest first, and every remaining group is painted one grey (#505050), which the legend
-     *   names "other: K groups".
+     *   lists as its last row, marked `role: "other"`.
      * - `"shape"` -- node encodings only. Colours cycle through the palette and each full cycle
      *   moves to the next node shape: group i is colour i mod 8 and shape floor(i / 8) from
      *   icosphere (the default shape), box, octahedron, cylinder, cone, torus. Groups past 48 fold
@@ -127,8 +127,11 @@ export interface EncodingSpec {
     readonly name?: string;
 }
 
-/** What an encoding says beyond what it reads: the channel and the taste. */
-export type EncodingTaste = Omit<EncodingSpec, "run" | "field">;
+/**
+ * The options every encoding takes whatever it reads: the channel, and the palette, scale,
+ * range, overflow, missing, reverse and name. An {@link EncodingSpec} without its run and field.
+ */
+export type EncodingOptions = Omit<EncodingSpec, "run" | "field">;
 
 /**
  * What `encode()` is asked for when it colors or sizes by a plain data column: an
@@ -138,7 +141,7 @@ export type EncodingTaste = Omit<EncodingSpec, "run" | "field">;
  * the column measures when the layer is created, and written into it. A saved layer therefore
  * always draws what it says, whatever the data or a later declaration does.
  */
-export interface ColumnEncodingSpec extends EncodingTaste {
+export interface ColumnEncodingSpec extends EncodingOptions {
     /** The column; an `AttributeDescriptor` from `session.data.attributes()` can be passed as is. */
     readonly column: ColumnRef;
 }
@@ -147,10 +150,14 @@ export interface ColumnEncodingSpec extends EncodingTaste {
  * Why a column cannot be drawn on a channel by default, as the code of a {@link CodedFact}.
  * Every refusal carries `kind`, `name` and `channel` in its params, and:
  *
- * - `"E_BAD_LAYER"` -- what the column measures says nothing on this channel (groups on a size,
- *   amounts on a shape). Params add `measurement`, null for a column with no values.
- * - `"E_CAP_EXCEEDED"` -- the column has more distinct values than the element counts (`limit`).
+ * - `"E_BAD_LAYER"` -- the layer `encode()` would build is the wrong shape, because what the
+ *   column measures says nothing on this channel (groups on a size, amounts on a shape). Params
+ *   add `measurement`, null for a column with no values.
+ * - `"E_CAP_EXCEEDED"` -- a categorical column has more distinct values than the attribute walk
+ *   counts, so it cannot be colored one value at a time. Params add `limit`, the count (256).
  * - `"E_UNSUPPORTED"` -- the element has no default for a time column yet. Params add `measurement`.
+ *
+ * Params are strings, numbers or null. Naming a `scale` skips every refusal: it is written as asked.
  *
  * OPEN UNION: codes may be added in a minor release.
  */
@@ -384,7 +391,7 @@ function assertFieldFits(field: FieldDescriptor, run: EncodingRun, descriptor: C
  * @param descriptor - The channel.
  * @returns The binding.
  */
-function buildBinding(spec: EncodingTaste, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
+function buildBinding(spec: EncodingOptions, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
     const binding: RuleBinding = { by: path, scale };
 
     // THE PALETTE IS LEFT OFF WHEN THE CALLER NAMED NONE, and that is the point rather than an
@@ -439,7 +446,7 @@ function buildBinding(spec: EncodingTaste, path: string, scale: string, descript
  * @param descriptor - The channel.
  * @returns The policy, or undefined when the binding carries none.
  */
-function overflowOf(spec: EncodingTaste, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
+function overflowOf(spec: EncodingOptions, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
     if (descriptor.accepts !== "color") {
         return undefined;
     }
@@ -461,7 +468,7 @@ function overflowOf(spec: EncodingTaste, scale: string, descriptor: ChannelDescr
  * @returns The extra channel bindings, empty unless the policy is "shape".
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
  */
-function overflowCompanion(spec: EncodingTaste, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
+function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
     if (colour.overflow !== "shape") {
         return {};
     }

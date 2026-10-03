@@ -36,7 +36,10 @@ export type GraphtyErrorCode =
     /**
      * A style layer's shape is wrong: an unknown key, a value of the wrong type, or a nested
      * member where none belongs. `details.path` names the offending path inside the layer, so
-     * an editor can point at it. A wrong shape is never silently accepted.
+     * an editor can point at it. A wrong shape is never silently accepted. Also what
+     * `styles.encode({ column })` and `styles.proposeEncoding` refuse a column with when the layer
+     * they would build cannot draw it on that channel; `details` then carry `kind`, `name`,
+     * `channel` and `measurement` instead of a path.
      */
     | "E_BAD_LAYER"
     /**
@@ -245,7 +248,8 @@ export type GraphtyErrorCode =
      * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
      * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
      * disabled when a categorical encoding has more distinct values than the palette's capacity
-     * and no `other` binding was declared.
+     * and no `other` binding was declared, and the refusal of `styles.encode({ column })` for a
+     * categorical column with more distinct values than the attribute walk counts (`details.limit`).
      *
      * The caller narrows the scope, samples, raises the cap, or accepts the approximation.
      */

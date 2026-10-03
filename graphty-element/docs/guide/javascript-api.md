@@ -477,7 +477,7 @@ session.canUndo; // whether undo() would do anything
 session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
 
 // Several changes as one step, through the tx the callback receives
-await session.transaction("Recolour", async (tx) => {
+await session.transaction("Recolor", async (tx) => {
     await tx.styles.add(spec);
     await tx.layout.set("circular");
 });

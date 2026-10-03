@@ -65,7 +65,7 @@ export interface LegendSwatch {
     readonly color?: string;
     /** The size or width the encoding paints it. */
     readonly size?: number;
-    /** How many elements carry it, when whoever supplied the encoding can say. */
+    /** How many elements carry it, when whoever supplied the encoding can say. Always set on the `"other"` row. */
     readonly count?: number;
     /**
      * What the encoding paints it when that is neither a colour nor a size -- a node shape, a
@@ -146,7 +146,7 @@ export interface LegendBlock {
     readonly swatches: readonly LegendSwatch[];
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
-        /** The number a consumer prints as "and 14 more". */
+        /** How many rows were left out. */
         readonly hidden: number;
     };
     /**

@@ -36,10 +36,7 @@ export type GraphtyErrorCode =
     /**
      * A style layer's shape is wrong: an unknown key, a value of the wrong type, or a nested
      * member where none belongs. `details.path` names the offending path inside the layer, so
-     * an editor can point at it. A wrong shape is never silently accepted. Also what
-     * `styles.encode({ column })` and `styles.proposeEncoding` refuse a column with when the layer
-     * they would build cannot draw it on that channel; `details` then carry `kind`, `name`,
-     * `channel` and `measurement` instead of a path.
+     * an editor can point at it. A wrong shape is never silently accepted.
      */
     | "E_BAD_LAYER"
     /**
@@ -319,7 +316,10 @@ export type GraphtyErrorCode =
      * The operation is well formed but this build or this host cannot perform it: a
      * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
      * an export format the platform has no encoder for. `details.reason` says which. The caller
-     * uses the stated alternative; retrying does not help.
+     * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
+     * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
+     * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
+     * and `measurement`, and naming a `scale` draws it anyway.
      */
     | "E_UNSUPPORTED"
     /**

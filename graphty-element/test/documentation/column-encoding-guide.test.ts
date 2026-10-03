@@ -20,11 +20,11 @@ const BODY = `const department = session.data.attributes().find((a) => a.kind ==
 
 // Department codes 1..14 are groups, not amounts. Numbers are drawn as a ramp unless you say so.
 await session.data.declare(department, { measurement: "categorical" });
-await session.styles.encode({ column: department, channel: "node.color" });
+const layer = await session.styles.encode({ column: department, channel: "node.color" });
 
-for (const block of session.styles.legend()) {
-    for (const swatch of block.swatches) console.log(swatch.value, swatch.color, swatch.role);
-}
+// One legend entry per layer and channel; find this layer's.
+const legend = session.styles.legend().find((entry) => entry.layerId === layer.id);
+for (const swatch of legend?.swatches ?? []) console.log(swatch.value, swatch.color, swatch.role);
 `;
 
 describe("the column encoding guide", () => {
@@ -47,9 +47,13 @@ describe("the column encoding guide", () => {
         }
 
         await session.data.declare(department, { measurement: "categorical" });
-        await session.styles.encode({ column: department, channel: "node.color" });
+        const layer = await session.styles.encode({ column: department, channel: "node.color" });
 
-        const [block] = session.styles.legend();
+        const block = session.styles.legend().find((entry) => entry.layerId === layer.id);
+        assert.isDefined(block);
+        if (block === undefined) {
+            return;
+        }
         assert.strictEqual(block.kind, "categorical");
         // Fourteen departments past an eight-color palette: eight colors, and the rest in "other".
         assert.lengthOf(block.swatches, 9);

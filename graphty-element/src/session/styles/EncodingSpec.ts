@@ -150,18 +150,17 @@ export interface ColumnEncodingSpec extends EncodingOptions {
  * Why a column cannot be drawn on a channel by default, as the code of a {@link CodedFact}.
  * Every refusal carries `kind`, `name` and `channel` in its params, and:
  *
- * - `"E_BAD_LAYER"` -- the layer `encode()` would build is the wrong shape, because what the
- *   column measures says nothing on this channel (groups on a size, amounts on a shape). Params
- *   add `measurement`, null for a column with no values.
+ * - `"E_UNSUPPORTED"` -- the element has no default drawing for what the column measures on this
+ *   channel: groups on a size, amounts on a shape, or a time column on any channel. Params add
+ *   `measurement`, null for a column with no values.
  * - `"E_CAP_EXCEEDED"` -- a categorical column has more distinct values than the attribute walk
  *   counts, so it cannot be colored one value at a time. Params add `limit`, the count (256).
- * - `"E_UNSUPPORTED"` -- the element has no default for a time column yet. Params add `measurement`.
  *
  * Params are strings, numbers or null. Naming a `scale` skips every refusal: it is written as asked.
  *
  * OPEN UNION: codes may be added in a minor release.
  */
-export type EncodingRefusalCode = "E_BAD_LAYER" | "E_CAP_EXCEEDED" | "E_UNSUPPORTED" | (string & {});
+export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {});
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
 export type EncodingProposal =
@@ -615,7 +614,7 @@ export function proposeColumnBinding(
         return bind("linear", range === undefined ? {} : { range: [range[0], range[1]] });
     }
 
-    return refuse("E_BAD_LAYER", { measurement });
+    return refuse("E_UNSUPPORTED", { measurement });
 }
 
 /**
@@ -638,7 +637,7 @@ export function planColumnEncoding(
     const proposal = proposeColumnBinding(spec, column, declaration, scales);
     if (!proposal.ok) {
         throw new GraphtyError({
-            code: proposal.refusal.code as "E_BAD_LAYER",
+            code: proposal.refusal.code as "E_UNSUPPORTED",
             message: `The ${column.kind} column ${JSON.stringify(column.name)} cannot be drawn on ${spec.channel} by default; name a scale to draw it anyway.`,
             source: "style",
             details: proposal.refusal.params,

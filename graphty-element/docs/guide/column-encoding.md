@@ -13,17 +13,21 @@ const department = session.data.attributes().find((a) => a.kind === "node" && a.
 
 // Department codes 1..14 are groups, not amounts. Numbers are drawn as a ramp unless you say so.
 await session.data.declare(department, { measurement: "categorical" });
-await session.styles.encode({ column: department, channel: "node.color" });
+const layer = await session.styles.encode({ column: department, channel: "node.color" });
 
-for (const block of session.styles.legend()) {
-    for (const swatch of block.swatches) console.log(swatch.value, swatch.color, swatch.role);
-}
+// One legend entry per layer and channel; find this layer's.
+const legend = session.styles.legend().find((entry) => entry.layerId === layer.id);
+for (const swatch of legend?.swatches ?? []) console.log(swatch.value, swatch.color, swatch.role);
 ```
 
 A column is named with a [`ColumnRef`](./vocabulary#a-column-of-your-data-columnref),
 `{ kind, name }`. Every entry of `session.data.attributes()` is one, so you can pass it as it is.
 `attributes()` lists the columns of the data loaded now: it is empty before the first load, so
 await the load first. `declare` and `encode` name a column the graph already has.
+
+`encode` returns a run you can await; it resolves to the layer it added, whose `id` names it in
+`styles.get(id)`, `styles.remove(id)` and the legend. `styles.legend()` returns one entry per layer
+and channel, so match yours by `layerId`.
 
 ## What a column measures
 
@@ -111,20 +115,30 @@ A refusal is a [coded fact](./vocabulary): a `code` and its `params`, never a se
 application words it. Params are strings, numbers or null. Every refusal's params carry `kind`,
 `name` and `channel`, and:
 
-| `code`             | Why                                                                                       | Extra params                       |
-| ------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------- |
-| `"E_BAD_LAYER"`    | the layer `encode` would build cannot draw this column on this channel (groups on a size) | `measurement`, null with no values |
-| `"E_CAP_EXCEEDED"` | a categorical column has more distinct values than the element counts, `limit` (256)      | `limit`                            |
-| `"E_UNSUPPORTED"`  | a time column has no default yet                                                          | `measurement`                      |
+| `code`             | Why                                                                                               | Extra params                       |
+| ------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `"E_UNSUPPORTED"`  | there is no default drawing for this column on this channel: groups on a size, or any time column | `measurement`, null with no values |
+| `"E_CAP_EXCEEDED"` | a categorical column has more distinct values than the element counts, `limit` (256)              | `limit`                            |
 
-`encode` rejects with the same code, carrying the params as `error.details`.
+`encode` rejects with a `GraphtyError` carrying the same code, and the params as `error.details`:
+
+```ts
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await session.styles.encode({ column: department, channel: "node.size" });
+} catch (error) {
+    if (isGraphtyError(error) && error.code === "E_UNSUPPORTED") console.log(error.details);
+}
+```
 
 ## The legend's "other" row
 
 When a categorical color has more values than its palette, the smallest groups share one gray.
 The legend lists that bucket as its last row, with `role: "other"`, the values it holds as an
-array in `value` and how many elements carry them in `count`. Word that row yourself from those
-facts rather than printing its `label`. It is kept even when the rows above it are
-capped at twelve; `overflow.hidden` counts only the rows that did not fit. An ordinal column's
+array in `value` (other rows hold a single value) and how many elements carry them in `count`,
+which the "other" row always has. Word that row yourself from those facts rather than printing its
+`label`. It is kept even when the rows above it are capped at twelve; the legend entry's
+`overflow.hidden`, present only when rows were cut, counts the rows that did not fit. An ordinal column's
 rows are listed in its declared order. A legend block's `kind` (`"categorical"`, `"sequential"`,
 ...) names the kind of palette drawn, not what the column measures.

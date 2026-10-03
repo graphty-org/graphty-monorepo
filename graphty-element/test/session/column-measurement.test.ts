@@ -188,13 +188,13 @@ describe("encoding a column", () => {
         assert.deepEqual(proposal, {
             ok: false,
             refusal: {
-                code: "E_BAD_LAYER",
+                code: "E_UNSUPPORTED",
                 params: { kind: "node", name: "kind", channel: "node.size", measurement: "categorical" },
             },
         });
         assert.strictEqual(
             (await failure(() => graph.styles.encode({ column: kind, channel: "node.size" }))).code,
-            "E_BAD_LAYER",
+            "E_UNSUPPORTED",
         );
 
         await graph.data.declare(kind, { measurement: "time" });

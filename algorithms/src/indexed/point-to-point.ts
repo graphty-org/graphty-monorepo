@@ -3,10 +3,13 @@ import {
     type F64,
     type GraphSnapshot,
     INVALID_INDEX,
+    type NodeRef,
     type NumericVector,
+    resolveNode,
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -44,8 +47,8 @@ const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edge
  * the two next keys sum to at least the best path found. That is the point-to-point query legacy
  * `dijkstraPath` answers. The path is recorded as ARCS, so a parallel edge on it is the exact edge.
  * @param s - The snapshot to search
- * @param source - The node index to start from
- * @param target - The node index to reach
+ * @param sourceNode - The node to start from: its index, or `{ id }`
+ * @param targetNode - The node to reach: its index, or `{ id }`
  * @param options - Per-arc weight override
  * @returns The distance, the node path and the logical edges on it
  * @throws Error when any weight is negative
@@ -53,10 +56,12 @@ const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edge
  */
 export function bidirectionalDijkstra(
     s: GraphSnapshot,
-    source: number,
-    target: number,
+    sourceNode: NodeRef,
+    targetNode: NodeRef,
     options: PathOptions = {},
 ): PathResult {
+    const source = resolveNode(s, sourceNode);
+    const target = resolveNode(s, targetNode);
     if (source === target) {
         return { distance: 0, path: Uint32Array.of(source), edges: new Uint32Array(0) };
     }
@@ -65,7 +70,7 @@ export function bidirectionalDijkstra(
     // Checked up front, not per relaxed arc: the search stops early, so a per-arc check would miss
     // a negative edge beyond the meeting point that legacy (which runs both searches out) refuses.
     if (weights?.some((w) => w < 0) === true) {
-        throw new Error("Bidirectional Dijkstra does not support negative edge weights");
+        throw withCode(new Error("Bidirectional Dijkstra does not support negative edge weights"), "E_BAD_WEIGHT");
     }
     const rev = s.reverse();
     const weightOf = (arc: number): number => (weights === null ? 1 : weights[arc]);
@@ -162,8 +167,8 @@ export function bidirectionalDijkstra(
  * the path is shortest when the heuristic is consistent. The predecessor is the relaxing ARC, so a
  * parallel edge on the path is the exact edge.
  * @param g - The adjacency to search
- * @param source - The node index to start from
- * @param target - The node index to reach
+ * @param sourceNode - The node to start from: its index, or `{ id }`
+ * @param targetNode - The node to reach: its index, or `{ id }`
  * @param heuristic - Estimated remaining cost from a node index to the target index
  * @param options - Per-arc weight override
  * @returns The path, plus the per-node scores and the expansion order
@@ -171,14 +176,19 @@ export function bidirectionalDijkstra(
  */
 export function astar(
     g: AdjacencyView,
-    source: number,
-    target: number,
+    sourceNode: NodeRef,
+    targetNode: NodeRef,
     heuristic: (node: number, target: number) => number,
     options: PathOptions = {},
 ): AstarResult {
+    const source = resolveNode(g, sourceNode);
+    const target = resolveNode(g, targetNode);
     const n = g.nodeCount;
     if (!(target >= 0 && target < n)) {
-        throw new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`);
+        throw withCode(
+            new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`),
+            "E_BAD_NODE",
+        );
     }
     const weights: NumericVector | null = options.weights ?? g.weights;
     const gScore = new Float64Array(n).fill(Infinity);

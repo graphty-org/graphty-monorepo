@@ -216,6 +216,12 @@ const CLEAR_DATA = calls([], [CLEAR]);
 /** A small graph document the JSON data source reads, for the load doors. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/**
+ * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
+ * to decode.
+ */
+const TINY_JSON_BYTES = new TextEncoder().encode(TINY_JSON);
+
 /** The same document as a URL. */
 const TINY_JSON_URL = `data:application/json,${encodeURIComponent(TINY_JSON)}`;
 
@@ -228,7 +234,7 @@ const ADD_FROM_SOURCE = calls(
 /** Loading from a URL: the text fetched, and the id path the element reads. */
 const LOAD_FROM_URL = calls(
     [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, nodeIdPath: "id" } })],
+    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
 );
 
 /**
@@ -240,15 +246,20 @@ const LOAD_FROM_URL_ELEMENT = calls(
     [
         imports("merge", {
             type: "json",
-            config: { data: TINY_JSON, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
+            config: { data: TINY_JSON_BYTES, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
         }),
     ],
 );
 
-/** Loading from a file: its text, its name and its size. */
+/** Loading from a file: its bytes, its name and its size. */
 const LOAD_FROM_FILE = calls(
     () => [new File([TINY_JSON], "door.json", { type: "application/json" })],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, filename: "door.json", size: TINY_JSON.length } })],
+    [
+        imports("merge", {
+            type: "json",
+            config: { data: TINY_JSON_BYTES, filename: "door.json", size: TINY_JSON.length },
+        }),
+    ],
 );
 
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
@@ -508,12 +519,12 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. The run id is derived from the result it answers
- * -- the algorithm and its scope -- so it is the same on every such graph.
+ * run's suggested colour, in the call's one step. An unnamed degree run is named after its
+ * algorithm, so the id is "degree" on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
     op: "style.encode",
-    spec: { run: "degree_1yqoid512q50di", field: "value", channel: "node.color" },
+    spec: { run: "degree", field: "value", channel: "node.color" },
 };
 
 /** Every root, and the door of every public member. */

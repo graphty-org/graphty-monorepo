@@ -39,6 +39,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
+    "E_UNKNOWN_ELEMENT",
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSTABLE_RUN_ID",
@@ -102,6 +103,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
+        case "E_UNKNOWN_ELEMENT":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":

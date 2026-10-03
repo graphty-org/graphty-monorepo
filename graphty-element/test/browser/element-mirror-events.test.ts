@@ -104,6 +104,20 @@ describe("the element's own mirrors on the DOM", () => {
         assert.include(phases, "end", "and that it had finished");
     });
 
+    test("graphty-progress-change arrives for a load, ends, and survives a structured clone", async () => {
+        const element = await mountWithGraph();
+        const seen: { task: string; phase: string }[] = [];
+        element.addEventListener("graphty-progress-change", (event) => {
+            seen.push((event as CustomEvent<{ task: string; phase: string }>).detail);
+        });
+
+        await element.session.data.import({ type: "json", config: { data: GRAPH } });
+
+        assert.isTrue(seen.length > 0 && seen.every((change) => change.task === "load"), "the load told the DOM");
+        assert.strictEqual(seen.at(-1)?.phase, "end", "the last event says the load ended");
+        assert.doesNotThrow(() => structuredClone(seen), "the detail carries plain values");
+    });
+
     test("graphty-note-change arrives with plain values and no record", async () => {
         const element = await mountWithGraph();
         const seen: unknown[] = [];

@@ -72,6 +72,38 @@ export class XmlSyntaxError extends Error {
     }
 }
 
+/**
+ * Opt-in repairs of two defects the Cytoscape XGMML writer is known to produce (research note
+ * `research-xgmml.md` 3.8 and 5). Each is off unless its callback is given; GEXF and GraphML never
+ * pass them, so their documents stay strictly well-formed. The callback is told the line of each
+ * repair, so the importer can warn per occurrence.
+ */
+export interface XmlRepairs {
+    /**
+     * Read an `&` that is not followed by a `;` within the next 7 characters as `&amp;` (Cytoscape's
+     * `cytoscape.xgmml.repair.bare.ampersands` lookahead); an `&name;` that does end in time is
+     * still decoded, and still fatal when the entity is unknown. A complete numeric character
+     * reference is decoded whatever its length (`&#128512;`), where Cytoscape's byte lookahead
+     * would turn it into text.
+     */
+    readonly bareAmpersand?: ((line: number) => void) | undefined;
+    /**
+     * Join a high-surrogate character reference immediately followed by a low-surrogate one
+     * (`&#xd83d;&#xde00;`, which XML 1.0 forbids but Cytoscape writes for astral characters) into
+     * the one character they encode; a lone surrogate stays fatal.
+     */
+    readonly surrogatePair?: ((line: number) => void) | undefined;
+}
+
+/** How far Cytoscape's bare-ampersand repair looks for the `;` that ends an entity reference. */
+const BARE_AMPERSAND_LOOKAHEAD = 7;
+
+/** A numeric character reference at the start of a text: `&#123;` or `&#x1F;`. */
+const CHAR_REFERENCE = /^&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));/;
+
+/** A numeric character reference at the end of a text. */
+const TRAILING_CHAR_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));$/;
+
 const NAMED_ENTITIES: Readonly<Record<string, string>> = {
     lt: "<",
     gt: ">",
@@ -280,9 +312,10 @@ function isXmlChar(cp: number): boolean {
  * Decode the predefined entities and character references of a text.
  * @param raw - the text as written
  * @param line - the line, for errors
+ * @param repairs - the opt-in repairs (XGMML only); none by default
  * @returns the decoded text
  */
-export function decodeEntities(raw: string, line: number): string {
+export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs): string {
     let amp = raw.indexOf("&");
     if (amp < 0) {
         return raw;
@@ -292,6 +325,18 @@ export function decodeEntities(raw: string, line: number): string {
     while (amp >= 0) {
         out += raw.slice(start, amp);
         const semi = raw.indexOf(";", amp + 1);
+        if (
+            repairs?.bareAmpersand !== undefined &&
+            (semi < 0 || semi - amp > BARE_AMPERSAND_LOOKAHEAD) &&
+            // a well-formed character reference longer than the lookahead (&#128512;) is not bare
+            !CHAR_REFERENCE.test(raw.slice(amp, amp + 12))
+        ) {
+            repairs.bareAmpersand(lineAt(raw, amp, line));
+            out += "&";
+            start = amp + 1;
+            amp = raw.indexOf("&", start);
+            continue;
+        }
         if (semi < 0) {
             throw new XmlSyntaxError("unterminated entity reference", line);
         }
@@ -301,6 +346,14 @@ export function decodeEntities(raw: string, line: number): string {
             const digits = name.slice(hex ? 2 : 1);
             const ok = hex ? /^[0-9a-fA-F]{1,6}$/.test(digits) : /^[0-9]{1,7}$/.test(digits);
             const cp = ok ? Number.parseInt(digits, hex ? 16 : 10) : -1;
+            const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
+            if (low !== null) {
+                repairs?.surrogatePair?.(lineAt(raw, amp, line));
+                out += String.fromCharCode(cp, low.unit);
+                start = low.end;
+                amp = raw.indexOf("&", start);
+                continue;
+            }
             if (cp < 0 || !isXmlChar(cp)) {
                 throw new XmlSyntaxError(`invalid character reference &${name};`, line);
             }
@@ -316,6 +369,45 @@ export function decodeEntities(raw: string, line: number): string {
         amp = raw.indexOf("&", start);
     }
     return out + raw.slice(start);
+}
+
+/**
+ * The line of a position inside a text that starts on a known line.
+ * @param raw - the text
+ * @param at - the position
+ * @param line - the line the text starts on
+ * @returns the line of the position
+ */
+function lineAt(raw: string, at: number, line: number): number {
+    let n = line;
+    for (let i = raw.indexOf("\n"); i >= 0 && i < at; i = raw.indexOf("\n", i + 1)) {
+        n++;
+    }
+    return n;
+}
+
+/**
+ * The low-surrogate character reference that may follow a high-surrogate one, when the
+ * surrogate-pair repair is on.
+ * @param raw - the text
+ * @param at - where the next reference would start
+ * @param repairs - the repairs in force
+ * @returns the low surrogate code unit and the index after its reference, or null
+ */
+function lowSurrogateAfter(
+    raw: string,
+    at: number,
+    repairs: XmlRepairs | undefined,
+): { readonly unit: number; readonly end: number } | null {
+    if (repairs?.surrogatePair === undefined || raw.charCodeAt(at) !== 38) {
+        return null;
+    }
+    const match = CHAR_REFERENCE.exec(raw.slice(at, at + 12));
+    if (match === null) {
+        return null;
+    }
+    const unit = match[1] === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(match[1], 16);
+    return unit >= 0xdc00 && unit <= 0xdfff ? { unit, end: at + match[0].length } : null;
 }
 
 /**
@@ -347,9 +439,14 @@ export function localName(name: string): string {
  * malformed input; any error the handler throws propagates unchanged.
  * @param chunks - the text (already UTF-8 decoded, BOM removed)
  * @param handler - the event sink
+ * @param repairs - the opt-in repairs (XGMML only); none by default
  */
-export async function tokenizeXml(chunks: AsyncIterable<string>, handler: XmlHandler): Promise<void> {
-    const tokenizer = new XmlTokenizer(handler);
+export async function tokenizeXml(
+    chunks: AsyncIterable<string>,
+    handler: XmlHandler,
+    repairs?: XmlRepairs,
+): Promise<void> {
+    const tokenizer = new XmlTokenizer(handler, repairs);
     for await (const chunk of chunks) {
         tokenizer.push(chunk);
     }
@@ -435,12 +532,16 @@ export class XmlTokenizer {
 
     private rootClosed = false;
 
+    private readonly repairs: XmlRepairs | undefined;
+
     /**
      * Create a tokenizer.
      * @param handler - the event sink
+     * @param repairs - the opt-in repairs (XGMML only); none by default
      */
-    constructor(handler: XmlHandler) {
+    constructor(handler: XmlHandler, repairs?: XmlRepairs) {
         this.handler = handler;
+        this.repairs = repairs;
     }
 
     /**
@@ -676,6 +777,9 @@ export class XmlTokenizer {
                     const amp = buffer.lastIndexOf("&");
                     if (amp >= pos && amp >= length - MAX_ENTITY_LENGTH && buffer.indexOf(";", amp) < 0) {
                         end = amp;
+                    }
+                    if (this.repairs?.surrogatePair !== undefined) {
+                        end = this.holdHighSurrogate(pos, end);
                     }
                 }
                 this.takeText(pos, end);
@@ -928,7 +1032,7 @@ export class XmlTokenizer {
                     this.line,
                 );
             }
-            attrs.set(attrName, decodeEntities(normalizeAttributeValue(raw), this.line));
+            attrs.set(attrName, decodeEntities(normalizeAttributeValue(raw), this.line, this.repairs));
             i = close + 1;
         }
     }
@@ -963,6 +1067,23 @@ export class XmlTokenizer {
     }
 
     /**
+     * Under the surrogate-pair repair, hold back a high-surrogate character reference that ends
+     * the text taken so far, so it is decoded together with the low one the next chunk may start with.
+     * @param pos - the start of the text
+     * @param end - the end of the text that would be taken
+     * @returns the end to take up to
+     */
+    private holdHighSurrogate(pos: number, end: number): number {
+        const tail = this.buffer.slice(Math.max(pos, end - 12), end);
+        const match = TRAILING_CHAR_REFERENCE.exec(tail);
+        if (match === null) {
+            return end;
+        }
+        const unit = match[1] === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(match[1], 16);
+        return unit >= 0xd800 && unit <= 0xdbff ? end - match[0].length : end;
+    }
+
+    /**
      * Move text from the buffer into the current run.
      * @param start - the start index
      * @param end - the end index (exclusive)
@@ -978,7 +1099,7 @@ export class XmlTokenizer {
         if (hasIllegalXmlChar(raw)) {
             throw new XmlSyntaxError("a character XML 1.0 forbids appears in character data", this.line);
         }
-        this.text += decodeEntities(raw, this.line);
+        this.text += decodeEntities(raw, this.line, this.repairs);
         this.advanceLine(start, end);
     }
 

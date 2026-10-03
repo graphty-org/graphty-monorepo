@@ -45,8 +45,10 @@ export function run(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process
             { cwd, env, timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 256 * 1024 * 1024 },
             (err, stdout, stderr) => {
                 const e = /** @type {any} */ (err);
+                let code = 0;
+                if (e) code = typeof e.code === "number" ? e.code : 1;
                 resolve({
-                    code: e ? (typeof e.code === "number" ? e.code : 1) : 0,
+                    code,
                     stdout: String(stdout),
                     stderr: String(stderr) || (e && !stderr ? String(e.message) : ""),
                 });
@@ -73,7 +75,7 @@ export async function git(cwd, args) {
  * @returns {string} for example `pr-704`
  */
 export function slug(target) {
-    return target.replace(/[^A-Za-z0-9._-]+/g, "-");
+    return target.replaceAll(/[^A-Za-z0-9._-]+/g, "-");
 }
 
 /**

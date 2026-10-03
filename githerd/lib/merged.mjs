@@ -88,7 +88,7 @@ export function accumulateMerged(saved, prs) {
  * @param {string} s the text
  * @returns {string} the escaped text
  */
-const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escape = (s) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 /**
  * True when `text` names `word` as a whole path token: not inside a longer name.
@@ -96,7 +96,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * @param {string} word a path, file name or directory
  * @returns {boolean} true when mentioned
  */
-const mentions = (text, word) => new RegExp(`(?<![\\w.-])${escape(word)}(?![\\w-])`).test(text);
+const mentions = (text, word) => new RegExp(String.raw`(?<![\w.-])${escape(word)}(?![\w-])`).test(text);
 
 /**
  * Ranks open issues for refresh. An issue scores the number of changed files it names (by full

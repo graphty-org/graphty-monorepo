@@ -173,7 +173,7 @@ function escalationPages(keys, state) {
         pages.push({
             key: `escalation:${visual
                 .map((esc) => esc.key)
-                .sort()
+                .sort((a, b) => a.localeCompare(b))
                 .join("+")}`,
             status: "waiting",
             message: `${visual.length} PRs await visual review (${targets}): ${visual[0].summary}`,
@@ -206,7 +206,7 @@ function dailyPages(date, state) {
         const ends = fresh
             .map((p) => p.graceUntil)
             .filter(Boolean)
-            .sort();
+            .sort((a, b) => a.localeCompare(b));
         const earliest = ends.length ? `; earliest closes ${ends[0].slice(5, 10)}` : "";
         pages.push({
             key: `proposals:${date}`,

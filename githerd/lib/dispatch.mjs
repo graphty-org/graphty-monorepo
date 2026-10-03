@@ -158,7 +158,7 @@ function sessionOnBranch(state, branch, now, startedAt) {
  */
 function failingJobs(incident) {
     const jobs = Object.values(incident.lanes ?? {}).flatMap((/** @type {any} */ l) => l.failingJobs ?? []);
-    return [...new Set(jobs)].sort();
+    return [...new Set(jobs)].sort((a, b) => a.localeCompare(b));
 }
 
 /**

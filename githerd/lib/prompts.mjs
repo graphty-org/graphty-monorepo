@@ -38,13 +38,11 @@ export function buildPrompt({ root, sha, kind, rulesFile }) {
     if (rulesFile) {
         // A ref such as HEAD or a branch name would let the working tree's history choose the rules.
         if (!/^[0-9a-f]{7,64}$/.test(sha)) throw new Error(`not a commit sha: ${sha}`);
+        /** @type {import("node:child_process").ExecFileSyncOptionsWithStringEncoding} */
+        const opts = { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
         let rules;
         try {
-            rules = execFileSync("git", ["show", `${sha}:${rulesFile}`], {
-                cwd: root,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-            });
+            rules = execFileSync("git", ["show", `${sha}:${rulesFile}`], opts); // NOSONAR(S4036): the owner's git from his PATH, as in tools/
         } catch {
             throw new Error(`cannot read ${rulesFile} at ${sha}: the run does not start without its rules`);
         }

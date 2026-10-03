@@ -222,7 +222,7 @@ export function runSettings({ kind, guard, gpgAgentSocket = null, stateDir = nul
  * @returns {string} the quoted word
  */
 function quote(word) {
-    return /^[\w./=:@-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
+    return /^[\w./=:@-]+$/.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`;
 }
 
 /**
@@ -250,7 +250,7 @@ export function writeRunGitconfig(stateDir, { name, email, signingKey }) {
 export function ownerIdentity(root) {
     const get = (key) => {
         try {
-            return execFileSync("git", ["config", "--get", key], { cwd: root, encoding: "utf8" }).trim() || null;
+            return execFileSync("git", ["config", "--get", key], { cwd: root, encoding: "utf8" }).trim() || null; // NOSONAR(S4036): the owner's git from his PATH, as in tools/
         } catch {
             return null;
         }
@@ -405,7 +405,7 @@ export function recoverRuns(state, { now, bootId = currentBootId(), killGraceMs 
     const out = { lost: [], interrupted: [], killed: [] };
     for (const [id, run] of Object.entries(state.runs ?? {})) {
         if (run.status !== "running") continue;
-        if (!run.process || run.process.bootId !== bootId) {
+        if (run.process?.bootId !== bootId) {
             run.status = "lost";
             out.lost.push(id);
         } else {
@@ -620,7 +620,7 @@ export function createRunner({
             worktree: req.worktree ?? null,
         };
         state.runs[id] = record;
-        void ledger({ kind: "run-start", run: id, runKind: req.kind, event: req.event, target: req.target });
+        ledger({ kind: "run-start", run: id, runKind: req.kind, event: req.event, target: req.target });
 
         /** @type {string | null} */
         let killed = null;
@@ -672,7 +672,7 @@ export function createRunner({
             if (CODE_EDITING.has(req.kind) && !record.sandboxDisabled && String(chunk).includes("Sandbox disabled")) {
                 record.sandboxDisabled = true;
                 log("info", `${id}: Bash runs without the sandbox (bubblewrap or socat missing)`);
-                void ledger({ kind: "event", event: "sandbox-disabled", run: id });
+                ledger({ kind: "event", event: "sandbox-disabled", run: id });
             }
         });
 
@@ -705,7 +705,7 @@ export function createRunner({
             charge(state, req.kind, end.toISOString().slice(0, 10), record.costUsd);
             releaseRun(state, id);
             live.delete(id);
-            void ledger({
+            ledger({
                 kind: "run-end",
                 run: id,
                 outcome: "interrupted",
@@ -787,7 +787,7 @@ export function createRunner({
         }
 
         live.set(id, { kill, interrupt, done });
-        void save();
+        save();
         return { ok: true, id, done };
     }
 
@@ -822,7 +822,7 @@ export function createRunner({
      * @returns {Promise<void>} resolves once every run is recorded
      */
     async function shutdown() {
-        for (const r of [...live.values()]) r.interrupt();
+        for (const r of live.values()) r.interrupt();
     }
 
     return { start, shutdown, inFlight: () => [...live.keys()] };

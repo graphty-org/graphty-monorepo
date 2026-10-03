@@ -45,7 +45,7 @@ const PROGRAM_DENIED = {
 };
 
 /** A package script that starts a server or a watcher. */
-const SERVER_SCRIPT = /^dev|storybook|(^|:)(dev|serve|preview|start|watch)(:|$)/;
+const SERVER_SCRIPT = /(^dev)|(storybook)|((^|:)(dev|serve|preview|start|watch)(:|$))/;
 
 /** Package-manager options that take the next word as their value. */
 const PM_VALUE_OPTIONS = new Set(["-C", "--dir", "--prefix", "--filter", "-F", "--workspace", "--cwd"]);
@@ -107,7 +107,7 @@ function gitDir(root) {
  */
 function checkCommand(cmd, config, cwd) {
     if (cmd.background) deny("runs never start background processes (a command ending in &)");
-    const name = baseName(cmd.argv[0]).replace(/(.)@[^/]*$/, "$1");
+    const name = baseName(cmd.argv[0]).replace(/(.)@[^/]*$/, "$1"); // NOSONAR(S5852): one command word, a few dozen characters
     const args = cmd.argv.slice(1);
     if (PROGRAM_DENIED[name]) deny(`${name}: ${PROGRAM_DENIED[name]}`);
     if ((name === "curl" || name === "wget") && args.some((a) => /github\.com/i.test(a))) {
@@ -117,7 +117,7 @@ function checkCommand(cmd, config, cwd) {
     else if (name === "npx" || name === "pnpx" || name === "bunx") checkInner(args, config, cwd, cmd);
     else if (name === "npm" || name === "pnpm" || name === "yarn") checkPackageManager(cmd, args, config, cwd);
     else if (name === "nx") checkNx(args);
-    else if ((name === "vite" || name === "vitepress") && !args.some((a) => a === "build")) {
+    else if ((name === "vite" || name === "vitepress") && !args.includes("build")) {
         deny(`${name}: runs never start servers`);
     } else if (name === "find") {
         args.forEach((a, k) => {
@@ -322,7 +322,7 @@ try {
     if (!runDir) throw new Error("GITHERD_RUN_DIR is not set");
     const config = JSON.parse(readFileSync(join(runDir, "guard.json"), "utf8"));
     if (typeof config.kind !== "string" || typeof config.root !== "string" || !Array.isArray(config.protectedPaths)) {
-        throw new Error("guard.json is malformed");
+        throw new TypeError("guard.json is malformed");
     }
     check(input, { ...config, root: resolve(config.root) });
     process.exit(0);

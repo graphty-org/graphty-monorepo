@@ -51,7 +51,7 @@ const LOG_LINES = 400;
 /** Searches across all runs are spaced this far apart. */
 const SEARCH_INTERVAL_MS = 3000;
 
-const TARGET = /^(issue|pr):([0-9]+)$/;
+const TARGET = /^(issue|pr):(\d+)$/;
 
 /** The named GraphQL queries of `githerd_gh_get`; each takes `$owner`, `$name` and `$number`. */
 const QUERIES = {
@@ -126,8 +126,8 @@ const sharedSearchPace = createPacer(SEARCH_INTERVAL_MS);
  */
 export function scopeSearch(query, repo) {
     const rest = query
-        .replace(/(^|\s)-?(repo|org|user|owner):("[^"]*"|\S*)/gi, " ")
-        .replace(/\s+/g, " ")
+        .replaceAll(/(^|\s)-?(repo|org|user|owner):("[^"]*"|\S*)/gi, " ")
+        .replaceAll(/\s+/g, " ")
         .trim();
     return `${rest} repo:${repo}`.trim();
 }
@@ -293,10 +293,11 @@ export function runTools(ctx) {
         spend(writes.length);
         if (ctx.mode !== "acting" || !config.actions?.[group]) {
             await ctx.save();
+            const prefix = `repos/${repo}/`;
             for (const [method, path, body] of writes) {
                 await ctx.ledger({
                     kind: "would-do",
-                    op: `${method} ${path.slice(`repos/${repo}/`.length)}`,
+                    op: `${method} ${path.slice(prefix.length)}`,
                     body,
                     run: id,
                     ...fields,
@@ -483,7 +484,8 @@ export function runTools(ctx) {
                     }
                     const data = ownerOnly((await github.get(path)).body, state);
                     const n = /\/(?:issues|pulls)\/(\d+)/.exec(path)?.[1];
-                    await noteHidden(n ? `${path.includes("/pulls/") ? "pr" : "issue"}:${n}` : path, data.hidden);
+                    const kind = path.includes("/pulls/") ? "pr" : "issue";
+                    await noteHidden(n ? `${kind}:${n}` : path, data.hidden);
                     return JSON.stringify({ hidden: data.hidden, data: data.value });
                 },
             },
@@ -660,7 +662,7 @@ export function runTools(ctx) {
                 const day = now.toISOString().slice(0, 10).replaceAll("-", "");
                 state.proposals ??= {};
                 const n = Object.keys(state.proposals).filter((k) => k.startsWith(`prop-${day}-`)).length + 1;
-                const random = ctx.random ?? (() => Math.random().toString(36).slice(2, 4).padEnd(2, "0"));
+                const random = ctx.random ?? (() => Math.random().toString(36).slice(2, 4).padEnd(2, "0")); // NOSONAR(S2245): tells two proposals of one day apart; not a secret
                 const acting =
                     ctx.mode === "acting" && config.actions?.[args.kind === "revert" ? "incidents" : "proposals"];
                 const proposal = {

@@ -26,7 +26,7 @@ const META = new Set([" ", "\t", "\n", ";", "&", "|", "<", ">", "(", ")"]);
 /** Words that start or end a compound command and are not themselves the command. */
 const RESERVED = new Set(["{", "}", "!", "if", "then", "else", "elif", "fi", "do", "done", "while", "until"]);
 
-const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const ASSIGNMENT = /^[A-Za-z_]\w*=/;
 
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 
@@ -336,7 +336,7 @@ function unwrap(cmd, depth) {
 
         if (name === "eval") return nested(rest.join(" "));
         if (SHELLS.has(name)) {
-            const flag = rest.findIndex((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a));
+            const flag = rest.findIndex((a) => /^-[a-zA-Z]+$/.test(a) && a.includes("c"));
             if (flag === -1) break;
             const script = rest.slice(flag + 1).find((a) => !a.startsWith("-"));
             return script === undefined ? [] : nested(script);

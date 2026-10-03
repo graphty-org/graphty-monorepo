@@ -90,8 +90,10 @@ function readOnlyGh(args, { input, timeoutMs }) {
             { timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024 },
             (err, stdout, stderr) => {
                 const e = /** @type {any} */ (err);
+                let code = 0;
+                if (e) code = typeof e.code === "number" ? e.code : 1;
                 resolve({
-                    code: e ? (typeof e.code === "number" ? e.code : 1) : 0,
+                    code,
                     stdout: String(stdout),
                     stderr: String(stderr),
                     timedOut: Boolean(e?.killed),
@@ -261,7 +263,10 @@ async function masterRed() {
     if (!fits("master-red", "master-red")) return;
     const red = ghGet(`repos/${repo}/actions/workflows/ci.yml/runs?branch=master&status=failure&per_page=1`)
         .workflow_runs[0];
-    if (!red) return void results.push({ step: "master-red", ok: false, skipped: "no failed CI run on master" });
+    if (!red) {
+        results.push({ step: "master-red", ok: false, skipped: "no failed CI run on master" });
+        return;
+    }
     const jobs = ghGet(`repos/${repo}/actions/runs/${red.id}/jobs?per_page=100`)
         .jobs.filter((/** @type {any} */ j) => j.conclusion === "failure")
         .map((/** @type {any} */ j) => j.name);

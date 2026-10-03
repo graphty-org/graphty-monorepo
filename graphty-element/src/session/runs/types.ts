@@ -18,6 +18,7 @@
 
 import type {
     AlgorithmKey,
+    Channel,
     EdgeId,
     EdgeReading,
     FieldDescriptor,
@@ -659,6 +660,26 @@ export interface RunRemoval {
 }
 
 /**
+ * What a run's suggested style did when it landed on the style stack.
+ *
+ * A run paints itself on its first completion, and a reader who is not told what that changed
+ * looks at the old picture and never sees the new result. This is what a consumer reads to say
+ * "Louvain now colors the drawing; PageRank moved below", or "held back: your layer already colors
+ * every node".
+ */
+export interface RunLanding {
+    /** The channels the run's own layers paint, in stack order. */
+    readonly applied: readonly Channel[];
+    /**
+     * Suggestions held back because a layer somebody wrote already paints that channel on every
+     * element, each with the layer that holds it.
+     */
+    readonly withheld: readonly { readonly channel: Channel; readonly byLayer: LayerId }[];
+    /** Channels this run now paints over another run's layer, each with that run. */
+    readonly tookOver: readonly { readonly channel: Channel; readonly from: RunId }[];
+}
+
+/**
  * Starting runs, finding them, and taking them away.
  *
  * Starting the same algorithm with the same parameters over the same scope returns the run that
@@ -718,6 +739,17 @@ export interface RunsApi {
      * @returns The layer ids.
      */
     bindings(id: RunId): readonly LayerId[];
+    /**
+     * What a finished run's suggested style applied, held back, or took over.
+     *
+     * Read once the run has finished: `await runs.start(...)`, then `runs.landing(run.id)`.
+     * `applied` and `tookOver` describe the style stack as it stands now, so a layer removed or
+     * moved since is reflected; `withheld` is what was decided on the run's first completion.
+     * @param id - The run id.
+     * @returns The report, or undefined for a run this session does not hold or that has not
+     *     succeeded.
+     */
+    landing(id: RunId): RunLanding | undefined;
     /** The runs waiting to start, in queue order. */
     readonly queue: readonly QueueEntry[];
 }

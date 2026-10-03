@@ -51,7 +51,7 @@
 import type { Channel, RunId } from "../../catalog/types";
 import type { StyleCommand } from "../commands/style";
 import type { RunRef } from "../results/types";
-import type { RunStatus, RunStyle } from "../runs/types";
+import type { RunLanding, RunStatus, RunStyle } from "../runs/types";
 import { type StyleSuggestion, suggestStyles } from "./derive";
 import type { EncodingRun } from "./EncodingSpec";
 import type { Layer } from "./Layer";
@@ -144,6 +144,13 @@ export interface AutoApplyPolicy {
      * @param error - Why.
      */
     refused(runId: RunId, error: unknown): void;
+    /**
+     * What a run's suggestions did: the channels its layers paint now, what an authored layer held
+     * back when it first completed, and which other runs' layers it now paints over.
+     * @param runId - The run.
+     * @returns The report.
+     */
+    landing(runId: RunId): RunLanding;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -152,6 +159,9 @@ export interface AutoApplyPolicy {
 
 /** The layer sources that are somebody's decision rather than the element's derivation. */
 const AUTHORED: readonly string[] = Object.freeze(["user", "template", "plugin"]);
+
+/** Nothing held back. */
+const NOTHING_WITHHELD: RunLanding["withheld"] = Object.freeze([]);
 
 /** Nothing to paint. */
 const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
@@ -190,14 +200,72 @@ function authoredDriving(layer: Layer, channels: readonly Channel[]): boolean {
 }
 
 /**
- * Whether an authored layer already drives one of these channels on every element, so a
+ * The authored layer that already drives one of these channels on every element, so a
  * suggestion beneath it could never show.
  * @param layers - The stack.
  * @param channels - The channels the suggestion would paint.
- * @returns True when the suggestion should be dropped.
+ * @returns The layer, or undefined when the suggestion may paint.
  */
-function authoredCovers(layers: readonly Layer[], channels: readonly Channel[]): boolean {
-    return layers.some((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+function authoredCovering(layers: readonly Layer[], channels: readonly Channel[]): Layer | undefined {
+    return layers.find((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+}
+
+/**
+ * The channels a layer paints, fixed values and encodings both.
+ * @param layer - The layer.
+ * @returns The channels.
+ */
+function channelsOf(layer: Layer): Channel[] {
+    return [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})] as Channel[];
+}
+
+/**
+ * Which run an enabled layer was derived from.
+ * @param layer - The layer.
+ * @returns The run id, or undefined for a layer no run produced or one switched off.
+ */
+function runOf(layer: Layer): RunId | undefined {
+    return layer.enabled && layer.source.by === "run" ? layer.source.runId : undefined;
+}
+
+/**
+ * Read a run's landing off the stack: the channels its layers paint, and for each the other runs
+ * whose layers on that channel sit beneath it.
+ * @param stack - The stack, bottom first.
+ * @param runId - The run.
+ * @param withheld - What was held back when it first completed.
+ * @returns The report.
+ */
+function landingOf(stack: readonly Layer[], runId: RunId, withheld: RunLanding["withheld"]): RunLanding {
+    const applied: Channel[] = [];
+    const tookOver: { channel: Channel; from: RunId }[] = [];
+
+    stack.forEach((layer, at) => {
+        if (runOf(layer) !== runId) {
+            return;
+        }
+
+        for (const channel of channelsOf(layer)) {
+            if (!applied.includes(channel)) {
+                applied.push(channel);
+            }
+
+            for (const below of stack.slice(0, at)) {
+                const from = runOf(below);
+                const known = tookOver.some((each) => each.channel === channel && each.from === from);
+
+                if (from !== undefined && from !== runId && !known && channelsOf(below).includes(channel)) {
+                    tookOver.push({ channel, from });
+                }
+            }
+        }
+    });
+
+    return Object.freeze({
+        applied: Object.freeze(applied),
+        withheld,
+        tookOver: Object.freeze(tookOver.map((each) => Object.freeze(each))),
+    });
 }
 
 /**
@@ -261,6 +329,8 @@ export function suggestionCommand(suggestion: StyleSuggestion, auto = false): St
 export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolicy {
     /** Every hold still open, with what it has been handed, newest last. */
     const held = new WeakMap<PaintHold, Map<string, StyleSuggestion>>();
+    /** What an authored layer held back from each run on its first completion. */
+    const withheld = new Map<RunId, RunLanding["withheld"]>();
 
     /**
      * Drop what an authored layer already drives on every element, reading the stack once: a
@@ -278,7 +348,21 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
 
         const stack = styles.list();
 
-        return Object.freeze(suggestions.filter((suggestion) => !authoredCovers(stack, suggestion.channels)));
+        return Object.freeze(
+            suggestions.filter((suggestion) => {
+                const holder = authoredCovering(stack, suggestion.channels);
+
+                if (holder !== undefined) {
+                    const runId = idOf(suggestion.spec.run);
+                    const entries = suggestion.channels.map((channel) =>
+                        Object.freeze({ channel, byLayer: holder.id }),
+                    );
+                    withheld.set(runId, Object.freeze([...(withheld.get(runId) ?? []), ...entries]));
+                }
+
+                return holder === undefined;
+            }),
+        );
     };
 
     return {
@@ -293,6 +377,7 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
             // moment the policy had, and coming back to it later -- after a reader has arranged
             // the stack -- would repaint a picture they had already decided about.
             const suggestions = suggestStyles(run, run.style);
+            withheld.delete(run.id);
             const pending = hold === undefined ? undefined : held.get(hold);
 
             if (pending === undefined) {
@@ -323,6 +408,10 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
 
         refused(runId: RunId, error: unknown): void {
             sources.onProblem?.(runId, error);
+        },
+
+        landing(runId: RunId): RunLanding {
+            return landingOf(sources.styles()?.list() ?? [], runId, withheld.get(runId) ?? NOTHING_WITHHELD);
         },
     };
 }

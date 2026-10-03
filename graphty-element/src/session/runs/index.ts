@@ -47,6 +47,7 @@ export type {
     Run,
     RunChange,
     RunDirection,
+    RunLanding,
     RunOptions,
     RunPhase,
     RunRecord,

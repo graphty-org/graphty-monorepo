@@ -159,6 +159,7 @@ export type {
     RunDirection,
     RunExecutionContext,
     RunExecutor,
+    RunLanding,
     RunOptions,
     RunOutcome,
     RunPhase,

@@ -90,17 +90,17 @@ describe("runs.painting", () => {
         session.dispose();
     });
 
-    it("reports a batch member merged into the sibling that painted, once the batch is awaited", async () => {
+    it("reports a batch member superseded by the sibling that painted, once the batch is awaited", async () => {
         const session = await fixtureSession();
 
         await session.runs.batch([
             { algorithm: "degree", as: "deg" },
             { algorithm: "pagerank", as: "pr" },
         ]);
-        const [merged] = session.runs.painting("deg")?.suggestions ?? [];
+        const [superseded] = session.runs.painting("deg")?.suggestions ?? [];
 
         assert.strictEqual(session.runs.painting("deg")?.state, "decided");
-        assert.strictEqual(merged.outcome === "merged" ? merged.intoRunId : merged.outcome, "pr");
+        assert.strictEqual(superseded.outcome === "superseded" ? superseded.byRunId : superseded.outcome, "pr");
         assert.deepStrictEqual(outcomes(session.runs.painting("pr")?.suggestions), ["added"]);
         session.dispose();
     });

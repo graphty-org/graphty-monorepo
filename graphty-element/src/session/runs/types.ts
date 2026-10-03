@@ -688,10 +688,10 @@ export type SuggestionOutcome =
       }
     | {
           /** Not added: a later member of the same batch suggested the same channel. */
-          readonly outcome: "merged";
+          readonly outcome: "superseded";
           readonly suggestion: StyleSuggestion;
           /** The batch member whose suggestion for this channel was used instead. */
-          readonly intoRunId: RunId;
+          readonly byRunId: RunId;
       }
     | {
           /** Not added: the style stack refused it. The same error went to `style:problem`. */

@@ -430,7 +430,7 @@ describe("what the policy reports about each suggestion", () => {
         assert.deepStrictEqual(released.members, ["degree", "pagerank"]);
         assert.deepStrictEqual(encodedRuns(released.paint), ["pagerank"]);
         assert.deepStrictEqual(
-            released.settled.map((each) => (each.outcome === "merged" ? each.intoRunId : each.outcome)),
+            released.settled.map((each) => (each.outcome === "superseded" ? each.byRunId : each.outcome)),
             ["pagerank"],
         );
     });

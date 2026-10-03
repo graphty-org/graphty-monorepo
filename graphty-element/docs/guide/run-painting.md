@@ -25,7 +25,7 @@ for (const s of session.runs.painting(run.id)?.suggestions ?? []) {
         // Paint it anyway, on top of that layer
         if (s.suggestion.as === "encoding") await session.styles.encode(s.suggestion.spec);
         else await session.styles.highlight(s.suggestion.spec);
-    } else console.log(s.outcome); // "merged", "refused", or an outcome added later
+    } else console.log(s.outcome); // "superseded", "refused", or one added later
 }
 ```
 
@@ -40,15 +40,17 @@ Every suggestion the run made gets one entry in `suggestions`, with an `outcome`
 | -------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
 | `"added"`      | Its layers were added to the style stack                                               | `layerIds`, maybe `placedBeneathLayerId` |
 | `"suppressed"` | Not added: a layer your app wrote already sets that channel on every element           | `byLayerId`                              |
-| `"merged"`     | Not added: it was in a batch, and a later member's suggestion for the channel was used | `intoRunId`                              |
+| `"superseded"` | Not added: it was in a batch, and a later member's suggestion for the channel was used | `byRunId`                                |
 | `"refused"`    | Not added: the style stack refused it, and the same error went to `style:problem`      | `code`                                   |
 
 Every entry also carries `suggestion`, the suggestion itself:
 
 - `suggestion.as` is `"encoding"` or `"highlight"`: which of `session.styles.encode()` or
   `session.styles.highlight()` applies it.
-- `suggestion.spec` is what that method takes, so you can apply the suggestion yourself.
-- `suggestion.channels` is an array of channel names, such as `["node.color"]`. A route
+- `suggestion.spec` is what that method takes, already bound to the run (its `run` is the run's
+  id), so passing it back applies the suggestion yourself.
+- `suggestion.channels` is an array of `Channel` values (the type is exported from
+  `@graphty/graphty-element/catalog`), such as `["node.color"]`. A route
   highlight names two, `"node.color"` and `"edge.color"`.
 
 `layerIds` lists every layer the suggestion added: one for an encoding, two for a highlight that
@@ -57,7 +59,7 @@ paints nodes and edges. Each id works with `session.styles.get(id)`, which retur
 id.
 
 `byLayerId` and `placedBeneathLayerId` always name a layer your app wrote, never one a run added,
-so its `name` is the one your app gave it.
+so its `name` is the one your app gave it, or `undefined` if your app gave it none.
 
 `placedBeneathLayerId` is set when a layer your app wrote colors some of the same elements. The
 run's layer was placed directly beneath that layer, so your choice still shows where you made it
@@ -78,13 +80,15 @@ More outcomes may be added in a minor release, so keep a default branch when you
 | `"opted-out"`     | The run was started with `{ style: false }`                                     |
 | `"not-succeeded"` | The run failed or was canceled                                                  |
 | `"no-styles"`     | The session has no style stack; the session on `element.session` always has one |
-| `"unknown"`       | The run was recorded without a decision, so none is known                       |
+| `"unknown"`       | The run was restored without its decision, so none is known                     |
 
 A batch is several runs started together with `session.runs.batch([...])`. Its members are
 painted together when the whole batch finishes, so a member reads `"pending"` until then. A run
 from `element.run()` that you awaited is never `"pending"`.
 
-`painting()` returns `undefined` only for a run id the session does not hold. More states may be
+A run started in this session never reads `"unknown"`; it is kept for a run brought back from
+saved state that did not carry its decision. `painting()` returns `undefined` only for a run id
+the session does not hold. More states may be
 added in a minor release.
 
 ## Where a run's layers go

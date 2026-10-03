@@ -111,7 +111,7 @@ interface PaintRelease {
      * top, minus what an authored layer already drives.
      */
     readonly paint: readonly StyleSuggestion[];
-    /** What became of every other held suggestion: merged into a sibling, or suppressed. */
+    /** What became of every other held suggestion: superseded by a sibling, or suppressed. */
     readonly settled: readonly SuggestionOutcome[];
     /** Every run whose decision waited on this hold, in the order they finished. */
     readonly members: readonly RunId[];
@@ -388,20 +388,20 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
                     }
 
                     const winners = new Set(top.values());
-                    const merged: SuggestionOutcome[] = pending.suggestions
+                    const superseded: SuggestionOutcome[] = pending.suggestions
                         .filter((suggestion) => !winners.has(suggestion))
                         .map((suggestion) =>
                             Object.freeze({
-                                outcome: "merged",
+                                outcome: "superseded",
                                 suggestion,
-                                intoRunId: idOf((top.get(coalesceKey(suggestion)) ?? suggestion).spec.run),
+                                byRunId: idOf((top.get(coalesceKey(suggestion)) ?? suggestion).spec.run),
                             }),
                         );
                     const { paint, suppressed } = unsuppressed([...winners]);
 
                     return Object.freeze({
                         paint,
-                        settled: Object.freeze([...merged, ...suppressed]),
+                        settled: Object.freeze([...superseded, ...suppressed]),
                         members: Object.freeze([...pending.members]),
                     });
                 },

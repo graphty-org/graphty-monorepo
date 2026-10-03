@@ -259,6 +259,14 @@ jobs:
                   run-id: ${{ needs.gate.outputs.ci_run_id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout,
+            # so the version and publish steps below neither version nor publish it -- not even as a dependent
+            # of a package that is released -- while every other package and the graphty.app deploy go ahead.
+            # nx commits only the manifests and changelogs it wrote, never this nx.json edit. To stop one
+            # package, add it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning").
+            - name: Leave out the packages release-hold.json holds
+              run: node tools/release-hold.mjs apply
+
             - name: Configure Git
               run: |
                   git config user.name "github-actions[bot]"

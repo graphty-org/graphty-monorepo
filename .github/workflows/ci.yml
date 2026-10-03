@@ -164,6 +164,11 @@ jobs:
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
+            # release-hold.json names only real nx projects, each with a reason and a date, so a typo
+            # cannot silently release a package someone meant to hold. The same check runs in tools/prepush.sh.
+            - name: Release hold list
+              run: pnpm run check:release-hold
+
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io

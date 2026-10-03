@@ -25,7 +25,18 @@ import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect
 import { type GraphImporter } from "./types.js";
 
 /** The format names of the eight built-in importers and exporters. */
-export type GraphFormatName = "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "obo";
+export type GraphFormatName =
+    | "gexf"
+    | "graphml"
+    | "gml"
+    | "dot"
+    | "pajek"
+    | "csv"
+    | "json"
+    | "neo4j"
+    | "cx2"
+    | "cx"
+    | "obo";
 
 /**
  * The built-in format names in the default registry's order, which is also the tie-break order of
@@ -41,6 +52,8 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "dot",
     "pajek",
     "neo4j",
+    "cx2",
+    "cx",
     "obo",
 ]);
 

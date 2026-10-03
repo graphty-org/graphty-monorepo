@@ -66,6 +66,7 @@ import {
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, textChunks, throwIfAborted } from "../../common/input.js";
+import { MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
 import {
     chooseGraph,
     type ImportFormatDefaults,
@@ -77,6 +78,7 @@ import {
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
+import { sniffJsonDialectHead } from "../../sniff.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -1272,112 +1274,8 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     return root;
 }
 
-/** A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992). */
-const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
-
 /** How many of the integers kept as text the warning lists. */
 const BIG_INTEGERS_SHOWN = 10;
-
-/**
- * The prefix of the string a non-standard token is rewritten to (a NUL character first, which no
- * sensible attribute value starts with); reviveNonstandard() turns it back into the number.
- */
-const NONSTANDARD_SENTINEL = `${String.fromCharCode(0)}graph-io:`;
-
-/** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
-const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
-    ["-Infinity", -Infinity],
-    ["Infinity", Infinity],
-    ["NaN", NaN],
-];
-
-/** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
-const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
-
-/**
- * Rewrite the numbers JSON.parse cannot read exactly, outside strings and in value positions only:
- * NaN / Infinity / -Infinity become sentinel strings, an integer literal that is not a safe
- * integer becomes a string of its digits. A container stack tells a value position (after `:`,
- * `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays invalid.
- * @param text - the document text
- * @returns the rewritten text, the non-standard tokens seen and the integer literals quoted
- */
-function rewriteNumbers(text: string): { text: string; tokens: Set<string>; bigIntegers: string[] } {
-    const parts: string[] = [];
-    const tokens = new Set<string>();
-    const bigIntegers: string[] = [];
-    const arrays: boolean[] = [];
-    let expectValue = true;
-    let copied = 0;
-    let i = 0;
-    const n = text.length;
-    while (i < n) {
-        const ch = text[i];
-        if (ch === '"') {
-            i++;
-            while (i < n && text[i] !== '"') {
-                i += text[i] === "\\" ? 2 : 1;
-            }
-            i++;
-            expectValue = false;
-            continue;
-        }
-        if (ch === "{" || ch === "[") {
-            arrays.push(ch === "[");
-            expectValue = ch === "[";
-        } else if (ch === "}" || ch === "]") {
-            arrays.pop();
-            expectValue = false;
-        } else if (ch === ":") {
-            expectValue = true;
-        } else if (ch === ",") {
-            expectValue = arrays.length > 0 && arrays[arrays.length - 1];
-        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
-            expectValue = false;
-            const token = NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i));
-            let end = i;
-            let replacement: string | null = null;
-            if (token !== undefined) {
-                end = i + token[0].length;
-                tokens.add(token[0]);
-                replacement = JSON.stringify(`${NONSTANDARD_SENTINEL}${token[0]}`);
-            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
-                end = i + 1;
-                while (end < n && "0123456789+-.eE".includes(text[end])) {
-                    end++;
-                }
-                const literal = text.slice(i, end);
-                if (INTEGER_LITERAL.test(literal) && !Number.isSafeInteger(Number(literal))) {
-                    bigIntegers.push(literal);
-                    replacement = `"${literal}"`;
-                }
-            }
-            if (replacement !== null) {
-                parts.push(text.slice(copied, i), replacement);
-                copied = end;
-            }
-            i = Math.max(end, i + 1);
-            continue;
-        }
-        i++;
-    }
-    parts.push(text.slice(copied));
-    return { text: parts.join(""), tokens, bigIntegers };
-}
-
-/**
- * The JSON.parse reviver that turns the sentinel strings of rewriteNumbers() back into numbers.
- * @param _key - the member key (unused)
- * @param value - the parsed value
- * @returns the number for a sentinel string, the value otherwise
- */
-function reviveNonstandard(_key: string, value: unknown): unknown {
-    if (typeof value === "string" && value.startsWith(NONSTANDARD_SENTINEL)) {
-        const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(NONSTANDARD_SENTINEL.length));
-        return found === undefined ? value : found[1];
-    }
-    return value;
-}
 
 /**
  * The dialect to read: the forced one, else the shape rule of sniffJsonDialect(); a document
@@ -2979,7 +2877,10 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             return 0;
         }
-        return SNIFF_KEYS.some((key) => trimmed.includes(key)) ? 0.9 : 0.5;
+        const score = SNIFF_KEYS.some((key) => trimmed.includes(key)) ? 0.9 : 0.5;
+        // a top-level array is a graph only as Cytoscape.js elements (`[{"data": ...}]`): a CX or
+        // CX2 document (`[{"metaData": ...}]`, `[{"CXVersion": ...}]`) is another format's
+        return trimmed.startsWith("[") && sniffJsonDialectHead(trimmed) !== "cytoscape" ? Math.min(score, 0.3) : score;
     },
 
     /**

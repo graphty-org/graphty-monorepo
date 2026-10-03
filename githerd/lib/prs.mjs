@@ -377,12 +377,14 @@ const DESCRIPTION_MAX = 140;
  *   the job acknowledged
  * @typedef {{
  *   number: number, author: string | null, title: string, labels: string[],
- *   commits: string[] | null, commitsTruncated?: boolean, files: string[] | null,
+ *   commits: string[] | null, commitsTruncated?: boolean, files: string[] | null, filesTruncated?: boolean,
  *   dependencies: {added: string[], unknownToNpm: string[]} | null, ownerItemOpen?: boolean,
  *   job?: JobFacts | null, releaseBumps?: Bump[] | null,
  * }} MergeFacts what githerd knows about one open pull request into master at its current head.
  *   `null` means not read yet for this head: commit messages, changed files, the packages it adds
- *   (with those npm does not know), the release dry-run (needed only when it changes release inputs)
+ *   (with those npm does not know), the release dry-run (needed only when it changes release inputs).
+ *   `filesTruncated` is set when the file listing stopped early (pagination cut short, or GitHub's
+ *   3000-file cap): the files not seen may touch any path, so every path-dependent line fails closed
  * @typedef {{
  *   login: string | null, redLanes: RedLane[], releaseRunning?: boolean, freezeMerges?: boolean,
  *   starvation?: string | null, approvedMajors?: string[],
@@ -409,13 +411,15 @@ function shortTime(iso) {
 }
 
 /**
- * Whether the head touches a list of paths; null while its files are not read.
+ * Whether the head touches a list of paths; null while its files are not read, true when the
+ * listing was truncated (an unseen file may touch any of them).
  * @param {MergeFacts} pr the pull request
  * @param {string[]} list the paths (see `touches`)
  * @returns {boolean | null} true, false or not known yet
  */
 function touchesList(pr, list) {
-    return pr.files ? touches(pr.files, list) : null;
+    if (!pr.files) return null;
+    return pr.filesTruncated || touches(pr.files, list);
 }
 
 /**

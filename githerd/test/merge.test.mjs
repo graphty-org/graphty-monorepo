@@ -188,6 +188,18 @@ describe("githerd/merge decision", () => {
             expect(mergeDecision(minor, ctx()).state).toBe("success");
         });
 
+        it("treats a truncated file list as touching every path, so it never passes on what it did not see", () => {
+            // Only design/ shows, but the listing stopped early: the hidden files may change release inputs.
+            const cut = { files: ["design/x.md"], filesTruncated: true };
+            expect(mergeDecision(pr({ ...cut, releaseBumps: null }), ctx()).state).toBe("pending");
+            const major = [{ project: "layout", from: "1.10.5", to: "2.0.0" }];
+            expect(mergeDecision(pr({ ...cut, releaseBumps: major }), ctx())).toMatchObject({ state: "failure", line: 7 });
+            const gpu = ctx({ redLanes: [{ workflow: "GPU", since: SINCE }] });
+            expect(mergeDecision(pr(cut), gpu)).toMatchObject({ state: "failure", line: 2 });
+            const sec = pr({ ...cut, job: job() });
+            expect(mergeDecision(sec, ctx())).toMatchObject({ state: "failure", line: 6 });
+        });
+
         it("waits for the dry-run only when release inputs change", () => {
             expect(mergeDecision(pr({ releaseBumps: null }), ctx()).state).toBe("pending");
             expect(mergeDecision(pr({ releaseBumps: null, files: ["design/x.md"] }), ctx()).state).toBe("success");

@@ -89,8 +89,8 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("bfs-next-degree")).toBe(1);
         expect(counts.get("sssp-relax")).toBe(5);
         expect(counts.get("bf-relax")).toBe(3);
-        expect(counts.get("closeness-sweep")).toBe(5);
-        expect(counts.get("closeness-reduce")).toBe(1);
+        expect(counts.get("closeness-level")).toBe(1);
+        expect(counts.get("closeness-rowsum")).toBe(1);
         expect(counts.get("apsp-init")).toBe(5);
         expect(counts.get("apsp-fw")).toBe(4);
         expect(counts.get("coo-emit")).toBe(5);

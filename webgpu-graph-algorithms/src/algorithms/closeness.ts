@@ -1,140 +1,153 @@
 /**
- * Closeness centrality on the device (design 8.4, 3.3 line 810, 9.7; P8-T11, the P8 plan's PD-13 / PD-19 / PD-25 /
- * DEP-P8-E / DEP-P8-F): `score[s] = 1 / sumDist_s`, with `sumDist_s` the exact sum of the finite distances from `s`
- * to every OTHER node -- an unreached node adds nothing -- and `0` when nothing is reached. No reached factor and no
- * Wasserman-Faust scaling: this is EXACTLY the legacy default (`normalized: false`) of `closenessCentrality` in
- * `@graphty/algorithms`, the number graphty-element's closeness panel shows today, so a future `indexed` port has one
- * number to match (the NetworkX form is 33x it on karate and could never have been substituted silently).
+ * Closeness centrality on the device (design 8.4, 3.3 line 810, 9.7): `score[s] = 1 / sumDist_s`, with `sumDist_s`
+ * the exact sum of the finite distances from `s` to every OTHER node -- an unreached node adds nothing -- and `0` when
+ * nothing is reached; or, with `harmonic`, `score[s] = sum of 1 / dist` over the same nodes (a zero distance adds
+ * nothing). No reached factor and no Wasserman-Faust scaling: this is EXACTLY the legacy default (`normalized:
+ * false`) of `closenessCentrality` in `@graphty/algorithms`, the number graphty-element's closeness panel shows.
  *
- * The unweighted route is ONE bit-parallel multi-source search per batch of 32 sources (`ceil(n / 32)` batches):
- * the batch's state is one `bits` buffer of four regions of `bitsBase = roundUp(n, 64)` words (`visited`, two
- * frontier regions that swap by the level's parity, `flags`), bit `s` of word `v` meaning "source `s` has reached /
- * is at / is next at `v`"; a level is, all host-recorded, `closeness-reduce` role 0 (the boundary: `done` from the
- * previous level's compacted count, the level's claims folded into the exact 64-bit per-source sums at `level + 1`),
- * `compact` of the flags into the frontier list, two `fill`s zeroing the level's next region and the flags (AFTER
- * the compaction that consumed them), and `closeness-sweep` (the block-mapped expansion with the claim inline, a
- * direct grid-stride dispatch looping to the list's count). `MAX_LEVELS_PER_SUBMIT` levels per submit and
- * one readback per submit (the `done` word and the 512-byte `perSource` block together, so the finished batch needs
- * no extra map); the host folds `sumHi x 2^32 + sumLo` into `1 / sum` in f64 and stores f32. The weighted route
- * (`weighted` true on a snapshot whose column is not all ones) is one `sssp` per source with the sums reduced on the
- * host between calls: design 8.4's own answer, slow and correct. `weighted` defaults to the snapshot's `flags.weighted`;
- * `weighted: false` on a weighted snapshot ignores the column by request and sweeps; `weighted: true` over unit
- * weights or no column sweeps too (every `sssp` would route to a BFS anyway). `maxIterations` and `tolerance` are the
+ * Three routes, chosen from the inputs before any device work:
+ *
+ * - ALL-PAIRS (an exact run whose `n x n` f32 matrix fits one binding, weighted, or unweighted up to
+ *   `ALL_PAIRS_MAX_NODES`): `allPairsShortestPath`'s blocked Floyd-Warshall sweep, then `closeness-rowsum` folds each row on
+ *   the device -- hop counts as exact integers, weighted distances and harmonic reciprocals in f32 -- and only `n`
+ *   words come back. Weighted scores agree with the one-search-per-source route up to f32 rounding of the sums.
+ * - LEVELS (unweighted, every other case): a bit-parallel multi-source breadth-first search, `32 x words` sources per
+ *   batch (up to `MAX_WORDS` = 8 words, 256 sources), ONE `closeness-level` dispatch per level. Each level chooses on
+ *   the device between pushing the frontier over the out-arcs (one invocation per arc) and pulling it over the
+ *   in-arcs (one invocation per node, with an early exit once every source has reached the node), from the arcs the
+ *   frontier would push against `pullAt`; a graph with a node of more than `PULL_MAX_DEGREE` in-arcs only pushes. The levels of a
+ *   submit tally their claims per source into one count table, read back once per submit; the host folds the counts
+ *   into exact sums in f64 (`count x distance`) and harmonic sums (`count / distance`). A level whose predecessor
+ *   claimed nothing returns at once, so recording `MAX_LEVELS_PER_SUBMIT` levels costs little past a batch's depth.
+ * - ONE SEARCH PER SOURCE (weighted above the all-pairs ceiling, or a weighted sampled run): one `sssp` per source,
+ *   the sums reduced on the host between calls.
+ *
+ * `weighted` defaults to the snapshot's `flags.weighted`; `weighted: false` on a weighted snapshot ignores the column;
+ * `weighted: true` over unit weights or no column is the unweighted problem. `maxIterations` and `tolerance` are the
  * seam's placeholder keys and an exact traversal has neither, so a defined value is REFUSED before any device work
- * (`E_UNSUPPORTED { option }`, the package's rule for an option it does not implement, PD-25); `undefined` is legal.
- * `iterations` reports the source batches run (the sources, on the weighted route), `converged` is always true.
- * A SAMPLED run (`sources`, issue #426; undirected snapshots only) seeds its batches from the listed sources (the
- * reduce's role 2 reads the list the host wrote after the per-node sums in `perSource`), and the sweep also adds each
- * claim's distance into a per-node sum (`perNode`), read back with every submit and folded on the host in f64 into
- * `1 / sum` per NODE, where the exact run folds per SOURCE: on an undirected graph the distance from a source to a node
- * is the distance from the node to the source, which is what the CPU port's sampled closeness sums.
+ * (`E_UNSUPPORTED { option }`); `undefined` is legal. `iterations` reports the source batches run (the sources, on the
+ * one-search-per-source route; 1 on the all-pairs route), `converged` is always true.
  *
- * Cost, stated so nobody is surprised: closeness is O(n x m) on any device -- at 1M nodes it is 31,250 batches of a
- * full multi-source traversal, minutes on the card, and no target in design 10.4 asks for less. `compact.record`
- * leases its offsets and the scan's block sums afresh on every call, once per LEVEL here, so the planner is given a
- * scope whose `scratch` hands the same buffer back for the same label and size: the dispatches of one pass run in
- * order, a level's scan overwrites the previous level's, and the run holds one set instead of `levels x batches`.
- * The sweep keeps DEP-P8-E's refusal of a windowed core (`assertWholeCore`): the bit-parallel claim needs the whole
- * arc array bound. The tuning entry `closenessWithTuning` (PD-26's shape) is what the tests drive; nothing public
- * exposes it.
+ * A SAMPLED run (`sources`, undirected snapshots only) seeds its batches from the listed sources and adds every
+ * claim's distance into a per-node sum, folded on the host into `1 / sum` per NODE: on an undirected graph the
+ * distance from a source to a node is the distance from the node to the source, which is what the CPU port's sampled
+ * closeness sums. A sampled harmonic run is refused (`E_UNSUPPORTED closenessCentrality.sampledHarmonic`): the
+ * per-node reciprocal sums would need a float atomic.
+ *
+ * Cost, stated so nobody is surprised: closeness is O(n x m) on any device -- at 1M nodes it is 3,907 batches of a
+ * full multi-source traversal. The level kernel binds the whole arc array (`assertWholeCore`) and, on a directed
+ * snapshot, the whole reverse adjacency. `closenessWithTuning` is what the tests drive; nothing public exposes it.
  */
 
-import { type F32, type GraphSnapshot, type U32 } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { MAX_LEVELS_PER_SUBMIT } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
-import { plan1d, planGridStride } from "../kernel/dispatch.js";
-import {
-    FILL_PARAMS,
-    FRONTIER_COUNTERS,
-    FRONTIER_PARAMS,
-    graphBindings,
-    graphOverrides,
-    kernelSpec,
-} from "../kernels.js";
-import { prepareCompact } from "../primitives/compact.js";
-import { assertWholeCore } from "../primitives/core-shape.js";
-import { W } from "../primitives/frontier.js";
-import { type ReduceScope } from "../primitives/reduce.js";
+import { plan1d, plan2d } from "../kernel/dispatch.js";
+import { CLOSENESS_PARAMS, FILL_PARAMS, kernelSpec } from "../kernels.js";
+import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type ClosenessAcceleratorOptions, type HitsOptionsLike } from "../types/accelerator.js";
 import { type GpuClosenessResult } from "../types/algorithms.js";
-import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
+import { allPairsCeiling, DEFAULT_ROUNDS_PER_SUBMIT, sweepAllPairs } from "./all-pairs.js";
 import { algorithmScope } from "./scope.js";
 import { aborted, bindingOf, checkDest, sssp } from "./sssp.js";
 
 const ALGORITHM = "closenessCentrality";
 
 /**
- * Design 8.4: 32 sources per `u32` word, one batch per word.
+ * The most 32-bit words per node of the level route: `32 x MAX_WORDS` = 256 sources per batch, the size of the
+ * kernel's workgroup tally.
  * @internal
  */
-export const SOURCES_PER_BATCH = 32;
+export const MAX_WORDS = 8;
 
 /**
- * The `perSource` block of a batch: `newCount[32]` @0, `reached[32]` @32, `sumLo[32]` @64, `sumHi[32]` @96.
+ * A level pulls when the arcs its frontier would push exceed `words x arcCount / PULL_RATIO`: the push touches every
+ * arc whatever the frontier, so it is the cheap step only while few of them claim anything, and the pull's early exit
+ * pays once the frontier is large. Measured on the RTX 4070 SUPER (level route, eight words per node) against always
+ * pushing and always pulling: uniform random graphs of 4,096 nodes at 64 to 512 arcs per node 9.9 / 13.5 / 19.9 ms
+ * against 16.5 / 25.7 / 68.4 pushing and 12.4 / 18.9 / 36.7 pulling; 16,384 nodes at 32 arcs per node 52.7 against
+ * 142.7 and 54.1; at 8 arcs per node and below, rings, a path, a grid and a star within noise of the better of the
+ * two. 4 and 16 measured within a few percent of 64.
+ */
+const PULL_RATIO = 64;
+
+/**
+ * The most in-arcs a node may have for the level route to pull: a pull invocation walks one node's in-arcs, so its
+ * loop count is about `in-degree x (words + 1)`, and llvmpipe silently ends every loop of an invocation past 65,535
+ * iterations (`(65,535 - 512) / 9` is 7,225 at eight words). A graph with a larger hub runs every level as a push,
+ * one invocation per arc.
  * @internal
  */
-export const PER_SOURCE_WORDS = 4 * SOURCES_PER_BATCH;
+export const PULL_MAX_DEGREE = 4096;
+
+/** The control ring at the end of the count table: three slots of four words (`any`, `arcs`, `pull`, pad). */
+const CTRL_WORDS = 12;
+
+/** Which route a run took. @internal */
+export type ClosenessRoute = "levels" | "all-pairs" | "per-source";
 
 /**
- * Params slots of the ring, COUNTED (`UniformRing.reserve` wraps silently): per level `compact`'s records (its scan
- * is at most four levels for any n below 2^32, so at most 8 records) while the boundary, the finalize, the fill and
- * the two sweep records (one per parity) are written once per submit, plus the seed's two records on a batch's first
- * submit (the iota fill flushes in its own submit).
- */
-const RING_SLOTS = 8 * MAX_LEVELS_PER_SUBMIT + 16;
-
-/**
- * The knobs the tests need and nothing public offers (PD-26's shape): the submit cadence and the inspect seam.
+ * The knobs the tests and the measurements need and nothing public offers.
  * @internal
  */
 export interface ClosenessTuning {
-    /** Levels recorded per submit on the bit-parallel route (default `MAX_LEVELS_PER_SUBMIT`). */
+    /** Levels recorded per submit on the level route (default `MAX_LEVELS_PER_SUBMIT`). */
     readonly levelsPerSubmit?: number | undefined;
-    /** The inspect seam: after every BATCH of the bit-parallel route, its first source and a fresh copy of the 128-word `perSource` block as the last submit left it. */
-    readonly onBatch?: ((batchStart: number, perSource: U32) => void) | undefined;
+    /** Words per node on the level route (default: as many as the sources need, at most `MAX_WORDS`). */
+    readonly words?: number | undefined;
+    /** The frontier arcs above which a level pulls (default `words x arcCount / PULL_RATIO`); 0 pulls whenever the frontier has an arc, `0xFFFFFFFF` never pulls. A graph with a node of more than `PULL_MAX_DEGREE` in-arcs never pulls. */
+    readonly pullAt?: number | undefined;
+    /** Force a route of an exact run (the all-pairs route still needs the matrix to fit). */
+    readonly route?: ClosenessRoute | undefined;
+    /** Called with the route the run takes. */
+    readonly onRoute?: ((route: ClosenessRoute) => void) | undefined;
+    /** Level route, exact run: after every batch, its first source, the exact sum of distances and the nodes reached of each of its sources. */
+    readonly onBatch?: ((batchStart: number, sums: Float64Array, reached: Uint32Array) => void) | undefined;
 }
 
 /**
- * A scope whose `scratch` hands the SAME buffer back for the same label and size (see the file comment).
- * @param scope - the algorithm's scope
- * @returns the reusing scope
+ * The most nodes an unweighted exact run sends to the all-pairs route: the blocked sweep's `n^3` work beats the level
+ * route's `n / 256` batches of a full traversal only on small graphs. Measured on the RTX 4070 SUPER: a ring with
+ * chords takes 2.7 ms on the all-pairs route against 3.5 to 4 ms on the level route at 1,024 nodes, 11 against 4.4
+ * at 2,048 and 71 against 10 at 4,096; a graph with `n^2 / 12` arcs 0.9 against 1.4 at 512, 2.5 against 2.6 at
+ * 1,024, 11 against 6 to 9 at 2,048 and 73 against 24 at 4,096. A deep sparse graph is the exception this does not
+ * see: a 4,096-node path takes 70 ms on the all-pairs route and 0.7 s on the level route, one dispatch per level for
+ * 4,095 levels.
+ * @internal
  */
-function reusingScratch(scope: ReduceScope): ReduceScope {
-    const held = new Map<string, GPUBuffer>();
-    return {
-        ...scope,
-        scratch: (byteLength, label) => {
-            const key = `${label}/${byteLength}`;
-            let buffer = held.get(key);
-            if (buffer === undefined) {
-                buffer = scope.scratch(byteLength, label);
-                held.set(key, buffer);
-            }
-            return buffer;
-        },
-    };
+export const ALL_PAIRS_MAX_NODES = 1024;
+
+/**
+ * The score of a sum: `1 / sum`, `0` when nothing was reached.
+ * @param sum - the sum of distances
+ * @returns the score
+ */
+function inverse(sum: number): number {
+    return sum === 0 ? 0 : 1 / sum;
 }
 
 /**
- * The weighted route: one `sssp` per source, the sums reduced on the host. With `sources` (a sampled run on an
- * undirected snapshot) each search adds its distances into the sums of the nodes it reaches instead of its own.
+ * The one-search-per-source route: one `sssp` per source, the sums reduced on the host. With `sources` (a sampled run
+ * on an undirected snapshot) each search adds its distances into the sums of the nodes it reaches instead of its own.
  * @param ctx - the context
  * @param s - the snapshot
  * @param scores - the destination
  * @param sources - a sampled run's sources, or null for every node
+ * @param harmonic - sum reciprocal distances (exact runs only)
  * @param options - the run options
  * @returns the result
  */
-async function weightedRoute(
+async function perSourceRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     scores: F32,
     sources: readonly number[] | null,
+    harmonic: boolean,
     options: GpuRunOptions | undefined,
 ): Promise<GpuClosenessResult> {
     const n = s.nodeCount;
@@ -150,42 +163,106 @@ async function weightedRoute(
         for (let v = 0; v < n; v++) {
             const d = dist[v];
             if (v !== source && d !== Infinity) {
-                if (totals === null) {
-                    sum += d;
-                } else {
+                if (totals !== null) {
                     totals[v] += d;
+                } else if (!harmonic) {
+                    sum += d;
+                } else if (d > 0) {
+                    sum += 1 / d;
                 }
             }
         }
         if (totals === null) {
-            scores[source] = sum === 0 ? 0 : 1 / sum;
+            scores[source] = harmonic ? sum : inverse(sum);
         }
         options?.onProgress?.(i + 1, count);
     }
-    if (totals !== null) {
-        totals.forEach((sum, v) => {
-            scores[v] = sum === 0 ? 0 : 1 / sum;
-        });
-    }
+    totals?.forEach((sum, v) => {
+        scores[v] = inverse(sum);
+    });
     return { scores, iterations: count, converged: true, precision: "f32", sourcesUsed: count };
 }
 
 /**
- * The bit-parallel route (see the file comment).
+ * The all-pairs route (see the file comment). The caller checked that the matrix fits.
+ * @param ctx - the context
+ * @param s - the snapshot
+ * @param scores - the destination
+ * @param weighted - sum the weights, or count hops
+ * @param harmonic - sum reciprocal distances
+ * @param options - the run options
+ * @returns the result
+ */
+async function allPairsRoute(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    scores: F32,
+    weighted: boolean,
+    harmonic: boolean,
+    options: GpuRunOptions | undefined,
+): Promise<GpuClosenessResult> {
+    const n = s.nodeCount;
+    const scope = algorithmScope(ctx, ALGORITHM, Math.min(DEFAULT_ROUNDS_PER_SUBMIT, Math.ceil(n / 32)) + 3);
+    try {
+        const matrix = await sweepAllPairs(
+            ctx,
+            s,
+            scope,
+            weighted,
+            DEFAULT_ROUNDS_PER_SUBMIT,
+            { signal: options?.signal },
+            ALGORITHM,
+        );
+        const rowsum = await ctx.pipelines.kernel(kernelSpec("closeness-rowsum"));
+        const out = bindingOf(scope.scratch(4 * n, "row-sums"), 4 * n);
+        const role = harmonic ? 2 : Number(weighted);
+        const params = scope.params(CLOSENESS_PARAMS, { role, n });
+        const batch = new CommandBatch(ctx, `${ALGORITHM}/row-sums`);
+        rowsum.dispatch(
+            batch.pass("row-sums"),
+            rowsum.bind({ dist: matrix, out, P: params.binding }),
+            plan2d(n, ctx.caps),
+            [params.offset],
+        );
+        batch.endPass();
+        const request = batch.readback(out.buffer, out.offset, 4 * n);
+        scope.flush();
+        const back = await batch.submit().readback;
+        ctx.assertReady();
+        if (role === 0) {
+            new Uint32Array(back, request.offset, n).forEach((sum, v) => {
+                scores[v] = inverse(sum);
+            });
+        } else {
+            new Float32Array(back, request.offset, n).forEach((sum, v) => {
+                scores[v] = harmonic ? sum : inverse(sum);
+            });
+        }
+        options?.onProgress?.(n, n);
+        return { scores, iterations: 1, converged: true, precision: "f32", sourcesUsed: n };
+    } finally {
+        scope.dispose();
+    }
+}
+
+/**
+ * The level route (see the file comment).
  * @param ctx - the context
  * @param s - the snapshot
  * @param scores - the destination
  * @param sources - a sampled run's sources, or null for every node
+ * @param harmonic - sum reciprocal distances (exact runs only)
  * @param levelsPerSubmit - the submit cadence
  * @param options - the run options
  * @param tuning - the knobs
  * @returns the result
  */
-async function sweepRoute(
+async function levelRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     scores: F32,
     sources: readonly number[] | null,
+    harmonic: boolean,
     levelsPerSubmit: number,
     options: GpuRunOptions | undefined,
     tuning: ClosenessTuning,
@@ -195,170 +272,166 @@ async function sweepRoute(
     if (seedCount === 0) {
         return { scores, iterations: 0, converged: true, precision: "f32", sourcesUsed: 0 };
     }
+    const limit = Math.min(ctx.caps.limits.maxStorageBufferBindingSize, ctx.caps.limits.maxBufferSize);
     const core = ctx.residency.core(s);
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
-    const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
+    if (s.directed && 4 * s.arcCount > limit) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: the reverse adjacency of a directed snapshot (${4 * s.arcCount} bytes) does not fit one binding`,
+            { needed: 4 * s.arcCount, limit, path: "closeness.reverse", algorithm: ALGORITHM },
+        );
+    }
+    const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
+    // words per node: as many as the sources need, within one binding of four regions (plus a sampled run's per-node
+    // sums) and, for a sampled run, so a node's per-batch distance sum (at most 32 words (n - 1)) fits a u32
+    const extra = sources === null ? 0 : n;
+    const fitWords = Math.floor((limit / 4 - extra) / (4 * n));
+    const sumWords = sources === null ? MAX_WORDS : Math.floor(0xffffffff / (32 * Math.max(1, n - 1)));
+    const words = tuning.words ?? Math.max(1, Math.min(MAX_WORDS, Math.ceil(seedCount / 32), fitWords, sumWords));
+    if (!Number.isInteger(words) || words < 1 || words > MAX_WORDS) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${ALGORITHM}: words must be an integer in [1, ${MAX_WORDS}]`,
+            {
+                argument: "words",
+                value: words,
+                expected: `an integer in [1, ${MAX_WORDS}]`,
+            },
+        );
+    }
+    const base = n * words;
+    const bitsWords = 4 * base + extra;
+    if (4 * bitsWords > limit) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: ${n} nodes need a ${4 * bitsWords}-byte search state in one binding of at most ${limit} bytes`,
+            { needed: 4 * bitsWords, limit, path: "closeness.bits", algorithm: ALGORITHM },
+        );
+    }
+    const lanes = 32 * words;
+    const rowWords = levelsPerSubmit * lanes;
+    const ctrl = rowWords;
+    const sourcesAt = sources === null ? 0 : ctrl + CTRL_WORDS;
+    const tableWords = ctrl + CTRL_WORDS + (sources?.length ?? 0);
+    const pullAt = tuning.pullAt ?? Math.min(0xffffffff, Math.floor((words * s.arcCount) / PULL_RATIO));
+    // slots: the row fill and the levels of one submit, plus the two seed records of a batch's first submit
+    const scope = algorithmScope(ctx, ALGORITHM, levelsPerSubmit + 4);
     try {
         const wg = ctx.workgroupSize;
-        const bytes = 4 * n;
-        // the four regions of the bits buffer, each bitsBase words so its byte offset is 256-aligned and fill and
-        // compact can bind one alone: visited 0, the frontier pair 1 and 2, flags 3
-        const bitsBase = Math.ceil(n / 64) * 64;
-        const regionBytes = 4 * bitsBase;
-        const bits = bindingOf(scope.scratch(4 * regionBytes, "bits"), 4 * regionBytes);
-        const region = (index: number): Binding => ({
-            buffer: bits.buffer,
-            offset: index * regionBytes,
-            size: regionBytes,
-            window: null,
-        });
-        const flags = region(3);
-        const frontierList = bindingOf(scope.scratch(bytes, "frontier-list"), bytes);
-        const iota = bindingOf(scope.scratch(bytes, "iota"), bytes);
-        const counters = bindingOf(
-            scope.scratch(FRONTIER_COUNTERS.byteLength, "counters"),
-            FRONTIER_COUNTERS.byteLength,
-        );
-        const perSourceBytes = 4 * PER_SOURCE_WORDS;
-        // a sampled run appends the per-node distance sums (bitsBase words) and then its source list
-        const zeroedWords = PER_SOURCE_WORDS + (sources === null ? 0 : bitsBase);
-        const perSourceAll = 4 * (zeroedWords + (sources === null ? 0 : sources.length));
-        const perSource = bindingOf(scope.scratch(perSourceAll, "per-source"), perSourceAll);
+        const bits = bindingOf(scope.scratch(4 * bitsWords, "bits"), 4 * bitsWords);
+        const table = bindingOf(scope.scratch(4 * tableWords, "table"), 4 * tableWords);
+        const rows = { ...table, size: 4 * rowWords };
         if (sources !== null) {
-            ctx.device.queue.writeBuffer(
-                perSource.buffer,
-                perSource.offset + 4 * zeroedWords,
-                Uint32Array.from(sources),
-            );
+            ctx.device.queue.writeBuffer(table.buffer, table.offset + 4 * sourcesAt, Uint32Array.from(sources));
         }
-        const totals = sources === null ? null : new Float64Array(n);
         await ctx.allocator.check();
-        const compact = await prepareCompact(reusingScratch(scope));
-        const sweep = await ctx.pipelines.kernel(kernelSpec("closeness-sweep", graphOverrides(core, null)));
-        const reduce = await ctx.pipelines.kernel(kernelSpec("closeness-reduce"));
+        const level = await ctx.pipelines.kernel(kernelSpec("closeness-level"));
         const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
-        const graph = graphBindings(core, null);
-        const onePlan = plan1d(1, wg, ctx.caps);
-        const regionPlan = plan1d(bitsBase, wg, ctx.caps);
-        const sweepPlan = planGridStride(n, wg, ctx.caps); // the list holds at most n entries; the sweep loops to the count word
-        const recordFill = (pass: GPUComputePassEncoder, dst: Binding, count: number, mode: 0 | 1): void => {
-            const params = scope.params(FILL_PARAMS, { count, value: 0, mode, pad0: 0 });
-            fill.dispatch(pass, fill.bind({ dst, P: params.binding }), plan1d(count, wg, ctx.caps), [params.offset]);
+        const state = {
+            rowPtr: core.rowPtr,
+            colIdx: core.colIdx ?? core.rowPtr,
+            inRowPtr: reverse.rowPtr,
+            inColIdx: reverse.colIdx ?? reverse.rowPtr,
+            bits,
+            table,
         };
-        const submit = (batch: CommandBatch): ReturnType<CommandBatch["submit"]> => {
-            scope.flush();
-            return batch.submit();
+        const levelPlan = plan1d(Math.max(n, s.arcCount), wg, ctx.caps);
+        const pullOk = s.inDegree().every((d) => d <= PULL_MAX_DEGREE) ? 1 : 0;
+        const totals = sources === null ? null : new Float64Array(n);
+        const shared = {
+            n,
+            words,
+            base,
+            ctrl,
+            pullAt,
+            perNode: sources === null ? 0 : 1,
+            sourcesAt,
+            arcCount: s.arcCount,
+            pullOk,
         };
-
-        // setup: the iota queue compact reads, once per run
-        const setup = new CommandBatch(ctx, `${ALGORITHM}/setup`);
-        recordFill(setup.pass("fill"), iota, n, 1);
-        setup.endPass();
-        await submit(setup).readback;
-        ctx.assertReady();
 
         let batches = 0;
-        for (let batchStart = 0; batchStart < seedCount; batchStart += SOURCES_PER_BATCH) {
-            let level = 0;
-            for (let first = true; ; first = false) {
+        for (let batchStart = 0; batchStart < seedCount; batchStart += lanes) {
+            const count = Math.min(lanes, seedCount - batchStart);
+            const sums = new Float64Array(count);
+            const reciprocal = new Float64Array(count);
+            const reached = new Uint32Array(count);
+            for (let firstLevel = 0, done = false; !done; firstLevel += levelsPerSubmit) {
+                if (firstLevel > n + 1) {
+                    // a batch claims at most n - 1 levels deep, then one level claims nothing
+                    throw new WebGpuGraphError(
+                        "E_VALIDATION",
+                        `${ALGORITHM}: the batch at ${batchStart} still claimed at level ${firstLevel}`,
+                        { label: ALGORITHM, message: `the batch still claimed at level ${firstLevel}` },
+                    );
+                }
                 const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
                 const pass = batch.pass("closeness");
-                if (first) {
-                    // the batch's seed: the four regions and the block zeroed, then role 1 (the sources' bits, their
-                    // flags, counters[0] = k, level = U32_MAX)
-                    recordFill(pass, bits, 4 * bitsBase, 0);
-                    recordFill(pass, perSource, zeroedWords, 0);
-                    const seed = scope.params(FRONTIER_PARAMS, {
-                        role: sources === null ? 1 : 2,
-                        n: seedCount,
-                        bitsBase,
-                        source: batchStart,
-                    });
-                    reduce.dispatch(pass, reduce.bind({ counters, perSource, bits, P: seed.binding }), onePlan, [
-                        seed.offset,
-                    ]);
+                if (firstLevel === 0) {
+                    const clear = scope.params(CLOSENESS_PARAMS, { ...shared, role: 1, total: bitsWords, count });
+                    const bound = level.bind({ ...state, P: clear.binding });
+                    level.dispatch(pass, bound, plan1d(bitsWords, wg, ctx.caps), [clear.offset]);
+                    const seed = scope.params(CLOSENESS_PARAMS, { ...shared, role: 2, count, source: batchStart });
+                    level.dispatch(pass, bound, plan1d(count, wg, ctx.caps), [seed.offset]);
                 }
-                // the records every level of the submit shares (the ring wraps, so they are written per submit)
-                const boundary = scope.params(FRONTIER_PARAMS, { role: 0, n, bitsBase });
-                const boundBoundary = reduce.bind({ counters, perSource, bits, P: boundary.binding });
-                const clear = scope.params(FILL_PARAMS, { count: bitsBase, value: 0, mode: 0, pad0: 0 });
-                // parity 0 sweeps region 1 into region 2, parity 1 region 2 into region 1: the next region is cleared
-                const boundClearNext = [region(2), region(1)].map((dst) => fill.bind({ dst, P: clear.binding }));
-                const boundClearFlags = fill.bind({ dst: flags, P: clear.binding });
-                const boundSweep = [0, 1].map((mode) => {
-                    const params = scope.params(FRONTIER_PARAMS, {
-                        wg,
-                        n,
-                        bitsBase,
-                        arcBase: 0,
-                        arcEnd: s.arcCount,
-                        mode,
-                        stride: sweepPlan.stride ?? wg,
-                        perNode: sources === null ? 0 : 1,
+                const zero = scope.params(FILL_PARAMS, { count: rowWords, value: 0, mode: 0, pad0: 0 });
+                fill.dispatch(pass, fill.bind({ dst: rows, P: zero.binding }), plan1d(rowWords, wg, ctx.caps), [
+                    zero.offset,
+                ]);
+                let bound: ReturnType<typeof level.bind> | null = null;
+                for (let row = 0; row < levelsPerSubmit; row++) {
+                    const params = scope.params(CLOSENESS_PARAMS, {
+                        ...shared,
+                        role: 0,
+                        count,
+                        level: firstLevel + row,
+                        row,
                     });
-                    return {
-                        bound: sweep.bind({ ...graph, frontierList, counters, bits, perSource, P: params.binding }),
-                        offset: params.offset,
-                    };
-                });
-                for (let k = 0; k < levelsPerSubmit; k++, level++) {
-                    const parity = level % 2;
-                    reduce.dispatch(pass, boundBoundary, onePlan, [boundary.offset]);
-                    compact.record(pass, {
-                        queue: iota,
-                        flags,
-                        count: n,
-                        out: frontierList,
-                        outCount: counters,
-                        outIndex: W.frontierCount,
-                    });
-                    fill.dispatch(pass, boundClearNext[parity], regionPlan, [clear.offset]);
-                    fill.dispatch(pass, boundClearFlags, regionPlan, [clear.offset]);
-                    sweep.dispatch(pass, boundSweep[parity].bound, sweepPlan, [boundSweep[parity].offset]);
+                    bound ??= level.bind({ ...state, P: params.binding });
+                    level.dispatch(pass, bound, levelPlan, [params.offset]);
                 }
                 batch.endPass();
-                const doneRequest = batch.readback(counters.buffer, counters.offset + 4 * W.done, 4);
-                const blockRequest = batch.readback(perSource.buffer, perSource.offset, perSourceBytes);
+                const rowRequest = batch.readback(table.buffer, table.offset, 4 * rowWords);
                 const nodeRequest =
-                    totals === null ? null : batch.readback(perSource.buffer, perSource.offset + perSourceBytes, 4 * n);
-                const submitted = submit(batch);
+                    totals === null ? null : batch.readback(bits.buffer, bits.offset + 16 * base, 4 * n);
+                scope.flush();
+                const submitted = batch.submit();
                 const back = await submitted.readback;
                 ctx.assertReady();
                 if (options?.signal?.aborted) {
                     throw aborted(ALGORITHM, submitted.id);
                 }
-                if (new Uint32Array(back, doneRequest.offset, 1)[0] !== 0) {
-                    const block = new Uint32Array(back, blockRequest.offset, PER_SOURCE_WORDS);
-                    if (totals === null || nodeRequest === null) {
-                        const count = Math.min(SOURCES_PER_BATCH, n - batchStart);
-                        for (let i = 0; i < count; i++) {
-                            const sum = block[3 * SOURCES_PER_BATCH + i] * 2 ** 32 + block[2 * SOURCES_PER_BATCH + i];
-                            scores[batchStart + i] = sum === 0 ? 0 : 1 / sum;
-                        }
-                    } else {
-                        // at most 32 (n - 1) per node per batch, so a u32 word never wraps below 134M nodes
-                        const sums = new Uint32Array(back, nodeRequest.offset, n);
-                        for (let v = 0; v < n; v++) {
-                            totals[v] += sums[v];
-                        }
+                const counts = new Uint32Array(back, rowRequest.offset, rowWords);
+                for (let row = 0; row < levelsPerSubmit && !done; row++) {
+                    const distance = firstLevel + row + 1;
+                    let claimed = 0;
+                    for (let lane = 0; lane < count; lane++) {
+                        const c = counts[row * lanes + lane];
+                        sums[lane] += c * distance;
+                        reciprocal[lane] += c / distance;
+                        reached[lane] += c;
+                        claimed += c;
                     }
-                    tuning.onBatch?.(batchStart, block.slice());
-                    break;
+                    done = claimed === 0;
                 }
-                if (level > n + 3) {
-                    // a batch claims at most n - 1 levels deep, then one level claims nothing and one is empty
-                    throw new WebGpuGraphError(
-                        "E_VALIDATION",
-                        `${ALGORITHM}: the done flag never rose in ${level} levels of the batch at ${batchStart}`,
-                        { label: ALGORITHM, message: `the done flag never rose in ${level} levels` },
-                    );
+                if (done && totals !== null && nodeRequest !== null) {
+                    new Uint32Array(back, nodeRequest.offset, n).forEach((sum, v) => {
+                        totals[v] += sum;
+                    });
                 }
             }
+            if (sources === null) {
+                for (let lane = 0; lane < count; lane++) {
+                    scores[batchStart + lane] = harmonic ? reciprocal[lane] : inverse(sums[lane]);
+                }
+                tuning.onBatch?.(batchStart, sums, reached);
+            }
             batches += 1;
-            options?.onProgress?.(Math.min(batchStart + SOURCES_PER_BATCH, seedCount), seedCount);
+            options?.onProgress?.(batchStart + count, seedCount);
         }
         totals?.forEach((sum, v) => {
-            scores[v] = sum === 0 ? 0 : 1 / sum;
+            scores[v] = inverse(sum);
         });
         return { scores, iterations: batches, converged: true, precision: "f32", sourcesUsed: seedCount };
     } finally {
@@ -398,11 +471,11 @@ function checkSources(s: GraphSnapshot, sources: readonly number[] | undefined):
 }
 
 /**
- * Closeness with the test knobs of PD-26's shape; `closenessCentrality` is this with an empty tuning.
+ * Closeness with the test knobs; `closenessCentrality` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - `weighted` and a sampled run's `sources` honoured, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
+ * @param options - `weighted`, `harmonic` and a sampled run's `sources` honoured, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
  * @param tuning - the knobs
  * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */
@@ -424,6 +497,13 @@ export async function closenessWithTuning(
     }
     const n = s.nodeCount;
     const sources = checkSources(s, options?.sources);
+    const harmonic = options?.harmonic === true;
+    if (harmonic && sources !== null) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: harmonic closeness from sampled sources`, {
+            feature: "closenessCentrality.sampledHarmonic",
+            hint: "run the CPU port, or drop the sources for the exact harmonic score",
+        });
+    }
     const levelsPerSubmit = tuning.levelsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
     if (!Number.isInteger(levelsPerSubmit) || levelsPerSubmit < 1 || levelsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
         throw new WebGpuGraphError(
@@ -437,45 +517,62 @@ export async function closenessWithTuning(
         );
     }
     const scores = checkDest(ALGORITHM, options?.dest, n) ?? new Float32Array(n);
-    const weighted = options?.weighted ?? s.flags.weighted;
+    const weighted = (options?.weighted ?? s.flags.weighted) && s.weights !== null && !s.flags.allWeightsOne;
     if (options?.signal?.aborted) {
         throw aborted(ALGORITHM);
     }
-    if (weighted && s.weights !== null && !s.flags.allWeightsOne) {
-        if (!s.flags.nonNegativeWeights) {
-            throw new WebGpuGraphError(
-                "E_UNSUPPORTED",
-                `${ALGORITHM}: a negative weight has no shortest-path distance to sum`,
-                {
-                    feature: "closenessCentrality.negativeWeights",
-                    hint: "pass weighted: false to ignore the column",
-                },
-            );
-        }
-        if (!s.flags.finiteWeights) {
-            throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no shortest path`, {
-                feature: "closenessCentrality.nonFiniteWeights",
-            });
-        }
-        return weightedRoute(ctx, s, scores, sources, options);
+    if (weighted && !s.flags.nonNegativeWeights) {
+        throw new WebGpuGraphError(
+            "E_UNSUPPORTED",
+            `${ALGORITHM}: a negative weight has no shortest-path distance to sum`,
+            {
+                feature: "closenessCentrality.negativeWeights",
+                hint: "pass weighted: false to ignore the column",
+            },
+        );
     }
-    return sweepRoute(ctx, s, scores, sources, levelsPerSubmit, options, tuning);
+    if (weighted && !s.flags.finiteWeights) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no shortest path`, {
+            feature: "closenessCentrality.nonFiniteWeights",
+        });
+    }
+    const fits = n > 0 && n <= allPairsCeiling(ctx.caps.limits).maxNodes;
+    let route: ClosenessRoute;
+    if (sources !== null || !fits) {
+        route = weighted ? "per-source" : "levels";
+    } else {
+        route = tuning.route ?? (weighted || n <= ALL_PAIRS_MAX_NODES ? "all-pairs" : "levels");
+    }
+    if (route === "levels" && weighted) {
+        route = "per-source";
+    }
+    tuning.onRoute?.(route);
+    if (route === "all-pairs") {
+        return allPairsRoute(ctx, s, scores, weighted, harmonic, options);
+    }
+    if (route === "per-source") {
+        return perSourceRoute(ctx, s, scores, sources, harmonic, options);
+    }
+    return levelRoute(ctx, s, scores, sources, harmonic, levelsPerSubmit, options, tuning);
 }
 
 /**
  * Closeness centrality on the device (spec 3.3 line 810, design 8.4, 9.7): `scores[s] = 1 / sumDist_s` over the finite
  * distances from `s` to every other node, `0` when nothing is reached -- the legacy default of `@graphty/algorithms`'
- * `closenessCentrality`, unweighted by one bit-parallel multi-source search per 32 sources, weighted by one `sssp`
- * per source; `weighted` defaults to the snapshot's flag, `maxIterations` / `tolerance` are refused when defined
- * (PD-25). `iterations` is the source batches run and `converged` is always true.
+ * `closenessCentrality` -- or, with `harmonic`, the sum of `1 / dist` over the same nodes. Small and weighted
+ * graphs whose all-pairs matrix fits one binding run the all-pairs sweep and a row sum; other unweighted graphs run a
+ * bit-parallel multi-source search of up to 256 sources per batch; weighted graphs above the all-pairs ceiling run one
+ * `sssp` per source. `weighted` defaults to the snapshot's flag, `maxIterations` / `tolerance` are refused when
+ * defined. `iterations` is the source batches run and `converged` is always true.
  *
  * SAMPLED (`sources`, node indices, duplicates run twice; undirected snapshots only, E_UNSUPPORTED
- * `closenessCentrality.directedSources` otherwise): the batches seed the listed sources instead of every node, and
- * each node's score is `1 / sum` of its distances to the sources that reach it (itself excluded), `0` when none does:
- * the sampled score of the CPU port, unscaled. `sourcesUsed` is the list's length (`n` exact).
+ * `closenessCentrality.directedSources` otherwise; not with `harmonic`, E_UNSUPPORTED
+ * `closenessCentrality.sampledHarmonic`): the batches seed the listed sources instead of every node, and each node's
+ * score is `1 / sum` of its distances to the sources that reach it (itself excluded), `0` when none does: the sampled
+ * score of the CPU port, unscaled. `sourcesUsed` is the list's length (`n` exact).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - `weighted`, `sources`, plus dest (a Float32Array of length n for `scores`) / signal / onProgress
+ * @param options - `weighted`, `harmonic`, `sources`, plus dest (a Float32Array of length n for `scores`) / signal / onProgress
  * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */
 export function closenessCentrality(

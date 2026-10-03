@@ -1,6 +1,7 @@
 import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget } from "./bfs.js";
+import { withCode } from "../errors.js";
+import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget, treePaths } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
 /** Result of the index-based DFS. @public */
@@ -13,6 +14,22 @@ export interface DfsResult {
     readonly depth: U32;
     /** How many nodes were visited. */
     readonly visitedCount: number;
+    /**
+     * The ARC each node was discovered through (`colIdx[predArc[v]] === v`), INVALID_INDEX for the start node and
+     * for unvisited nodes. `arcToEdge[predArc[v]]` is the tree edge, the exact one among parallel edges.
+     */
+    readonly predArc: U32;
+    /**
+     * Node indices along the DFS tree from the start to `target` inclusive; empty when `target` was not visited.
+     * @param target - The node index to walk back from
+     */
+    pathTo(target: number): U32;
+    /**
+     * LOGICAL EDGE indices of the tree edges along that path, one fewer than `pathTo`; empty when `target` was not
+     * visited.
+     * @param target - The node index to walk back from
+     */
+    pathEdges(target: number): U32;
 }
 
 /** Options of the index-based DFS. @public */
@@ -35,6 +52,7 @@ const DONE = 2;
 interface Walk {
     readonly state: Uint8Array;
     readonly parent: U32;
+    readonly predArc: U32;
     readonly depth: U32;
     readonly cursor: U32;
     readonly stack: U32;
@@ -50,6 +68,7 @@ function newWalk(nodeCount: number): Walk {
     return {
         state: new Uint8Array(nodeCount),
         parent: new Uint32Array(nodeCount).fill(INVALID_INDEX),
+        predArc: new Uint32Array(nodeCount).fill(INVALID_INDEX),
         depth: new Uint32Array(nodeCount).fill(INVALID_INDEX),
         cursor: new Uint32Array(nodeCount),
         stack: new Uint32Array(nodeCount),
@@ -72,7 +91,7 @@ function newWalk(nodeCount: number): Walk {
  */
 function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOrder: U32 | null): void {
     const { rowPtr, colIdx } = g;
-    const { state, parent, depth, cursor, stack, pre, post } = w;
+    const { state, parent, predArc, depth, cursor, stack, pre, post } = w;
     let top = 0;
     state[root] = OPEN;
     depth[root] = 0;
@@ -85,11 +104,13 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
     while (top > 0) {
         const u = stack[top - 1];
         if (cursor[u] < rowPtr[u + 1]) {
-            const a = cursor[u]++;
-            const v = colIdx[arcOrder === null ? a : arcOrder[a]];
+            const i = cursor[u]++;
+            const a = arcOrder === null ? i : arcOrder[i];
+            const v = colIdx[a];
             if (state[v] === NEW) {
                 state[v] = OPEN;
                 parent[v] = u;
+                predArc[v] = a;
                 depth[v] = depth[u] + 1;
                 cursor[v] = rowPtr[v];
                 pre[w.preCount++] = v;
@@ -126,7 +147,14 @@ export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOp
     const postOrder = options.order === "post";
     walkFrom(g, start, w, postOrder ? INVALID_INDEX : target, arcOrder);
     const order = postOrder ? w.post.subarray(0, w.postCount) : w.pre.subarray(0, w.preCount);
-    return { order, parent: w.parent, depth: w.depth, visitedCount: w.preCount };
+    return {
+        order,
+        parent: w.parent,
+        depth: w.depth,
+        visitedCount: w.preCount,
+        predArc: w.predArc,
+        ...treePaths(g, start, w.predArc),
+    };
 }
 
 /**
@@ -176,7 +204,7 @@ export function hasCycle(g: AdjacencyView): boolean {
  */
 export function topologicalSort(g: AdjacencyView, options: ArcOrderOption = {}): U32 | null {
     if (!g.directed) {
-        throw new Error("Topological sort requires a directed graph");
+        throw withCode(new Error("Topological sort requires a directed graph"), "E_NEEDS_DIRECTED");
     }
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const w = newWalk(g.nodeCount);

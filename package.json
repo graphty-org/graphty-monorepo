@@ -16,10 +16,11 @@
         "check:published-deps": "node tools/check-published-deps.mjs",
         "check:bundle-size": "node tools/check-bundle-size.mjs",
         "lint:eslint-root": "node tools/check-eslint-root-config.mjs",
-        "check:legacy-use": "node tools/check-legacy-use.mjs --self-test && node tools/check-legacy-use.mjs",
+        "check:legacy-use": "node tools/workspace-files.mjs --self-test && node tools/check-legacy-use.mjs --self-test && node tools/check-legacy-use.mjs",
         "check:declared-tools": "node tools/check-declared-build-tools.mjs --self-test && node tools/check-declared-build-tools.mjs",
         "check:data-source-migration": "node tools/check-data-source-migration.mjs --self-test && node tools/check-data-source-migration.mjs",
         "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
+        "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
@@ -62,11 +63,11 @@
         }
     },
     "devDependencies": {
-        "@graphty/visual-review": "workspace:*",
         "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",
         "@eslint/js": "^9.29.0",
+        "@graphty/visual-review": "workspace:*",
         "@nx/eslint": "22.7.12",
         "@nx/react": "22.7.12",
         "@nx/storybook": "22.7.12",
@@ -76,6 +77,7 @@
         "@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
+        "@sonar/scan": "5.0.1",
         "@types/node": "^20.19.9",
         "@vitest/browser": "catalog:",
         "@vitest/coverage-v8": "catalog:",
@@ -115,7 +117,8 @@
     "pnpm": {
         "auditConfig": {
             "ignoreGhsas": [
-                "GHSA-vfj7-8cjw-p6xm"
+                "GHSA-vfj7-8cjw-p6xm",
+                "GHSA-86w9-cpqp-85rv"
             ]
         }
     }

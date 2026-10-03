@@ -117,6 +117,7 @@ describe("Build Output Tests", () => {
             "csv",
             "cx",
             "cx2",
+            "cys",
             "dot",
             "gexf",
             "gml",
@@ -125,6 +126,7 @@ describe("Build Output Tests", () => {
             "neo4j",
             "obo",
             "pajek",
+            "xgmml",
         ]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== ".");
         expect(subpaths.sort()).toEqual(FORMAT_DIRS.map((dir) => `./${dir}`));

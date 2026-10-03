@@ -417,6 +417,7 @@ export const TARGETS: readonly Target[] = [
     { name: "json cytoscape", format: "json", exportOptions: { dialect: "cytoscape" } },
     { name: "json graphology", format: "json", exportOptions: { dialect: "graphology" } },
     { name: "cx2", format: "cx2", exportOptions: { sanitizeIds: "mangle" } },
+    { name: "xgmml", format: "xgmml", exportOptions: {} },
 ];
 
 /**

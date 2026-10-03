@@ -17,7 +17,7 @@
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
  * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
  * sssp-relax rows and three f32-mode sssp-pred rows measured by test/sabotage/sssp.test.ts, P8-T10 the three bf-relax
- * rows measured by test/sabotage/bellman-ford.test.ts, P8-T11 the three closeness-sweep and three closeness-reduce rows
+ * rows measured by test/sabotage/bellman-ford.test.ts, the closeness-level and closeness-rowsum rows
  * measured by test/sabotage/closeness.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
@@ -1365,84 +1365,120 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BF_TEST,
         },
     ]),
-    "closeness-sweep": Object.freeze([
+    "closeness-level": Object.freeze([
         {
-            // a claim is counted without its atomicOr result: every lane whose SIMD group loaded the visited word
-            // together counts the vertex (the funnel's middle layer reaches one vertex from four lanes of every
-            // subgroup at once; newCount, reached and sum then overshoot)
-            name: "already-visited-recounted",
-            find: "let fresh = mask & ~old;",
-            replace: "let fresh = mask;",
+            // a push claim is counted without its atomicOr result: every frontier entry that reaches one vertex in
+            // the same level counts it (the funnel's middle layer reaches its last vertex from 200 entries at once)
+            name: "push-claim-recounted",
+            find: "let fresh = mask & ~atomicOr(&bits[x * W + j], mask);",
+            replace: "let fresh = mask; atomicOr(&bits[x * W + j], mask);",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // the won bits never reach the next region: the level-1 list is compacted from the flags but every
-            // frontier mask is 0, so nothing at distance 2 or beyond is ever claimed
-            name: "next-bits-not-set",
-            find: "atomicOr(&bits[nextBase + x], fresh);",
-            replace: "atomicOr(&bits[nextBase + x], 0u);",
+            // a pull keeps the bits the node had already seen, so every level recounts them
+            name: "pull-keeps-seen-bits",
+            find: "let fresh = acc[j] & ~vis[j];",
+            replace: "let fresh = acc[j];",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // every fresh bit is tallied to source 0: the other sources' counts stay 0 and source 0's overshoot
+            // the bits a push wins never reach the next frontier: nothing beyond distance 1 is claimed by a push
+            name: "push-next-not-set",
+            find: "if (atomicOr(&bits[nextBase + x * W + j], fresh) == 0u) {",
+            replace: "if (atomicOr(&bits[nextBase + x * W + j], 0u) == 0u) {",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the bits a pull wins never reach the next frontier
+            name: "pull-next-not-set",
+            find: "atomicStore(&bits[nextBase + i * W + j], fresh);",
+            replace: "atomicStore(&bits[nextBase + i * W + j], 0u);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the pull stops after the first in-arc instead of when every source has reached the node
+            name: "early-exit-too-soon",
+            find: "if (missing == 0u) { break; }",
+            replace: "if (true) { break; }",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // every claim is tallied to the first lane of its word: the other sources' sums stay 0
             name: "source-word-not-bit",
-            find: "let s = firstTrailingBit(b);",
-            replace: "let s = 0u;",
+            find: "atomicAdd(&tally[32u * j + firstTrailingBit(b)], 1u);",
+            replace: "atomicAdd(&tally[32u * j], 1u);",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // a sampled run's per-node sum counts the sources that reached x instead of adding their distances
-            // (every sampled score is the reciprocal of a count, not of a distance sum)
+            // a sampled run's per-node sum counts the sources that reached a node instead of adding their distances
             name: "per-node-distance-dropped",
-            find: "atomicAdd(&perSource[128u + x], countOneBits(fresh) * dist);",
-            replace: "atomicAdd(&perSource[128u + x], countOneBits(fresh));",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-    ]),
-    "closeness-reduce": Object.freeze([
-        {
-            // the claims of a level are summed at the level instead of the distance (one short everywhere)
-            name: "distance-is-the-level",
-            find: "let d = level + 1u;",
-            replace: "let d = level;",
+            find: "atomicAdd(&bits[4u * P.base + node], countOneBits(fresh) * dist);",
+            replace: "atomicAdd(&bits[4u * P.base + node], countOneBits(fresh));",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // reached never accumulates (stays 0 for every source)
-            name: "reached-not-accumulated",
-            find: "atomicLoad(&perSource[32u + s]) + c",
-            replace: "atomicLoad(&perSource[32u + s])",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-        {
-            // the carry of the 64-bit add is dropped: caught by the hand-seeded role-0 dispatch alone (no runnable
-            // fixture's per-source sum crosses 2^32), whose BigInt sum reads 4295028736n instead of 8589996032n
-            name: "carry-dropped",
-            find: "select(0u, 1u, lo < before)",
-            replace: "0u",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-        {
-            // role 2 ignores the source list and seeds the batch's first nodes, as the exact run's role 1 does
+            // the seed ignores a sampled run's source list and seeds the batch's first nodes
             name: "sampled-list-ignored",
-            find: "if (P.role == 2u) {",
+            find: "if (P.sourcesAt != 0u) {",
             replace: "if (false) {",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // the visited seed stores instead of ORing, so a source listed twice in one batch loses its first bit
-            // and that copy re-claims its own node at distance 2
+            // the visited seed stores instead of ORing, so a source listed twice in one word loses the first copy's
+            // bit and that copy re-claims its own node at distance 2
             name: "duplicate-seed-overwritten",
-            find: "bits[v] = bits[v] | bit;",
-            replace: "bits[v] = bit;",
+            find: "atomicOr(&bits[w], bit);",
+            replace: "atomicStore(&bits[w], bit);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+    ]),
+    "closeness-rowsum": Object.freeze([
+        {
+            // an unreachable entry is summed (+Infinity converted to an integer or added as a float)
+            name: "unreachable-counted",
+            find: "if (c == row || bitcast<u32>(d) == F32_INF_BITS) { continue; }",
+            replace: "if (c == row) { continue; }",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the tree drops the upper half of every step: only lane 0's own columns are summed
+            name: "tree-drops-half",
+            find: "let b = partial[lid.x + s];",
+            replace: "let b = 0u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // a hop count adds one per reached node instead of its distance
+            name: "hops-counted-as-one",
+            find: "whole = whole + u32(d);",
+            replace: "whole = whole + 1u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // a weighted row adds one per reached node instead of its distance
+            name: "weights-counted-as-one",
+            find: "real = real + d;",
+            replace: "real = real + 1.0;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the harmonic row adds the distance instead of its reciprocal
+            name: "harmonic-not-reciprocal",
+            find: "real = real + 1.0 / d;",
+            replace: "real = real + d;",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },

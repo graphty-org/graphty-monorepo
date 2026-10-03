@@ -1,3 +1,4 @@
+import { opacityToAlphaHex, parseAlphaFromHexa } from "@graphty/compact-mantine";
 import {
     ActionIcon,
     Autocomplete,
@@ -44,8 +45,6 @@ import {
     Type,
 } from "lucide-react";
 import React, { useState } from "react";
-
-import { opacityToAlphaHex, parseAlphaFromHexa } from "../../utils/color-utils";
 
 /**
  * Comprehensive demo of all Mantine components with compact size styling.

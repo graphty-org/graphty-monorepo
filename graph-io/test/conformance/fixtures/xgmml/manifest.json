@@ -1,0 +1,1733 @@
+{
+  "format": "xgmml",
+  "description": "XGMML conformance corpus: Cytoscape's own reader test files (2.x and 3.x dialects, groups, lists, hidden and SUID columns), a 2.x session's network files, a Cytoscape 3.10 export, other producers (EFI-EST, NGSCheckMate, VPLG), and authored files for the XGMML 1.0 draft's examples, session network and view documents and every edge case of research-xgmml.md section 5. Expectations are hand-written from the specification until the Cytoscape oracle workflow runs (design 6.3); oracleDisagrees marks where Cytoscape departs from the specification.",
+  "fixtures": [
+    {
+      "file": "cytoscape-impl/simple.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/simple.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "2.x-style typed atts at all three levels, lists of string and integer, boolean 1, a self-loop, negative id -1, the label alias fills interaction",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "-1"
+        ],
+        "labels": [
+          "node1"
+        ],
+        "warnings": [
+          "W_XGMML_LABEL_ALIAS"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "node_att_1",
+            "value": "node 1"
+          },
+          {
+            "id": "-1",
+            "column": "node_att_2",
+            "value": [
+              1
+            ]
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "-1",
+            "target": "-1",
+            "column": "edge_att_1",
+            "value": 2.5
+          },
+          {
+            "source": "-1",
+            "target": "-1",
+            "column": "edge_att_2",
+            "value": [
+              "a",
+              "b"
+            ]
+          },
+          {
+            "source": "-1",
+            "target": "-1",
+            "column": "interaction",
+            "value": "DirectedEdge"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape-impl/simple_3.3.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/simple_3.3.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "cy:type / cy:elementType; Integer versus Long under type=integer",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "directed": true,
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "node_att_3",
+            "value": 40
+          },
+          {
+            "id": "-1",
+            "column": "node_att_4",
+            "value": 1200
+          },
+          {
+            "id": "-1",
+            "column": "node_att_2",
+            "value": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape-impl/listAtt.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/listAtt.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "graph-level lists: no type and no items (a list of strings, W_XGMML_EMPTY_LIST_TYPE), a typed empty list, a child without a value, a list holding an empty string",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "warnings": [
+          "W_XGMML_EMPTY_LIST_TYPE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 creates no column for an untyped empty list (its element type is unknown); graph-io keeps it as an empty list of strings and says so, so the attribute is not dropped silently"
+    },
+    {
+      "file": "cytoscape-impl/hiddenAtt.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/hiddenAtt.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "cy:hidden as 1 / 0 / true / false; an edge before its target node",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "-1",
+          "-2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "_private_str",
+            "value": "_v1"
+          },
+          {
+            "id": "-2",
+            "column": "_private_list",
+            "value": [
+              "c",
+              "d"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape-impl/suid_metadata.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/suid_metadata.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "*.SUID references (valid, dangling, string-typed) kept as typed values, never remapped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          "21",
+          "22"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "21",
+            "column": "other_node.SUID",
+            "value": 22
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape remaps *.SUID values to the SUIDs of the new session and drops unresolvable ones; SUIDs mean nothing outside the session that wrote them, so graph-io keeps the values as written with extra.suidReference"
+    },
+    {
+      "file": "cytoscape-impl/bare_ampersands.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/bare_ampersands.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "bare & in attribute values, read with repairBareAmpersands (Cytoscape's 7-byte lookahead)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "warnings": [
+          "W_XGMML_AMPERSAND_REPAIRED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "node_att_$1",
+            "value": "CDE&"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "1",
+            "target": "1",
+            "column": "edge_att_1$",
+            "value": 25
+          }
+        ]
+      },
+      "options": {
+        "repairBareAmpersands": true
+      }
+    },
+    {
+      "file": "cytoscape-impl/empty.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/empty.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "an empty graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      }
+    },
+    {
+      "file": "cytoscape-impl/empty_DTD.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/empty_DTD.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "an empty graph with a DOCTYPE whose SYSTEM URL is dead (never fetched) and no namespace",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      }
+    },
+    {
+      "file": "cytoscape-impl/INVALID.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/INVALID.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "no XGMML namespace or DOCTYPE (read with W_XGMML_NO_NAMESPACE), cy:documentVersion 3.0, 3.x graphics with nested visual properties, an empty __Annotations list",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "warnings": [
+          "W_XGMML_NO_NAMESPACE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape's file filter refuses a root graph without the namespace or an xgmml.dtd DOCTYPE; the content is unambiguous XGMML, so graph-io reads it and warns"
+    },
+    {
+      "file": "cytoscape-impl/group_2x_collapsed.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/group_2x_collapsed.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "a collapsed 2.x metanode group: members only inside the node-nested graph, the nested graph's own att, a meta-edge",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 3,
+        "directed": true,
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "parent",
+            "value": 1
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape shows a collapsed group as its group node only (2 nodes, 1 edge in the visible network); graph-io's snapshot holds every node of the document and records the group as parent containment"
+    },
+    {
+      "file": "cytoscape-impl/group_2x_expanded.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/group_2x_expanded.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "an expanded 2.x group: members referenced by xlink:href, the 2.x writer's repeated edges dropped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "warnings": [
+          "W_XGMML_GROUP_DUPLICATE_EDGE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape hides an expanded group's own node (3 nodes in the visible network); graph-io keeps the group node as the parent of its members"
+    },
+    {
+      "file": "cytoscape-impl/nested_groups_283.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/nested_groups_283.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "groups inside groups (2.8.3): containment two levels deep",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 10,
+        "directed": true
+      },
+      "oracleDisagrees": "Cytoscape shows the collapsed outer group only (3 nodes, 3 edges); graph-io flattens every node and keeps the nesting as parent containment"
+    },
+    {
+      "file": "cytoscape-impl/galFiltered.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/galFiltered.xgmml",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "2.x documentVersion 1.0 at full size: RDF metadata, a non-numeric root id, no directed attribute, att label= as the name, 1,324 lists, cytoscape*GraphicsAttributes, a single-quoted XML declaration, the ns1 XLink prefix",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 331,
+        "edges": 362,
+        "directed": false,
+        "nodeIds": [
+          "-331",
+          "-330"
+        ],
+        "labels": [
+          "YBR043C"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-331",
+            "role": "position",
+            "value": [
+              1265.0,
+              -4817.0,
+              0
+            ]
+          },
+          {
+            "id": "-331",
+            "column": "species",
+            "value": "Saccharomyces cerevisiae"
+          },
+          {
+            "id": "-331",
+            "column": "name",
+            "value": "base"
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected"
+    },
+    {
+      "file": "cytoscape-impl/t3/Module_Overview.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/NNFData/t3.cys (entry CytoscapeSession-2009_11_19-13_37/Module_Overview.xgmml)",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "a Cytoscape 2.x session network file: graph view atts, cy:editable, nested_network_id pointers by network label",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "nodeAttrs": [
+          {
+            "id": "-3",
+            "column": "nested_network_id",
+            "value": "M3"
+          }
+        ]
+      }
+    },
+    {
+      "file": "cytoscape-impl/t3/M1.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/NNFData/t3.cys (entry CytoscapeSession-2009_11_19-13_37/M1.xgmml)",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "a Cytoscape 2.x session network file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true
+      }
+    },
+    {
+      "file": "cytoscape-impl/t3/M2.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/NNFData/t3.cys (entry CytoscapeSession-2009_11_19-13_37/M2.xgmml)",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "a Cytoscape 2.x session network file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      }
+    },
+    {
+      "file": "cytoscape-impl/t3/M3.xgmml",
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-impl/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/NNFData/t3.cys (entry CytoscapeSession-2009_11_19-13_37/M3.xgmml)",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "cytoscape-impl 208c1015e565ac55f6a78c2a23aa8196a7cf28ae, retrieved 2026-10-02",
+      "exercises": "a Cytoscape 2.x session network file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true
+      }
+    },
+    {
+      "file": "leovan/yeast_perturbation.xgmml",
+      "origin": "https://raw.githubusercontent.com/leovan/xgmml/c3cfe0b8234e4f1b4b8bb3ecd9bdf12eb9ce0a75/data/tests/yeast_perturbation.xgmml",
+      "license": "MIT (leovan/xgmml LICENSE); data Ideker et al., Science 292:929 (2001)",
+      "version": "leovan/xgmml c3cfe0b8234e4f1b4b8bb3ecd9bdf12eb9ce0a75",
+      "exercises": "a Cytoscape 3.10 export with its view: cy:type everywhere including Long, cy:directed on every edge, cy:hidden, a \\n escape, &apos;, about 60 graphics atts per node, NETWORK_* graph graphics",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 330,
+        "edges": 359,
+        "directed": true,
+        "nodeIds": [
+          "813",
+          "811"
+        ],
+        "labels": [
+          "YKR026C"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "813",
+            "role": "position",
+            "value": [
+              1102.2163802993496,
+              -548.4974860856266,
+              0
+            ]
+          },
+          {
+            "id": "813",
+            "column": "z",
+            "value": 0
+          },
+          {
+            "id": "813",
+            "column": "Stress",
+            "value": 0
+          },
+          {
+            "id": "813",
+            "column": "COMMON",
+            "value": "GCN3"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "813",
+            "target": "811",
+            "column": "interaction",
+            "value": "pp"
+          },
+          {
+            "source": "813",
+            "target": "811",
+            "column": "id",
+            "value": "1531"
+          }
+        ]
+      }
+    },
+    {
+      "file": "efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml",
+      "origin": "https://raw.githubusercontent.com/allie-walker/Natural-product-function/7f86fbc26db47f741a641d5d23470b45bc9c87af/SSN/20920_3-oxoacyl_c_20_full_ssn.xgmml",
+      "license": "MIT (repository LICENSE)",
+      "version": "Natural-product-function 7f86fbc26db47f741a641d5d23470b45bc9c87af",
+      "exercises": "EFI-EST sequence similarity network: no XML declaration, a comment before the root, no directed attribute, edge ids 'a,b', single-element named lists, an att named %id",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 105,
+        "edges": 221,
+        "directed": false,
+        "nodeIds": [
+          "zzzzzz0"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "zzzzzz0",
+            "column": "Description",
+            "value": [
+              "teicoplanin_2_1"
+            ]
+          },
+          {
+            "id": "zzzzzz0",
+            "column": "Sequence Length",
+            "value": 93
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "zzzzzz0",
+            "target": "zzzzz17",
+            "column": "%id",
+            "value": 100
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected"
+    },
+    {
+      "file": "ngscheckmate/test.out.xgmml",
+      "origin": "https://raw.githubusercontent.com/parklab/NGSCheckMate/ef7a38c51dadbd4ef5b6b6db60775f239926f0a8/graph/test.out.xgmml",
+      "license": "MIT (repository LICENSE)",
+      "version": "NGSCheckMate ef7a38c51dadbd4ef5b6b6db60775f239926f0a8",
+      "exercises": "an R-generated 2.x-style file (documentVersion 1.1): node.* and edge.* bypass atts as plain columns, a self-loop, cy: graphics attributes, an att named label (renamed label#2)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "warnings": [
+          "W_COLUMN_RENAMED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "node.fillColor",
+            "value": "255,0,0"
+          }
+        ]
+      }
+    },
+    {
+      "file": "vplg/3k6d_A_albe_PG.xml",
+      "origin": "https://raw.githubusercontent.com/dfsp-spirit/vplg/aa8bf6d6692f4fd5d4606cf4a4c5d7c668b99987/bk/bk_protsim/Data/Raw/k6/3k6d/A/3k6d_A_albe_PG.xml",
+      "license": "GPL-2.0-or-later (repository LICENSE); test-only",
+      "version": "vplg aa8bf6d6692f4fd5d4606cf4a4c5d7c668b99987",
+      "exercises": "a VPLG protein-ligand graph: .xml extension, directed=\"0\", string ids, labels in parentheses (no label alias), graph atts",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 7,
+        "edges": 5,
+        "directed": false,
+        "labels": [
+          "e0"
+        ],
+        "edgeChecks": [
+          {
+            "source": "e0",
+            "target": "e6"
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected"
+    },
+    {
+      "file": "authored/draft-d1-simple.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "draft D.1 shape: DOCTYPE PUBLIC, no namespace, Vendor / Layout / lowercase graphic root attributes as graph columns, node and edge weight 0",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "1",
+            "target": "2",
+            "weight": 0
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "weight",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/draft-d2-attributes.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "draft D.2 shape: typed atts (integer, real, list, untyped string) on graph, nodes and edges",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "size",
+            "value": 12
+          },
+          {
+            "id": "1",
+            "column": "tags",
+            "value": [
+              "x",
+              "y"
+            ]
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "1",
+            "target": "2",
+            "column": "kind",
+            "value": "link"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/draft-d3-multigraph.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "draft D.3 shape: a self-loop and two parallel edges, node weight -1, draft graphics types with positions",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 4,
+        "directed": true,
+        "edgeChecks": [
+          {
+            "source": "1",
+            "target": "1",
+            "weight": 0
+          },
+          {
+            "source": "1",
+            "target": "3",
+            "weight": 2
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "role": "position",
+            "value": [
+              20,
+              -30,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/draft-d4-subgraphs.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "draft D.4 shape: node-nested subgraphs with an edge across them declared at the root",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 3,
+        "directed": false,
+        "nodeAttrs": [
+          {
+            "id": "21",
+            "column": "parent",
+            "value": 3
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": "12",
+            "target": "21"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/ids-numeric-spellings.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "ids 1, 01, ' 1 ' and -1 stay four nodes (ids: keep)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "nodeIds": [
+          "1",
+          "01",
+          " 1 ",
+          "-1"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape turns every id that Long.valueOf(trim) accepts into a long, so 1, 01 and ' 1 ' collapse into one node; the ids are distinct texts and graph-io keeps them"
+    },
+    {
+      "file": "authored/node-without-id-and-label.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a node with a label but no id (the label is the id) and one with neither (E_MISSING_ID, skipped)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 0,
+        "nodeIds": [
+          "labelled only",
+          "b"
+        ],
+        "warnings": [
+          "W_XGMML_ID_FROM_LABEL",
+          "E_MISSING_ID"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 aborts the whole file here (a SAXParseException or a NullPointerException, research-xgmml.md 5); graph-io imports with a per-element error, as every graph-io importer does"
+    },
+    {
+      "file": "authored/duplicate-node-id.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a node id declared twice: merged, the later declaration fills unset values only",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "warnings": [
+          "W_DUPLICATE_NODE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "x",
+            "value": 1
+          },
+          {
+            "id": "a",
+            "column": "y",
+            "value": "kept"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/duplicate-edge-id.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an edge id used twice: the second edge is skipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "E_DUPLICATE_EDGE_ID"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3 creates both edges; edge ids are unique in XGMML (the DTD's ID type) and in graph-io's id column"
+    },
+    {
+      "file": "authored/dangling-endpoint.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an edge to a node never declared: E_UNKNOWN_NODE, edge skipped (addMissingNodes defaults to false)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "warnings": [
+          "E_UNKNOWN_NODE"
+        ]
+      }
+    },
+    {
+      "file": "authored/missing-target.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an edge without a target whose label is no alias: E_MISSING_ENDPOINT",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "warnings": [
+          "E_MISSING_ENDPOINT"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 aborts the whole file here (a SAXParseException or a NullPointerException, research-xgmml.md 5); graph-io imports with a per-element error, as every graph-io importer does"
+    },
+    {
+      "file": "authored/label-alias.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "edges resolved through Cytoscape's 'a (pp) b' label aliases: no endpoints at all, and an unknown source",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 2,
+        "warnings": [
+          "W_XGMML_LABEL_ALIAS"
+        ],
+        "edgeChecks": [
+          {
+            "source": "1",
+            "target": "2"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-before-nodes.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an edge written before both of its nodes",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "edgeChecks": [
+          {
+            "source": "-1",
+            "target": "-2"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/directed-true.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "root directed=\"true\": accepted as 1 with W_XGMML_BAD_DIRECTED",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "warnings": [
+          "W_XGMML_BAD_DIRECTED"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected"
+    },
+    {
+      "file": "authored/directed-bad.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "root directed=\"2\": falls back to the default (undirected) with W_XGMML_BAD_DIRECTED",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "warnings": [
+          "W_XGMML_BAD_DIRECTED"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 never reads the root directed attribute and makes every edge without cy:directed directed (research-xgmml.md 4.2); the XGMML DTD says directed defaults to 0, so the expectation is undirected"
+    },
+    {
+      "file": "authored/mixed-direction.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "cy:directed per edge: 1, 0 and true (warned) in one graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 3,
+        "directed": true,
+        "warnings": [
+          "W_XGMML_BAD_DIRECTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/no-namespace.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a root graph without namespace or DOCTYPE and without directed",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": false,
+        "warnings": [
+          "W_XGMML_NO_NAMESPACE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape's file filter refuses a root graph without the namespace or an xgmml.dtd DOCTYPE; the content is unambiguous, so graph-io reads it and warns"
+    },
+    {
+      "file": "authored/prefixed-root.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a prefixed xgmml:graph root in the XGMML namespace",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1
+      }
+    },
+    {
+      "file": "authored/empty-graph.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "<graph/> alone",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      }
+    },
+    {
+      "file": "authored/one-line.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a whole network on one line (the tokenizer is not line-bound)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 300,
+        "edges": 299,
+        "directed": true
+      }
+    },
+    {
+      "file": "authored/unknown-wrapper.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "unknown elements under graph: skipped with their subtree, once per name",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "warnings": [
+          "W_UNKNOWN_ELEMENT"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape's state machine ignores the unknown tag but keeps descending, so it reads the node inside the wrapper; an element XGMML does not define has no meaning to read into, so graph-io skips the subtree and says so"
+    },
+    {
+      "file": "authored/integer-overflow.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an integer above 2^31 (pre-3.3 Cytoscape wrote Longs as integer): the column widens to f64",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "warnings": [
+          "W_WIDENED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "n",
+            "value": 2147483648
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 aborts the whole file here (a SAXParseException or a NullPointerException, research-xgmml.md 5); graph-io imports with a per-element error, as every graph-io importer does"
+    },
+    {
+      "file": "authored/real-specials.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "1e400 (Infinity, W_PRECISION), NaN, -Infinity and a value with surrounding whitespace",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "W_PRECISION"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "c",
+            "column": "r",
+            "value": "-Infinity"
+          },
+          {
+            "id": "d",
+            "column": "r",
+            "value": 5.373e-08
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/bad-values.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "values that do not parse as their type (abc, the Java-only 1.0d and 0x1p3): E_BAD_VALUE, cell unset; ' 5 ' trimmed",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "warnings": [
+          "E_BAD_VALUE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "b",
+            "column": "i",
+            "value": 5
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape 3.10 aborts the whole file here (a SAXParseException or a NullPointerException, research-xgmml.md 5); graph-io imports with a per-element error, as every graph-io importer does"
+    },
+    {
+      "file": "authored/booleans.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "boolean spellings: yes, TRUE, 0 read; 2 is E_BAD_VALUE",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "E_BAD_VALUE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "b",
+            "value": true
+          },
+          {
+            "id": "b",
+            "column": "b",
+            "value": true
+          },
+          {
+            "id": "c",
+            "column": "b",
+            "value": false
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape reads any boolean text other than 1, true or yes as false, so 2 becomes false silently; graph-io does not guess and reports it"
+    },
+    {
+      "file": "authored/document-version-unparseable.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "cy:documentVersion=\"3.x\": warned, the dialect is chosen from the content",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_DOCUMENT_VERSION"
+        ]
+      }
+    },
+    {
+      "file": "authored/mixed-list.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a list whose items declare integer and string: widened to a list of strings",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_WIDENED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "m",
+            "value": [
+              "1",
+              "x"
+            ]
+          }
+        ]
+      },
+      "oracleDisagrees": "Cytoscape types the list by its first item and fails to convert x to an integer; design 5.1 widens to the type every item fits"
+    },
+    {
+      "file": "authored/record-list.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "the draft's record list (children with distinct names) kept as a json record",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_RECORD_LIST"
+        ]
+      }
+    },
+    {
+      "file": "authored/list-of-lists.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a list of lists kept as nested json arrays",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_RECORD_LIST"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "lol",
+            "value": [
+              [
+                "1"
+              ],
+              [
+                "2"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/map-2x.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a 2.x att type=\"map\" kept as a json record",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_RECORD_LIST"
+        ]
+      }
+    },
+    {
+      "file": "authored/rdf-in-node.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "foreign XML (RDF / vCard) inside a node att kept as text in a json column",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_RECORD_LIST"
+        ]
+      }
+    },
+    {
+      "file": "authored/equation.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a cy:equation formula kept as its text",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_EQUATION_AS_TEXT"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "absx",
+            "value": "=ABS($x)"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/literal-escapes.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "Cytoscape's two-character \\n and \\t decoded in a Cytoscape file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "text",
+            "value": "line one\nline two\tend"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/hidden-spellings.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "cy:hidden spellings true, TRUE, yes and 0",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1
+      }
+    },
+    {
+      "file": "authored/malformed-atts.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a list att with a value, a scalar att with child atts and an att without a name: W_XGMML_BAD_ATT once per kind",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_BAD_ATT"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "l",
+            "value": [
+              "x"
+            ]
+          },
+          {
+            "id": "a",
+            "column": "s",
+            "value": "v"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/unknown-type-and-duplicate-att.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an att type XGMML does not define (float, kept as text) and the same att twice on one node (the later wins)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_UNKNOWN_ATTR_TYPE",
+          "W_DUPLICATE_ATTRIBUTE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "f",
+            "value": "1.5"
+          },
+          {
+            "id": "a",
+            "column": "d",
+            "value": "2"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/empty-lists.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "graph-level empty lists: untyped (a list of strings, warned), typed, a valueless child, one empty string",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "warnings": [
+          "W_XGMML_EMPTY_LIST_TYPE"
+        ]
+      }
+    },
+    {
+      "file": "authored/center-and-line.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "draft graphics: a <center> as the node position (z a coordinate in the draft dialect) and a <Line> of points kept in the edge graphics",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "role": "position",
+            "value": [
+              1,
+              -2,
+              3
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/two-graphics.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "two graphics elements on one node: merged key by key, the later wins",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "role": "position",
+            "value": [
+              1,
+              -2,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/graphics-3x.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "Cytoscape 3 graphics: NETWORK_* graph graphics, nested visual-property atts, lockedVisualProperties, z as its own column (a WikiPathways-style 32768)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "z",
+            "value": 32768
+          },
+          {
+            "id": "a",
+            "role": "position",
+            "value": [
+              10,
+              -20,
+              0
+            ]
+          },
+          {
+            "id": "b",
+            "role": "position",
+            "value": [
+              -5,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-nested-graph.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a graph nested in an edge att: skipped with its content",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 1,
+        "warnings": [
+          "W_XGMML_EDGE_NESTED_GRAPH"
+        ]
+      }
+    },
+    {
+      "file": "authored/unresolved-href.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an xlink:href member naming no node, and an edge reference naming none",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ]
+      }
+    },
+    {
+      "file": "authored/cross-file-href.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a nested-network pointer into another file, kept as text",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_CROSS_FILE_REFERENCE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "xgmml.networkPointer",
+            "value": "other.xgmml#223"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/pointer-cycle-3x.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "Cytoscape 3 nested-network pointers that form a cycle (Na -> Nb -> Na): pointers, never containment",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "cytoscape.nestedNetwork",
+            "value": "Nb"
+          },
+          {
+            "id": "6",
+            "column": "cytoscape.nestedNetwork",
+            "value": "Na"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/group-cycle.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a group membership that would close a parent cycle: that link is dropped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "warnings": [
+          "E_PARENT_CYCLE"
+        ]
+      }
+    },
+    {
+      "file": "authored/group-multi-parent-3x.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a node in two 3.x groups (__isGroup): the parents list",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "nodeAttrs": [
+          {
+            "id": "m",
+            "column": "parents",
+            "value": [
+              0,
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/root-subgraphs.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "root-level subgraphs of a generic document: flattened, membership in xgmml.networks",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": "a",
+            "column": "xgmml.networks",
+            "value": [
+              "s1",
+              "s2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/session-network-subnetworks.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a Cytoscape 3 session network file (the structure of subnetworks.cys): three registered networks, shared nodes and edges by xlink:href, a cross-file pointer, a pointer to another subnetwork, a self-loop only in a subnetwork",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 3,
+        "graphNames": [
+          "Na",
+          "Na.1",
+          "Na.1.1"
+        ],
+        "warnings": [
+          "W_MULTIPLE_GRAPHS",
+          "W_XGMML_CROSS_FILE_REFERENCE"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "181",
+            "column": "cytoscape.nestedNetwork",
+            "value": "Na.1"
+          }
+        ]
+      }
+    },
+    {
+      "file": "authored/session-network-nested-groups.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a Cytoscape 3 session network file (the structure of nestedGroups_expanded.cys): group networks with cy:registered=\"0\", multi-membership, meta-edges declared at the root only",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 3,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "Network"
+        ],
+        "warnings": [
+          "W_XGMML_ROOT_ONLY_ELEMENTS"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape reads G1 and G2 as groups from the session's hidden __isGroup table, which a network file alone does not carry; read on its own, the file's node-nested graphs are nested-network pointers (the .cys importer supplies the group bookkeeping)"
+    },
+    {
+      "file": "authored/session-view.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a session view file on its own (cy:view=\"1\"): refused, its ids are view SUIDs",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_XGMML_VIEW_DOCUMENT"
+      }
+    },
+    {
+      "file": "authored/latin1-declared.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "encoding=\"ISO-8859-1\" declared in the prolog",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "nodeIds": [
+          "caf\u00e9"
+        ]
+      }
+    },
+    {
+      "file": "authored/latin1-undeclared.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "undeclared Latin-1 bytes: read as windows-1252 with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "nodeIds": [
+          "caf\u00e9"
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf16-bom.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "UTF-16LE with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "labels": [
+          "\u00e9t\u00e9"
+        ]
+      }
+    },
+    {
+      "file": "authored/surrogate-pairs-repaired.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "two surrogate character references (written by Cytoscape's full encoding) joined under pairSurrogateReferences",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_SURROGATE_PAIRED"
+        ],
+        "labels": [
+          "smile \ud83d\ude00"
+        ]
+      },
+      "options": {
+        "pairSurrogateReferences": true
+      }
+    },
+    {
+      "file": "authored/bare-ampersands-repaired.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "bare & in names and values repaired under repairBareAmpersands",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_XGMML_AMPERSAND_REPAIRED"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "1",
+            "column": "node_att_$1",
+            "value": "CDE&"
+          }
+        ]
+      },
+      "options": {
+        "repairBareAmpersands": true
+      }
+    },
+    {
+      "file": "authored/external-dtd.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "a DOCTYPE SYSTEM file:///etc/passwd that is never fetched",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1
+      }
+    },
+    {
+      "file": "authored/xhtml-embedded.xgmml",
+      "origin": "authored (tools/make_xgmml_fixtures.py)",
+      "license": "MIT (authored by tools/make_xgmml_fixtures.py)",
+      "version": "2026-10-02",
+      "exercises": "an XHTML page embedding an xgmml:graph: the root is not graph",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_NO_GRAPH"
+      },
+      "oracleDisagrees": "Cytoscape finds the embedded graph; graph-io reads XGMML documents, whose root is graph (design section 1.1)"
+    }
+  ]
+}

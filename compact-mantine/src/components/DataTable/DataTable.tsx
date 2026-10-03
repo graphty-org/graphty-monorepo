@@ -27,7 +27,7 @@ import { UiGlyph } from "../../icons";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
 import { useDataTableLabels } from "./labels";
-import { clampGridPosition, type GridPosition, HEADER_ROW, nextGridPosition, samePosition } from "./navigation";
+import { clamp, clampGridPosition, type GridPosition, HEADER_ROW, nextGridPosition, samePosition } from "./navigation";
 import { applySelectionGesture, selectAll, type SelectionModifiers, type SelectionResult } from "./selection";
 import type { DataTableColumn, DataTableHandle, DataTableProps, DataTableSort } from "./types";
 import { cellText, compareValues, type ValueFormat } from "./values";
@@ -122,17 +122,6 @@ function ariaSortOf(sorted: false | "asc" | "desc"): "ascending" | "descending" 
     }
 
     return "none";
-}
-
-/**
- * Keeps a number inside a range.
- * @param value - The number to keep in range
- * @param min - The lowest allowed value
- * @param max - The highest allowed value
- * @returns The number, brought into range
- */
-function clampNumber(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
 }
 
 /**
@@ -616,7 +605,7 @@ function DataTableInner<TRow extends object>(
                 }
 
                 ids.splice(from, 1);
-                ids.splice(clampNumber(toIndex, 0, ids.length), 0, id);
+                ids.splice(clamp(toIndex, 0, ids.length), 0, id);
                 table.setColumnOrder(ids);
             },
             clearSelection: (): void => {

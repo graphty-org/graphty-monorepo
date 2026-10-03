@@ -190,13 +190,13 @@ await graph.runAlgorithm("graphty", "max-flow", {
 A run hands back its own result. Nothing has to be found by walking the graph:
 
 ```typescript
-const run = await element.run("degree");
+const result = await element.run("degree");
 
 // One element
-console.log(run.result.node("node1")?.value);
+console.log(result.node("node1")?.value);
 
 // The shape of the whole thing, computed once
-const summary = run.result.summary();
+const summary = result.summary();
 console.log(summary.max, summary.min, summary.top[0].id);
 ```
 
@@ -398,6 +398,12 @@ await element.session.styles.encode({ run: degree, channel: "node.size" });
 
 Layers stack, so the two do not fight: one decides colour, the other decides size, and
 `session.styles.legend()` describes both.
+
+### What a run painted
+
+A run's suggested style is not always painted: a layer you wrote that already colors every node
+holds it back. `session.runs.painting(runId)` reports what happened to each suggestion. See
+[What a Run Painted](./run-painting).
 
 ## Custom Algorithms
 

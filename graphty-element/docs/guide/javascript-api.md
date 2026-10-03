@@ -239,7 +239,7 @@ await graph.waitForStableFrame();
 const run = await graph.run("degree");
 
 // One element's value
-const degree = run.result.node("node1")?.value;
+const degree = run.node("node1")?.value;
 
 // Put the algorithm's own suggested picture back, after a reader cleared it
 graph.applySuggestedStyles("degree");
@@ -563,7 +563,7 @@ async function initGraph() {
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

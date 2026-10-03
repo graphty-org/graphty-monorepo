@@ -1,3 +1,44 @@
+## 3.2.0 (2026-10-03)
+
+### 🚀 Features
+
+- **algorithms:** export a machine-readable ALGORITHMS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.1.8 (2026-10-03)
+
+### 🩹 Fixes
+
+- **algorithms:** refuse accelerator betweenness whose path counts overflowed ([#719](https://github.com/graphty-org/graphty-monorepo/issues/719))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.1.7 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** make PriorityDeltaPageRank converge to pageRank ([#721](https://github.com/graphty-org/graphty-monorepo/issues/721))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.1.6 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** make the prim story show the tree, its start node and build order ([0ab92cb8](https://github.com/graphty-org/graphty-monorepo/commit/0ab92cb8))
+- **algorithms:** run a minimum spanning tree with a weights override on the CPU ([4ca72b6a](https://github.com/graphty-org/graphty-monorepo/commit/4ca72b6a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.5 (2026-10-02)
 
 ### 🩹 Fixes

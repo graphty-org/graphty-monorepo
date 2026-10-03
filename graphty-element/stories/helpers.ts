@@ -476,22 +476,26 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    if (setup.preSteps !== undefined || setup.stepMultiplier !== undefined) {
-        const { preSteps, stepMultiplier } = setup;
+    // One document, written once: two assignments would leave only the second, and a story that
+    // declutters its labels used to lose its pre-steps that way.
+    const { preSteps, stepMultiplier, declutterLabels } = setup;
+
+    if (preSteps !== undefined || stepMultiplier !== undefined || declutterLabels !== undefined) {
         element.layoutBehavior = {
-            layout: {
-                ...(preSteps === undefined ? {} : { preSteps }),
-                ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
-            },
+            ...(preSteps === undefined && stepMultiplier === undefined
+                ? {}
+                : {
+                      layout: {
+                          ...(preSteps === undefined ? {} : { preSteps }),
+                          ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
+                      },
+                  }),
+            ...(declutterLabels === undefined ? {} : { labels: { declutter: declutterLabels } }),
         };
     }
 
     if (setup.algorithms !== undefined) {
         element.algorithmsOnLoad = setup.algorithms;
-    }
-
-    if (setup.declutterLabels !== undefined) {
-        element.layoutBehavior = { labels: { declutter: setup.declutterLabels } };
     }
 }
 

@@ -16,6 +16,7 @@ import {
     type GraphSnapshot,
 } from "@graphty/graph-format";
 
+import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
@@ -71,6 +72,13 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
     readonly builder?: BuilderSeed | undefined;
     /** Options of the freeze that follows the import. */
     readonly freeze?: FreezeOptions | undefined;
+    /**
+     * The most attribute slots that hold no value the import may allocate before it stops with
+     * E_TOO_MANY_EMPTY_CELLS. Every attribute is a column with one slot per node (or edge), so a file
+     * whose nodes each have a differently named attribute would otherwise need nodes x attributes
+     * memory. Default 2^24 (16,777,216); Infinity turns the check off. Dense files are never stopped.
+     */
+    readonly maxEmptyCells?: number | undefined;
     /** Format-specific options, passed to the importer as they are. */
     readonly [formatOption: string]: unknown;
 }
@@ -96,7 +104,14 @@ export interface ExportGraphOptions extends CommonExportOptions {
 }
 
 /** The keys of ImportGraphOptions that belong to the registry, never to an importer. */
-const REGISTRY_KEYS: ReadonlySet<string> = new Set(["format", "filename", "mimeType", "builder", "freeze"]);
+const REGISTRY_KEYS: ReadonlySet<string> = new Set([
+    "format",
+    "filename",
+    "mimeType",
+    "builder",
+    "freeze",
+    "maxEmptyCells",
+]);
 
 /**
  * A registry of importers and exporters by format name. Registration order is the tie-break
@@ -230,7 +245,7 @@ export class FormatRegistry {
      */
     async importGraph(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
         const chosen = await this.choose(input, options);
-        const builder = seededBuilder(options);
+        const builder = seededBuilder(options, chosen.importer.format);
         let report: ImportReport;
         try {
             report = await chosen.importer.import(chosen.source, builder, importerOptions(options));
@@ -257,13 +272,13 @@ export class FormatRegistry {
         let reports: ImportReport[];
         try {
             if (importer.importAll === undefined) {
-                builders.push(seededBuilder(options));
+                builders.push(seededBuilder(options, importer.format));
                 reports = [await importer.import(chosen.source, builders[0], importerOptions(options))];
             } else {
                 reports = await importer.importAll(
                     chosen.source,
                     () => {
-                        const builder = seededBuilder(options);
+                        const builder = seededBuilder(options, importer.format);
                         builders.push(builder);
                         return builder;
                     },
@@ -504,19 +519,25 @@ interface ChosenImporter {
 
 /**
  * A fresh builder seeded from the common options, `directed: true` as a placeholder the importer
- * overrides from the file.
+ * overrides from the file, that stops the import when its attributes get too sparse.
  * @param options - the importGraph options
+ * @param format - the format being read
  * @returns the builder
  */
-function seededBuilder(options: ImportGraphOptions): GraphBuilder {
-    return new GraphBuilder({
-        weightDtype: options.weightDtype ?? "f64",
-        ...options.builder,
-        directed: true,
-        addMissingNodes: options.addMissingNodes ?? true,
-        duplicateEdges: options.duplicateEdges ?? "keep",
-        selfLoops: options.selfLoops ?? "keep",
-    });
+function seededBuilder(options: ImportGraphOptions, format: string): GraphBuilder {
+    const maxEmptyCells = maxEmptyCellsOption(options.maxEmptyCells);
+    return new CellBudgetBuilder(
+        {
+            weightDtype: options.weightDtype ?? "f64",
+            ...options.builder,
+            directed: true,
+            addMissingNodes: options.addMissingNodes ?? true,
+            duplicateEdges: options.duplicateEdges ?? "keep",
+            selfLoops: options.selfLoops ?? "keep",
+        },
+        format,
+        maxEmptyCells,
+    );
 }
 
 /**

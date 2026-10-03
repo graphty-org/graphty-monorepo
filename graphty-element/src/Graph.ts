@@ -4871,6 +4871,7 @@ export class Graph implements GraphContext {
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
+     * @param signal - Cancels the animation: the distance stays where it is and is never written again
      */
     private async animateCameraDistance(
         orbitController: {
@@ -4882,6 +4883,7 @@ export class Graph implements GraphContext {
         frameCount: number,
         fps: number,
         easing?: string,
+        signal?: AbortSignal,
     ): Promise<void> {
         // The same floor the immediate path applies, so an animation never ends below it.
         const targetDistance = orbitController.clampDistance(requestedDistance);
@@ -4912,9 +4914,15 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
+
+                // Cancelled: stopping raises this callback too, and the final value is not ours to write.
+                if (signal?.aborted === true) {
+                    resolve();
+                    return;
+                }
 
                 // Ensure final value
                 orbitController.cameraDistance = targetDistance;
@@ -4922,6 +4930,18 @@ export class Graph implements GraphContext {
 
                 resolve();
             });
+
+            // Without this a cancelled animation kept writing the distance every frame and, at the
+            // end of its own duration, snapped the camera to ITS target over the one that replaced it.
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                    animatable.stop();
+                    resolve();
+                },
+                { once: true },
+            );
         });
     }
 
@@ -5058,6 +5078,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         } else if (targetState.position && targetState.target) {
             // Calculate distance from position to target
@@ -5071,6 +5092,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         }
 
@@ -5093,6 +5115,12 @@ export class Graph implements GraphContext {
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
                             await distanceAnimation;
+                        }
+
+                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
+                        if (signal?.aborted === true) {
+                            safeSettle();
+                            return;
                         }
 
                         // Ensure final state is applied exactly

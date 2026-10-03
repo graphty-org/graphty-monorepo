@@ -97,6 +97,7 @@ import {
     isGraphtyError,
     type Layer,
     type LayerSpec,
+    type Note,
     type RunId,
     type SelectionDelta,
     type TransactionScope,
@@ -193,7 +194,12 @@ import {
 } from "./insights/insightsRules";
 import { Inspector } from "./inspector/Inspector";
 import { InspectorBody, type InspectorSelection } from "./inspector/InspectorBody";
-import { COUNTS_ROW_LABELS, INSPECTOR_KIND_LABELS, MOST_CONNECTED_TOP_N } from "./inspector/inspectorConstants";
+import {
+    COUNTS_ROW_LABELS,
+    INSPECTOR_KIND_LABELS,
+    INSPECTOR_SECTION_IDS,
+    MOST_CONNECTED_TOP_N,
+} from "./inspector/inspectorConstants";
 import type { NeighborRow } from "./inspector/NodeInspector";
 import type { ResultBodyRow } from "./inspector/ResultInspector";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
@@ -965,6 +971,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         selectActivity,
         setInspectorWidth,
         setPanelWidth,
+        setSectionOpen,
         setStateAxis,
         sidebarsHidden,
         toggleSidebars,
@@ -2635,6 +2642,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         [openActivity],
     );
 
+    /* graphty-element's notes: the selected node's, and how many are about the whole graph (the
+       case notes). Read from `session.notes` and read again on every `note:changed` -- a write,
+       an undo, a redo or an opened project. The shell keeps no note store of its own. */
+    const [selectedNodeNotes, setSelectedNodeNotes] = useState<readonly Note[]>([]);
+    const [caseNoteCount, setCaseNoteCount] = useState(0);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const read = (): void => {
+            setCaseNoteCount(session.notes.list({ target: { graph: true } }).length);
+            setSelectedNodeNotes(
+                selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.elementId } }),
+            );
+        };
+
+        read();
+
+        return session.on("note:changed", read);
+    }, [selectedNode, session]);
+
+    /* The case notes -- graphty-element's notes about the whole graph -- are listed in the
+       Explore panel's Notes section, so this opens Explore with that section expanded. */
+    const openCaseNotes = useCallback(() => {
+        openPanelAt("explore");
+        setSectionOpen("explore.notes", true);
+    }, [openPanelAt, setSectionOpen]);
+
     /* ---------------------------------------------------------------------- */
     /* The one capability this slice can run end to end (7.3 item 3)           */
     /* ---------------------------------------------------------------------- */
@@ -3353,6 +3389,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openPanelAt("explore");
                 focusWhenMounted('[data-testid="explore-search-input"]');
             },
+            /* N: the inspector's note input for the selected node; with nothing selected, the
+               case notes. */
+            addNote: () => {
+                if (selectedNode === null) {
+                    openCaseNotes();
+
+                    return;
+                }
+
+                if (sidebarsHidden) {
+                    toggleSidebars();
+                }
+
+                setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
+                focusWhenMounted('[data-testid="node-note-input"]');
+            },
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
@@ -4066,7 +4118,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     degreeLogScale: degreeDistribution.logX,
                     schema: { ready: false, summary: "measuring...", nodeTypes: [], edgeTypes: [] },
                     attributes: { nodes: [], edges: [] },
-                    caseNoteCount: 0,
+                    caseNoteCount,
                     onShowInTable: () => {
                         openDrawerOn("nodes");
                     },
@@ -4085,9 +4137,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     onExportSchemaJson: () => undefined,
                     onFilterToType: () => undefined,
                     onSelectAllOfType: () => undefined,
-                    onOpenCaseNotes: () => {
-                        openPanelAt("explore");
-                    },
+                    onOpenCaseNotes: openCaseNotes,
                     onMoreInAnalyze: () => {
                         openPanelAt("analyze");
                     },
@@ -4106,7 +4156,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 attributes,
                 attributeCount: attributes === null ? 0 : Object.keys(attributes).length,
                 metrics: [],
-                notes: [],
+                notes: selectedNodeNotes,
                 neighborCount: neighbors.length,
                 neighborBreakdown: [],
                 /* The MEASURED answer. The shell used to carry its own graph-type record whose
@@ -4123,8 +4173,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onToggleNoteDone: () => undefined,
-                onDeleteNote: () => undefined,
+                onAddNote: (text: string) => {
+                    session?.notes.add({ text, targets: [{ node: selectedNode.elementId }] });
+                },
+                // One undoable step in the element's history, so Undo brings the note back.
+                onDeleteNote: (noteId: string) => {
+                    session?.notes.remove(noteId);
+                },
                 onSelectNeighbor: (nodeId: string) => {
                     graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },
@@ -4162,6 +4217,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         mostConnected,
         neighborsOf,
         nodeCount,
+        caseNoteCount,
+        openCaseNotes,
         openDrawerOn,
         openPanelAt,
         pinnedNodes,
@@ -4170,6 +4227,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         resolveLayerChannel,
         selectedLayerId,
         selectedNode,
+        selectedNodeNotes,
+        session,
         togglePin,
         updateLayer,
         zoomToSelection,

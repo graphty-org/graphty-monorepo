@@ -127,6 +127,9 @@ export const ModifiedJson: Story = {
 
 export const GraphML: Story = {
     args: {
+        // Pre-steps under Chromatic, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "graphml",
         dataSourceConfig: {
             url: "https://raw.githubusercontent.com/chengw07/NetWalk/master/data/karate.GraphML",
@@ -139,6 +142,9 @@ export const GraphML: Story = {
 
 export const CSV: Story = {
     args: {
+        // Pre-steps under Chromatic, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "csv",
         dataSourceConfig: {
             data: `source,target,weight,protocol,latency,bandwidth,active,description
@@ -161,6 +167,9 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
 
 export const GML: Story = {
     args: {
+        // Pre-steps under Chromatic, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "gml",
         dataSourceConfig: {
             data: `Creator "Comprehensive GML Test File"
@@ -287,6 +296,9 @@ graph [
 
 export const GEXF: Story = {
     args: {
+        // Pre-steps under Chromatic, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "gexf",
         dataSourceConfig: {
             data: `<?xml version="1.0" encoding="UTF-8"?>
@@ -973,6 +985,9 @@ export const Pajek: Story = {
 // GraphMLYFiles: yFiles GraphML with 6 nodes in 3D space and 40x thicker edges
 export const GraphMLYFiles: Story = {
     args: {
+        // Pre-steps under Chromatic, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "graphml",
         dataSourceConfig: {
             data: `<?xml version="1.0" encoding="UTF-8"?>

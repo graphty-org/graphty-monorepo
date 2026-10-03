@@ -13,7 +13,7 @@
 
 import type { AdjacencyView, F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
-import { ConvergenceError } from "../errors.js";
+import { ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
@@ -85,6 +85,14 @@ export interface BellmanFordResultLike extends SsspResultLike {
 export interface EdgeScoresResultLike {
     readonly scores: NumericVector;
 }
+/**
+ * What an accelerator's betweenness reports beside its scores: `sigmaOverflow` true means some
+ * shortest-path count overflowed its counters, so the scores are wrong. The dispatcher turns it
+ * into a `PathCountOverflowError` rather than return them. @public
+ */
+export interface PathCountReport {
+    readonly sigmaOverflow?: boolean | undefined;
+}
 /** An all-pairs distance matrix, row-major, n by n. @public */
 export interface ApspResultLike {
     readonly dist: NumericVector;
@@ -140,11 +148,16 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
-    betweennessCentrality?(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<ScoresResultLike>;
+    /** True when `closenessCentrality` honours `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
+    readonly harmonicCloseness?: boolean;
+    betweennessCentrality?(
+        s: GraphSnapshot,
+        options?: BetweennessAcceleratorOptions,
+    ): Promise<ScoresResultLike & PathCountReport>;
     edgeBetweennessCentrality?(
         s: GraphSnapshot,
         options?: BetweennessAcceleratorOptions,
-    ): Promise<EdgeScoresResultLike>;
+    ): Promise<EdgeScoresResultLike & PathCountReport>;
     allPairsShortestPath?(s: GraphSnapshot, options?: SsspOptions): Promise<ApspResultLike>;
     kCoreDecomposition?(s: GraphSnapshot): Promise<CorenessResultLike>;
     triangleCount?(s: GraphSnapshot): Promise<{ readonly perNode: U32; readonly total: number }>;
@@ -206,11 +219,14 @@ export interface BetweennessAcceleratorOptions {
  * Closeness options as the accelerator sees them: `weighted` always explicit, and `sources` as node INDICES --
  * present for a sampled run, absent for the exact one from every node. With `sources` the member scores every
  * node from its distances to those sources, as the CPU port's sampled closeness does (duplicates run twice).
+ * `harmonic` asks for the sum of `1 / distance` instead of `1 / sum(distance)`; the dispatcher sends it only to an
+ * accelerator that declares `harmonicCloseness`, and only for an exact run.
  * @public
  */
 export interface ClosenessAcceleratorOptions {
     readonly weighted?: boolean | undefined;
     readonly sources?: readonly number[] | undefined;
+    readonly harmonic?: boolean | undefined;
 }
 
 /** Closeness scores with the number of sources run: `nodeCount` exact, the sample's length sampled. @public */
@@ -296,8 +312,9 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
  * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
- * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
- * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
+ * its own. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
+ * `weights` override, and `harmonic` only on an exact run to an accelerator that declares
+ * `harmonicCloseness` -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  * A sampled closeness (`sources` or `k`) goes too, handed the sources the port would run -- the caller's
  * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
@@ -314,6 +331,11 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * `maxIterations` and reports no `converged`), so on a tie the partitions can differ; they agree on
  * planted structure. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
+ *
+ * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override, which the
+ * accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
+ * order (weight, then edge index), so the edge SET is the same; the order of `edges` and the summation order of
+ * `totalWeight` may differ (webgpu-graph-algorithms' Boruvka lists the edges round by round).
  *
  * `triangleCount` goes to the accelerator whenever it has the member, and the result always carries the
  * clustering coefficient and the transitivity: an accelerator that returns only the seam's
@@ -384,6 +406,21 @@ function onCpu<T>(run: () => T): Promise<T> {
 }
 
 /**
+ * An accelerator's betweenness result, refused when it reports overflowed path counts: those scores
+ * are wrong, and returning them would pass them off as the answer.
+ * @param result - the accelerator's result
+ * @param algorithm - the dispatcher method, for the error
+ * @returns the result unchanged
+ * @throws PathCountOverflowError when `sigmaOverflow` is true
+ */
+function checkPathCounts<R extends PathCountReport>(result: R, algorithm: string): R {
+    if (result.sigmaOverflow === true) {
+        throw new PathCountOverflowError(algorithm);
+    }
+    return result;
+}
+
+/**
  * Betweenness options with the sources the port would run spelled out, and no `k`. `endpoints` is never
  * forwarded: a call that sets it runs the port.
  * @param s - The snapshot
@@ -401,18 +438,25 @@ function explicitSources(
 }
 
 /**
- * Whether the accelerator's closeness member answers the port's question: only the plain
- * `1 / sum(distance)` score over the snapshot's own weights, and a sampled one only undirected.
+ * Whether the accelerator's closeness member answers the port's question: the plain `1 / sum(distance)`
+ * score over the snapshot's own weights, or the unnormalized harmonic one on an exact run when the accelerator
+ * declares `harmonicCloseness`, and a sampled one only undirected.
+ * @param acc - The accelerator
  * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions | undefined): boolean {
+function acceleratorAnswersCloseness(
+    acc: AlgorithmAccelerator,
+    s: GraphSnapshot,
+    options: ClosenessOptions | undefined,
+): boolean {
     const sampled = options?.sources !== undefined || options?.k !== undefined;
+    const harmonic = options?.harmonic === true;
     return (
         (!sampled || !s.directed) &&
+        (!harmonic || (acc.harmonicCloseness === true && !sampled)) &&
         options?.normalized !== true &&
-        options?.harmonic !== true &&
         options?.cutoff === undefined &&
         options?.weights === undefined
     );
@@ -428,7 +472,7 @@ function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions
 function closenessSources(s: GraphSnapshot, options: ClosenessOptions | undefined): ClosenessAcceleratorOptions {
     const weighted = options?.weighted === true;
     if (options?.sources === undefined && options?.k === undefined) {
-        return { weighted };
+        return options?.harmonic === true ? { weighted, harmonic: true } : { weighted };
     }
     return { weighted, sources: resolveSources(s.nodeCount, options.sources, options.k, "closenessCentrality") };
 }
@@ -768,8 +812,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined
-                ? acc.minimumSpanningTree(s, options)
+            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+                ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
             acc?.kCoreDecomposition !== undefined
@@ -805,14 +849,18 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc.betweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .betweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "betweennessCentrality"))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
-                ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .edgeBetweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "edgeBetweennessCentrality"))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
         closenessCentrality: (s, options) =>
-            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)
+            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(acc, s, options)
                 ? acc.closenessCentrality(s, closenessSources(s, options))
                 : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>

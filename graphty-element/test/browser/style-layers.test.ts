@@ -411,18 +411,17 @@ describe("a layer bound to what one run chose", () => {
      * JMESPath does (src/session/styles/predicate.ts). Written plain, a run called "first-route"
      * lexes as a subtraction and the layer is refused before it reaches the stack.
      *
-     * This is not an exotic id. assertRunId admits hyphens by name, and deriveRunId MINTS them:
-     * the default id of a run is algorithmSlug(algorithm) plus a digest, and the slug keeps the
-     * key's hyphens. So every default-id run of "shortest-path", "min-cut" and
-     * "bipartite-matching" -- the shape highlight() exists for -- was refused, and those
-     * algorithms drew no picture at all. The three tests above pass either way, because they name
-     * their runs with an underscore; this one is the one that fails when the quoting goes.
+     * This is not an exotic id. assertRunId admits hyphens by name, so any caller may name a run
+     * "first-route" with `as:`. Before run ids were readable names, the element MINTED them too:
+     * every default-id run of "shortest-path", "min-cut" and "bipartite-matching" -- the shape
+     * highlight() exists for -- was refused, and those algorithms drew no picture at all. The
+     * element now mints underscores, so this test names its run with a hyphen itself. The three
+     * tests above pass either way, because they name their runs with an underscore; this one is
+     * the one that fails when the quoting goes.
      */
     it("quotes its own generated selector, so a run id carrying a hyphen still paints", async () => {
-        const run = session.runs.start("shortest-path", { source: "a", target: "e" });
+        const run = session.runs.start("shortest-path", { source: "a", target: "e" }, { as: "first-route" });
         await run;
-
-        assert.include(run.id, "-", "the default id of a hyphenated algorithm key carries the hyphen");
 
         const [nodeLayer] = await session.styles.highlight({ run: run.id });
 

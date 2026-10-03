@@ -626,6 +626,74 @@ describe("CompactColorInput", () => {
             expect(onChange.mock.calls[0][2].type).toBe("click");
         });
 
+        // Given onChange AND an older callback, onChange is the only route: the
+        // older pair would be a second write for the same gesture, built from
+        // the same stale snapshot onChange exists to avoid.
+        describe("onChange together with the older callbacks", () => {
+            it("writes once through onChange on a picker gesture, and warns", async () => {
+                const user = userEvent.setup();
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+                const onChange = vi.fn();
+                const onColorChange = vi.fn();
+                const onOpacityChange = vi.fn();
+
+                render(
+                    <TestWrapper>
+                        <CompactColorInput
+                            defaultColor="#FF0000"
+                            color="#FF0000"
+                            opacity={100}
+                            label="Fill"
+                            onChange={onChange}
+                            onColorChange={onColorChange}
+                            onOpacityChange={onOpacityChange}
+                        />
+                    </TestWrapper>,
+                );
+
+                await user.click(screen.getByRole("button", { name: /swatch/i }));
+                await user.click(screen.getByRole("button", { name: "#5B8FF980" }));
+
+                expect(onChange).toHaveBeenCalledTimes(1);
+                expect(onColorChange).not.toHaveBeenCalled();
+                expect(onOpacityChange).not.toHaveBeenCalled();
+
+                const conflicts = warn.mock.calls.filter(([message]) =>
+                    String(message).includes("onColorChange or onOpacityChange"),
+                );
+                expect(conflicts).toHaveLength(1);
+                warn.mockRestore();
+            });
+
+            it("writes once through onChange on a hex commit", async () => {
+                const user = userEvent.setup();
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+                const onChange = vi.fn();
+                const onColorChange = vi.fn();
+
+                render(
+                    <TestWrapper>
+                        <CompactColorInput
+                            defaultColor="#FF0000"
+                            label="Fill"
+                            onChange={onChange}
+                            onColorChange={onColorChange}
+                        />
+                    </TestWrapper>,
+                );
+
+                const hex = screen.getByRole("textbox", { name: /hex/i });
+                await user.clear(hex);
+                await user.type(hex, "00FF00");
+                await user.tab();
+
+                expect(onChange).toHaveBeenCalledTimes(1);
+                expect(onChange.mock.calls[0][0]).toBe("#00FF00");
+                expect(onColorChange).not.toHaveBeenCalled();
+                warn.mockRestore();
+            });
+        });
+
         // The glow and outline colour fields pass showOpacity={false}, which is
         // the arrangement the application's fork used to paper over with a
         // hardcoded opacity of 100. The control must still be usable, and must

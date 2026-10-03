@@ -466,7 +466,9 @@ export class ArrowCapBatch {
      * Stop drawing one slot.
      *
      * Only the hiding half does anything. A zero matrix collapses the cap to a point and the
-     * shader draws no fragments for it; showing it again is left to the next placement, which
+     * shader draws no fragments for it -- the billboard shader reads the zero in the matrix's
+     * bottom right as "hidden", because it builds a cap from its centre and its size rather than
+     * from the matrix, and would otherwise draw it full size at the origin; showing it again is left to the next placement, which
      * the visibility mask always asks for by invalidating the edge's cached endpoints.
      * @param index - The slot.
      * @param drawn - Whether the cap is on screen.

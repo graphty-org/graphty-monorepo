@@ -163,7 +163,11 @@ void main() {
 
 #ifdef INSTANCES
     vec3 lineDir = arrowDirection;
-    float scale = arrowSize;
+    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its centre then
+    // reads as the world origin, and since this shader builds the cap from the centre and
+    // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
+    // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
+    float scale = finalWorld[3][3] == 0.0 ? 0.0 : arrowSize;
     vColor = arrowColor;
     vClip = arrowClip;
 #else

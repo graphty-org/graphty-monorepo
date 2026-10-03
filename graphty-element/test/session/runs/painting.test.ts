@@ -157,7 +157,9 @@ describe("runs.painting", () => {
         const session = await fixtureSession();
         const states: (string | undefined)[] = [];
         session.on("run:changed", (change) => {
-            if (change.phase === "end") {states.push(session.runs.painting(change.run.id)?.state);}
+            if (change.phase === "end") {
+                states.push(session.runs.painting(change.run.id)?.state);
+            }
         });
 
         await session.runs.start("degree", {}, { as: "deg" });

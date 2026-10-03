@@ -114,6 +114,12 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
+// `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
+export type { WeightMeaning } from "./src/session/runs";
+export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
+export type { NodeId } from "./src/catalog/types";
+
 // Notes: text people write about the graph, as `element.session.notes`
 export type {
     Note,

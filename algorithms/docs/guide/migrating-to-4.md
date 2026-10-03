@@ -74,3 +74,8 @@ graph every ordered pair is now scored; 3.x scored only the pairs whose first no
 `BetweennessAcceleratorOptions` gains `weighted`. The dispatcher hands an accelerator only the betweenness calls that
 count hops, with `weighted: false`, and runs a weighted one on the CPU. It hands every other accelerator method
 `weighted` resolved, true or false, by the rule above.
+
+## The `indexed` namespace is gone
+
+The `indexed` namespace, deprecated since 3.0, is removed. Every algorithm is a top-level export:
+`indexed.pageRank` is `pageRank`, and `indexed.PageRankResult` is `PageRankResult`.

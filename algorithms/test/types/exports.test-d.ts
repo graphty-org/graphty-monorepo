@@ -1,7 +1,7 @@
 // Compiled by `tsc -p tsconfig.typecheck.json` inside `npm run lint`, never executed. It pins the public surface of
 // algorithms 3.0.0: every algorithm takes a GraphSnapshot (or an AdjacencyView, for the traversals and paths) first
-// and an options object last, the 2.x `indexed` namespace is a deprecated alias of the same functions, and none of
-// the 2.x legacy names is exported any more.
+// and an options object last, the 2.x `indexed` namespace is gone, and none of the 2.x legacy names is exported any
+// more.
 import type { AdjacencyView, F32, F64, GraphSnapshot, NodeId, U32 } from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
@@ -263,85 +263,8 @@ expectTypeOf(algorithms.APSP_DEFAULT_MAX_NODES).toEqualTypeOf<number>();
 
 declare const s: GraphSnapshot;
 
-// ---- the deprecated `indexed` namespace holds exactly the promoted names, and each is the same function
-type Promoted =
-    | "adamicAdarForPairs"
-    | "adamicAdarPrediction"
-    | "adamicAdarScore"
-    | "allPairsShortestPath"
-    | "APSP_DEFAULT_MAX_NODES"
-    | "arcSourceIn"
-    | "astar"
-    | "bellmanFord"
-    | "betweennessCentrality"
-    | "bidirectionalDijkstra"
-    | "bipartiteFlowNetwork"
-    | "breadthFirstSearch"
-    | "closenessCentrality"
-    | "commonNeighborsForPairs"
-    | "commonNeighborsPrediction"
-    | "commonNeighborsScore"
-    | "compareAdamicAdarWithCommonNeighbors"
-    | "condensation"
-    | "connectedComponents"
-    | "degreeCentrality"
-    | "DeltaPageRank"
-    | "degrees"
-    | "depthFirstSearch"
-    | "dijkstra"
-    | "directionOptimizedBfs"
-    | "edgeBetweennessCentrality"
-    | "eigenvectorCentrality"
-    | "evaluateAdamicAdar"
-    | "evaluateCommonNeighbors"
-    | "findAllIsomorphisms"
-    | "getTopAdamicAdarCandidatesForNode"
-    | "getTopCandidatesForNode"
-    | "girvanNewman"
-    | "greedyBipartiteMatching"
-    | "grsbm"
-    | "hasCycle"
-    | "hierarchicalClustering"
-    | "hits"
-    | "IndexedMinHeap"
-    | "IntUnionFind"
-    | "isBipartite"
-    | "isGraphIsomorphic"
-    | "kargerMinCut"
-    | "katzCentrality"
-    | "kCoreDecomposition"
-    | "kruskalMST"
-    | "labelPropagation"
-    | "labelPropagationSemiSupervised"
-    | "labelPropagationSynchronous"
-    | "leiden"
-    | "louvain"
-    | "markovClustering"
-    | "maxFlow"
-    | "maximumBipartiteMatching"
-    | "minSTCut"
-    | "modularity"
-    | "nodeClosenessCentrality"
-    | "pageRank"
-    | "personalizedPageRank"
-    | "primMST"
-    | "PriorityDeltaPageRank"
-    | "spectralClustering"
-    | "stoerWagner"
-    | "stronglyConnectedComponents"
-    | "syncClustering"
-    | "teraHAC"
-    | "topologicalSort"
-    | "triangleCount"
-    | "walkPredArcs"
-    | "walkPredEdges"
-    | "weaklyConnectedComponents";
-expectTypeOf<keyof typeof algorithms.indexed>().toEqualTypeOf<Promoted>();
-expectTypeOf<Pick<typeof algorithms.indexed, Promoted>>().toEqualTypeOf<Pick<typeof algorithms, Promoted>>();
-// 2.x code named the result and option types through the namespace too; they must still resolve.
-expectTypeOf<algorithms.indexed.PageRankResult>().toEqualTypeOf<algorithms.PageRankResult>();
-expectTypeOf<algorithms.indexed.PageRankOptions>().toEqualTypeOf<algorithms.PageRankOptions>();
-expectTypeOf<algorithms.indexed.SsspResult>().toEqualTypeOf<algorithms.SsspResult>();
+// ---- the 2.x `indexed` namespace, deprecated in 3.0.0, is gone: every algorithm is a top-level export
+expectTypeOf<typeof algorithms>().not.toHaveProperty("indexed");
 
 // ---- the 2.x legacy API is gone: the Graph class, the Map-of-Maps functions, CSRGraph and the optimized/*
 // helpers, graphToMap and toSnapshot (a snapshot is built with @graphty/graph-format instead)

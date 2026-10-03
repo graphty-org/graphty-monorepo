@@ -9,7 +9,6 @@ import {
     type BellmanFordResultLike,
     type BfsResultLike,
     ConvergenceError,
-    indexed,
     type LabelResultLike,
     type MstResultLike,
     type PageRankResultLike,
@@ -17,6 +16,7 @@ import {
     type ScoresResultLike,
     type SsspResultLike,
 } from "../../../src/index.js";
+import * as indexed from "../../../src/indexed/index.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";

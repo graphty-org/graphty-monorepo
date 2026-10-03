@@ -1,7 +1,8 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, maskToIndices } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { accelerated, type AlgorithmAccelerator, type BfsResultLike, indexed } from "../../../src/index.js";
+import { accelerated, type AlgorithmAccelerator, type BfsResultLike } from "../../../src/index.js";
+import * as indexed from "../../../src/indexed/index.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { legacyArcOrder } from "../../helpers/to-snapshot.js";
 

@@ -172,7 +172,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: DataOutputPr
                     </Alert>
                 ) : null}
                 {failure === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" title={`${format?.plainName ?? choices.format} cannot hold everything`}>
+                    <Alert
+                        color="yellow"
+                        role="note"
+                        title={`${format?.plainName ?? choices.format} cannot hold everything`}
+                    >
                         <ul className="ws-export-notes">
                             {preview.notes.map((note) => (
                                 <li key={note}>{note}</li>

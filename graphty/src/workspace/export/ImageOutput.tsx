@@ -46,7 +46,7 @@ interface ImageOutputProps {
 type Status =
     | { kind: "idle" }
     | { kind: "capturing" }
-    | { kind: "settle-timeout" }
+    | { kind: "settle-timeout"; destination: "download" | "clipboard" }
     | { kind: "clipboard-refused" }
     | { kind: "failed"; message: string };
 
@@ -153,7 +153,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: ImageOutput
             onDone(destination === "clipboard" ? "Copied the image" : `Exported ${name}`);
         } catch (error) {
             if (error instanceof Error && "code" in error && error.code === SETTLE_TIMEOUT) {
-                setStatus({ kind: "settle-timeout" });
+                setStatus({ kind: "settle-timeout", destination });
             } else {
                 setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
             }
@@ -194,7 +194,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: ImageOutput
             default:
                 // graphty-element does not draw the legend into a capture yet (issue #133).
                 return legendShown ? (
-                    <Alert color="gray" title="The legend is not in the image">
+                    <Alert color="gray" title="The legend is not in the image" role="note">
                         The legend card on the canvas is not drawn into exported images yet.
                     </Alert>
                 ) : null;
@@ -316,14 +316,18 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: ImageOutput
                 </Button>
                 {status.kind === "settle-timeout" ? (
                     <>
-                        <Button variant="default" onClick={() => void capture("download", false)}>
+                        <Button variant="default" onClick={() => void capture(status.destination, false)}>
                             Capture now
                         </Button>
-                        <Button onClick={() => void capture("download")}>Try again</Button>
+                        <Button onClick={() => void capture(status.destination)}>Try again</Button>
                     </>
                 ) : (
                     <>
-                        <Button variant="default" disabled={busy} onClick={() => void capture("clipboard")}>
+                        <Button
+                            variant="default"
+                            disabled={busy || refused[choices.size] !== undefined}
+                            onClick={() => void capture("clipboard")}
+                        >
                             Copy
                         </Button>
                         <Button

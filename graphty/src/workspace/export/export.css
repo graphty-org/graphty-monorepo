@@ -1,10 +1,10 @@
 /* The Export dialog (tier1-design.md section T13): the output list left, the chosen output right,
-   the footer across both. About 760 x 560 so the canvas stays visible. */
+   the footer across both. About 760 x 660 so the canvas stays visible. */
 .ws-export-body {
     display: grid;
     grid-template-columns: 164px minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
-    height: min(500px, calc(100vh - 120px));
+    height: min(600px, calc(100vh - 120px));
 }
 
 .ws-export-list {

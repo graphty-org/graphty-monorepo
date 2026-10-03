@@ -18,10 +18,11 @@ import type { AttributeDescriptor, EdgeId, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import type { ImportReport } from "../data/report";
+import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
+import type { BatchCommand } from "./commands";
 import {
     type DataImportCommand,
     type DataMutation,
@@ -29,7 +30,7 @@ import {
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
-import { csvVariantFor, pairNames, previewLoad, type ScratchSession, withPairRoles } from "./preview";
+import { Draft, isPair, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
@@ -45,9 +46,7 @@ import type {
     EdgeRecord,
     EdgeRecordInput,
     GraphStatistics,
-    ImportOptions,
-    LoadPreview,
-    LoadPreviewOptions,
+    LoadChoices,
     NodeRecord,
     NodeRecordInput,
     RecordPage,
@@ -68,11 +67,11 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(): (command: DataImportCommand) => Promise<unknown>;
+    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
-    /** A new session with this one's data configuration, for a preview to load into. */
-    scratch(): ScratchSession;
+    /** Runs an import in a scratch session with this data configuration and returns its report. */
+    measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -223,6 +222,8 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
+    /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
+    private draft: Draft | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     private disposed = false;
@@ -329,44 +330,64 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    async import(source: DataSourceInput, options: ImportOptions = {}): Promise<void> {
+    async import(source: DataSourceInput, options: LoadChoices = {}): Promise<void> {
         this.requireLive("import");
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
         const send = this.writes.importer();
-        const { mapping } = options;
-        const variant = csvVariantFor(mapping?.tables);
+        this.draft?.dispose();
+        if (options.mapping !== undefined || options.unmatched !== undefined || options.directed !== undefined) {
+            const draft = await this.prepare(source);
+            try {
+                await draft.loadVia(send, options);
+            } finally {
+                draft.dispose();
+            }
+
+            return;
+        }
+
         const command = (resolved: ImportSource): DataImportCommand => ({
             op: "data.import",
-            source:
-                variant === undefined || resolved.type !== "csv"
-                    ? resolved
-                    : { ...resolved, config: { ...resolved.config, variant } },
+            source: resolved,
             mode: options.mode ?? "replace",
             ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(mapping === undefined ? {} : { mapping }),
         });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
-        const resolved = resolveImportSource(withPairRoles(source, mapping?.tables));
+        const resolved = resolveImportSource(source);
         await send(command(resolved instanceof Promise ? await resolved : resolved));
     }
 
     /**
-     * What a load would hold, read into a scratch session and described, loading nothing here.
+     * Read a source once and hold its rows, loading nothing until `draft.load()`.
      * @param source - What `import` takes.
-     * @param options - The reader's column roles.
-     * @returns The preview.
-     * @throws Whatever `import` would reject with, with the same code.
+     * @param options - How to read it.
+     * @param options.signal - Abandons the read.
+     * @returns The draft.
+     * @throws What `import` would reject with while reading, with the same code.
      */
-    async preview(source: DataSourceInput, options: LoadPreviewOptions = {}): Promise<LoadPreview> {
-        this.requireLive("preview");
-        return previewLoad(
-            () => this.writes.scratch(),
-            source,
-            options.mapping,
-            this.readConfig().knownFields.nodeIdPath,
-        );
+    async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
+        this.requireLive("prepare");
+        this.draft?.dispose();
+        const resolved = resolveImportSource(source);
+        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const draft = new Draft(read, {
+            config: () => this.readConfig(),
+            graph: () => {
+                const slice = this.writes.slice();
+                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+            },
+            importer: () => this.writes.importer(),
+            measure: (command, config) => this.writes.measure(command, config),
+            released: (released) => {
+                if (this.draft === released) {
+                    this.draft = null;
+                }
+            },
+        });
+        this.draft = draft;
+        return draft;
     }
 
     /**
@@ -689,9 +710,9 @@ export class SessionData implements SessionDataApi {
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    lastImport(): ImportReport | null {
+    lastImport(): LoadReport | null {
         this.requireLive("lastImport");
-        const recorded = this.writes.slice().values.get("importReport") as ImportReport | undefined;
+        const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
     }
 
@@ -794,7 +815,7 @@ export class SessionData implements SessionDataApi {
 export function sliceRecords(
     slice: () => GraphSlice,
     snapshot: () => GraphSnapshot,
-    lastImport: () => ImportReport | null,
+    lastImport: () => LoadReport | null,
     fallback: SessionRecordSource | null,
 ): SessionRecordSource {
     return {
@@ -910,7 +931,7 @@ export function headlessDataService(
         edgeStored: () => undefined,
         nodesArrived: () => undefined,
         edgesArrived: () => undefined,
-        loadProgress: (progress) => dispatcher.events.loadProgress?.(progress),
+        loadProgress: () => undefined,
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,
@@ -1013,7 +1034,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     // A node file and an edge file handed over as a pair are only ever CSV.
-    if (pairNames(config) !== null) {
+    if (isPair(config)) {
         return { type: "csv", config, ...described };
     }
 

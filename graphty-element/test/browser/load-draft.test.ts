@@ -1,7 +1,7 @@
 /**
- * @file The load preview and the load progress event on a rendered `<graphty-element>`: its
- * session previews without drawing anything, and its loads publish `data:progress` like a
- * headless session's do. The session half is `test/session/load-preview.test.ts`.
+ * @file A load draft on a rendered `<graphty-element>`: preparing draws nothing and measuring
+ * the load touches neither the graph nor the picture; loading the draft draws it and reports
+ * progress like any load. The session half is `test/session/load-draft.test.ts`.
  */
 
 import "../../src/graphty-element";
@@ -44,24 +44,30 @@ async function mount(): Promise<Graphty> {
     return element;
 }
 
-describe("load preview on the element", () => {
+describe("load draft on the element", () => {
     it(
-        "previews without loading, then publishes progress while it loads",
+        "prepares and reports without loading, then loads the held rows",
         async () => {
             const element = await mount();
             const { session } = element;
 
-            const preview = await session.data.preview({ type: "json", config: { data: GRAPH } });
-            assert.strictEqual(preview.report.counts.nodes, 3);
-            assert.strictEqual(preview.report.counts.edges, 2);
+            const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
+            const report = await draft.report();
+            assert.strictEqual(report.counts.nodes, 3);
+            assert.strictEqual(report.counts.edges, 2);
             assert.strictEqual(session.data.statistics().nodeCount, 0);
 
-            const reads: number[] = [];
-            session.on("data:progress", ({ read }) => reads.push(read));
-            await session.data.import({ type: "json", config: { data: GRAPH } });
+            const ends: string[] = [];
+            session.on("progress:changed", (change) => {
+                if (change.task === "load") {
+                    ends.push(change.phase);
+                }
+            });
+            await draft.load();
 
-            assert.strictEqual(reads.at(-1), 5);
+            assert.strictEqual(ends.at(-1), "end");
             assert.strictEqual(session.data.statistics().nodeCount, 3);
+            assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
         },
         TEST_TIMEOUT_MS,
     );

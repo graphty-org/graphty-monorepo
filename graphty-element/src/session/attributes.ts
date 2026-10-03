@@ -167,6 +167,39 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
 }
 
 /**
+ * An accumulator that has seen nothing.
+ * @returns the accumulator
+ */
+function newAccumulator(): Accumulator {
+    return {
+        present: 0,
+        types: new Set<AttributeType>(),
+        unique: new Set<unknown>(),
+        min: Number.POSITIVE_INFINITY,
+        max: Number.NEGATIVE_INFINITY,
+        samples: [],
+    };
+}
+
+/**
+ * The columns of rows not yet loaded, described as {@link describeAttributes} will describe them
+ * once they are.
+ * @param rows - the rows
+ * @param kind - whether they will be nodes or edges
+ * @param order - column names to list first, in this order, even when no row carries a value
+ * @returns the descriptors
+ */
+export function describeRows(
+    rows: readonly Readonly<Record<string, unknown>>[],
+    kind: "node" | "edge",
+    order: readonly string[] = [],
+): readonly AttributeDescriptor[] {
+    const found = walk(rows.length, (index) => rows[index]);
+    const names = new Set([...order, ...found.keys()]);
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
+}
+
+/**
  * Walk one kind of element and accumulate every attribute its records carry.
  * @param total - how many rows there are
  * @param read - the attribute bag of one row, by index
@@ -187,14 +220,7 @@ function walk(
         for (const key of Object.keys(record)) {
             let accumulator = found.get(key);
             if (accumulator === undefined) {
-                accumulator = {
-                    present: 0,
-                    types: new Set<AttributeType>(),
-                    unique: new Set<unknown>(),
-                    min: Number.POSITIVE_INFINITY,
-                    max: Number.NEGATIVE_INFINITY,
-                    samples: [],
-                };
+                accumulator = newAccumulator();
                 found.set(key, accumulator);
             }
 

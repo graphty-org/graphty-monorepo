@@ -31,7 +31,6 @@ import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
-    AttributeType,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
@@ -43,7 +42,7 @@ import type {
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
@@ -338,7 +337,7 @@ export interface SessionGraphStore {
      * Optional because a store built by a session that nothing ever imported into has never had a
      * load to report on.
      */
-    readonly lastImport?: ImportReport | null;
+    readonly lastImport?: LoadReport | null;
 }
 
 /**
@@ -447,7 +446,7 @@ export interface SessionDataApi {
      * subscribed after the load has no other way to ask.
      * @returns the report, or null when nothing has been loaded into this graph
      */
-    lastImport(): ImportReport | null;
+    lastImport(): LoadReport | null;
     /**
      * Where the graph was loaded from: the format, the name the reader knows the data by, the
      * URL, and the file's size. It follows undo and redo like the graph does, so a top bar that
@@ -529,110 +528,168 @@ export interface SessionDataApi {
      * `E_UNKNOWN_FORMAT`, naming the formats this element reads.
      * @param source - The data source's name, or none to detect it, and its options: inline
      *     `data`, a `url` or a `file`.
-     * @param options - Whether to replace the graph (the default) or add to it.
+     * @param options - Whether to replace the graph (the default) or add to it, and the column
+     *     roles and other choices `LoadDraft.load` takes. Equal to `prepare`, `load`, `dispose`.
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
+    import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     /**
-     * Read a source the way `import` would and say what it would load, loading nothing: the
-     * format, each table with its columns and a few rows, the key and weight columns, and the
-     * report `lastImport()` would return. The graph and its history are untouched, and no
-     * `data:progress` event is published. A source `import` would refuse is refused here with the
-     * same error code -- `E_TOO_LARGE` with `details.limit`, `E_EDGE_ENDPOINTS_UNRESOLVED` with the
-     * columns the file carries -- so the refusal can be shown before the reader presses Load.
+     * Read a source once and hold its rows, so its tables, columns and the counts a load would
+     * produce can be read, and the column roles changed, before anything is added to the graph.
+     * Nothing is loaded and history is untouched until `draft.load()`. A source `import` would
+     * refuse to read is refused here with the same code (`E_UNKNOWN_FORMAT`, `E_PARSE_FAILED`,
+     * `E_FETCH_FAILED`). A new `prepare`, and any load, disposes the draft before it.
      * @param source - What `import` takes.
-     * @param options - The reader's column roles, as `import` will apply them.
-     * @returns What the load would hold.
+     * @param options - How to read it.
+     * @param options.signal - Abandons the read.
+     * @returns The draft.
      */
-    preview(source: DataSourceInput, options?: LoadPreviewOptions): Promise<LoadPreview>;
-}
-
-/** What a column of a previewed table is to the load. */
-export type LoadColumnRole = "id" | "source" | "target" | "weight" | "attribute";
-
-/** What a column's values measure. */
-export type LoadColumnLevel = "id" | "category" | "quantity" | "time" | "text";
-
-/** One column of a previewed table. */
-export interface LoadPreviewColumn {
-    /** The column's name, as the records carry it. */
-    readonly name: string;
-    /** The type of its values. */
-    readonly type: AttributeType;
-    /** What its values measure. */
-    readonly level: LoadColumnLevel;
-    /** The role the load gives it, with the mapping applied. */
-    readonly role: LoadColumnRole;
-    /** The role the element picks for it by itself, with no mapping. */
-    readonly suggested: LoadColumnRole;
-}
-
-/** One table of a previewed load: the node rows or the edge rows. */
-export interface LoadPreviewTable {
-    /** The file's name for one of two files, else `"nodes"` or `"edges"`. */
-    readonly name: string;
-    /** Whether its rows become nodes or edges. */
-    readonly role: "nodes" | "edges";
-    /** How many rows the source handed over. */
-    readonly rowCount: number;
-    /** Its columns, key columns first. */
-    readonly columns: readonly LoadPreviewColumn[];
-    /** Its first few rows. */
-    readonly sample: readonly Readonly<Record<string, unknown>>[];
-}
-
-/** What a load would hold, read before anything is loaded. */
-export interface LoadPreview {
-    /** The data source that reads it: the format named, or the one detected. */
-    readonly format: string;
-    /** The tables with any rows, nodes first. */
-    readonly tables: readonly LoadPreviewTable[];
-    /** The columns a node's id and an edge's endpoints are read from; null where no table has rows. */
-    readonly keys: { readonly node: string | null; readonly source: string | null; readonly target: string | null };
-    /** The column edge weights are read from, or null when none. */
-    readonly weight: string | null;
-    /** The report `lastImport()` would return after this load. */
-    readonly report: ImportReport;
+    prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
 }
 
 /**
- * The reader's edits to the roles a preview showed. A column named here takes that role; a role
- * not named is the element's own pick.
+ * A source read by `data.prepare`, held until `load()` or `dispose()`. After either, every method
+ * rejects with `E_DISPOSED`.
  */
-export interface LoadMapping {
-    /** The column holding a node's id. */
-    readonly nodeId?: string;
-    /** The column holding the node an edge leaves. */
-    readonly source?: string;
-    /** The column holding the node an edge enters. */
-    readonly target?: string;
-    /** The column holding an edge's weight, or null for none. */
-    readonly weight?: string | null;
+export interface LoadDraft {
+    /** The data source that read it: the value `DataSourceInput.type` takes. */
+    readonly type: string;
+    /** Its tables. */
+    readonly tables: readonly DraftTable[];
+    /** The element's own reading: every table, with every role it found written out. */
+    readonly mapping: LoadMappingRead;
     /**
-     * Whether each table's rows are nodes or edges, by table name. Read for CSV: one file is
-     * read as a node list or an edge list, and two files are swapped when they were handed over
-     * the wrong way round.
+     * What `load(choices)` would do to the graph as it is now, computed from the held rows with
+     * no I/O. A load past the element's limit is reported in `tooLarge` rather than thrown.
+     * @param choices - The same choices `load` takes.
+     * @returns The report.
      */
-    readonly tables?: Readonly<Record<string, "nodes" | "edges">>;
+    report(choices?: LoadChoices): Promise<LoadReport>;
+    /**
+     * The table's rows as the file holds them, a page at a time.
+     * @param table - A `DraftTable.id`.
+     * @param options - The page, and `only` to read the unmatched or rejected rows.
+     * @returns The page.
+     */
+    rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
+    /**
+     * Load the held rows as one undoable step, without reading the source again.
+     * @param choices - The column roles, how to treat the graph already there, and the rest.
+     * @returns Settles once the rows are in the graph.
+     */
+    load(choices?: LoadChoices): Promise<void>;
+    /** Let go of the held rows. */
+    dispose(): void;
 }
 
-/** How `data.preview` reads a source. */
-export interface LoadPreviewOptions {
-    /** The reader's column roles. */
+/** One table of a draft. */
+export interface DraftTable {
+    /**
+     * Assigned by the element: `"rows"` for a single CSV file, `"nodes"` and `"edges"` for a pair
+     * of CSV files or any other format. The same for every source of the same shape.
+     */
+    readonly id: string;
+    /** The file name, or the id when the source has none. */
+    readonly name: string;
+    /** How many rows it holds. */
+    readonly rowCount: number;
+    /** True when the format sets the roles (every format but CSV). A mapping for it is refused with `E_BAD_COMMAND`. */
+    readonly fixed: boolean;
+    /** Its columns, in the order the file has them, computed over every row. */
+    readonly columns: readonly DraftColumn[];
+}
+
+/** One column of a draft table, described as `data.attributes()` describes it after a load. */
+export interface DraftColumn
+    extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+    /** The role the element gives it by itself; absent when it is a plain attribute. */
+    readonly suggested?: ColumnRole;
+}
+
+/** What a column can be to a load. */
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
+
+/** One row of a draft table. */
+export interface DraftRow {
+    /**
+     * Where the row is: for a CSV file the line it starts on, the header being line 1; for any
+     * other format the record's position in its table, from 1.
+     */
+    readonly line: number;
+    /** The row's values by column name. */
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
+/** Which rows `LoadDraft.rows` reads. */
+export interface DraftRowOptions {
+    /** The position of the first row. Default 0. */
+    readonly offset?: number;
+    /** The most rows; `Infinity` reads to the end. Default 100. */
+    readonly limit?: number;
+    /**
+     * `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
+     * `"rejected"`: rows whose key or endpoints cannot be a node id. Read with the draft's own mapping.
+     */
+    readonly only?: "unmatched" | "rejected";
+}
+
+/**
+ * The column roles of one table. Every value is a column name exactly as `DraftColumn.name`
+ * spells it, never an expression. Absent means the element's own reading; null means none. A
+ * name that is not a column of the table is refused with `E_UNKNOWN_ATTRIBUTE`.
+ */
+export interface TableMapping {
+    /** Whether each row is a node or an edge. */
+    readonly rowsAre?: "nodes" | "edges";
+    /** A node table's id column; null numbers the rows instead. */
+    readonly key?: string | null;
+    /** The column that names a node. Written to `data.knownFields.nodeLabelPath`. */
+    readonly label?: string | null;
+    /** The column holding the node an edge leaves. */
+    readonly source?: string | Endpoint;
+    /** The column holding the node an edge enters. */
+    readonly target?: string | Endpoint;
+    /** The edge weight column; null weighs every edge 1, and the legacy `value` column is not read. */
+    readonly weight?: string | null;
+    /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
+    readonly time?: string | null;
+    /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
+    readonly edgeId?: string | null;
+}
+
+/** An edge endpoint column. */
+export interface Endpoint {
+    /** The column's name. */
+    readonly column: string;
+}
+
+/** A bare `TableMapping` applies to a source with one table; otherwise each table is named by id. */
+export type LoadMapping = TableMapping | { readonly tables: Readonly<Record<string, TableMapping>> };
+
+/** One table's roles as the element reads them: `rowsAre` always set, endpoints always objects. */
+export interface TableMappingRead extends TableMapping {
+    readonly rowsAre: "nodes" | "edges";
+    readonly source?: Endpoint;
+    readonly target?: Endpoint;
+}
+
+/** Every table's roles as the element reads them. */
+export interface LoadMappingRead {
+    readonly tables: Readonly<Record<string, TableMappingRead>>;
+}
+
+/** What `import` and `LoadDraft.load` take. */
+export interface LoadChoices extends ImportOptions {
+    /** The column roles; a role left out is the element's own reading. */
     readonly mapping?: LoadMapping;
-}
-
-/** How far a load has got: the payload of `data:progress`. */
-export interface LoadProgress {
-    /** The data source reading it. */
-    readonly format: string;
-    /** Records read so far: node records plus edge records. */
-    readonly read: number;
-    /** Node records read so far. */
-    readonly nodeRecords: number;
-    /** Edge records read so far. */
-    readonly edgeRecords: number;
+    /**
+     * An edge naming a node no node row holds: `"add"` (the default) makes the node, `"leave-out"`
+     * drops the edge.
+     */
+    readonly unmatched?: "add" | "leave-out";
+    /** Writes `data.directed` in the same step. */
+    readonly directed?: boolean | "auto";
 }
 
 /**
@@ -676,8 +733,6 @@ export interface ImportOptions {
      * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "keep";
-    /** The reader's column roles, as a `data.preview` with the same mapping showed them. */
-    readonly mapping?: LoadMapping;
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */

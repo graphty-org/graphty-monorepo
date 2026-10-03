@@ -16,10 +16,10 @@ import jmespath from "jmespath";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId } from "../../catalog/types";
-import { DataSource, type DeclaredDirection } from "../../data/DataSource";
+import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
 import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
-import type { ErrorAggregator } from "../../data/ErrorAggregator";
+import { ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
@@ -27,7 +27,13 @@ import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
 import type { NodeIdType } from "../../Node";
 import type { Styles } from "../../Styles";
-import { type DataImportCommand, type DataMutation, describeSource, SOURCE_VALUE } from "../commands/data";
+import {
+    type DataImportCommand,
+    type DataMutation,
+    describeSource,
+    type HeldRows,
+    SOURCE_VALUE,
+} from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
 import { frozenRecord } from "./draft";
@@ -69,18 +75,20 @@ function isStorableWeight(value: unknown): value is number {
  * The probe is removed once nothing ships a `value` key.
  * @param record - the raw edge record
  * @param path - `config.data.knownFields.edgeWeightPath`; null means "do not look"
+ * @param legacyFallback - false when the reader named the weight column, so `value` is not read
  * @returns the weight and which probe produced it
  */
 export function resolveEdgeWeight(
     record: Record<string | number, unknown>,
     path: string | null,
+    legacyFallback = true,
 ): { weight: number; source: "path" | "legacy" | "default" } {
-    const fromPath = path === null ? undefined : record[path];
+    const fromPath = path === null || !Object.hasOwn(record, path) ? undefined : record[path];
     if (isStorableWeight(fromPath)) {
         return { weight: fromPath, source: "path" };
     }
 
-    const legacy = record.value;
+    const legacy = legacyFallback ? record.value : undefined;
     if (isStorableWeight(legacy)) {
         return { weight: legacy, source: "legacy" };
     }
@@ -103,7 +111,10 @@ export interface AddEdgesOptions {
      * that about its own call site.
      */
     readonly repeated?: DuplicatePolicy;
-    /** The record key weights are read from, overriding `data.knownFields.edgeWeightPath`; null reads none. */
+    /**
+     * The record key weights are read from, overriding `data.knownFields.edgeWeightPath`, with no
+     * `value` fallback; null reads none.
+     */
     readonly weight?: string | null;
 }
 
@@ -247,6 +258,15 @@ export class Ingest<K extends KnownEdge> {
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
 
+    /** The load in progress drops an edge naming a node no node record holds. */
+    private leaveOutUnmatched = false;
+
+    /** The graph held nodes when the load in progress began, so its edges can name them. */
+    private loadBeganWithNodes = false;
+
+    /** While a draft's load is measured: the graph it counts as already there. */
+    private measure: NonNullable<DataImportCommand["measure"]> | null = null;
+
     /**
      * Start with no records seen and no report.
      * @param host - what draws the graph, and knows which edges it already holds
@@ -343,9 +363,29 @@ export class Ingest<K extends KnownEdge> {
         }
 
         writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
-        if (loads) {
-            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.mapping);
+        if (!loads) {
+            return;
         }
+
+        this.leaveOutUnmatched = command.unmatched === "leave-out";
+        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
+        // A replacing load is measured against an empty graph, which is what it leaves.
+        this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
+        try {
+            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.held);
+        } finally {
+            this.leaveOutUnmatched = false;
+            this.measure = null;
+        }
+    }
+
+    /**
+     * Whether the graph holds a node, counting a measured load's graph as held.
+     * @param id - The node id.
+     * @returns True when it does.
+     */
+    private hasNode(id: NodeIdType): boolean {
+        return this.host.hasNode(id) || this.measure?.nodes.has(id) === true;
     }
 
     /**
@@ -376,13 +416,13 @@ export class Ingest<K extends KnownEdge> {
         // re-supplied node costs nothing) and checked before any of them is created: a batch
         // the renderer cannot hold is refused whole, not half-applied.
         const ids = nodes.map((node) => jmespath.search(node, query) as NodeIdType);
-        const fresh = new Set(ids.filter((id) => !this.host.hasNode(id)));
-        this.refuseAboveCeiling("nodes", this.host.nodeCount(), fresh.size, DEFAULT_LIMITS.renderCeiling);
+        const fresh = new Set(ids.filter((id) => !this.hasNode(id)));
+        this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
 
-            if (this.host.hasNode(nodeId)) {
+            if (this.hasNode(nodeId)) {
                 continue;
             }
 
@@ -430,11 +470,11 @@ export class Ingest<K extends KnownEdge> {
         this.logger.debug("Adding edges", { count: edges.length });
 
         const { knownFields } = this.host.dataConfig();
-        const { store } = writer;
         const endpoints = this.endpointsFor(edges, options);
         const policy = options?.repeated ?? knownFields.repeatedEdges;
         const recordIdPath = knownFields.edgeIdPath;
         const weightPath = options?.weight === undefined ? knownFields.edgeWeightPath : options.weight;
+        const legacyFallback = options?.weight === undefined;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
 
@@ -442,7 +482,7 @@ export class Ingest<K extends KnownEdge> {
         // so a caller never finds the first part of it held and the rest missing.
         this.refuseAboveCeiling(
             "edges",
-            store.builder.edgeCount,
+            this.heldCounts().edges,
             this.edgesAdded(edges, endpoints, policy, false),
             DEFAULT_LIMITS.edgesDrawn,
         );
@@ -451,8 +491,11 @@ export class Ingest<K extends KnownEdge> {
             tally.edgeRecords++;
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
             const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
+            if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+                continue;
+            }
 
-            const weight = resolveEdgeWeight(edge, weightPath);
+            const weight = resolveEdgeWeight(edge, weightPath, legacyFallback);
             if (weight.source === "legacy") {
                 legacyWeights++;
             }
@@ -528,6 +571,35 @@ export class Ingest<K extends KnownEdge> {
         if (edges.length > 0) {
             this.host.edgesArrived(edges.length);
         }
+    }
+
+    /**
+     * Count an edge record of a load that names a node no node record holds (nor the graph, for a
+     * merge), and say whether the load leaves it out. Checked before the edge is stored, because storing it makes the node.
+     * @param source - The source id.
+     * @param target - The target id.
+     * @param tally - The load's counters.
+     * @returns True when the edge is to be left out.
+     */
+    private isUnmatched(source: NodeIdType, target: NodeIdType, tally: ImportTally): boolean {
+        // With no node records and no graph to name, every node comes from the edges: none is missing.
+        if (tally.nodeRecords === 0 && !this.loadBeganWithNodes) {
+            return false;
+        }
+
+        const missing = [source, target].filter(
+            (id) => isStorableId(id) && (tally.unmatchedValues.has(id) || !this.hasNode(id)),
+        );
+        if (missing.length === 0) {
+            return false;
+        }
+
+        tally.unmatchedRows++;
+        for (const id of missing) {
+            tally.unmatchedValues.add(id);
+        }
+
+        return this.leaveOutUnmatched;
     }
 
     /**
@@ -799,7 +871,7 @@ export class Ingest<K extends KnownEdge> {
      *     is still waiting for its next chunk
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
-     * @param mapping - The reader's column roles, read from every record whatever the format
+     * @param held - Rows a draft already read, loaded instead of reading the source
      */
     async addDataFromSource(
         type: string,
@@ -807,7 +879,7 @@ export class Ingest<K extends KnownEdge> {
         writer: GraphWriter,
         signal?: AbortSignal,
         replacing = false,
-        mapping: DataImportCommand["mapping"] = {},
+        held?: HeldRows,
     ): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
@@ -829,22 +901,21 @@ export class Ingest<K extends KnownEdge> {
         this.loadEndpoints = null;
 
         const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
-        // A mapping names a column; `edgeSource` / `edgeTarget` are expressions and stay as given.
-        const source = mapping.source === undefined ? named.edgeSource : keyExpression(mapping.source);
-        const target = mapping.target === undefined ? named.edgeTarget : keyExpression(mapping.target);
+        const source = held?.source ?? named.edgeSource;
+        const target = held?.target ?? named.edgeTarget;
         const endpointOverrides: AddEdgesOptions = {
             ...(typeof source === "string" ? { source } : {}),
             ...(typeof target === "string" ? { target } : {}),
-            ...(mapping.weight === undefined ? {} : { weight: mapping.weight }),
+            ...(held?.weight === undefined ? {} : { weight: held.weight }),
         };
-        const nodeIdPath = mapping.nodeId === undefined ? undefined : keyExpression(mapping.nodeId);
+        const nodeIdPath = held?.idPath;
 
         // Bracketed as ONE load however many chunks it takes, so its edge ordinals are counted
         // over the whole import (design/sets 12.3).
         const { store } = writer;
         store.openLoad();
         try {
-            const reader = DataSource.get(type, opts);
+            const reader: ChunkReader | null = held === undefined ? DataSource.get(type, opts) : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);
             }
@@ -1034,7 +1105,18 @@ export class Ingest<K extends KnownEdge> {
      */
     heldCounts(): { nodes: number; edges: number } {
         const { builder } = this.host.store();
-        return { nodes: builder.nodeCount, edges: builder.edgeCount };
+        if (this.measure === null) {
+            return { nodes: builder.nodeCount, edges: builder.edgeCount };
+        }
+
+        // ponytail: a measured merge adds the graph's edges without folding repeats across the
+        // two; fold them here if a merge report under a folding policy has to be exact.
+        let nodes = builder.nodeCount;
+        for (const id of this.measure.nodes) {
+            nodes += builder.hasNode(id) ? 0 : 1;
+        }
+
+        return { nodes, edges: builder.edgeCount + this.measure.edges };
     }
 
     /**
@@ -1063,6 +1145,11 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const { nodes, edges } = this.heldCounts();
+        if (this.measure !== null && this.loadTally !== null) {
+            this.loadTally.tooLarge ??= { limit, count: held + adding, of, graph: { nodes, edges } };
+            return;
+        }
+
         throw new GraphtyError({
             code: "E_TOO_LARGE",
             source: "data",
@@ -1075,14 +1162,34 @@ export class Ingest<K extends KnownEdge> {
     }
 }
 
+/** The graph a measured replacing load counts as there: none. */
+const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
+
 /**
- * The JMESPath expression reading one record key, quoted when the name is not a bare identifier,
- * so a column called "from station" or "2024" reads as itself.
- * @param name - The key.
- * @returns The expression.
+ * Held rows read like a data source: one chunk, then the errors and direction their read found.
+ * @param held - The rows.
+ * @returns The reader.
  */
-function keyExpression(name: string): string {
-    return /^[A-Za-z_]\w*$/.test(name) ? name : JSON.stringify(name);
+function heldReader(held: HeldRows): ChunkReader {
+    return {
+        declaredDirection: held.declaredDirection,
+        getErrorAggregator: () => {
+            const errors = new ErrorAggregator(held.errorLimit);
+            for (const error of held.errors) {
+                errors.addError(error);
+            }
+
+            return errors;
+        },
+        getData: () => [{ nodes: held.nodes, edges: held.edges } as DataSourceChunk],
+    };
+}
+
+/** What a load reads its chunks from: a data source, or a draft's held rows. */
+interface ChunkReader {
+    readonly declaredDirection: DeclaredDirection | null;
+    getErrorAggregator(): ErrorAggregator;
+    getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }
 
 /**
@@ -1093,13 +1200,16 @@ function keyExpression(name: string): string {
  * @param signal - The load's signal.
  * @yields Each chunk, until the signal aborts.
  */
-async function* untilAborted<T>(chunks: AsyncIterable<T>, signal: AbortSignal | undefined): AsyncGenerator<T> {
+export async function* untilAborted<T>(
+    chunks: AsyncIterable<T> | Iterable<T>,
+    signal: AbortSignal | undefined,
+): AsyncGenerator<T> {
     if (signal === undefined) {
         yield* chunks;
         return;
     }
 
-    const iterator = chunks[Symbol.asyncIterator]();
+    const iterator = Symbol.asyncIterator in chunks ? chunks[Symbol.asyncIterator]() : chunks[Symbol.iterator]();
     let stop: () => void = () => undefined;
     const aborted = new Promise<never>((_, reject) => {
         stop = (): void => {
@@ -1123,6 +1233,6 @@ async function* untilAborted<T>(chunks: AsyncIterable<T>, signal: AbortSignal | 
     } finally {
         signal.removeEventListener("abort", stop);
         // The source is abandoned; let it close what it holds, without waiting on it.
-        void iterator.return?.()?.catch(() => undefined);
+        Promise.resolve(iterator.return?.()).catch(() => undefined);
     }
 }

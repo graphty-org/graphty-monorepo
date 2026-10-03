@@ -40,7 +40,7 @@ export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "e
  * @param rows - every edge record of the file
  * @returns the declaration, or null when no row carried a usable `Type`
  */
-function readGephiTypeColumn(
+export function readGephiTypeColumn(
     rows: readonly Record<string, unknown>[],
 ): { directed: boolean; statedBy: string; conflictingEdges: number } | null {
     let directedRows = 0;
@@ -125,6 +125,93 @@ function typeCells(imported: ImportedRecords): ImportedRecords {
     }
 
     return imported;
+}
+
+/** A CSV file's rows as written: every column kept, under the header's own names. */
+interface CsvRows {
+    /** The header's names, in the file's order. */
+    readonly columns: readonly string[];
+    /** The rows, each cell typed on its own. */
+    readonly rows: Record<string, unknown>[];
+    /** The line each row starts on, the header being line 1. */
+    readonly lines: readonly number[];
+}
+
+/**
+ * Where each record of a CSV text starts, and the header's fields, reading quotes so a quoted
+ * line break stays inside its cell. A blank line starts no record, as graph-io skips it.
+ * @param text - the file's text
+ * @param given - the delimiter the caller named, if any
+ * @returns the header's fields and the start line of every record after it
+ */
+function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[] } {
+    const firstLine = text.split(/\r\n|\n|\r/, 1)[0] ?? "";
+    // The delimiter graph-io would pick from the header: the most frequent of the four outside quotes.
+    const unquoted = firstLine.replaceAll(/"[^"]*"/g, "");
+    const delimiter =
+        given ??
+        [",", "\t", ";", "|"].reduce((best, each) =>
+        unquoted.split(each).length > unquoted.split(best).length ? each : best,
+    );
+    const header: string[] = [];
+    const lines: number[] = [];
+    let line = 1;
+    let field = "";
+    let quoted = false;
+    let recordStart = true;
+    let inHeader = true;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (quoted) {
+            if (char === '"' && text[i + 1] === '"') {
+                field += '"';
+                i++;
+            } else if (char === '"') {
+                quoted = false;
+            } else {
+                field += char;
+                line += char === "\n" || (char === "\r" && text[i + 1] !== "\n") ? 1 : 0;
+            }
+
+            continue;
+        }
+
+        if (char === "\n" || char === "\r") {
+            if (char === "\r" && text[i + 1] === "\n") {
+                i++;
+            }
+
+            if (inHeader) {
+                header.push(field);
+                inHeader = false;
+            }
+
+            line++;
+            field = "";
+            recordStart = true;
+            continue;
+        }
+
+        if (recordStart && !inHeader) {
+            lines.push(line);
+        }
+
+        recordStart = false;
+        if (char === '"') {
+            quoted = true;
+        } else if (char === delimiter && inHeader) {
+            header.push(field);
+            field = "";
+        } else {
+            field += char;
+        }
+    }
+
+    if (inHeader) {
+        header.push(field);
+    }
+
+    return { header: header.map((name) => name.trim()), lines };
 }
 
 /**
@@ -390,6 +477,55 @@ export class CSVDataSource extends DataSource {
             data: Array.isArray(labels) ? { ...data, label: labels.join(";") } : data,
         }));
         yield* this.emit(nodes, imported.edges);
+    }
+
+    /**
+     * The file's rows as written, for a load whose columns the reader maps: a single file as one
+     * table, a pair as a node table and an edge table. Null for a Neo4j or adjacency-list file,
+     * whose shape the format sets.
+     * @returns the tables, keyed `"rows"`, or `"nodes"` and `"edges"`
+     */
+    async readRows(): Promise<Readonly<Record<string, CsvRows>> | null> {
+        const { nodeFile, edgeFile, nodeURL, edgeURL } = this.config;
+        if (nodeFile !== undefined || edgeFile !== undefined || nodeURL !== undefined || edgeURL !== undefined) {
+            const text = async (file: File | undefined, url: string | undefined): Promise<string> =>
+                file === undefined ? (await this.fetchWithRetry(url ?? "")).text() : file.text();
+            return {
+                nodes: await this.rowsOf(await text(nodeFile, nodeURL)),
+                edges: await this.rowsOf(await text(edgeFile, edgeURL)),
+            };
+        }
+
+        const content = await this.getContent();
+        const variant =
+            this.config.variant ?? ((neo4jImporter.sniff?.(headBytes(content)) ?? 0) >= 0.5 ? "neo4j" : "generic");
+        return variant === "neo4j" || variant === "adjacency-list" ? null : { rows: await this.rowsOf(content) };
+    }
+
+    /**
+     * One file's rows as written.
+     * @param content - the file's text
+     * @returns the rows
+     */
+    private async rowsOf(content: string): Promise<CsvRows> {
+        if (content.trim() === "") {
+            return { columns: [], rows: [], lines: [] };
+        }
+
+        // Read as a node table numbered by row, so no column is taken as an id and every one is kept.
+        const read = typeCells(
+            await importRecords(csvImporter, content, {
+                table: "nodes",
+                header: true,
+                nodeIdFrom: "index",
+                weightFrom: null,
+                errorLimit: this.config.errorLimit,
+                ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+            }),
+        );
+        aggregateErrors(read.report, this.errorAggregator, true);
+        const { header, lines } = csvRecordLines(content, this.config.delimiter);
+        return { columns: header, rows: read.nodes.map(({ data }) => data), lines };
     }
 
     private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {

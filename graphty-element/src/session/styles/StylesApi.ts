@@ -621,9 +621,10 @@ export interface StylesSources {
      * The attribute one path names, with its level, for {@link StylesApi.defaultBinding}.
      * Absent, no path resolves.
      * @param path - The column path.
-     * @returns The attribute, or undefined when no record carries it.
+     * @param target - Whether the channel paints nodes or edges.
+     * @returns The attribute, or undefined when no record of that kind carries it.
      */
-    readonly attribute?: (path: Path) => AttributeDescriptor | undefined;
+    readonly attribute?: (path: Path, target: "node" | "edge") => AttributeDescriptor | undefined;
     /**
      * What paints the elements a change touched.
      *
@@ -2155,13 +2156,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         defaultBinding(path: Path, channel: Channel): DefaultBinding {
-            const attribute = sources.attribute?.(path);
+            const target = channel.startsWith("edge.") ? "edge" : "node";
+            const attribute = sources.attribute?.(path, target);
             if (attribute === undefined) {
                 throw new GraphtyError({
                     code: "E_UNKNOWN_ATTRIBUTE",
-                    message: `No record carries an attribute at "${path}", so there is nothing to bind.`,
+                    message: `No ${target} carries an attribute at "${path}", so there is nothing to bind.`,
                     source: "style",
-                    details: { path },
+                    details: { path, target },
                 });
             }
 

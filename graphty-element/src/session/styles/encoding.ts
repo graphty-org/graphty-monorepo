@@ -1006,6 +1006,10 @@ function unsuitable(attribute: AttributeDescriptor, descriptor: ChannelDescripto
         return null;
     }
 
+    if (descriptor.accepts === "enum") {
+        return `${descriptor.plainName} takes one of a fixed list of values, so it reads ${plainName} only through a scale such as "ordinal".`;
+    }
+
     if (descriptor.accepts !== "color" && descriptor.accepts !== "number") {
         return `${descriptor.plainName} is set to a value rather than read from an attribute.`;
     }
@@ -1261,7 +1265,8 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
  *
  * A channel that carries one of a fixed list reads a SLOT, so its range is the slot numbers
  * themselves and the scale's own group count decides how many there are. Everything else reads
- * the binding's range, which defaults to the unit interval.
+ * the binding's range, which defaults to a visible range for a size, a width or an opacity
+ * (`DEFAULT_RANGES`) and to the unit interval otherwise.
  * @param descriptor - The channel.
  * @param binding - The rule binding, read for `range`.
  * @param parts - What preparing the binding worked out.

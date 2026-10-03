@@ -109,8 +109,9 @@ export interface EncodingSpec {
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
     readonly clamp?: RuleBinding["clamp"];
     /**
-     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to the
-     * unit interval, which is a colour ramp's positions and far too small for most sizes.
+     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to
+     * 0.5 to 3 for a node size, 2 to 12 for an edge width, 0.2 to 1 for an opacity, and the unit
+     * interval otherwise.
      */
     readonly range?: RuleBinding["range"];
     /** What an element with no value is painted. Defaults to "skip", which is to leave it alone. */

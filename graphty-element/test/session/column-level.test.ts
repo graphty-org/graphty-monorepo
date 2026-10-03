@@ -182,8 +182,31 @@ describe("styles.defaultBinding", () => {
         assert.isFalse(sizeByGroup.suitable);
         assert.match(sizeByGroup.reason ?? "", /no order/);
 
+        const shapeByGroup = graph.styles.defaultBinding("data.group", "node.shape");
+        assert.isFalse(shapeByGroup.suitable);
+        assert.match(shapeByGroup.reason ?? "", /ordinal/);
+
         assert.strictEqual(
             await codeOf(() => graph.styles.defaultBinding("data.nope", "node.color")),
+            "E_UNKNOWN_ATTRIBUTE",
+        );
+        graph.dispose();
+    });
+
+    it("reads the attribute of the kind the channel paints", async () => {
+        const graph = await session();
+        await graph.data.addEdges(
+            Array.from({ length: 40 }, (_, index) => ({
+                source: `n${String(index)}`,
+                target: `n${String(index + 1)}`,
+                group: index * 2.5,
+            })),
+        );
+
+        assert.strictEqual(graph.styles.defaultBinding("data.group", "node.color").level, "category");
+        assert.strictEqual(graph.styles.defaultBinding("data.group", "edge.color").level, "quantity");
+        assert.strictEqual(
+            await codeOf(() => graph.styles.defaultBinding("data.score", "edge.width")),
             "E_UNKNOWN_ATTRIBUTE",
         );
         graph.dispose();

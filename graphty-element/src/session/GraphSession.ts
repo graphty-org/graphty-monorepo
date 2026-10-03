@@ -2355,7 +2355,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
-        attribute: (path: Path) => data.attributes().find((each) => each.path === path),
+        attribute: (path: Path, target: "node" | "edge") => attributeAt(data, path, target),
         repaint: painter.repaint,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an

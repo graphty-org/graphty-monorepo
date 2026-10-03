@@ -1,3 +1,18 @@
+## 0.6.25 (2026-10-03)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** count betweenness paths past 2^32 exactly ([#719](https://github.com/graphty-org/graphty-monorepo/issues/719))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.8
+- Updated layout to 2.0.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.24 (2026-10-02)
 
 ### 🧱 Updated Dependencies

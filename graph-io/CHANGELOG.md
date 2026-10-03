@@ -1,3 +1,19 @@
+## 0.3.18 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-io:** keep OBO frames of an unknown type as metadata ([1fb5f317](https://github.com/graphty-org/graphty-monorepo/commit/1fb5f317))
+- **graph-io:** read OBO Graphs JSON as the obographs dialect ([305c11bc](https://github.com/graphty-org/graphty-monorepo/commit/305c11bc))
+- **graph-io:** read the OBO flat file format of the Gene Ontology ([3e6b0da0](https://github.com/graphty-org/graphty-monorepo/commit/3e6b0da0))
+
+### 🩹 Fixes
+
+- **graph-io:** keep every OBO qualifier and read quotes, comments and language tags as the guides do ([b900d96a](https://github.com/graphty-org/graphty-monorepo/commit/b900d96a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.17 (2026-10-02)
 
 ### 🚀 Features

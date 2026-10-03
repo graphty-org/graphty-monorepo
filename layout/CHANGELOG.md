@@ -1,3 +1,17 @@
+## 2.0.8 (2026-10-03)
+
+### 🩹 Fixes
+
+- **layout:** ship the MIT license text with the package ([838b4ba9](https://github.com/graphty-org/graphty-monorepo/commit/838b4ba9))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.7 (2026-10-02)
 
 ### 🧱 Updated Dependencies

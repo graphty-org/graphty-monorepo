@@ -283,8 +283,8 @@ describe("the sibling packages", () => {
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
         // A workspace reference: pnpm rewrites it on publish to a
-        // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
-        // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
+        // caret range on whatever version the workspace holds. That is what keeps older peers out --
+        // `webgpu.ts` calls `acquireAccelerator`, which 0.6.x does not export, so a consumer who satisfied
         // an older range would crash when the element attached an accelerator. The explicit
         // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
         // every time the requirement moved.

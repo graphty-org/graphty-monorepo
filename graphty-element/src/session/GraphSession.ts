@@ -261,6 +261,7 @@ const TX_PARTS = [
     "views",
     "positions",
     "config",
+    "labels",
 ] as const satisfies readonly (keyof GraphSession)[];
 
 /**

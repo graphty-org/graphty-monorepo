@@ -72,4 +72,23 @@ describe("session.labels", () => {
         assert.isFalse(session.labels.declutter, "the same setting, written through config.set");
         session.dispose();
     });
+
+    it("joins a transaction, so the switch can ride in another step", async () => {
+        const session = createElementSession();
+
+        await session.transaction("Load with names thinned", async (tx) => {
+            await tx.labels.setDeclutter(true);
+            await tx.config.set({ layoutBehavior: { preSteps: 3 } });
+        });
+
+        assert.isTrue(session.labels.declutter);
+        assert.deepEqual(
+            session.history.steps.map((step) => step.label),
+            ["Load with names thinned"],
+        );
+
+        await session.undo();
+        assert.isFalse(session.labels.declutter);
+        session.dispose();
+    });
 });

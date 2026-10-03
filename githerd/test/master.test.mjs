@@ -2,7 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { normalizeConfig } from "../lib/config.mjs";
-import { findSuspects, masterVerdict, releaseState, stuckLaneRuns, updateLane } from "../lib/master.mjs";
+import {
+    findSuspects,
+    masterVerdict,
+    releaseState,
+    SIGHTING_MEMORY,
+    sightRuns,
+    stuckLaneRuns,
+    updateLane,
+} from "../lib/master.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 // graphty's real lanes: ci and gpu required, hosts path-filtered, release watched.
@@ -330,5 +338,61 @@ describe("releaseState", () => {
             stalled: false,
             stuckOnly: false,
         });
+    });
+});
+
+describe("sightRuns", () => {
+    const run = (id, attempt, updated, extra = {}) => ({
+        id,
+        run_attempt: attempt,
+        name: "CI",
+        head_sha: `s${id}`,
+        status: "completed",
+        conclusion: "success",
+        updated_at: `2026-10-02T${updated}:00Z`,
+        ...extra,
+    });
+    const ids = (out) => out.sightings.map((r) => `${r.id}/${r.run_attempt}`);
+
+    it("sees each new state once, oldest update first, and never a repeat", () => {
+        const first = sightRuns({}, [run(12, 1, "10:05"), run(11, 1, "10:07")], "master");
+        expect(ids(first)).toEqual(["12/1", "11/1"]);
+        expect(first.record).toEqual({
+            "CI@master": { 11: [1, "2026-10-02T10:07:00Z"], 12: [1, "2026-10-02T10:05:00Z"] },
+        });
+        expect(ids(sightRuns(first.record, [run(12, 1, "10:05"), run(11, 1, "10:07")], "master"))).toEqual([]);
+    });
+
+    it("sees a re-run's new attempt and a newer update, but not an older attempt", () => {
+        const { record } = sightRuns({}, [run(12, 2, "10:05"), run(11, 1, "10:00")], "master");
+        expect(ids(sightRuns(record, [run(11, 2, "11:00", { status: "in_progress" })], "master"))).toEqual(["11/2"]);
+        expect(ids(sightRuns(record, [run(12, 2, "10:09")], "master"))).toEqual(["12/2"]);
+        expect(ids(sightRuns(record, [run(12, 1, "10:30")], "master"))).toEqual([]);
+    });
+
+    it("discards an unseen run older than every run remembered for its workflow and branch", () => {
+        const { record } = sightRuns({}, [run(20, 1, "10:00")], "master");
+        expect(ids(sightRuns(record, [run(5, 1, "09:00"), run(21, 1, "10:10")], "master"))).toEqual(["21/1"]);
+        // another workflow or branch has its own memory
+        const other = [run(5, 1, "09:00", { name: "GPU" }), run(6, 1, "09:00", { head_branch: "fix/x" })];
+        expect(ids(sightRuns(record, other, "master"))).toEqual(["5/1", "6/1"]);
+        expect(Object.keys(sightRuns(record, [run(7, 1, "09:00", { workflow_id: 99 })], "master").record)).toContain(
+            "99@master",
+        );
+    });
+
+    it(`remembers the newest ${SIGHTING_MEMORY} runs per workflow and branch`, () => {
+        const runs = Array.from({ length: SIGHTING_MEMORY + 5 }, (_, i) => run(i + 1, 1, "10:00"));
+        const { record } = sightRuns({}, runs, "master");
+        const kept = Object.keys(record["CI@master"]).map(Number);
+        expect(kept).toHaveLength(SIGHTING_MEMORY);
+        expect(Math.min(...kept)).toBe(6);
+        expect(ids(sightRuns(record, [run(3, 1, "10:00")], "master"))).toEqual([]);
+    });
+
+    it("does not change the record it was given", () => {
+        const saved = { "CI@master": { 1: [1, "2026-10-02T09:00:00Z"] } };
+        sightRuns(saved, [run(1, 2, "10:00")], "master");
+        expect(saved).toEqual({ "CI@master": { 1: [1, "2026-10-02T09:00:00Z"] } });
     });
 });

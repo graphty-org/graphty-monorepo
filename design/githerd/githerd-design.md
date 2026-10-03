@@ -99,9 +99,13 @@ Every mechanism below follows these. A mechanism that breaks one is a defect in 
   [R8], [R9] and master's tip "is almost never green" while master moves [R7].
 - **Failure key**: workflow + job name (shard numbers replaced by `*`) + failed step name. A red
   master is a set of keys, each handled on its own [INC1 1].
-- **Sighting**: one poll answer about a workflow run whose (run id, run attempt) is at least the
-  highest seen for that workflow and branch, and whose `updated_at` is newer than the last one
-  seen. Older answers are discarded; two backwards answers were seen on 10-02 [INC2 2].
+- **Sighting**: one poll answer about a workflow run whose (run attempt, `updated_at`) is newer
+  than the last answer seen for that same run. A run never seen before is stale, not a sighting,
+  when its id is below every run the previous poll remembered for that workflow and branch;
+  the newest 100 runs are remembered per workflow and branch. Older answers are discarded; two
+  backwards answers were seen on 10-02 [INC2 2]. The rule is per run, not per workflow: in the
+  record, 50 of 275 master CI runs (123 of 256 GPU runs) finished after a newer run of the same
+  workflow, and a re-run of the last green commit's older run (4.5, step 3) must be seen.
 - **Merge hold**: `githerd/merge` is `failure` on the pull requests a code-red gating lane can
   affect, so Mergify does not queue them (section 4.6). Pull requests the lane cannot affect keep
   merging.
@@ -321,7 +325,7 @@ adversarial review added (section 3.10). Columns:
 | githerd crashed | The `alive` file (written every 10 s) is older than 60 s and the lock's pid is dead or has another start time | Restarted by pm2 once servherd passes `autorestart` [R18], [S26]; by the MCP server of every live session and the first session's launcher (a local stat once a minute); by `githerd ensure` (no supervisord entry, owner's decision 3 in 12.3). Each restarter takes a restart lock. Uncaught exceptions enter fatal mode instead of exiting | D | `alive` fresh |
 | githerd alive but stuck | `alive` fresh but `progress` names one step for longer than that step's bound | Shown on the board; a reconcile step past its bound is cancelled and logged; long work runs as tracked child processes with their own deadlines | D | Reconciles completing |
 | More than one githerd | The lock (pid, start time); every start path uses one fixed cwd and name [R18] | A second daemon exits; stray servherd entries named githerd with another cwd are removed | D | One daemon |
-| Stale or backwards API answers | (run id, run attempt) and `updated_at` monotonic per workflow and branch; `since` polls overlap by 10 minutes; heads confirmed with `git ls-remote` before a refusal [INC2 2] | Discarded or re-read | D | n/a |
+| Stale or backwards API answers | (run attempt, `updated_at`) monotonic per run, and a new run older than every remembered run is stale (1.4); `since` polls overlap by 10 minutes; heads confirmed with `git ls-remote` before a refusal [INC2 2] | Discarded or re-read | D | n/a |
 | GitHub API outage or errors | 5xx, timeouts | "Unknown since <time>"; the Stop gate allows every stop with "GitHub unreachable; githerd will ring you; do not work around it" and records an implicit wait; never paged | D | Calls succeed |
 | Container restart | PID 1's start time changed [R21], [S25] | Every recorded pid and pane void; release check first; rebuild; `tmux -L githerd` session recreated; working jobs continued one at a time, incidents first; waiting jobs stay waiting without a session | D | Every job live or complete |
 | Events missed while down | Not needed: no webhooks; the poll is the truth [PF 1.4] | Full reconcile at start | D | n/a |
@@ -457,7 +461,8 @@ How work flows:
 | npm registry | after release runs, for new package names, during a 409, while a release is pending | not GitHub budget |
 | githubstatus.com components | only while a platform-wide symptom is suspected [S27] | not GitHub budget |
 
-ETags persist in `etags.json`, so a restart costs 304s, not a full re-read. Every response's
+ETags persist in `etags.json`, so a restart costs 304s, not a full re-read. It keeps the 200
+most recently answered paths, because `since` paths change every poll. Every response's
 `X-RateLimit-Remaining` is read; `GET /rate_limit` is never trusted [PF 1.5]. At zero remaining a
 conditional request is refused with 403 like any other, so githerd is blind until
 `X-RateLimit-Reset`; the reserve in 3.2 covers polls as well as holds [PF 9.3].

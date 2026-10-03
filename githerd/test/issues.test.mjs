@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyIssues, issuesPath, MAX_PAGES, nextPage, pollIssues } from "../lib/issues.mjs";
+import { applyIssues, issuesPath, MAX_PAGES, nextPage, overlapped, pollIssues } from "../lib/issues.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
 const empty = () => ({ since: null, byNumber: {} });
@@ -106,7 +106,7 @@ describe("paging", () => {
         expect(r.byNumber[1].updatedAt).toBe("2026-10-01T04:00:00Z");
     });
 
-    it("starts from the saved mark and stops after MAX_PAGES", async () => {
+    it("starts 10 minutes before the saved mark and stops after MAX_PAGES", async () => {
         const paths = [];
         let t = 0;
         const gitHub = {
@@ -122,8 +122,22 @@ describe("paging", () => {
         const saved = { since: "2026-09-30T00:00:00Z", byNumber: {} };
         const r = await pollIssues(gitHub, REPO, saved, "ignored");
         expect(paths).toHaveLength(MAX_PAGES);
-        expect(paths[0]).toContain("since=2026-09-30");
+        expect(paths[0]).toContain("since=2026-09-29T23%3A50%3A00.000Z");
         expect(r.complete).toBe(false);
         expect(r.since).toBe("2026-10-01T10:00:00Z");
+    });
+
+    it("re-reads the overlap without reporting an unchanged issue again", async () => {
+        expect(overlapped("2026-10-01T00:05:00Z")).toBe("2026-09-30T23:55:00.000Z");
+        const answers = [
+            [issue(1, "2026-10-01T00:00:00Z")],
+            [issue(1, "2026-10-01T00:00:00Z"), issue(2, "2026-10-01T00:01:00Z")],
+        ];
+        const gitHub = { get: async () => ({ headers: {}, body: answers.shift() }) };
+        const first = await pollIssues(gitHub, REPO, empty(), "2026-09-30T00:00:00Z");
+        const second = await pollIssues(gitHub, REPO, first, "ignored");
+        expect(first.changed).toEqual([1]);
+        expect(second.changed).toEqual([2]);
+        expect(second.since).toBe("2026-10-01T00:01:00Z");
     });
 });

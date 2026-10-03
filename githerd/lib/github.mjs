@@ -1,16 +1,38 @@
 /**
- * The only path from githerd to GitHub (design sections 4, 6 and 14). Every call goes through
- * `gh api` with `-i`, so status and rate headers are read from each response. Reads keep an
- * in-memory ETag per path; writes go through `write()` and `mutate()`, which in dry-run and paused
- * record a `would-do` ledger line and never call `gh`.
+ * The only path from githerd to GitHub (design sections 4.2, 3.2 and 4.11). Every call goes
+ * through `gh api` with `-i`, so status and rate headers are read from each response. Reads keep an
+ * ETag and body per path in a record the caller persists (`etags.json`), so a restart costs 304s;
+ * writes go through `write()` and `mutate()`, which in dry-run and paused record a `would-do`
+ * ledger line and never call `gh`. Every call is checked against the shared rate budget first.
  */
 import { execFile } from "node:child_process";
 
 import { assertAscii, checkOutgoing } from "./text.mjs";
 
 const TIMEOUT_MS = 60_000;
-const SLOW_BELOW = 1000;
-const MASTERS_ONLY_BELOW = 300;
+/** Paths whose ETag and body are kept; the oldest are dropped first. */
+export const MAX_ETAGS = 200;
+/**
+ * The rate tiers of design 3.2: below each count, githerd spends less. The budget is the owner's,
+ * shared with every session, and at zero even a 304 poll is refused [PF 9.3].
+ */
+const ESSENTIAL_BELOW = 1500;
+const NO_SUCCESS_BELOW = 500;
+const RESERVE = 300;
+/**
+ * The lowest remaining count each purpose may spend down to. `essential` polls are master's runs
+ * and the open pull request list; `hold` is a non-success `githerd/merge` status; the last 300
+ * calls are kept for those two.
+ * @type {Record<string, number>}
+ */
+const FLOORS = {
+    essential: 0,
+    hold: 0,
+    poll: ESSENTIAL_BELOW,
+    success: NO_SUCCESS_BELOW,
+    read: RESERVE,
+    write: RESERVE,
+};
 const SECONDARY_MIN_MS = 60_000;
 const SECONDARY_MAX_MS = 15 * 60_000;
 /** Counters the poll pace follows; search has its own small budget, paced by re-triage. */
@@ -24,6 +46,8 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * @typedef {{limit: number, remaining: number, used: number, reset: number}} Counter
  * @typedef {{counters: Record<string, Counter>, backoffUntil: number, secondaryMs: number,
  *   downSince: string | null}} RateState
+ * @typedef {"essential" | "hold" | "poll" | "success" | "read" | "write"} Purpose
+ * @typedef {Record<string, {etag: string, body: any}>} EtagRecord
  */
 
 /**
@@ -126,23 +150,33 @@ function isMutation(query) {
  *   mode: string | (() => string),
  *   ledger: (entry: {kind: string} & Record<string, unknown>) => unknown,
  *   rate?: Partial<RateState>,
+ *   etags?: EtagRecord,
  *   env?: Record<string, string | undefined>,
  *   now?: () => number,
  * }} options `repo` is `owner/name`; `mode` is the effective mode or a function returning it
  *   (anything but `acting` records instead of writing); `ledger` appends one ledger entry; `rate`
- *   is the persisted rate record, mutated in place so `downSince` survives a restart; `env` is
- *   the environment whose secret values `checkOutgoing` refuses.
- * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `pace` and the `rate` record
+ *   is the persisted rate record, mutated in place so `downSince` survives a restart; `etags` is
+ *   the persisted ETag record (`etags.json`), mutated in place; `env` is the environment whose
+ *   secret values `checkOutgoing` refuses.
+ * @returns the client: `get`, `login`, `graphql`, `write`, `mutate`, `pace`, and the `rate` and
+ *   `etags` records
  */
-export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env = process.env, now = Date.now }) {
+export function createGitHub({
+    repo,
+    exec = ghExec,
+    mode,
+    ledger,
+    rate = {},
+    etags = {},
+    env = process.env,
+    now = Date.now,
+}) {
     /** @type {RateState} */
     const r = /** @type {RateState} */ (rate);
     r.counters ??= {};
     r.backoffUntil ??= 0;
     r.secondaryMs ??= 0;
     r.downSince ??= null;
-    /** @type {Map<string, {etag: string, body: any}>} */
-    const etags = new Map();
     const currentMode = () => (typeof mode === "function" ? mode() : mode);
 
     /**
@@ -158,6 +192,43 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
             used: Number(headers["x-ratelimit-used"]),
             reset: Number(headers["x-ratelimit-reset"]),
         };
+    }
+
+    /**
+     * A counter that still applies: one whose window has not reset yet.
+     * @param {string} name the resource, `core` or `graphql`
+     * @returns {Counter | null} the counter, or null when none is known for this window
+     */
+    function live(name) {
+        const c = r.counters[name];
+        return c && c.reset * 1000 > now() ? c : null;
+    }
+
+    /**
+     * Refuses a call its purpose may not spend at the resource's remaining count (design 3.2).
+     * @param {string} resource `core` or `graphql`
+     * @param {Purpose} purpose what the call is for
+     */
+    function spend(resource, purpose) {
+        const c = live(resource);
+        if (!c || c.remaining >= FLOORS[purpose]) return;
+        throw new GitHubError(
+            "rate",
+            `${purpose} call held back: ${c.remaining} ${resource} calls left, below ${FLOORS[purpose]}`,
+            { retryAt: c.reset * 1000 },
+        );
+    }
+
+    /**
+     * Stores a path's ETag and body, newest last, dropping the oldest beyond `MAX_ETAGS`.
+     * @param {string} path the REST path
+     * @param {{etag: string, body: any}} entry what to keep
+     */
+    function remember(path, entry) {
+        delete etags[path];
+        etags[path] = entry;
+        const keys = Object.keys(etags);
+        for (const k of keys.slice(0, Math.max(0, keys.length - MAX_ETAGS))) delete etags[k];
     }
 
     /** Records when GitHub first became unreachable; kept until a call succeeds. */
@@ -277,9 +348,11 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
      * Sends a GraphQL document; errors in a 200 answer are thrown.
      * @param {string} query the document
      * @param {Record<string, unknown>} variables its variables
+     * @param {Purpose} purpose what the call is for
      * @returns {Promise<Response>} the response
      */
-    async function graphqlCall(query, variables) {
+    async function graphqlCall(query, variables, purpose) {
+        spend("graphql", purpose);
         const res = await call(["graphql", "--input", "-"], JSON.stringify({ query, variables }));
         if (res.body?.errors) {
             throw new GitHubError("graphql", `GraphQL errors: ${JSON.stringify(res.body.errors)}`, {
@@ -295,16 +368,21 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
         /** The persisted rate record (counters, back-off, `downSince`). */
         rate: r,
 
+        /** The persisted ETag record: per path, the last 200's ETag and body. */
+        etags,
+
         /**
          * GET a REST path. A repeat sends the ETag of the last 200 and returns that body on 304;
          * `fresh` sends no ETag (use it right before an irreversible action).
          * @param {string} path e.g. `repos/o/r/commits/master`
-         * @param {{fresh?: boolean}} [options] `fresh` skips the ETag
+         * @param {{fresh?: boolean, purpose?: Purpose}} [options] `fresh` skips the ETag; `purpose`
+         *   (default `read`) decides how far down the rate budget the call may go
          * @returns {Promise<{status: number, headers: Record<string, string>, body: any, changed: boolean}>}
          *   the response; `changed` is false when the body came from the ETag cache
          */
-        async get(path, { fresh = false } = {}) {
-            const cached = etags.get(path);
+        async get(path, { fresh = false, purpose = "read" } = {}) {
+            spend("core", purpose);
+            const cached = etags[path];
             const args = [];
             if (cached && !fresh) args.push("-H", `If-None-Match: ${cached.etag}`);
             const res = await call([...args, path]);
@@ -312,7 +390,7 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
                 if (!cached) throw new GitHubError("http", `304 for ${path} without a cached body`, { status: 304 });
                 return { ...res, body: cached.body, changed: false };
             }
-            if (res.headers.etag) etags.set(path, { etag: res.headers.etag, body: res.body });
+            if (res.headers.etag) remember(path, { etag: res.headers.etag, body: res.body });
             return { ...res, changed: true };
         },
 
@@ -333,16 +411,19 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
          * Runs a GraphQL query. Mutations are refused; they go through `mutate()`.
          * @param {string} query the GraphQL document
          * @param {Record<string, unknown>} [variables] its variables
+         * @param {{purpose?: Purpose}} [options] how far down the budget it may go (default `read`)
          * @returns {Promise<any>} the `data` object
          */
-        async graphql(query, variables = {}) {
+        async graphql(query, variables = {}, { purpose = "read" } = {}) {
             if (isMutation(query)) throw new GitHubError("refused", "graphql() refuses mutations; use mutate()");
-            return (await graphqlCall(query, variables)).body?.data;
+            return (await graphqlCall(query, variables, purpose)).body?.data;
         },
 
         /**
          * A REST write on the configured repository. Dry-run and paused record `would-do`;
-         * acting performs it and records `action`. Both refuse secrets and attribution lines.
+         * acting performs it and records `action`. Both refuse secrets and attribution lines, and
+         * both are held back by the rate tiers: a commit status is a `success` or a `hold` by its
+         * state, anything else a `write`.
          * @param {string} method POST, PUT, PATCH or DELETE
          * @param {string} path a path under `repos/<repo>/`
          * @param {unknown} [body] the JSON body
@@ -354,6 +435,13 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
                 throw new GitHubError("refused", `write() only writes under ${prefix}: ${path}`);
             }
             const op = `${method} ${path.slice(prefix.length)}`;
+            /** @type {Purpose} */
+            let purpose = "write";
+            if (path.startsWith(`${prefix}statuses/`)) {
+                const state = /** @type {{state?: string} | undefined} */ (body)?.state;
+                purpose = state === "success" ? "success" : "hold";
+            }
+            spend("core", purpose);
             const args = ["-X", method, path];
             const input = body === undefined ? undefined : JSON.stringify(body);
             return gated(op, body, () => call(input === undefined ? args : [...args, "--input", "-"], input));
@@ -365,30 +453,35 @@ export function createGitHub({ repo, exec = ghExec, mode, ledger, rate = {}, env
          * @param {Record<string, unknown>} [variables] its variables
          * @returns {Promise<{performed: boolean, op: string, status?: number, body?: any}>} see `gated`
          */
-        mutate(query, variables = {}) {
+        async mutate(query, variables = {}) {
             const name = /mutation\s+(\w+)/.exec(query)?.[1] ?? "anonymous";
-            return gated(`graphql mutation ${name}`, { query, variables }, () => graphqlCall(query, variables));
+            const op = `graphql mutation ${name}`;
+            spend("graphql", "write");
+            return gated(op, { query, variables }, () => graphqlCall(query, variables, "write"));
         },
 
         /**
-         * How the poll loop should pace itself (design section 6.3): `wait` during a back-off,
-         * `masters-only` below 300 remaining on core or GraphQL until that counter resets,
-         * `slow` (double the interval) below 1000, else `normal`.
-         * @returns {{level: "normal" | "slow" | "masters-only" | "wait", intervalFactor: number, until: number}}
-         *   the level, the interval multiplier, and when the level ends (ms, 0 for normal)
+         * The rate tier the poll loop follows (design 3.2): `wait` during a back-off; else by the
+         * lowest live core or GraphQL counter, `reserve` below 300 (only essential polls and
+         * holds), `holds` below 500 (no new `success`), `essential` below 1500 (only master's runs
+         * and the open pull request list are polled), else `normal`.
+         * @returns {{level: "normal" | "essential" | "holds" | "reserve" | "wait", intervalFactor: number, until: number}}
+         *   the tier, the interval multiplier (always 1), and when the tier ends (ms, 0 for normal)
          */
         pace() {
-            const at = now();
-            if (r.backoffUntil > at) return { level: "wait", intervalFactor: 1, until: r.backoffUntil };
+            if (r.backoffUntil > now()) return { level: "wait", intervalFactor: 1, until: r.backoffUntil };
             let low = null;
             for (const name of PACED_RESOURCES) {
-                const c = r.counters[name];
-                if (c && c.reset * 1000 > at && (low === null || c.remaining < low.remaining)) low = c;
+                const c = live(name);
+                if (c && (low === null || c.remaining < low.remaining)) low = c;
             }
-            if (low && low.remaining < MASTERS_ONLY_BELOW) {
-                return { level: "masters-only", intervalFactor: 1, until: low.reset * 1000 };
-            }
-            if (low && low.remaining < SLOW_BELOW) return { level: "slow", intervalFactor: 2, until: low.reset * 1000 };
+            const tiers = /** @type {const} */ ([
+                ["reserve", RESERVE],
+                ["holds", NO_SUCCESS_BELOW],
+                ["essential", ESSENTIAL_BELOW],
+            ]);
+            const tier = low && tiers.find(([, below]) => low.remaining < below);
+            if (low && tier) return { level: tier[0], intervalFactor: 1, until: low.reset * 1000 };
             return { level: "normal", intervalFactor: 1, until: 0 };
         },
     };

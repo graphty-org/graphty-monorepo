@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createGitHub, GitHubError } from "../lib/github.mjs";
+import { createGitHub, GitHubError, MAX_ETAGS } from "../lib/github.mjs";
 import { createFakeGh, fixture, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -93,6 +93,32 @@ describe("get", () => {
         expect(gh.calls.map((c) => c.args.includes("-H"))).toEqual([false, false]);
     });
 
+    it("persists ETags in the record it was given, so a new client starts with 304s", async () => {
+        const gh = createFakeGh(({ args }) =>
+            args.includes("-H") ? httpOutput({ status: 304, headers: rate(3964) }) : fixture("runs-200.http"),
+        );
+        const saved = {};
+        const first = await client(gh, { etags: saved }).gitHub.get(RUNS);
+        const restored = JSON.parse(JSON.stringify(saved));
+        const again = await client(gh, { etags: restored }).gitHub.get(RUNS);
+        expect(gh.calls[1].args).toContain("-H");
+        expect(again).toMatchObject({ status: 304, changed: false });
+        expect(again.body).toEqual(first.body);
+    });
+
+    it(`keeps the ${MAX_ETAGS} most recently answered paths`, async () => {
+        const gh = createFakeGh(({ args }) =>
+            httpOutput({ status: 200, headers: { ...rate(4000), ETag: `"${args.at(-1)}"` }, body: [] }),
+        );
+        const { gitHub } = client(gh);
+        for (let i = 0; i <= MAX_ETAGS; i++) await gitHub.get(`repos/${REPO}/issues?page=${i}`);
+        await gitHub.get(`repos/${REPO}/issues?page=1`);
+        const keys = Object.keys(gitHub.etags);
+        expect(keys).toHaveLength(MAX_ETAGS);
+        expect(keys).not.toContain(`repos/${REPO}/issues?page=0`);
+        expect(keys.at(-1)).toBe(`repos/${REPO}/issues?page=1`);
+    });
+
     it("sends no ETag when fresh", async () => {
         const gh = createFakeGh(() => fixture("runs-200.http"));
         const { gitHub } = client(gh);
@@ -148,21 +174,74 @@ describe("failures and downSince", () => {
 });
 
 describe("rate rules", () => {
-    it("doubles the interval below 1000 and polls master lanes only below 300", async () => {
-        let remaining = 1000;
+    it("steps down the tiers at 1500, 500 and 300 remaining", async () => {
+        let remaining = 1500;
         const gh = createFakeGh(() => httpOutput({ status: 200, headers: rate(remaining), body: {} }));
         const { gitHub } = client(gh);
-        await gitHub.get(RUNS);
-        expect(gitHub.pace()).toMatchObject({ level: "normal", intervalFactor: 1 });
-        remaining = 999;
-        await gitHub.get(RUNS);
-        expect(gitHub.pace()).toMatchObject({ level: "slow", intervalFactor: 2 });
-        remaining = 300;
-        await gitHub.get(RUNS);
-        expect(gitHub.pace().level).toBe("slow");
-        remaining = 299;
-        await gitHub.get(RUNS);
-        expect(gitHub.pace()).toEqual({ level: "masters-only", intervalFactor: 1, until: 1790959002_000 });
+        const levels = [];
+        for (const n of [1500, 1499, 500, 499, 300, 299]) {
+            remaining = n;
+            await gitHub.get(RUNS, { purpose: "essential" });
+            levels.push(gitHub.pace().level);
+        }
+        expect(levels).toEqual(["normal", "essential", "essential", "holds", "holds", "reserve"]);
+        expect(gitHub.pace()).toEqual({ level: "reserve", intervalFactor: 1, until: 1790959002_000 });
+    });
+
+    it("holds back each purpose below its tier, before calling gh", async () => {
+        let remaining = 4000;
+        const gh = createFakeGh(() => httpOutput({ status: 201, headers: rate(remaining), body: {} }));
+        const { gitHub } = client(gh, { mode: "acting" });
+        const STATUS = `repos/${REPO}/statuses/abc`;
+        const tries = {
+            essential: () => gitHub.get(RUNS, { purpose: "essential" }),
+            poll: () => gitHub.get(RUNS, { purpose: "poll" }),
+            read: () => gitHub.get(RUNS),
+            success: () => gitHub.write("POST", STATUS, { state: "success", context: "githerd/merge" }),
+            hold: () => gitHub.write("POST", STATUS, { state: "failure", context: "githerd/merge" }),
+            write: () => gitHub.write("POST", `repos/${REPO}/issues/1/comments`, { body: "x" }),
+        };
+        /** @type {Record<number, string[]>} */
+        const allowed = {};
+        for (const n of [1500, 1499, 499, 299]) {
+            remaining = n;
+            await gitHub.get(RUNS, { purpose: "essential" });
+            allowed[n] = [];
+            for (const [purpose, fn] of Object.entries(tries)) {
+                const before = gh.calls.length;
+                const err = await fn().then(
+                    () => null,
+                    (e) => e,
+                );
+                if (err === null) allowed[n].push(purpose);
+                else {
+                    expect(err).toMatchObject({ kind: "rate", retryAt: 1790959002_000 });
+                    expect(gh.calls).toHaveLength(before);
+                }
+            }
+        }
+        expect(allowed).toEqual({
+            1500: ["essential", "poll", "read", "success", "hold", "write"],
+            1499: ["essential", "read", "success", "hold", "write"],
+            499: ["essential", "read", "hold", "write"],
+            299: ["essential", "hold"],
+        });
+    });
+
+    it("holds back a GraphQL read and a mutation by the GraphQL counter", async () => {
+        const gh = createFakeGh(() =>
+            httpOutput({
+                status: 200,
+                headers: { ...rate(100), "X-Ratelimit-Resource": "graphql" },
+                body: { data: {} },
+            }),
+        );
+        const { gitHub } = client(gh, { mode: "acting" });
+        await gitHub.graphql("query { viewer { login } }", {}, { purpose: "essential" });
+        await expect(gitHub.graphql("query { viewer { login } }")).rejects.toMatchObject({ kind: "rate" });
+        await expect(gitHub.mutate("mutation M { x }")).rejects.toMatchObject({ kind: "rate" });
+        expect(gh.calls).toHaveLength(1);
+        expect(gitHub.pace().level).toBe("reserve");
     });
 
     it("follows the lowest of core and GraphQL and forgets a counter after its reset", async () => {
@@ -175,9 +254,11 @@ describe("rate rules", () => {
         const data = await gitHub.graphql('query { repository(owner:"o", name:"r") { id } }');
         expect(data.repository.pullRequests.nodes).toHaveLength(2);
         expect(gitHub.pace().level).toBe("normal");
-        await gitHub.get(RUNS);
-        expect(gitHub.pace().level).toBe("masters-only");
+        await gitHub.get(RUNS, { purpose: "essential" });
+        expect(gitHub.pace().level).toBe("reserve");
+        await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "rate" });
         advance(1790959002_000 - NOW);
+        await gitHub.get(RUNS);
         expect(gitHub.pace().level).toBe("normal");
     });
 

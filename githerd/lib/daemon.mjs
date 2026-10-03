@@ -371,6 +371,23 @@ export async function startDaemon({
     async function save() {
         if (!mayWrite()) return;
         await saveState(stateDir, state);
+        if (client) {
+            const file = join(stateDir, "etags.json");
+            writeFileSync(`${file}.tmp`, JSON.stringify(client.etags));
+            renameSync(`${file}.tmp`, file);
+        }
+    }
+
+    /**
+     * The ETags kept across restarts (`etags.json`), so a restarted daemon is answered with 304s.
+     * @returns {Record<string, {etag: string, body: unknown}>} the record, empty when absent or unreadable
+     */
+    function readEtags() {
+        try {
+            return JSON.parse(readFileSync(join(stateDir, "etags.json"), "utf8"));
+        } catch {
+            return {};
+        }
     }
 
     /**
@@ -452,6 +469,7 @@ export async function startDaemon({
             mode,
             ledger,
             rate: state.rate,
+            etags: readEtags(),
             env,
             now: () => now().getTime(),
         }));
@@ -687,7 +705,7 @@ export async function startDaemon({
         const pace = gh.pace();
         intervalFactor = pace.intervalFactor;
         if (pace.level === "wait") return `GitHub back-off until ${new Date(pace.until).toISOString()}`;
-        const full = pace.level !== "masters-only";
+        const full = pace.level === "normal";
         /** @type {Set<string>} derived escalations whose condition held this poll */
         const holding = new Set();
         const derived = (/** @type {any} */ args) => {
@@ -696,15 +714,12 @@ export async function startDaemon({
         };
         await resolveLogin(gh, iso, derived);
 
-        let headSha = m.headSha ?? null;
+        // The pull request list is essential (design 3.2); its per-pull-request reads are not.
+        const prList = await gh.graphql(PRS_QUERY, { owner, name }, { purpose: "essential" });
+        m.branch = prList.repository.defaultBranchRef.name;
+        const headSha = prList.repository.defaultBranchRef.target.oid;
         /** @type {any[] | null} */
-        let nodes = null;
-        if (full) {
-            const data = await gh.graphql(PRS_QUERY, { owner, name });
-            m.branch = data.repository.defaultBranchRef.name;
-            headSha = data.repository.defaultBranchRef.target.oid;
-            nodes = data.repository.pullRequests.nodes;
-        }
+        const nodes = full ? prList.repository.pullRequests.nodes : null;
         const branch = m.branch ?? "master";
 
         /** @type {any[]} */
@@ -712,6 +727,7 @@ export async function startDaemon({
         for (const [lane, { workflow }] of Object.entries(config.lanes)) {
             const res = await gh.get(
                 `repos/${repo}/actions/workflows/${workflow}/runs?branch=${branch}&per_page=10&exclude_pull_requests=true`,
+                { purpose: "essential" },
             );
             const updated = updateLane(lane, m.lanes[lane], res.body?.workflow_runs ?? [], config, ms);
             m.lanes[lane] = updated.lane;

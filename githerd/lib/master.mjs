@@ -15,7 +15,8 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
 
 /**
  * @typedef {{id: number, run_attempt: number, head_sha: string, status: string,
- *   conclusion: string | null, updated_at?: string}} WorkflowRun
+ *   conclusion: string | null, updated_at?: string, workflow_id?: number, name?: string,
+ *   head_branch?: string}} WorkflowRun
  * @typedef {{sha: string, parents?: {sha: string}[],
  *   commit: {message: string, committer?: {date: string}, author?: {date: string}}}} Commit
  * @typedef {"green" | "red" | "neutral" | "running"} Outcome
@@ -312,4 +313,54 @@ export function releaseState(saved, lanes, config, commits, now) {
     const stalled =
         releaseEligibleSince !== null && now - Date.parse(releaseEligibleSince) > config.release.stallHours * 3_600_000;
     return { lastRelease, releaseEligibleSince, failed, stalled, stuckOnly };
+}
+
+/** Runs remembered per workflow and branch for sightings; an older unseen run is stale. */
+export const SIGHTING_MEMORY = 100;
+
+/**
+ * @typedef {Record<string, Record<string, [number, string]>>} SightingRecord per
+ *   `<workflow>@<branch>`, per run id, the attempt and `updated_at` of its last sighting
+ */
+
+/**
+ * Picks the sightings out of one runs answer (design 1.4). A sighting is an answer about a run whose
+ * (run attempt, `updated_at`) is newer than the last answer seen for that run, so a repeat or a
+ * backwards answer is none and a re-run's new attempt is one, even on an older run. A run githerd
+ * has not seen is a sighting unless its id is below every run the last poll remembered for its
+ * workflow and branch: such a run is stale, not news (the backwards answers of 10-02 named a
+ * two-day-old run that had already left the first page).
+ * @param {SightingRecord} saved the record from the last poll
+ * @param {WorkflowRun[]} runs one answer's runs (`workflow_id` or `name` names the workflow)
+ * @param {string} branch the branch polled, for runs that do not carry `head_branch`
+ * @returns {{record: SightingRecord, sightings: WorkflowRun[]}} the new record, and the sightings
+ *   oldest `updated_at` first
+ */
+export function sightRuns(saved, runs, branch) {
+    /** @type {SightingRecord} */
+    const record = {};
+    for (const [key, seen] of Object.entries(saved)) record[key] = { ...seen };
+    /** @type {WorkflowRun[]} */
+    const sightings = [];
+    for (const run of runs) {
+        const key = `${run.workflow_id ?? run.name}@${run.head_branch ?? branch}`;
+        const seen = (record[key] ??= {});
+        const last = seen[run.id];
+        const known = Object.keys(saved[key] ?? {}).map(Number);
+        const floor = known.length > 0 ? Math.min(...known) : -Infinity;
+        const updated = run.updated_at ?? "";
+        if (last) {
+            if (run.run_attempt < last[0] || (run.run_attempt === last[0] && updated <= last[1])) continue;
+        } else if (run.id < floor) {
+            continue;
+        }
+        seen[run.id] = [run.run_attempt, updated];
+        const newest = Object.keys(seen)
+            .map(Number)
+            .sort((a, b) => b - a);
+        for (const id of newest.slice(SIGHTING_MEMORY)) delete seen[id];
+        sightings.push(run);
+    }
+    sightings.sort((a, b) => (a.updated_at ?? "").localeCompare(b.updated_at ?? "") || a.id - b.id);
+    return { record, sightings };
 }

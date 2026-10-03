@@ -6,7 +6,21 @@
  * header. Items carrying a `pull_request` key are pull requests and are dropped. The high-water
  * mark advances to the largest `updated_at` seen, never to the wall clock, so clock skew cannot
  * skip an update; because pages are oldest first, a poll that stops early resumes where it stopped.
+ * Each poll asks from 10 minutes before the mark, because GitHub's `since` answers can lag and
+ * miss an update stamped just before it (design 4.2); an issue re-read unchanged is not news.
  */
+
+/** How far before the high-water mark a `since` poll starts. */
+const SINCE_OVERLAP_MS = 10 * 60_000;
+
+/**
+ * The `since` value a poll sends for a high-water mark: the mark less the overlap.
+ * @param {string} mark ISO time of the high-water mark
+ * @returns {string} the ISO time to poll from
+ */
+export function overlapped(mark) {
+    return new Date(Date.parse(mark) - SINCE_OVERLAP_MS).toISOString();
+}
 
 /** Pages read per poll at most; the rest are read on the next poll, from the advanced mark. */
 export const MAX_PAGES = 10;
@@ -70,8 +84,8 @@ export function applyIssues(saved, items) {
  * Reads every page of issues changed since the high-water mark and merges them.
  * @param {{get: (path: string) => Promise<{headers: Record<string, string>, body: any}>}} gitHub the client
  * @param {string} repo `owner/name`
- * @param {{since: string | null, byNumber: Record<string, object>}} saved `state.issues`; a null
- *   mark starts at `start`
+ * @param {{since: string | null, byNumber: Record<string, object>}} saved `state.issues`; a mark
+ *   is read from 10 minutes before it, and a null mark starts at `start`
  * @param {string} start ISO time to start from when there is no mark yet
  * @returns {Promise<{since: string | null, byNumber: Record<string, object>, changed: number[], complete: boolean}>}
  *   the new record; `complete` is false when `MAX_PAGES` stopped the read early
@@ -79,7 +93,7 @@ export function applyIssues(saved, items) {
 export async function pollIssues(gitHub, repo, saved, start) {
     let record = { ...saved, changed: /** @type {number[]} */ ([]) };
     /** @type {string | null} */
-    let path = issuesPath(repo, saved.since ?? start);
+    let path = issuesPath(repo, saved.since ? overlapped(saved.since) : start);
     for (let page = 0; path && page < MAX_PAGES; page++) {
         const res = await gitHub.get(path);
         const next = applyIssues(record, res.body);

@@ -603,6 +603,25 @@ describe("the poll loop", () => {
         expect(daemon.state.escalations["github-down"].resolvedAt).toBe(clock.toISOString());
     });
 
+    it("keeps its ETags in etags.json, so a restarted daemon asks conditionally", async () => {
+        const isRuns = (/** @type {string[]} */ args) => args.some((a) => a.includes("/workflows/ci.yml/runs?"));
+        gh = createFakeGh((call) =>
+            isRuns(call.args)
+                ? httpOutput({ status: 200, headers: { etag: '"runs-1"' }, body: { workflow_runs: scene.ci } })
+                : respond(call),
+        );
+        const first = await start();
+        await first.poll();
+        await first.shutdown();
+        const etags = JSON.parse(readFileSync(join(dir, ".githerd", "etags.json"), "utf8"));
+        expect(Object.values(etags).map((e) => e.etag)).toEqual(['"runs-1"']);
+
+        gh.calls.length = 0;
+        await (await start()).poll();
+        const runs = gh.calls.find((c) => isRuns(c.args));
+        expect(runs?.args).toContain('If-None-Match: "runs-1"');
+    });
+
     it("keeps its loop ticking in read-only mode, so a launcher never takes it for wedged", async () => {
         const stateDir = join(dir, ".githerd");
         mkdirSync(stateDir);

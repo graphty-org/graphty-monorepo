@@ -70,6 +70,7 @@ export default defineConfig({
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
+                        { text: "Finding", link: "/guide/find" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Undo & History", link: "/guide/undo" },

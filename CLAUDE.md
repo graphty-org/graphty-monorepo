@@ -780,6 +780,18 @@ that starts the same server from the owner's own shell, which is how the owner s
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
 
+### Merging
+
+Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
+a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
+date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
+`Lint PR Title` succeed. Nobody turns on auto-merge by hand.
+
+- To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
+  Adding `hold` also takes an already-queued pull request out of the queue.
+- Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
+  request with it on would merge anyway.
+
 ### Breaking changes and major releases
 
 Every major release costs every consumer a migration, so keep them few: think ahead and group

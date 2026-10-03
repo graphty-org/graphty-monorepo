@@ -95,6 +95,13 @@ describe("session.data.prepare", () => {
             edgeId: null,
         });
         assert.strictEqual(draft.mapping.tables.nodes.key, "id");
+        for (const table of draft.tables) {
+            const read: Record<string, unknown> = { ...draft.mapping.tables[table.id] };
+            for (const column of table.columns.filter((each) => each.suggested !== undefined)) {
+                const role = read[column.suggested ?? ""];
+                assert.strictEqual(typeof role === "object" ? (role as { column: string }).column : role, column.name);
+            }
+        }
         assertUntouched(session);
         session.dispose();
     });
@@ -303,6 +310,12 @@ describe("session.data.prepare", () => {
         const third = await pair(session);
         await third.load();
         assert.strictEqual((await refusal(third.load()))?.code, "E_DISPOSED");
+        assert.strictEqual(third.type, "csv");
+        assert.deepEqual(
+            third.tables.map((table) => table.id),
+            ["nodes", "edges"],
+        );
+        assert.strictEqual(third.mapping.tables.edges?.source?.column, "source");
         session.dispose();
     });
 

@@ -16,17 +16,26 @@ input.addEventListener("change", async () => {
     const file = input.files?.[0];
     if (!file) return;
     const draft = await element.session.data.prepare({ config: { file } });
+    for (const table of draft.tables) {
+        const firstRows = await draft.rows(table.id, { limit: 20 });
+        console.table(firstRows.records.map((row) => row.values));
+    }
     const report = await draft.report();
-    const firstRows = await draft.rows(draft.tables[0].id, { limit: 20 });
-    console.table(firstRows.records.map((row) => row.values));
     console.log(report.counts.nodes, report.counts.edges, report.unmatched.rows);
     if (report.tooLarge) draft.dispose();
     else await draft.load();
 });
 ```
 
+`prepare` takes the same source `import` does: `{ config: { file } }` for a file the reader
+picked, `{ config: { url } }` for a URL, `{ config: { nodeFile, edgeFile } }` for a pair of CSV
+files, and `type: "csv"` (or any format name) beside `config` when the file's name does not say
+what it is. [Data Sources](./data-sources) lists every format and its options.
+
 `report()` is a dry run: it changes nothing, and `report.counts.nodes` and `report.counts.edges`
-are the nodes and edges the graph would hold after the load. Every type on this page --
+are the nodes and edges the graph would hold after the load -- the two numbers to show a reader.
+(`counts.nodeRecords` and `counts.edgeRecords` count the records the file handed over, which
+differ when edges create nodes or a record is rejected.) Every type on this page --
 `LoadDraft`, `LoadChoices`, `LoadReport` and the rest -- is exported from
 `@graphty/graphty-element/session`, along with the `isGraphtyError` guard.
 
@@ -95,7 +104,16 @@ The load records the label, weight, time and edge id columns in the graph's sett
 uses the column the reader chose. You do not write those settings yourself.
 
 `draft.mapping` always reads back in the full form: every table by id, `rowsAre` set, and `source`
-and `target` as `{ column }`.
+and `target` as `{ column }`. It and each column's `suggested` are the same reading seen from two
+sides, so they always agree, and a role your mapping leaves out falls back to it. To find the
+column the element picked for a role, read either:
+
+```ts
+import type { ColumnRole, DraftTable } from "@graphty/graphty-element/session";
+
+const suggestedFor = (table: DraftTable, role: ColumnRole): string | undefined =>
+    table.columns.find((column) => column.suggested === role)?.name;
+```
 
 `report(choices)` and `load(choices)` each take their own choices; `load()` does not reuse the
 ones the last `report()` was given. Hold them in one `LoadChoices` value and pass it to both.
@@ -132,7 +150,12 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   graph has none: every node comes from the edges. `draft.rows("edges", { only: "unmatched" })`
   lists those rows.
 - `tooLarge`: `null` when the load fits; otherwise the `details` the load would refuse with as
-  `E_TOO_LARGE`: `{ limit, count, of, graph }`.
+  `E_TOO_LARGE`: `{ limit, count, of, graph }` -- the limit, the count that passed it, whether
+  that count is of `"nodes"` or `"edges"`, and the nodes and edges the graph held when the batch
+  that passed the limit arrived. Nodes an edge creates count too. A draft that is too large can
+  still fit with other choices: when the load has node rows, `unmatched: "leave-out"` drops the
+  edges to nodes the file never declared, and the nodes they would have created. Call `report()`
+  again with them; if nothing fits, `dispose()` the draft.
 
 `draft.rows(id, { offset, limit, only })` pages through a table as `{ records, offset, total }`,
 each record `{ line, values }`. For a CSV file `line` is the line the row starts on (the header is
@@ -167,8 +190,12 @@ try {
 | `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`        |
 | `E_DISPOSED`                  | The draft was loaded or disposed                                         |
 
+`details` is typed `Readonly<Record<string, unknown>>` for every code, so check a value's type
+before using it (`Array.isArray(error.details.candidates)`).
+
 Only one draft is held at a time. A new `prepare`, and any `import`, disposes the one before it,
-and a successful `load` disposes its own.
+and a successful `load` disposes its own. Disposing lets go of the rows only: `draft.type`,
+`draft.tables` and `draft.mapping` stay readable, and only the methods refuse with `E_DISPOSED`.
 
 Progress for the load itself arrives on the `progress:changed` session event, with
 `task: "load"`; see [Columns, Runs & Progress](./vocabulary).

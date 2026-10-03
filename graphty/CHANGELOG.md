@@ -1,3 +1,36 @@
+## 0.8.38 (2026-10-03)
+
+### 🚀 Features
+
+- **compact-mantine:** match the figma editor's components in light and dark ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+
+### 🩹 Fixes
+
+- **graphty:** mount compact-mantine's AA theme so filled buttons pass contrast ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0), [#579](https://github.com/graphty-org/graphty-monorepo/issues/579))
+- **graphty:** draw the Data panel's loaded facts as stat rows ([#140](https://github.com/graphty-org/graphty-monorepo/issues/140))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.37 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.28
+- Updated graphty-element to 3.6.0
+
+## 0.8.36 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.27
+- Updated graphty-element to 3.5.6
+
 ## 0.8.35 (2026-10-03)
 
 ### 🧱 Updated Dependencies

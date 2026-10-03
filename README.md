@@ -124,6 +124,16 @@ Mantine theme and component library for dense, compact UIs. Provides automatic c
 
 [View package](./compact-mantine)
 
+## Code quality: SonarQube before every push
+
+`git push` runs a pre-push gate (`tools/prepush.sh`) that builds, lints and tests the packages a
+push affects. On the maintainer's machine it also runs SonarQube on the lines the push changes and
+refuses the push when SonarQube finds a new issue or security hotspot there; problems the code
+already had never block. The SonarQube server lives on the maintainer's own network, so this check
+runs only there and is not part of CI. Without the server the step passes with a warning, and CI
+covers everything else. The design, and the plan for burning down the existing backlog, are in
+[design/sonarqube/design.md](./design/sonarqube/design.md).
+
 ## License
 
 MIT

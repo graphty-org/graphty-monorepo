@@ -530,6 +530,46 @@ async function* streamChunks(
 }
 
 /**
+ * Read the whole input as bytes, for a binary format (a zip): nothing is decoded. The signal is
+ * checked before every chunk and progress reported after it; a stream is cancelled when the read
+ * stops early.
+ * @param input - the input
+ * @param options - cancellation and progress (the encoding is ignored)
+ * @returns the bytes, or null when the input is text (a string, or a chunk that is a string),
+ * which a binary format cannot read
+ */
+export async function readBytes(input: ImportInput, options: ReadOptions = {}): Promise<Uint8Array | null> {
+    const signal = options.signal ?? null;
+    throwIfAborted(signal);
+    if (typeof input === "string") {
+        return null;
+    }
+    if (input instanceof Uint8Array) {
+        options.onProgress?.(input.byteLength, input.byteLength);
+        return input;
+    }
+    const parts: Uint8Array[] = [];
+    let done = 0;
+    for await (const chunk of isReadableStream(input) ? streamChunks(input, signal) : input) {
+        throwIfAborted(signal);
+        if (typeof chunk === "string") {
+            return null;
+        }
+        if (!(chunk instanceof Uint8Array)) {
+            throw new GraphFormatError("E_UNSUPPORTED", "an input chunk must be a string or a Uint8Array", {
+                reason: "chunk type",
+                found: typeof chunk,
+            });
+        }
+        parts.push(chunk);
+        done += chunk.byteLength;
+        options.onProgress?.(done);
+    }
+    options.onProgress?.(done, done);
+    return parts.length === 0 ? new Uint8Array(0) : concatBytes(parts);
+}
+
+/**
  * Read the whole input as one string (the GML / DOT / JSON path, design section 8.4).
  * @param input - the input
  * @param report - the report the decode error is recorded in

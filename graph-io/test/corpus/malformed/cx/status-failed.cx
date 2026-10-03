@@ -1,0 +1,5 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1}]},
+{"status":[{"error":"the upload was interrupted","success":false}]}
+]

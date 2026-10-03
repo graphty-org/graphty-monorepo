@@ -1,0 +1,8 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1,"n":"short"},{"@id":2,"n":"same"}]},
+{"edges":[{"@id":3,"s":1,"t":2,"i":"i-field"}]},
+{"nodeAttributes":[{"po":1,"n":"name","v":"long name"},{"po":2,"n":"name","v":"same"}]},
+{"edgeAttributes":[{"po":3,"n":"interaction","v":"attribute"}]},
+{"status":[{"error":"","success":true}]}
+]

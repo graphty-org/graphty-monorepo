@@ -73,6 +73,7 @@ export default defineConfig({
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
                         { text: "Undo & History", link: "/guide/undo" },
+                        { text: "Project Files", link: "/guide/project-file" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },

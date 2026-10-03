@@ -80,7 +80,7 @@ export class GitHubError extends Error {
 function ghExec(args, { input, timeoutMs }) {
     return new Promise((resolve) => {
         const child = execFile(
-            "gh",
+            "gh", // NOSONAR(S4036): the owner's gh from his own PATH, as tools/ runs it
             args,
             {
                 timeout: timeoutMs,
@@ -90,12 +90,9 @@ function ghExec(args, { input, timeoutMs }) {
             },
             (err, stdout, stderr) => {
                 const e = /** @type {any} */ (err);
-                resolve({
-                    code: e ? (typeof e.code === "number" ? e.code : 1) : 0,
-                    stdout: String(stdout),
-                    stderr: String(stderr),
-                    timedOut: Boolean(e && e.killed),
-                });
+                let code = 0;
+                if (e) code = typeof e.code === "number" ? e.code : 1;
+                resolve({ code, stdout: String(stdout), stderr: String(stderr), timedOut: e?.killed === true });
             },
         );
         // gh may exit before reading its input; the write's EPIPE must not crash the daemon.
@@ -251,59 +248,82 @@ export function createGitHub({
         }
         const result = await exec(["api", "-i", ...args], { input, timeoutMs: TIMEOUT_MS });
         const res = parseResponse(result.stdout);
-        if (!res) {
-            markDown();
-            if (result.timedOut) throw new GitHubError("timeout", `gh timed out after ${TIMEOUT_MS / 1000} s`);
-            if (/auth login|authentication|not logged/i.test(result.stderr)) {
-                throw new GitHubError("credential", `gh is not logged in: ${result.stderr.trim()}`);
-            }
-            throw new GitHubError("network", `gh failed without a response: ${result.stderr.trim()}`);
-        }
+        if (!res) throw noResponse(result);
         recordCounter(res.headers);
-        const { status, headers } = res;
-        if ((status >= 200 && status < 300) || status === 304) {
+        if ((res.status >= 200 && res.status < 300) || res.status === 304) {
             r.downSince = null;
             r.secondaryMs = 0;
             return res;
         }
+        throw refusal(res, at);
+    }
+
+    /**
+     * The error for a `gh` run that printed no HTTP response.
+     * @param {ExecResult} result the run
+     * @returns {GitHubError} a timeout, credential or network error
+     */
+    function noResponse(result) {
+        markDown();
+        if (result.timedOut) return new GitHubError("timeout", `gh timed out after ${TIMEOUT_MS / 1000} s`);
+        if (/auth login|authentication|not logged/i.test(result.stderr)) {
+            return new GitHubError("credential", `gh is not logged in: ${result.stderr.trim()}`);
+        }
+        return new GitHubError("network", `gh failed without a response: ${result.stderr.trim()}`);
+    }
+
+    /**
+     * The error for an answer that is not 2xx or 304 (design section 6.3).
+     * @param {Response} res the answer
+     * @param {number} at when the call was sent
+     * @returns {GitHubError} a server, rate, secondary, credential or http error
+     */
+    function refusal(res, at) {
+        const { status } = res;
         if (status >= 500) {
             markDown();
-            throw new GitHubError("server", `GitHub answered ${status}`, { status });
+            return new GitHubError("server", `GitHub answered ${status}`, { status });
         }
-        if (status === 403 || status === 429) {
-            const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body ?? "");
-            const hasRate = headers["x-ratelimit-remaining"] !== undefined;
-            const remaining = Number(headers["x-ratelimit-remaining"]);
-            // Every authenticated answer carries rate headers, so remaining > 0 alone says nothing:
-            // a plain permission refusal has them too.
-            const secondary =
-                /secondary rate limit/i.test(text) || headers["retry-after"] !== undefined || status === 429;
-            let until = 0;
-            if (headers["retry-after"] !== undefined) until = at + Number(headers["retry-after"]) * 1000;
-            if (hasRate && remaining === 0) until = Math.max(until, Number(headers["x-ratelimit-reset"]) * 1000);
-            if (secondary && !(hasRate && remaining === 0)) {
-                r.secondaryMs = Math.min(Math.max(SECONDARY_MIN_MS, r.secondaryMs * 2), SECONDARY_MAX_MS);
-                until = Math.max(until, at + r.secondaryMs);
-            }
-            if (until > 0) {
-                r.backoffUntil = until;
-                markDown();
-                const kind = secondary && !(hasRate && remaining === 0) ? "secondary" : "rate";
-                throw new GitHubError(
-                    kind,
-                    `GitHub rate limit (${status}); waiting until ${new Date(until).toISOString()}`,
-                    {
-                        status,
-                        retryAt: until,
-                    },
-                );
-            }
-        }
+        const limited = status === 403 || status === 429 ? rateLimited(res, at) : null;
+        if (limited) return limited;
         if (status === 401 || status === 403) {
             markDown();
-            throw new GitHubError("credential", `GitHub refused the credential (${status})`, { status });
+            return new GitHubError("credential", `GitHub refused the credential (${status})`, { status });
         }
-        throw new GitHubError("http", `GitHub answered ${status}: ${JSON.stringify(res.body)}`, { status });
+        return new GitHubError("http", `GitHub answered ${status}: ${JSON.stringify(res.body)}`, { status });
+    }
+
+    /**
+     * Reads a 403 or 429 as a rate limit, and backs the client off when it is one.
+     * @param {Response} res the answer
+     * @param {number} at when the call was sent
+     * @returns {GitHubError | null} the rate or secondary error, or null when it is not a limit
+     */
+    function rateLimited(res, at) {
+        const { status, headers } = res;
+        const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body ?? "");
+        const exhausted =
+            headers["x-ratelimit-remaining"] !== undefined && Number(headers["x-ratelimit-remaining"]) === 0;
+        // Every authenticated answer carries rate headers, so remaining > 0 alone says nothing:
+        // a plain permission refusal has them too.
+        const secondary =
+            !exhausted &&
+            (/secondary rate limit/i.test(text) || headers["retry-after"] !== undefined || status === 429);
+        let until = 0;
+        if (headers["retry-after"] !== undefined) until = at + Number(headers["retry-after"]) * 1000;
+        if (exhausted) until = Math.max(until, Number(headers["x-ratelimit-reset"]) * 1000);
+        if (secondary) {
+            r.secondaryMs = Math.min(Math.max(SECONDARY_MIN_MS, r.secondaryMs * 2), SECONDARY_MAX_MS);
+            until = Math.max(until, at + r.secondaryMs);
+        }
+        if (until === 0) return null;
+        r.backoffUntil = until;
+        markDown();
+        return new GitHubError(
+            secondary ? "secondary" : "rate",
+            `GitHub rate limit (${status}); waiting until ${new Date(until).toISOString()}`,
+            { status, retryAt: until },
+        );
     }
 
     /**

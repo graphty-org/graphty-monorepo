@@ -36,6 +36,8 @@ import { fileURLToPath } from "node:url";
 
 import semver from "semver";
 
+import { workspaceDirs } from "./workspace-files.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The one package allowed to appear in both dependencies and peerDependencies. */
@@ -82,9 +84,7 @@ function walk(dir, out = []) {
 }
 
 function workspacePackages() {
-    const yaml = fs.readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8");
-    const dirs = [...yaml.matchAll(/^\s*-\s*["']?([^"'\n]+)["']?\s*$/gm)].map((m) => m[1]);
-    return dirs
+    return workspaceDirs(root)
         .filter((d) => fs.existsSync(path.join(root, d, "package.json")))
         .map((d) => ({ dir: d, manifest: JSON.parse(fs.readFileSync(path.join(root, d, "package.json"), "utf8")) }));
 }

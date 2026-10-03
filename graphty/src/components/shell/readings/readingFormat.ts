@@ -36,7 +36,9 @@ const PROSE_SIGNIFICANT_FIGURES = 3;
 const MODULARITY_DECIMALS = 3;
 
 /**
- * The exact count the Counts rows and the caveats line use: grouped, never rounded.
+ * The exact count the Counts rows, the caveats line and the status bar's tooltip and
+ * phase lines use: grouped, never rounded. A negative value keeps its sign, as
+ * graphty-element's own figures do, so a wrong count shows up instead of reading "0".
  * @param value - the count. Rounded to an integer; a non-finite value reads "0".
  * @returns the count with ASCII comma groups, e.g. 1104 -> "1,104".
  */
@@ -71,18 +73,20 @@ export function formatProseCount(value: number): string {
 }
 
 /**
- * A share as the whole percent the readings draw ("One connected part holds 93% of
- * nodes", ExplorerLargeGraph.dc.html:3328). No decimal: a reading states a
- * proportion, not a measurement.
- * @param fraction - the share, 0 to 1. A non-finite value reads "0%".
- * @returns the percent with its sign, e.g. 0.913 -> "91%".
+ * A share as the whole percent the readings and the loading bar draw ("One connected
+ * part holds 93% of nodes", ExplorerLargeGraph.dc.html:3328; "Building graph: ... (40%)").
+ * No decimal: it states a proportion, not a measurement.
+ *
+ * Clamped to 0..100%: a share cannot exceed the whole, and the loading bar's fraction
+ * does overshoot when the node total was only an estimate.
+ * @param fraction - the share, 0 to 1. A non-finite or negative value reads "0%"; above 1
+ * reads "100%".
+ * @returns the percent, e.g. 0.913 -> "91%".
  */
 export function formatPercent(fraction: number): string {
-    if (!Number.isFinite(fraction)) {
-        return "0%";
-    }
+    const value = Number.isFinite(fraction) && fraction > 0 ? Math.min(fraction, 1) : 0;
 
-    return `${Math.round(fraction * 100)}%`;
+    return `${String(Math.round(value * 100))}%`;
 }
 
 /**

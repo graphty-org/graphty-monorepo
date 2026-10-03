@@ -21,6 +21,12 @@
             "types": "./dist/node.d.ts",
             "import": "./dist/node.js",
             "default": "./dist/node.js"
+        },
+        "./acquire": {
+            "types": "./dist/acquire.d.ts",
+            "browser": "./dist/browser.js",
+            "node": "./dist/node.js",
+            "default": "./dist/browser.js"
         }
     },
     "sideEffects": false,

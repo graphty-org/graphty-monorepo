@@ -32,13 +32,12 @@
  * multi-workgroup prefix sum -- and the sort, the histogram and the grid layout tier above one --
  * comes back wrong, with plausible numbers and no error anywhere.
  *
- * So the accelerator this file builds implements `verify()`, and the element calls it at ATTACH,
- * before any of the graph goes near the device: {@link checkDeviceComputes} runs the peer's own
- * self-check, a real prefix sum of known numbers scanned through the shipped primitive and
- * checked on the host, and turns a wrong word into `E_DEVICE_INCORRECT`. The element then
- * reports acceleration unavailable with that code and draws the graph on the CPU. The peer
- * memoises the result per device, so the 14 to 20 milliseconds are paid once and the accelerated
- * runs that follow re-use the answer.
+ * So the peer's `acquireAccelerator` runs its own self-check -- a real prefix sum of known
+ * numbers scanned through the shipped primitive and checked on the host -- before it hands a
+ * device over, and before any of the graph goes near it. A wrong word comes back as an
+ * `E_DEVICE_INCORRECT` decline, which this file turns into the element's `E_DEVICE_INCORRECT`
+ * error; the element then reports acceleration unavailable with that code and draws the graph on
+ * the CPU. The peer memoises the result per device, so the 14 to 20 milliseconds are paid once.
  *
  * That is detection, not a fallback: the decision is made before any accelerated work starts.
  * The peer also guards its own compute entry points, so a device that somehow gets past the
@@ -49,8 +48,8 @@
  * That the ELEMENT reports `E_DEVICE_INCORRECT` on the Windows WARP renderer is inference, by
  * decision, not a test: no lane runs graphty-element on WARP. The host matrix (`hosts.yml`) runs
  * only webgpu-graph-algorithms there, whose own tests show the multi-block scan failing. This
- * file's side -- a failed check becomes `E_DEVICE_INCORRECT`, and the controller refuses the
- * device at attach -- is pinned against a stubbed peer and a deliberately wrong fake. Adding an
+ * file's side -- a failed check becomes `E_DEVICE_INCORRECT` and no accelerator is built -- is
+ * pinned against a stubbed peer. Adding an
  * element job to the Windows lane is a CI cost that can be taken on later if the two halves ever
  * disagree.
  *
@@ -63,14 +62,8 @@
  * there is a real failure and is reported as one.
  */
 
-import {
-    createAccelerator,
-    EXACT_MAX_NODES,
-    type GpuAccelerator,
-    type GpuContext,
-    verifyDevice,
-} from "@graphty/webgpu-graph-algorithms";
-import { probeBrowserWebGpu, requestGpuContext } from "@graphty/webgpu-graph-algorithms/browser";
+import { EXACT_MAX_NODES, type GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
+import { type AcceleratorDeclined, acquireAccelerator } from "@graphty/webgpu-graph-algorithms/browser";
 
 import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
 import { GraphtyError } from "./src/errors";
@@ -82,15 +75,14 @@ const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
  * Members of the peer's accelerator that do not cross into {@link GraphAccelerator}.
  *
  * `ctx` and `options` carry GPU types and stay on this side of the boundary; `kind` is spelled
- * `backend` here; `dispose` and `verify` are written below so the element controls the lifetime
- * and owns the self-check's error shape. Everything else -- every accelerated algorithm and
- * layout the peer implements, now and in every future minor of it -- is forwarded by name, which
- * is what keeps this file from needing an edit each time the peer ports another algorithm.
+ * `backend` here; `dispose` is written below so the element controls the lifetime. Everything
+ * else -- every accelerated algorithm and layout the peer implements, now and in every future
+ * minor of it -- is forwarded by name, which is what keeps this file from needing an edit each
+ * time the peer ports another algorithm.
  *
- * That forwarding is also why this set has to name `verify` even though the peer has no such
- * member today: forwarding runs AFTER the object below is built, so a future peer release that
- * happened to add a member of that name would otherwise replace the element's own silently, and
- * a self-check that reports something other than `E_DEVICE_INCORRECT` is worse than none.
+ * `verify` is named although the peer has no such member today: the device was already checked
+ * when it was acquired, and a future peer member of that name must not become a second check
+ * that reports something other than `E_DEVICE_INCORRECT`.
  */
 const NOT_FORWARDED = new Set(["kind", "ctx", "options", "dispose", "verify"]);
 
@@ -113,56 +105,28 @@ function forwardMembers(source: GpuAccelerator, target: GraphAccelerator): void 
 }
 
 /**
- * Turns a failed probe into the sentence and the code the element publishes.
- * @param code - What the peer's probe reported.
- * @param reason - What the peer's probe said about it, when it said anything.
- * @returns The error the factory throws, which becomes `capabilities.acceleration.reason` and
- * `.code`.
+ * Turns a device that got the peer's self-check wrong into the element's error.
+ * @param declined - The peer's `E_DEVICE_INCORRECT` decline.
+ * @returns The error the factory throws.
  */
-function probeFailure(code: "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY", reason: string | null): GraphtyError {
-    const insecure = typeof globalThis.isSecureContext === "boolean" && !globalThis.isSecureContext;
-    const messages = {
-        E_NO_WEBGPU: insecure ? "WebGPU requires a secure context (https or localhost)" : "this browser has no WebGPU",
-        E_NO_ADAPTER: "WebGPU is present but no graphics adapter would answer",
-        E_SOFTWARE_ONLY: "the only WebGPU adapter here is a software renderer, which is slower than the CPU path",
-    };
-
-    return new GraphtyError({
-        code,
-        message: messages[code],
-        source: "acceleration",
-        recoverable: false,
-        details:
-            reason === null
-                ? { accelerator: WEBGPU_ACCELERATOR_NAME }
-                : { accelerator: WEBGPU_ACCELERATOR_NAME, probe: reason },
-    });
-}
-
-/**
- * Asks the device to compute something whose answer is already known, and turns a wrong answer
- * into the element's code.
- *
- * The peer REPORTS rather than throws here -- `verifyDevice` hands back a record whose `mismatch`
- * is the first word that disagreed -- so this is where a report becomes a refusal. A failure of
- * the check's own machinery (a device lost while it ran, an allocation that failed) throws out of
- * `verifyDevice` carrying its own code and is left alone: "this driver computes incorrectly" must
- * never be said about a device that merely died.
- * @param ctx - The GPU context whose device is being vouched for.
- * @throws A `GraphtyError` with `E_DEVICE_INCORRECT` when the device got the known answer wrong.
- */
-async function checkDeviceComputes(ctx: GpuContext): Promise<void> {
-    const check = await verifyDevice(ctx);
-    const { mismatch } = check;
-    if (mismatch === null) {
-        return;
+function deviceIncorrect(declined: AcceleratorDeclined): GraphtyError {
+    const { check } = declined;
+    const mismatch = check?.mismatch ?? null;
+    if (check === null || mismatch === null) {
+        return new GraphtyError({
+            code: "E_DEVICE_INCORRECT",
+            message: `this GPU computes incorrectly: ${declined.reason}`,
+            source: "acceleration",
+            recoverable: false,
+            details: { accelerator: WEBGPU_ACCELERATOR_NAME },
+        });
     }
 
     const observed = mismatch.poison
         ? `${mismatch.where} was never written at all`
         : `${mismatch.where} came back as ${String(mismatch.actual)} where ${String(mismatch.expected)} was required`;
 
-    throw new GraphtyError({
+    return new GraphtyError({
         code: "E_DEVICE_INCORRECT",
         message:
             `this GPU computes multi-workgroup shaders incorrectly: a prefix sum of ` +
@@ -191,12 +155,40 @@ async function checkDeviceComputes(ctx: GpuContext): Promise<void> {
 }
 
 /**
+ * Turns the peer's decline into the sentence and the code the element publishes.
+ * @param declined - Why the peer handed over no accelerator.
+ * @returns The error the factory throws, which becomes `capabilities.acceleration.reason` and
+ * `.code`.
+ */
+function declineFailure(declined: AcceleratorDeclined): GraphtyError {
+    if (declined.code === "E_DEVICE_INCORRECT") {
+        return deviceIncorrect(declined);
+    }
+
+    const insecure = typeof globalThis.isSecureContext === "boolean" && !globalThis.isSecureContext;
+    const messages = {
+        E_NO_WEBGPU: insecure ? "WebGPU requires a secure context (https or localhost)" : "this browser has no WebGPU",
+        E_NO_ADAPTER: "WebGPU is present but no graphics adapter would answer",
+        E_SOFTWARE_ONLY: "the only WebGPU adapter here is a software renderer, which is slower than the CPU path",
+    };
+
+    return new GraphtyError({
+        code: declined.code,
+        message: messages[declined.code],
+        source: "acceleration",
+        recoverable: false,
+        details: { accelerator: WEBGPU_ACCELERATOR_NAME, probe: declined.reason },
+    });
+}
+
+/**
  * Wraps the peer's accelerator as the element's, keeping every GPU type on this side.
- * @param ctx - The GPU context the accelerator runs on.
- * @param accelerator - The peer's accelerator.
+ * @param accelerator - The peer's accelerator, already checked against its device.
+ * @param release - Releases the device; the element calls it through `dispose`.
  * @returns The accelerator the element attaches.
  */
-function toGraphAccelerator(ctx: GpuContext, accelerator: GpuAccelerator): GraphAccelerator {
+function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): GraphAccelerator {
+    const { ctx } = accelerator;
     const { caps } = ctx;
     const wrapped: GraphAccelerator = {
         name: WEBGPU_ACCELERATOR_NAME,
@@ -212,13 +204,7 @@ function toGraphAccelerator(ctx: GpuContext, accelerator: GpuAccelerator): Graph
         // The element watches this. A device the element itself destroyed also resolves it, and
         // the controller ignores a loss reported for an accelerator it has already released.
         lost: ctx.lost.then((info) => ({ reason: info.message === "" ? info.reason : info.message })),
-        // The element calls this once, before it attaches this accelerator and before any of the
-        // graph reaches the device. `NOT_FORWARDED` is what keeps the forwarding pass below from
-        // replacing it.
-        verify: (): Promise<void> => checkDeviceComputes(ctx),
-        dispose: (): void => {
-            accelerator.dispose();
-        },
+        dispose: release,
     };
 
     forwardMembers(accelerator, wrapped);
@@ -226,14 +212,17 @@ function toGraphAccelerator(ctx: GpuContext, accelerator: GpuAccelerator): Graph
 }
 
 /**
- * Probes for WebGPU and builds the accelerator, or says why it could not.
+ * Acquires a checked WebGPU accelerator, or says why there is none.
  *
  * Declining is up-front detection: no work has started, and the element runs the CPU path
- * having reported the reason. It is never a fallback from a run that had already begun.
+ * having reported the reason. It is never a fallback from a run that had already begun. The
+ * element's controller owns when to ask and what to do after a device loss, so each call here
+ * is one acquisition.
  * @param options - The ceiling the element will ask this accelerator to respect.
- * @returns The accelerator, or null when the peer declined without a reason.
- * @throws A `GraphtyError` carrying `E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_SOFTWARE_ONLY` or
- * `E_TOO_LARGE`, which the element publishes on `capabilities.acceleration`.
+ * @returns The accelerator.
+ * @throws A `GraphtyError` carrying `E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_SOFTWARE_ONLY`,
+ * `E_DEVICE_INCORRECT` or `E_TOO_LARGE`, which the element publishes on
+ * `capabilities.acceleration`.
  */
 async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> {
     const { exactMaxNodes } = options ?? {};
@@ -246,32 +235,18 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
         });
     }
 
-    const rejectSoftware = !(options?.acceptSoftware ?? false);
-    const probe = await probeBrowserWebGpu({ rejectSoftware });
-    if (!probe.ok || probe.code !== "OK") {
-        throw probeFailure(probe.code === "OK" ? "E_NO_ADAPTER" : probe.code, probe.reason);
+    const gpu = acquireAccelerator({
+        acceptSoftware: options?.acceptSoftware ?? false,
+        accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
+    });
+    const result = await gpu.current();
+    if (!result.ok) {
+        throw declineFailure(result);
     }
 
-    const ctx = await requestGpuContext(
-        probe.adapter === null ? { rejectSoftware } : { adapter: probe.adapter, rejectSoftware },
-    );
-
-    try {
-        return toGraphAccelerator(
-            ctx,
-            createAccelerator(ctx, exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } }),
-        );
-    } catch (error) {
-        // Construction failed after the device was handed over: release it rather than leaking
-        // a device nobody holds a reference to, then report the failure. This is still before
-        // any work has run.
-        ctx.dispose();
-        throw GraphtyError.wrap(error, {
-            code: "E_INTERNAL",
-            source: "acceleration",
-            details: { accelerator: WEBGPU_ACCELERATOR_NAME },
-        });
-    }
+    return toGraphAccelerator(result.accelerator, () => {
+        gpu.dispose();
+    });
 }
 
 registerAccelerator({

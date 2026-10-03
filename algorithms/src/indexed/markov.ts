@@ -1,5 +1,6 @@
 import type { AdjacencyView, NumericVector } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based Markov clustering, with the legacy `markovClustering` defaults. @public */
@@ -199,7 +200,10 @@ function transitionMatrix(s: AdjacencyView, weights: NumericVector | null, selfL
             const j = s.colIdx[a];
             const w = weights === null ? 1 : weights[a];
             if (!(w >= 0) || w === Infinity) {
-                throw new RangeError(`arc ${a} has weight ${w}; Markov clustering needs finite, non-negative weights`);
+                throw withCode(
+                    new RangeError(`arc ${a} has weight ${w}; Markov clustering needs finite, non-negative weights`),
+                    "E_BAD_WEIGHT",
+                );
             }
             put(i, j, w, false);
         }
@@ -254,20 +258,26 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
     const tolerance = options.tolerance ?? 1e-6;
     const pruningThreshold = options.pruningThreshold ?? 1e-5;
     if (!Number.isInteger(expansion) || expansion < 1) {
-        throw new RangeError(`expansion must be an integer of at least 1, got ${expansion}`);
+        throw withCode(new RangeError(`expansion must be an integer of at least 1, got ${expansion}`), "E_BAD_OPTION");
     }
     if (!(inflation > 0) || inflation === Infinity) {
-        throw new RangeError(`inflation must be finite and above 0, got ${inflation}`);
+        throw withCode(new RangeError(`inflation must be finite and above 0, got ${inflation}`), "E_BAD_OPTION");
     }
     if (!Number.isInteger(maxIterations) || maxIterations < 0) {
-        throw new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`);
+        throw withCode(
+            new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
+            "E_BAD_OPTION",
+        );
     }
     if (!(tolerance >= 0) || !(pruningThreshold >= 0)) {
-        throw new RangeError("tolerance and pruningThreshold must be non-negative");
+        throw withCode(new RangeError("tolerance and pruningThreshold must be non-negative"), "E_BAD_OPTION");
     }
     const weights = options.weights ?? s.weights;
     if (weights !== null && weights.length !== s.arcCount) {
-        throw new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`);
+        throw withCode(
+            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
+            "E_BAD_OPTION",
+        );
     }
     const n = s.nodeCount;
     let m = transitionMatrix(s, weights, options.selfLoops ?? true);

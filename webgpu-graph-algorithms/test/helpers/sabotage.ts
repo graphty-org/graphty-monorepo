@@ -67,6 +67,7 @@ const COO_TEST = "test/primitives/coo-to-csr.test.ts";
 const GROUP_TEST = "test/primitives/group-by-key.test.ts";
 const TRIANGLES_TEST = "test/algorithms/triangles.test.ts";
 const LPA_TEST = "test/algorithms/label-propagation.test.ts";
+const MST_TEST = "test/algorithms/mst.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1459,13 +1460,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // a source starts with no shortest path: every count is 0 and every ratio NaN
             name: "seed-sigma-zero",
-            find: "sigmaK[t] = 1u;",
+            find: "sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);",
             replace: "sigmaK[t] = 0u;",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
         {
-            // the overflow flag is raised at the seed: the layered(4, 16) control reports an overflow it does not have
+            // the overflow flag is raised at the seed: the wideAndNarrow(100) control reports an overflow it does not have
             name: "overflow-seeded-raised",
             find: "atomicStore(&counters[27], 0u);",
             replace: "atomicStore(&counters[27], 1u);",
@@ -1485,13 +1486,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // only the claiming arc counts its paths: sigma counts claims, wrong wherever two shortest paths meet
             name: "count-only-the-winner",
-            find: "if (atomicLoad(&depthK[x]) == next) {",
-            replace: "if (won) {",
+            find: "if (!SCALED && atomicLoad(&depthK[x]) == next) {",
+            replace: "if (!SCALED && won) {",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
         {
-            // the wrap test is dropped: layered(4, 18) no longer reports its overflow
+            // the wrap test is dropped: layered(4, 70) is never rerun with rescaled counts and keeps wrapped ones
             name: "wrap-test-dropped",
             find: "if (old + add < old) { atomicOr(&counters[27], 1u); }",
             replace: "",
@@ -1527,8 +1528,17 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the path-count ratio inverted
             name: "sigma-ratio-inverted",
-            find: "(sw / f32(sigmaK[v]))",
-            replace: "(f32(sigmaK[v]) / sw)",
+            find: "ldexp(sw / sigma_of(sigmaK[v]), -shift)",
+            replace: "ldexp(sigma_of(sigmaK[v]) / sw, -shift)",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the depth scale step is not undone: every ratio across a rescaled depth is 2^shift too large
+            // (layered(4, 70); invisible below 2^BC_SIGMA_EXPONENT_CAP paths)
+            name: "scale-step-ignored",
+            find: "ldexp(sw / sigma_of(sigmaK[v]), -shift)",
+            replace: "(sw / sigma_of(sigmaK[v]))",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1571,8 +1581,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // each source overwrites the arc's sum: only the batch's last contributing source survives
             name: "overwrites-not-accumulates",
-            find: "acc = acc + (f32(sigmaK[base + w])",
-            replace: "acc = (f32(sigmaK[base + w])",
+            find: "acc = acc + ratio",
+            replace: "acc = ratio",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1607,6 +1617,50 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "tag-ignored",
             find: "let base = s * P.n;",
             replace: "let base = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-count": Object.freeze([
+        {
+            // the depth test one level off: the in-neighbours at the vertex's own depth are summed instead of its
+            // predecessors (dropping the test is no mutant: the only other reached in-neighbours share the depth and
+            // still hold the fill's 0)
+            name: "depth-test-off-by-one",
+            find: "if (depthK[v] == level) {",
+            replace: "if (depthK[v] == level + 1u) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the tag is ignored: every source sums source 0's slice (right at k = 1, wrong at k = 2)
+            name: "tag-ignored",
+            find: "let base = t - x;",
+            replace: "let base = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the counts are never rescaled: layered(4, 70)'s 4^68 paths overflow f32 to Infinity
+            name: "rescale-dropped",
+            find: "let sigma = ldexp(acc, -shift);",
+            replace: "let sigma = acc;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the range check is dropped: wideAndNarrow(130) no longer reports the counts it cannot hold
+            name: "range-check-dropped",
+            find: "if (exponent == 0u || exponent == 0xffu) { atomicOr(&counters[27], 1u); }",
+            replace: "",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the depth maximum is never recorded: no depth is ever rescaled
+            name: "level-max-dropped",
+            find: "atomicMax(&levelMax[level + 1u], bits);",
+            replace: "",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1908,6 +1962,66 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let cur = labelsOut[v];",
             minFactor: 10,
             test: LPA_TEST,
+        },
+    ]),
+    "mst-best": Object.freeze([
+        {
+            // the raw bit pattern instead of the order-preserving key: every negative weight sorts above the positives
+            name: "raw-bit-pattern",
+            find: "let k = order_key(w);",
+            replace: "let k = bitcast<u32>(w);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the tie-break tail dropped for one endpoint: its component takes its lowest-indexed edge, whatever it weighs
+            name: "tie-break-dropped",
+            find: "if (k == atomicLoad(&bestKey[cu])) { atomicMin(&bestEdge[cu], e); }",
+            replace: "atomicMin(&bestEdge[cu], e);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the different-component guard removed: a self-loop or an edge inside a component competes to be its best
+            name: "component-guard-removed",
+            find: "if (cu == cv) { return; }",
+            replace: "if (cu == cv && cu == U32_MAX) { return; }",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // a plain read of the atomic minimum: mixed atomic and plain access, which no runtime compiles
+            name: "tie-pass-plain-read",
+            find: "k == atomicLoad(&bestKey[cv])",
+            replace: "k == bestKey[cv]",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+    ]),
+    "mst-link": Object.freeze([
+        {
+            // the two-cycle never broken: both roots hook onto each other and both record the edge
+            name: "two-cycle-unbroken",
+            find: "let keep = bestEdge[other] == e && c <= other;",
+            replace: "let keep = other == c;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the lower root of a two-cycle records the edge as well: every mutual merge lands in the forest twice
+            name: "lower-records-too",
+            find: "if (!keep) { treeEdge[c] = e;",
+            replace: "if (other != c) { treeEdge[c] = e;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the recorded edges never counted: the run stops after one submit, before a deep path has merged
+            name: "edges-uncounted",
+            find: "atomicAdd(&added, 1u);",
+            replace: "atomicAdd(&added, 0u);",
+            minFactor: 10,
+            test: MST_TEST,
         },
     ]),
 });
@@ -2436,7 +2550,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts; Boruvka's mst-best and mst-link: 7 rows, measured by test/sabotage/mst.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
     "P1",
     "P2",

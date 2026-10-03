@@ -32,22 +32,8 @@ const defaultProps: NodeInspectorProps = {
         },
     ],
     notes: [
-        {
-            id: "n1",
-            author: "Adam",
-            relativeTime: "2 days ago",
-            timestamp: "2026-09-02 10:14",
-            text: "Seen at the vet twice",
-            done: false,
-        },
-        {
-            id: "n2",
-            author: "Adam",
-            relativeTime: "a week ago",
-            timestamp: "2026-08-28 09:02",
-            text: "Checked",
-            done: true,
-        },
+        { id: "n1", author: "Adam", time: "2026-09-02T10:14:00.000Z", text: "Seen at the vet twice" },
+        { id: "n2", time: "2026-08-28T09:02:00.000Z", text: "Checked" },
     ],
     neighborCount: 37,
     neighborBreakdown: [
@@ -58,7 +44,7 @@ const defaultProps: NodeInspectorProps = {
     onCopyId: vi.fn(),
     onLocate: vi.fn(),
     onShowAllAttributes: vi.fn(),
-    onToggleNoteDone: vi.fn(),
+    onAddNote: vi.fn(),
     onDeleteNote: vi.fn(),
     onSelectNeighbor: vi.fn(),
     onNoteRelationship: vi.fn(),
@@ -149,20 +135,64 @@ describe("NodeInspector", () => {
             expect(input.getAttribute("aria-label")).toMatch(/^Add a note/);
         });
 
-        /* Issue #188: notes have no store until graphty-element's session carries them, and
-           the input used to clear whatever was typed and keep none of it. It is drawn
-           disabled and tagged Coming instead, the way the edge inspector draws its Notes. */
-        it("draws the note input disabled and tagged Coming until notes have a store", () => {
-            renderNode();
+        /* Issue #188: the input used to clear whatever was typed and keep none of it. It now
+           hands the text to the caller, which writes it to graphty-element's session.notes. */
+        it("saves the typed note on Mod+Enter and clears the input", () => {
+            const onAddNote = vi.fn();
+            renderNode({ onAddNote });
 
-            expect(screen.getByTestId("node-note-input")).toBeDisabled();
-            expect(screen.getByText("Coming")).toBeInTheDocument();
+            const input = screen.getByTestId("node-note-input");
+
+            expect(input).toBeEnabled();
+            expect(screen.queryByText("Coming")).not.toBeInTheDocument();
+
+            fireEvent.change(input, { target: { value: "  Owner is the vet  " } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(onAddNote).toHaveBeenCalledWith("Owner is the vet");
+            expect(input).toHaveValue("");
         });
 
-        it("collapses done notes under their count", () => {
+        it("saves nothing for a blank note, and Escape clears the draft", () => {
+            const onAddNote = vi.fn();
+            renderNode({ onAddNote });
+
+            const input = screen.getByTestId("node-note-input");
+
+            fireEvent.change(input, { target: { value: "   " } });
+            fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+            expect(onAddNote).not.toHaveBeenCalled();
+
+            fireEvent.change(input, { target: { value: "draft" } });
+            fireEvent.keyDown(input, { key: "Escape" });
+            expect(input).toHaveValue("");
+            expect(onAddNote).not.toHaveBeenCalled();
+        });
+
+        it("lists each note with its author when it has one, and deletes by id", () => {
+            const onDeleteNote = vi.fn();
+            renderNode({ onDeleteNote });
+
+            expect(screen.getAllByText(/^Adam, .*: Seen at the vet twice$/).length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/^[^,]+: Checked$/).length).toBeGreaterThan(0);
+
+            fireEvent.click(screen.getByRole("button", { name: "Delete note: Checked" }));
+
+            expect(onDeleteNote).toHaveBeenCalledWith("n2");
+        });
+
+        it("spells a note's time relative to now", () => {
+            const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+            renderNode({ notes: [{ id: "n3", author: "Adam", time: twoDaysAgo, text: "Recent" }] });
+
+            expect(screen.getAllByText("Adam, 2 days ago: Recent").length).toBeGreaterThan(0);
+        });
+
+        /* graphty-element's notes carry no done state, so the inspector offers no Done box. */
+        it("offers no Done checkbox", () => {
             renderNode();
 
-            expect(screen.getByTestId("node-done-notes")).toHaveTextContent("1 done");
+            expect(screen.queryByRole("checkbox", { name: /^Done:/ })).not.toBeInTheDocument();
         });
     });
 

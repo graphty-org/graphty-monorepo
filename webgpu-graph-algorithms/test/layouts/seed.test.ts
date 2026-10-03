@@ -168,6 +168,20 @@ describe("seedPositions", () => {
         expect(Array.from(positions.subarray(6))).toEqual([4, 3, 0]);
     });
 
+    it("pads a zero-width box: one finite row spreads the others around it instead of stacking them on it", () => {
+        const s = graph(4);
+        const positions = nanRows(4);
+        positions.set([5, -3, 0], 0);
+        seedPositions(s, positions, 11, 2, 1, null, "fa2");
+        const rows = new Set<string>();
+        for (let i = 0; i < 4; i++) {
+            expect(Math.abs(positions[3 * i] - 5)).toBeLessThanOrEqual(1);
+            expect(Math.abs(positions[3 * i + 1] + 3)).toBeLessThanOrEqual(1);
+            rows.add(`${positions[3 * i]},${positions[3 * i + 1]}`);
+        }
+        expect(rows.size).toBe(4);
+    });
+
     it("the bounding box is taken in layout units, so scale and center round-trip", () => {
         const s = graph(3);
         const positions = new Float32Array([-2, 1, 0, Number.NaN, Number.NaN, Number.NaN, 4, 3, 0]);

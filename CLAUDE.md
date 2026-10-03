@@ -745,8 +745,11 @@ that starts the same server from the owner's own shell, which is how the owner s
   threshold does not, which is why it is forbidden.
 - The guide to setting it up and to the page (URL, keys, decisions, Finish, seeding) is
   `visual-review/README.md`, published as https://graphty.app/docs/visual-review/.
-- A merge conflict under `visual-baselines/`: take master's side for every file there and let CI
-  recapture; the owner reviews again what still differs.
+- A merge conflict under `visual-baselines/` only, or a capture older than master's baselines
+  ("merge master first"): run `node visual-review/trusted/cli.mjs update <pr>` (or press Update
+  from master on the review page). It merges master, takes master's side for every conflicting
+  file there in one signed commit, pushes, and CI recaptures; the owner reviews again what still
+  differs. It refuses, changing nothing, on a conflict anywhere else: merge that by hand.
 - After an accept commit lands on a pull request branch, update that branch from master by merge,
   never by rebase, so the accept commit and its record stay as the owner made them.
 

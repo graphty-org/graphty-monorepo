@@ -1,0 +1,9 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: http://example.org/a
+is_a: https://example.org/b
+
+[Term]
+id: https://example.org/b

@@ -5,7 +5,7 @@ import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
-import type { AlgorithmDescriptor, FieldDescriptor, NodeId } from "../catalog/types";
+import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
@@ -95,6 +95,18 @@ export interface AlgorithmStatics {
      * and nothing at all identifying the code that actually did the work.
      */
     version?: string;
+    /**
+     * The name a run's result is given, from the run's option values (the declared defaults
+     * filled in): `{ id, label }`, where `id` becomes the result path `results.<id>.value` and
+     * `label` is what the layer list and the legend show. Name only the settings worth telling
+     * two results apart by, and return undefined (or leave this out) to name the result after
+     * the algorithm key.
+     *
+     * Two runs with the same name and the same scope are one run: a change to a setting the name
+     * does not carry re-runs it in place. The element adds `_2`, `_3`, ... when the name is taken
+     * by a different computation, and a name the caller passes with `as` always wins.
+     */
+    suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
     /**
      * What a run over a scope computes on. See {@link Algorithm.scopeInput}; `register` publishes
      * it as the descriptor's `scopeInput`.
@@ -660,7 +672,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            describes cannot be registered separately: a catalogue entry whose class nothing
            registered is an algorithm a consumer can see, start, and then be told does not
            exist. */
-        const { descriptor, cost, costUnits, version } = statics;
+        const { descriptor, cost, costUnits, version, suggestedName } = statics;
 
         if (descriptor !== undefined) {
             publishAlgorithmDescriptor(
@@ -671,6 +683,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     ...(cost === undefined ? {} : { cost }),
                     ...(costUnits === undefined ? {} : { costUnits }),
                     ...(version === undefined ? {} : { version }),
+                    ...(suggestedName === undefined ? {} : { suggestedName }),
                 },
                 options,
             );

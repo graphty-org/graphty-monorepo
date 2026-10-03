@@ -29,6 +29,7 @@ import type { NodeIdType } from "../../Node";
 import type { Styles } from "../../Styles";
 import { type DataImportCommand, type DataMutation, describeSource, SOURCE_VALUE } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
+import type { ProgressChange } from "../shared";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -168,6 +169,25 @@ export interface IngestHost<K extends KnownEdge> {
     loadComplete(format: string, report: ImportReport, progress: LoadProgress, duration: number, errors: number): void;
     /** A load failed after `progress.chunks` chunks. */
     loadFailed(format: string, error: Error, progress: LoadProgress): void;
+    /** Where the session's `progress:changed` is fed from: every chunk, and once at the end. */
+    progress?(change: ProgressChange): void;
+}
+
+/**
+ * A load's progress as the session publishes it. A load cannot know its record count in advance,
+ * so it reports records read and no total.
+ * @param progress - How far the load has got.
+ * @param phase - Whether it is still going.
+ * @returns The change.
+ */
+function loadProgressChange(progress: LoadProgress, phase: ProgressChange["phase"]): ProgressChange {
+    return {
+        task: "load",
+        phase,
+        completed: progress.nodeRecords + progress.edgeRecords,
+        total: null,
+        fraction: null,
+    };
 }
 
 /** How far a load has got. */
@@ -850,6 +870,7 @@ export class Ingest<K extends KnownEdge> {
                         chunks: progress.chunks + 1,
                     };
                     this.host.loadProgress(progress);
+                    this.host.progress?.(loadProgressChange(progress, "progress"));
                 }
 
                 const errors = source.getErrorAggregator();
@@ -909,7 +930,9 @@ export class Ingest<K extends KnownEdge> {
                 });
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
+                this.host.progress?.(loadProgressChange(progress, "end"));
             } catch (error) {
+                this.host.progress?.(loadProgressChange(progress, "end"));
                 // A cancelled load did not fail: whoever cancelled it says why.
                 if (signal?.aborted === true) {
                     throw error;

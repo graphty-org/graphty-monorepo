@@ -28,6 +28,7 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -99,6 +100,8 @@ export class Graphty extends LitElement {
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchProgress: (() => void) | null = null;
+    readonly #progressAt = new Map<string, number>();
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -251,6 +254,31 @@ export class Graphty extends LitElement {
                 bubbles: true,
                 composed: true,
             }),
+        );
+    }
+
+    /**
+     * Mirror one progress report onto the DOM as `graphty-progress-change`.
+     *
+     * Steps are coalesced per task, at the run mirror's interval, so a fast load does not flood
+     * the page; the end of a task always arrives.
+     * @param change - What moved on, or stopped.
+     */
+    #mirrorProgressChange(change: ProgressChange): void {
+        const key = `${change.task}:${change.run ?? ""}`;
+        if (change.phase === "end") {
+            this.#progressAt.delete(key);
+        } else {
+            const now = Date.now();
+            if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#progressAt.set(key, now);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }),
         );
     }
 
@@ -411,6 +439,9 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        this.#unwatchProgress ??= session.on("progress:changed", (change) => {
+            this.#mirrorProgressChange(change);
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -528,6 +559,8 @@ export class Graphty extends LitElement {
         this.#unwatchHistory = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchProgress?.();
+        this.#unwatchProgress = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -2526,6 +2559,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2541,6 +2577,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2557,6 +2595,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2574,6 +2615,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);

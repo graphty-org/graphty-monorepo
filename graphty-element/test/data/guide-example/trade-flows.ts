@@ -14,9 +14,12 @@ const tradeFlowsImporter: GraphImporter = {
     mimeTypes: ["text/vnd.acme.trade-flows"],
 
     import(input, sink) {
-        if (typeof input !== "string") {
-            return Promise.reject(new TypeError("the trade-flows importer reads text"));
+        // Inline text arrives as it was given; a file or a URL arrives as its bytes.
+        if (typeof input !== "string" && !(input instanceof Uint8Array)) {
+            return Promise.reject(new TypeError("the trade-flows importer reads text or bytes"));
         }
+
+        const text = typeof input === "string" ? input : new TextDecoder().decode(input);
 
         const issues: ImportIssue[] = [];
         const report = (): ImporterReport => ({
@@ -32,7 +35,7 @@ const tradeFlowsImporter: GraphImporter = {
 
         // A shipment goes one way: the file states that the graph is directed.
         sink.setDirected(true);
-        for (const [index, line] of input.split("\n").entries()) {
+        for (const [index, line] of text.split("\n").entries()) {
             if (line.trim() === "") {
                 continue;
             }

@@ -2402,10 +2402,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The `config` hook for declared levels: a binding that names no scale reads its attribute by
     // its level, so a declaration, its undo and its redo repaint the layers reading that path.
     dispatcher.lane.register("config", async (rendered, target, dirty) => {
-        const paths = [...dirty]
-            .filter((key) => key.startsWith(LEVEL_KEY) && rendered.config.get(key) !== target.config.get(key))
-            .map((key) => key.slice(LEVEL_KEY.length));
-        const readers = target.styles.filter((entry) => entry.reads.some((path) => paths.includes(path)));
+        const paths = new Set(
+            [...dirty]
+                .filter((key) => key.startsWith(LEVEL_KEY) && rendered.config.get(key) !== target.config.get(key))
+                .map((key) => key.slice(LEVEL_KEY.length)),
+        );
+        const readers = target.styles.filter((entry) => entry.reads.some((path) => paths.has(path)));
         if (readers.length === 0) {
             return;
         }

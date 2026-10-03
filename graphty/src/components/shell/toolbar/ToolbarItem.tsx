@@ -7,7 +7,7 @@
  * 1. an `aria-label` equal to the tooltip text with the key chip removed, over an
  *    `aria-hidden` glyph;
  * 2. a tooltip -- the verb, then the chip after a 6 px gap -- opening after
- *    `TOOLTIP_DELAY_MS` and UPWARD, because the bar sits on the canvas floor
+ *    the theme's tooltip timing and UPWARD, because the bar sits on the canvas floor
  *    (SPEC:3517);
  * 3. a hit area of 28 x 28 with a 14 px glyph at or above 1280 px, growing to
  *    32 x 32 with a 16 px glyph below it, which is 6.8 point 3's larger form for an
@@ -23,15 +23,15 @@
  * read.
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { COMPACT_SIZING, PANEL_INK } from "@graphty/compact-mantine";
 import { ActionIcon, Tooltip } from "@mantine/core";
 import React from "react";
 
-import { type CanvasToolbarProfile, TOOLTIP_DELAY_MS } from "../constants";
+import { type CanvasToolbarProfile } from "../constants";
 import { toolbarItemSentence, TOOLTIP_KEY_CHIP_GAP } from "./toolbarMetrics";
 
-/** Chip height. VOCAB section 4 "Keyboard chip". */
-const KEY_CHIP_HEIGHT = PANEL_GRID.GLYPH_SLOT;
+/** Chip height, 16. VOCAB section 4 "Keyboard chip" (no longer the 24px `PANEL_GRID.GLYPH_SLOT`). */
+const KEY_CHIP_HEIGHT = 16;
 
 /** Chip padding, per side. VOCAB section 4 "Keyboard chip". */
 const KEY_CHIP_PADDING_X = COMPACT_SIZING.SECTION_GAP;
@@ -127,7 +127,6 @@ export function ToolbarItem(props: ToolbarItemProps): React.JSX.Element {
                     {keyChip === null ? null : <ToolbarKeyChip>{keyChip}</ToolbarKeyChip>}
                 </span>
             }
-            openDelay={TOOLTIP_DELAY_MS}
             position="top"
             events={{ hover: true, focus: true, touch: true }}
         >

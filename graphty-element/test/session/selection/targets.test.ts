@@ -214,6 +214,32 @@ describe("a pasted list of ids", () => {
         harness.session.dispose();
     });
 
+    it("takes a numeric id as the element handed it out, without a cast", () => {
+        // Karate's ids are numbers. A neighbor or a table record carries the id the element
+        // gave it, and handing that straight back must select it rather than throw.
+        const harness = harnessOf([{ id: 1 }, { id: "1" }, { id: 2 }], [{ src: 1, dst: 2 }]);
+        const selection = selectionOf(harness);
+        const ids: readonly NodeId[] = [1, 2];
+
+        const delta = selection.applyNow({ ids });
+
+        assert.deepStrictEqual([...selection.nodes], [1, 2], "the number 1, not the string \"1\"");
+        assert.deepStrictEqual(delta.unmatched === undefined ? [] : [...delta.unmatched], []);
+
+        selection.applyNow({ ids: [7] });
+        assert.deepStrictEqual(selection.applyNow({ ids: [7] }).unmatched, ["7"], "an unmatched number is reported");
+        harness.session.dispose();
+    });
+
+    it("refuses an entry that is neither a string nor a number with a coded error", () => {
+        const harness = line();
+        const selection = selectionOf(harness);
+        const target = { ids: ["a", { id: "b" }] } as unknown as SelectionTarget;
+
+        assert.strictEqual(codeOf(() => selection.applyNow(target)), "E_OPTION_RANGE");
+        harness.session.dispose();
+    });
+
     it("reports every id that named nothing, rather than a silent short selection", () => {
         const harness = line();
         const selection = selectionOf(harness);
@@ -409,6 +435,18 @@ describe("a finished run's ranking", () => {
 
         selection.applyNow({ top: { run: "tied", field: "value", n: 3 } });
         assert.deepStrictEqual([...selection.nodes], ["b", "c", "d"]);
+        harness.session.dispose();
+    });
+
+    it("reads the run's primary field when the target names no field", () => {
+        const harness = line();
+        const selection = selectionOf(harness, { results: RESULTS });
+
+        selection.applyNow({ top: { run: "degree", n: 2 } });
+        assert.deepStrictEqual([...selection.nodes], ["c", "d"], "top with no field ranks by value");
+
+        selection.applyNow({ above: { run: "degree", threshold: 2 } });
+        assert.deepStrictEqual([...selection.nodes], ["c", "d"], "above with no field reads value");
         harness.session.dispose();
     });
 

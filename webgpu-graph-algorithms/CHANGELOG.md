@@ -1,3 +1,25 @@
+## 0.6.28 (2026-10-03)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** faster closeness on every route, and harmonic closeness ([#734](https://github.com/graphty-org/graphty-monorepo/issues/734))
+- **webgpu-graph-algorithms:** acquireAccelerator, one managed GPU accelerator ([#727](https://github.com/graphty-org/graphty-monorepo/issues/727))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** run betweenness 256 sources per batch ([#733](https://github.com/graphty-org/graphty-monorepo/issues/733))
+- **webgpu-graph-algorithms:** dispatch the grid tier's hub-cell centroid directly ([#732](https://github.com/graphty-org/graphty-monorepo/issues/732))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.0
+- Updated algorithms to 3.3.0
+- Updated layout to 2.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.27 (2026-10-03)
 
 ### 🧱 Updated Dependencies

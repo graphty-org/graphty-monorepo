@@ -274,7 +274,10 @@ export function createGitHub({
             const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body ?? "");
             const hasRate = headers["x-ratelimit-remaining"] !== undefined;
             const remaining = Number(headers["x-ratelimit-remaining"]);
-            const secondary = /secondary rate limit/i.test(text) || (hasRate && remaining > 0) || status === 429;
+            // Every authenticated answer carries rate headers, so remaining > 0 alone says nothing:
+            // a plain permission refusal has them too.
+            const secondary =
+                /secondary rate limit/i.test(text) || headers["retry-after"] !== undefined || status === 429;
             let until = 0;
             if (headers["retry-after"] !== undefined) until = at + Number(headers["retry-after"]) * 1000;
             if (hasRate && remaining === 0) until = Math.max(until, Number(headers["x-ratelimit-reset"]) * 1000);

@@ -315,9 +315,26 @@ describe("rate rules", () => {
         expect(waits).toEqual([60_000, 120_000, 240_000, 480_000, 900_000, 900_000]);
     });
 
-    it("treats a 403 with rate headers and positive remaining as secondary", async () => {
-        const gh = createFakeGh(() => httpOutput({ status: 403, headers: rate(4000), body: { message: "Forbidden" } }));
-        await expect(client(gh).gitHub.get(RUNS)).rejects.toMatchObject({ kind: "secondary" });
+    it("never calls a plain permission refusal a rate limit, though every answer carries rate headers", async () => {
+        const gh = createFakeGh(() =>
+            httpOutput({ status: 403, headers: rate(4900), body: { message: "Resource not accessible by integration" } }),
+        );
+        const { gitHub } = client(gh);
+        await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "credential", status: 403 });
+        expect(gitHub.rate.backoffUntil).toBe(0);
+        expect(gitHub.pace().level).toBe("normal");
+    });
+
+    it("treats a 403 with a retry-after header, or any 429, as secondary", async () => {
+        const answers = [
+            httpOutput({ status: 403, headers: { ...rate(4000), "retry-after": "30" }, body: { message: "Forbidden" } }),
+            httpOutput({ status: 429, headers: rate(4000), body: { message: "Too many" } }),
+        ];
+        const gh = createFakeGh(() => answers.shift());
+        const { gitHub, advance } = client(gh);
+        await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "secondary" });
+        advance(120_000);
+        await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "secondary" });
     });
 
     it("resets the secondary back-off after a success", async () => {

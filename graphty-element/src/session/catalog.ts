@@ -132,7 +132,7 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     scales: () => SCALE_DESCRIPTORS,
     /**
-     * A plain heading for an algorithm category, such as "Finds groups" for `community`.
+     * A plain heading for an algorithm category, such as "Find groups" for `community`.
      * @param category - A descriptor's `category`.
      * @returns The heading, or the category as written when the element does not know it.
      */

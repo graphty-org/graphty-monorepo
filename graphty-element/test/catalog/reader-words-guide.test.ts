@@ -24,7 +24,7 @@ describe("the algorithms guide's menu example", () => {
             const heading = catalog.categoryLabel(algorithm.category);
             menu.set(heading, [...(menu.get(heading) ?? []), algorithm.technicalName]);
         }
-        assert.deepEqual([...menu], [["Ranks nodes", ["Betweenness centrality"]]]);
+        assert.deepEqual([...menu], [["Rank nodes", ["Betweenness centrality"]]]);
 
         // A short form for PageRank, and the sentence a legend shows beside its colors
         const pagerank = catalog.algorithms().find((algorithm) => algorithm.key === "pagerank");

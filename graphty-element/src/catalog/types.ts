@@ -1160,8 +1160,8 @@ export interface CatalogApi {
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
     /**
-     * A plain heading for an algorithm category, such as "Ranks nodes" for `centrality` and
-     * "Finds groups" for `community`, for grouping `algorithms()` in a menu. A category the
+     * A plain heading for an algorithm category, such as "Rank nodes" for `centrality` and
+     * "Find groups" for `community`, for grouping `algorithms()` in a menu. A category the
      * element does not know (a plugin's own) comes back as written.
      */
     categoryLabel(category: AlgorithmDescriptor["category"]): string;

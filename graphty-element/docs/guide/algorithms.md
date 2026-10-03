@@ -394,7 +394,7 @@ keeps no list of its own:
 - `aliases`: lowercase words a search should match besides the names ("brokers" finds Betweenness, "groups" finds the community methods)
 - `sentence`: one plain sentence per result field, keyed by the field name, worded to fit any dataset
 - `options[].essential`: the few options a short form shows; the rest can wait behind a "More" control
-- `catalog.categoryLabel(category)`: a plain heading per category, such as "Ranks nodes" or "Finds groups"
+- `catalog.categoryLabel(category)`: a plain heading per category, such as "Rank nodes" or "Find groups"
 
 ```typescript
 const { catalog } = element.session;
@@ -408,7 +408,7 @@ for (const algorithm of catalog.algorithms()) {
     const heading = catalog.categoryLabel(algorithm.category);
     menu.set(heading, [...(menu.get(heading) ?? []), algorithm.technicalName]);
 }
-console.log(menu); // Map { "Ranks nodes" => ["Betweenness centrality"] }
+console.log(menu); // Map { "Rank nodes" => ["Betweenness centrality"] }
 
 // A short form for PageRank, and the sentence a legend shows beside its colors
 const pagerank = catalog.algorithms().find((algorithm) => algorithm.key === "pagerank");

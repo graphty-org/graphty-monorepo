@@ -1130,20 +1130,21 @@ function sentencesFor(descriptor: BuiltInAlgorithmDescriptor): Readonly<Record<s
     return { ...shared, ...descriptor.sentence };
 }
 
-/** The reader heading for each built-in category. */
+/** The reader heading for each built-in category, and for `defineAlgorithm`'s "custom". */
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
-    centrality: "Ranks nodes",
-    community: "Finds groups",
-    path: "Finds paths",
-    flow: "Measures flow",
-    structure: "Describes structure",
-    prediction: "Predicts links",
+    centrality: "Rank nodes",
+    community: "Find groups",
+    path: "Find paths",
+    flow: "Measure flow",
+    structure: "Describe structure",
+    prediction: "Predict links",
+    custom: "Custom",
 };
 
 /**
  * A plain heading for an algorithm category, for grouping a menu of algorithms.
  * @param category - A descriptor's `category`.
- * @returns The heading, such as "Finds groups", or the category as written when the element
+ * @returns The heading, such as "Find groups", or the category as written when the element
  * does not know it.
  */
 export function algorithmCategoryLabel(category: string): string {

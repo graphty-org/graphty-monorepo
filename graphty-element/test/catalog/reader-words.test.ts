@@ -119,13 +119,14 @@ describe("reader words on the algorithm catalog", () => {
 
     it("gives every built-in category a reader heading, and passes an unknown one through", () => {
         const { categoryLabel } = SESSION_CATALOG_TABLES;
-        assert.strictEqual(categoryLabel("centrality"), "Ranks nodes");
-        assert.strictEqual(categoryLabel("community"), "Finds groups");
+        assert.strictEqual(categoryLabel("centrality"), "Rank nodes");
+        assert.strictEqual(categoryLabel("community"), "Find groups");
         for (const category of new Set(BUILT_IN_ALGORITHMS.map((d) => d.category))) {
             const label = categoryLabel(category);
             assert.notStrictEqual(label, category, `${category} has no heading`);
             assert.match(label, /^[A-Z][a-z ]+$/, `${category}: a short plain heading`);
         }
+        assert.strictEqual(categoryLabel("custom"), "Custom", "the category defineAlgorithm gives every definition");
         assert.strictEqual(categoryLabel("similarity"), "similarity", "a plugin's own category reads as written");
     });
 

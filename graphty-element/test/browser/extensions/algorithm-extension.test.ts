@@ -2095,7 +2095,7 @@ describe("the snapshot accessor a plugin algorithm reads through", () => {
         assert.deepStrictEqual(listed?.aliases, ["tie weight", "bond"]);
         assert.match(listed?.sentence?.value ?? "", /^An edge scores high/);
         assert.isTrue(listed?.options[0].essential);
-        assert.strictEqual(graph.getSession().catalog.categoryLabel(listed?.category ?? ""), "Describes structure");
+        assert.strictEqual(graph.getSession().catalog.categoryLabel(listed?.category ?? ""), "Describe structure");
     });
 
     it("reads a partition option and an earlier run's per-edge result as columns", async () => {

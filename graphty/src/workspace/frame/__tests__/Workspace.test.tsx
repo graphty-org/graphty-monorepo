@@ -45,7 +45,7 @@ describe("the workspace frame", () => {
     it("draws every region with its package's stub", () => {
         renderWorkspace(OPEN);
 
-        for (const stub of ["Graph place", "Inspector", "Toolbar", "Legend card and state cards", "Privacy chip"]) {
+        for (const stub of ["Graph place", "Inspector", "Legend card and state cards", "Privacy chip"]) {
             assert.isNotNull(screen.getByText(stub), stub);
         }
         assert.isNotNull(document.querySelector("graphty-element"));
@@ -149,7 +149,7 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(sheet).getByText("Rename"));
         assert.isNotNull(within(sheet).getByText("F2"));
         // A stub's key is not listed until its command is built.
-        assert.isNull(within(sheet).queryByText("Neighborhood"));
+        assert.isNull(within(sheet).queryByText("Save as..."));
     });
 
     it("ignores single-key shortcuts when the reader switched them off", async () => {

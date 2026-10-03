@@ -12,6 +12,10 @@
  * when more of them wait than the hour has room for, the last free slot carries them all as one
  * "and N more" message.
  *
+ * A config with `held` set (the daemon sets it while the `owner-items` write group is not acting)
+ * records every page in the ledger as `delivered: false` with that reason instead of running the
+ * command, except a page sent with `always` (githerd is DOWN), which is still delivered.
+ *
  * Everything the notifier remembers lives in the daemon's state object, so it survives a restart:
  * `state.notified[key]` (when a key was delivered, or logged with no command), and
  * `state.notify` = `{brokenSince, lastError, failures, pending, failed, recent}`.
@@ -34,9 +38,12 @@ const SEVERITY = ["info", "done", "waiting", "error"];
 
 /**
  * @typedef {"error" | "done" | "waiting" | "info"} NotifyStatus
- * @typedef {{key: string, status: NotifyStatus, message: string, bypass?: boolean}} Page
- * @typedef {{command: string[] | null, maxPerHour: number}} NotifyConfig
- * @typedef {{status: NotifyStatus, message: string, bypass: boolean, tries: number, queuedAt: string}} Pending
+ * @typedef {{key: string, status: NotifyStatus, message: string, bypass?: boolean, always?: boolean}} Page
+ *   `bypass` skips the hourly cap; `always` delivers it even while pages are held
+ * @typedef {{command: string[] | null, maxPerHour: number, held?: string}} NotifyConfig `held`: why
+ *   pages are recorded instead of delivered
+ * @typedef {{status: NotifyStatus, message: string, bypass: boolean, always?: boolean, tries: number,
+ *   queuedAt: string}} Pending
  * @typedef {{code: number | null, stderr: string, timedOut: boolean, error?: string}} RunResult
  */
 
@@ -156,14 +163,16 @@ export function createNotifier({ notify, state, ledger, now = () => new Date(), 
      * @returns {Promise<boolean>} true when delivered (or logged with no command)
      */
     async function deliver(keys, status, message, capped) {
-        const { command } = config();
+        const { command, held } = config();
         const at = now().toISOString();
-        if (command === null) {
+        let hold = held && !keys.every((k) => n.pending[k]?.always) ? held : null;
+        if (command === null) hold = "notify.command is null";
+        if (hold) {
             for (const key of keys) {
                 state.notified[key] = at;
                 delete n.pending[key];
             }
-            ledger({ kind: "notify", keys, status, message, delivered: false, reason: "notify.command is null" });
+            await ledger({ kind: "notify", keys, status, message, delivered: false, reason: hold });
             return true;
         }
         const result = await runCommand(buildArgv(command, status, message), timeoutMs);
@@ -232,9 +241,10 @@ export function createNotifier({ notify, state, ledger, now = () => new Date(), 
     }
 
     return {
-        send({ key, status, message, bypass = false }) {
+        send({ key, status, message, bypass = false, always = false }) {
             if (state.notified[key] || n.failed[key] || n.pending[key]) return false;
-            n.pending[key] = { status, message: clean(message), bypass, tries: 0, queuedAt: now().toISOString() };
+            const queuedAt = now().toISOString();
+            n.pending[key] = { status, message: clean(message), bypass, ...(always && { always }), tries: 0, queuedAt };
             return true;
         },
         flush() {

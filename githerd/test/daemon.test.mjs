@@ -228,10 +228,10 @@ async function poll(daemon) {
 }
 
 /**
- * The pages the fake notify command received.
+ * The pages the fake notify command received: what reached the owner's phone.
  * @returns {{status: string, message: string}[]} one entry per delivery
  */
-function pages() {
+function phone() {
     if (!existsSync(notifyLog)) return [];
     return readFileSync(notifyLog, "utf8")
         .trim()
@@ -240,6 +240,22 @@ function pages() {
             const [status, message] = JSON.parse(line).args;
             return { status, message };
         });
+}
+
+/**
+ * Every page githerd sent, delivered or held: the ledger's notify lines. Held lines are on disk
+ * once the notifier's flush resolves.
+ * @returns {{status: string, message: string}[]} one entry per page
+ */
+function pages() {
+    const file = join(dir, ".githerd", "ledger.jsonl");
+    if (!existsSync(file)) return [];
+    return readFileSync(file, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line))
+        .filter((e) => e.kind === "notify")
+        .map(({ status, message }) => ({ status, message }));
 }
 
 /**
@@ -486,6 +502,27 @@ describe("the poll loop", () => {
         ]);
     });
 
+    it("holds every page in dry-run: written to the ledger as not delivered, the notify command never run", async () => {
+        const daemon = await start();
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        expect(daemon.state.master.verdict).toBe("red");
+        await daemon.shutdown();
+        const red = (await readLedger(join(dir, ".githerd"))).filter(
+            (e) => e.kind === "notify" && e.message.startsWith("master red"),
+        );
+        expect(red).toEqual([
+            expect.objectContaining({ delivered: false, reason: "held: owner items are dry-run" }),
+        ]);
+        expect(existsSync(notifyLog)).toBe(false);
+    });
+
     it("sends the daily alive notice once a day", async () => {
         const daemon = await start();
         await poll(daemon);
@@ -524,7 +561,7 @@ describe("the poll loop", () => {
         clock = new Date("2026-10-02T12:00:00Z");
         scene = { head: A, ci: [run(100, A, "success")], commits: [commit(A, null, "first")], prs: [] };
         await redTimeline(await start({ env: { ...env, GITHERD_DEV_NOTIFY: "1" } }));
-        expect(pages().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
+        expect(phone().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
     });
 
     it("keeps the last valid config when master's is invalid, and escalates once", async () => {
@@ -1297,7 +1334,8 @@ describe("fatal mode", () => {
         expect(refused.status).toBe(503);
         expect(await refused.json()).toEqual({ error: `githerd is DOWN: ${reason}` });
         await daemon.flushNotifications();
-        expect(pages()).toEqual([{ status: "error", message: `githerd is DOWN: ${reason}` }]);
+        // Pages are held while owner items are dry-run, but this one is the owner's to act on.
+        expect(phone()).toEqual([{ status: "error", message: `githerd is DOWN: ${reason}` }]);
         await daemon.shutdown();
 
         clock = new Date("2026-10-02T12:30:00Z");

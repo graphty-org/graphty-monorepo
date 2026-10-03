@@ -17,6 +17,10 @@
  * a second daemon never duplicates the shared daemon's pages; `GITHERD_DEV_NOTIFY=1` delivers
  * them, for testing the notifier. The `quiet` option (the one-poll check) does the same.
  *
+ * Pages reach the owner's phone only while the `owner-items` write group is acting; until then
+ * each one is recorded in the ledger as `delivered: false`, held. The one exception is the fatal
+ * page ("githerd is DOWN"), which bypasses the hold: it is the owner's to act on.
+ *
  * Trust: the only author githerd acts on is the account gh is logged in as. Every poll asks GitHub
  * for that login (`gh api user`) and keeps it in `state.trust.login`; it starts null at every start
  * and is never read from the config. While it is unresolved no run starts and a `blocked`
@@ -53,6 +57,7 @@ import { inspect } from "node:util";
 
 import { pushRunBranch } from "./actor/push.mjs";
 import * as board from "./board.mjs";
+import { groupModes } from "./board-text.mjs";
 import { effectiveMode, resolveConfig } from "./config.mjs";
 import { createGitHub } from "./github.mjs";
 import { pollIssues } from "./issues.mjs";
@@ -524,7 +529,10 @@ export async function startDaemon({
     const notifier = createNotifier({
         notify: () => {
             const notify = config?.notify ?? { command: null, maxPerHour: 6 };
-            return quiet ? { ...notify, command: null } : notify;
+            if (quiet) return { ...notify, command: null };
+            if (env.GITHERD_DEV && env.GITHERD_DEV_NOTIFY === "1") return notify;
+            const owner = config ? groupModes(config, readOverride(stateDir))["owner-items"] : "dry-run";
+            return owner === "acting" ? notify : { ...notify, held: `held: owner items are ${owner}` };
         },
         state,
         ledger,
@@ -1501,6 +1509,7 @@ export async function startDaemon({
             status: "error",
             message: `githerd is DOWN: ${firstLine(reason)}`,
             bypass: true,
+            always: true,
         });
         notifier
             .flush()

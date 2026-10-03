@@ -47,10 +47,10 @@ function groupAlive(pgid) {
 
 /**
  * A notifier over a fresh state, running the fake command.
- * @param {{maxPerHour?: number, command?: string[] | null, timeoutMs?: number, state?: any}} [options] overrides
+ * @param {{maxPerHour?: number, command?: string[] | null, timeoutMs?: number, state?: any, held?: string}} [options] overrides
  * @returns {{notifier: ReturnType<typeof createNotifier>, state: any}} the notifier and its state
  */
-function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 } } = {}) {
+function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 }, held } = {}) {
     const notifier = createNotifier({
         notify: () => ({
             command:
@@ -58,6 +58,7 @@ function make({ maxPerHour = 6, command, timeoutMs, state = { schema: 1 } } = {}
                     ? [process.execPath, FAKE, log, behavior, "{status}", "[repo] {message}"]
                     : command,
             maxPerHour,
+            ...(held && { held }),
         }),
         state,
         ledger: (entry) => ledger.push(entry),
@@ -81,6 +82,22 @@ afterEach(() => {
         expect(groupAlive(pid)).toBe(false);
     }
     rmSync(dir, { recursive: true, force: true });
+});
+
+describe("held pages", () => {
+    it("records every page as held, bypassing the cap or not, and still delivers one sent with always", async () => {
+        const { notifier, state } = make({ held: "held: owner items are dry-run" });
+        notifier.send({ key: "red", status: "waiting", message: "master red", bypass: true });
+        notifier.send({ key: "daily", status: "info", message: "githerd alive" });
+        notifier.send({ key: "fatal", status: "error", message: "githerd is DOWN", bypass: true, always: true });
+        await notifier.flush();
+        expect(calls().map((c) => c.args.slice(-2))).toEqual([["error", "[repo] githerd is DOWN"]]);
+        expect(ledger.filter((e) => e.delivered === false).map((e) => [e.keys, e.reason])).toEqual([
+            [["red"], "held: owner items are dry-run"],
+            [["daily"], "held: owner items are dry-run"],
+        ]);
+        expect(Object.keys(state.notified).sort()).toEqual(["daily", "fatal", "red"]);
+    });
 });
 
 describe("createNotifier", () => {

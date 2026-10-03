@@ -237,8 +237,9 @@ for this milestone", gives the reason for each.
   changed item first, then new, unstable and removed; a story's modes sit together. Tiles are
   numbered in the order the story screen's "N of M" and J / K follow, and coming back from a
   story outlines and scrolls to its tile. A text filter, a go-to box (a number, or part of a story
-  id), and a per-component "Accept N undecided" (asks first; `/api/accept-all` with `component`)
-  complete it. Escape returns to the grid from a story wherever the focus is.
+  id), and a per-component "Accept N undecided" (no question, since Undo N takes it back;
+  `/api/accept-all` with `component`, which answers with the files it accepted, so the page
+  marks those tiles in place without reloading the project or moving the grid) complete it. Escape returns to the grid from a story wherever the focus is.
 - **No decision is silently reversed.** A reject always needs a reason. A, R and E do nothing on a
   decided item; U or Undo clears it first. The API refuses a different decision on a decided
   item with 409 and accepts the same one again (opening an item Accept all decided re-sends it).

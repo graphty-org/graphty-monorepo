@@ -1,3 +1,14 @@
+## 2.0.9 (2026-10-03)
+
+### 🩹 Fixes
+
+- **layout:** seed non-finite start rows in the CPU ForceAtlas2 simulation ([#724](https://github.com/graphty-org/graphty-monorepo/issues/724))
+- **layout:** stop one locked node from collapsing a seeded layout onto it ([#720](https://github.com/graphty-org/graphty-monorepo/issues/720))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.8 (2026-10-03)
 
 ### 🩹 Fixes

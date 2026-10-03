@@ -1,6 +1,8 @@
 import type { F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
+import { withGroups } from "./components.js";
 
 /** Options of the index-based SynC clustering, matching the legacy `syncClustering`. @public */
 export interface SyncClusteringOptions {
@@ -24,6 +26,12 @@ export interface SyncClusteringResult {
     readonly labels: U32;
     /** Number of cluster centres: `numClusters`. */
     readonly count: number;
+    /**
+     * Node indices grouped by centre, `count` arrays (an empty one for a centre no node is closest to), computed
+     * once and cached.
+     * @returns One array per centre
+     */
+    groups(): U32[];
     /** Node embeddings, row-major: node i is `embeddings.subarray(i * dimensions, (i + 1) * dimensions)`. */
     readonly embeddings: F64;
     /** Embedding length: `min(64, nodeCount)`. */
@@ -81,8 +89,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
     const n = s.nodeCount;
     if (n === 0) {
         return {
-            labels: new Uint32Array(0),
-            count: numClusters,
+            ...withGroups(new Uint32Array(0), numClusters),
             embeddings: new Float64Array(0),
             dimensions: 0,
             loss: 0,
@@ -92,7 +99,10 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
         };
     }
     if (!Number.isInteger(numClusters) || numClusters <= 0 || numClusters > n) {
-        throw new Error(`Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(n)}`);
+        throw withCode(
+            new Error(`Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(n)}`),
+            "E_BAD_OPTION",
+        );
     }
     const random = mulberry32(seed);
     const dim = Math.min(64, n);
@@ -225,5 +235,13 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
     }
     assign();
 
-    return { labels, count: numClusters, embeddings: emb, dimensions: dim, loss, previousLoss, iterations, converged };
+    return {
+        ...withGroups(labels, numClusters),
+        embeddings: emb,
+        dimensions: dim,
+        loss,
+        previousLoss,
+        iterations,
+        converged,
+    };
 }

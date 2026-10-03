@@ -1,3 +1,34 @@
+## 2.2.0 (2026-10-03)
+
+### 🚀 Features
+
+- **layout:** fitToBox helper, and arf honors scale and center when given ([9d573808](https://github.com/graphty-org/graphty-monorepo/commit/9d573808))
+- **layout:** accept node ids for start, root and node-set options ([#728](https://github.com/graphty-org/graphty-monorepo/issues/728))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.15
+- Updated graph-format to 1.3.0
+- Updated algorithms to 3.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.1.0 (2026-10-03)
+
+### 🚀 Features
+
+- **layout:** export a machine-readable LAYOUTS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.9 (2026-10-03)
 
 ### 🩹 Fixes

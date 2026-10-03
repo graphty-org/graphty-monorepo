@@ -163,3 +163,48 @@ export function rescaleInPlace<T extends F32 | F64>(
     }
     return positions;
 }
+
+/** A target rectangle in the caller's units: the corner with the lowest coordinates, then the width and height. */
+export interface Box {
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+}
+
+/**
+ * A layout result fitted into a rectangle, for a renderer that places nodes in its own units (pixels, a viewport):
+ * one factor scales every axis, so the drawing keeps its shape; the bounding box of the placed nodes fills the box
+ * along its tighter side and is centred along the other. In 3D, z is scaled by the same factor about its midpoint,
+ * so it ends centred on 0. Coincident nodes land on the box's centre, and an unplaced node (NaN) stays unplaced.
+ * The input is not modified.
+ * @param r - the layout result, in layout units
+ * @param box - the target rectangle
+ * @returns a new result with the same `dim` and `n`, in the box's units
+ */
+export function fitToBox(r: LayoutResult, box: Box): LayoutResult {
+    const { positions, dim, n } = r;
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < n * dim; i++) {
+        const v = positions[i];
+        if (!Number.isNaN(v)) {
+            lo[i % dim] = Math.min(lo[i % dim], v);
+            hi[i % dim] = Math.max(hi[i % dim], v);
+        }
+    }
+    const spanX = hi[0] - lo[0];
+    const spanY = hi[1] - lo[1];
+    const factor = Math.min(spanX > 0 ? box.w / spanX : Infinity, spanY > 0 ? box.h / spanY : Infinity);
+    const f = Number.isFinite(factor) ? factor : 0;
+    const offset = [
+        box.x + (box.w - spanX * f) / 2 - lo[0] * f,
+        box.y + (box.h - spanY * f) / 2 - lo[1] * f,
+        (-(lo[2] + hi[2]) / 2) * f,
+    ];
+    const out = new Float32Array(positions.length);
+    for (let i = 0; i < n * dim; i++) {
+        out[i] = positions[i] * f + offset[i % dim];
+    }
+    return { positions: out, dim, n };
+}

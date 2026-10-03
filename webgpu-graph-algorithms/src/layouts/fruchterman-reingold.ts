@@ -513,7 +513,6 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
             cellStart: resources.buffer("cellStart"),
             hubList: resources.buffer("hubList"),
             hubCounters,
-            hubArgs: resources.buffer("hubArgs"),
             pyramid: resources.buffer("pyramid"),
         });
         const wg = k1.workgroupSize;

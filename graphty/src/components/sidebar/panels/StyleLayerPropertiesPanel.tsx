@@ -41,6 +41,7 @@ import {
     StyleSelect,
     ToggleRow,
 } from "@graphty/compact-mantine";
+import { toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LabelStyle } from "@graphty/graphty-element/schema";
 import type { Channel, LayerSpec, Selector } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
@@ -127,9 +128,8 @@ function colorOf(value: ChannelValue | undefined): string | undefined {
     }
 
     if (typeof value === "object" && "r" in value) {
-        const hex = (component: number): string => Math.round(component).toString(16).padStart(2, "0");
-
-        return `#${hex(value.r)}${hex(value.g)}${hex(value.b)}`.toUpperCase();
+        // The swatch shows no opacity, so only the #rrggbb part of the element's hex.
+        return toColorValue(value)?.hex.slice(0, 7).toUpperCase();
     }
 
     return undefined;

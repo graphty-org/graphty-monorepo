@@ -69,7 +69,7 @@ import {
     resolveImportOptions,
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
@@ -1474,7 +1474,11 @@ class DotParser {
             if (attribute.name === LABEL_ATTRIBUTE) {
                 this.sink.setGraphValue(attribute.name, attribute.value, { dtype: "string", origin: DOT_ORIGIN });
             } else {
-                this.sink.setGraphValue(attribute.name, parseTextCell(attribute.value), { origin: DOT_ORIGIN });
+                // the dtype comes from the text's grammar, so "20.0" stays f64 as it does in a node column
+                this.sink.setGraphValue(attribute.name, parseTextCell(attribute.value), {
+                    dtype: inferTextDtype(attribute.value),
+                    origin: DOT_ORIGIN,
+                });
             }
         } catch (err) {
             this.report.recordError(err, { line: attribute.line, element: attribute.name });

@@ -206,6 +206,23 @@ element.addEventListener("graphty-visibility-change", (e) => {
 });
 ```
 
+### graphty-progress-change
+
+A load or an algorithm run moved on, or stopped. The detail is `{ task, run?, phase, completed,
+total, fraction }`: `task` is `"load"` or `"run"`, `phase` is `"progress"` or, once at the end,
+`"end"`, and `fraction` is null when the total is not known.
+
+```javascript
+element.addEventListener("graphty-progress-change", (e) => {
+    const { task, phase, fraction } = e.detail;
+    bar.hidden = phase === "end";
+    bar.value = fraction ?? 0;
+});
+```
+
+On the session the same report is `progress:changed`, which a session with no view publishes
+too. See [Columns, Runs and Progress](./vocabulary#progress).
+
 ### graphty-history-change
 
 The undo history changed: a step was recorded, merged, undone or redone, or pending work started

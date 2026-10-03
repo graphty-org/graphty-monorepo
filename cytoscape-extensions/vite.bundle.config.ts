@@ -64,7 +64,7 @@ function graphtyLoadLazy(path) {
         return Promise.reject(new Error(
             "graphty: the script-tag bundle loads the file formats and the datasets from dist/cdn/ next to itself, " +
             "but it was not loaded by a <script src> tag, so it cannot tell where that is. Load it with " +
-            "<script src>, or use the ES module build: <script type=\\"module\\"> importing " +
+            "<script src>, or use the ES module build: <script type='module'> importing " +
             "https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js"));
     }
     return import(new URL("cdn/" + path, graphtyLazyBase).href);

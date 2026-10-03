@@ -91,6 +91,26 @@ function upFront(chunks) {
 }
 
 /**
+ * The budget name of a part the main entry loads on first use.
+ * @param {string} id - the chunk's module id
+ * @param {string} fileName - the chunk's file name
+ * @returns {string} the name
+ */
+function lazyPartName(id, fileName) {
+    if (/gpu-platform/.test(id)) {
+        return "WebGPU code (on the first GPU-eligible call)";
+    }
+    if (/cytoscape-extensions\/dist\/samples\.js$/.test(id)) {
+        return "generators (on the first graphtyGenerate or graphtyDataset)";
+    }
+    if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
+        return "file formats, all of them (on the first graphtyImport or graphtyExport)";
+    }
+    const dataset = /datasets\/([^/.]+)/.exec(id);
+    return dataset ? `dataset ${dataset[1]}` : `other lazy chunk ${fileName}`;
+}
+
+/**
  * Measures the package.
  * @param {boolean} compare - also measure the parts that are only for comparison (not budgeted: they measure other
  *   packages, whose growth reaches this package's budgets through the parts that load them)
@@ -118,16 +138,7 @@ async function measurePackage(compare) {
         for (const c of chunks) {
             for (const f of c.dynamicImports) {
                 const target = byName.get(f);
-                const id = target.facadeModuleId ?? target.fileName;
-                const name = /gpu-platform/.test(id)
-                    ? "WebGPU code (on the first GPU-eligible call)"
-                    : /cytoscape-extensions\/dist\/samples\.js$/.test(id)
-                      ? "generators (on the first graphtyGenerate or graphtyDataset)"
-                      : /cytoscape-extensions\/dist\/io\.js$/.test(id)
-                        ? "file formats, all of them (on the first graphtyImport or graphtyExport)"
-                        : /datasets\/([^/.]+)/.test(id)
-                          ? `dataset ${/datasets\/([^/.]+)/.exec(id)[1]}`
-                          : `other lazy chunk ${target.fileName}`;
+                const name = lazyPartName(target.facadeModuleId ?? target.fileName, target.fileName);
                 if (!lazy.has(name)) {
                     const group = new Set();
                     closure(target, group, initial);

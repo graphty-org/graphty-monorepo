@@ -282,10 +282,97 @@ describe("status", () => {
         expect(Object.keys(d.state.sessions ?? {})).toEqual([]);
     });
 
-    it("exits 1 when no daemon answers", async () => {
+    it("answers with the daemon stopped, from state.json, and says so", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        writeFileSync(
+            join(stateDir(), "state.json"),
+            JSON.stringify({
+                schema: 1,
+                ownerItems: { i1: { id: "i1", kind: "login", question: "run gh auth login" } },
+            }),
+        );
+        writeFileSync(join(stateDir(), "FATAL"), "gh is not authenticated\n");
         const r = await cli(["status"]);
-        expect(r.code).toBe(1);
-        expect(r.err).toContain("githerd daemon not reachable: no daemon.json");
+        expect(r.code).toBe(0);
+        expect(r.out).toContain("githerd is DOWN: gh is not authenticated");
+        expect(r.out).toContain("DAEMON DOWN: no daemon.json; state.json written");
+        expect(r.out).toContain("  i1 [login] run gh auth login");
+        expect(r.out).toContain("MASTER: unknown");
+        expect((await cli(["status", "owner"])).out.split("\n").at(-2)).toBe("OWNER (1):");
+        expect(JSON.parse((await cli(["status", "--json"])).out).state.ownerItems.i1.kind).toBe("login");
+        const bad = await cli(["status", "weather"]);
+        expect(bad.code).toBe(1);
+        expect(bad.err).toContain("unknown section weather");
+    });
+
+    it("falls back to state.json.bak, then the ledger, with no state.json", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        await appendLedger(stateDir(), {
+            kind: "record",
+            collection: "ownerItems",
+            id: "i2",
+            record: { id: "i2", kind: "money", question: "top up" },
+        });
+        expect((await cli(["status", "owner"])).out).toContain("written never");
+        expect((await cli(["status", "owner"])).out).toContain("i2 [money] top up");
+        writeFileSync(join(stateDir(), "state.json.bak"), JSON.stringify({ schema: 1 }));
+        expect((await cli(["status", "owner"])).out).toContain("OWNER: nothing is waiting on you");
+    });
+});
+
+describe("board", () => {
+    it("draws the board, redraws when state.json changes, and ends on the signal", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        const out = [];
+        const stop = new AbortController();
+        const done = runCli(["board"], { cwd: root, env, out: (l) => out.push(l), err: () => {}, signal: stop.signal });
+        await expect.poll(() => out.length).toBe(1);
+        expect(out[0].startsWith("\x1b[2J\x1b[H")).toBe(true);
+        expect(out[0]).toContain("OWNER: nothing is waiting on you");
+        writeFileSync(
+            join(stateDir(), "state.json"),
+            JSON.stringify({ schema: 1, ownerItems: { i3: { id: "i3", kind: "visual", question: "look" } } }),
+        );
+        await expect.poll(() => out.at(-1)).toContain("i3 [visual] look");
+        stop.abort();
+        expect(await done).toBe(0);
+        const aborted = new AbortController();
+        aborted.abort();
+        expect(await runCli(["board"], { cwd: root, env, out: () => {}, err: () => {}, signal: aborted.signal })).toBe(
+            0,
+        );
+    });
+});
+
+describe("why", () => {
+    it("explains an item from state.json and the ledger, and says when nothing names it", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        writeFileSync(
+            join(stateDir(), "state.json"),
+            JSON.stringify({
+                schema: 1,
+                jobs: {
+                    "issue-7": {
+                        id: "issue-7",
+                        kind: "issue",
+                        target: "#7",
+                        state: "queued",
+                        stateSince: "2026-10-03T10:00:00.000Z",
+                        reason: "next by priority",
+                    },
+                },
+            }),
+        );
+        await appendLedger(stateDir(), { kind: "decision", target: "issue:7", text: "queued" });
+        const r = await cli(["why", "#7"], { now: () => new Date("2026-10-03T11:00:00.000Z") });
+        expect(r.code).toBe(0);
+        expect(r.out).toContain("job issue-7 (issue, #7): queued 1 h 0 min");
+        expect(r.out).toContain('decision {"target":"issue:7","text":"queued"}');
+        expect(await cli(["why", "#8"])).toMatchObject({
+            code: 1,
+            err: "nothing in state.json or the ledger names #8",
+        });
+        expect((await cli(["why"])).code).toBe(2);
     });
 });
 
@@ -356,7 +443,20 @@ describe("mode", () => {
         expect(await health()).toBe("dry-run");
 
         expect((await cli(["mode", "loud"])).code).toBe(2);
-        expect((await cli(["mode"])).code).toBe(2);
+    });
+
+    it("with no argument, shows each write group's mode and its ledger coverage", async () => {
+        mkdirSync(stateDir(), { recursive: true });
+        await appendLedger(stateDir(), { kind: "would-do", group: "statuses", situation: "new head" });
+        const r = await cli(["mode"]);
+        expect(r.code).toBe(0);
+        expect(r.out.split("\n")).toHaveLength(6);
+        expect(r.out).toMatch(/^statuses +dry-run +1 lines, 1 situations, last /);
+        expect(r.out).toContain("workers      dry-run  no ledger lines yet");
+        writeFileSync(join(stateDir(), "override.json"), JSON.stringify({ mode: "paused" }));
+        expect((await cli(["mode"])).out).toMatch(/^statuses +paused/);
+        writeFileSync(/** @type {string} */ (env.GITHERD_CONFIG), "{");
+        expect((await cli(["mode"])).code).toBe(1);
     });
 });
 

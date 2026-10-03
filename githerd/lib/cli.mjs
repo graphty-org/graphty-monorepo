@@ -1,28 +1,32 @@
 /**
- * The githerd command line (design section 12). It finds the repository's daemon through
+ * The githerd command line (design section 11.2). It finds the repository's daemon through
  * `daemon.json` in the state directory and talks to it over HTTP; the commands that only read
- * (`ledger`, `runs`, `run`) read the state directory directly, so they work while the daemon is
- * down.
+ * (`status` and `board` when no daemon answers, `why`, `mode`, `ledger`, `runs`, `run`) read the
+ * state directory directly, so they work while the daemon is down.
  *
  * Exit codes: 0 done, 1 failed (daemon not reachable, nothing found, a doctor check failed), 2 a
  * usage error or a refused request.
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
 import { repoRoot } from "./config.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import { ensureDaemon, launcherContext, ours, pm2Options, probe, servherd, targetCode, waitFor } from "./launcher.mjs";
 import { createNotifier } from "./notify.mjs";
 import { sameProcess } from "./proc.mjs";
-import { defaultStateDir, readLedger, STATE_SCHEMA } from "./store.mjs";
+import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
 const USAGE = `usage: githerd <command>
-  status [--json]                          the daemon's status text
+  status [section] [--json]                the board; read from state.json when the daemon is down
+  board                                    the board, redrawn when the state file changes
+  why <item>                               the records and ledger lines that put an item in its state
+  mode                                     each write group's mode and its ledger coverage
   ledger [--since 1d] [--target pr:704] [--kind run-end]
                                            ledger entries, one JSON line each
   runs [--last 10]                         recent judgment runs
@@ -46,7 +50,21 @@ const EXEC_TIMEOUT_MS = 60_000;
 const DEV_NAME = "githerd-dev";
 const DEV_STATE = ".githerd-dev";
 /** The commands that work on a repository. */
-const COMMANDS = ["status", "ack", "veto", "ledger", "runs", "run", "mode", "ensure", "restart", "dev", "doctor"];
+const COMMANDS = [
+    "status",
+    "board",
+    "why",
+    "ack",
+    "veto",
+    "ledger",
+    "runs",
+    "run",
+    "mode",
+    "ensure",
+    "restart",
+    "dev",
+    "doctor",
+];
 /** The modes `githerd mode` can set; raising to acting is a config change on the default branch. */
 const LOWER_MODES = ["dry-run", "paused"];
 
@@ -59,6 +77,7 @@ const LOWER_MODES = ["dry-run", "paused"];
  * @property {() => Date} [now] the clock
  * @property {number} [signTimeoutMs] the doctor's signing timeout
  * @property {number} [healthWaitMs] how long `ensure` and `dev` wait for a started daemon
+ * @property {AbortSignal} [signal] ends `githerd board` (otherwise SIGINT does)
  */
 
 /**
@@ -200,6 +219,7 @@ export async function runCli(argv, options = {}) {
         now = () => new Date(),
         signTimeoutMs = SIGN_TIMEOUT_MS,
         healthWaitMs,
+        signal,
     } = options;
     const [command, ...rest] = argv;
     const { positional, flags } = parseArgs(rest);
@@ -241,17 +261,39 @@ export async function runCli(argv, options = {}) {
 
     switch (command) {
         case "status": {
-            const port = await daemonPort();
-            if (port === null) return 1;
-            const reply = await post(port, "/rpc", {
-                jsonrpc: "2.0",
-                id: 1,
-                method: "tools/call",
-                params: { name: "githerd_status", arguments: flags.json ? { format: "json" } : {} },
-            });
-            const text = reply.result?.content?.[0]?.text ?? reply.error?.message ?? JSON.stringify(reply);
-            (reply.result?.isError || reply.error ? err : out)(text);
-            return reply.result?.isError || reply.error ? 1 : 0;
+            const board = await boardText(stateDir, { section: positional[0], json: flags.json === true, now: now() });
+            (board.ok ? out : err)(board.text);
+            return board.ok ? 0 : 1;
+        }
+
+        case "board": {
+            const draw = async () => {
+                const board = await boardText(stateDir, { now: now() });
+                out(`\x1b[2J\x1b[H${board.text}`);
+            };
+            await draw();
+            await redrawUntil(stateDir, draw, signal);
+            return 0;
+        }
+
+        case "why": {
+            const [item] = positional;
+            if (!item) {
+                err("usage: githerd why <item>");
+                return 2;
+            }
+            const text = whyText(
+                item,
+                await offlineState(stateDir),
+                await readLedger(stateDir, { since: new Date(0) }),
+                now(),
+            );
+            if (text === null) {
+                err(`nothing in state.json or the ledger names ${item}`);
+                return 1;
+            }
+            out(text);
+            return 0;
         }
 
         case "ack":
@@ -335,6 +377,20 @@ export async function runCli(argv, options = {}) {
         case "mode": {
             const [mode] = positional;
             const file = join(stateDir, "override.json");
+            if (mode === undefined) {
+                const found = launcherContext(ctxOptions);
+                const config = found.kind === "ready" ? found.ctx.config : null;
+                if (!config) {
+                    let why = "no config";
+                    if (found.kind === "unconfigured") why = found.reason;
+                    else if (found.kind === "ready" && found.problem) why = found.problem;
+                    err(`githerd mode: ${why}`);
+                    return 1;
+                }
+                const override = readJson(file)?.mode ?? null;
+                out(modeText(groupModes(config, override), await readLedger(stateDir, { since: new Date(0) })));
+                return 0;
+            }
             if (mode === "acting") {
                 err(
                     "githerd mode acting is refused: the mode is raised only by a githerd.config.json change merged to the default branch",
@@ -428,6 +484,95 @@ export async function runCli(argv, options = {}) {
         default:
             return 2;
     }
+}
+
+/**
+ * The state as the files hold it: `state.json`, else `state.json.bak`, else rebuilt from the
+ * ledger. Read only: unlike the daemon's load, nothing is renamed or removed.
+ * @param {string} stateDir the state directory
+ * @returns {Promise<any>} the state, `{}` when there is none
+ */
+async function offlineState(stateDir) {
+    return (
+        readJson(join(stateDir, "state.json")) ??
+        readJson(join(stateDir, "state.json.bak")) ??
+        (await replayLedger(stateDir)) ??
+        {}
+    );
+}
+
+/**
+ * The board: the daemon's answer when it answers, else rendered from the state directory with a
+ * line saying the daemon is down.
+ * @param {string} stateDir the state directory
+ * @param {{section?: string, json?: boolean, now: Date}} options one section, JSON, the clock
+ * @returns {Promise<{ok: boolean, text: string}>} the text, and whether it is an answer or an error
+ */
+async function boardText(stateDir, { section, json = false, now }) {
+    const { record, health, error } = await probe(/** @type {any} */ ({ stateDir }));
+    if (health) {
+        const reply = await post(record.port, "/rpc", {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: {
+                name: "githerd_status",
+                arguments: { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) },
+            },
+        });
+        const failed = Boolean(reply.result?.isError || reply.error);
+        return { ok: !failed, text: reply.result?.content?.[0]?.text ?? reply.error?.message ?? JSON.stringify(reply) };
+    }
+    const state = await offlineState(stateDir);
+    let written = "never";
+    try {
+        written = `${Math.round((now.getTime() - statSync(join(stateDir, "state.json")).mtimeMs) / 1000)} s ago`;
+    } catch {
+        // no state.json
+    }
+    const view = { state, liveness: readLiveness(stateDir), down: `${error}; state.json written ${written}` };
+    if (json) return { ok: true, text: JSON.stringify(view, null, 2) };
+    try {
+        return { ok: true, text: renderBoard(view, now, section) };
+    } catch (e) {
+        return { ok: false, text: `githerd status: ${/** @type {Error} */ (e).message}` };
+    }
+}
+
+/**
+ * Calls `draw` whenever a file the board reads changes, until `signal` aborts or SIGINT arrives.
+ * Changes that arrive while a draw runs are folded into one more draw.
+ * @param {string} stateDir the state directory
+ * @param {() => Promise<void>} draw redraws the board
+ * @param {AbortSignal} [signal] ends the loop
+ * @returns {Promise<void>} resolves when the loop ends
+ */
+async function redrawUntil(stateDir, draw, signal) {
+    mkdirSync(stateDir, { recursive: true });
+    let running = Promise.resolve();
+    let queued = false;
+    const watcher = watch(stateDir, (_event, name) => {
+        if (!["state.json", "FATAL", "progress", "daemon.json"].includes(String(name)) || queued) return;
+        queued = true;
+        running = running.then(() => {
+            queued = false;
+            return draw();
+        });
+    });
+    /**
+     * Ends the wait; replaced once the wait begins.
+     * @type {() => void}
+     */
+    let stop = () => {};
+    await new Promise((done) => {
+        stop = () => done(undefined);
+        if (signal?.aborted) return stop();
+        signal?.addEventListener("abort", stop, { once: true });
+        process.once("SIGINT", stop);
+    });
+    process.removeListener("SIGINT", stop);
+    watcher.close();
+    await running;
 }
 
 /**

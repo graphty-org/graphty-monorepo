@@ -14,7 +14,13 @@ import { describe, expect, it } from "vitest";
 
 import { registry } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
-import { CORPUS_FORMATS, type CorpusFile, corpusFiles, readCorpusBytes } from "../helpers/corpus.js";
+import {
+    BINARY_CORPUS_FORMATS,
+    CORPUS_FORMATS,
+    type CorpusFile,
+    corpusFiles,
+    readCorpusBytes,
+} from "../helpers/corpus.js";
 import { compareSnapshots, describeDiffs } from "../helpers/roundtrip.js";
 
 const MAX_BYTES = 200 * 1024;
@@ -124,7 +130,10 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
         for (const entry of entries) {
             const bytes = readCorpusBytes(format, entry.path);
             const options = entry.options ?? {};
-            const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+            // a binary format (a session zip) is its bytes; a text format is compared with its string
+            const text = BINARY_CORPUS_FORMATS.has(format)
+                ? bytes
+                : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
             const offsets =
                 bytes.byteLength < EXHAUSTIVE_BELOW
                     ? sampledOffsets(bytes.byteLength, bytes.byteLength)
@@ -153,11 +162,13 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
                     await load(format, splitStream(bytes, [mid, mid]), options),
                     `${format}/${entry.path} empty chunk at ${mid}`,
                 );
-                expectEquivalent(
-                    reference,
-                    await load(format, mixedChunks(bytes, mid), options),
-                    `${format}/${entry.path} bytes then text at ${mid}`,
-                );
+                if (!BINARY_CORPUS_FORMATS.has(format)) {
+                    expectEquivalent(
+                        reference,
+                        await load(format, mixedChunks(bytes, mid), options),
+                        `${format}/${entry.path} bytes then text at ${mid}`,
+                    );
+                }
             });
 
             it(`${format}/${entry.path}: a UTF-8 BOM split across the first chunk boundary`, async () => {
@@ -175,9 +186,12 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
         if (smallest !== undefined) {
             const bytes = readCorpusBytes(format, smallest.path);
             const options = smallest.options ?? {};
+            const whole = BINARY_CORPUS_FORMATS.has(format)
+                ? bytes
+                : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 
             it(`${format}/${smallest.path}: 1-byte chunks`, async () => {
-                const reference = await load(format, new TextDecoder("utf-8", { fatal: true }).decode(bytes), options);
+                const reference = await load(format, whole, options);
                 const cuts = Array.from({ length: bytes.byteLength - 1 }, (_, i) => i + 1);
                 const actual = await load(format, splitStream(bytes, cuts), options);
                 expectEquivalent(reference, actual, `${format}/${smallest.path} 1-byte chunks`);
@@ -186,7 +200,7 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
             it(`${format}/${smallest.path}: every multi-byte character split in the middle`, async () => {
                 // a file with a non-ASCII character is cut inside it; ASCII-only files are cut at
                 // every byte anyway by the 1-byte run, so this only adds the odd-sized splits
-                const reference = await load(format, new TextDecoder("utf-8", { fatal: true }).decode(bytes), options);
+                const reference = await load(format, whole, options);
                 const cuts: number[] = [];
                 for (let i = 1; i < bytes.byteLength; i++) {
                     if ((bytes[i] & 0xc0) === 0x80) {

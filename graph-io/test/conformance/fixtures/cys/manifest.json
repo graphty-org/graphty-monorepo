@@ -1,0 +1,1384 @@
+{
+  "format": "cys",
+  "description": "Cytoscape session files (.cys): Cytoscape's own session test files, sample and tutorial sessions, and authored container, table and session cases",
+  "fixtures": [
+    {
+      "file": "session3x/simpleSession.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session3x/simpleSession.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "minimal 3.x session (2013): 3 nodes, 2 edges, node and edge bypasses in the view, an app namespace table (MYAPP), a global table, selection",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "Na"
+        ],
+        "labels": [
+          "Node 1",
+          "Node 2",
+          "Node 3"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "64",
+            "column": "selected",
+            "value": true
+          },
+          {
+            "id": "62",
+            "column": "selected",
+            "value": false
+          },
+          {
+            "id": "62",
+            "column": "NAtt1",
+            "value": "TEST 62"
+          },
+          {
+            "id": "62",
+            "column": "NAtt2",
+            "value": 3
+          },
+          {
+            "id": "64",
+            "column": "shared name",
+            "value": "Node 1"
+          },
+          {
+            "id": "62",
+            "role": "position",
+            "value": [
+              171.7986094176008,
+              -50.523643493652344,
+              0
+            ]
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "64",
+            "target": "63",
+            "column": "selected",
+            "value": true
+          },
+          {
+            "source": "63",
+            "target": "62",
+            "column": "shared interaction",
+            "value": "interaction"
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_ENTRY_SKIPPED"
+        ]
+      }
+    },
+    {
+      "file": "session3x/visualMappings.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session3x/visualMappings.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "16 styles, an equation cell (=ABS(${shared\\ name})), undirected edges (cy:directed=0), 4 nodes and 6 edges, nothing selected",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 6,
+        "directed": false,
+        "graphs": 1,
+        "graphNames": [
+          "NET 1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "64",
+            "column": "score",
+            "value": "=ABS(${shared\\ name})"
+          },
+          {
+            "id": "65",
+            "column": "selected",
+            "value": false
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_EQUATION_AS_TEXT"
+        ]
+      }
+    },
+    {
+      "file": "session3x/subnetworks.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session3x/subnetworks.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "2 collections, 5 registered subnetworks, xlink:href across entries, nested-network pointers with a cycle, a self-loop only in a subnetwork, 4 views with different styles",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 5,
+        "graphNames": [
+          "Na",
+          "Na.1",
+          "Na.1.1",
+          "Nb",
+          "Nb.1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "183",
+            "column": "cytoscape.nestedNetwork",
+            "value": "Nb"
+          },
+          {
+            "id": "181",
+            "column": "cytoscape.nestedNetwork",
+            "value": "Na.1"
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "session3x/groups.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session3x/groups.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "CyCSV schema 0 tables (no version line), 3 groups (one collapsed, nested), meta-edges declared at the root only",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 8,
+        "edges": 4,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "Network"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "800",
+            "column": "parent",
+            "value": 0
+          },
+          {
+            "id": "787",
+            "column": "parent",
+            "value": 1
+          },
+          {
+            "id": "787",
+            "role": "position",
+            "value": [
+              153,
+              -2,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_COLLAPSED_GROUP",
+          "W_XGMML_ROOT_ONLY_ELEMENTS"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 6 nodes"
+    },
+    {
+      "file": "session3x/nestedGroups_collapsed.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session3x/nestedGroups_collapsed.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "nested collapsed groups; zip entry names with the UTF-8 flag",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "Network"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "301",
+            "column": "parent",
+            "value": 1
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_COLLAPSED_GROUP"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1)"
+    },
+    {
+      "file": "session2x/v252Session.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session2x/v252Session.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "Cytoscape 2.5.2: XGMML documentVersion 1.0, vizmap.props styles, 2.x map atts; 331 / 362",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 331,
+        "edges": 362,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "galFiltered.sif"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-333",
+            "column": "gal1RGexp",
+            "value": 0.165
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_XGMML_RECORD_LIST"
+        ]
+      }
+    },
+    {
+      "file": "session2x/v270session.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session2x/v270session.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "Cytoscape 2.7: a child network, typed attributes (attrInt, attrFloat, attrBoolean, attrString), plugin folders",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 53,
+        "edges": 63,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "galFiltered--child",
+          "galFiltered"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-32",
+            "column": "attrString",
+            "value": "aaa"
+          },
+          {
+            "id": "-176",
+            "column": "attrString",
+            "value": "bbb"
+          },
+          {
+            "id": "-32",
+            "column": "attrInt",
+            "value": 1
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "session2x/v283Groups.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session2x/v283Groups.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "Cytoscape 2.8.3 groups (nested, collapsed and expanded), locked visual properties, images/",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 6,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "Network"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_XGMML_GROUP_DUPLICATE_EDGE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape hides the node of an expanded group and removes a collapsed group's members from the network it shows; graph-io's snapshot holds every node the network file declares in the network and records groups as parent containment, the collapsed members in meta.extra.cytoscape.groups (design section 3.1); Cytoscape shows 4 nodes and 2 edges"
+    },
+    {
+      "file": "session2x/v263SessionLarge.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session2x/v263SessionLarge.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "7 networks in a hierarchy, 4,133 nodes and 14,558 edges in the largest (8.8 MB inflated)",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4133,
+        "edges": 14558,
+        "directed": true,
+        "graphs": 7,
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "options": {
+        "graphName": "gene_disease_network4.txt"
+      }
+    },
+    {
+      "file": "session2x/v283Session1.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/integration-test/src/test/resources/testData/session2x/v283Session1.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "5 networks from two sources, 102 self-loops in RUAL.subset, 2.x selection in cysession.xml (82 nodes, 110 edges)",
+      "oracle": "cytoscape-integration-tests",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 331,
+        "edges": 362,
+        "directed": true,
+        "graphs": 5,
+        "graphNames": [
+          "RUAL.subset--child",
+          "RUAL.subset",
+          "galFiltered--child",
+          "RUAL.subset--child--child",
+          "galFiltered"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "options": {
+        "graphName": "galFiltered"
+      }
+    },
+    {
+      "file": "impl/t3.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/raw/develop/io-impl/impl/src/test/resources/testData/NNFData/t3.cys",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "2.x nested networks (nested_network_id), the absent Network Root.xgmml",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 5,
+        "directed": true,
+        "graphs": 4,
+        "graphNames": [
+          "M1",
+          "Module_Overview",
+          "M3",
+          "M2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "nested_network_id",
+            "value": "M1"
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "options": {
+        "graphName": "Module_Overview"
+      }
+    },
+    {
+      "file": "impl/LUAD_vest_v2.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/raw/develop/layout-cytoscape-impl/src/test/resources/circular-layout-tests/LUAD_vest_v2.cys",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "10 subnetworks with views, undirected, custom-graphics images, 26 styles, the UTF-8 name flag",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 26,
+        "edges": 25,
+        "directed": false,
+        "graphs": 10,
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      }
+    },
+    {
+      "file": "impl/goTrees.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-impl/raw/develop/layout-cytoscape-impl/src/test/resources/circular-layout-tests/goTrees.cys",
+      "license": "LGPL-2.1 (cytoscape-impl LICENSE); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "three Gene Ontology trees (1,819 / 2,764 / 706 nodes, n-1 edges each)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1819,
+        "edges": 1818,
+        "directed": true,
+        "graphs": 3,
+        "graphNames": [
+          "biological_process.info_gain.term_term.txt",
+          "cellular_component.info_gain.term_term.txt",
+          "molecular_function.info_gain.term_term.txt"
+        ],
+        "labels": [
+          "GO:0003674"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "options": {
+        "graphName": "molecular_function.info_gain.term_term.txt"
+      }
+    },
+    {
+      "file": "sampledata/galFiltered.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-gui-distribution/raw/develop/assembly/src/main/resources/sampleData/galFiltered.cys",
+      "license": "LGPL-2.1 (the cytoscape-gui-distribution test tree's file headers); test-only",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "the 2022 Cytoscape sample session (3.9+/3.10): table column styles, cytables.xml table views, global app tables, __MACOSX and .DS_Store entries, stored directory entries, a multi-line cell",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 330,
+        "edges": 359,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "galFiltered.sif"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_ENTRY_SKIPPED"
+        ]
+      }
+    },
+    {
+      "file": "tutorials/STELZ.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-tutorials/raw/gh-pages/protocols/data/STELZ.cys",
+      "license": "CC0-1.0 (cytoscape-tutorials LICENSE)",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "Stelzl et al. 2005 human interactome, 1,691 nodes and 3,360 edges, 55 self-loops, a layout",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1691,
+        "edges": 3360,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "STELZL.sif"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "5111",
+            "column": "Official HUGO Symbol",
+            "value": "ZNF287"
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "tutorials/galFiltered.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-tutorials/raw/gh-pages/protocols/data/galFiltered.cys",
+      "license": "CC0-1.0 (cytoscape-tutorials LICENSE)",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "Ideker et al. 2001 yeast perturbation network with expression columns, 331 / 362, laid out",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 331,
+        "edges": 362,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "galFiltered.sif"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "392",
+            "column": "gal1RGexp",
+            "value": -0.154
+          },
+          {
+            "id": "392",
+            "role": "position",
+            "value": [
+              1102.2163802993496,
+              -548.4974860856266,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "tutorials/layout-v1.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-tutorials/raw/gh-pages/presentations/modules/network-visualization-light/layout-v1.cys",
+      "license": "CC0-1.0 (cytoscape-tutorials LICENSE)",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "one collection with two networks and their views (a subnetwork view)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 26,
+        "edges": 38,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "galFiltered.sif",
+          "galFiltered.sif(1)"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "options": {
+        "graphIndex": 1
+      }
+    },
+    {
+      "file": "tutorials/AnnotationExample.cys",
+      "origin": "https://github.com/cytoscape/cytoscape-tutorials/raw/gh-pages/presentations/modules/advanced-visualization/AnnotationExample.cys",
+      "license": "CC0-1.0 (cytoscape-tutorials LICENSE)",
+      "version": "develop / gh-pages, retrieved 2026-10-02",
+      "exercises": "__Annotations, AutoAnnotate app tables, 8 private (unregistered) networks of an app beside the one visible network",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 330,
+        "edges": 359,
+        "directed": true,
+        "graphs": 1,
+        "graphNames": [
+          "galFiltered.sif"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/base-3x.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "two registered subnetworks sharing nodes in network_list.xml order (Beta before Alpha); Alpha's tables: every CyCSV type and list, an equation, an unparseable Double, a Long beyond 2^53, a multi-line cell, quotes, virtual columns (one chained, one colliding with a local column), HIDDEN and app tables, a stale app row, an expanded group, two views (position@2), y flipped, z, bypasses",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "21",
+            "column": "score",
+            "value": 1.5
+          },
+          {
+            "id": "21",
+            "column": "count",
+            "value": 3
+          },
+          {
+            "id": "21",
+            "column": "tags",
+            "value": [
+              "x",
+              "y"
+            ]
+          },
+          {
+            "id": "22",
+            "column": "tags",
+            "value": [
+              ""
+            ]
+          },
+          {
+            "id": "21",
+            "column": "flags",
+            "value": [
+              true,
+              false
+            ]
+          },
+          {
+            "id": "21",
+            "column": "formula",
+            "value": "=$score * 2"
+          },
+          {
+            "id": "21",
+            "column": "note",
+            "value": "line 1\nline 2"
+          },
+          {
+            "id": "23",
+            "column": "note",
+            "value": "say \"hi\""
+          },
+          {
+            "id": "22",
+            "column": "note",
+            "value": ""
+          },
+          {
+            "id": "23",
+            "column": "species",
+            "value": "fly"
+          },
+          {
+            "id": "21",
+            "column": "shared name",
+            "value": "A"
+          },
+          {
+            "id": "21",
+            "column": "count#SHARED_ATTRS",
+            "value": 1.25
+          },
+          {
+            "id": "21",
+            "column": "count#MYAPP",
+            "value": "seven"
+          },
+          {
+            "id": "21",
+            "column": "appScore",
+            "value": 7
+          },
+          {
+            "id": "21",
+            "column": "parent",
+            "value": 3
+          },
+          {
+            "id": "22",
+            "role": "position",
+            "value": [
+              30.5,
+              40,
+              0
+            ]
+          },
+          {
+            "id": "22",
+            "column": "z",
+            "value": 2
+          },
+          {
+            "id": "21",
+            "column": "position@2",
+            "value": [
+              1,
+              -2,
+              0
+            ]
+          },
+          {
+            "id": "22",
+            "column": "graphics",
+            "value": {
+              "fill": "#FF0000",
+              "type": "ELLIPSE",
+              "lockedVisualProperties": {
+                "NODE_SHAPE": "TRIANGLE"
+              }
+            }
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "21",
+            "target": "22",
+            "column": "shared interaction",
+            "value": "pp"
+          },
+          {
+            "source": "21",
+            "target": "22",
+            "column": "selected",
+            "value": true
+          }
+        ],
+        "warnings": [
+          "E_BAD_VALUE",
+          "W_PRECISION",
+          "W_EQUATION_AS_TEXT",
+          "W_WIDENED",
+          "W_COLUMN_RENAMED",
+          "W_CYS_TABLE_ROW",
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_ENTRY_SKIPPED",
+          "W_MULTIPLE_GRAPHS",
+          "W_XGMML_ROOT_ONLY_ELEMENTS"
+        ]
+      },
+      "options": {
+        "graphName": "Alpha"
+      }
+    },
+    {
+      "file": "authored/zip64.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "zip64 end records and extra fields",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/stored-with-descriptor.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "every entry stored (method 0) with a data descriptor, which Java's ZipInputStream cannot read",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/trailing-junk.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "bytes after the end of central directory record",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/self-extracting-stub.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a stub prepended to the archive: every offset is shifted",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/archive-comment.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an archive comment after the end record",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/macosx-noise.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "directory entries, __MACOSX resource forks, .DS_Store and a thumbnail",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/utf8-entry-names.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "entry names with the UTF-8 flag and a non-ASCII root folder",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      }
+    },
+    {
+      "file": "authored/duplicate-entry.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "two entries with one name: the first is read",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_CYS_DUPLICATE_ENTRY"
+        ]
+      }
+    },
+    {
+      "file": "authored/no-root-folder.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "entries at the archive root without the session folder",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape's entry patterns need a folder before networks/ and tables/, so it loads nothing; the entries are unambiguous, so graph-io reads them"
+    },
+    {
+      "file": "authored/two-root-folders.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "two sessions zipped together: the one holding the first version marker is read, the other's entries are skipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_CYS_ENTRY_SKIPPED"
+        ]
+      }
+    },
+    {
+      "file": "authored/no-network-list.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "no network_list.xml: the networks come in entry order",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "graphs": 2,
+        "graphNames": [
+          "Alpha",
+          "Beta"
+        ]
+      }
+    },
+    {
+      "file": "authored/no-views.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "no view: no position column",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ]
+      }
+    },
+    {
+      "file": "authored/cycsv-unknown-version.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a table with CyCSV-Version 7: E_CYS_TABLE, the table is skipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "E_CYS_TABLE"
+        ]
+      },
+      "options": {
+        "graphName": "Alpha"
+      }
+    },
+    {
+      "file": "authored/cycsv-unknown-class.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a column class graph-io cannot read (java.awt.Color): E_CYS_TABLE",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "E_CYS_TABLE"
+        ]
+      },
+      "options": {
+        "graphName": "Alpha"
+      }
+    },
+    {
+      "file": "authored/cycsv-bad-rows.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "rows with too few and too many cells, a repeated key, a stale key",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edgeAttrs": [
+          {
+            "source": "21",
+            "target": "22",
+            "column": "interaction",
+            "value": "pp"
+          }
+        ],
+        "warnings": [
+          "W_CYS_TABLE_ROW"
+        ]
+      },
+      "options": {
+        "graphName": "Alpha"
+      }
+    },
+    {
+      "file": "authored/virtual-column-broken.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "virtual columns with a missing source table, a missing source column and a cycle: E_CYS_TABLE each",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "warnings": [
+          "E_CYS_TABLE"
+        ]
+      },
+      "options": {
+        "graphName": "Alpha"
+      }
+    },
+    {
+      "file": "authored/table-for-missing-network.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a table of a network SUID the session does not hold",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ]
+      },
+      "oracleDisagrees": "Cytoscape throws a NullPointerException; graph-io skips the table and says so"
+    },
+    {
+      "file": "authored/dangling-href.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a subnetwork member xlink:href naming nothing, and the edge that needed it",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "W_DANGLING_REFERENCE",
+          "E_UNKNOWN_NODE"
+        ]
+      }
+    },
+    {
+      "file": "authored/view-for-missing-network.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a view of a network the session does not hold",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Beta",
+          "Alpha"
+        ],
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ]
+      }
+    },
+    {
+      "file": "authored/edge-outside-network.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an edge of a subnetwork whose endpoint is not in that subnetwork: E_UNKNOWN_NODE, edge skipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 1,
+        "warnings": [
+          "E_UNKNOWN_NODE"
+        ]
+      }
+    },
+    {
+      "file": "authored/session-2x.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a 2.x session: cysession.xml network tree, URL-encoded entry names, selected and hidden nodes and edges, a network without its file, a file outside the tree, vizmap.props, plugins",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "graphs": 2,
+        "graphNames": [
+          "Main net--child",
+          "Main net"
+        ],
+        "nodeAttrs": [
+          {
+            "id": "-1",
+            "column": "cytoscape.selected",
+            "value": true
+          },
+          {
+            "id": "-2",
+            "column": "cytoscape.hidden",
+            "value": true
+          },
+          {
+            "id": "-2",
+            "role": "position",
+            "value": [
+              10,
+              -20,
+              0
+            ]
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "-1",
+            "target": "-2",
+            "column": "cytoscape.selected",
+            "value": true
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED",
+          "W_CYS_ENTRY_SKIPPED",
+          "W_DANGLING_REFERENCE",
+          "W_MULTIPLE_GRAPHS"
+        ]
+      },
+      "options": {
+        "graphName": "Main net"
+      }
+    },
+    {
+      "file": "authored/not-a-zip.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "text, not a zip",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_NOT_ZIP"
+      }
+    },
+    {
+      "file": "authored/empty.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an empty file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_EMPTY_INPUT"
+      }
+    },
+    {
+      "file": "authored/truncated.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "the first half of the base session",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_CORRUPT"
+      }
+    },
+    {
+      "file": "authored/no-end-record.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "the end of central directory record cut off",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_CORRUPT"
+      }
+    },
+    {
+      "file": "authored/crc-mismatch.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a network entry whose data does not match its CRC-32",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_CORRUPT"
+      }
+    },
+    {
+      "file": "authored/encrypted.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an encrypted entry (flag bit 0)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_UNSUPPORTED"
+      }
+    },
+    {
+      "file": "authored/deflate64.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an entry compressed with deflate64 (method 9)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_UNSUPPORTED"
+      }
+    },
+    {
+      "file": "authored/bzip2.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an entry compressed with bzip2 (method 12)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_UNSUPPORTED"
+      }
+    },
+    {
+      "file": "authored/version-4.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a 4.0.0.version marker",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_VERSION"
+      }
+    },
+    {
+      "file": "authored/not-a-session.zip",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a zip of a GraphML file and a text file",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_NOT_SESSION"
+      },
+      "sniffAs": null
+    },
+    {
+      "file": "authored/prerelease-3.0.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "the 2011 3.0 pre-release layout: cysession.xml with documentVersion 3.0 and no marker",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CYS_VERSION"
+      }
+    },
+    {
+      "file": "authored/ratio-bomb.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "an entry inflating above 1000:1",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_TOO_LARGE"
+      }
+    },
+    {
+      "file": "authored/network-not-xml.cys",
+      "origin": "authored by tools/make_cys_fixtures.py",
+      "license": "MIT",
+      "version": "2026-10-02",
+      "exercises": "a network entry that is not well-formed",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_XML_SYNTAX"
+      }
+    }
+  ]
+}

@@ -58,6 +58,53 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
+## Text or Bytes
+
+A file is read as bytes, and the format's reader decodes them: a byte-order mark names the
+encoding, and so does an XML (`encoding="ISO-8859-1"`) or DOT (`charset`) declaration; anything
+else is read as UTF-8. Inline `data` can be text or bytes -- a `Uint8Array` or an `ArrayBuffer` --
+so a file you already hold in memory loads exactly as the file itself would:
+
+```typescript
+const bytes = new Uint8Array(await response.arrayBuffer());
+await element.session.data.import({ type: "graphml", config: { data: bytes } });
+
+// The same element property, as bytes:
+element.dataSource = "graphml";
+element.dataSourceConfig = { data: bytes };
+```
+
+Text you pass as a string is read as it is. Prefer bytes when the data came from a file or a
+download: decoding it to a string yourself fixes its encoding before the reader can read the
+file's own declaration, and a binary format (a zip) does not survive being turned into text.
+
+## Files That Hold Several Graphs
+
+Some formats can hold more than one graph in a file. Ask which graphs a file holds with
+`listGraphs` from `@graphty/graphty-element/catalog`, then load one by position or by name:
+
+```typescript
+import { listGraphs } from "@graphty/graphty-element/catalog";
+
+const graphs = await listGraphs({ config: { file } });
+// [{ index: 0, name: "Network 1", nodes: 120, edges: 340 }, ...], or null
+
+await element.loadFromFile(file, { graphIndex: 1 });
+await element.loadFromFile(file, { graphName: "Network 1" });
+await element.session.data.import({ config: { file, graphIndex: 1 } });
+```
+
+`listGraphs` takes the same source `session.data.import` does -- an optional `type` and a `config`
+with `data`, a `file` or a `url` -- and detects the format the same way. It answers `null` for a
+format whose file holds one graph, which is every format in the table below today; a format
+registered with `DataSource.fromImporter` answers it when its importer has `listGraphs`.
+
+Without a choice the first graph is loaded. A `graphIndex` that is not a non-negative integer, a
+`graphName` that is not a string, both at once, or a choice other than `graphIndex: 0` for a
+format whose file holds one graph, fails with `E_OPTION_RANGE` before anything is read. A name or
+an index that matches no graph in the file fails with `E_PARSE_FAILED`, and the message names
+what the file holds.
+
 ## Loading as One Undoable Step
 
 `session.data.import` loads a file, a URL or inline text as one step that undo takes back whole.

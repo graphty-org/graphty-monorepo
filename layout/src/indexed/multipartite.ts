@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions";
 import { type CommonLayoutOptions, planar, resolve, result } from "./common";
@@ -9,11 +9,12 @@ export type LayerAlign = "vertical" | "horizontal";
 /** Options of the index-based multipartite layout. */
 export interface MultipartiteLayoutOptions extends CommonLayoutOptions {
     /**
-     * The layers, in order: either lists of node indices, or the name of a `u32` or `dict` node column whose equal
+     * The layers, in order: either node sets (index arrays, `{ mask }` or `{ ids }`), or the name of a `u32` or `dict`
+     * node column whose equal
      * values form one layer, in ascending value (for `dict`, dictionary) order. A node in no layer, or with an unset
      * value, is not placed: its row is NaN. Default the column `"subset"`.
      */
-    readonly subsets?: readonly ArrayLike<number>[] | string | undefined;
+    readonly subsets?: readonly NodeSet[] | string | undefined;
     /** Default `vertical`. */
     readonly align?: LayerAlign | undefined;
 }
@@ -113,6 +114,9 @@ export function groupsOfColumn(s: GraphSnapshot, name: string, what: string): nu
 export function multipartite(s: GraphSnapshot, options: MultipartiteLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const { subsets = "subset", align = "vertical" } = options;
-    const layers = typeof subsets === "string" ? groupsOfColumn(s, subsets, "subset") : subsets;
+    const layers =
+        typeof subsets === "string"
+            ? groupsOfColumn(s, subsets, "subset")
+            : subsets.map((set) => resolveNodeSet(s, set));
     return result(planar(layeredRows(n, layers, multipartitePlace, align, scale, center), dim, center), dim, n);
 }

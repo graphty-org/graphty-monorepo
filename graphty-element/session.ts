@@ -189,6 +189,12 @@ export {
 } from "./src/session/runs";
 
 // ---------------------------------------------------------------------------------------------
+// The shapes every verb names things with: a column, a run's result column, a coded fact, progress
+// ---------------------------------------------------------------------------------------------
+
+export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+
+// ---------------------------------------------------------------------------------------------
 // Reading what a run produced
 // ---------------------------------------------------------------------------------------------
 

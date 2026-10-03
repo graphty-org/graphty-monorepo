@@ -63,6 +63,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
+import type { ProgressChange } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -775,10 +776,10 @@ export interface SessionEventMap {
      */
     "note:changed": NoteChange;
     /**
-     * What the label overlap rule hid moved: the camera, a node, a label layer or the rule's
-     * switch changed which labels are drawn. Read `session.labels.hiddenIds()` for which.
+     * A load or a run moved on, or stopped: one stream for every progress bar, which a session
+     * with no view publishes too. See {@link ProgressChange}.
      */
-    "labels:changed": LabelCounts;
+    "progress:changed": ProgressChange;
 }
 
 /**

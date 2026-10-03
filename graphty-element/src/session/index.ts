@@ -18,6 +18,7 @@ export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type {
     CommandOutcome,
     CommandOutcomeMap,

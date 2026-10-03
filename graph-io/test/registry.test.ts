@@ -45,7 +45,7 @@ function edges(s: GraphSnapshot): string[] {
 }
 
 /** The built-in formats graph-io reads but does not write. */
-const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cx", "obo"]);
+const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cx", "obo", "cys"]);
 
 describe("FormatRegistry", () => {
     it("holds the built-in formats in GRAPH_FORMATS order; every one is read, all but the read-only ones are written", () => {

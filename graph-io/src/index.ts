@@ -86,6 +86,7 @@ export {
     cx2Importer,
     type Cx2ImportOptions,
 } from "./formats/cx2/index.js";
+export { CYS_ISSUE, cysImporter, type CysImportOptions } from "./formats/cys/index.js";
 export {
     DOT_ISSUE,
     DOT_LOSS,
@@ -156,6 +157,14 @@ export {
     pajekImporter,
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
+export {
+    XGMML_ISSUE,
+    XGMML_LOSS,
+    xgmmlExporter,
+    type XgmmlExportOptions,
+    xgmmlImporter,
+    type XgmmlImportOptions,
+} from "./formats/xgmml/index.js";
 
 // ============================================================ shared helpers for plugin authors (8.4, 8.5, 8.6)
 export {

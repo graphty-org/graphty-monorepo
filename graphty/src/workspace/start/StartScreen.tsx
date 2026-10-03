@@ -91,58 +91,60 @@ export function StartScreen(): React.JSX.Element {
             }}
         >
             <header className="ws-start-head">
-                <span className="ws-start-brand">
+                <h1 className="ws-start-brand">
                     <Network size={16} aria-hidden />
                     graphty
-                </span>
+                </h1>
                 <span className="ws-start-grow" />
                 <PrivacyChip />
                 <CommandButton id="settings.open" icon={<Settings size={16} aria-hidden />} />
             </header>
 
-            <div className="ws-start-cols">
-                <Column title="Start">
-                    <Door id="file.open" icon={<FolderOpen size={16} aria-hidden />} />
-                    <Door id="data.new" icon={<FilePlus size={16} aria-hidden />} />
-                    <Text size="xs" c="dimmed" className="ws-start-line">
-                        <Upload size={12} aria-hidden /> or drop a file anywhere in this window
-                    </Text>
-                    <Text size="xs" c="dimmed" className="ws-start-line">
-                        <Lock size={12} aria-hidden /> Files are read on this computer and never uploaded.
-                    </Text>
-                </Column>
-                <Column title="Recent projects">
-                    <RecentProjects />
-                </Column>
-                <Column title="Samples">
-                    {START_SAMPLES.map((sample) => (
-                        <UnstyledButton
-                            key={sample.id}
-                            className="ws-start-sample"
-                            aria-label={`Open the ${sample.name} sample`}
-                            onClick={() => {
-                                openSample(workspace.store, sample);
-                            }}
-                        >
-                            <span className="ws-start-sample-name">
-                                <Text span size="sm" fw={550} truncate="end">
-                                    {sample.name}
+            <main className="ws-start-main">
+                <div className="ws-start-cols">
+                    <Column title="Start">
+                        <Door id="file.open" icon={<FolderOpen size={16} aria-hidden />} />
+                        <Door id="data.new" icon={<FilePlus size={16} aria-hidden />} />
+                        <Text size="xs" c="dimmed" className="ws-start-line">
+                            <Upload size={12} aria-hidden /> or drop a file anywhere in this window
+                        </Text>
+                        <Text size="xs" c="dimmed" className="ws-start-line">
+                            <Lock size={12} aria-hidden /> Files are read on this computer and never uploaded.
+                        </Text>
+                    </Column>
+                    <Column title="Recent projects">
+                        <RecentProjects />
+                    </Column>
+                    <Column title="Samples">
+                        {START_SAMPLES.map((sample) => (
+                            <UnstyledButton
+                                key={sample.id}
+                                className="ws-start-sample"
+                                aria-label={`Open the ${sample.name} sample`}
+                                onClick={() => {
+                                    openSample(workspace.store, sample);
+                                }}
+                            >
+                                <span className="ws-start-sample-name">
+                                    <Text span size="sm" fw={550} truncate="end">
+                                        {sample.name}
+                                    </Text>
+                                    <Text span size="xs" c="dimmed">
+                                        {sample.size}
+                                    </Text>
+                                </span>
+                                <Text size="xs" c="dimmed">
+                                    {sample.sentence}
                                 </Text>
-                                <Text span size="xs" c="dimmed">
-                                    {sample.size}
-                                </Text>
-                            </span>
-                            <Text size="xs" c="dimmed">
-                                {sample.sentence}
-                            </Text>
-                        </UnstyledButton>
-                    ))}
-                </Column>
-            </div>
+                            </UnstyledButton>
+                        ))}
+                    </Column>
+                </div>
 
-            <div className="ws-start-foot">
-                <UsageDataCard />
-            </div>
+                <div className="ws-start-foot">
+                    <UsageDataCard />
+                </div>
+            </main>
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

@@ -43,6 +43,8 @@ describe("the start screen", () => {
     it("offers the two ways in, Recent projects and the four samples, Les Miserables first", () => {
         renderStart();
 
+        assert.isNotNull(screen.getByRole("heading", { level: 1, name: "graphty" }));
+        assert.isNotNull(screen.getByRole("main"));
         assert.isNotNull(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
         assert.isNotNull(screen.getByRole("button", { name: /New from data\.\.\./ }));
         assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));

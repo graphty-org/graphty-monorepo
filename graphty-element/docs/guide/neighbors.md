@@ -1,50 +1,84 @@
 # Neighbors
 
-`session.data.neighbors(id)` lists the nodes joined to one node, one row per neighbor, with how
-strongly they are tied. Two nodes joined by several edges are one row: their edges are listed
-together and their weights add up to one tie. It is what an inspector reads to show "Valjean, 17
-shared chapters".
+`session.data.neighbors(id)` lists the nodes joined to one node, each once, with the combined
+weight of the edges between them, strongest first. Two nodes joined by several edges are one
+row. It is what an inspector reads when a node is clicked.
 
 ## Quick start
 
-```typescript
+Click a node and list its ten strongest neighbors:
+
+```ts
 import "@graphty/graphty-element";
 
 const element = document.querySelector("graphty-element")!;
-const { session } = element;
-await session.data.addNodes([{ id: "Javert" }, { id: "Valjean" }, { id: "Cosette" }]);
-await session.data.addEdges([
-    { source: "Javert", target: "Valjean", "shared chapters": 10 },
-    { source: "Valjean", target: "Javert", "shared chapters": 7 },
-    { source: "Javert", target: "Cosette", "shared chapters": 2 },
-]);
+const list = document.querySelector("#neighbors")!;
 
-// Javert's neighbors, strongest tie first
-const page = session.data.neighbors("Javert", { weight: "shared chapters" });
-for (const row of page.records) {
-    console.log(`${String(row.node.id)}, ${String(row.tie)} shared chapters`);
-}
-// Valjean, 17 shared chapters
-// Cosette, 2 shared chapters
-page.total; // 2
+element.addEventListener("graphty-node-click", (e) => {
+    const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10 });
+    list.replaceChildren(
+        ...page.records.map((n) => {
+            const li = document.createElement("li");
+            li.textContent = page.measuredBy ? `${n.name}: ${String(n.weight)}` : n.name;
+            return li;
+        }),
+    );
+    list.setAttribute("aria-label", `${String(page.total)} connections`);
+});
 ```
+
+With no options, the weight is the one the graph was loaded with (a `weight` column, for most
+files), and `page.measuredBy` says which column that was. A graph loaded with no weight counts
+edges instead: `page.measuredBy` is `null` and the list is in name order. The words around the
+numbers are yours to choose; the page gives you only the values.
+
+## What you get back
+
+Each row is a `Neighbor`:
+
+| Field        | What it holds                                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `node`       | The neighbor's record, as `session.data.node(id)` returns it.                                                                    |
+| `name`       | The value of the node's label column (`data.knownFields.nodeLabelPath`) as text, or its id when it has none. Render as text.     |
+| `weight`     | The combined weight of the edges between the two; the number of edges when the page counts edges.                                |
+| `edgeCount`  | How many edges join the two, each counted once.                                                                                  |
+| `excludedBy` | `{ kind: "filter" }` when a filter or the time window hides the neighbor; absent otherwise. Hidden neighbors are listed, marked. |
+
+The page is a `NeighborPage`: `records`, `offset`, `total` (how many neighbors, not edges) and
+`revision`, as [`nodePage`](./javascript-api.md#reading-records-a-page-at-a-time) returns, plus:
+
+- `measuredBy`: the weight the rows were combined by, `{ attribute, meaning }`, or `null` when
+  they count edges.
+- `missing`: how many of the edges had no number in the weight column. Each of them weighed 1,
+  as it does in an algorithm run.
 
 ## Options
 
 Every option is optional.
 
-| Option      | Default | What it does                                                                                                                                                    |
-| ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `weight`    | none    | The edge attribute whose values add up to the tie. Without it, each edge counts 1, so the tie is the number of edges. A value that is not a number adds 0.      |
-| `direction` | `"all"` | On a directed graph, `"out"` follows only edges leaving the node and `"in"` only edges arriving at it. An undirected graph follows every edge whatever it says. |
-| `sort`      | `"tie"` | `"tie"` lists the strongest tie first; `"graph"` lists neighbors in the order they were added. Equal ties keep that order too.                                  |
-| `offset`    | `0`     | Where the page starts.                                                                                                                                          |
-| `limit`     | `100`   | How many rows the page holds; `Infinity` reads them all.                                                                                                        |
+| Option      | Default                       | What it does                                                                                                                                                                                                              |
+| ----------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `direction` | `"all"`                       | `"out"` follows only edges leaving the node and `"in"` only edges arriving at it. On an undirected graph all three are the same.                                                                                          |
+| `weight`    | the loaded weight, a strength | `{ attribute, meaning }`, as algorithm runs take it. A `"strength"` adds its edges up; a `"distance"` takes the shortest. `null` counts edges. A column no edge has throws `E_UNKNOWN_ATTRIBUTE`, with the nearest names. |
+| `scope`     | `"graph"`                     | Which neighbors are listed, such as `"selection"` or `{ set: id }`.                                                                                                                                                       |
+| `sort`      | strongest first, else by name | `{ by: "weight" }` or `{ by: "name" }`, smallest first, or largest first with `descending: true`. "Strongest" is the largest strength or the smallest distance. Equal rows keep the order the nodes were added in.        |
+| `offset`    | `0`                           | Where the page starts.                                                                                                                                                                                                    |
+| `limit`     | `100`                         | How many rows the page holds; `Infinity` reads them all.                                                                                                                                                                  |
 
-Each row holds `node` (the neighbor's record), `edges` (the ids of the edges between the two,
-which `session.data.edge(id)` reads) and `tie`. The page also carries `total`, for "17
-connections", and `revision`, which changes whenever the graph does, as for
-[`nodePage`](./javascript-api.md#reading-records-a-page-at-a-time).
+```ts
+// Nearest first, by road distance, following only outgoing edges:
+session.data.neighbors("depot", { weight: { attribute: "km", meaning: "distance" }, direction: "out" });
 
-A node joined only to itself has no neighbors, and a node the graph does not hold answers an
-empty page rather than an error.
+// How many edges join each neighbor, alphabetically:
+session.data.neighbors("alice", { weight: null });
+```
+
+## The rules
+
+- A neighbor is exactly a node `selection.apply({ neighborsOf: [id], direction })` selects,
+  other than the node itself. A self-loop never makes a node its own neighbor.
+- A->B and B->A, read with `direction: "all"`, are one neighbor with `edgeCount` 2.
+- A node the graph does not hold throws a `GraphtyError` with code `E_UNKNOWN_ELEMENT` and
+  `details: { kind: "node", id }`. A node with no edges answers an empty page.
+- Hold a page as long as `revision` matches `session.data.nodePage({ limit: 0 }).revision`; once
+  it differs, read again.

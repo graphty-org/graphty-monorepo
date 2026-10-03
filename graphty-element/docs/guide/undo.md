@@ -28,7 +28,7 @@ A change is undoable when it changes something a project saves, and only then:
 
 | Undoable                         | Examples                                                                                                              |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| The graph                        | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighbourhood, clearing          |
+| The graph                        | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighborhood, clearing          |
 | Algorithm runs and their results | A finished run, and removing one; the style layers a run applies come and go with it                                  |
 | Style layers                     | Adding, editing, moving and removing a layer; applying a template                                                     |
 | What is showing                  | A filter, the time window, whether context is shown                                                                   |

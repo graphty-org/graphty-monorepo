@@ -70,7 +70,14 @@ const config: KnipConfig = {
         "cytoscape-extensions": {
             // the root, and the browser and Node builds the "#gpu-platform" dynamic import loads (the package's
             // `imports` field maps it into dist/, which knip does not follow back to src/)
-            entry: ["src/index.ts!", "src/gpu-platform-browser.ts!", "src/gpu-platform-node.ts!", "test/**/*.test.ts"],
+            entry: [
+                "src/index.ts!",
+                "src/io.ts!",
+                "src/samples.ts!",
+                "src/gpu-platform-browser.ts!",
+                "src/gpu-platform-node.ts!",
+                "test/**/*.test.ts",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms

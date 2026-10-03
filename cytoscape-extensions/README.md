@@ -2,8 +2,10 @@
 
 Every layout in [@graphty/layout](https://graphty.app/docs/layout/api/generated/) as a
 [Cytoscape.js](https://js.cytoscape.org/) 3.x layout extension (thirteen static layouts and the
-ForceAtlas2, Fruchterman-Reingold and spring-electrical force simulations), and every algorithm in
-@graphty/algorithms as a Cytoscape collection and core method.
+ForceAtlas2, Fruchterman-Reingold and spring-electrical force simulations), every algorithm in
+@graphty/algorithms as a Cytoscape collection and core method, and core methods that generate graphs,
+load sample datasets, and read and write graph files (GraphML, GEXF, GML, DOT, Pajek, CSV, JSON,
+Neo4j, CX2).
 
 Not published yet (the package is private while its API settles).
 
@@ -273,6 +275,61 @@ GPU (see [Precision](#webgpu)).
 | Clusters                       | An array of node collections, plus `cluster(node)`                                                                                                                                                          | What Cytoscape's `components()` and `markovClustering()` return                                                                                                                                                                                    |
 | Algorithm-specific options     | The @graphty/algorithms or @graphty/layout name, passed through unchanged (`dampingFactor`, `maxIterations`, `maxIter`, `iterations`)                                                                       | Renaming them here would make two names for each option; where the libraries disagree (`maxIter` against `iterations`), they are fixed there, not here                                                                                             |
 | GPU control                    | `gpu: "auto" \| "off" \| "require"` on every call, `configureWebGpu()` for settings that apply to every core                                                                                                | One option, the same on algorithms and layouts; the result's `backend` (`ran`, `reason`) says what happened                                                                                                                                        |
+
+## Graphs in and out
+
+Four core methods put graphs into a Cytoscape instance and take them out. Each returns a promise:
+the generators, the datasets and the file parsers are loaded on the first call, so a page that only
+uses the layouts never downloads them.
+
+```js
+await cy.graphtyGenerate("barabasi-albert", { n: 500, m: 2, seed: 1 }); // a seeded random graph
+await cy.graphtyDataset("karate"); // Zachary's karate club
+const { report } = await cy.graphtyImport(fileText, "graphml"); // or "auto" to detect the format
+const gexf = await cy.graphtyExport("gexf"); // the whole graph; a collection has graphtyExport too
+cy.layout({ name: "graphty-forceatlas2" }).run(); // generated and imported graphs start at the origin
+```
+
+| Method                                       | Returns                                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cy.graphtyGenerate(name, options)`          | `{ elements, directed }`                 | `name` is a generator of [@graphty/graph-samples](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-samples) in kebab case without "Graph" (`barabasiAlbertGraph` is `"barabasi-albert"`; the list is `GENERATORS` in `@graphty/cytoscape-extensions/samples`), and `options` that function's options, typed per name. The random ones take `seed` (default 0) and give the same graph on every platform. `"named"` takes `{ name: "frucht" }` and the other named graphs |
+| `cy.graphtyDataset(name, options?)`          | `{ elements, directed }`                 | A sample dataset (`"karate"`, `"les-miserables"`, `"football"`, `"openflights"`, ...). The twelve small ones ship with graph-samples; `"road-ny"`, `"ogbn-arxiv"` and `"com-dblp"` are downloaded from graphty.app, and `options` (`baseUrl`, `fetch`, `signal`) controls that download                                                                                                                                                                                                   |
+| `cy.graphtyImport(input, format?, options?)` | `{ elements, directed, format, report }` | `input` is text, bytes or a stream; `format` is `"graphml"`, `"gexf"`, `"gml"`, `"dot"`, `"pajek"`, `"csv"`, `"json"`, `"neo4j"`, `"cx2"`, `"cx"`, `"obo"` or `"auto"` (the default: detected from the content, and from `options.filename` when given). `options` are [@graphty/graph-io](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io)'s import options. A file that cannot be read rejects with graph-io's `ImportError` and adds nothing                      |
+| `eles.graphtyExport(format, options?)`       | the file's text                          | `cy.graphtyExport` writes the whole graph; on a collection, its nodes and those of its edges whose two ends are among them. Every format of graphtyImport except `"cx"` and `"obo"`. `options.directed` (default false) writes a directed graph; the rest are graph-io's export options for the format                                                                                                                                                                                    |
+
+`elements` is the collection that was added, and `directed` says whether the graph is directed: pass
+it on as the algorithms' `directed` option, since a Cytoscape graph has no direction of its own.
+
+How the data maps:
+
+- **Node ids** are the file's or dataset's ids as strings, and `"0"`, `"1"`, ... for a generated
+  graph. Adding a node whose id is already in the core throws, as `cy.add` does: clear the core
+  (`cy.elements().remove()`) or use a fresh one before loading a second graph.
+- **Attributes** become data fields of the same name: a generator's ground truth (`community`,
+  `side`, `layer`), a dataset's columns (`club`, `label`, `latitude`, ...), a file's attributes. Edge
+  weights become `data.weight`. A column named `id`, `source`, `target` or `parent` is not copied,
+  because Cytoscape gives those fields a meaning of its own.
+- **Positions** in a file (GEXF, GML, DOT, Pajek, Cytoscape JSON) become node positions. Export
+  writes every node's position.
+- **Exported data**: every data field of every node and edge becomes an attribute; a numeric edge
+  field `weight` present on every edge becomes the edge weight. Edge ids are not written.
+- **Integer-id formats**: GML and CX2 take only integer ids. Export numbers the nodes and keeps
+  each original id in an attribute that graphtyImport restores, so a round trip keeps the ids. Pass
+  `sanitizeIds: "error"` to refuse instead.
+- **JSON** is written as node-link JSON. Pass `dialect: "cytoscape"` for Cytoscape's own JSON,
+  which also carries positions.
+
+### Sample data licenses
+
+The datasets are not the work of this package's authors, and they are not under its MIT license.
+Each has its own source, citation and license, listed in graph-samples' `DATASETS` (fields
+`citation`, `source`, `license`) and in [its NOTICE file](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-samples/NOTICE).
+In short: karate, florentine-families and davis-southern-women are published facts converted from
+networkx (BSD-3-Clause); les-miserables and knuth-miles are changed files derived from the Stanford
+GraphBase; football is CC BY 4.0; contiguous-usa and road-ny are public domain; openflights is
+ODbL 1.0; ogbn-arxiv is ODC-BY 1.0; political-books, dolphins, celegans-neural, political-blogs
+and com-dblp have no clear license ("free for scientific use"). Cite the source when you publish
+results from one, and check its license before you redistribute it.
 
 ## Using the graph-format snapshot directly
 

@@ -2,6 +2,7 @@
  * What a browser application's bundler makes of the published package: a Vite build of a page that imports the
  * main entry and nothing else. @graphty/webgpu-graph-algorithms must land in a chunk of its own that the page loads
  * only when a GPU-eligible call runs, and the Node build (with its `import("webgpu")`) must not be bundled at all.
+ * The generators, the datasets and the file parsers load the same way, each on its first use.
  *
  * Builds against dist/, the files a consumer installs, so the package must be built first (the pre-push gate and
  * CI do).
@@ -52,6 +53,17 @@ describe("a browser bundle", () => {
         const gpu = chunks.filter((c) => !c.isEntry && /function probeBrowserWebGpu\b/.test(c.code));
         expect(gpu).toHaveLength(1);
         expect(main[0].dynamicImports).toContain(gpu[0].fileName);
+    });
+
+    it("loads the generators, each dataset and the file formats only when asked", () => {
+        const [main] = chunks.filter((c) => c.isEntry);
+        expect(main.code).not.toMatch(/function barabasiAlbertGraph\b|function fetchDataset\b|graphmlImporter/);
+        const owner = (re: RegExp): Rollup.OutputChunk[] => chunks.filter((c) => !c.isEntry && re.test(c.code));
+        expect(owner(/function barabasiAlbertGraph\b/)).toHaveLength(1);
+        expect(owner(/graphmlImporter/).length).toBeGreaterThan(0);
+        const karate = owner(/function karate\(/);
+        expect(karate).toHaveLength(1);
+        expect(karate[0].code).not.toMatch(/function barabasiAlbertGraph\b|function openflights\(/);
     });
 
     it("never bundles the Node build", () => {

@@ -45,7 +45,7 @@ async function openKarate(): Promise<GraphSession> {
     const loaded = session;
     await waitFor(() => {
         assert.equal(loaded.data.statistics().nodeCount, 34);
-        assert.equal(screen.getByRole("button", { name: "Analyze" }).getAttribute("aria-disabled"), "false");
+        assert.isFalse(screen.getByRole("button", { name: "Analyze" }).hasAttribute("aria-disabled"));
     });
     return loaded;
 }
@@ -103,6 +103,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
             });
             assert.isNotNull(screen.getByText("PageRank added, running"));
+            // Focus goes back to Analyze, not to the page.
+            await waitFor(() => {
+                assert.equal(document.activeElement, screen.getByRole("button", { name: "Analyze" }));
+            });
 
             const runId = await finished(session, "pagerank");
             // The run's suggested style landed as a layer bound to the run: it paints.

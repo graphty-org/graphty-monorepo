@@ -41,7 +41,7 @@ describe("the canvas toolbar", () => {
             assert.equal(button.getAttribute("aria-disabled"), "true", name);
             assert.equal(button.getAttribute("aria-description"), "Nothing is drawn", name);
         }
-        assert.equal(screen.getByRole("button", { name: "Quick actions" }).getAttribute("aria-disabled"), "false");
+        assert.isFalse(screen.getByRole("button", { name: "Quick actions" }).hasAttribute("aria-disabled"));
     });
 
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {

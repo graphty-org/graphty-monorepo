@@ -3,7 +3,7 @@ import "./toolbar.css";
 import { Toolbar, ToolButton } from "@graphty/compact-mantine";
 import { Menu, Popover, VisuallyHidden } from "@mantine/core";
 import { Box, Command, FlaskConical, List, Move, Square, Target } from "lucide-react";
-import React, { forwardRef, useState } from "react";
+import React, { forwardRef, useRef, useState } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import { Sections } from "../frame/menus";
@@ -26,7 +26,7 @@ interface CommandToolProps {
 
 /**
  * A toolbar button for one command: its label is the accessible name and the tooltip with the
- * first key; a disabled command stays focusable and carries its reason as its description.
+ * first key; a disabled command stays focusable and its reason follows the name in the tooltip.
  * Forwards its ref so a popover or menu can anchor to it.
  */
 const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function CommandTool(
@@ -47,10 +47,8 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
             icon={icon}
             shortcut={key === undefined ? undefined : formatKey(key)}
             selected={selected}
-            aria-disabled={disabledReason !== null}
-            aria-description={disabledReason ?? undefined}
-            data-disabled={disabledReason === null ? undefined : true}
-            onClick={disabledReason === null ? run : undefined}
+            disabledReason={disabledReason ?? undefined}
+            onClick={run}
         />
     );
 });
@@ -86,6 +84,13 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const dialog = useWorkspaceState((state) => state.dialog);
     const legendShown = useWorkspaceState((state) => state.legendShown);
     const [announcement, setAnnouncement] = useState("");
+    // The button each popover opened from. Mantine's own returnFocus records the element focused
+    // when the popover opens, but the Filter box and the Quick actions search focus themselves as
+    // they mount, before Mantine records it, so it would hand focus back to a box that is gone.
+    const anchors = useRef<Partial<Record<ToolbarPopover, HTMLButtonElement | null>>>({});
+    const anchor = (id: ToolbarPopover) => (button: HTMLButtonElement | null) => {
+        anchors.current[id] = button;
+    };
     const close = (): void => {
         store.set((state) => (state.dialog === dialog ? { dialog: null } : {}));
     };
@@ -99,9 +104,16 @@ export function WorkspaceToolbar(): React.JSX.Element {
             },
             position: "top",
             offset: 8,
+            // Closing (Esc, Run, a pick) unmounts the focused control; focus goes back to the
+            // popover's button, unless the reader has already put it somewhere else.
+            onClose: () => {
+                if (document.activeElement === null || document.activeElement === document.body) {
+                    anchors.current[id]?.focus();
+                }
+            },
             withinPortal: true,
             trapFocus: true,
-            returnFocus: true,
+            returnFocus: false,
         }) as const;
     const dimension = session?.layout.dimension ?? "3d";
 
@@ -111,7 +123,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             <Toolbar aria-label="Canvas tools">
                 <Popover {...popoverProps("analyze")} closeOnEscape={false} width={380}>
                     <Popover.Target>
-                        <CommandTool command="analyze.open" icon={<FlaskConical size={20} />} />
+                        <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<FlaskConical size={20} />} />
                     </Popover.Target>
                     <Popover.Dropdown aria-label="Analyze">
                         {dialog !== "analyze" || session === null ? null : (
@@ -128,7 +140,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 <Toolbar.Divider />
                 <Popover {...popoverProps("layout")} width={280}>
                     <Popover.Target>
-                        <CommandTool command="layout.open" icon={<Move size={20} />} />
+                        <CommandTool ref={anchor("layout")} command="layout.open" icon={<Move size={20} />} />
                     </Popover.Target>
                     <Popover.Dropdown aria-label="Layout">
                         {dialog === "layout" ? <LayoutGroup /> : null}
@@ -137,6 +149,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 <Menu {...popoverProps("view")}>
                     <Menu.Target>
                         <CommandTool
+                            ref={anchor("view")}
                             command="view.open"
                             icon={dimension === "3d" ? <Box size={20} /> : <Square size={20} />}
                         />
@@ -157,7 +170,11 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 <Toolbar.Divider />
                 <Popover {...popoverProps("quick-actions")}>
                     <Popover.Target>
-                        <CommandTool command="quick-actions.open" icon={<Command size={20} />} />
+                        <CommandTool
+                            ref={anchor("quick-actions")}
+                            command="quick-actions.open"
+                            icon={<Command size={20} />}
+                        />
                     </Popover.Target>
                     <Popover.Dropdown p={0}>
                         {dialog === "quick-actions" ? <QuickActionsPalette onClose={close} /> : null}

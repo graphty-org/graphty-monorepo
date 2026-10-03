@@ -236,6 +236,50 @@ export function costLine(seconds: number): string {
     return `About ${String(Math.round(seconds / 3600))} hours`;
 }
 
+/** What the app calls one option of the short form, and each of its choices. */
+interface OptionWords {
+    readonly label: string;
+    readonly choices?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The words for the options the short form draws, by `<algorithm key>.<option name>` (a test
+ * holds that every one the element ships has words here).
+ */
+const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
+    "pagerank.dampingFactor": { label: "Damping factor" },
+    "katz.alpha": { label: "Attenuation" },
+    "louvain.resolution": { label: "Resolution" },
+    "leiden.resolution": { label: "Resolution" },
+    "label-propagation.maxIterations": { label: "Most rounds" },
+    "girvan-newman.maxCommunities": { label: "Most groups" },
+    "components.strength": { label: "Connected", choices: { weak: "Either direction", strong: "Both directions" } },
+    "min-cut.useGlobalMinCut": { label: "Weakest cut anywhere in the graph" },
+    "link-prediction.method": {
+        label: "Score",
+        choices: { "adamic-adar": "Adamic-Adar", "common-neighbors": "Common neighbors" },
+    },
+    "link-prediction.topK": { label: "Pairs" },
+};
+
+/**
+ * The words for one option. An option the app has no words for (a third party's algorithm) reads
+ * under its name and its choices under their values: the element's facts, not its words.
+ * @param algorithm - the algorithm's key.
+ * @param option - the element's option descriptor.
+ * @returns the label, and the word for a choice by its value.
+ */
+export function optionWords(
+    algorithm: string,
+    option: OptionDescriptor,
+): { label: string; choice: (value: string) => string } {
+    const words = OPTION_WORDS[`${algorithm}.${option.name}`];
+    return {
+        label: words?.label ?? option.name,
+        choice: (value) => words?.choices?.[value] ?? value,
+    };
+}
+
 /** The option types the short form draws a control for; the rest keep their defaults. */
 const DRAWN = new Set<OptionDescriptor["type"]>(["number", "integer", "enum", "boolean"]);
 

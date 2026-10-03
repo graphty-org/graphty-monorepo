@@ -159,8 +159,21 @@ export function AnalyzePopover({
     }
 
     const groups = groupAlgorithms(algorithms, filter);
-    const recentKeys = [...new Set(session.runs.list().map((run) => run.algorithm).reverse())].slice(0, RECENT);
-    const recent = filter.trim() === "" ? algorithms.filter((a) => recentKeys.includes(a.key)) : [];
+    const recentKeys = [
+        ...new Set(
+            session.runs
+                .list()
+                .map((run) => run.algorithm)
+                .reverse(),
+        ),
+    ].slice(0, RECENT);
+    // Most recent first.
+    const recent =
+        filter.trim() === ""
+            ? recentKeys
+                  .map((key) => algorithms.find((a) => a.key === key))
+                  .filter((a): a is AlgorithmDescriptor => a !== undefined)
+            : [];
 
     const entry = (descriptor: AlgorithmDescriptor, showStart: boolean): React.JSX.Element => {
         const words = wordsFor(descriptor);
@@ -312,6 +325,7 @@ function Essentials({
                 {options.map((option) => (
                     <OptionField
                         key={option.name}
+                        algorithm={descriptor.key}
                         option={option}
                         value={values[option.name]}
                         onChange={(value) => {

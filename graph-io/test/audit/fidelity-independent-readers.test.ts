@@ -19,6 +19,8 @@ import { describe, expect, it } from "vitest";
 
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cxImporter } from "../../src/formats/cx/importer.js";
+import { cx2Importer } from "../../src/formats/cx2/importer.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
 import { gexfImporter } from "../../src/formats/gexf/importer.js";
@@ -28,6 +30,7 @@ import { graphmlImporter } from "../../src/formats/graphml/importer.js";
 import { jsonImporter } from "../../src/formats/json/importer.js";
 import { neo4jExporter } from "../../src/formats/neo4j/exporter.js";
 import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
+import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { type CommonImportOptions, type GraphImporter } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
@@ -37,6 +40,8 @@ type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>> = {
     csv: csvImporter as GraphImporter<AnyImportOptions>,
+    cx: cxImporter as GraphImporter<AnyImportOptions>,
+    cx2: cx2Importer as GraphImporter<AnyImportOptions>,
     dot: dotImporter as GraphImporter<AnyImportOptions>,
     gexf: gexfImporter as GraphImporter<AnyImportOptions>,
     gml: gmlImporter as GraphImporter<AnyImportOptions>,
@@ -44,6 +49,7 @@ const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>>
     json: jsonImporter as GraphImporter<AnyImportOptions>,
     neo4j: neo4jImporter as GraphImporter<AnyImportOptions>,
     pajek: pajekImporter as GraphImporter<AnyImportOptions>,
+    obo: oboImporter as GraphImporter<AnyImportOptions>,
 };
 
 const NOT_A_GRAPH: ReadonlySet<string> = new Set(["graphml/got-social-network.graphml"]);

@@ -73,6 +73,8 @@ export const GEXF_LOSS = Object.freeze({
     DECLARED_TYPE: "W_DECLARED_TYPE",
     /** A node id whose text reads back as the other type under the canonical rule (design section 4.1): a non-integer number, a string of integer text. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
+    /** A numeric edge id column: GEXF edge ids read back as strings. */
+    EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
     /** A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32. */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
     /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
@@ -265,6 +267,15 @@ function planExport(
             `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honoured by the importer`,
             null,
             typeChanges,
+        );
+    }
+    const edgeIds = snapshot.edges.byRole("id");
+    if (edgeIds !== null && edgeIds.dtype !== "string" && edgeIds.dtype !== "dict") {
+        note(
+            GEXF_LOSS.EDGE_ID_TEXT,
+            `edge id column "${edgeIds.meta.name}" is ${edgeIds.dtype}; GEXF edge ids read back as strings`,
+            edgeIds.meta.name,
+            snapshot.edgeCount - edgeIds.nullCount,
         );
     }
     const tables = collectTemporalTables(snapshot, version, note);

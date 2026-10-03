@@ -126,6 +126,15 @@ function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `${RESULT_PATH_ROOT}.${spec.name}` };
 }
 
+/** The graph-level flag both shortest-path keys publish: a negative cycle makes distances meaningless. */
+const HAS_NEGATIVE_CYCLE = field({
+    name: "hasNegativeCycle",
+    plainName: "Has a loop that costs less every time round",
+    technicalName: "hasNegativeCycle",
+    kind: "graph",
+    type: "boolean",
+});
+
 /** What a metric shape's primary value is called. */
 interface MetricValue {
     plainName: string;
@@ -623,13 +632,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "integer",
             }),
-            field({
-                name: "hasNegativeCycle",
-                plainName: "Has a loop that costs less every time round",
-                technicalName: "hasNegativeCycle",
-                kind: "graph",
-                type: "boolean",
-            }),
+            HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
             optionsOf(DijkstraAlgorithm),
@@ -675,13 +678,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "number",
             }),
-            field({
-                name: "hasNegativeCycle",
-                plainName: "Has a loop that costs less every time round",
-                technicalName: "hasNegativeCycle",
-                kind: "graph",
-                type: "boolean",
-            }),
+            HAS_NEGATIVE_CYCLE,
         ],
         options: optionsOf(FloydWarshallAlgorithm),
         costClass: "cubic",

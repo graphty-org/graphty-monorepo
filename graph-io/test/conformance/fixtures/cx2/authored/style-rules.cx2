@@ -1,0 +1,11 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"name":{"d":"string","a":"n"},"level":{"d":"integer"}}}]},
+{"nodes":[{"id":1,"x":0,"y":0,"v":{"n":"a","level":1}},{"id":2,"x":100,"y":50,"v":{"n":"b","level":3}}]},
+{"edges":[{"id":1,"s":1,"t":2}]},
+{"visualProperties":[{"default":{"network":{"NETWORK_BACKGROUND_COLOR":"#FFFFFF"},"node":{"NODE_SHAPE":"ellipse","NODE_SIZE":35},"edge":{"EDGE_WIDTH":2}},"nodeMapping":{"NODE_LABEL":{"type":"PASSTHROUGH","definition":{"attribute":"name"}},"NODE_FILL_COLOR":{"type":"DISCRETE","definition":{"attribute":"level","map":[{"v":1,"vp":"#FF0000"}]}}},"edgeMapping":{}}]},
+{"visualEditorProperties":[{"properties":{"nodeSizeLocked":true,"NETWORK_SCALE_FACTOR":1.2}}]},
+{"nodeBypasses":[{"id":2,"v":{"NODE_LABEL_FONT_FACE":{"FONT_FAMILY":"serif","FONT_STYLE":"normal","FONT_WEIGHT":"bold"},"NODE_SIZE":60}}]},
+{"cyHiddenAttributes":[{"n":"layoutAlgorithm","v":"Prefuse Force Directed Layout"}]},
+{"status":[{"error":"","success":true}]}
+]

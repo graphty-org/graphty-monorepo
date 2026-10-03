@@ -76,6 +76,16 @@ export {
     csvImporter,
     type CsvImportOptions,
 } from "./formats/csv/index.js";
+export { CX_ISSUE, cxImporter, type CxImportOptions } from "./formats/cx/index.js";
+export {
+    CX2_CAPABILITIES,
+    CX2_ISSUE,
+    CX2_LOSS,
+    cx2Exporter,
+    type Cx2ExportOptions,
+    cx2Importer,
+    type Cx2ImportOptions,
+} from "./formats/cx2/index.js";
 export {
     DOT_ISSUE,
     DOT_LOSS,
@@ -137,6 +147,7 @@ export {
     ORIGINAL_ID_COLUMN,
     TYPE_COLUMN,
 } from "./formats/neo4j/index.js";
+export { OBO_ISSUE, oboImporter, type OboImportOptions } from "./formats/obo/index.js";
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,

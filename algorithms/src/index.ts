@@ -18,7 +18,7 @@ export * from "./indexed/index.js";
 export * as indexed from "./indexed/index.js";
 
 // Errors the algorithms throw.
-export { ConvergenceError, PathWalkError } from "./errors.js";
+export { ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
 
 // General-purpose data structures.
 export * from "./data-structures/index.js";
@@ -46,6 +46,7 @@ export type {
     MstResultLike,
     PageRankOptionsLike,
     PageRankResultLike,
+    PathCountReport,
     ScoresResultLike,
     SsspResultLike,
 } from "./indexed/accelerator.js";

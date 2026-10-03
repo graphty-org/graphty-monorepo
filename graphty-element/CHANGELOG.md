@@ -1,3 +1,28 @@
+## 3.5.4 (2026-10-03)
+
+### 🩹 Fixes
+
+- **graphty-element:** ship the MIT license text with the package ([f00e65d3](https://github.com/graphty-org/graphty-monorepo/commit/f00e65d3))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.25
+- Updated algorithms to 3.1.8
+- Updated graph-io to 0.3.18
+- Updated layout to 2.0.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.5.3 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.24
+- Updated algorithms to 3.1.7
+- Updated layout to 2.0.7
+
 ## 3.5.2 (2026-10-02)
 
 ### 🧱 Updated Dependencies

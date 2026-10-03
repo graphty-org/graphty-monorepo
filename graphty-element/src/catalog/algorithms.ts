@@ -108,6 +108,10 @@ export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
     readonly key: KnownAlgorithm;
     /** Every 1.10 key this descriptor replaces. One entry for all but the two folded keys. */
     readonly legacyKeys: readonly LegacyAlgorithmKey[];
+    /** Required on a built-in: a sentence for every field it publishes. */
+    readonly sentence: Readonly<Record<string, string>>;
+    /** Required on a built-in: at least one. */
+    readonly aliases: readonly string[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -368,6 +372,7 @@ const componentStrengthOptions = defineOptions({
         schema: z.enum(["weak", "strong"]).default("weak"),
         meta: {
             label: "Strength",
+            essential: true,
             description:
                 "Weak follows an edge in either direction. Strong needs a directed path each way, and only differs from weak on a directed graph.",
         },
@@ -412,6 +417,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(DegreeAlgorithm),
         costClass: "instant",
         complexity: "O(n + m)",
+        sentence: {
+            value: "A node scores high when it has many edges.",
+            inDegree: "How many edges point at this node.",
+            outDegree: "How many edges leave this node.",
+        },
+        aliases: ["degree", "links", "popular", "busiest"],
         legacyKeys: [{ key: "degree" }],
     },
     {
@@ -426,6 +437,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(BetweennessCentralityAlgorithm),
         costClass: "heavy",
         complexity: "O(n * m)",
+        sentence: { value: "A node scores high when many shortest paths between other nodes run through it." },
+        aliases: ["brokers", "gatekeepers", "bottlenecks", "go-between"],
         legacyKeys: [{ key: "betweenness" }],
     },
     {
@@ -440,6 +453,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(ClosenessCentralityAlgorithm),
         costClass: "heavy",
         complexity: "O(n * m)",
+        sentence: { value: "A node scores high when it reaches every other node in few steps." },
+        aliases: ["closeness", "central", "well placed", "nearby"],
         legacyKeys: [{ key: "closeness" }],
     },
     {
@@ -453,6 +468,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(PageRankAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: { value: "A node scores high when well-connected nodes link to it." },
+        aliases: ["importance", "prestige", "ranking", "central"],
         legacyKeys: [{ key: "pagerank" }],
     },
     {
@@ -467,6 +484,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(EigenvectorCentralityAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: { value: "A node scores high when its neighbors are themselves well connected." },
+        aliases: ["influence", "prestige", "well connected", "central"],
         legacyKeys: [{ key: "eigenvector" }],
     },
     {
@@ -480,6 +499,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(KatzCentralityAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: { value: "A node scores high when many paths reach it, with shorter paths counting more." },
+        aliases: ["influence", "reach", "indirect", "central"],
         legacyKeys: [{ key: "katz" }],
     },
     {
@@ -504,6 +525,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(HITSAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: {
+            value: "A node scores high when it is a good hub, a good authority, or both.",
+            hub: "A node scores high as a hub when it points at good authorities.",
+            authority: "A node scores high as an authority when good hubs point at it.",
+        },
+        aliases: ["hubs", "authorities", "sources", "directories"],
         legacyKeys: [{ key: "hits" }],
     },
     {
@@ -518,6 +545,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(LouvainAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: {},
+        aliases: ["groups", "clusters", "modules", "factions"],
         legacyKeys: [{ key: "louvain" }],
     },
     {
@@ -532,6 +561,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(LeidenAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: {},
+        aliases: ["groups", "clusters", "modules", "factions"],
         legacyKeys: [{ key: "leiden" }],
     },
     {
@@ -546,6 +577,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(LabelPropagationAlgorithm),
         costClass: "iterative",
         complexity: "O(k(n + m))",
+        sentence: {},
+        aliases: ["groups", "clusters", "quick groups"],
         legacyKeys: [{ key: "label-propagation" }],
     },
     {
@@ -560,6 +593,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(GirvanNewmanAlgorithm),
         costClass: "heavy",
         complexity: "O(n * m^2)",
+        sentence: {},
+        aliases: ["groups", "clusters", "splits", "divisions"],
         legacyKeys: [{ key: "girvan-newman" }],
     },
     {
@@ -578,6 +613,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         ),
         costClass: "instant",
         complexity: "O(n + m)",
+        sentence: {},
+        aliases: ["islands", "pieces", "disconnected", "connected"],
         legacyKeys: [{ key: "connected-components" }, { key: "scc", params: { strength: "strong" } }],
     },
     {
@@ -641,6 +678,16 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         ),
         costClass: "instant",
         complexity: "O((n + m) log n) with dijkstra, O(n * m) with bellman-ford",
+        sentence: {
+            onPath: "True for the nodes and edges on the cheapest route.",
+            order: "This node's position along the route, counting the source as 0.",
+            distance: "How far this node is from the source, adding up edge weights.",
+            length: "How many nodes are on the route.",
+            cost: "What the route costs, adding up the weight of every edge on it.",
+            hops: "How many edges are on the route.",
+            hasNegativeCycle: "True when a loop of negative weights makes the distances meaningless.",
+        },
+        aliases: ["route", "path", "distance", "directions"],
         legacyKeys: [
             { key: "dijkstra", params: { method: "dijkstra" } },
             { key: "bellman-ford", params: { method: "bellman-ford" } },
@@ -683,6 +730,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(FloydWarshallAlgorithm),
         costClass: "cubic",
         complexity: "O(n^3)",
+        sentence: {
+            value: "A node scores high when some node it can reach is far away.",
+            diameter: "The longest distance between any two nodes.",
+            radius: "The shortest distance any node has to the node furthest from it.",
+            hasNegativeCycle: "True when a loop of negative weights makes the distances meaningless.",
+        },
+        aliases: ["distance", "eccentricity", "periphery", "far"],
         legacyKeys: [{ key: "floyd-warshall" }],
     },
     {
@@ -721,6 +775,15 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(BFSAlgorithm),
         costClass: "instant",
         complexity: "O(n + m)",
+        sentence: {
+            level: "How many steps this node is from the start, counting the start as 0.",
+            levelSize: "How many nodes are the same number of steps from the start.",
+            order: "The order in which the walk reached this node.",
+            levelCount: "How many levels the walk reached.",
+            sizes: "How many nodes sit at each number of steps.",
+            targetFound: "True when the walk reached the target.",
+        },
+        aliases: ["hops", "levels", "neighborhood", "degrees of separation"],
         legacyKeys: [{ key: "bfs" }],
     },
     {
@@ -742,6 +805,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(DFSAlgorithm),
         costClass: "instant",
         complexity: "O(n + m)",
+        sentence: {
+            value: "Lower means the walk reached this node earlier.",
+            visited: "True when the walk reached this node.",
+        },
+        aliases: ["explore", "walk", "traversal", "depth"],
         legacyKeys: [{ key: "dfs" }],
     },
     {
@@ -762,6 +830,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "instant",
         complexity: "O(m log m)",
         requires: { directed: false },
+        sentence: {
+            in: "True for the edges in the cheapest network that joins every node.",
+            count: "How many edges are in the network.",
+            totalWeight: "What the network costs, adding up its edge weights.",
+        },
+        aliases: ["spanning tree", "backbone", "skeleton"],
         legacyKeys: [{ key: "kruskal" }],
     },
     {
@@ -782,6 +856,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "instant",
         complexity: "O(m log n)",
         requires: { directed: false },
+        sentence: {
+            in: "True for the edges in the cheapest network that joins every node.",
+            count: "How many edges are in the network.",
+            totalWeight: "What the network costs, adding up its edge weights.",
+        },
+        aliases: ["spanning tree", "backbone", "skeleton"],
         legacyKeys: [{ key: "prim" }],
     },
     {
@@ -806,6 +886,14 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "heavy",
         complexity: "O(n * m)",
         requires: { directed: false },
+        sentence: {
+            in: "True for the edges that pair two nodes.",
+            count: "How many pairs were made.",
+            bipartite: "True when the graph splits into two sides with no edge inside a side.",
+            side: "Which of the two sides this node is on.",
+            matched: "True when this node has a partner.",
+        },
+        aliases: ["matching", "pairs", "assignment", "partners"],
         legacyKeys: [{ key: "bipartite-matching" }],
     },
     {
@@ -838,6 +926,15 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(MaxFlowAlgorithm),
         costClass: "heavy",
         complexity: "O(n * m^2)",
+        sentence: {
+            value: "How much flows along this edge.",
+            capacity: "The most this edge can carry.",
+            utilization: "The share of this edge's capacity in use, from 0 to 1.",
+            netFlow: "The difference between what flows into this node and what flows out of it.",
+            role: "Whether this node is the source, the sink or neither.",
+            maxFlow: "The most that can flow from the source to the sink.",
+        },
+        aliases: ["capacity", "throughput", "flow", "bandwidth"],
         legacyKeys: [{ key: "max-flow" }],
     },
     {
@@ -859,6 +956,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(MinCutAlgorithm),
         costClass: "heavy",
         complexity: "O(n * m^2) between two nodes, O(n * m + n^2 log n) across the whole graph, O(k * n^2) with Karger",
+        sentence: {
+            in: "True for the edges to remove to split the graph in two.",
+            count: "How many edges the cut removes.",
+            cutValue: "What the cut costs, adding up the weight of its edges.",
+            side: "Which side of the cut this node falls on.",
+        },
+        aliases: ["bottleneck", "split", "cut", "vulnerable"],
         legacyKeys: [{ key: "min-cut" }],
     },
     {
@@ -873,6 +977,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(KCoreAlgorithm),
         costClass: "instant",
         complexity: "O(n + m)",
+        sentence: {
+            value: "A node scores high when it sits in a tightly knit core, with at least that many neighbors inside the core.",
+        },
+        aliases: ["core", "dense", "nucleus", "shells"],
         legacyKeys: [{ key: "k-core" }],
     },
     {
@@ -910,6 +1018,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(ClusteringCoefficientAlgorithm),
         costClass: "heavy",
         complexity: "O(m^1.5)",
+        sentence: {
+            value: "A node scores high when its neighbors are also linked to each other, from 0 to 1.",
+            triangles: "How many triangles this node is part of.",
+            transitivity: "The share of connected triples that close into triangles, from 0 to 1.",
+            triangleCount: "How many triangles the graph has.",
+        },
+        aliases: ["cliquish", "triangles", "tight knit", "cliques"],
         legacyKeys: [{ key: "clustering-coefficient" }],
     },
     {
@@ -932,6 +1047,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         options: optionsOf(LinkPredictionAlgorithm),
         costClass: "heavy",
         complexity: "O(n^2 * d)",
+        sentence: { pairs: "Pairs of nodes not yet joined, most likely to be joined first." },
+        aliases: ["recommend", "suggest", "missing links", "friends of friends"],
         legacyKeys: [{ key: "link-prediction" }],
     },
 ];
@@ -967,6 +1084,72 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
     ].map((cls) => [cls.type, cls]),
 );
 
+// ---------------------------------------------------------------------------------------------
+// Reader words
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The sentences for the fields a shape publishes the same way on every algorithm, so an entry
+ * authors only the sentences for its own fields. `{e}` is the element measured ("node" or
+ * "edge"), `{g}` what one group is called ("community", "piece") and `{gs}` its plural.
+ */
+const SHARED_SENTENCES: Readonly<Record<string, string>> = {
+    rank: "Where this {e} sits when every {e} is ordered from highest to lowest, starting at 1.",
+    percentile: "The share of {e}s this one scores at or above, from 0 to 1.",
+    min: "The lowest value of any {e}.",
+    max: "The highest value of any {e}.",
+    median: "The middle value once every {e} is ordered.",
+    mean: "The average value across the {e}s.",
+    measured: "How many {e}s were given a value.",
+    normalization: 'How the values were scaled: "max", "min-max" or "none".',
+    tiedAtMin: "How many {e}s share the lowest value.",
+    group: "Which {g} this node belongs to.",
+    groupSize: "How many nodes are in this node's {g}.",
+    groupCount: "How many {gs} were found.",
+    sizes: "How many nodes are in each {g}, largest first.",
+    modularity: "How separated the groups are: above 0.3 counts as well separated.",
+};
+
+/**
+ * Fill in a built-in's sentences: the shared ones for the fields it publishes, then its own.
+ * @param descriptor - The authored descriptor.
+ * @returns A sentence for every field the descriptor publishes, its own taking precedence.
+ */
+function sentencesFor(descriptor: BuiltInAlgorithmDescriptor): Readonly<Record<string, string>> {
+    const measured = descriptor.fields.find((f) => f.name === "value")?.kind ?? "node";
+    const group = descriptor.fields.find((f) => f.name === "group")?.plainName.toLowerCase() ?? "group";
+    const groups = group.endsWith("y") ? `${group.slice(0, -1)}ies` : `${group}s`;
+    const shared: Record<string, string> = {};
+    for (const { name } of descriptor.fields) {
+        const template = SHARED_SENTENCES[name];
+        if (template !== undefined) {
+            shared[name] = template.replaceAll("{e}", measured).replaceAll("{gs}", groups).replaceAll("{g}", group);
+        }
+    }
+
+    return { ...shared, ...descriptor.sentence };
+}
+
+/** The reader heading for each built-in category. */
+const CATEGORY_LABELS: Readonly<Record<string, string>> = {
+    centrality: "Ranks nodes",
+    community: "Finds groups",
+    path: "Finds paths",
+    flow: "Measures flow",
+    structure: "Describes structure",
+    prediction: "Predicts links",
+};
+
+/**
+ * A plain heading for an algorithm category, for grouping a menu of algorithms.
+ * @param category - A descriptor's `category`.
+ * @returns The heading, such as "Finds groups", or the category as written when the element
+ * does not know it.
+ */
+export function algorithmCategoryLabel(category: string): string {
+    return Object.hasOwn(CATEGORY_LABELS, category) ? CATEGORY_LABELS[category] : category;
+}
+
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
@@ -980,6 +1163,7 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
  */
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => ({
     ...descriptor,
+    sentence: sentencesFor(descriptor),
     scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
         ? "subgraph"
         : "none",

@@ -649,6 +649,20 @@ export interface AlgorithmDescriptor {
      * unknown value as `"none"`.
      */
     scopeInput?: "none" | "subgraph";
+    /**
+     * One plain sentence per result field, keyed by the field's `name`, worded to fit any
+     * dataset: what a reader learns from the value, such as PageRank's `value`, "A node scores
+     * high when well-connected nodes link to it." A legend or a tooltip reads it as written.
+     *
+     * Every built-in carries one for every field it publishes. Optional for a plugin.
+     */
+    sentence?: Readonly<Record<string, string>>;
+    /**
+     * Lowercase words a search box should match besides the names, such as "brokers" for
+     * Betweenness or "groups" for Louvain. Every built-in carries at least one. Optional for a
+     * plugin.
+     */
+    aliases?: readonly string[];
 }
 
 /** One layout the element can place a graph with. */
@@ -1145,6 +1159,12 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * A plain heading for an algorithm category, such as "Ranks nodes" for `centrality` and
+     * "Finds groups" for `community`, for grouping `algorithms()` in a menu. A category the
+     * element does not know (a plugin's own) comes back as written.
+     */
+    categoryLabel(category: AlgorithmDescriptor["category"]): string;
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

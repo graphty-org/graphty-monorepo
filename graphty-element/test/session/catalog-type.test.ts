@@ -17,6 +17,7 @@ import type { GraphSession, SessionCatalogApi } from "../../src/session/types";
 const IMPLEMENTED = [
     "algorithms",
     "cameras",
+    "categoryLabel",
     "formats",
     "layouts",
     "logSinks",

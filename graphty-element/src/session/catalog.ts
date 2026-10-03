@@ -33,7 +33,7 @@
  * wired to the session's query engine yet.
  */
 
-import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
+import { algorithmCategoryLabel, BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
@@ -131,6 +131,12 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * A plain heading for an algorithm category, such as "Finds groups" for `community`.
+     * @param category - A descriptor's `category`.
+     * @returns The heading, or the category as written when the element does not know it.
+     */
+    categoryLabel: (category: string) => algorithmCategoryLabel(category),
 });
 
 /**

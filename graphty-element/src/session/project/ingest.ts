@@ -809,11 +809,12 @@ export class Ingest<K extends KnownEdge> {
         this.loadEndpoints = null;
 
         const named = opts as { edgeSource?: unknown; edgeTarget?: unknown };
-        const source = mapping.source ?? named.edgeSource;
-        const target = mapping.target ?? named.edgeTarget;
+        // A mapping names a column; `edgeSource` / `edgeTarget` are expressions and stay as given.
+        const source = mapping.source === undefined ? named.edgeSource : keyExpression(mapping.source);
+        const target = mapping.target === undefined ? named.edgeTarget : keyExpression(mapping.target);
         const endpointOverrides: AddEdgesOptions = {
-            ...(typeof source === "string" ? { source: keyExpression(source) } : {}),
-            ...(typeof target === "string" ? { target: keyExpression(target) } : {}),
+            ...(typeof source === "string" ? { source } : {}),
+            ...(typeof target === "string" ? { target } : {}),
             ...(mapping.weight === undefined ? {} : { weight: mapping.weight }),
         };
         const nodeIdPath = mapping.nodeId === undefined ? undefined : keyExpression(mapping.nodeId);

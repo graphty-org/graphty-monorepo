@@ -194,6 +194,45 @@ describe("session.data.preview", () => {
     });
 });
 
+describe("import with a mapping", () => {
+    it("reads columns whose names are not bare identifiers", async () => {
+        const session = createGraphSession();
+        const csv = "from station,to station,trip count\nx,y,10\ny,z,3\n";
+        await session.data.import(
+            { name: "trips.csv", config: { data: csv } },
+            { mapping: { source: "from station", target: "to station", weight: "trip count" } },
+        );
+
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
+        assert.strictEqual(session.data.lastImport()?.weights.attribute, "trip count");
+        session.dispose();
+    });
+
+    it("reads the node id from the column the mapping names", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { name: "people.csv", config: { data: "key,name\nk1,Ann\nk2,Bo\n", variant: "node-list" } },
+            { mapping: { nodeId: "key" } },
+        );
+
+        const ids = session.data.nodePage({ limit: 5 }).records.map((record) => record.id);
+        assert.deepEqual(ids, ["k1", "k2"]);
+        session.dispose();
+    });
+
+    it("keeps edgeSource and edgeTarget as expressions, so a nested path still reads", async () => {
+        const session = createGraphSession();
+        const json = JSON.stringify({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [{ rel: { from: "a", to: "b" } }],
+        });
+        await session.data.import({ type: "json", config: { data: json, edgeSource: "rel.from", edgeTarget: "rel.to" } });
+
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 1);
+        session.dispose();
+    });
+});
+
 describe("session.data.preview of one CSV file", () => {
     it("reads an edge list as a node list when the mapping names its table nodes", async () => {
         const session = createGraphSession();

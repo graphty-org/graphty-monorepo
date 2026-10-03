@@ -596,6 +596,36 @@ export function runTools(ctx) {
         );
     }
 
+    /**
+     * Refuses a proposal its run may not make: a revert of anything but a suspect of the run's
+     * open incident, or a close without evidence, of a vetoed issue, or outside the batch.
+     * @param {any} args the tool arguments
+     */
+    const checkProposal = (args) => {
+        if (args.kind === "revert") {
+            if (kind !== "master-red") throw new Error("only a master-red run proposes a revert");
+            const incident = state.incidents?.[run.incident];
+            const { number } = parseTarget(args.target);
+            const suspect = (incident?.suspects ?? []).some((/** @type {any} */ s) => s.pr === number);
+            if (incident?.status !== "open" || !suspect) {
+                throw new Error(`${args.target} is not a suspect of this run's open incident`);
+            }
+            return;
+        }
+        if (kind === "master-red") throw new Error("a master-red run proposes reverts only");
+        const { type, number } = inBatch(args.target);
+        if (type !== "issue") throw new Error("close-issue needs an issue: target");
+        if (state.issues?.byNumber?.[number]?.closeVetoed) {
+            throw new Error(`${args.target} was vetoed before; it is never proposed for closing again`);
+        }
+        if (!args.evidence.some((/** @type {any} */ e) => e.pr || e.commit)) {
+            throw new Error("a close needs at least one pr or commit in evidence");
+        }
+        if ((args.closeAs === "duplicate") !== (args.duplicateOf !== undefined)) {
+            throw new Error("closeAs duplicate and duplicateOf go together");
+        }
+    };
+
     if ((!codeEditing && kind !== "retriage-candidates") || kind === "master-red") {
         tools.push({
             name: "githerd_propose",
@@ -628,30 +658,7 @@ export function runTools(ctx) {
                 additionalProperties: false,
             },
             handler: async (args) => {
-                if (args.kind === "revert") {
-                    if (kind !== "master-red") throw new Error("only a master-red run proposes a revert");
-                    const incident = state.incidents?.[run.incident];
-                    const { number } = parseTarget(args.target);
-                    if (
-                        incident?.status !== "open" ||
-                        !(incident.suspects ?? []).some((/** @type {any} */ s) => s.pr === number)
-                    ) {
-                        throw new Error(`${args.target} is not a suspect of this run's open incident`);
-                    }
-                } else {
-                    if (kind === "master-red") throw new Error("a master-red run proposes reverts only");
-                    const { type, number } = inBatch(args.target);
-                    if (type !== "issue") throw new Error("close-issue needs an issue: target");
-                    if (state.issues?.byNumber?.[number]?.closeVetoed) {
-                        throw new Error(`${args.target} was vetoed before; it is never proposed for closing again`);
-                    }
-                    if (!args.evidence.some((/** @type {any} */ e) => e.pr || e.commit)) {
-                        throw new Error("a close needs at least one pr or commit in evidence");
-                    }
-                    if ((args.closeAs === "duplicate") !== (args.duplicateOf !== undefined)) {
-                        throw new Error("closeAs duplicate and duplicateOf go together");
-                    }
-                }
+                checkProposal(args);
                 outgoing(args.reason, "reason");
                 const open = Object.values(state.proposals ?? {}).find(
                     (/** @type {any} */ p) =>
@@ -663,8 +670,8 @@ export function runTools(ctx) {
                 state.proposals ??= {};
                 const n = Object.keys(state.proposals).filter((k) => k.startsWith(`prop-${day}-`)).length + 1;
                 const random = ctx.random ?? (() => Math.random().toString(36).slice(2, 4).padEnd(2, "0")); // NOSONAR(S2245): tells two proposals of one day apart; not a secret
-                const acting =
-                    ctx.mode === "acting" && config.actions?.[args.kind === "revert" ? "incidents" : "proposals"];
+                const revert = args.kind === "revert";
+                const acting = ctx.mode === "acting" && config.actions?.[revert ? "incidents" : "proposals"];
                 const proposal = {
                     id: `prop-${day}-${n}-${random()}`,
                     kind: args.kind,
@@ -674,7 +681,7 @@ export function runTools(ctx) {
                     evidence: args.evidence,
                     duplicateOf: args.duplicateOf ?? null,
                     proposedBy: id,
-                    incident: args.kind === "revert" ? run.incident : null,
+                    incident: revert ? run.incident : null,
                     proposedAt: now.toISOString(),
                     labeledAt: null,
                     shownToOwnerAt: null,
@@ -684,7 +691,8 @@ export function runTools(ctx) {
                 state.proposals[proposal.id] = proposal;
                 await ctx.save();
                 await ctx.ledger({ kind: "proposal", ...proposal, run: id, untrusted: true });
-                return `${proposal.id}: ${proposal.status === "dry-run" ? "recorded (dry-run, nothing will happen)" : "pending grace and veto"}`;
+                const outcome = acting ? "pending grace and veto" : "recorded (dry-run, nothing will happen)";
+                return `${proposal.id}: ${outcome}`;
             },
         });
     }

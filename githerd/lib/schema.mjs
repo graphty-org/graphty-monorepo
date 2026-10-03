@@ -113,38 +113,63 @@ function check(schema, value, path, errors) {
     if (schema.enum !== undefined && !schema.enum.includes(value)) {
         errors.push(`${path}: must be one of ${schema.enum.map((v) => JSON.stringify(v)).join(", ")}`);
     }
-    if (typeof value === "string") {
-        if (schema.minLength !== undefined && value.length < schema.minLength) {
-            errors.push(`${path}: shorter than ${schema.minLength} characters`);
-        }
-        if (schema.maxLength !== undefined && value.length > schema.maxLength) {
-            errors.push(`${path}: longer than ${schema.maxLength} characters`);
-        }
-        if (schema.pattern !== undefined && !new RegExp(schema.pattern, "u").test(value)) {
-            errors.push(`${path}: does not match ${schema.pattern}`);
-        }
-    }
-    if (typeof value === "number") {
-        if (schema.minimum !== undefined && value < schema.minimum) {
-            errors.push(`${path}: less than ${schema.minimum}`);
-        }
-        if (schema.maximum !== undefined && value > schema.maximum) {
-            errors.push(`${path}: greater than ${schema.maximum}`);
-        }
-    }
+    if (typeof value === "string") checkString(schema, value, path, errors);
+    if (typeof value === "number") checkNumber(schema, value, path, errors);
     if (Array.isArray(value)) {
-        if (schema.minItems !== undefined && value.length < schema.minItems) {
-            errors.push(`${path}: fewer than ${schema.minItems} items`);
-        }
-        if (schema.maxItems !== undefined && value.length > schema.maxItems) {
-            errors.push(`${path}: more than ${schema.maxItems} items`);
-        }
+        checkLength(schema, value, path, errors);
         if (schema.items !== undefined) {
             return value.map((item, i) => check(schema.items, item, `${path}[${i}]`, errors));
         }
     }
     if (got === "object") return checkObject(schema, /** @type {Record<string, unknown>} */ (value), path, errors);
     return value;
+}
+
+/**
+ * Validates a string's length and pattern.
+ * @param {Schema} schema the schema
+ * @param {string} value the string
+ * @param {string} path where the value sits, for messages
+ * @param {string[]} errors collects violations
+ */
+function checkString(schema, value, path, errors) {
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+        errors.push(`${path}: shorter than ${schema.minLength} characters`);
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+        errors.push(`${path}: longer than ${schema.maxLength} characters`);
+    }
+    if (schema.pattern !== undefined && !new RegExp(schema.pattern, "u").test(value)) {
+        errors.push(`${path}: does not match ${schema.pattern}`);
+    }
+}
+
+/**
+ * Validates a number's bounds.
+ * @param {Schema} schema the schema
+ * @param {number} value the number
+ * @param {string} path where the value sits, for messages
+ * @param {string[]} errors collects violations
+ */
+function checkNumber(schema, value, path, errors) {
+    if (schema.minimum !== undefined && value < schema.minimum) errors.push(`${path}: less than ${schema.minimum}`);
+    if (schema.maximum !== undefined && value > schema.maximum) errors.push(`${path}: greater than ${schema.maximum}`);
+}
+
+/**
+ * Validates an array's length.
+ * @param {Schema} schema the schema
+ * @param {unknown[]} value the array
+ * @param {string} path where the value sits, for messages
+ * @param {string[]} errors collects violations
+ */
+function checkLength(schema, value, path, errors) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+        errors.push(`${path}: fewer than ${schema.minItems} items`);
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+        errors.push(`${path}: more than ${schema.maxItems} items`);
+    }
 }
 
 /**

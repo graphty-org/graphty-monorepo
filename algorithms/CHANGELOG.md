@@ -1,3 +1,13 @@
+## 3.1.8 (2026-10-03)
+
+### 🩹 Fixes
+
+- **algorithms:** refuse accelerator betweenness whose path counts overflowed ([#719](https://github.com/graphty-org/graphty-monorepo/issues/719))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.7 (2026-10-02)
 
 ### 🩹 Fixes

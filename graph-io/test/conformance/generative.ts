@@ -380,7 +380,9 @@ export const NOTE_RELAX: Readonly<Record<string, readonly Relax[]>> = {
     W_DIRECTION_DROPPED: ["direction"],
     W_CSV_DIRECTION_DROPPED: ["direction"],
     W_NEO4J_UNDIRECTED_AS_DIRECTED: ["direction"],
+    W_CX2_UNDIRECTED_AS_DIRECTED: ["direction"],
     W_NONFINITE_AS_NULL: ["nonFiniteUnset"],
+    W_CX2_NONFINITE_AS_NULL: ["nonFiniteUnset"],
     // a non-finite cell reads back as text, so its column reads back as a string column (5.1 grammar)
     W_DOT_NON_FINITE: ["nonFiniteText", "textInferred"],
     W_PAJEK_NONFINITE_AS_TEXT: ["nonFiniteText", "textInferred"],
@@ -414,6 +416,7 @@ export const TARGETS: readonly Target[] = [
     { name: "json jgf", format: "json", exportOptions: { dialect: "jgf" } },
     { name: "json cytoscape", format: "json", exportOptions: { dialect: "cytoscape" } },
     { name: "json graphology", format: "json", exportOptions: { dialect: "graphology" } },
+    { name: "cx2", format: "cx2", exportOptions: { sanitizeIds: "mangle" } },
 ];
 
 /**

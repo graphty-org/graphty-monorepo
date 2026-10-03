@@ -35,6 +35,13 @@ const VALUE_EXPORTS = [
     "CSV_LOSS",
     "csvExporter",
     "csvImporter",
+    "CX_ISSUE",
+    "cxImporter",
+    "CX2_CAPABILITIES",
+    "CX2_ISSUE",
+    "CX2_LOSS",
+    "cx2Exporter",
+    "cx2Importer",
     "DOT_LOSS",
     "DOT_ISSUE",
     "dotExporter",
@@ -212,6 +219,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     it("re-exports each format's importer and exporter under its format name", () => {
         const pairs: [string, graphIo.GraphImporter, graphIo.GraphExporter][] = [
             ["csv", graphIo.csvImporter, graphIo.csvExporter],
+            ["cx2", graphIo.cx2Importer, graphIo.cx2Exporter],
             ["dot", graphIo.dotImporter, graphIo.dotExporter],
             ["gexf", graphIo.gexfImporter, graphIo.gexfExporter],
             ["gml", graphIo.gmlImporter, graphIo.gmlExporter],
@@ -228,11 +236,16 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO is read-only: an importer, no exporter
-        expect(graphIo.oboImporter.format).toBe("obo");
-        expect(graphIo.registry.importer("obo")).toBe(graphIo.oboImporter);
-        expect(graphIo.registry.hasExporter("obo")).toBe(false);
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo"]));
+        // OBO and CX version 1 are read-only: an importer, no exporter
+        for (const [format, importer] of [
+            ["obo", graphIo.oboImporter],
+            ["cx", graphIo.cxImporter],
+        ] as const) {
+            expect(importer.format).toBe(format);
+            expect(graphIo.registry.importer(format)).toBe(importer);
+            expect(graphIo.registry.hasExporter(format)).toBe(false);
+        }
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo", "cx"]));
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -240,6 +253,9 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             LOSS: graphIo.LOSS,
             CSV_ISSUE: graphIo.CSV_ISSUE,
             CSV_LOSS: graphIo.CSV_LOSS,
+            CX_ISSUE: graphIo.CX_ISSUE,
+            CX2_ISSUE: graphIo.CX2_ISSUE,
+            CX2_LOSS: graphIo.CX2_LOSS,
             DOT_ISSUE: graphIo.DOT_ISSUE,
             DOT_LOSS: graphIo.DOT_LOSS,
             GEXF_ISSUE: graphIo.GEXF_ISSUE,

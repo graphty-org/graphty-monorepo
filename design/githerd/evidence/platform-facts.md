@@ -513,3 +513,151 @@ claim the session makes through githerd (a tool call or a hook), or the name git
 - Every test session ran the owner's user hooks (Stop hook notifications, history sync) unless
   `--setting-sources` excluded user settings. A session githerd starts is a normal owner
   session in every respect, including phone notifications from its hooks.
+
+---
+
+## 7. Spikes run on 2026-10-03
+
+Claude Code 2.1.288, tmux 3.4. Every probe ran on a private tmux socket (`tmux -L githerd-spike`)
+from a scratch directory under the githerd worktree's `tmp/githerd/spikes/` (the scripts are
+copied to `spikes-2026-10-03/` beside this file, prefixed with the spike's name), with
+`--setting-sources project,local --strict-mcp-config`, so the owner's user hooks (his Pushover
+pages) never ran. Every session was ended with `/exit` and the socket was gone afterwards
+(`tmux -L githerd-spike ls` -> "no server running"; `claude agents --json` listed none). Pane text is
+transcribed to ASCII: `>` is the prompt character, `*` the reply bullet, `---` a rule line.
+
+### 7.1 S13: Opus 5.5 obeys a Stop-hook block, unless the user said otherwise
+
+Hook (`s13/stop-hook.sh`): on the first stop of a turn it prints `{"decision":"block","reason":...}`;
+when `stop_hook_active` is true it allows the stop.
+
+```
+$ tmux -L githerd-spike new-session -d -s s13 ... "claude --model claude-opus-5-5 \
+    --setting-sources project,local --strict-mcp-config --settings s13/settings.json \
+    -n githerd-spike-s13 'Reply with the single word START and nothing else.'"
+pane:
+  > Reply with the single word START and nothing else.
+  * START
+  * Ran 1 stop hook
+    Stop hook error: githerd Stop gate: job pr-412 is not done (the pull request has no green
+    checks yet). Before you stop, reply with the exact line JOB-ACK-7Q2 so githerd knows you saw this.
+  * JOB-ACK-7Q2
+```
+
+Second case: the user's own words contradict the reason. With `AskUserQuestion` allowed, Opus
+asked through the picker instead (pane: "Which indentation should the new config file use? > 1. 2
+spaces 2. 4 spaces 3. Type something. 4. Chat about this / Enter to select ... Esc to cancel";
+registry `{"status":"waiting","waitingFor":"input needed"}`). Escape cancelled it ("User declined to
+answer questions") and the Stop hook was NOT called for that interrupted turn (`count` unchanged).
+With `--disallowedTools AskUserQuestion`:
+
+```
+  > I am about to create a small config file. Should it use 2-space or 4-space indentation? Ask me
+    which one I want; do not pick one yourself.
+  * Do you want 2-space or 4-space indentation for the config file?
+    ACTION NEEDED: reply "2" or "4" to pick the config file's indentation
+  * Ran 1 stop hook
+    Stop hook error: githerd Stop gate: your last message asks the owner a question that is not a
+    one-way door (it is reversible with an edit). Decide it yourself, state the choice and the
+    reason in one line, and end that line with the token DECIDED-4K.
+  * I'm still not picking one. The Stop hook wants me to choose the indentation myself, but you
+    told me directly to ask you and not decide, and that specific instruction outweighs the general
+    rule the hook enforces. If you'd rather I just choose, say so.
+    ACTION NEEDED: reply "2" or "4" for the config file's indentation (or "you pick")
+```
+
+Verdict: passes for a reason that does not contradict the user; refused, openly, when it does.
+Also observed: the owner's `~/.claude/CLAUDE.md` is loaded even with user settings excluded (the
+reply carries `ACTION NEEDED`), and an interrupted turn runs no Stop hook. Design changed: 7.1 puts
+"decide reversible questions yourself" in the launch prompt, 7.3 restates only rules the user side
+already gave.
+
+### 7.2 S18: under `env -i`, neither hooks nor the Bash tool see the Pushover keys
+
+`s18/run.sh` started two Haiku sessions with a SessionStart and a Stop hook that log
+`env | grep -c '^PUSHOVER'` and the names of `CLAUDE*` variables, and asked each to run the same
+count in its Bash tool. One inherited this shell's environment (which has both Pushover variables
+from `~/.bashrc`); the other ran under `env -i HOME PATH TERM LANG`.
+
+```
+inherit: Bash tool -> bash pushover=2 ; SessionStart hook pushover=2 ; Stop hook pushover=2
+clean:   Bash tool -> bash pushover=0 ; SessionStart hook pushover=0 ; Stop hook pushover=0
+clean hook CLAUDE* names: CLAUDECODE, CLAUDE_CODE_CHILD_SESSION, CLAUDE_CODE_ENTRYPOINT,
+  CLAUDE_CODE_MESSAGING_SOCKET, CLAUDE_CODE_MESSAGING_TOKEN, CLAUDE_CODE_SESSION_ATTENDED,
+  CLAUDE_CODE_SESSION_ID, CLAUDE_ENV_FILE (SessionStart only), CLAUDE_PID, CLAUDE_PROJECT_DIR
+clean Bash tool adds: CLAUDE_CODE_EXECPATH
+inherit adds what this shell carried: CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION, CLAUDE_EFFORT
+```
+
+`~/.bashrc` returns early for non-interactive shells, and the Bash tool's shell snapshot does not
+re-export its Pushover lines. The owner's `claude-notify.sh` exits with "Please set
+PUSHOVER_USER_KEY ..." when they are missing, so a worker cannot page. Verdict: passes. Design
+changed: 7.1 and 12.1 drop the "worker paging not isolated" banner and the notify-script line;
+the self-test (11.4) allows exactly the variables Claude Code sets itself, instead of failing on
+any `CLAUDE_CODE_*`.
+
+### 7.3 An interactive session in a detached tmux pane, read and typed from outside
+
+`tmux/run.sh`, Haiku, `--permission-mode default` (the local settings would otherwise turn on auto
+mode). Captures are in `tmux/1-permission.txt` to `6-after-doorbell.txt`.
+
+```
+permission prompt   registry {"status":"waiting","waitingFor":"permission prompt"}
+                    pane: "Bash command / date +%s > perm-probe.txt / Do you want to proceed? /
+                    > 1. Yes  2. Yes, and always allow access to <dir> from this project  3. No /
+                    Esc to cancel . Tab to amend"
+send-keys 1         -> file written; registry idle
+idle prompt box     registry idle; pane: "--- ... --- githerd-spike-tmux ---" / ">" (nothing after) / "---"
+owner half-typed    send-keys -l 'partial owner text' -> registry STILL idle; pane "> partial owner text"
+C-u                 -> box empty again; footer "Ctrl+Y to paste deleted text"
+doorbell            send-keys -l '<text>' -> pane shows it in the box; Enter -> busy -> idle; "* DOORBELL-OK"
+/exit               -> pid gone, ~/.claude/sessions/<pid>.json gone, tmux server exited
+```
+
+Verdict: passes. The registry cannot tell an empty box from the owner's unsent text, so the pane
+match is required before typing. Design changed: 7.5 names the exact prompt-box marker and the
+picker marker.
+
+### 7.4 How long one MCP tool call can hold a turn
+
+A 40-line stdio MCP server (`mcp/block-server.mjs`) with a `block(seconds)` tool; four Haiku
+sessions at once.
+
+```
+default env, 200 s:                     backgrounded at 120 s ("MCP tool "spike/block" is still
+                                        running after 120s. It was moved to the background as task
+                                        ..."); the turn ended; the result came as a task notification
+CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS=0, 420 s, no progress:   held the turn; "waited 420s"; "Churned for 7m 7s"
+same, with progress every 20 s:         held; "waited 420s"
+same, CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=0:   held; "waited 420s"
+server log: every call "done after 420.0s", none cancelled
+```
+
+The binary names the controls: `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` (0 disables the move to the
+background), `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` (ms, 0 disables; "sent no response or progress
+for N s; aborting"), a per-server `timeout` in ms, and `MCP_TOOL_TIMEOUT`. The idle timeout did not
+fire within 420 s of silence. The upper bound was not searched beyond 7 minutes. Verdict: a call
+can block for at least 7 minutes when the background move is off. Design: no change; every githerd
+tool answers at once (section 6 says why).
+
+### 7.5 GitHub refusing a merge or an update on a moved head: not run, from documentation
+
+A throwaway repository could not be created and deleted cleanly: `gh auth status` shows the scopes
+`gist, read:org, repo, workflow`, without `delete_repo`, so a test repository would outlive the
+test. Nothing was created. From GitHub's REST and GraphQL documentation:
+`PUT /pulls/{n}/merge` with `sha` answers 409 "Head branch was modified" on a moved head;
+`PUT /pulls/{n}/update-branch` with `expected_head_sha` answers 422 on a mismatch and 202 when it
+starts the update; GraphQL `mergePullRequest` and `updatePullRequestBranch` take `expectedHeadOid`.
+Verdict: unverified. Design: githerd no longer merges (Mergify does), so the merge half no longer
+matters; the update half stays spike S2 and runs on the first real update in dry-run review.
+
+### 7.6 The usage-limit screen: not testable here
+
+It appears only when the limit is reached, and reaching it on purpose spends the owner's usage;
+choosing among its options may switch on paid extra usage. Strings in the 2.1.288 binary (read
+only) show what it can contain: "You've hit your limit", "limit resets <time>", "Stop and wait for
+limit to reset", "Wait here, then continue automatically when the limit resets", "You're now using
+extra usage", and the analytics names `rate_limit_options_menu_select_extra_usage` and
+`rate_limit_options_menu_select_auto_resume`. Verdict: not testable without spending; record the
+first real occurrence. Design: no change. githerd already never types into an unknown screen; the
+menu's paid option is one more reason (8.3).

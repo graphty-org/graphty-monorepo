@@ -696,6 +696,25 @@ describe("accelerated(acc)", () => {
             ]);
         });
 
+        it("hands an exact harmonic closeness only to an accelerator that declares harmonicCloseness", async () => {
+            const s = sixNodes();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated({ ...stub(calls), harmonicCloseness: true });
+            expect(await dispatcher.closenessCentrality(s, { harmonic: true })).toBe(closeness);
+            expect(calls).toEqual([["closenessCentrality", s, { weighted: false, harmonic: true }]]);
+            // a sampled or normalized harmonic run is the port's
+            for (const options of [
+                { harmonic: true, sources: [0, 3] },
+                { harmonic: true, k: 2 },
+                { harmonic: true, normalized: true },
+            ]) {
+                expect((await dispatcher.closenessCentrality(s, options)).scores, JSON.stringify(options)).toEqual(
+                    indexed.closenessCentrality(s, options).scores,
+                );
+            }
+            expect(calls).toHaveLength(1);
+        });
+
         it("hands a sampled closeness the sources the port would run, undirected only", async () => {
             const s = sixNodes();
             const calls: unknown[][] = [];

@@ -239,16 +239,47 @@ for (const channel of channelsFor("edge")) {
 }
 ```
 
-| Field               | What it holds                                                                                                                      |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `plainName`         | the full name, "Arrow Head Size"                                                                                                   |
-| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                            |
-| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
-| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
-| `values`            | every choice, for an `enum`                                                                                                        |
-| `min`, `max`        | the bounds, for a `number`                                                                                                         |
-| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
-| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                 |
+| Field               | What it holds                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `plainName`         | the full name, "Arrow Head Size"                                                                                                         |
+| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                                  |
+| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                                 |
+| `section`           | the heading the row sits under: `fill`, `size`, `shape`, `effects`, `label`, `tooltip` for a node; `line`, `arrows`, `label` for an edge |
+| `order`             | where the row comes among its target's rows, from 0; `channelsFor` already returns them in this order                                    |
+| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                               |
+| `values`            | every choice, for an `enum`                                                                                                              |
+| `min`, `max`        | the bounds, for a `number`                                                                                                               |
+| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color`       |
+| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                       |
+
+#### Sections, in order
+
+`channelsFor` lists a target's channels section by section, in the order an editor draws them:
+Fill, Size, Shape, Effects, Label and Tooltip for nodes; Line, Arrows and Label for edges. Size has
+a section of its own, so a reader looking for it does not have to find it under Shape. To draw one
+heading per section, group the rows as they come:
+
+```typescript
+import { channelsFor } from "@graphty/graphty-element/catalog";
+
+const sections = new Map<string, string[]>();
+
+for (const channel of channelsFor("node")) {
+    const rows = sections.get(channel.section) ?? [];
+    rows.push(channel.shortName);
+    sections.set(channel.section, rows);
+}
+
+// fill: Color, Opacity
+// size: Size
+// shape: Type
+// effects: Outline, Glow, Glow strength, Wireframe, Flat shaded, Marker
+// label: Label, Label style
+// tooltip: Tooltip, Tooltip style
+for (const [section, rows] of sections) {
+    console.log(`${section}: ${rows.join(", ")}`);
+}
+```
 
 ### Labels that would overlap
 

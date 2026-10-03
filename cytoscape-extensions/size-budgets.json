@@ -20,6 +20,6 @@
         "generators (on the first graphtyGenerate or graphtyDataset)": 23967,
         "WebGPU code (on the first GPU-eligible call)": 115920,
         "everything (every chunk of the build)": 788244,
-        "script-tag bundle (dist/cytoscape-extensions.bundle.js)": 781285
+        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)": 257497
     }
 }

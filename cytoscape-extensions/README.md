@@ -66,14 +66,40 @@ cytoscape.use(require("@graphty/cytoscape-extensions").default);
 
 On an older Node, use `await import("@graphty/cytoscape-extensions")`.
 
+### No build step: ES modules from a CDN
+
+A page with no bundler loads the package's ES module build from jsDelivr with
+`<script type="module">`. It behaves as it does in a bundled application: only the main entry
+(about 107 KiB compressed) loads at start, and the WebGPU code, the generators, each dataset and
+the file formats are fetched from the CDN the first time they are used.
+
+```html
+<div id="cy" style="width: 800px; height: 600px"></div>
+<script type="module">
+    import cytoscape from "https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.esm.min.mjs";
+    import graphtyCytoscape from "https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cdn/cytoscape-extensions.js";
+
+    cytoscape.use(graphtyCytoscape);
+    const cy = cytoscape({ container: document.getElementById("cy") });
+    await cy.graphtyDataset("karate"); // fetches the generators and the karate dataset now
+    cy.elements().graphtyPageRank({ field: "rank" });
+    cy.layout({ name: "graphty-forceatlas2", animate: true }).run();
+</script>
+```
+
+Pin a version in production (`@graphty/cytoscape-extensions@1.2.3/dist/cdn/...`). Use the
+`dist/cdn/` path, not jsDelivr's `/+esm`: every file under `dist/cdn/` imports the others by
+relative paths, which is what lets the lazy parts load from the same place. To host the files
+yourself, copy the whole `dist/cdn/` folder.
+
 ### Script tag
 
-For a page with no build step, `dist/cytoscape-extensions.bundle.js` is one classic script holding
-the extension and everything it needs, including WebGPU detection: on a browser with WebGPU the
-asynchronous methods and the simulations use the GPU exactly as they do in a bundled application.
-Loaded after Cytoscape, it registers itself onto the global `cytoscape`, so there is no `use()`
-call. It also sets the global `graphtyCytoscape`, for a page that loads Cytoscape afterwards and
-calls `cytoscape.use(graphtyCytoscape)` itself.
+For a page that cannot use modules, `dist/cytoscape-extensions.bundle.js` is one classic script
+holding the extension, every layout and algorithm, the generators and WebGPU detection: on a
+browser with WebGPU the asynchronous methods and the simulations use the GPU exactly as they do in
+a bundled application. Loaded after Cytoscape, it registers itself onto the global `cytoscape`, so
+there is no `use()` call. It also sets the global `graphtyCytoscape`, for a page that loads
+Cytoscape afterwards and calls `cytoscape.use(graphtyCytoscape)` itself.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"></script>
@@ -89,9 +115,11 @@ calls `cytoscape.use(graphtyCytoscape)` itself.
 </script>
 ```
 
-Because nothing in it can be loaded later, it carries every generator, every bundled dataset and
-every file format: about 2.3 MB, 0.7 MB compressed. A bundled application pays only for what it
-calls.
+It is 799 KiB, 229 KiB compressed, and loads all of it at start. The file formats and the
+datasets are not in it: the first `graphtyImport`, `graphtyExport` or `graphtyDataset` call
+fetches them from `dist/cdn/` next to the script, from the same URL and so the same version. That
+needs the script to be loaded by a `<script src>` tag; loaded any other way, those calls reject
+with an error naming the ES module path above.
 
 ### TypeScript
 
@@ -413,8 +441,8 @@ writeData(nodes, pageRank(snapshot).scores, "rank");
 - **One graph at a time.** Loading a graph whose node ids are already in the core throws, as `cy.add` does.
 - **GPU results are single precision.** They can differ from the CPU's in the last digits, and label
   propagation can break ties differently (see "Precision" under [WebGPU](#webgpu)).
-- **The script-tag file is large.** It carries every generator, dataset and format, so it is several times
-  what a bundled application loads (see [Script tag](#script-tag)).
+- **The script-tag file loads everything at start.** At 229 KiB compressed it is about twice what the
+  ES module build loads up front (see [Script tag](#script-tag)).
 
 ## Naming
 

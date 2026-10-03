@@ -53,6 +53,7 @@ interface LayoutRun {
     seed: number;
     /** Simulations: the fixed iteration count (maxIter for ForceAtlas2, iterations for the others). */
     iterations: number;
+    /** Simulations: draw every frame. Static layouts: tween from the old positions to the new (`animate: "end"`). */
     animate: boolean;
     extra?: Record<string, unknown>;
 }
@@ -78,6 +79,10 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         });
     } else if (run.gpuMode === "require") {
         throw new Error(`graphty-${layout} has no GPU implementation; only the force simulations do`);
+    } else if (run.animate) {
+        // a new core has every node at the origin: scatter them first, so the tween glides from somewhere
+        await layoutOnce(cy, { name: "graphty-random", seed: run.seed, animate: false });
+        options.animate = "end";
     }
     const backend = await layoutOnce(cy, { ...options, ...run.extra });
     if (!backend) {

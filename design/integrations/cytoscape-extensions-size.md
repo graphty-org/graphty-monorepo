@@ -25,18 +25,18 @@ It needs the network for the comparison packages.
 
 ## The numbers
 
-| What                                                                                   |   Minified |   Gzipped |
-| -------------------------------------------------------------------------------------- | ---------: | --------: |
-| **Main entry, up front** (every layout and algorithm registered)                       |  355.3 KiB | 107.1 KiB |
-| ... of which the layouts alone                                                         |  224.9 KiB |  65.0 KiB |
-| ... of which the algorithms alone                                                      |  282.2 KiB |  83.9 KiB |
-| WebGPU code, on the first GPU-eligible call                                            |  391.9 KiB | 102.9 KiB |
-| Generators, on the first `graphtyGenerate` or `graphtyDataset`                         |   55.9 KiB |  21.3 KiB |
-| File formats, all eight together, on the first `graphtyImport` or `graphtyExport`      |  503.5 KiB | 157.0 KiB |
-| One dataset, on first use: karate                                                      |    2.8 KiB |   1.5 KiB |
-| One dataset, on first use: openflights (the largest bundled one)                       |  615.7 KiB | 181.2 KiB |
-| Everything (every chunk of the build, all 12 bundled datasets included)                | 2288.0 KiB | 699.8 KiB |
-| Script-tag bundle (`dist/cytoscape-extensions.bundle.js`, one file holding everything) | 2288.8 KiB | 693.6 KiB |
+| What                                                                                    |   Minified |   Gzipped |
+| --------------------------------------------------------------------------------------- | ---------: | --------: |
+| **Main entry, up front** (every layout and algorithm registered)                        |  355.3 KiB | 107.1 KiB |
+| ... of which the layouts alone                                                          |  224.9 KiB |  65.0 KiB |
+| ... of which the algorithms alone                                                       |  282.2 KiB |  83.9 KiB |
+| WebGPU code, on the first GPU-eligible call                                             |  391.9 KiB | 102.9 KiB |
+| Generators, on the first `graphtyGenerate` or `graphtyDataset`                          |   55.9 KiB |  21.3 KiB |
+| File formats, all eight together, on the first `graphtyImport` or `graphtyExport`       |  503.5 KiB | 157.0 KiB |
+| One dataset, on first use: karate                                                       |    2.8 KiB |   1.5 KiB |
+| One dataset, on first use: openflights (the largest bundled one)                        |  615.7 KiB | 181.2 KiB |
+| Everything (every chunk of the build, all 12 bundled datasets included)                 | 2288.0 KiB | 699.8 KiB |
+| Script-tag bundle (`dist/cytoscape-extensions.bundle.js`, without formats and datasets) |  799.1 KiB | 229.3 KiB |
 
 The two halves of the main entry add up to more than the entry, because they share the
 Cytoscape-to-snapshot conversion and the GPU dispatch. Every bundled dataset is its own chunk: the
@@ -92,7 +92,26 @@ cytoscape-graphml's 1.7 KiB, because graph-io reads eight formats with validatio
 streaming input, where cytoscape-graphml reads one format through jQuery; they load only when a file
 is read or written.
 
-## Recommendation
+## Decision
+
+The owner decided on 2026-10-03: **one package; the CDN ES module build is the no-build path.**
+
+- A page with no build step loads `dist/cdn/cytoscape-extensions.js` from jsDelivr with
+  `<script type="module">`. `dist/cdn/` is a Vite build of the package with every graphty
+  dependency bundled in and the library's code splitting kept, so every import inside it is a
+  relative path that resolves against the CDN. That page pays what a bundled application pays:
+  107 KiB gzipped up front, and the WebGPU code, the generators, each dataset and the file formats
+  only when first used. A local check (the built `dist/` on a static server, loaded by Chromium)
+  fetched only the entry and two shared chunks at start; `graphtyDataset("karate")` then fetched
+  the generators and `datasets/karate.js`, and the first `graphtyExport` fetched `io.js`.
+- jsDelivr's `/+esm` form was not chosen: it rebuilds the package from the library build, whose
+  imports are bare package names and a `#gpu-platform` subpath import, and its handling of the
+  dynamic imports behind the lazy parts cannot be checked before a publish. The `dist/cdn/` files
+  are served as built, so what the local check saw is what a page gets.
+- The script-tag bundle stays as the documented fallback, for pages that cannot use modules. It
+  no longer holds the file formats and the datasets, which were two thirds of it: on first use it
+  imports them from `dist/cdn/` next to itself, at the URL it was loaded from (so the same
+  version). That took it from 693.6 KiB to 229.3 KiB gzipped.
 
 **Publish one package.** Splitting it would multiply the installs, the documentation and the
 versions to keep in step, and break the "install it and WebGPU just works" promise, for a saving of

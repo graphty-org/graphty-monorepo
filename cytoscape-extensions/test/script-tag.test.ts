@@ -40,8 +40,12 @@ function load(withCytoscape: boolean): unknown {
 }
 
 describe("the script-tag bundle", () => {
-    it("is one file with nothing left to load", () => {
+    it("is one file that loads only the file formats and the datasets later, from dist/cdn/", () => {
         expect(code).not.toMatch(/\bimport\s*\(\s*["'`]|^\s*import\s|^\s*export\s/m);
+        // its one dynamic import is the loader, which resolves against the script's own URL
+        expect(code.match(/\bimport\(/g)).toHaveLength(1);
+        expect(code).toMatch(/import\(new URL\("cdn\/"\+/);
+        expect(code).not.toMatch(/graphmlImporter|function karate\(/);
         expect(code).not.toMatch(/probeNodeWebGpu/);
         // the GPU detection is inside it
         expect(code).toMatch(/navigator\.gpu/);
@@ -67,6 +71,14 @@ describe("the script-tag bundle", () => {
         expect(cy.$("#a").position()).not.toEqual(cy.$("#b").position());
         await cy.graphtyGenerate("grid", { rows: 2, cols: 2 });
         expect(cy.nodes().length).toBe(7);
+    });
+
+    it("names the ES module build when it cannot tell where it was loaded from", async () => {
+        // the test above registered the bundle onto cytoscape (a second registration only warns)
+        const cy = cytoscape({ headless: true });
+        // Node has no document.currentScript, as a bundle loaded by eval or a module loader has none
+        await expect(cy.graphtyDataset("karate")).rejects.toThrow(/dist\/cdn\/cytoscape-extensions\.js/);
+        await expect(cy.graphtyExport("graphml")).rejects.toThrow(/not loaded by a <script src> tag/);
     });
 
     it("leaves registration to the page when Cytoscape is not loaded yet", () => {

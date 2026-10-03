@@ -7,7 +7,8 @@
  * consumer installs, and measures each part minified and gzipped (level 9):
  *   - the main entry: what `import graphtyCytoscape from "@graphty/cytoscape-extensions"` downloads up front,
  *   - each part it loads on first use: the WebGPU code, the generators, each bundled dataset, the file formats,
- *   - everything together, the script-tag bundle (dist/cytoscape-extensions.bundle.js),
+ *   - everything together, and the script-tag bundle (dist/cytoscape-extensions.bundle.js), which leaves out the
+ *     file formats and the datasets and loads them from dist/cdn/ on first use,
  *   - for comparison, one layout and one algorithm imported straight from @graphty/layout and @graphty/algorithms
  *     (the least a package holding only that layout or algorithm could weigh), and each graph-io format alone.
  * Cytoscape itself is left out: the page already has it.
@@ -138,9 +139,8 @@ async function measurePackage(compare) {
             parts[name] = sizeOf([...group].map((c) => c.code));
         }
         parts["everything (every chunk of the build)"] = sizeOf(chunks.map((c) => c.code));
-        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js)"] = sizeOf([
-            readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8"),
-        ]);
+        parts["script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats and the datasets)"] =
+            sizeOf([readFileSync(join(pkg, "dist/cytoscape-extensions.bundle.js"), "utf8")]);
         if (!compare) {
             return parts;
         }

@@ -43,11 +43,11 @@ type Story = StoryObj<LayoutArgs>;
 
 /** The force simulations: the ones that run on the GPU. */
 export const ForceSimulations: Story = {
-    args: { ...networkArgs, layout: "forceatlas2", iterations: 100, animate: false },
+    args: { ...networkArgs, layout: "forceatlas2", iterations: 100, animate: true },
     argTypes: { layout: { control: "select", options: SIMULATION_LAYOUTS } },
 };
 
-/** The one-shot layouts: CPU only. The backend control does not apply. */
+/** The one-shot layouts: CPU only. The backend control does not apply. "animate" glides the nodes to the result. */
 export const StaticLayouts: Story = {
     args: { ...networkArgs, layout: "circular", iterations: 100, animate: false },
     argTypes: {
@@ -55,6 +55,5 @@ export const StaticLayouts: Story = {
         backend: { table: { disable: true } },
         acceptSoftware: { table: { disable: true } },
         iterations: { table: { disable: true } },
-        animate: { table: { disable: true } },
     },
 };

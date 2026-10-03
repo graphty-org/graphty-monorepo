@@ -9,6 +9,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -69,7 +70,7 @@ export function bidirectionalDijkstra(
     // Checked up front, not per relaxed arc: the search stops early, so a per-arc check would miss
     // a negative edge beyond the meeting point that legacy (which runs both searches out) refuses.
     if (weights?.some((w) => w < 0) === true) {
-        throw new Error("Bidirectional Dijkstra does not support negative edge weights");
+        throw withCode(new Error("Bidirectional Dijkstra does not support negative edge weights"), "E_BAD_WEIGHT");
     }
     const rev = s.reverse();
     const weightOf = (arc: number): number => (weights === null ? 1 : weights[arc]);
@@ -184,7 +185,10 @@ export function astar(
     const target = resolveNode(g, targetNode);
     const n = g.nodeCount;
     if (!(target >= 0 && target < n)) {
-        throw new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`);
+        throw withCode(
+            new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`),
+            "E_BAD_NODE",
+        );
     }
     const weights: NumericVector | null = options.weights ?? g.weights;
     const gScore = new Float64Array(n).fill(Infinity);

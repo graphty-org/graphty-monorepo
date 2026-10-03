@@ -408,15 +408,13 @@ export class UpdateManager implements Manager {
         const nodeVisibilityVersion = nodeVisibility?.version ?? NO_MASK_VERSION;
         const edgeVisibilityVersion = edgeVisibility?.version ?? NO_MASK_VERSION;
 
-        const nodesMoved =
-            !this.appliedAnything ||
-            nodeSelectionVersion !== this.appliedNodeSelection ||
-            nodeVisibilityVersion !== this.appliedNodeVisibility ||
-            showContext !== this.appliedShowContext;
-        const edgesMoved =
-            !this.appliedAnything ||
-            edgeSelectionVersion !== this.appliedEdgeSelection ||
-            edgeVisibilityVersion !== this.appliedEdgeVisibility;
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            nodeSelectionVersion,
+            edgeSelectionVersion,
+            nodeVisibilityVersion,
+            edgeVisibilityVersion,
+            showContext,
+        );
 
         if (!nodesMoved && !edgesMoved) {
             return;
@@ -456,6 +454,57 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Which halves of the scene the masks have moved since they were last applied.
+     * @param nodeSelection - The node selection mask's version now.
+     * @param edgeSelection - The edge selection mask's version now.
+     * @param nodeVisibility - The node visibility mask's version now.
+     * @param edgeVisibility - The edge visibility mask's version now.
+     * @param showContext - Whether hidden nodes are drawn faintly now.
+     * @returns Whether the nodes and whether the edges need the masks applied again.
+     */
+    private viewMasksMoved(
+        nodeSelection: number,
+        edgeSelection: number,
+        nodeVisibility: number,
+        edgeVisibility: number,
+        showContext: boolean,
+    ): { nodesMoved: boolean; edgesMoved: boolean } {
+        return {
+            nodesMoved:
+                !this.appliedAnything ||
+                nodeSelection !== this.appliedNodeSelection ||
+                nodeVisibility !== this.appliedNodeVisibility ||
+                showContext !== this.appliedShowContext,
+            edgesMoved:
+                !this.appliedAnything ||
+                edgeSelection !== this.appliedEdgeSelection ||
+                edgeVisibility !== this.appliedEdgeVisibility,
+        };
+    }
+
+    /**
+     * Whether a filter, a time window or a selection has changed since the last pass drew it.
+     *
+     * The masks reach the meshes on the NEXT pass, so between `visibility.set` resolving and that
+     * pass the frame on screen still shows the old answer. Without this the picture read as final
+     * the whole time, and `waitForStableFrame()` returned with the filtered-out nodes still drawn.
+     * Reading a mask resyncs it, the same read the next pass makes.
+     * @returns True when the masks hold an answer the meshes do not show yet.
+     */
+    private viewMasksPending(): boolean {
+        const masks = this.viewMasks ?? EMPTY_MASKS;
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            masks.selection?.nodes().version ?? NO_MASK_VERSION,
+            masks.selection?.edges().version ?? NO_MASK_VERSION,
+            masks.visibility?.nodes().version ?? NO_MASK_VERSION,
+            masks.visibility?.edges().version ?? NO_MASK_VERSION,
+            masks.showContext?.() ?? false,
+        );
+
+        return nodesMoved || edgesMoved;
     }
 
     /**
@@ -677,6 +726,10 @@ export class UpdateManager implements Manager {
             return "the camera has not finished framing the graph";
         }
 
+        if (this.viewMasksPending()) {
+            return "a filter or a selection has not been drawn yet";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -722,6 +775,11 @@ export class UpdateManager implements Manager {
         // An outstanding framing request only means the camera is about to move if there is
         // something for it to frame; see `framingHasNothingToFrame`.
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
+            return false;
+        }
+
+        // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
+        if (this.viewMasksPending()) {
             return false;
         }
 

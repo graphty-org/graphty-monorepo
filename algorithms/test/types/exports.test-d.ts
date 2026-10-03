@@ -12,6 +12,7 @@ import type {
     AstarResult,
     BellmanFordResult,
     BetweennessOptions,
+    BetweennessResult,
     BfsOptions,
     BfsResult,
     BipartiteFlowNetwork,
@@ -92,7 +93,7 @@ expectTypeOf(algorithms.bellmanFord).toEqualTypeOf<
     (g: AdjacencyView, source: NodeRef, options?: SsspOptions) => BellmanFordResult
 >();
 expectTypeOf(algorithms.betweennessCentrality).toEqualTypeOf<
-    (s: GraphSnapshot, options?: BetweennessOptions) => ScoresResult
+    (s: GraphSnapshot, options?: BetweennessOptions) => BetweennessResult
 >();
 expectTypeOf(algorithms.edgeBetweennessCentrality).toEqualTypeOf<
     (s: GraphSnapshot, options?: EdgeBetweennessOptions) => EdgeScoresResult
@@ -415,3 +416,6 @@ export type NoCentralityResult = algorithms.CentralityResult;
 export type NoShortestPathResult = algorithms.ShortestPathResult;
 // @ts-expect-error -- algorithms 3.0.0 exports no TraversalResult type
 export type NoTraversalResult = algorithms.TraversalResult;
+
+// Betweenness results are score results that also state the divisor their scores carry.
+expectTypeOf<BetweennessResult>().toMatchTypeOf<ScoresResult>();

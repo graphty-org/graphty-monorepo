@@ -40,6 +40,8 @@ describe("node ids as single-node inputs", () => {
         expect(pathIds(breadthFirstSearch(path, id("b")).order, path)).toEqual(["b", "a", "c", "d"]);
         expect(breadthFirstSearch(path, id("a"), { target: id("c") }).order[2]).toBe(2);
         expect(pathIds(depthFirstSearch(path, id("d"), { target: id("b") }).order, path)).toEqual(["d", "c", "b"]);
+        expect(pathIds(breadthFirstSearch(path, id("a")).pathTo(id("c")), path)).toEqual(["a", "b", "c"]);
+        expect(depthFirstSearch(path, id("a")).pathEdges(id("c"))).toHaveLength(2);
     });
 
     it("shortest paths take a source id and walk back from a target id", () => {

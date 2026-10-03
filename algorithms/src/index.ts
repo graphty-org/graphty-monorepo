@@ -21,7 +21,7 @@ export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id
 export * as indexed from "./indexed/index.js";
 
 // Errors the algorithms throw.
-export { ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
+export { type AlgorithmErrorCode, ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
 
 // General-purpose data structures.
 export * from "./data-structures/index.js";

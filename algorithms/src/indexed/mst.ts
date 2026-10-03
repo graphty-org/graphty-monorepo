@@ -7,6 +7,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
@@ -100,7 +101,7 @@ export interface PrimResult extends MstResult {
  */
 export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
     if (s.directed) {
-        throw new Error("Prim's algorithm requires an undirected graph");
+        throw withCode(new Error("Prim's algorithm requires an undirected graph"), "E_NEEDS_UNDIRECTED");
     }
     const { nodeCount: n, rowPtr, colIdx } = s;
     const weights: NumericVector | null = o.weights ?? s.weights;
@@ -141,7 +142,7 @@ export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
             }
         }
     } else if (taken < n - 1) {
-        throw new Error("Graph is not connected");
+        throw withCode(new Error("Graph is not connected"), "E_NOT_CONNECTED");
     }
     return { edges: accepted.subarray(0, taken), totalWeight, predArc };
 }

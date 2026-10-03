@@ -8,7 +8,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { PathWalkError } from "../errors.js";
+import { PathWalkError, withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -75,8 +75,11 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
         return { w: null, negative: false };
     }
     if (options.weights !== undefined && options.weights.length !== s.arcCount) {
-        throw new RangeError(
-            `allPairsShortestPath: the weights override has ${String(options.weights.length)} entries; the snapshot has ${String(s.arcCount)} arcs`,
+        throw withCode(
+            new RangeError(
+                `allPairsShortestPath: the weights override has ${String(options.weights.length)} entries; the snapshot has ${String(s.arcCount)} arcs`,
+            ),
+            "E_BAD_OPTION",
         );
     }
     const w = options.weights ?? s.weights;
@@ -93,8 +96,11 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
                 options.weights === undefined && !Number.isNaN(x)
                     ? "; a finite weight above the f32 range (3.4e38) becomes Infinity in the snapshot's f32 arc weights -- pass the exact f64 weights through the weights override"
                     : "";
-            throw new RangeError(
-                `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite${hint}`,
+            throw withCode(
+                new RangeError(
+                    `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite${hint}`,
+                ),
+                "E_BAD_WEIGHT",
             );
         }
         unit &&= x === 1;
@@ -284,8 +290,11 @@ function pickStrategy(
     }
     if (negative) {
         if (method === "per-source") {
-            throw new Error(
-                'allPairsShortestPath: method "per-source" runs Dijkstra, which is incorrect with a negative weight; use "auto" or "floyd-warshall"',
+            throw withCode(
+                new Error(
+                    'allPairsShortestPath: method "per-source" runs Dijkstra, which is incorrect with a negative weight; use "auto" or "floyd-warshall"',
+                ),
+                "E_BAD_OPTION",
             );
         }
         return "floyd-warshall";
@@ -308,8 +317,11 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
     // Written negated so a NaN maxNodes refuses rather than switching the bound off.
     if (!(n <= maxNodes)) {
         const bytes = (options.paths === true ? 12 : 8) * n * n;
-        throw new RangeError(
-            `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
+        throw withCode(
+            new RangeError(
+                `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
+            ),
+            "E_TOO_LARGE",
         );
     }
     const { w, negative } = weightsInUse(s, options);
@@ -333,7 +345,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         const source = resolveNode(s, sourceNode);
         const target = resolveNode(s, targetNode);
         if (predArc === null) {
-            throw new Error("allPairsShortestPath: pass paths: true to walk shortest paths");
+            throw withCode(new Error("allPairsShortestPath: pass paths: true to walk shortest paths"), "E_BAD_OPTION");
         }
         if (hasNegativeCycle) {
             throw new PathWalkError(source, target, "cycle");

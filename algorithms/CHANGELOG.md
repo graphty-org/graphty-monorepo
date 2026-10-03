@@ -1,3 +1,13 @@
+## 3.2.0 (2026-10-03)
+
+### 🚀 Features
+
+- **algorithms:** export a machine-readable ALGORITHMS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.8 (2026-10-03)
 
 ### 🩹 Fixes

@@ -10,6 +10,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { isBipartite } from "./bipartite.js";
 
 /** Options of {@link maximumBipartiteMatching} and {@link greedyBipartiteMatching}. @public */
@@ -67,7 +68,7 @@ function resolveSides(s: GraphSnapshot, options: BipartiteMatchingOptions): Side
     }
     const { sides } = isBipartite(s, { arcs: options.arcs });
     if (sides === null) {
-        throw new Error("Graph is not bipartite");
+        throw withCode(new Error("Graph is not bipartite"), "E_NOT_BIPARTITE");
     }
     const left = makeMask(s.nodeCount);
     for (let w = 0; w < left.length; w++) {

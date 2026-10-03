@@ -43,6 +43,8 @@ const config: KnipConfig = {
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",
+                // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
+                "@sonar/scan",
             ],
         },
 

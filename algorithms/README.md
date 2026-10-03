@@ -113,6 +113,34 @@ A test runs every algorithm to check its entry, so the catalog changes when an a
 implements them, and on the CPU otherwise: `await accelerated(gpu).pageRank(graph)`. Without an accelerator
 (`accelerated(null)`) every call runs on the CPU. An accelerator's failure is thrown, never quietly retried on the CPU.
 
+## Errors
+
+Every error an algorithm throws on purpose carries a stable `code` (the `AlgorithmErrorCode` type lists them), so a
+caller can react to the case without matching message text:
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { connectedComponents, weaklyConnectedComponents } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+const graph = builder.freeze();
+
+try {
+    connectedComponents(graph);
+} catch (error) {
+    // E_NEEDS_UNDIRECTED: the directed graph needs the weakly connected variant
+    const code = (error as { code?: string }).code;
+    console.log(code); // E_NEEDS_UNDIRECTED
+    console.log(weaklyConnectedComponents(graph).count); // 1
+}
+```
+
+`E_NEEDS_UNDIRECTED` and `E_NEEDS_DIRECTED` (the wrong kind of graph), `E_BAD_OPTION`, `E_BAD_NODE` (a node index
+out of range) and `E_BAD_WEIGHT` cover most of them.
+
 ## Upgrading From 2.x
 
 algorithms 3.0.0 removed the id-keyed API of 2.x: the `Graph` class, the functions that took it and returned Maps keyed

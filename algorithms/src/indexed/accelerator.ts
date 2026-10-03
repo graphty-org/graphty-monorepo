@@ -157,6 +157,8 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
+    /** True when `closenessCentrality` honours `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
+    readonly harmonicCloseness?: boolean;
     betweennessCentrality?(
         s: GraphSnapshot,
         options?: BetweennessAcceleratorOptions,
@@ -226,11 +228,14 @@ export interface BetweennessAcceleratorOptions {
  * Closeness options as the accelerator sees them: `weighted` always explicit, and `sources` as node INDICES --
  * present for a sampled run, absent for the exact one from every node. With `sources` the member scores every
  * node from its distances to those sources, as the CPU port's sampled closeness does (duplicates run twice).
+ * `harmonic` asks for the sum of `1 / distance` instead of `1 / sum(distance)`; the dispatcher sends it only to an
+ * accelerator that declares `harmonicCloseness`, and only for an exact run.
  * @public
  */
 export interface ClosenessAcceleratorOptions {
     readonly weighted?: boolean | undefined;
     readonly sources?: readonly number[] | undefined;
+    readonly harmonic?: boolean | undefined;
 }
 
 /** Closeness scores with the number of sources run: `nodeCount` exact, the sample's length sampled. @public */
@@ -316,8 +321,9 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
  * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
- * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
- * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
+ * its own. `closenessCentrality` goes only for the plain score -- no `normalized`, `cutoff` or
+ * `weights` override, and `harmonic` only on an exact run to an accelerator that declares
+ * `harmonicCloseness` -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
  * A sampled closeness (`sources` or `k`) goes too, handed the sources the port would run -- the caller's
  * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
@@ -441,18 +447,25 @@ function explicitSources(
 }
 
 /**
- * Whether the accelerator's closeness member answers the port's question: only the plain
- * `1 / sum(distance)` score over the snapshot's own weights, and a sampled one only undirected.
+ * Whether the accelerator's closeness member answers the port's question: the plain `1 / sum(distance)`
+ * score over the snapshot's own weights, or the unnormalized harmonic one on an exact run when the accelerator
+ * declares `harmonicCloseness`, and a sampled one only undirected.
+ * @param acc - The accelerator
  * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions | undefined): boolean {
+function acceleratorAnswersCloseness(
+    acc: AlgorithmAccelerator,
+    s: GraphSnapshot,
+    options: ClosenessOptions | undefined,
+): boolean {
     const sampled = options?.sources !== undefined || options?.k !== undefined;
+    const harmonic = options?.harmonic === true;
     return (
         (!sampled || !s.directed) &&
+        (!harmonic || (acc.harmonicCloseness === true && !sampled)) &&
         options?.normalized !== true &&
-        options?.harmonic !== true &&
         options?.cutoff === undefined &&
         options?.weights === undefined
     );
@@ -468,7 +481,7 @@ function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions
 function closenessSources(s: GraphSnapshot, options: ClosenessOptions | undefined): ClosenessAcceleratorOptions {
     const weighted = options?.weighted === true;
     if (options?.sources === undefined && options?.k === undefined) {
-        return { weighted };
+        return options?.harmonic === true ? { weighted, harmonic: true } : { weighted };
     }
     return { weighted, sources: resolveSources(s, options.sources, options.k, "closenessCentrality") };
 }
@@ -864,7 +877,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                       .then((r) => checkPathCounts(r, "edgeBetweennessCentrality"))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
         closenessCentrality: (s, options) =>
-            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)
+            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(acc, s, options)
                 ? acc.closenessCentrality(s, closenessSources(s, options))
                 : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>

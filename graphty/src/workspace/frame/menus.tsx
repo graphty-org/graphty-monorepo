@@ -52,7 +52,7 @@ function CommandItem({ id }: { id: string }): React.JSX.Element | null {
  * @param props.sections - The sections, top to bottom
  * @returns The rows
  */
-function Sections({ sections }: { sections: readonly (readonly string[])[] }): React.JSX.Element {
+export function Sections({ sections }: { sections: readonly (readonly string[])[] }): React.JSX.Element {
     const { registry } = useWorkspace();
     const drawn = sections
         .map((ids) => ids.filter((id) => registry.built(id) !== undefined))

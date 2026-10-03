@@ -1,0 +1,123 @@
+{
+    "name": "@graphty/cytoscape-extensions",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Graphty layouts, algorithms, graph generators, sample datasets and file import/export as Cytoscape.js extensions",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "unpkg": "dist/cytoscape-extensions.bundle.js",
+    "jsdelivr": "dist/cytoscape-extensions.bundle.js",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./io": {
+            "types": "./dist/io.d.ts",
+            "import": "./dist/io.js",
+            "default": "./dist/io.js"
+        },
+        "./samples": {
+            "types": "./dist/samples.d.ts",
+            "import": "./dist/samples.js",
+            "default": "./dist/samples.js"
+        },
+        "./bundle": "./dist/cytoscape-extensions.bundle.js"
+    },
+    "imports": {
+        "#gpu-platform": {
+            "types": "./src/gpu-platform-browser.ts",
+            "node": "./dist/gpu-platform-node.js",
+            "default": "./dist/gpu-platform-browser.js"
+        }
+    },
+    "sideEffects": [
+        "./dist/cytoscape-extensions.bundle.js"
+    ],
+    "files": [
+        "dist/",
+        "!dist/*.tsbuildinfo",
+        "src/",
+        "README.md",
+        "LICENSE",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=18.19.0"
+    },
+    "scripts": {
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && vite build --config vite.bundle.config.ts --logLevel warn",
+        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint:fix": "eslint --fix",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "build-storybook": "storybook build",
+        "ready:commit": "npm run build && npm run lint && npm run test:run",
+        "docs:reference": "UPDATE_REFERENCE=1 vitest run test/reference.test.ts",
+        "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
+        "size": "node scripts/size.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "cytoscape-extensions"
+    },
+    "keywords": [
+        "graph",
+        "layout",
+        "cytoscape",
+        "cytoscape-extension",
+        "forceatlas2",
+        "graph-format",
+        "webgpu"
+    ],
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/cytoscape-extensions#readme",
+    "dependencies": {
+        "@graphty/graph-io": "workspace:^",
+        "@graphty/graph-samples": "workspace:^",
+        "@graphty/webgpu-graph-algorithms": "workspace:^"
+    },
+    "peerDependencies": {
+        "@graphty/algorithms": "^3.0.0",
+        "@graphty/graph-format": "^1.0.0",
+        "@graphty/layout": "^2.0.0",
+        "cytoscape": "^3.31.0",
+        "webgpu": ">=0.4.0 <1.0.0"
+    },
+    "peerDependenciesMeta": {
+        "webgpu": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@graphty/algorithms": "workspace:^",
+        "@graphty/graph-format": "workspace:^",
+        "@graphty/layout": "workspace:^",
+        "@storybook/addon-docs": "^9.0.11",
+        "@storybook/html-vite": "^9.0.11",
+        "@vitest/coverage-v8": "catalog:",
+        "@vitest/ui": "catalog:",
+        "cytoscape": "^3.34.3",
+        "eslint": "^9.29.0",
+        "prettier": "^3.4.2",
+        "storybook": "^9.0.11",
+        "typedoc": "^0.28.15",
+        "typedoc-plugin-markdown": "^4.9.0",
+        "typedoc-vitepress-theme": "^1.1.2",
+        "typescript": "^5.9.3",
+        "vite": "^7.0.5",
+        "vitest": "catalog:"
+    }
+}

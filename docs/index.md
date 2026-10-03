@@ -26,6 +26,10 @@ features:
       details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
       link: /layout/api/generated/
       linkText: API Reference
+    - title: cytoscape-extensions
+      details: Every graphty layout and algorithm, graph generators, sample datasets and file import and export as Cytoscape.js extensions, with WebGPU acceleration.
+      link: /cytoscape-extensions/
+      linkText: Documentation
     - title: visual-review
       details: Visual regression review for any Storybook. Captures in GitHub Actions, baselines in git, review on your own machine.
       link: /visual-review/

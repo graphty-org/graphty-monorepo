@@ -206,6 +206,11 @@ run_step "Formatting (changed files)" "pnpm run format:check:changed"
 if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
 fi
+# The same for each part of cytoscape-extensions as a browser application bundles it
+# (cytoscape-extensions/size-budgets.json). Needs the build above. About 5 seconds.
+if affected cytoscape-extensions; then
+    run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
+fi
 
 # Every tool a package's scripts run or its *.config.* files import is declared by that package,
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.
@@ -257,6 +262,10 @@ affected graph-io && { (cd graph-io && npm run test:run) || { FAILED=1; TESTS_FA
 # graph-samples - single project, all tests are fast (node, no browser); needs graph-format/dist (built above)
 echo "  Testing graph-samples..."
 affected graph-samples && { (cd graph-samples && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
+
+# cytoscape-extensions - single project (node, headless Cytoscape); needs graph-format, layout and algorithms dist
+echo "  Testing cytoscape-extensions..."
+affected cytoscape-extensions && { (cd cytoscape-extensions && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # webgpu-graph-algorithms - the node project only (design 12.5): Dawn on the local adapter -- NVIDIA when
 # LD_LIBRARY_PATH carries the libEGL tree (package CLAUDE.md), else Mesa lavapipe (about 5 minutes); the

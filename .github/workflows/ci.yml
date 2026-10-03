@@ -161,6 +161,11 @@ jobs:
             - name: Bundle size (graphty-element)
               run: pnpm run check:bundle-size
 
+            # What a browser application downloads for each part of cytoscape-extensions (the main entry and each
+            # part it loads on first use), against cytoscape-extensions/size-budgets.json. Needs the build above.
+            - name: Bundle size (cytoscape-extensions)
+              run: pnpm --filter @graphty/cytoscape-extensions run size
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
@@ -199,6 +204,9 @@ jobs:
             - name: Build Storybook (layout)
               run: pnpm exec nx run layout:build-storybook
 
+            - name: Build Storybook (cytoscape-extensions)
+              run: pnpm exec nx run cytoscape-extensions:build-storybook
+
             # Build unified documentation on every run, so a pull request that breaks the docs
             # (a dead link included: VitePress fails the build on one) fails here rather than on
             # master. The docs and both gh-pages builds are uploaded on every run because the
@@ -226,6 +234,7 @@ jobs:
                       graph-samples/dist/
                       algorithms/dist/
                       layout/dist/
+                      cytoscape-extensions/dist/
                       graphty/dist/
                       graphty-element/dist/
                       remote-logger/dist/
@@ -335,6 +344,13 @@ jobs:
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (cytoscape-extensions)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
@@ -484,7 +500,7 @@ jobs:
                   if-no-files-found: ignore
 
             - name: Upload coverage (graph-format/graph-io/graph-samples/algorithms/layout/graphty/remote-logger/compact-mantine)
-              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
+              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || matrix.shard == 'cytoscape-extensions' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}
@@ -787,6 +803,12 @@ jobs:
                   name: build-storybook-layout
                   path: layout/storybook-static/
 
+            - name: Download Storybook build (cytoscape-extensions)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: cytoscape-extensions/storybook-static/
+
             - name: Download algorithms gh-pages
               uses: actions/download-artifact@v4
               with:
@@ -931,6 +953,8 @@ jobs:
                       artifact: build-storybook-algorithms
                     - project: graphty
                       artifact: build-storybook-app
+                    - project: cytoscape-extensions
+                      artifact: build-storybook-cytoscape-extensions
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's. The objects

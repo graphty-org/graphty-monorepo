@@ -50,6 +50,17 @@
                 "method": "waitForStableFrame",
                 "failOnConsole": "Graph settled timeout"
             }
+        },
+        "cytoscape-extensions": {
+            "storybook": "cytoscape-extensions/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run cytoscape-extensions:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "[data-demo]",
+                "method": "whenDone",
+                "failOnConsole": "graphty demo failed"
+            }
         }
     }
 }

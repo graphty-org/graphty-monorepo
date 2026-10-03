@@ -132,6 +132,7 @@ docs/graphty-element/
 docs/algorithms/
 docs/layout/
 docs/visual-review/
+docs/cytoscape-extensions/
 
 # Layout package specific
 layout/examples/layout.js

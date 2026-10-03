@@ -68,6 +68,32 @@ const config: KnipConfig = {
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },
 
+        // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
+        "cytoscape-extensions": {
+            // the root, and the browser and Node builds the "#gpu-platform" dynamic import loads (the package's
+            // `imports` field maps it into dist/, which knip does not follow back to src/)
+            entry: [
+                "src/index.ts!",
+                "src/io.ts!",
+                "src/samples.ts!",
+                "src/gpu-platform-browser.ts!",
+                "src/gpu-platform-node.ts!",
+                // the script-tag build's entry (vite.bundle.config.ts)
+                "bundle.ts!",
+                "test/**/*.test.ts",
+                // compiled by test/consumer-types.test.ts as a consumer would compile it
+                "test/consumer/consumer.ts",
+            ],
+            project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
+            ignore: ["dist/**", "coverage/**", "node_modules/**"],
+            // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
+            // loads it at run time, and declaring it here is what lets a package manager hand it through (only
+            // --production calls it unused; the normal run sees the GPU package's own use). `cytoscape`
+            // is a required peer that src imports for types only (the consumer hands its own cytoscape to
+            // `cytoscape.use()`), and --production drops type imports, so that run alone would call it unused
+            ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
+        },
+
         // graph-samples package: the root, generators and every dataset subpath are entries
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)

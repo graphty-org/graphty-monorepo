@@ -4,11 +4,11 @@
  * inspect() can be compared per kernel -- the K1 fold of the previous integrate's partials, the attraction `d^2 / k`
  * per CSR arc (K2, LAW 1), the repulsion `k^2 / d` over every other node (K3, LAW 1, unfloored), the temperature cap
  * `min(|F|, t)` along F (K5, APPLY 1). It is a transcription of the CPU loop
- * `layout/src/simulation/fruchterman-reingold.ts:405-510` with TWO GPU differences: (1) a coincident pair takes the
- * FA2 antisymmetric kick with the law's magnitude at d = FA2_DISTANCE_FLOOR (`k^2 / 0.01`, PD-10) in place of the
- * CPU's `|| 0.1` zero force; (2) the repulsion of row i sums over j in index order (K3's tile loop), not the CPU's
- * symmetric `u < v` update -- an f64 reference is order-insensitive to 1e-15, and the f32 variant sums in the GPU's
- * order so its noise floor is the GPU's. Gravity is 0 for this model and is not evaluated.
+ * `layout/src/simulation/fruchterman-reingold.ts:405-525` with one GPU difference: the repulsion of row i sums over
+ * j in index order (K3's tile loop), not the CPU's symmetric `u < v` update -- an f64 reference is
+ * order-insensitive to 1e-15, and the f32 variant sums in the GPU's order so its noise floor is the GPU's. Both
+ * give a coincident pair the FA2 antisymmetric kick with the law's magnitude at d = FA2_DISTANCE_FLOOR
+ * (`k^2 / 0.01`, PD-10). Gravity is 0 for this model and is not evaluated.
  *
  * f64 by default. `precision: "f32"` rounds every operation with Math.fround and sums in the GPU's tile / lane order
  * (the workgroup reductions are the 4.3 tree, the K1 fold is the per-lane grid-stride loop followed by the tree).

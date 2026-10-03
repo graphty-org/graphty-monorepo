@@ -4,7 +4,7 @@
  * 2. Unused exports have been removed
  * 3. API surface is clean and intentional
  */
-import { describe, expect,it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import * as constantsExports from "../src/constants";
 import type {
@@ -229,6 +229,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutRegion",
     "StyleNumberInput",
     "StyleSelect",
+    "SegmentedControl",
     "ToggleWithContent",
 
     // Panel rows and the two atoms they are built from
@@ -378,6 +379,10 @@ describe("Package exports", () => {
 
             it("exports StyleNumberInput", () => {
                 expect(mainExports.StyleNumberInput).toBeDefined();
+            });
+
+            it("exports SegmentedControl", () => {
+                expect(mainExports.SegmentedControl).toBeDefined();
             });
 
             it("exports StyleSelect", () => {
@@ -722,7 +727,13 @@ describe("Package exports", () => {
                 // 16 + 108 + 8 + 108 + 8 + 24 + 8 = 280
                 const grid = mainExports.PANEL_GRID;
                 const identity =
-                    grid.PAD_LEFT + grid.FIELD + grid.GUTTER + grid.FIELD + grid.TRAIL_GAP + grid.TRAIL + grid.PAD_RIGHT;
+                    grid.PAD_LEFT +
+                    grid.FIELD +
+                    grid.GUTTER +
+                    grid.FIELD +
+                    grid.TRAIL_GAP +
+                    grid.TRAIL +
+                    grid.PAD_RIGHT;
 
                 expect(identity).toBe(grid.WIDTH);
                 expect(grid.PAD_LEFT + grid.CONTENT + grid.PAD_RIGHT).toBe(grid.WIDTH);

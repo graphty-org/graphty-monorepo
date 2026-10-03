@@ -389,8 +389,8 @@ try {
 
 ## Common options
 
-Every layout except `arf` takes these options besides its own. `arf` takes only `dim` and `seed` of them, and its
-result is not rescaled: the forces settle at their own size, which its `scaling` option sets.
+Every layout takes these options besides its own. `arf` rescales only when it is given `scale` or `center`; without
+them its result keeps the size the forces settle at, which its `scaling` option sets.
 
 - **dim** (`2 | 3`): values per node; default 2
 - **scale** (number): size of the layout around its centre; default 1
@@ -442,6 +442,7 @@ A `LayoutResult` converts to the other forms a host needs:
 import { GraphBuilder } from "@graphty/graph-format";
 import {
     circular,
+    fitToBox,
     fromPositionColumn,
     fromPositionMap,
     rescaleInPlace,
@@ -461,7 +462,9 @@ const flat = fromPositionMap(map, s.ids, 2, (i, out) => out.set([0, 0], 2 * i));
 rescaleInPlace(flat, 2, 1); // rescale and recentre the flat array in place
 const column = toPositionColumn(result, 100, [0, 0, 0]); // stride 3, scene units: v * scale + center
 const again = fromPositionColumn(column, 2, 100, [0, 0, 0]); // the inverse
-console.log(flat.length, column.length, again.length); // 6 9 6
+// into a renderer's rectangle (pixels): one factor for every axis, so the drawing keeps its shape
+const pixels = fitToBox(result, { x: 0, y: 0, w: 800, h: 600 });
+console.log(flat.length, column.length, again.length, pixels.positions.length); // 6 9 6 6
 ```
 
 ## Steppable simulations
@@ -507,6 +510,35 @@ sim.dispose();
 - **Accelerators**: `createSimulation(type, options, accelerator)` returns the accelerator's simulation when it
   implements the type (`@graphty/webgpu-graph-algorithms` provides one) and the CPU class otherwise. A GPU
   simulation's `step()` returns a `Promise`, so `await sim.step()` when the simulation may come from either.
+
+## The catalog
+
+`LAYOUTS` describes every layout, keyed by name, so an integration can register them all without keeping its own
+table.
+
+<!-- doc-check -->
+
+```typescript
+import { LAYOUTS } from "@graphty/layout";
+
+const fa2 = LAYOUTS.forceAtlas2;
+console.log(fa2.simulation, fa2.weights, fa2.accelerator); // forceatlas2 on-request forceAtlas2
+
+const gpuOnly = Object.values(LAYOUTS).filter((l) => l.requiresAccelerator);
+console.log(gpuOnly.map((l) => l.simulation).join(", ")); // spring-electrical
+```
+
+- `fn`: the one-shot function, `fn(snapshot, options)`, or null for a layout that only runs as a simulation.
+- `simulation`: the `createSimulation` type that steps it, or null.
+- `direction`: the graphs it accepts; every layout takes directed and undirected snapshots.
+- `weights`: `"never"`, `"by-default"` (read unless `weight: false`) or `"on-request"` (read only with `weight: true`
+  or a weight column name).
+- `requiredOptions`: options it cannot run without (`multipartite`'s `subsets`, unless the snapshot has a `subset`
+  node column).
+- `accelerator` and `requiresAccelerator`: the `LayoutAccelerator` method that can run the simulation, and whether
+  there is no CPU implementation.
+
+A test runs every layout to check its entry, so the catalog changes when a layout does.
 
 ## Error Handling
 

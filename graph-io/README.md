@@ -122,6 +122,14 @@ On a caller's builder the builder-policy options (`addMissingNodes`, `duplicateE
 `weightDtype`) are read from the sink; an explicit request the sink does not honour is reported once
 as a `W_SINK_OPTION` warning. `importGraph()` seeds its own builder from them.
 
+Every attribute is stored as a column with one slot per node (or edge), so a file whose nodes each
+carry a differently named attribute would need nodes x attributes memory: a few hundred kilobytes
+could take gigabytes. `importGraph()` and `importAllGraphs()` therefore stop with an `ImportError`
+(code `E_TOO_MANY_EMPTY_CELLS`) once the columns would hold more than `maxEmptyCells` slots without
+a value (default 2^24, 16,777,216; `Infinity` turns the check off). A file where most elements have
+most attributes is never stopped, however large. An importer used directly on a caller's builder
+does not apply the limit.
+
 ### Common export options
 
 `sanitizeIds: "error" | "mangle"` (default `"error"`: an exporter never silently renames a node;

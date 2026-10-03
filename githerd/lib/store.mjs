@@ -119,65 +119,26 @@ async function readStateFile(file) {
  * @returns {Promise<LoadResult>} the state and how it was obtained
  */
 export async function loadState(dir, { now = () => new Date(), migrations = MIGRATIONS } = {}) {
+    await removeStaleTemps(dir);
+    /** @type {string[]} */
     const errors = [];
-    try {
-        for (const name of await readdir(dir)) if (STALE_TMP.test(name)) await unlink(join(dir, name));
-    } catch (err) {
-        if (err.code !== "ENOENT") throw err;
-    }
     /** @type {string[]} the unreadable files */
     const bad = [];
     let missing = 0;
-    /**
-     * Moves the unreadable files aside.
-     * @returns {Promise<string[]>} their new paths
-     */
-    const keep = async () => {
-        const stamp = now().toISOString().replaceAll(":", "-");
-        const kept = [];
-        for (const file of bad) {
-            const to = `${file}.corrupt-${stamp}`;
-            try {
-                await rename(file, to);
-                kept.push(to);
-            } catch (err) {
-                errors.push(`${file}: could not be kept aside: ${err.message}`);
-            }
-        }
-        return kept;
-    };
+    const keep = () => keepAside(bad, now(), errors);
     for (const [name, source] of /** @type {const} */ ([
         [STATE, "state"],
         [`${STATE}.bak`, "bak"],
     ])) {
         const file = join(dir, name);
-        const read = await readStateFile(file);
-        if ("missing" in read) {
-            missing++;
-            continue;
-        }
-        if ("error" in read) {
+        const read = await readCurrent(dir, file, migrations);
+        if ("missing" in read) missing++;
+        else if ("error" in read) {
             errors.push(read.error);
             bad.push(file);
-            continue;
-        }
-        let { state } = read;
-        if (state.schema > STATE_SCHEMA) return { state, source, readOnly: true, errors, kept: [], recovery: null };
-        if (state.schema < STATE_SCHEMA) {
-            try {
-                await copyFile(file, join(dir, `${STATE}.pre-migrate-${state.schema}`));
-                while (state.schema < STATE_SCHEMA) {
-                    const step = migrations[state.schema];
-                    if (!step) throw new Error(`no migration from schema ${state.schema}`);
-                    state = step(state);
-                }
-            } catch (err) {
-                errors.push(`${file}: ${err.message}`);
-                bad.push(file);
-                continue;
-            }
-        }
-        return { state, source, readOnly: false, errors, kept: await keep(), recovery: null };
+        } else if (read.state.schema > STATE_SCHEMA) {
+            return { state: read.state, source, readOnly: true, errors, kept: [], recovery: null };
+        } else return { state: read.state, source, readOnly: false, errors, kept: await keep(), recovery: null };
     }
     const at = now();
     // Partial either way: a rebuilt state has no incidents, proposals or rate data.
@@ -191,6 +152,67 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
     const state = { schema: STATE_SCHEMA };
     if (missing === 2) return { state, source: "new", readOnly: false, errors, kept: [], recovery: null };
     return { state, source: "empty", readOnly: false, errors, kept: await keep(), recovery };
+}
+
+/**
+ * Removes the temporary files a killed save left behind.
+ * @param {string} dir the .githerd directory
+ * @returns {Promise<void>}
+ */
+async function removeStaleTemps(dir) {
+    try {
+        for (const name of await readdir(dir)) if (STALE_TMP.test(name)) await unlink(join(dir, name));
+    } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+    }
+}
+
+/**
+ * Reads one state file and migrates an older schema forward, after copying the file to
+ * state.json.pre-migrate-<schema>. A newer schema is returned as it is.
+ * @param {string} dir the .githerd directory
+ * @param {string} file the state file
+ * @param {Record<number, (state: object) => object>} migrations the migrations
+ * @returns {Promise<{state: any} | {missing: true} | {error: string}>} the state, or why not
+ */
+async function readCurrent(dir, file, migrations) {
+    const read = await readStateFile(file);
+    if (!("state" in read) || read.state.schema >= STATE_SCHEMA) return read;
+    let { state } = read;
+    try {
+        await copyFile(file, join(dir, `${STATE}.pre-migrate-${state.schema}`));
+        while (state.schema < STATE_SCHEMA) {
+            const step = migrations[state.schema];
+            if (!step) throw new Error(`no migration from schema ${state.schema}`);
+            state = step(state);
+        }
+    } catch (err) {
+        return { error: `${file}: ${err.message}` };
+    }
+    return { state };
+}
+
+/**
+ * Moves unreadable state files aside as `<name>.corrupt-<time>`, so the next save cannot
+ * overwrite them.
+ * @param {string[]} bad the files
+ * @param {Date} at the time in their new names
+ * @param {string[]} errors gets a line for each file that could not be moved
+ * @returns {Promise<string[]>} their new paths
+ */
+async function keepAside(bad, at, errors) {
+    const stamp = at.toISOString().replaceAll(":", "-");
+    const kept = [];
+    for (const file of bad) {
+        const to = `${file}.corrupt-${stamp}`;
+        try {
+            await rename(file, to);
+            kept.push(to);
+        } catch (err) {
+            errors.push(`${file}: could not be kept aside: ${err.message}`);
+        }
+    }
+    return kept;
 }
 
 /**
@@ -237,9 +259,9 @@ export function saveState(dir, state) {
  * @returns {string} the line, without its newline
  */
 function asciiJson(value) {
-    return JSON.stringify(value).replace(
+    return JSON.stringify(value).replaceAll(
         /[\u007f-\uffff]/g,
-        (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+        (c) => String.raw`\u${(c.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`,
     );
 }
 
@@ -321,7 +343,7 @@ export async function readLedger(dir, { since } = {}) {
                 .map((n) => ROTATED.exec(n))
                 .filter((m) => m && m[1] >= fromMonth)
                 .map((m) => m[0])
-                .sort();
+                .sort((a, b) => a.localeCompare(b));
         } catch (err) {
             if (err.code !== "ENOENT") throw err;
         }

@@ -31,7 +31,8 @@ function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
     );
 }
 
-const READING = "17 cats, 2 humans and 1 dog, connected by 43 relationships. Everyone is connected to everyone else through at most 4 steps.";
+const READING =
+    "17 cats, 2 humans and 1 dog, connected by 43 relationships. Everyone is connected to everyone else through at most 4 steps.";
 const DEPARTURE = "Approximate (sample of 8). Largest connected part only, 18 of 20 nodes.";
 const RUN_RECORD = "Betweenness, weighted by Bridges, sample 8";
 
@@ -63,13 +64,15 @@ describe("ProseBlock", () => {
             expect(block.className).toContain("mantine-Text-root");
         });
 
-        it("draws at 12px on a 1.5 line, in the reading text colour", () => {
+        it("draws in the panel's body type, 11/16 450, in the reading (secondary) ink", () => {
             renderProse(<ProseBlock variant="reading">{READING}</ProseBlock>);
 
             const block = screen.getByTestId("prose-block");
             expect(block).toHaveAttribute("data-variant", "reading");
-            expect(block).toHaveStyle({ fontSize: "12px", lineHeight: "1.5" });
-            expect(block.style.color).toBe(PANEL_INK.PROSE);
+            // The old 12px reading size is gone: every prose variant is the
+            // body role, from the cm-prose class (spec 9.8).
+            expect(block).toHaveClass("cm-prose");
+            expect(block.style.fontSize).toBe("");
         });
 
         it("carries no warning glyph and no chevron: it is prose, not a row", () => {
@@ -144,7 +147,9 @@ describe("ProseBlock", () => {
         it("counts a third sentence that ends with an ideographic full stop", () => {
             const warn = spyOnWarn();
 
-            renderProse(<ProseBlock variant="reading">{"20個のノード。43本の関係。すべてつながっています。"}</ProseBlock>);
+            renderProse(
+                <ProseBlock variant="reading">{"20個のノード。43本の関係。すべてつながっています。"}</ProseBlock>,
+            );
 
             expect(warn).toHaveBeenCalledWith(expect.stringContaining("2 sentences"));
         });
@@ -176,7 +181,9 @@ describe("ProseBlock", () => {
         it("does not read a decimal as the end of a sentence", () => {
             const warn = spyOnWarn();
 
-            renderProse(<ProseBlock variant="reading">6 groups at granularity 2.5. The largest holds 9 cats.</ProseBlock>);
+            renderProse(
+                <ProseBlock variant="reading">6 groups at granularity 2.5. The largest holds 9 cats.</ProseBlock>,
+            );
 
             expect(warn).not.toHaveBeenCalled();
         });
@@ -251,26 +258,24 @@ describe("ProseBlock", () => {
             const text = screen.getByTestId("prose-block-text");
             expect(text).toHaveTextContent(DEPARTURE);
             expect(text.tagName).toBe("SPAN");
-            expect(text.style.color).toContain("--mantine-color-text");
-            expect(text).toHaveStyle({ lineHeight: "1.4" });
+            // 11/16 450 in the primary ink, from the cm-chart-value class.
+            expect(text).toHaveClass("cm-chart-value");
         });
 
-        it("takes its font size from the theme's small step rather than a literal", () => {
+        it("writes no font size of its own: the type comes from the stylesheet", () => {
             renderProse(<ProseBlock variant="departure">{DEPARTURE}</ProseBlock>);
 
             const text = screen.getByTestId("prose-block-text");
-            expect(text.style.getPropertyValue("--text-fz")).toBe("var(--mantine-font-size-sm)");
+            expect(text.style.fontSize).toBe("");
+            expect(text.style.getPropertyValue("--text-fz")).toBe("");
         });
 
-        it("draws the warning glyph in the yellow, at the glyph size", () => {
+        it("draws the warning glyph in the warning ink, in a 16px line slot", () => {
             const { container } = renderProse(<ProseBlock variant="departure">{DEPARTURE}</ProseBlock>);
 
             const slot = screen.getByTestId("prose-block-warning");
-            expect(slot.style.color).toContain("yellow");
-            expect(slot).toHaveStyle({
-                inlineSize: `${PANEL_GRID.GLYPH_SLOT}px`,
-                blockSize: `${PANEL_GRID.GLYPH_SLOT}px`,
-            });
+            expect(slot.style.color).toBe(PANEL_INK.WARNING);
+            expect(slot).toHaveStyle({ inlineSize: "16px", blockSize: "16px" });
 
             const glyph = container.querySelector('[data-glyph="warning"]');
             expect(glyph).toBeInTheDocument();
@@ -313,11 +318,11 @@ describe("ProseBlock", () => {
 
             const text = screen.getByTestId("prose-block-text");
             expect(text).toHaveTextContent(RUN_RECORD);
-            expect(text.style.color).toBe(PANEL_INK.CHROME);
+            expect(text).toHaveClass("cm-prose");
             expect(text).toHaveAttribute("data-truncate", "end");
         });
 
-        it("takes its font size from the theme's small step rather than a literal", () => {
+        it("writes no font size of its own: the type comes from the stylesheet", () => {
             renderProse(
                 <ProseBlock variant="runRecord" onDetails={vi.fn()}>
                     {RUN_RECORD}
@@ -325,17 +330,17 @@ describe("ProseBlock", () => {
             );
 
             const text = screen.getByTestId("prose-block-text");
-            expect(text.style.getPropertyValue("--text-fz")).toBe("var(--mantine-font-size-sm)");
+            expect(text.style.getPropertyValue("--text-fz")).toBe("");
         });
 
-        it("draws a 12px chevron for the details control", () => {
+        it("draws the 5 x 3 caret in its 10px box for the details control", () => {
             const { container } = renderProse(
                 <ProseBlock variant="runRecord" onDetails={vi.fn()}>
                     {RUN_RECORD}
                 </ProseBlock>,
             );
 
-            const glyph = container.querySelector('[data-glyph="chevronRight"]');
+            const glyph = container.querySelector('[data-glyph="caretRight"]');
             expect(glyph).toBeInTheDocument();
             expect(glyph).toHaveAttribute("width", String(PANEL_GRID.CHEVRON));
         });
@@ -347,8 +352,10 @@ describe("ProseBlock", () => {
                 </ProseBlock>,
             );
 
-            expect(container.querySelector('[data-glyph="chevronLeft"]')).toBeInTheDocument();
-            expect(container.querySelector('[data-glyph="chevronRight"]')).toBeNull();
+            // The register has no left caret: the right one, mirrored.
+            const closed = container.querySelector<HTMLElement>('[data-caret="closed"]');
+            expect(closed?.querySelector('[data-glyph="caretRight"]')).toBeInTheDocument();
+            expect(closed?.style.transform).toBe("scaleX(-1)");
         });
 
         it("names the details control, which is icon-only", () => {

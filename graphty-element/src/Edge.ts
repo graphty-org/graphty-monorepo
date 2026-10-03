@@ -1,7 +1,8 @@
 import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
-import _ from "lodash";
+import cloneDeep from "lodash/cloneDeep.js";
+import isEqual from "lodash/isEqual.js";
 
 import type { AdHocData, EdgeStyleConfig, RichTextStyleType } from "./config";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
@@ -643,7 +644,7 @@ export class Edge {
         // deep-equal to the one the current mesh was built from means the same geometry, the same
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
-        const sameGeometry = meshKey === this.meshKey || _.isEqual(style, this.drawnStyle);
+        const sameGeometry = meshKey === this.meshKey || isEqual(style, this.drawnStyle);
 
         if (sameGeometry && !meshDisposed) {
             this.meshKey = meshKey;
@@ -792,7 +793,7 @@ export class Edge {
         const wantedLabel = style.label?.enabled === true ? style.label : undefined;
         const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
 
-        if (rebuild || labelText !== this.drawnLabelText || !_.isEqual(wantedLabel, this.drawnLabelStyle)) {
+        if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {
             this.label?.dispose();
             this.label = null;
 
@@ -807,13 +808,13 @@ export class Edge {
             // CLONED rather than held: the block belongs to an `EdgePaint` that
             // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
             // reference somebody else can still write to silently starts passing.
-            this.drawnLabelStyle = wantedLabel === undefined ? undefined : _.cloneDeep(wantedLabel);
+            this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
             rebuilt = true;
         }
 
         const wantedHead = captionWanted(style.arrowHead?.text, this.arrowMesh);
 
-        if (rebuild || !_.isEqual(wantedHead, this.drawnArrowHeadText)) {
+        if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
             this.arrowHeadText?.dispose();
             this.arrowHeadText = null;
 
@@ -824,13 +825,13 @@ export class Edge {
                 this._arrowHeadTextAttachPosition = attachPosition;
             }
 
-            this.drawnArrowHeadText = wantedHead === undefined ? undefined : _.cloneDeep(wantedHead);
+            this.drawnArrowHeadText = wantedHead === undefined ? undefined : cloneDeep(wantedHead);
             rebuilt = true;
         }
 
         const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailMesh);
 
-        if (rebuild || !_.isEqual(wantedTail, this.drawnArrowTailText)) {
+        if (rebuild || !isEqual(wantedTail, this.drawnArrowTailText)) {
             this.arrowTailText?.dispose();
             this.arrowTailText = null;
 
@@ -841,7 +842,7 @@ export class Edge {
                 this._arrowTailTextAttachPosition = attachPosition;
             }
 
-            this.drawnArrowTailText = wantedTail === undefined ? undefined : _.cloneDeep(wantedTail);
+            this.drawnArrowTailText = wantedTail === undefined ? undefined : cloneDeep(wantedTail);
             rebuilt = true;
         }
 

@@ -23,7 +23,7 @@
  * all (spec 04 section 5.2, "Zero, null and default rows are not drawn").
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, POPOUT_GAP, UiGlyph } from "@graphty/compact-mantine";
+import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import { Menu } from "@mantine/core";
 import React from "react";
 
@@ -55,7 +55,9 @@ const HELP_MENU = {
     /** The dropdown box: 200 px wide (VOCAB section 9; Main.dc.html [56,755 200x117]). */
     WIDTH: 200,
     /** From the item's right edge to the rail lane: the rail's 1 px border plus the 8 px gap. */
-    OFFSET: ACTIVITY_RAIL_WIDTH - ACTIVITY_RAIL_ITEM_WIDTH + POPOUT_GAP,
+    // The artboard's 8 px shell-boundary gap. It was compact-mantine's POPOUT_GAP until the
+    // library docked its pop-outs flush (POPOUT_GAP 0); the menu's own lane keeps the gap.
+    OFFSET: ACTIVITY_RAIL_WIDTH - ACTIVITY_RAIL_ITEM_WIDTH + 8,
     /** Box padding (VOCAB section 9 dropdown, 4 px). */
     PADDING: COMPACT_SIZING.SECTION_GAP,
     /** One CSS pixel: the border and the row gap. */

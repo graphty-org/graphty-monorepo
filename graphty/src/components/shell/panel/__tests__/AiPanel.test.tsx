@@ -135,14 +135,13 @@ describe("AiPanel", () => {
             renderPanel();
 
             // AiPanel.dc.html:535 draws the field 24 px tall with an 8 px inset, beside a
-            // 24 px Send. Mantine's own size="sm" metrics make it 36 px, which is the
-            // 12 px overhang this measures against.
+            // 24 px Send: compact-mantine's borderless field, 4 + 16 + 4.
             const computed = getComputedStyle(screen.getByTestId("ai-input"));
 
             expect(computed.minHeight).toBe("24px");
             expect(computed.lineHeight).toBe("16px");
-            expect(computed.paddingTop).toBe("3px");
-            expect(computed.paddingBottom).toBe("3px");
+            expect(computed.paddingTop).toBe("4px");
+            expect(computed.paddingBottom).toBe("4px");
             expect(computed.paddingLeft).toBe("8px");
         });
 

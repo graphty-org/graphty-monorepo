@@ -171,7 +171,8 @@ session.data.edgePage({ touching: "alice", limit: Infinity });
 
 // Read the page again when the graph changes (and, for a "selection" scope, the selection;
 // for result columns, the runs -- run:changed also fires on progress ticks, which the
-// revision check skips):
+// revision check skips). The revision is the session's, so a { limit: 0 } read compares with
+// any page, and session.on() returns the function that removes the listener:
 const reread = () => {
     if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
         // read the page again and redraw

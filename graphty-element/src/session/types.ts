@@ -137,7 +137,7 @@ export type ResultCell = number | string | boolean | undefined;
 
 /** One result column of a page, in the order `columns` asked for it. */
 export interface PageColumn {
-    /** The run's id. */
+    /** The run's id, whichever form (handle, result or id) `columns` named it in. */
     readonly run: RunId;
     /** The field, after the primary-field default was applied. */
     readonly field: string;
@@ -193,7 +193,9 @@ export interface RecordPage<TRecord> {
      * Changes whenever anything a page could show may have changed: a record added, removed or
      * edited, an undo, a load, the selection or a set's members. A page held under one revision
      * is stale once {@link SessionDataApi.nodePage} answers another. Opaque: compare it, do not
-     * parse it. A run publishing or clearing its result, or being removed, moves it too.
+     * parse it. A run publishing or clearing its result, or being removed, moves it too. It is the
+     * session's, not the page's: every page read at the same moment carries the same revision,
+     * whatever its options, so `nodePage({ limit: 0 })` asks cheaply whether anything changed.
      */
     readonly revision: string;
     /** The result columns, in the order asked for; present exactly when `columns` was given. */

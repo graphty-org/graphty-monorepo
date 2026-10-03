@@ -259,6 +259,50 @@ describe("result values as page columns", () => {
         session.dispose();
     });
 
+    it("runs the guide's keep-current example: one session revision, a rerun, then a removal", async () => {
+        const session = await scored();
+        const element = { session };
+        const run = session.runs.get("degree");
+        assert.isDefined(run);
+        if (run === undefined) {
+            return;
+        }
+        let redraws = 0;
+
+        // The guide's code, as written ("redraw" counted).
+        const options = { columns: [run], sort: { run, descending: true }, limit: 20 };
+        let page = element.session.data.nodePage(options);
+
+        function reread(): void {
+            if (element.session.data.nodePage({ limit: 0 }).revision === page.revision) {
+                return;
+            }
+            page = element.session.data.nodePage(options);
+            redraws++;
+        }
+        const stopRuns = element.session.on("run:changed", reread);
+        const stopEdits = element.session.on("project:changed", reread);
+
+        // The revision is the session's, whatever the options.
+        assert.strictEqual(session.data.nodePage({ limit: 0 }).revision, page.revision);
+        assert.strictEqual(session.data.edgePage().revision, page.revision);
+
+        published.set("degree", { nodes: [["alone", 9]] });
+        await run.rerun();
+        assert.isAbove(redraws, 0);
+        assert.strictEqual(page.records[0]?.id, "alone");
+        assert.strictEqual(page.columns?.[0]?.values[0], 9);
+
+        stopRuns();
+        stopEdits();
+        const held = redraws;
+        session.runs.remove(run.id);
+        assert.strictEqual(redraws, held, "a stopped listener is not called");
+        assert.isUndefined(session.runs.get(run.id), "a removed run is gone from runs.get()");
+        assert.strictEqual(refusal(() => session.data.nodePage(options)).code, "E_UNKNOWN_RUN");
+        session.dispose();
+    });
+
     it("reads an edge result on edge pages", async () => {
         const session = createGraphSession({ runs: { execute } });
         await session.data.addNodes([{ id: "x" }, { id: "y" }, { id: "z" }]);

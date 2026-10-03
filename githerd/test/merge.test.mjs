@@ -193,7 +193,10 @@ describe("githerd/merge decision", () => {
             const cut = { files: ["design/x.md"], filesTruncated: true };
             expect(mergeDecision(pr({ ...cut, releaseBumps: null }), ctx()).state).toBe("pending");
             const major = [{ project: "layout", from: "1.10.5", to: "2.0.0" }];
-            expect(mergeDecision(pr({ ...cut, releaseBumps: major }), ctx())).toMatchObject({ state: "failure", line: 7 });
+            expect(mergeDecision(pr({ ...cut, releaseBumps: major }), ctx())).toMatchObject({
+                state: "failure",
+                line: 7,
+            });
             const gpu = ctx({ redLanes: [{ workflow: "GPU", since: SINCE }] });
             expect(mergeDecision(pr(cut), gpu)).toMatchObject({ state: "failure", line: 2 });
             const sec = pr({ ...cut, job: job() });

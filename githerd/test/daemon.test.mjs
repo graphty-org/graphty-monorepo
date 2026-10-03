@@ -517,9 +517,7 @@ describe("the poll loop", () => {
         const red = (await readLedger(join(dir, ".githerd"))).filter(
             (e) => e.kind === "notify" && e.message.startsWith("master red"),
         );
-        expect(red).toEqual([
-            expect.objectContaining({ delivered: false, reason: "held: owner items are dry-run" }),
-        ]);
+        expect(red).toEqual([expect.objectContaining({ delivered: false, reason: "held: owner items are dry-run" })]);
         expect(existsSync(notifyLog)).toBe(false);
     });
 

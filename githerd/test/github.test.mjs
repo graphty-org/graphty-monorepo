@@ -317,7 +317,11 @@ describe("rate rules", () => {
 
     it("never calls a plain permission refusal a rate limit, though every answer carries rate headers", async () => {
         const gh = createFakeGh(() =>
-            httpOutput({ status: 403, headers: rate(4900), body: { message: "Resource not accessible by integration" } }),
+            httpOutput({
+                status: 403,
+                headers: rate(4900),
+                body: { message: "Resource not accessible by integration" },
+            }),
         );
         const { gitHub } = client(gh);
         await expect(gitHub.get(RUNS)).rejects.toMatchObject({ kind: "credential", status: 403 });
@@ -327,7 +331,11 @@ describe("rate rules", () => {
 
     it("treats a 403 with a retry-after header, or any 429, as secondary", async () => {
         const answers = [
-            httpOutput({ status: 403, headers: { ...rate(4000), "retry-after": "30" }, body: { message: "Forbidden" } }),
+            httpOutput({
+                status: 403,
+                headers: { ...rate(4000), "retry-after": "30" },
+                body: { message: "Forbidden" },
+            }),
             httpOutput({ status: 429, headers: rate(4000), body: { message: "Too many" } }),
         ];
         const gh = createFakeGh(() => answers.shift());

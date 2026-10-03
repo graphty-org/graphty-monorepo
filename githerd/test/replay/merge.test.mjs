@@ -52,9 +52,7 @@ const HOSTS_GLOBS = hostsPaths();
  */
 function canAffect(workflow, files) {
     if (workflow === "Hosts") {
-        return files.some((f) =>
-            HOSTS_GLOBS.some((g) => (g.endsWith("/**") ? f.startsWith(g.slice(0, -2)) : f === g)),
-        );
+        return files.some((f) => HOSTS_GLOBS.some((g) => (g.endsWith("/**") ? f.startsWith(g.slice(0, -2)) : f === g)));
     }
     if (workflow === "GPU") {
         const benched = selectGroups(files, new Map([["any", new Set()]])).groups.length > 0;

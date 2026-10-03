@@ -13,8 +13,7 @@ describe("a node's neighbors with tie strength", () => {
      * @returns the session
      */
     async function directedGraph(): Promise<ReturnType<typeof createGraphSession>> {
-        const session = createGraphSession();
-        await session.config.set({ data: { directed: true } });
+        const { session } = makeSession({ directed: true });
         await session.data.addNodes([{ id: "j" }, { id: "v" }, { id: "c" }, { id: "t" }, { id: "x" }]);
         await session.data.addEdges([
             { source: "j", target: "v", chapters: 10 },

@@ -3455,6 +3455,7 @@ export interface EdgeArraysInput {
     readonly src: U32;
     readonly dst: U32;
     readonly weights?: F32 | F64 | undefined;
+    readonly edgeIds?: readonly EdgeId[] | undefined; // becomes the unique role "id" edge column "id"
     readonly nodeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly edgeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     readonly meta?: GraphMetaPatch | undefined;
@@ -3496,6 +3497,39 @@ export function fromRecords(
     input: RecordsInput,
     options?: BuilderOptionsPatch & FreezeOptions,
 ): { snapshot: GraphSnapshot; report: FreezeReport };
+// A caller's own node and edge objects, read through accessors; node i / edge e is the i-th / e-th given
+// (parallel edges and self-loops are always kept, so the edge order is the input order).
+export interface ElementAccessors<N, E> {
+    readonly directed: boolean;
+    readonly id: (node: N) => NodeId;
+    readonly source: (edge: E) => NodeId;
+    readonly target: (edge: E) => NodeId;
+    readonly edgeId?: ((edge: E) => EdgeId) | undefined;
+    readonly weight?: ((edge: E) => number) | undefined;
+}
+export interface ElementsSnapshot<N, E> {
+    readonly snapshot: GraphSnapshot;
+    readonly nodes: readonly N[]; // nodes[i] is node index i
+    readonly edges: readonly E[]; // edges[e] is logical edge e
+}
+export function fromElements<N, E>(
+    nodes: Iterable<N>,
+    edges: Iterable<E>,
+    accessors: ElementAccessors<N, E>,
+    options?: FreezeOptions,
+): ElementsSnapshot<N, E>;
+
+// Node references accepted by every algorithm and layout: a node is its index or { id }; a node set is an
+// index array, { mask } or { ids }. A bare index passes through unchecked (each caller keeps its range error).
+export type NodeRef = number | { readonly id: NodeId };
+export type NodeSet = ArrayLike<number> | { readonly mask: NodeMask } | { readonly ids: Iterable<NodeId> };
+export interface NodeResolvable {
+    readonly nodeCount: number;
+    readonly ids?: NodeIdMap | undefined;
+}
+export function resolveNode(graph: NodeResolvable, node: NodeRef): number;
+export function resolveNodeSet(graph: NodeResolvable, set: NodeSet): ArrayLike<number>;
+export function resolveNodeMask(graph: NodeResolvable, set: NodeSet): NodeMask;
 export function fromWire(wire: WireSnapshot, options?: FromWireOptions): GraphSnapshot;
 export function fromBytes(bytes: Uint8Array | ArrayBufferLike, options?: FromWireOptions): GraphSnapshot;
 export function fromByteChunks(chunks: Iterable<Uint8Array>, options?: FromWireOptions): GraphSnapshot;

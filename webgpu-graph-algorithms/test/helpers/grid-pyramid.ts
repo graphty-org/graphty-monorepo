@@ -1,15 +1,15 @@
 /**
  * The grid-pyramid check (spec 7.7 G4-G5; P4-T9) shared by test/primitives/grid-pyramid.test.ts and
  * test/sabotage/grid-pyramid.test.ts: a T8 scene (gridScene), one pass that records the T8 build and then the
- * pyramid (G4, G4a, G4b, G5 x (levels - 1)) into poisoned model buffers (0xdeadbeef in every word of the pyramid, so
+ * pyramid (G4, G4b, G5 x (levels - 1)) into poisoned model buffers (0xdeadbeef in every word of the pyramid, so
  * an unwritten cell is visible; `hubCounters` zeroed), the read-back of every level, and the report against
  * gridOraclePyramid: ratioOf(|got - want|, bound) per value, the bound the oracle's analytic forward-error bound of
  * the kernel's f32 sums (an empty cell has bound 0 and must be exactly 0).
  *
  * `hubcell-shifted` is `hubcell` with its first HUB_SHIFTED nodes moved to (-0.5, -0.5, -0.5), a lower cell, so the
  * hub cell's sorted range starts above 0 (the `hub-range-start-ignored` row is invisible on a range that starts at
- * 0); `hubcell-two` moves HUB_TWO nodes there instead, enough for TWO hub cells, so G4a's indirect args must dispatch
- * one workgroup per hub cell (a finalize planned over nodes instead of hub cells sums hubList[0] only). `hubcell` and
+ * 0); `hubcell-two` moves HUB_TWO nodes there instead, enough for TWO hub cells, so G4b must run one workgroup per
+ * hub cell (one workgroup in all sums hubList[0] only). `hubcell` and
  * its variants always run at scale 1: at a software adapter's 1 / 50 the fixture's 400 nodes would not be a hub cell
  * at all.
  */
@@ -84,6 +84,8 @@ export interface PyramidRun {
     readonly hubList: U32;
     /** The pyramid planner's dispatches. */
     readonly dispatches: number;
+    /** The indirect dispatches the pass recorded (Dawn validates each one with a hidden pass). */
+    readonly indirectDispatches: number;
 }
 
 /**
@@ -128,7 +130,6 @@ export async function runPyramid(ctx: GpuContext, scene: GridScene, upTo?: GridP
     const hubWords = Math.max(1, Math.ceil(n / GRID_HUB_CELL));
     const hubList = poisoned(hubWords, "pyramid/hubList");
     const hubCounters = uploadBuffer(ctx, new Uint32Array(4), "pyramid/hubCounters");
-    const hubArgs = uploadBuffer(ctx, new Uint32Array(4), "pyramid/hubArgs", BufferUsage.INDIRECT);
     const scope = testReduceScope(ctx);
     try {
         const build = await prepareGridBuild(scope, spec);
@@ -152,10 +153,16 @@ export async function runPyramid(ctx: GpuContext, scene: GridScene, upTo?: GridP
             pyramid: bindingOf(pyramid),
             hubList: bindingOf(hubList),
             hubCounters: bindingOf(hubCounters),
-            hubArgs: bindingOf(hubArgs),
         });
         const encoder = ctx.device.createCommandEncoder({ label: "pyramid/test" });
         const pass = encoder.beginComputePass({ label: "pyramid/test" });
+        let indirectDispatches = 0;
+        const indirect = pass.dispatchWorkgroupsIndirect.bind(pass);
+        pass.dispatchWorkgroupsIndirect = (buffer: GPUBuffer, offset: number): undefined => {
+            indirectDispatches += 1;
+            indirect(buffer, offset);
+            return undefined;
+        };
         build.record(pass, n, 0);
         planner.record(pass, 0, upTo);
         pass.end();
@@ -165,13 +172,14 @@ export async function runPyramid(ctx: GpuContext, scene: GridScene, upTo?: GridP
             hubCounters: await readU32(ctx, hubCounters, 4),
             hubList: await readU32(ctx, hubList, hubWords),
             dispatches: planner.lastDispatches,
+            indirectDispatches,
         };
     } finally {
         scope.dispose();
         for (const b of [pos, state, params, cellKey, cellVal, sortedKey, sortedIdx, cellHist, cellStart]) {
             b.destroy();
         }
-        for (const b of [pyramid, hubList, hubCounters, hubArgs]) {
+        for (const b of [pyramid, hubList, hubCounters]) {
             b.destroy();
         }
     }
@@ -219,7 +227,12 @@ export function levelOf(run: PyramidRun, scene: GridScene, level: number): F32 {
  * @param minLevel - the first level compared (default 0)
  * @returns the report
  */
-export function pyramidCompare(run: PyramidRun, scene: GridScene, want: GridOraclePyramid, minLevel?: number): CheckReport {
+export function pyramidCompare(
+    run: PyramidRun,
+    scene: GridScene,
+    want: GridOraclePyramid,
+    minLevel?: number,
+): CheckReport {
     const reports: CheckReport[] = [];
     const lanes = ["x", "y", "z", "w"];
     for (let level = minLevel ?? 0; level < scene.spec.levels; level++) {
@@ -253,7 +266,12 @@ export function pyramidCompare(run: PyramidRun, scene: GridScene, want: GridOrac
  * @param minLevel - the first level compared (default 0)
  * @returns the merged report over both dimensions
  */
-export async function pyramidReport(ctx: GpuContext, name: string, scale: number, minLevel?: number): Promise<CheckReport> {
+export async function pyramidReport(
+    ctx: GpuContext,
+    name: string,
+    scale: number,
+    minLevel?: number,
+): Promise<CheckReport> {
     const reports: CheckReport[] = [];
     for (const dim of [2, 3] as const) {
         const scene = pyramidScene(name, dim, scale);

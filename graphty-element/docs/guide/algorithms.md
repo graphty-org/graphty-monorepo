@@ -231,13 +231,26 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
-**A run's id names its result.** The element derives it from the algorithm, whether the run is
-exact or sampled, and the scope -- with `"visible"` and `"selection"` frozen to the filter and the
-selection in force when the run started. So the same call under another filter is another result,
-with its own id, and a layer painting the first result keeps painting what the first run read.
-Parameters and the seed are not part of the id: starting a result again with new ones re-runs that
-result in place, and every layer bound to it repaints from the new values. To keep two parameter
-settings side by side, name them with `as:`.
+**A run's id names its result, in words.** A run you do not name with `as:` is named after its
+algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest_path.onPath` --
+and an algorithm whose settings change what its result means adds the setting once it leaves its
+default: `results.louvain_resolution_1_5.group`, labelled "Communities (resolution 1.5)", or
+`results.pagerank_damping_0_9.value`. The built-ins name PageRank's damping, Katz's alpha, the
+direction of eigenvector centrality and HITS, the resolution of Louvain and Leiden, the
+strength of components, and the method of shortest path and link prediction.
+
+Starting the same run again finds the same result: same algorithm, same name, and the same scope
+-- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run
+started -- whether it is exact or sampled. A setting the name does not carry (the iteration cap,
+the seed) re-runs that result in place, and every layer bound to it repaints from the new values.
+A different computation that would take a name already in use gets `_2`, `_3`, ...: degree over
+the whole graph is `degree`, and degree over a set after it is `degree_2`. An id never changes
+once given, and a name passed with `as:` always wins, so to keep two runs side by side under names
+of your own, name them with `as:`.
+
+**This changed in 3.6.** Before, an unnamed run's id was the algorithm and a hash of its result,
+such as `degree_0bkzd1n0p2dnik`. Ids already saved in that form keep working; only new runs get
+readable names.
 
 **This changed in 2.5.** Before, a run recorded its scope but computed over the whole graph, so a
 run scoped to less than the graph -- including a default run while a visibility filter was hiding

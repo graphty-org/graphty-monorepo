@@ -520,7 +520,6 @@ export class ForceAtlas2Model implements ForceModel<ForceAtlas2Options, ForceAtl
             cellStart: resources.buffer("cellStart"),
             hubList: resources.buffer("hubList"),
             hubCounters,
-            hubArgs: resources.buffer("hubArgs"),
             pyramid: resources.buffer("pyramid"),
         });
         const wg = k1.workgroupSize;

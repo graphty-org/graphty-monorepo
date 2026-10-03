@@ -30,6 +30,7 @@ import {
     type Scope,
     type ScopeInput,
     type SetId,
+    type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
@@ -62,13 +63,13 @@ import {
     canonicalize,
     canonicalizeParams,
     canonicalResultIdentity,
-    deriveResultId,
     deriveRunId,
     freezeScope,
     type LiveKeyword,
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
+import { suggestRunName } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
@@ -573,6 +574,8 @@ interface ResolvedRun {
     readonly spec: Scope;
     readonly id: RunId;
     readonly derived: boolean;
+    /** The name the algorithm suggested, for a run the caller did not name. */
+    readonly name?: SuggestedName;
 }
 
 /** Starting runs, finding them, and taking them away. */
@@ -597,6 +600,9 @@ class Runs implements SessionRunsApi {
 
     /** The ids the element minted, which are the ones a saved document may not reference. */
     private readonly derivedIds = new Set<RunId>();
+
+    /** The name each minted id was suggested as: the id it tried first, and the run's label. */
+    private readonly names = new Map<RunId, SuggestedName>();
 
     /** The command each run was started with, which a re-run dispatches again. */
     private readonly commands = new Map<RunId, AlgorithmRunCommand>();
@@ -870,6 +876,7 @@ class Runs implements SessionRunsApi {
         this.runs.clear();
         this.identities.clear();
         this.derivedIds.clear();
+        this.names.clear();
         this.commands.clear();
         this.launches.clear();
         this.bodies.clear();
@@ -924,7 +931,7 @@ class Runs implements SessionRunsApi {
             });
         }
 
-        const { descriptor, identity, result, spec, id, derived } = this.resolve(algorithm, params, options);
+        const { descriptor, identity, result, spec, id, derived, name } = this.resolve(algorithm, params, options);
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
         const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
         const launch: Launch = { via, command, beside: options.queue === "now" };
@@ -938,6 +945,10 @@ class Runs implements SessionRunsApi {
 
         if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === result)) {
             return this.reuse(existing, identity, result, descriptor, launch);
+        }
+
+        if (name !== undefined) {
+            this.names.set(id, name);
         }
 
         return this.create(id, identity, result, descriptor, spec, options, derived, launch);
@@ -976,16 +987,38 @@ class Runs implements SessionRunsApi {
             sample: identity.sample,
             exact: identity.exact,
         };
-        const assignedId = options.as;
+        const canonical = canonicalResultIdentity(result);
 
-        return {
-            descriptor,
-            identity,
-            result: canonicalResultIdentity(result),
-            spec,
-            id: assignedId === undefined ? deriveResultId(result) : assertRunId(assignedId),
-            derived: assignedId === undefined,
-        };
+        if (options.as !== undefined) {
+            return { descriptor, identity, result: canonical, spec, id: assertRunId(options.as), derived: false };
+        }
+
+        const name = suggestRunName(descriptor, identity.params);
+
+        return { descriptor, identity, result: canonical, spec, id: this.mintId(name, canonical), derived: true, name };
+    }
+
+    /**
+     * The id an unnamed run answers to: the run already holding this result under this name, or
+     * else the name itself, counting up from `_2` past every id something else holds.
+     * @param name - The name the algorithm suggested.
+     * @param result - The canonical identity of the result.
+     * @returns The id.
+     */
+    private mintId(name: SuggestedName, result: string): RunId {
+        for (const id of this.derivedIds) {
+            if (this.identities.get(id) === result && this.names.get(id)?.id === name.id) {
+                return id;
+            }
+        }
+
+        for (let count = 1; ; count++) {
+            const id = count === 1 ? name.id : `${name.id}_${count}`;
+
+            if (!this.runs.has(id) && !this.dispatcher.state.runs.has(id)) {
+                return id;
+            }
+        }
     }
 
     /**
@@ -1060,6 +1093,7 @@ class Runs implements SessionRunsApi {
             this.derivedIds.add(id);
         } else {
             this.derivedIds.delete(id);
+            this.names.delete(id);
         }
 
         run.start();
@@ -1528,10 +1562,13 @@ class Runs implements SessionRunsApi {
             return id;
         }
 
-        const descriptor = this.findDescriptor(run.algorithm);
-        const base = descriptor?.plainName ?? run.algorithm;
+        const base = this.baseLabelOf(run);
         const siblings = [...this.runs.values()].filter(
-            (other) => other.algorithm === run.algorithm && other.id !== id && this.listed(other),
+            (other) =>
+                other.algorithm === run.algorithm &&
+                other.id !== id &&
+                this.listed(other) &&
+                this.baseLabelOf(other) === base,
         );
 
         if (siblings.length === 0) {
@@ -1539,6 +1576,16 @@ class Runs implements SessionRunsApi {
         }
 
         return `${base} (${this.qualifierFor(run, siblings)})`;
+    }
+
+    /**
+     * What a run is called before any sibling shares the name: what its algorithm suggested, or
+     * the algorithm's plain name.
+     * @param run - The run.
+     * @returns The label.
+     */
+    private baseLabelOf(run: ManagedRun): string {
+        return this.names.get(run.id)?.label ?? this.findDescriptor(run.algorithm)?.plainName ?? run.algorithm;
     }
 
     /**

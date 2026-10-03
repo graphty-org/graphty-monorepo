@@ -59,7 +59,8 @@
             // the recipe and style files are the ones handed for the project on screen (the Data place's Sources + lists the same)
             items: () => [
                 { heading: "Choose a file" },
-                { label: "transfers-2026-04.csv", desc: "Data file: opens on the Data page", go: ["data-page", "edge-list"] },
+                // a data file opened over a project: the Data page previews April's file with Load into (New graph or This graph), as a drop does
+                { label: "transfers-2026-04.csv", desc: "Data file: opens on the Data page", go: ["data-page", "load-into"] },
                 ...((AB.route && AB.route.frame.dataset) === "wide"
                     ? [{ label: "estate-exposure-review.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "wide-mismatch"] }]
                     : [{ label: "mule-ring-triage.graphty", desc: "Recipe: opens the Apply file dialog over this project", go: ["recipe-apply", "binding"] },
@@ -103,6 +104,22 @@
 
     const STATES = ["open", "open-file", "open-recent", "help", "two-selected", "after-hide"];
 
+    // Opened over a blank project (graph-place/empty, data-place/no-sources): the menu keeps that project's
+    // panels under it, and Esc (or Settings closing) goes back there, as Settings does
+    let under = null;
+    const BLANK = /^(graph-place\/empty|data-place\/no-sources)$/;
+    function underFrame() {
+        const r = AB.route;
+        if (r && r.id === "main-menu") return under;
+        under = null;
+        if (r && BLANK.test(String(r.frame.left || ""))) {
+            const f = {};
+            ["left", "right", "canvas", "dock", "toolbar", "mode", "dataset", "newProject", "chip"].forEach((k) => { if (k in r.frame) f[k] = r.frame[k]; });
+            under = { frame: f, back: { id: r.id, state: r.state } };
+        }
+        return under;
+    }
+
     registerSection({
         id: "main-menu",
         title: "Main menu",
@@ -113,7 +130,7 @@
             : state === "after-hide"
                 // Valjean was selected and hidden: the bar and the inspector keep him, and the hidden set names him
                 ? { left: "graph-place/at-rest", right: "inspector-node/why-this-look", toolbar: "selection-bar/hidden" }
-                : { left: "graph-place/at-rest" }),
+                : (underFrame() || {}).frame || { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
             { id: "open", label: "Open" },
@@ -125,6 +142,7 @@
         ],
         render(el, state) {
             // Old links (file, edit, edit-selection, file-recent, ...) land on the open menu.
+            if (under && AB.route) AB.route.closeTo = under.back;
             draw(el, STATES.includes(state) ? state : "open");
         },
     });

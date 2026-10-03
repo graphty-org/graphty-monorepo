@@ -17,6 +17,9 @@
         nested: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
         plainJson: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
         registry: { canvas: "canvas-and-states/registry", right: "inspector-nothing-selected/registry", dock: false },
+        // Two graph-file samples opened bare: the plain drawing, the overview, no table (no rows in the fixtures)
+        karate: { canvas: "canvas-and-states/karate", right: "inspector-nothing-selected/karate", dock: false },
+        ppi: { canvas: "canvas-and-states/ppi", right: "inspector-nothing-selected/ppi", dock: false },
     };
     // A just-loaded project has no saved views; the door entries have their own notes
     const RAIL_STATE = {
@@ -27,6 +30,8 @@
         nested: { graph: "nested", data: "attributes-nested", views: "empty", notes: "empty" },
         plainJson: { graph: "plain-json", data: "plain-json", views: "empty", notes: "empty" },
         registry: { graph: "registry", data: "registry", views: "empty", notes: "empty" },
+        karate: { graph: "karate", views: "empty", notes: "empty" },
+        ppi: { graph: "ppi", views: "empty", notes: "empty" },
     };
     // The filter chip has one wording, written by AB.count: "60 of 77 nodes". A section's chip that
     // counts ("Filtered: 60 of 77 nodes", "812 of 3,000 nodes") is rewritten to it; any other text
@@ -414,9 +419,13 @@
     }
     // Where the chip opens: the project's filters. A Data place on screen already holds them (with any step
     // the reader just added); else the transfers' Filters, Les Miserables' degree steps, or the project's Data place
+    // data-place's state holding the one step Filter to neighbors made
+    const NEIGHBOR_STEP = "lesmis-neighbors";
     function chipDoor(chip) {
         const ds = route.frame.dataset, left = String(route.frame.left || "");
         if (chip === "Full graph") return ["data-place", placeOf(ds, "data")];
+        // Filter to neighbors made one step: the chip opens a Data place holding only that step
+        if (route.id === "selection-bar" && route.state === "filtered-to-neighbors") return ["data-place", NEIGHBOR_STEP];
         if (left.startsWith("data-place/")) return left.split("/");
         return ["data-place", ds === "transactions" ? "filters" : ds === "lesmis" ? "lesmis-filters" : placeOf(ds, "data")];
     }
@@ -559,7 +568,7 @@
         let closeTo = carried === "panels" ? (was.frame.overlay ? was.closeTo : { id: was.id, state: was.state }) : extra.own && leftRef ? leftRef : sec.closeTo ? refOf(sec.closeTo) : frame.full && sec.region !== "full" ? refOf(frame.full) : leftRef && leftRef.id !== sec.id ? leftRef : { id: PLACES[railKey][2], state: null };
         // In a loaded project (wide, nested, plain JSON) a place's at-rest names Les Miserables: close to the project's own state
         const placeKey = closeTo && Object.keys(PLACES).find((k) => PLACES[k][2] === closeTo.id);
-        if (placeKey && ["wide", "nested", "plainJson", "registry"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
+        if (placeKey && ["wide", "nested", "plainJson", "registry", "karate", "ppi"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
         // A menu, popover or dialog drawn over a selection closes back to that selection, never past it:
         // one Esc closes only the overlay, and the selection and panels stay as they were
         if (sec.region === "overlay" && !extra.own && carried !== "panels" && selectionBarFor(frame.right)) closeTo = refOf(frame.right);
@@ -713,10 +722,17 @@
     });
 
     // A run finishes: a route that shows a run in progress moves on to its finished state after the
-    // estimate the Run button gave ("Under a second"), unless the reader has gone elsewhere. Only Les
-    // Miserables has a finished state (graph-place/finished: the row on top, painting, with its legend).
-    // ponytail: the transfers and door-entries runs have no finished state yet, so theirs keep running
-    const RUN_DONE = { "analyze-popover/running": { lesmis: "graph-place/finished" }, "graph-place/running": { lesmis: "graph-place/finished" } };
+    // estimate the Run button gave ("Under a second"), unless the reader has gone elsewhere. Les
+    // Miserables lands on graph-place/finished (the row on top, painting, with its legend); the transfers'
+    // April rerun on its April result (inspector-run-row/finished); the door entries on their graph place,
+    // the new row on top.
+    const RUN_DONE = {
+        "analyze-popover/running": { lesmis: "graph-place/finished", doorEntries: "graph-place/door-entries-finished" },
+        "graph-place/running": { lesmis: "graph-place/finished" },
+        "inspector-run-row/running": { transactions: "inspector-run-row/finished" },
+        "graph-place/transfers-running": { transactions: "inspector-run-row/finished" },
+        "graph-place/door-entries-running": { doorEntries: "graph-place/door-entries-finished" },
+    };
     function runDone() {
         const to = route && RUN_DONE[route.id + "/" + route.state];
         const next = to && to[route.frame.dataset || "lesmis"];
@@ -801,6 +817,17 @@
         return el;
     };
     AB.walked = null;
+    // The node whose label the drawing shows at a point (AB.drawnLabels) is selected; false: no label there
+    async function labelClick(x, y) {
+        const img = [...document.querySelectorAll("#ab-canvas .k-stage > img")].find((i) => i.checkVisibility());
+        if (!img || !route) return false;
+        const ds = route.frame.dataset || "lesmis";
+        const hit = (await AB.drawnLabels(img)).find((l) => x >= l.x - 2 && x <= l.x + l.w + 2 && y >= l.y - 2 && y <= l.y + l.h + 2);
+        const i = hit ? walkNodes(ds).findIndex((n) => n.name === hit.name) : -1;
+        if (i < 0) return false;
+        AB.selectNode(ds, i);
+        return true;
+    }
 
     // ---------- keys and clicks the shell owns ----------
     // Undo and Redo, one behavior for the header's buttons and Ctrl+Z / Ctrl+Shift+Z: the selection slot
@@ -879,9 +906,11 @@
     });
     document.addEventListener("DOMContentLoaded", () => {
         // A click on empty canvas clears the selection (focus stays on the drawing, so Shift+Arrow walks from here)
-        $("ab-canvas").addEventListener("click", (e) => {
+        $("ab-canvas").addEventListener("click", async (e) => {
             const t = e.target;
             if (!route || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
+            // a node's label drawn on the canvas selects that node, as a hot spot does
+            if (await labelClick(e.clientX, e.clientY)) return;
             const stage = $("ab-canvas").querySelector(".k-stage");
             if (stage) stage.focus({ preventScroll: true });
             AB.clearSelection();
@@ -1022,6 +1051,10 @@
             fx.datasets.doorEntries = DOOR_ENTRIES;
             // wide (300 hosts, 60+ attributes), nested (an API's nested JSON) and plainJson (node-link): generated by ../kit/gen-wide-nested.mjs
             Object.assign(fx.datasets, more);
+            // The karate club has no frame in the fixtures: its header and graph row name it as a loaded file does
+            const K = fx.datasets.karate;
+            K.frame = K.frame || { project: K.title, file: K.file, graphRow: "Club ties" };
+            [K, fx.datasets.ppi].forEach((D) => { D.graphName = D.graphName || D.frame.graphRow; });
             derivedCounts(fx.datasets);
             // The transfers' 40 sample rows hold none of the busiest accounts, so a ranking would top out at 15
             // while the summary says 907: the ten by degree join the rows (after them, so row indexes hold)

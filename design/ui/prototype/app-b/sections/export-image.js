@@ -305,13 +305,12 @@
         return art;
     }
 
-    // The labels the image leaves out to avoid overlap: the kit's drawing names these 13 nodes and
-    // graphty-element hides every other label where they would overlap.
-    // ponytail: the drawing's fixed label set; label lines a row adds are not counted
-    const LABELED = ["Valjean", "Gavroche", "Marius", "Javert", "Fantine", "Enjolras", "Courfeyrac", "Bossuet", "Bahorel", "Mme.Thenardier", "Cosette", "Eponine", "Myriel"];
+    // The labels the image leaves out to avoid overlap: lib.js's one overlap rule (AB.overlapHidden),
+    // so Show all labels on (AB.showAllLabels) leaves none hidden and no line.
     function hiddenLabels() {
         const rows = AB.fx.datasets.lesmis.rows;
-        const hid = rows.map((r, i) => ({ r, i })).filter(({ r }) => !LABELED.includes(r.label)).sort((a, b) => b.r.degree - a.r.degree);
+        const names = AB.overlapHidden("lesmis", rows.map((r) => r.label));
+        const hid = rows.map((r, i) => ({ r, i })).filter(({ r }) => names.includes(r.label)).sort((a, b) => b.r.degree - a.r.degree);
         if (!hid.length) return null;
         const toggle = h("span", Object.assign({ class: "ab-link", role: "button", "aria-expanded": String(hidOpen) }, AB.act({ onClick: () => { hidOpen = !hidOpen; redraw(); requestAnimationFrame(() => { const t = host && host.querySelector(".xi-hid [aria-expanded]"); if (t) t.focus(); }); } })), hidOpen ? "hide list" : "show list");
         return h("div", { class: "xi-hid" },

@@ -308,7 +308,9 @@
     // attr null: a new step, which reads nothing until a field is picked (its Condition waits for it).
     // step: the Data place's step object, renamed by its rule as the rule changes.
     function filterBody(o) {
-        let on = o.on != null ? o.on : true; // a gone step stays on, as its Data place row shows; it is skipped
+        // the Data place's selected step, when the Data place beside this inspector lists it: Apply this step commits there
+        const listed = AB.selectedStep ? AB.selectedStep() : null;
+        let on = o.on != null ? o.on : listed ? listed.on : true; // a gone step stays on, as its Data place row shows; it is skipped
         const aText = h("span", { class: o.gone ? "ia-gone" : null }, o.attr ? attrName(o.attr) : h("span", { class: "k-secondary" }, "Pick an attribute"));
         const a = AB.field(aText, { caret: true });
         a.setAttribute("aria-haspopup", "listbox");
@@ -398,6 +400,8 @@
             check.setAttribute("aria-checked", String(on));
             after.textContent = shown(on);
             AB.announce(on ? "Step applied" : "Step skipped");
+            const now = listed && AB.selectedStep();
+            if (now && now.on !== on) now.flip();
         };
         const apply = h("label", { class: "ia-apply", "aria-disabled": o.gone ? "true" : null, on: { click: (e) => { e.preventDefault(); toggle(); } } }, check, h("span", { id: "ia-apply-l" }, "Apply this step"));
         check.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } });

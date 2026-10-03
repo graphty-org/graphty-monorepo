@@ -74,6 +74,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // A run is named by its algorithm; "For the report" already holds a Betweenness, so this one is
     // the second (its options live in its Data tab, never in its name)
     const BT_NEW = "Betweenness 2";
+    // Les Miserables opened from a file (AB.fx.datasets.lesmis.fresh) is not the sample: its tree holds only
+    // the built-in rows and what the reader runs on it (a Betweenness run from Analyze)
+    const fileTree = (state) => state === "file-loaded" || (!!AB.fx.datasets.lesmis.fresh && ["finished", "running", "queued"].includes(state));
     // The count column counts members: a run's members are its groups
     const groups = (n) => AB.count(n, "group");
     // Renames made this session, by row id, so a rename survives the redraw a navigation causes
@@ -86,6 +89,29 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // The row the reader last clicked: the tree keeps it marked while the inspector beside it still shows it,
     // also when the tree is drawn again (a menu closing, a move with Ctrl+])
     let picked = null;
+    // The Les Miserables tree as the reader left it, for this page view: its open folds (by row id), the rows
+    // the reader added (Louvain 2; Betweenness 2 is AB.betweennessRun, set when the run finishes) and the row
+    // they picked ({ id, right }: the inspector it opened), so a rail round trip draws the tree they left
+    const lm = AB.lmTree = AB.lmTree || { open: {}, louvain2: false, sel: null };
+    let lmLast = null; // the Les Miserables rows on screen, read for their folds when the tree is drawn again
+    // Deleting an added row clears its flag; its Undo puts the row back in the tree, and the repaint that
+    // follows sets the flag again
+    // AB.betweennessRun holds the name of the measure row the last finished run added (Betweenness 2, PageRank 2, ...)
+    const setAdded = (name, v) => { if (name === "Louvain 2") lm.louvain2 = v; else AB.betweennessRun = v ? name : false; };
+    let undoable = null;
+    const dropAdded = (name) => () => { setAdded(name, false); undoable = name; };
+    document.addEventListener("ab:paint", () => { if (undoable && AB.paintRows.some((r) => r.name === undoable)) { setAdded(undoable, true); undoable = null; } });
+    // The run Analyze started on Les Miserables (analyze-popover's AB.lastRun): its row's name, and whether it is
+    // a copy of Louvain (it lands as Louvain 2) or an Update of a row the tree holds (no new row)
+    const lmRun = () => (AB.lastRun && (AB.lastRun.ds || "lesmis") === "lesmis" ? AB.lastRun : null);
+    const runRowName = () => (lmRun() && lmRun().row) || BT_NEW;
+    // A run that finished: its row joins the tree (or revises the row it updated) and stays until deleted
+    function finishRun() {
+        const r = lmRun();
+        if (r && r.update) return;
+        if (r && r.id === "louvain") lm.louvain2 = true;
+        else AB.betweennessRun = runRowName();
+    }
     const keepEyes = (list) => list.forEach((r) => { if (r.eye != null && eyeKey(r.id) in eyes) r.eye = eyes[eyeKey(r.id)]; if (r.children) keepEyes(r.children); });
 
     // Louvain on Les Miserables (see the header comment for how these were computed)
@@ -119,6 +145,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", "path-lesmis-found": "p3", path: "tp1", "path-door-entries": "dp1", "path-lesmis-2": "p2", "kept-2": "g2", "kept-8": "g8", "one-member": "g6", style: "c3", data: "c3", "top-degree": "top", notes: "c3", "label-by": "label-degree" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : null),
         }[id] || null;
         if (id === "inspector-measure-row" && /^painted-/.test(st)) row = "paint-" + st.slice(8);
+        if (id === "inspector-measure-row" && /^betweenness-new/.test(st)) row = "betweenness-new";
         const sel = { "inspector-node": "1", "inspector-edge": "1", "inspector-several-elements": st === "two-nodes" ? String((AB.tablePicks || []).length || 2) : "5" }[id] || null;
         return { row, sel, selNoun: id === "inspector-edge" ? "edge" : null, edited: id === "inspector-node" && st === "edited" };
     }
@@ -161,21 +188,32 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             }, { kind: "run" }),
         });
     }
+    // A row a run just added with no inspector state of its own: its name and how it was made
+    function justRanInspector(name, run) {
+        inspectBeside({ icon: run ? AB.ICON.run : "chart-column", kindKey: run ? "run-row" : "measure-row", menu: ["context-menus", run ? "run-row" : "measure-row"], title: name, kind: run ? "Run" : "Measure",
+            body: AB.dataTab({ "Made with": { body: [AB.data("Method", name.replace(/ \d+$/, "")), AB.data("Ran", "Just now")] } }, { kind: run ? "run" : "measure" }) });
+    }
     const builtin = (o) => Object.assign({ pinned: true, builtin: true, eye: true }, o);
     // the selection's count names what is selected: "1 node", or "1 edge" beside the edge inspector
     const selectionRow = (count, noun) => builtin({ id: "selection", name: "Selection", kindIcon: "scan", count, countNoun: noun || undefined, go: ["inspector-selection-and-everything", "selection"] });
     // Notes keeps its name and cannot be deleted, but drags like any row
-    const notesRow = (eye, count) => ({ id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, count: count === undefined ? 4 : count, countTip: "Noted nodes and edges", eye, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] });
+    // Les Miserables' Notes row counts the notes the Notes place lists (the fixture's and those saved in this
+    // page view); the door entries' counts the elements their notes are about
+    const lmNotes = () => (AB.notesOf ? AB.notesOf("lesmis").length : 0);
+    const notesRow = (eye, count) => ({ id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, eye,
+        ...(count === undefined ? { count: lmNotes(), countNoun: "note" } : { count, countTip: "Noted nodes and edges" }), go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] });
     const everythingRow = (eye) => builtin({ id: "everything", name: "Everything", kindIcon: "base-layer", eye, go: ["inspector-selection-and-everything", "everything"] });
 
     // The door entries and the transfers after a run: the project's tree with the new row on top,
     // under the built-in rows (a just-loaded transfers project has no Louvain run yet)
     const T = () => AB.fx.datasets.transactions;
-    const DOOR = ["door-entries", "door-entries-path", "door-entries-running"];
+    const DOOR = ["door-entries", "door-entries-path", "door-entries-running", "door-entries-finished"];
+    // The run Analyze started on a project (analyze-popover's AB.lastRun), when it was started on that one
+    const runOn = (ds) => (AB.lastRun && AB.lastRun.ds === ds ? AB.lastRun : null);
     const TRANSFERS = ["transfers-loaded", "path-found", "transfers-running"];
     const freshT = (state) => state === "transfers-loaded" || (state !== "many-groups" && !!T().fresh);
     function newRow(state) {
-        if (/running$/.test(state)) return { id: "betweenness-new", name: "Betweenness", kindIcon: "chart-column", eye: true, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"], menu: ["context-menus", "measure-row"] };
+        if (/running$/.test(state)) return { id: "betweenness-new", name: (runOn(DOOR.includes(state) ? "doorEntries" : "transactions") || {}).row || "Betweenness", kindIcon: "chart-column", eye: true, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"], menu: ["context-menus", "measure-row"] };
         const door = state === "door-entries-path";
         const p = AB.lastPath && AB.lastPath.ds === (door ? "doorEntries" : "transactions") ? AB.lastPath : null;
         const P = T().setsAndPaths.path;
@@ -193,7 +231,14 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         if (DOOR.includes(state)) rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), notesRow(true, doorNoted()), everythingRow(true)];
         else if (freshT(state)) rows = [selectionRow(null), notesRow(true, null), everythingRow(true)];
         else { rows = manyModel(false); rows[2].selected = false; }
-        if (state !== "door-entries" && state !== "transfers-loaded") rows.splice(2, 0, newRow(state));
+        if (state !== "door-entries" && state !== "transfers-loaded" && state !== "door-entries-finished") rows.splice(2, 0, newRow(state));
+        // A run that finished on the door entries stays on top of their tree until deleted
+        if (state === "door-entries-finished") AB.doorRun = (runOn("doorEntries") || {}).row || "Betweenness";
+        if (DOOR.includes(state) && state !== "door-entries-running" && AB.doorRun) {
+            const name = AB.doorRun, run = (runOn("doorEntries") || {}).kind === "run";
+            rows.splice(2, 0, { id: "door-run", name, kindIcon: run ? AB.ICON.run : "chart-column", swatch: run ? null : AB.ramp(), eye: true, renameDisabled: RUN_LABEL, onOpen: () => justRanInspector(name, run),
+                onDelete: () => { AB.doorRun = null; }, menu: ["context-menus", run ? "run-row" : "measure-row"] });
+        }
         // a path just found lands selected (its inspector is beside it)
         const sel = ins ? ins.row : state === "path-found" ? "tp1" : null;
         const mark = (list) => list.forEach((r) => { if (sel) r.selected = r.id === sel; if (r.children) mark(r.children); });
@@ -202,11 +247,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     }
 
     // The wide, nested and plain JSON projects: just loaded, unstyled, so only the built-in rows
-    const LOADED = ["wide", "nested", "plainJson", "registry"];
+    const LOADED = ["wide", "nested", "plainJson", "registry", "karate", "ppi"];
     // Each loaded project's place has a state of its own (the rail and a canvas click open it), and one
     // with the first row a reader adds: the hosts sized by the 46-character attribute (wide-sized), the
     // researchers' kept set (nested-set). What the field lists call "in use" follows these rows.
-    const LOADED_STATE = { wide: "wide", "wide-sized": "wide", nested: "nested", "nested-set": "nested", "plain-json": "plainJson", registry: "registry" };
+    const LOADED_STATE = { wide: "wide", "wide-sized": "wide", nested: "nested", "nested-set": "nested", "plain-json": "plainJson", registry: "registry", karate: "karate", ppi: "ppi" };
     // painted: the tree after Color by or Size by on an attribute (AB.paintRow), in the project it was made in
     const paintedDs = () => (AB.paintedLast && AB.paintedLast.ds) || "wide";
     const loadedDs = (state) => LOADED_STATE[state] || (state === "painted" ? paintedDs() : null) || (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset) ? AB.route.frame.dataset : null);
@@ -243,6 +288,24 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // Two 60-character names, drawn with the end ellipsis; the full name is in the tooltip
     const LONG = { folder: "Characters Valjean meets before the barricade, for the paper", watchlist: "Watchlist: Javert, Thenardier and the people they hunt, 1832" };
 
+    // A new run lands on top, under the built-in rows. Once it finished it stays on top and painting in every
+    // state of the tree, until the reader deletes it
+    function btRow(state) {
+        if (state === "running" || state === "queued") {
+            const r = lmRun();
+            if (r && r.update) return null; // the row it updates shows the progress (model)
+            return { id: "betweenness-new", name: runRowName(), kindIcon: r && r.kind === "run" ? AB.ICON.run : "chart-column", eye: true, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"], menu: ["context-menus", "measure-row"] };
+        }
+        if (state === "finished") finishRun();
+        const name = AB.betweennessRun === true ? BT_NEW : AB.betweennessRun;
+        if (!name) return null;
+        const bt = { id: "betweenness-new", name, kindIcon: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, go: ["inspector-measure-row", "betweenness-new"], menu: ["context-menus", "measure-row"], onDelete: dropAdded(name) };
+        if (/^Betweenness/.test(name)) return bt;
+        // Any other measure: PageRank's ramp for a PageRank copy, its own inspector beside the tree
+        const pr = /^PageRank/.test(name), run = lmRun() && lmRun().row === name && lmRun().kind === "run";
+        return Object.assign(bt, { kindIcon: run ? AB.ICON.run : "chart-column", swatch: pr ? AB.ramp("#ef7818", "#662506") : run ? null : AB.ramp(), go: null, renameDisabled: RUN_LABEL, onOpen: () => justRanInspector(name, run) });
+    }
+
     // ---------- the rows, in paint order ----------
     function model(state) {
         if (DOOR.includes(state) || TRANSFERS.includes(state)) return projectModel(state);
@@ -252,9 +315,25 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const g2 = g("2"), g8 = g("8");
         const ins = fromInspector();
         const rt = AB.route;
-        const SEL = { rename: "g2", "rename-chain": "g2", "rename-run-group": "c3", "rename-builtin": "everything", "rename-run-disabled": "louvain", partial: "louvain", queued: "louvain", running: null, failed: "failed", "louvain-open": "louvain", finished: null, "show-hidden": "g6" };
+        // A file just loaded: only the built-in rows, no notes, and the run the reader started on it
+        if (fileTree(state)) {
+            const rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), Object.assign(notesRow(true), { count: 0 })];
+            const run = btRow(state);
+            if (run) rows.push(run);
+            rows.push(everythingRow(true));
+            rows.forEach((r) => { r.selected = !!ins && r.id === ins.row; });
+            return rows;
+        }
+        // the folds of the tree on screen, kept for the next drawing
+        const fold = (list) => list.forEach((r) => { if (r.children) { lm.open[r.id] = !!r.open; fold(r.children); } });
+        if (lmLast) fold(lmLast);
+        if (state === "finished") finishRun();
+        if (state === "louvain-open" && rt && rt.id === "graph-place") lm.louvain2 = true;
+        const SEL ={ rename: "g2", "rename-chain": "g2", "rename-run-group": "c3", "rename-builtin": "everything", "rename-run-disabled": "louvain", partial: "louvain", queued: "louvain", running: null, failed: "failed", "louvain-open": "louvain", finished: null, "show-hidden": "g6" };
         let selRow = state in SEL ? SEL[state] : state === "empty" || state === "list-menu" ? null : "pagerank";
         if (ins) selRow = ins.row;
+        // back at rest with the inspector of the row the reader picked: that row is selected again
+        if (state === "at-rest" && lm.sel && rt && rt.id === "graph-place" && rt.frame.right === lm.sel.right) selRow = lm.sel.id;
         const openLouvain = ["louvain-open", "rename-run-group"].includes(state) || /^c\d$/.test(selRow || "");
         const rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), notesRow(state !== "notes-eye-off", state === "empty" ? null : state === "door-entries" ? 3 : undefined)];
         if (state === "empty") return rows.concat(everythingRow(true));
@@ -263,12 +342,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         (AB.combinedRows || []).forEach((c) => rows.push({ id: c.id, name: c.name, kindIcon: AB.ICON.set, count: c.count, eye: true, go: c.go, menu: ["context-menus", "row"] }));
         // Label by degree (an attribute's menu) adds its row on top, under the built-in rows
         if (ins && ins.row === "label-degree") rows.push({ id: "label-degree", name: "degree", kindIcon: AB.typeGlyph("num"), eye: true, go: ["inspector-group-set-path-row", "label-by"], menu: ["context-menus", "measure-row"] });
-        // A new run lands on top, under the built-in rows
-        const bt = { id: "betweenness-new", name: BT_NEW, kindIcon: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] };
-        if (state === "running" || state === "queued") rows.push(Object.assign(bt, { swatch: null, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"] }));
-        // ponytail: no inspector state shows Betweenness 2 yet (inspector-measure-row has PageRank's and the
-        // covered Betweenness'), so its row says so instead of opening PageRank's
-        if (state === "finished") rows.push(Object.assign(bt, { go: null, onOpen: () => AB.flash("Opens " + BT_NEW + " in the inspector (not available yet)") }));
+        const bt = btRow(state);
+        if (bt) rows.push(bt);
         // A run that found one group: its one child, and the footer's "1 group"
         if (state === "one-group") rows.push({ id: "components", name: "Connected components", kindIcon: AB.ICON.run, swatch: AB.chit("#0072B2", true), count: groups(1), eye: true, open: true, renameDisabled: RUN_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "run-row"],
             children: [{ id: "cc1", name: "Component 1", kindIcon: AB.chit("#0072B2", true), count: L.nodes, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "row"] }] });
@@ -277,8 +352,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // Louvain expanded: a second Louvain run sits on top of the first, numbered. Only on this place's own
         // route: the run-row inspector, the communities table and Update Louvain row frame this state with
         // Les Miserables' one Louvain run (its Data tab says no other run is there to compare with)
-        if (state === "louvain-open" && rt && rt.id === "graph-place") rows.push({ id: "louvain2", name: "Louvain 2", kindIcon: AB.ICON.run, swatch: stack(OKABE[0], OKABE[1]), count: groups(LOUVAIN2.length), eye: true, renameDisabled: RUN_LABEL,
-            onOpen: louvain2Inspector, menu: ["context-menus", "run-row"],
+        // Once the reader has it, it stays in the tree (not beside those three, for the same reason)
+        if ((state === "louvain-open" && rt && rt.id === "graph-place") || (lm.louvain2 && !(rt && ["inspector-run-row", "table-dock"].includes(rt.id)))) rows.push({ id: "louvain2", name: "Louvain 2", kindIcon: AB.ICON.run, swatch: stack(OKABE[0], OKABE[1]), count: groups(LOUVAIN2.length), eye: true, renameDisabled: RUN_LABEL,
+            onOpen: louvain2Inspector, onDelete: dropAdded("Louvain 2"), menu: ["context-menus", "run-row"],
             children: LOUVAIN2.map((size, i) => ({ id: "l2c" + (i + 1), name: "Community " + (i + 1), kindIcon: AB.chit(OKABE[i], true), count: size, eye: true, renameDisabled: GROUP_LABEL, onOpen: () => AB.flash("Opens Louvain 2's Community " + (i + 1) + " in the inspector (not available yet)"), menu: ["context-menus", "row"] })) });
         rows.push(Object.assign({ id: "pagerank", name: "PageRank", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", state === "scope-mark" ? "scope-mark" : "style"], menu: ["context-menus", "measure-row"] },
             state === "out-of-date" ? { status: "stale", statusText: "Out of date: the data changed after this run. It paints the earlier values until rerun." } : {}));
@@ -338,9 +414,13 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             });
             scope(rows);
         }
+        // An Update in progress: the row it revises shows the progress
+        if (state === "running" && lmRun() && lmRun().update) { const u = rows.find((x) => x.name === lmRun().row); if (u) Object.assign(u, { status: null, progress: 0.42, statusText: "Rerunning: 42% of nodes" }); }
         if (state === "rename-chain") renamed.g2 = renamed.g2 || "Valjean's family";
         const mark = (list) => list.forEach((r) => {
             r.selected = r.id === selRow;
+            // the folds the reader left; a state that opens Louvain (or selects one of its groups) still does
+            if (r.children && r.id in lm.open) r.open = lm.open[r.id] || (r.id === "louvain" && openLouvain);
             if (renamed[r.id]) r.name = renamed[r.id];
             else if (state === "long-names" && LONG[r.id]) r.name = LONG[r.id];
             const was = r.name;
@@ -361,14 +441,18 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // the groups and the "N more communities" row are the canvas legend's (one wording in the tree, the legend
         // and the inspector): the fixture colors the largest 7, by size
         const T = AB.fx.datasets.transactionsApril;
-        const lv = T.louvain.march, lg = T.legends.march;
-        const named = lg.rows.map((r) => ({ n: Number(r.name.replace(/\D/g, "")), name: r.name, size: r.count, color: r.color }));
-        const go = ["inspector-run-row", "many-groups"];
-        // the run's story (AB.transfersRun, inspector-run-row) or a data replace marks the Louvain row
+        // the run's story (AB.transfersRun, inspector-run-row) or a data replace marks the Louvain row; once the
+        // rerun on April data finished, the row counts and lists April's communities and carries no mark
         const replaced = AB.fx.datasets.transactions.file === T.files.transfers.file;
-        const mark = AB.transfersRun === "failed" ? { status: "error", statusText: "Rerun on April data failed on WebGPU and wrote nothing; nothing was computed on the CPU. The March result is still shown. Try WebGPU again from its inspector." }
+        const april = replaced && (AB.transfersRun === "finished" || String((AB.route && AB.route.frame.right) || "") === "inspector-run-row/finished");
+        const lv = T.louvain[april ? "april" : "march"], lg = T.legends[april ? "april" : "march"];
+        const named = lg.rows.map((r) => ({ n: Number(r.name.replace(/\D/g, "")), name: r.name, size: r.count, color: r.color }));
+        const go = ["inspector-run-row", april ? "finished" : "many-groups"];
+        const mark = april ? {} : AB.transfersRun === "failed" ? { status: "error", statusText: "Rerun on April data failed on WebGPU and wrote nothing; nothing was computed on the CPU. The March result is still shown. Try WebGPU again from its inspector." }
             : AB.transfersRun === "running" ? { progress: 0.4, statusText: "Rerunning on April data" }
-                : replaced || AB.transfersRun === "data-changed" ? { status: "stale", statusText: "Out of date: Louvain used March data. It is now April." } : {};
+                : replaced || AB.transfersRun === "data-changed" ? { status: "stale", statusText: "Out of date: Louvain used March data. It is now April." }
+                    // April's rows added to March's table (data-page's Add): the kept result is March's
+                    : (AB.fx.datasets.transactions.addedFiles || []).length ? { status: "stale", statusText: "Ran on March data; April rows were added since. It paints the March communities until rerun." } : {};
         return [
             selectionRow(null), notesRow(true, null),
             {
@@ -421,7 +505,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             const add = AB.cmd("add-data");
             return AB.treeFooter([[AB.h("span", null, L(add.go[0], add.go[1], "Add data"), " to start")]]);
         }
-        if (state === "empty" || loadedDs(state) || state === "door-entries" || (state === "transfers-loaded")) return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
+        if (fileTree(state)) return AB.betweennessRun ? null : AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
+        if (state === "empty" || loadedDs(state) || (state === "door-entries" && !AB.doorRun) || (state === "transfers-loaded")) return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
         return AB.treeFooter([
             state === "everything-hidden" && ["Everything is hidden. Unpainted nodes still take part in the layout. To leave them out, filter.", L("data-place", "filters", "Filter...")],
             hiddenOnCanvas() && [AB.h("span", null, hiddenOnCanvas() + " hidden on canvas. ", h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => AB.flash("Selects the hidden elements (not available yet)") })), "Select"), ", ", L("canvas-and-states", "drawn", "Show")), AB.needsElement("a draw-only hide that also hides incident edges")],
@@ -564,13 +649,20 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // showing the rows removed from the list view (its option checked)
         const menuNow = state === "list-menu" || state === "list-menu-on";
         if (state === "list-menu-on") state = "show-hidden";
+        const L = AB.fx.datasets.lesmis;
+        // A file just opened (the reading card beside the empty tree) is not the sample: until the reader runs
+        // something, Les Miserables' tree at rest is the just-loaded one, wherever it is drawn from
+        const rt0 = AB.route;
+        if (state === "empty" && rt0 && ((rt0.id === "canvas-and-states" && rt0.state === "loading") || (rt0.id === "inspector-nothing-selected" && rt0.state === "reading"))) L.fresh = true;
+        if (state === "at-rest" && L.fresh && !(rt0 && rt0.frame.dataset && rt0.frame.dataset !== "lesmis")) state = "file-loaded";
+        // nothing selected beside the tree: no picked row to restore later
+        if (rt0 && rt0.id === "graph-place" && /^inspector-nothing-selected/.test(rt0.frame.right || "")) lm.sel = null;
         // A direct visit to painted, before any Color by: the hosts colored by cpu_util_p95_pct
         if (state === "painted" && !AB.paintOf(paintedDs(), "Color") && !AB.paintOf(paintedDs(), "Size")) { AB.paintBy("wide", "Color", "cpu_util_p95_pct", "row"); paintedAll = true; }
         // The researchers' kept set, then sized by a nested path: an attribute row named by its dotted path
         if ((state === "nested-set" || state === "nested") && !AB.paintOf("nested", "Size")) AB.paintBy("nested", "Size", "attributes.profile.metrics.citations.last_5_years", "row");
         // The hosts at rest: sized by their 46-character attribute (wide-sized draws its own row for it)
         if (state === "wide" && !AB.paintOf("wide", "Size")) AB.paintBy("wide", "Size", VULN, "row");
-        const L = AB.fx.datasets.lesmis;
         // A tree drawn with results from the start: the transfers project is no longer just loaded
         if (state === "many-groups" || state === "rerun-failed") T().fresh = false;
         const many = state === "many-groups" || state === "rerun-failed";
@@ -581,7 +673,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // an empty place in another project (a project file too large to draw) names that project's graph
         const emptyOf = state === "empty" && AB.route && !["lesmis", "transactions", "doorEntries"].includes(AB.route.frame.dataset) && AB.fx.datasets[AB.route.frame.dataset];
         // a new project's one graph has no name of its own yet (never the sample's)
-        const graphNotes = state === "empty" || tGraph || doorGraph || ds ? 0 : 1; // the Notes place's one note about Les Miserables' graph
+        const graphNotes = state === "empty" || fileTree(state) || tGraph || doorGraph || ds ? 0 : 1; // the Notes place's one note about Les Miserables' graph
         const head = AB.graphHead("Graph", state === "empty" && !tGraph && !doorGraph && !emptyOf ? "Graph" : emptyOf && emptyOf.frame ? emptyOf.frame.graphRow : ds ? AB.fx.datasets[ds].frame.graphRow : tGraph ? AB.fx.datasets.transactions.graphName : doorGraph ? AB.fx.datasets.doorEntries.graphName : L.frame.graphRow,
             { trail: graphNotes ? AB.link("notes-place", "about-graph", AB.count(graphNotes, "note"), { class: "ab-link k-secondary gp-graph-notes", "aria-label": AB.count(graphNotes, "note") + " about this graph" }) : null });
         const finding = state === "find" || state === "find-no-match";
@@ -614,6 +706,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
 
         redraw = () => { if (el.isConnected) { el.replaceChildren(); render(el, state); } };
         const rowsNow = many ? manyModel() : model(state);
+        lmLast = !many && !other && state !== "empty" && !fileTree(state) ? rowsNow : null;
         keepEyes(rowsNow);
         const treeOpts = { label: "Paint order, top wins", onEye: (r) => { eyes[eyeKey(r.id)] = r.eye; } };
         const tree = AB.tree(rowsNow, treeOpts);
@@ -632,6 +725,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (!li || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.target.closest(".ab-eye, .ab-disc")) return;
             picked = li.dataset.row;
             markPicked(picked);
+            // the Les Miserables row picked, and the inspector it opens, for the tree at rest to restore
+            const pr = li._entry && li._entry.r;
+            if (lmLast === rowsNow && pr && pr.go && /^inspector-/.test(pr.go[0])) lm.sel = { id: picked, right: pr.go[0] + "/" + pr.go[1] };
             setMarked(picked, li._entry && li._entry.r.name);
         }, true);
         // The row not listed opens its own menu (Show in list view) on right-click and Shift+F10
@@ -707,7 +803,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const row = (id) => tree.querySelector(`[data-row="${id}"]`);
         // The Notes row counts the elements notes are about
         const nc = row("notes") && row("notes").querySelector(".ab-tcount");
-        if (nc) AB.tip(nc, DOOR.includes(state) ? (doorNoted() === 3 ? "2 nodes and 1 edge notes are about" : "2 nodes notes are about") : "3 nodes and 1 edge notes are about", { label: false });
+        if (nc) AB.tip(nc, DOOR.includes(state) ? (doorNoted() === 3 ? "2 nodes and 1 edge notes are about" : "2 nodes notes are about") : AB.count(Number(nc.textContent.replace(/\D/g, "")) || 0, "note") + ", listed in the Notes place", { label: false });
         if (manyRun && row("louvain")) {
             const SORTS = ["paint order", "size", "name", "date"];
             // Sort reorders the run's groups in the list; the "N more" row stays last. Groups of one run
@@ -776,7 +872,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // A run paints as soon as it finishes: it lands on top, so it wins Color
         // (the canvas paints from the tree, AB.paintRows)
         if (state === "finished") {
-            AB.announce(BT_NEW + " finished and now paints Color");
+            const r = lmRun();
+            AB.announce(r && r.update ? r.row + " row updated" : r && r.id === "louvain" ? "Louvain 2 finished" : runRowName() + " finished and now paints Color");
         }
         if (state === "failed") setTimeout(failedInspector); // after the shell draws the inspector region
         if (state === "rename-chain") { f2("g8"); AB.announce("Renamed to Valjean's family. Renaming Group 8"); }
@@ -808,16 +905,21 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (state === "nested") return { dataset: "nested" };
             if (state === "plain-json") return { dataset: "plainJson" };
             if (state === "registry") return { dataset: AB.registryDataset() };
+            if (state === "karate" || state === "ppi") return { dataset: state };
             if (state === "wide-sized") return { dataset: "wide", canvas: "canvas-and-states/hosts-legend", right: "inspector-measure-row/long-name" };
             if (state === "nested-set") return { dataset: "nested", canvas: "canvas-and-states/nested-set", right: "inspector-group-set-path-row/long-name" };
             if (state === "painted") return { dataset: paintedDs(), right: "inspector-measure-row/painted-" + ((AB.paintedLast && AB.paintedLast.prop) || "Color").toLowerCase() };
             if (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset)) return {};
+            // Opened from a file (the rail's Graph and every door to the tree at rest keep it while fresh)
+            if (state === "file-loaded" || (state === "at-rest" && AB.fx.datasets.lesmis.fresh)) { AB.fx.datasets.lesmis.fresh = true; return { canvas: "canvas-and-states/drawn", right: "inspector-nothing-selected/overview" }; }
+            // the tree at rest again: the inspector of the row the reader last picked
+            if (state === "at-rest" && lm.sel) return { right: lm.sel.right };
             if (state === "find-no-match" || state === "one-group") return { right: "inspector-nothing-selected/overview" };
             if (state === "long-names") return { right: "inspector-measure-row/style" };
             if (state === "empty") return { right: "inspector-nothing-selected/empty-graph", canvas: "canvas-and-states/empty", dock: false };
             if (state === "door-entries") return { dataset: "doorEntries" }; // the shell brings its canvas, inspector and table
             // After Find path or Run on the door entries or the transfers: the new row, and for a path its inspector
-            if (state === "door-entries-path" || state === "door-entries-running") return { dataset: "doorEntries" };
+            if (state === "door-entries-path" || state === "door-entries-running" || state === "door-entries-finished") return { dataset: "doorEntries" };
             // just loaded: no runs and no filter steps yet, so every screen opened from here keeps that (placeOf reads fresh)
             if (state === "transfers-loaded") { T().fresh = true; return { dataset: "transactions" }; }
             if (state === "path-found" || state === "transfers-running") return Object.assign({ dataset: "transactions", canvas: freshT(state) ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" }, state === "path-found" ? { right: "inspector-group-set-path-row/path" } : {});
@@ -846,8 +948,10 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "many-groups", label: "Many groups (transfers)" },
             { id: "rerun-failed", label: "Transfers: the April rerun of Louvain failed" },
             { id: "transfers-loaded", label: "Transfers, just loaded" },
+            { id: "file-loaded", label: "Les Miserables opened from a file: no sample rows, only what the reader runs" },
             { id: "door-entries-path", label: "Door entries: a path just found" },
             { id: "door-entries-running", label: "Door entries: a run in progress" },
+            { id: "door-entries-finished", label: "Door entries: a run just finished, its row on top" },
             { id: "path-found", label: "Transfers: a path just found" },
             { id: "transfers-running", label: "Transfers: a run in progress" },
             { id: "running", label: "Run in progress" },
@@ -879,6 +983,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "nested-set", label: "Research network with a kept set of 23 researchers, sized by a nested path" },
             { id: "plain-json", label: "Coauthors (plain JSON graph), just loaded" },
             { id: "registry", label: "Package registry (keyed JSON), just loaded" },
+            { id: "karate", label: "Karate club sample, just opened" },
+            { id: "ppi", label: "Protein interactions sample, just opened" },
             { id: "painted", label: "After Color by or Size by on an attribute (directly: the hosts, nothing painted yet)" },
         ],
         render,

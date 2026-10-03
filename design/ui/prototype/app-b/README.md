@@ -92,7 +92,13 @@ routes draws the project in `AB.route.frame.dataset`, so the nested and plain JS
 them. The rail stays in the project: Graph opens `graph-place/wide`, `graph-place/nested` or
 `graph-place/plain-json`, Data opens `data-place/attributes-wide`, `attributes-nested` or
 `plain-json`, and Views and Notes open `empty` for all three; a click on empty canvas and Esc to a
-place go to the same states (a place's `at-rest` names Les Miserables). The nested project is what
+place go to the same states (a place's `at-rest` names Les Miserables).
+Two graph-file samples open bare, as loaded projects with nothing run: `karate` and `ppi` get
+`canvas-and-states/karate` or `/ppi` (the plain drawing, `kit/canvas/karate-plain` or `ppi-plain`),
+`inspector-nothing-selected/karate` or `/ppi` (the overview, counts from `AB.projectCounts`) and no
+table; the rail's Graph opens `graph-place/karate` or `/ppi` (Selection, Notes and Everything), and
+Views and Notes open `empty`. The shell gives the karate club the `frame` (project name, graph row)
+its fixture lacks. The nested project is what
 the last Load on the Data page left (`AB.nestedLoaded()`; before any Load, the Data page's proposal),
 so its Data place, field lists, graph inspector and canvas follow the reader's choices. A fourth
 loaded project, `registry` (the package registry `data-page/json-keyed` loads; its dataset entry is
@@ -122,7 +128,10 @@ shell keeps the selection one node makes: `AB.selectNode(dataset, index)` (a can
 Valjean, monitor-prod-iad-03, the first researcher, the first Coauthors node, Ana Ruiz; a row of the
 wide or nested table) opens that project's node inspector state (`inspector-node/why-this-look`,
 `transfers-node`, `door-ana` or `door-b1`, `wide-data`, `nested-data`, `plain-data`) with the
-selection bar and names the node in the inspector header. `AB.walked` is `{ dataset, index, name,
+selection bar and names the node in the inspector header. A click on a node's label drawn on the
+canvas selects that node the same way, on every drawing: `AB.drawnLabels(img)` reads the labels an
+SVG drawing holds, each `{ name, x, y, w, h }` in page pixels where the img draws it now, and the
+shell matches the name against `AB.walkList(dataset)`. `AB.walked` is `{ dataset, index, name,
 neighbors, right }` while such a node is on screen, else `null`, and `AB.walkList(dataset)` is the
 project's node list in file order. `AB.openField(dataset, name)` (defined by the attribute inspector)
 opens any project's attribute from any list (Les Miserables' open
@@ -693,8 +702,11 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
 - `node app-b/study.mjs --prove`: proves `--check` fails on an unknown section, an unknown state and
   a stub (a section with no render, planted for the run), and passes a good route; and proves `--try`:
   `--type` types into a focused box and exits 1 with nothing focused, `--shift-click` and
-  `--ctrl-click` leave two rows selected where a plain click leaves one, a reviewer word is caught,
-  and an unknown step exits 2.
+  `--ctrl-click` leave two rows selected where a plain click leaves one (in the table and in the
+  paint tree), a canvas label (Javert) is clicked and opens its node, a shared name (Louvain) prints
+  `ambiguous`, `Louvain#99` misses with "only N controls", `role=treeitem:Louvain` opens the run's
+  inspector, a hover by name prints the tooltip, a reviewer word is caught, and an unknown step
+  exits 2.
 - `node app-b/study.mjs --task <id> <route> ...`: a task's participant shots, `01.png` on. Every route
   must draw the same project (`frame.dataset`); a mix exits 1 and writes no `routes.json`.
 - `node app-b/study.mjs --matrix`: checks `../study/structure-comparison/state-matrix.md`. It fails
@@ -710,7 +722,10 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
   selected rows), `--hover-at x,y` and `--hover-icon n` (hover a point, or the nth icon-only control
   in page order, to read a tooltip whose name is unknown). Every hover prints the tooltip. A name
   several controls share prints `ambiguous: "<name>" matches N controls (...)` and clicks the first;
-  `"<name>#2"` picks the second and `"role=treeitem:<name>"` only that role. A script error, a 404
+  `"<name>#2"` picks the second and `"role=treeitem:<name>"` only that role. A name no control has
+falls back to a node's label drawn on the canvas (exact, then partial; `AB.drawnLabels`), clicked or
+hovered at the center of its box. Type text with one `--type "<text>"`, never `--key` per
+character: single keys are app shortcuts. A script error, a 404
   or a reviewer word on screen exits 1. An unknown step is refused (exit 2) before the browser opens.
 - Every page a run opens starts from an empty browser store (only the participant view and the
   theme set), so a state one route remembers, such as the legend turned off, never carries into the

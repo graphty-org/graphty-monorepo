@@ -684,14 +684,27 @@
         o = o || {};
         const Tx = T();
         const src = o.rows || Tx.firstRows.map((r) => ({ source: r.from_account, target: r.to_account, amount: r.amount, timestamp: r.timestamp }));
-        const rows = src.map((r) => ({ from: r.source, to: r.target, amount: Number(r.amount), timestamp: r.timestamp, member: windowed && inWindow(r.timestamp) }));
+        let rows = src.map((r) => ({ from: r.source, to: r.target, amount: Number(r.amount), timestamp: r.timestamp, member: windowed && inWindow(r.timestamp) }));
+        // Loaded One edge per Pair: one row per pair, its count the transfer rows it merged (amount summed,
+        // the earliest timestamp); undirected, (a, b) and (b, a) are one pair.
+        // ponytail: merged over the rows this preview holds; graphty-element reports each pair's count
+        const L0 = Tx.loaded || {}, perPair = L0.per === "pair";
+        if (perPair) {
+            const byPair = new Map();
+            rows.forEach((r) => {
+                const k = L0.direction === "undirected" ? [r.from, r.to].sort().join("|") : r.from + "|" + r.to, p = byPair.get(k);
+                if (!p) byPair.set(k, Object.assign({}, r, { count: 1 }));
+                else Object.assign(p, { count: p.count + 1, amount: p.amount + r.amount, timestamp: r.timestamp < p.timestamp ? r.timestamp : p.timestamp, member: p.member || r.member });
+            });
+            rows = [...byPair.values()];
+        }
         const W = WEIGHT();
         const cols = [
             { key: "from", field: "from_account", label: "from_account", type: "text", id: true },
             { key: "to", field: "to_account", label: "to_account", type: "text", id: true },
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
             { key: "amount", label: W, type: "num", n: true, edit: true, cell: (r) => amt(r.amount) },
-        ];
+        ].concat(perPair ? [{ key: "count", label: "count", type: "num", n: true, int: true, profile: "The transfer rows each pair merged" }] : []);
         if (o.trace) {
             // A path trace, in path order: each hop says whether its date follows the hop before, and what the
             // account it reaches received and sent along this trace, named from the weight column. graphty-element
@@ -923,6 +936,30 @@
     // The edit graphty-element refuses: the edge Javert - Valjean, value 17, typed 17.5 (value holds whole numbers)
     const REFUSE = Object.assign((r) => r.source === "Javert" && r.target === "Valjean", { col: "value", typed: "17.5" });
 
+    // The tab the reader last picked, per project: a redraw from another route (a selection, a tree row)
+    // keeps it; only a table-dock route names its own tab
+    const pickedTab = {};
+    const keptTab = (ds, tabs) => (!current() && tabs.some((t) => t.id === pickedTab[ds]) ? pickedTab[ds] : null);
+    // Filter to neighbors on Les Miserables: the names the step keeps, the node first, as the header chip
+    // counts them (the step's node is the walked one, else Valjean, as selection-bar commits it).
+    // ponytail: walked here over the fixture's edges, as selection-bar's nearNames does; graphty-element returns the list
+    function neighborFilterNames() {
+        const r = AB.route;
+        if (!r || r.id !== "selection-bar" || r.state !== "filtered-to-neighbors" || (r.frame.dataset && r.frame.dataset !== "lesmis")) return null;
+        const m = String(r.frame.chip || "").match(/^([\d,]+) of /);
+        if (!m) return null;
+        const want = Number(m[1].replace(/,/g, "")), label = {};
+        L().rows.forEach((x) => { label[x.id] = x.label; });
+        let keep = new Set([AB.walked && (!AB.walked.dataset || AB.walked.dataset === "lesmis") ? AB.walked.name : "Valjean"]);
+        for (let hops = 1; hops <= 3; hops++) {
+            const next = new Set(keep);
+            L().edgeList.forEach(([a, b]) => { if (keep.has(label[a])) next.add(label[b]); if (keep.has(label[b])) next.add(label[a]); });
+            keep = next;
+            if (keep.size === want) return [...keep];
+        }
+        return null;
+    }
+
     function dock(el, state, active0) {
         // Old link: Remove from data no longer asks
         if (state === "remove-confirm") { setTimeout(() => AB.go("table-dock", "nodes"), 0); return; }
@@ -961,13 +998,14 @@
             { id: "edges", label: "Edges", icon: "spline" },
             { id: "communities", label: RUN.label, full: RUN.full, icon: RUN.icon, close: () => AB.go("table-dock", "nodes") },
         ].concat(state === "pair-run" ? [pairTab] : []);
-        let active = active0 || { edges: "edges", "edit-refused": "edges", edited: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
+        let active = active0 || keptTab("lesmis", tabsOpen) || { edges: "edges", "edit-refused": "edges", edited: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
 
         const draw = () => {
             if (!root.isConnected && redraw === draw) return;
             redraw = draw;
             at(active, "lesmis");
             const strip = (t) => tabStrip(state, tabsOpen, active, (x) => {
+                pickedTab.lesmis = x.id;
                 if (current()) { AB.go("table-dock", x.id === "pairs" ? "pair-run" : x.id); return; }
                 active = x.id; members = null; draw();
             }, null, t && t.colsButton);
@@ -982,11 +1020,11 @@
                 root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, AB.count(m.size, "node", { of: Lx.nodes }))), t, t.foot);
             } else if (active === "nodes") {
                 // Sorted by one measure, the other measures beside it: the ranking view (no separate top-N table)
-                const sampled = state === "sampled";
-                t = nodesTable(null, state === "column-menu" ? "degree" : null, sampled ? { sampled, sort: "betweennessRank", dir: 1 } : null);
+                const sampled = state === "sampled", kept = neighborFilterNames();
+                t = nodesTable(kept, state === "column-menu" ? "degree" : null, sampled ? { sampled, sort: "betweennessRank", dir: 1 } : null);
                 // Paged and sorted by a result, as every table is at any size (past the drawing limit too)
-                const shown = t.querySelectorAll("tbody tr").length;
-                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT, t.caption, pager(1, shown, liveCounts().nodes)), t.agree, t, t.foot);
+                const shown = t.querySelectorAll("tbody tr").length, total = kept ? shown : liveCounts().nodes;
+                root.replaceChildren(strip(t), scope(scopeCount(total, "node"), ROW_HINT, t.caption, pager(1, shown, total)), t.agree || "", t, t.foot);
                 // Find (Ctrl+F) open on a row it landed on, or on a word that matches no row
                 if (state === "find" || state === "no-match") setTimeout(() => openFind(root, state === "find" ? FIND : NO_MATCH), 0);
             } else if (active === "edges") {
@@ -1091,8 +1129,8 @@
         const ok = ["wide", "nested", "plainJson"].includes(ds) ? ds : "wide";
         // an edge in the inspector: the table shows the edges
         const edgeOpen = AB.route && (AB.route.id === "inspector-edge" || /^inspector-edge\//.test(String(AB.route.frame.right || "")));
-        let active = active0 || (edgeOpen ? "edges" : "nodes");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        let active = active0 || keptTab(ok, tabsOpen) || (edgeOpen ? "edges" : "nodes");
         const D = AB.fx.datasets[ok];
         const draw = () => {
             at(active, ok);
@@ -1102,7 +1140,7 @@
             const rs = recordsOf(ok, element), byType = {};
             if (ok === "nested" && element === "edge") rs.forEach((r) => { byType[r.edgeType] = (byType[r.edgeType] || 0) + 1; });
             const from = (ok === "wide" ? (element === "node" ? D.file : D.edgesFile) : D.file) + (Object.keys(byType).length > 1 ? ": " + Object.entries(byType).map(([k, v]) => fmt(v) + " " + k).join(", ") : "");
-            root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = x.id; draw(); }, wideOptions, t.colsButton),
+            root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = pickedTab[ok] = x.id; draw(); }, wideOptions, t.colsButton),
                 scope(scopeCount(n, element), ROW_HINT, h("span", { class: "k-secondary" }, "from " + from)), t);
         };
         draw();
@@ -1118,8 +1156,8 @@
         const path = state === "path-members" ? P.asDistance.transfers : dated ? dated.rows : null;
         win.start = 9; win.len = 7;
         const edgeOpen = AB.route && /^inspector-edge\//.test(String(AB.route.frame.right || ""));
-        let active = active0 || (withSlider || path || edgeOpen ? "edges" : "nodes");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        let active = active0 || keptTab("transactions", tabsOpen) || (withSlider || path || edgeOpen ? "edges" : "nodes");
         // With the slider on, the run over time windows has its item tab, named like its run row; its name
         // follows the window the slider shows
         let runTab = null;
@@ -1127,7 +1165,7 @@
             close: () => { tabsOpen.pop(); draw(); } });
         const pickTab = (t) => {
             if (t.id === "windowed") return flash(WINDOW_RUN + "'s values for the window on screen")();
-            active = t.id; draw();
+            active = pickedTab.transactions = t.id; draw();
         };
         // The table lists the whole data; under a filter step its count says so (the canvas draws what the filter leaves)
         const chip = AB.route && AB.route.frame.chip;
@@ -1164,7 +1202,8 @@
                 const A = AB.fx.datasets.transactionsApril;
                 root.append(scope(AB.count(A.versionDiff.accountsKept, "account") + " in both months", null, h("span", { class: "k-secondary" }, "from " + Tx.file + " and " + A.file), pager(1, Tx.topByDegree.length, A.versionDiff.accountsKept)));
             } else if (active === "edges") {
-                root.append(scope(AB.count(Tx.edges, "edge", { version }), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null, pager(1, Tx.firstRows.length, Tx.edges)));
+                const edgesNow = (AB.projectCounts("transactions") || {}).edges || Tx.edges; // a Pair load on an undirected graph merges reverse pairs
+                root.append(scope(AB.count(edgesNow, "edge", { version }), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null, pager(1, Tx.firstRows.length, edgesNow)));
             } else {
                 root.append(scope(AB.count(Tx.nodes, "node", { version }), ROW_HINT, (captionHost = h("span", { class: "k-secondary" })), pager(1, transferNodes().querySelectorAll("tbody tr").length, Tx.nodes)));
             }
@@ -1236,12 +1275,12 @@
     }
     function doorDock(root, state, active0, at) {
         const D = DE(), [people, buildings] = D.tables;
-        let active = active0 || (state === "door-entries-nodes" ? "nodes" : "edges");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        let active = active0 || keptTab("doorEntries", tabsOpen) || (state === "door-entries-nodes" ? "nodes" : "edges");
         const draw = () => {
             at(active, "doorEntries");
             const t = active === "edges" ? doorEdges() : doorNodes();
-            root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (x) => { active = x.id; draw(); }, "door-entries-options", t.colsButton));
+            root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (x) => { active = pickedTab.doorEntries = x.id; draw(); }, "door-entries-options", t.colsButton));
             if (active === "edges") root.append(scope(scopeCount(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), t);
             else root.append(scope(scopeCount(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), t);
         };

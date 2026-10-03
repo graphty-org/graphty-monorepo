@@ -105,7 +105,7 @@
     const LESMIS_RUN = [[1, 25, "#E69F00"], [2, 17, "#56B4E9"], [3, 10, "#009E73"], [4, 10, "#0072B2"], [5, 9, "#D55E00"], [6, 6, "#CC79A7"]];
     const TRANSFERS = ["many-groups", "running", "failed", "data-changed", "finished"];
     // transfers states where April has already replaced March
-    const APRIL_LOADED = ["running", "failed", "data-changed"];
+    const APRIL_LOADED = ["running", "failed", "data-changed", "finished"];
     // Les Miserables states framed by a filter step that leaves fewer nodes than the run read
     // (out of date by its scope: the result keeps painting the nodes it ran on)
     const SCOPED = ["out-of-date", "scope-changed"];
@@ -117,13 +117,15 @@
                 rows: LESMIS_RUN.map(([n, c, col], i) => ({ name: "Community " + n, color: col, count: c, hub: LESMIS_HUBS[i] })), other: null,
                 // the data version the run read: Les Miserables has one, the file as loaded
                 version: fx.datasets.lesmis.file, versionGo: null, ran: state === "updated" ? RAN_NOW : RAN };
-        // the transfers tree and canvas this section is framed by show the March result
-        const c = A.louvain.march, lg = A.legends.march;
-        return { lm: false, unit: "account", weight: "amount", table: "transfers", nodes: M.nodes, communities: c.communities, modularity: c.modularity, seed: 11, isolated: M.stats.isolated,
+        // the transfers tree and canvas this section is framed by show the March result, until the
+        // rerun on April data finishes: then the April result
+        const april = state === "finished";
+        const c = april ? A.louvain.april : A.louvain.march, lg = april ? A.legends.april : A.legends.march;
+        return { lm: false, unit: "account", weight: "amount", table: "transfers", nodes: april ? A.nodes : M.nodes, communities: c.communities, modularity: c.modularity, seed: 11, isolated: april ? A.stats.isolated : M.stats.isolated,
             rows: lg.rows.map((r) => ({ name: r.name, color: r.color, count: r.count })), other: lg.other,
             // the data version the run read: March; once April replaced it, the record says so
-            // (many-groups and finished come before any April load; the rerun states come after it)
-            version: APRIL_LOADED.includes(state) ? "March, now April" : "March",
+            // (many-groups comes before any April load; the rerun states come after it; finished read April)
+            version: april ? "April" : APRIL_LOADED.includes(state) ? "March, now April" : "March",
             versionGo: ["full-canvas-modes", APRIL_LOADED.includes(state) ? "version-history" : "no-versions"], ran: RAN };
     }
 
@@ -147,7 +149,7 @@
             case "failed":
                 return { text: h("span", null, icon("circle-x", "sm"), " Failed ", AB.openQuestion("the element's own wording for a failed WebGPU run, shown word for word in this tooltip")), why: "The rerun on April data failed on WebGPU and wrote nothing. The March result is still shown. Try WebGPU again runs it on WebGPU once more; nothing is computed on the CPU instead.", actions: [{ label: TRY_GPU, tip: TRY_GPU_TIP, go: [SELF, "running"] }] };
             case "finished":
-                return { text: "Finished: " + AB.count(A.louvain.march.communities, "community", { plural: "communities" }), why: "The run finished and its " + AB.count(A.louvain.march.communities, "community", { plural: "communities" }) + " paint the accounts at once; nothing else needs applying. Its result stays in the list, so another run can be set beside it." };
+                return { text: "Finished on April data: " + AB.count(A.louvain.april.communities, "community", { plural: "communities" }), why: "The rerun on April data (" + A.file + ") finished and its " + AB.count(A.louvain.april.communities, "community", { plural: "communities" }) + " paint the accounts at once; nothing else needs applying. Its result stays in the list, so another run can be set beside it." };
             case "updated":
                 return { text: "Updated " + RAN_NOW + ", same communities", why: "Louvain ran again with the same settings and replaced its result in this row. It found the same " + AB.count(LESMIS_RUN.length, "community", { plural: "communities" }) + "; no new row was added." };
             case "data-changed":
@@ -296,14 +298,14 @@
     }
     // Each community: its swatch, name, size and hub (by degree inside it); "Other" lists its members
     function groups(W, all) {
-        const lead = (n) => Number(String(n).replace(/\D+/g, " ").trim().split(" ")[0]);
         return h("div", { class: "rr-groups", role: "list", "aria-label": "Communities" }, all.map((r) => {
             let sub = null;
             // The hub sits on the community's own line; its links inside the community are the link's second tooltip line
             if (r.hub) return h("div", { class: "rr-group rr-hub", role: "listitem" }, AB.chit(r.color, true), h("span", { class: "k-ellipsis" }, r.name),
                 h("span", { class: "k-ellipsis k-secondary" }, "Hub ", hubLink(r.hub[0], AB.count(r.hub[1], "link") + " inside " + r.name)), h("span", { class: "k-num k-secondary" }, AB.num(r.count)));
             if (r.other) {
-                const from = lead(W.other.holds);
+                // the legend names the largest communities; Other holds the rest, numbered on from them
+                const from = W.rows.length + 1;
                 sub = h("span", { class: "rr-members k-secondary" }, "Communities " + from + " to " + (from + W.other.communities - 1));
             }
             return h("div", { class: "rr-group", role: "listitem" }, AB.chit(r.color, true), h("span", { class: "k-ellipsis" }, r.name), h("span", { class: "k-num k-secondary" }, AB.num(r.count)), sub);
@@ -625,10 +627,10 @@
         });
     }
 
-    // The transfers run's story for this page view: once the rerun failed, is out of date or is running,
-    // the tree's Louvain row (many-groups) opens that same state, not a fresh March run. Other sections
-    // (the tree's mark, version history, compare) can read it as AB.transfersRun.
-    const STORY = ["failed", "data-changed", "running"];
+    // The transfers run's story for this page view: once the rerun failed, is out of date, is running or
+    // finished on April data, the tree's Louvain row (many-groups) opens that same state, not a fresh March
+    // run. Other sections (the tree's mark, version history, compare) can read it as AB.transfersRun.
+    const STORY = ["failed", "data-changed", "running", "finished"];
     let story = null;
     // The transfers run's "..." opens in place, so every door stays on the transfers project
     function transfersMenu(anchor, state) {
@@ -678,6 +680,16 @@
         }), "from Louvain, " + W.ran);
     }
 
+    // The transfers colored by the April rerun's communities, with its legend
+    function aprilCanvas(el) {
+        const A = AB.fx.datasets.transactionsApril, lg = A.legends.april, run = [SELF, "finished"];
+        const alt = "Transfers, April: accounts colored by Louvain community";
+        AB.append(el, [
+            h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...AB.drawing("transactions-april-communities", alt)),
+            AB.legendCard([{ title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: AB.num(r.count), go: run })), more: lg.other.communities + " more communities" }]),
+        ]);
+    }
+
     // The All options popover: every run option, left of the inspector; any edit raises the state bar
     function allOptions() {
         const W = world("data");
@@ -696,7 +708,8 @@
             if (TRANSFERS.includes(state)) {
                 // the story is set before the tree draws, so the tree's Louvain row carries its mark; a rerun is on April data
                 if (STORY.includes(state)) { story = state; AB.transfersRun = state; if (AB.replaceTransfers) AB.replaceTransfers(); }
-                return { left: "graph-place/many-groups", canvas: "canvas-and-states/transfers-communities" };
+                // finished: the April result paints, drawn here (the canvas section draws only March's communities)
+                return { left: "graph-place/many-groups", canvas: state === "finished" ? SELF + "/finished" : "canvas-and-states/transfers-communities" };
             }
             // Density, Link prediction and the cover: the tree at rest with their rows (treeWithRuns), until
             // the paint tree has a state of its own for them
@@ -748,6 +761,7 @@
                 return;
             }
             if (ctx && ctx.region === "left") return treeWithRuns(el, state, ctx);
+            if (ctx && ctx.region === "canvas") return aprilCanvas(el);
             el.append(build(state));
             // The refusal is the name's tooltip, nothing else: focus the name so it shows
             if (state === "rename-disabled") requestAnimationFrame(() => { const n = el.querySelector(".ab-insp-head .k-name"); if (n) n.focus(); });

@@ -263,7 +263,8 @@
     }
     function filteredFrame() {
         const f = filteredOf();
-        const base = f.frame || { left: "graph-place/at-rest", right: "inspector-node/why-this-look" };
+        // a direct visit shows the neighborhood selection it filtered to, as the popover's commit does
+        const base = f.frame || { left: "graph-place/at-rest", right: selectNear(f.who) };
         return Object.assign({}, base, { chip: chipOf(f), filterOn: null });
     }
 
@@ -422,11 +423,11 @@
                 AB.button("Add as steps", { kind: "secondary", onClick: () => addSteps() }),
                 AB.button("Filter to neighbors", { onClick: () => {
                     const fr = AB.route.frame;
-                    // the panels it was committed from; the Les Miserables popover keeps Valjean's
+                    // the panels it was committed from, the neighborhood selection's inspector included
                     // the Les Miserables step keeps the node it was opened on selected (Valjean on a direct visit)
                     filtered = { ds: ds || (directed ? "transactions" : "lesmis"), who, hops, dir: directed ? dir : "both",
                         frame: ds || directed ? { dataset: fr.dataset, left: fr.left, right: fr.right, canvas: fr.canvas, dock: false }
-                            : mine ? { left: "graph-place/at-rest", right: mine.right, walk: mine.index + 1 } : null };
+                            : Object.assign({ left: "graph-place/at-rest", right: fr.right }, mine ? { walk: mine.index + 1 } : {}) };
                     commit(["selection-bar", FILTERED], "Added filter step: " + stepName(), back);
                 } }),
             ],

@@ -74,9 +74,11 @@
                     names[d] = n;
                     const when = "Today " + String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
                     AB.visit.recents = [{ name: n, dataset: d, go: d === "lesmis" ? ["graph-place", "at-rest"] : null, when, path: "~/Documents/graphty/" + n + ".graphty" }].concat(AB.visit.recents.filter((r) => r.dataset !== d));
-                    AB.flash("Saved as " + n);
                     AB.close();
+                    setTimeout(() => AB.notice("Saved as " + n), 100); // after the close draws, or the redraw drops it
                 };
+                // The app focuses the field once the dialog draws; select the suggested name then, as Rename does
+                input.addEventListener("focus", () => input.select(), { once: true });
                 input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
                 el.append(AB.modal({
                     title: "Save " + name + " as",

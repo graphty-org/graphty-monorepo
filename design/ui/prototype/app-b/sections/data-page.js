@@ -462,8 +462,8 @@
         // the file already known (Replace from Add to transfers' report): no picker
         "replace-chosen": () => replaceModel(false),
         // Edit on the loaded transfers, either table selected; Apply returns to the Data place as it was
-        "edit-source": () => transfers({ door: { title: "Edit: transfers", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
-        "edit-accounts": () => transfers({ sel: "accounts", door: { title: "Edit: accounts", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
+        "edit-source": () => editTransfers(transfers({ door: { title: "Edit: transfers", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } })),
+        "edit-accounts": () => editTransfers(transfers({ sel: "accounts", door: { title: "Edit: accounts", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } })),
         "edit-source-lost": () => { const a = TA().files.accounts; const m = transfers({ sel: "accounts", door: { title: "Replace: " + T().accountsFile, verb: "Load", done: ["data-place", "after-replace"] }, replaced: { id: "accounts", file: a.file, rows: a.rows, was: T().accountsFile }, lost: true }); m.tables[0].cols = a.columns.slice(); return m; },
         "graph-file": () => base({ tables: lesmisFile(), sel: "lm-nodes", direction: "file", focusLoad: true }),
         // Edit on the loaded Les Miserables file
@@ -568,6 +568,17 @@
         if (NL.addr === "rows") { r.arrs[ad].pick = "rows"; r.open = true; insertChild(m, r, childRows(r, ad)); }
         (NL.idLinks || []).forEach((x) => { r.roles[x.col] = role("links", x.target, "id"); });
         m.sel = table(m, sel) ? sel : "researchers";
+        return m;
+    }
+    // Edit on the loaded transfers opens on the last Load's choices (T().loaded): One edge per, Weight, Direction
+    function editTransfers(m) {
+        const L = T().loaded, t = m.tables[1];
+        if (!L) return m;
+        if (L.per === "pair") { t.per = "pair"; t.combine.amount = "Sum"; t.combine.timestamp = "Earliest and latest"; }
+        Object.keys(t.roles).forEach((c) => { if (t.roles[c].r === "weight") delete t.roles[c]; });
+        if (L.weight) t.roles[L.weight] = role("weight");
+        if (L.means) t.means = L.means;
+        if (L.direction) m.direction = L.direction;
         return m;
     }
     // Edit opens on the load as it was: One edge per Row or Pair, or each entry as a node, and the Add choices
@@ -1982,7 +1993,7 @@
                     const month = (r.file.match(/(\d{4})-(\d{2})/) || []).slice(1);
                     if (month.length) { const name = new Date(Number(month[0]), Number(month[1]) - 1, 1).toLocaleString("en-US", { month: "long" }) + " " + month[0]; X.title = X.title.replace(/\w+ \d{4}$/, name); X.frame.project = X.frame.project.replace(/\w+ \d{4}$/, name); }
                 };
-                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.byLoad = true; DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; Object.assign(DE().loaded, loadedChoices(entries)); } if (transfersT && !m.replaced) T().loaded = Object.assign({ per: transfersT.per }, loadedChoices(transfersT)); if (m.replaced) replaceWith(m.replaced); if (m.tables.some((t) => t.append && t.matches === "transfers")) { const X = T(), S = AB.fx.datasets.transactionsApril.stackedOnMarch; X.nodes = S.accounts; X.edges = S.transfers; AB.transfersAdded = true; } AB.go(to[0], to[1]); } });
+                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.byLoad = true; DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; Object.assign(DE().loaded, loadedChoices(entries)); } if (transfersT && !m.replaced) T().loaded = Object.assign({ per: transfersT.per }, loadedChoices(transfersT)); if (m.replaced) replaceWith(m.replaced); if (m.tables.some((t) => t.append && t.matches === "transfers")) { const X = T(), S = AB.fx.datasets.transactionsApril.stackedOnMarch; X.nodes = S.accounts; X.edges = S.transfers; AB.transfersAdded = true; const f = TA().files.transfers.file; X.addedFiles = (X.addedFiles || []).filter((x) => x !== f).concat(f); if (!/ and April 2026$/.test(X.title)) { X.title = X.title.replace(/March 2026$/, "March and April 2026"); X.frame.project = X.frame.project.replace(/March 2026$/, "March and April 2026"); } } AB.go(to[0], to[1]); } });
             }
             primary.dataset.k = "primary";
             const cancel = AB.button("Cancel", { kind: "secondary", key: "Esc", onClick: () => AB.onPageCancel && AB.onPageCancel() });

@@ -169,6 +169,31 @@
             writes: "betweenness",
             sort: "betweenness",
         },
+        // Betweenness 2: the run that just finished (graph-place/finished), on top and covering PageRank
+        // for Color; its values are the fixtures' betweenness column, read row by row
+        "betweenness-new": (() => {
+            const rows = L.rows.filter((r) => r.betweenness != null), vals = rows.map((r) => r.betweenness).sort((a, b) => a - b);
+            const W = 0.04, N = 15, bin = (v) => Math.min(N - 1, Math.floor(v / W)), names = {};
+            rows.forEach((r) => (names[bin(r.betweenness)] = names[bin(r.betweenness)] || []).push(r.label));
+            const mid = vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2;
+            return {
+                title: "Betweenness 2", over: "node", unit: "nodes", total: L.nodes, has: rows.length, run: true, icon: "chart-column",
+                fmt: (v) => A.num(v),
+                provenance: ["from Analyze", "analyze-popover", "open"],
+                bound: { "node.color": { field: "Betweenness 2", palette: "Yellow to orange", ramp: ["#fde7c8", "#E69F00"] } },
+                order: "Covers PageRank for Color",
+                range: A.num(vals[0]) + " to " + A.num(vals[vals.length - 1]) + ", median " + A.num(mid),
+                hist: { from: 0, width: W, bins: Array.from({ length: N }, (_, i) => (names[i] || []).length) },
+                top: A.topN(rows.map((r) => [r.label, r.betweenness]), (t) => t[1]),
+                binNames: Object.fromEntries(Object.entries(names).filter(([, l]) => l.length <= 6)),
+                options: [["Weight", "value (loaded weight), stronger"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
+                optionsState: "betweenness",
+                weight: WEIGHT,
+                ran: "Just now, on the CPU",
+                writes: "betweenness",
+                sort: "betweenness",
+            };
+        })(),
         // Betweenness run while "Filter to degree >= 2" was on (60 of 77); the filter is off now, so
         // every value names the 60 it was computed on, and the 17 left out have no value
         "betweenness-on-filter": {
@@ -237,6 +262,7 @@
     const READER = {
         PageRank: "How much a node matters, counting how much its neighbors matter.",
         Betweenness: "How often a node lies on the shortest paths between other nodes.",
+        "Betweenness 2": "How often a node lies on the shortest paths between other nodes.",
         "Edge betweenness": "How often an edge lies on the shortest paths between nodes.",
         Degree: "How many connections a node has.",
         median: "The middle value: half are above it, half below.",
@@ -523,6 +549,8 @@
         "degree-data": { m: "degree", tab: "Data" },
         covered: { m: "betweenness", tab: "Style" },
         "on-filter": { m: "betweenness-on-filter", tab: "Data" },
+        "betweenness-new": { m: "betweenness-new", tab: "Style" },
+        "betweenness-new-data": { m: "betweenness-new", tab: "Data" },
         sampled: { m: "sampled", tab: "Data" },
         "risk-score": { m: "risk", tab: "Style" },
         "risk-score-data": { m: "risk", tab: "Data" },
@@ -548,6 +576,7 @@
                 : state === "scope-mark-rerun" ? { left: "graph-place/at-rest", shown: A.fx.datasets.lesmis.filterSteps.after.step1, chip: A.count(A.fx.datasets.lesmis.filterSteps.after.step1, "node", { of: A.fx.datasets.lesmis.nodes }), filterOn: ["degree"] }
                 : /^scope-mark/.test(state) ? { left: "graph-place/scope-mark", chip: A.count(A.fx.datasets.lesmis.filterSteps.after.step1, "node", { of: A.fx.datasets.lesmis.nodes }), filterOn: ["degree"] }
                     : state === "degree" || state === "degree-data" ? { left: "graph-place/show-hidden" }
+                    : /^betweenness-new/.test(state) ? { left: "graph-place/finished" }
                     : state === "sampled" ? { dataset: "transactions", left: "graph-place/transfers-loaded" }
                         : { left: "graph-place/at-rest" },
         closeTo: "graph-place",
@@ -563,6 +592,8 @@
             { id: "degree-data", label: "Degree, Data tab (histogram)" },
             { id: "covered", label: "Betweenness covered by PageRank for Color" },
             { id: "on-filter", label: "Betweenness run under a filter that is now off" },
+            { id: "betweenness-new", label: "Betweenness 2 just finished: on top, covers PageRank for Color" },
+            { id: "betweenness-new-data", label: "Betweenness 2 just finished, Data tab (values, top 10)" },
             { id: "sampled", label: "Sampled, weighted run (transfers): rank ranges" },
             { id: "risk-score", label: "Attribute-painted (riskScore)" },
             { id: "risk-score-data", label: "riskScore, Data tab" },

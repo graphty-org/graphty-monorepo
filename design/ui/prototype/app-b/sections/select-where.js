@@ -82,6 +82,31 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
         }
         return null;
     }
+    // The count of a query the value tables cannot answer, from the rows the fixture does hold: exact
+    // over the known rows (the 14 flagged accounts; the 14 structuring transfers they paid), plus the
+    // sample's share (40 accounts, 6 transfers) of everything else. An id matches only a known row.
+    // riskScore thresholds follow the fixture's own counts (70 or more: 143; 20 or more: 1,071).
+    // ponytail: a sample estimate; graphty-element counts the real rows
+    function estimate(t, q, edges) {
+        const ps = terms(q).map(parse);
+        if (!ps.every(Boolean)) return null;
+        const S = t.setsAndPaths;
+        const known = edges ? S.intersection.members.filter((m) => m.flagged).map((m) => ({ amount: m.paid })) : t.flaggedAccounts;
+        const sample = edges ? t.firstRows.map((r) => Object.assign({}, r, { amount: Number(r.amount) })) : t.rows;
+        const total = edges ? t.edges : t.nodes;
+        const exact = countRows(known, q);
+        if (!edges && ps.some((p) => p.a === "id")) return countRows([...known, ...sample, ...t.topByDegree], q);
+        const p = ps[0];
+        if (!edges && ps.length === 1 && p.a === "riskScore" && typeof p.v === "number" && /[<>]/.test(p.op)) {
+            const T = p.op === ">" || p.op === "<=" ? Math.floor(p.v) + 1 : Math.ceil(p.v); // the first score counted as "at least"
+            const pts = [[0, total], [20, S.filterStep.kept], [70, S.highRisk.count], [99, 0]];
+            const i = pts.findIndex(([x]) => x >= T);
+            const atLeast = i < 0 ? 0 : i === 0 ? total : Math.round(pts[i - 1][1] + ((pts[i][1] - pts[i - 1][1]) * (T - pts[i - 1][0])) / (pts[i][0] - pts[i - 1][0]));
+            const ge = Math.max(atLeast, countRows(known, "riskScore >= " + T));
+            return p.op[0] === ">" ? ge : total - ge;
+        }
+        return exact + Math.round((countRows(sample, q) / sample.length) * (total - known.length));
+    }
     // A readable default name for a set made here: "kind is personal", "riskScore over 98" (null: pasted ids)
     function nameOf(q) {
         if (q == null) return "Pasted ids";
@@ -189,10 +214,10 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             if (/\bamout\b/.test(s.q)) return { error: "amout", fix: "amount", noun };
             // Within counts among the 14 selected accounts, which the sample holds in full
             if (s.mode === "within") return edges ? { n: 0, of: 0, noun, hint: "No transfers are selected" } : { n: countRows(t.flaggedAccounts, s.q) ?? 0, of: SELECTED, noun: "selected nodes" };
-            const k = countTransfers(t, s.q, edges);
+            let k = countTransfers(t, s.q, edges);
             if (k === undefined) return { n: 0, of: 0, noun, hint: "Finish the query with a comparison on a " + (edges ? "transfer" : "account") + " attribute, such as " + (edges ? "amount > 0" : "kind == 'personal'") };
-            // ponytail: the fixture has no full account table, so a query it cannot count is refused in participant words
-            if (k === null) return { n: 0, of: 0, noun, hint: "Not available yet: counting this query in this version" };
+            if (k === null) k = estimate(t, s.q, edges);
+            if (k === null) return { n: 0, of: 0, noun, hint: "Finish the query with a comparison, such as > 0" };
             return { n: k, of: edges ? t.edges : t.nodes, noun };
         }
 
@@ -355,7 +380,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
     }
     function selectedFrame(only) {
         const ds = only || (AB.querySelection && AB.querySelection.dataset) || "transactions";
-        const place = ds === "transactions" ? "many-groups" : ds === "wide" ? "wide" : AB.placeOf(ds, "graph") || "at-rest";
+        const place = ds === "wide" ? "wide" : AB.placeOf(ds, "graph") || "at-rest"; // a just-loaded transfers project stays transfers-loaded
         const canvas = { transactions: "canvas-and-states/transfers", wide: "canvas-and-states/hosts" }[ds];
         // own: Select draws these panels instead of keeping the ones behind the popover
         // The selection bar: the shell raises it only beside the several-elements inspector, so it is named here
@@ -385,8 +410,8 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
             ? { left: "graph-place/" + (AB.placeOf((from || { ds: "wide" }).ds, "graph") || "at-rest"), dataset: (from || { ds: "wide" }).ds, right: false }
             : state === "wide" || state === "wide-inserted"
             ? { left: "graph-place/wide", dataset: "wide", right: false, canvas: "canvas-and-states/hosts" }
-            : { left: "graph-place/many-groups", dataset: "transactions", right: false, canvas: "canvas-and-states/transfers" }),
-        // Closes to the frame's left place: many-groups on the transfers, the hosts' graph place on the wide sample
+            : { left: "graph-place/" + (AB.placeOf("transactions", "graph") || "many-groups"), dataset: "transactions", right: false, canvas: "canvas-and-states/transfers" }),
+        // Closes to the frame's left place: the transfers' graph place (many-groups, or transfers-loaded when just loaded), the hosts' on the wide sample
         states: [
             { id: "where", label: "Query and match count" },
             { id: "where-error", label: "Query: unknown attribute" },

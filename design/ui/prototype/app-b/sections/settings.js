@@ -297,11 +297,32 @@
     // Old state ids from other sections' links, and where their settings live now
     const OLD = { you: "general", appearance: "general", projects: "general", "canvas-input": "accessibility", keyboard: "accessibility" };
 
+    // What Settings opens over. From the start screen it draws over that start screen; from a blank
+    // project (graph-place/empty, data-place/no-sources, or a menu over one) it keeps that project's
+    // panels; Esc goes back there. Anything else gets the shell's default (the panels behind it).
+    let under = null;
+    const BLANK = /^(graph-place\/empty|data-place\/no-sources)$/;
+    function underFrame() {
+        const r = AB.route;
+        if (r && r.id === "settings") return under; // moving between Settings states keeps the screen behind
+        under = null;
+        if (!r) return null;
+        if (r.id === "start-screen") {
+            under = { frame: { top: false, rail: false, full: "start-screen/" + r.state, dataset: r.frame.dataset }, back: { id: r.id, state: r.state } };
+        } else if (BLANK.test(String(r.frame.left || ""))) {
+            const f = {};
+            ["left", "right", "canvas", "dock", "toolbar", "mode", "dataset", "newProject", "chip"].forEach((k) => { if (k in r.frame) f[k] = r.frame[k]; });
+            under = { frame: f, back: r.frame.overlay ? r.closeTo : { id: r.id, state: r.state } };
+        }
+        return under;
+    }
+
     registerSection({
         id: "settings",
         title: "Settings",
         region: "overlay",
         closeTo: "graph-place",
+        frame: () => (underFrame() || {}).frame || null,
         states: [
             { id: "general", label: "General" },
             { id: "general-name-set", label: "General, your name set" },
@@ -320,6 +341,7 @@
         render(el, state) {
             state = state || "general";
             if (OLD[state]) { location.replace(AB.href("settings", OLD[state])); return; }
+            if (under && AB.route) AB.route.closeTo = under.back;
             const confirming = state === "forget-keys-confirm";
             current = confirming ? "assistant" : state.replace(/-(on|gpu-unavailable|name-set|provider-set)$/, "");
             if (state === "general") S.name = "";

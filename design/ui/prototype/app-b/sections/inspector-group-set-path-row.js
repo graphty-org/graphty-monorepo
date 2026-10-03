@@ -92,10 +92,10 @@
     const act = (label, onClick) => h("span", Object.assign({ class: "ab-link" }, AB.act({ onClick })), label);
     const SELECT = ["inspector-several-elements", "style"];
     const pr = () => lnk("PageRank", ["inspector-measure-row", "style"]);
-    const memberRow = (name, trail) => AB.row({ label: name, trail, go: ["inspector-node", name === "Valjean" ? "why-this-look" : "data"] });
+    const memberRow = (name, trail) => AB.row({ label: name, trail, onClick: selectByName(name) });
     const acctRow = (id, trail) => AB.row({ label: h("span", { class: "k-id" }, id), trail, onClick: () => AB.flash("Selects " + id + "") });
     // A name that selects its node in Les Miserables, as a canvas click does
-    const selectByName = (name) => () => { const i = AB.walkList("lesmis").findIndex((n) => n.name === name); if (i >= 0) AB.selectNode("lesmis", i, { focus: false }); };
+    const selectByName = (name) => () => { const i = AB.walkList("lesmis").findIndex((n) => n.name === name); if (i >= 0) AB.selectNode("lesmis", i, { focus: false }); else AB.go("inspector-node", "data"); };
     // A group's or a set's Summary ends with Compare with the rest (decision log: the comparison screen's "a community and the rest")
     const COMPARE_KINDS = ["Group", "Set", "Rule set"];
     const scope = (L) => ["Scope", "Full graph, " + L.nodes + " nodes"];
@@ -307,7 +307,7 @@
             set: { "node.color": "#D55E00", "edge.color": "#D55E00" },
             paints: ["Paints 2 nodes, 1 edge", SELECT],
             order: ["Covered by ", pr(), " for Color on 2 of 2 nodes"],
-            summary: [["Size", "2 nodes, 1 edge", SELECT], ["From", "Valjean", ["inspector-node", "why-this-look"]], ["To", "Javert", ["inspector-node", "data"]], ["Edge value", "17 shared chapters"]],
+            summary: [["Size", "2 nodes, 1 edge", SELECT], ["From", "Valjean", selectByName("Valjean")], ["To", "Javert", selectByName("Javert")], ["Edge value", "17 shared chapters"]],
             membersSummary: "In path order",
             members: [memberRow("Valjean", "start"), memberRow("Javert", "end")],
             made: [],
@@ -322,7 +322,7 @@
         const rs = lp.routes && lp.routes.length ? lp.routes : [lp.route];
         if (AB.pathRouteAt >= rs.length) AB.pathRouteAt = 0;
         const r = rs[AB.pathRouteAt], nodes = r.route.length, edges = r.hops, size = AB.count(nodes, "node") + ", " + AB.count(edges, "edge");
-        const at = (n) => ["inspector-node", n === "Valjean" ? "why-this-look" : "data"];
+        const at = selectByName;
         return Object.assign(lesmisPathModel(), {
             title: lp.name, color: "#009E73", set: { "node.color": "#009E73", "edge.color": "#009E73" },
             paints: ["Paints " + size, SELECT],
@@ -342,7 +342,7 @@
             title: "Myriel to Javert", color: "#0072B2", set: { "node.color": "#0072B2", "edge.color": "#0072B2" },
             paints: ["Paints 3 nodes, 2 edges", SELECT],
             order: ["Covered by ", pr(), " for Color on 3 of 3 nodes"],
-            summary: [["Size", "3 nodes, 2 edges", SELECT], ["From", "Myriel", ["inspector-node", "data"]], ["To", "Javert", ["inspector-node", "data"]]],
+            summary: [["Size", "3 nodes, 2 edges", SELECT], ["From", "Myriel", selectByName("Myriel")], ["To", "Javert", selectByName("Javert")]],
             members: [memberRow("Myriel", "start"), memberRow("Valjean", "hop 1"), memberRow("Javert", "end")],
         });
     }

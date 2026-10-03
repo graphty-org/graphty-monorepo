@@ -482,22 +482,30 @@
         return body;
     }
 
-    // Betweenness is the run the tree's "Run in progress" state shows; an update opens the revised row
+    // A run lands where the tree shows it: running then finished for a measure, the revised row for an update
     function run(e, asCopy) {
+        const est = ui.sampled === "exact" && !(ui.subset && subsetOf()) ? costly(e) : null;
         // graphty-element declines an exact run past its time limit: not a failure, so no failure mark
-        if (ui.subset && subsetOf()) return AB.flash("Would add " + nm(e) + ", exact on " + subsetOf().name + " at the top of the list, running");
-        const est = ui.sampled === "exact" ? costly(e) : null;
         if (est) { ui.declined = true; draw(); return AB.announce("Not run: would take about " + about(est.exact.seconds)); }
-        lastRun = runName(e);
+        lastRun = runName(e) + (ui.subset && subsetOf() ? ", exact on " + subsetOf().name : "");
+        // the run the tree's running and finished rows show (graph-place reads it; a copy is numbered)
+        // A new row is named by its algorithm, numbered from the second when the tree already holds that name
+        // (Les Miserables' "For the report" holds a Betweenness); Update revises the row it names, adding none
+        const update = !!hasRow(e) && !asCopy, taken = (n) => (AB.paintRows || []).some((r) => r.name === n);
+        let row = nm(e);
+        if (!update && (asCopy || taken(row))) { let i = 2; while (taken(nm(e) + " " + i)) i++; row = nm(e) + " " + i; }
+        AB.lastRun = { id: e.id, ds: ui.ds, name: lastRun, row, update, key: ui.key || (e.key && e.key[1]) || null, kind: e.out === RUN ? "run" : "measure" };
         remember(e);
-        if (e.id === "betweenness") return AB.go("analyze-popover", "running");
         // Louvain on the transfers lands on the graph with its row (35 communities, the fixtures' March run)
         if (ui.ds === "transactions" && e.id === "louvain" && !asCopy) return AB.go("graph-place", "many-groups");
         // Les Miserables' Louvain at its run's settings reruns into its own row: the same 6 communities, dated just now
         const sameSettings = !(e.key && ui.key && ui.key !== e.key[1]);
         if (hasRow(e) && !asCopy && ui.ds === "lesmis" && e.id === "louvain" && sameSettings) return AB.go(e.out.section, "updated");
-        if (hasRow(e) && !asCopy) return ui.ds === "lesmis" && e.id !== "louvain" ? AB.go(e.out.section, "data") : AB.flash("Would update the " + hasRow(e) + " row in place");
-        AB.flash("Would add " + nm(e) + (asCopy ? " as a copy" : "") + " at the top of the list, running");
+        // Connected components on Les Miserables finds one group: the tree's state for that result
+        if (ui.ds === "lesmis" && e.id === "components") return AB.go("graph-place", "one-group");
+        // Any other run (a new one, a copy or a rerun) lands on top, running, then finishes like Betweenness;
+        // the inspector states of other results belong to other algorithms (Louvain's), so they would mislead
+        AB.go("analyze-popover", "running");
     }
 
     function essentialsFoot(e) {

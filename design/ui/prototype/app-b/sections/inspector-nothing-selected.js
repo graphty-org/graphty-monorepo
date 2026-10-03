@@ -363,10 +363,12 @@
     // The transfers have no edge list in the fixtures, so their four readings, and every reading on the
     // 812 accounts "amount is at least 1,000" leaves, are set by hand to fit a sparse payment graph
     const TRANSFERS_MORE = [["Average clustering", "0.006"], ["Transitivity", "0.002"], ["Diameter", "14"], ["Degree assortativity", "-0.212"]];
-    const TRANSFERS_KEPT = { density: 0.00214, components: 4, isolated: 0, selfLoops: 0, parallelEdges: 0, reciprocity: 0, averageDegree: 3.47, maxDegree: 211,
+    // The amount step ("amount is at least 1,000") keeps 812 accounts (data-place's BIG) and the transfers
+    // between them; its edge count is the step's own after-count in its inspector (inspector-attribute-and-
+    // filter-step's BIG_EDGES). ponytail: copied until a shared place publishes the step's edge count
+    const AMOUNT_STEP = { nodes: 812, edges: 1204 };
+    const TRANSFERS_KEPT = { components: 4, isolated: 0, selfLoops: 0, parallelEdges: 0, reciprocity: 0, maxDegree: 211,
         more: [["Average clustering", "0.009"], ["Transitivity", "0.003"], ["Diameter", "12"], ["Degree assortativity", "-0.241"]] };
-    // The degrees of those 60 nodes within the filtered graph (same source), for its degree distribution
-    const FILTERED_DEGREES = [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 12, 12, 13, 13, 15, 15, 15, 17, 19, 22, 31];
     // Each reading's one-line meaning, shown on hover and on keyboard focus
     const MEANING = {
         Nodes: "How many nodes the graph has",
@@ -409,13 +411,15 @@
     // The Summary's closed line and its Nodes and Edges rows, from the project's counts as the data is now
     // (AB.projectCounts). `kept`: the nodes a filter leaves, read from the header chip
     const keptOf = () => { const m = ((AB.route && AB.route.frame.chip) || "").match(/^([\d,]+) of /); return m ? Number(m[1].replace(/,/g, "")) : null; };
-    const summaryOf = (c, dir, kept) => AB.count(kept != null ? kept : c.nodes, "node", kept != null ? { of: c.nodes } : {}) + ", " + AB.count(c.edges, "edge") + ", " + dir;
+    // `keptEdges`: the edges the filter steps leave, when known; both counts then name the whole they are part of
+    const part = (k, all, noun) => AB.count(k != null ? k : all, noun, k != null ? { of: all } : {});
+    const summaryOf = (c, dir, kept, keptEdges) => part(kept, c.nodes, "node") + ", " + part(keptEdges, c.edges, "edge") + ", " + dir;
     // Edges name what they count: `noun` the row word ("transfer"), `pairs` the distinct pairs they join when
     // known
-    const edgesText = (edges, o) => AB.count(edges, o.noun || "edge")
-        + (o.pairs == null ? "" : o.pairs === edges ? ", each a distinct pair" : " (" + AB.count(o.pairs, "distinct pair") + ")");
-    const countRows = (c, kept, o = {}) => [rd("Nodes", AB.count(kept != null ? kept : c.nodes, "node", kept != null ? { of: c.nodes } : {})),
-        rd("Edges", edgesText(c.edges, o))];
+    // known; `kept` the edges a filter leaves (a part of all of them)
+    const edgesText = (edges, o) => part(o.kept, edges, o.noun || "edge")
+        + (o.pairs == null ? "" : o.pairs === edges ? ", each a distinct pair" : o.kept != null ? "" : " (" + AB.count(o.pairs, "distinct pair") + ")");
+    const countRows = (c, kept, o = {}) => [rd("Nodes", part(kept, c.nodes, "node")), rd("Edges", edgesText(c.edges, o))];
     function direction(word, where) {
         const r = AB.data("Direction", word);
         AB.tip(r.lastChild, where, { label: false });
@@ -441,7 +445,15 @@
         // what the last Load chose (the Data page sets T().loaded); before any, the file as loaded: directed, weight amount
         const loaded = Object.assign({ direction: "directed", weight: "amount" }, D.loaded || {}), dirWord = loaded.direction === "undirected" ? "Undirected" : "Directed";
         // With a filter on, the counts agree with the header chip; computed again, the readings are the kept accounts' own
-        const kept = keptOf(), onKept = computed && kept != null, s = onKept ? TRANSFERS_KEPT : D.stats;
+        const kept = keptOf(), onKept = computed && kept != null;
+        // the edges the filter leaves: known for the amount step only (else the whole count stays)
+        const keptEdges = kept === AMOUNT_STEP.nodes ? AMOUNT_STEP.edges : null;
+        // Density and average degree follow the graph as loaded and as counted: edges over the possible pairs
+        // (n(n - 1), halved undirected) and 2 edges over n
+        const shape = (nn, e) => ({ density: AB.num(e / (nn * (nn - 1)) * (loaded.direction === "undirected" ? 2 : 1)), averageDegree: AB.num(2 * e / nn) });
+        const s = onKept ? Object.assign({}, TRANSFERS_KEPT, shape(kept, keptEdges != null ? keptEdges : c.edges)) : Object.assign({}, D.stats, shape(c.nodes, c.edges));
+        // One edge per Pair merges each pair's transfers into one edge: the row word is then edge, not transfer
+        const noun = loaded.per === "pair" ? "edge" : "transfer";
         // loaded undirected, the directed readings (weak components, reciprocity, total degree) have no meaning
         const und = loaded.direction === "undirected";
         const r = (k, v) => rd(k, at(v));
@@ -452,9 +464,9 @@
         return {
             title: f.graphRow, provenance: [tablesFrom(2), "data-page", "edit-source"], notes: 0,
             stateBar: kept != null && !onKept ? staleBar(readings.length, c.nodes, n(kept), "Computed before the filters, which leave " + AB.count(kept, "node") + ".", [SELF, "computed"]) : null,
-            overview: { summary: summaryOf(c, dirWord.toLowerCase(), kept), body: [
-                ...countRows(c, kept, { noun: "transfer", pairs: c.edges - D.stats.parallelEdges }), direction(dirWord, "Chosen at load: a CSV does not say"),
-                loaded.weight ? weight(loaded.weight, "edit-source") : AB.data("Weight", AB.link("data-page", "edit-source", "None (each edge counts 1)", { class: "ab-link" })),
+            overview: { summary: summaryOf(c, dirWord.toLowerCase(), kept, keptEdges), body: [
+                ...countRows(c, kept, { noun, pairs: c.edges - D.stats.parallelEdges, kept: keptEdges }), direction(dirWord, "Chosen at load: a CSV does not say"),
+                loaded.weight ? weight(loaded.weight, "edit-source", null, loaded.means) : AB.data("Weight", AB.link("data-page", "edit-source", "None (each edge counts 1)", { class: "ab-link" })),
                 ...readings, computed ? null : notComputed(true), ccdf(ccdfOfLogBars(f.degreeBars, s.maxDegree, onKept ? kept : c.nodes), s.isolated, "Total degree distribution")].filter(Boolean) },
         };
     }
@@ -503,33 +515,58 @@
         const D = L(), f = D.frame, s = D.stats, FS = D.filterSteps;
         // a file still being read has no notes yet: the sample's worked-example note is not this file's
         if (state === "reading") return { title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 0, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
+        // file-loaded: the file just read, as the reader's own: no notes, no results, nothing computed, no filter.
+        // The overview of a file just read (lesmis.fresh, set by the Load and cleared by graph-place's first run) is the same
+        const own = !!D.fresh, justLoaded = state === "file-loaded" || (own && state === "overview" && !computedOnce);
         // filtered: the readings were computed before the filter; filtered-computed: computed again on what it leaves.
         // components-selected keeps the readings the graph had when its count was clicked (computed on a direct link)
         if (state === "computed") computedOnce = true;
         if (state === "overview" || state === "computed") lastRead = computedOnce ? "computed" : state;
-        const fresh = state === "filtered-computed", filtered = state === "filtered" || fresh;
-        const computed = state === "computed" || filtered || (state === "overview" && computedOnce) || (state === "components-selected" && lastRead === "computed");
-        const st = FS.statsByState["1"], all = AB.projectCounts("lesmis");
-        const g = filtered
-            ? { nodes: st.nodes, edges: st.edges, density: AB.num(st.density), components: st.components, isolated: st.isolated, averageDegree: st.averageDegree, maxDegree: FS.byStep[0].top[0].degree, degrees: FILTERED_DEGREES }
-            : { nodes: all.nodes, edges: all.edges, density: String(s.density), components: f.components, isolated: s.isolated, averageDegree: s.averageDegree, maxDegree: s.maxDegree, degrees: D.rows.map((r) => r.degree) };
+        const all = AB.projectCounts("lesmis");
+        // The filter steps on now: what the header chip counts (frame.shown, as the Data place left it), read as the
+        // fixture's steps that leave that many nodes; the filtered states put step 1's on the chip
+        const shown = justLoaded ? null : AB.route && (AB.route.frame.dataset || "lesmis") === "lesmis" ? AB.route.frame.shown : null;
+        const key = shown == null ? null : Object.keys(FS.statsByState).find((k) => FS.statsByState[k].nodes === shown);
+        const filtered = key != null;
+        // computed again on what the filter leaves: the fixture has the four readings for step 1's 60 nodes only
+        const fresh = state === "filtered-computed" && key === "1";
+        const computed = !justLoaded && (state === "computed" || state === "filtered" || state === "filtered-computed" || (state === "overview" && computedOnce) || (state === "components-selected" && lastRead === "computed"));
+        const g = filtered ? keptStats(key) : { nodes: all.nodes, edges: all.edges, density: String(s.density), components: f.components, isolated: s.isolated, averageDegree: s.averageDegree, maxDegree: s.maxDegree, degrees: D.rows.map((r) => r.degree) };
         const kept = AB.count(g.nodes, "node", { of: all.nodes });
         // Filtered, the counts follow the filter and the Nodes count agrees with the header chip, as on every
         // project; the four computed before the filter keep their values under the state bar until Compute on 60
         const r = (k, v) => rd(k, at(v));
-        const counts = [...countRows({ nodes: all.nodes, edges: g.edges }, filtered ? g.nodes : null, { pairs: g.edges - (s.parallelEdges || 0) }), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
+        const counts = [...countRows(all, filtered ? g.nodes : null, { pairs: all.edges - (s.parallelEdges || 0), kept: filtered ? g.edges : null }), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
             r("Density", g.density), rd(f.componentsName, at(g.components), [g.nodes, filtered ? "nodes" : [SELF, "components-selected"]]),
             ifNot0("Isolated nodes", g.isolated, "nodes"), ifNot0("Self-loops", s.selfLoops, null),
             r("Average degree", g.averageDegree), r("Highest degree", g.maxDegree)];
         const readings = (fresh ? READINGS_FILTERED : READINGS).map(([k, v]) => rd(k, at(v)));
         const dist = ccdf(ccdfOfDegrees(g.degrees), g.isolated, "Degree distribution");
+        // computed on a filter other than step 1 alone: no readings on that set yet, so they say not computed
+        const showReadings = computed && (!filtered || state !== "filtered-computed" || fresh);
         // The header's filter chip names the filter; the state bar is this inspector's one state bar
-        const body = [...counts, ...(computed ? readings : [notComputed(true)]), ...dist];
+        const body = [...counts, ...(showReadings ? readings : [notComputed(true)]), ...dist];
+        const steps = filtered ? key.split("-").map((i) => FS.steps[i - 1]).join(", then ") : "";
         return {
-            title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 1,
-            stateBar: filtered && !fresh ? staleBar(READINGS.length, all.nodes, n(g.nodes), "Computed before the filter: " + FS.steps[0] + " leaves " + kept + ".", [SELF, "filtered-computed"]) : null,
-            overview: { summary: summaryOf({ nodes: all.nodes, edges: g.edges }, "undirected", filtered ? g.nodes : null), body },
+            title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: justLoaded || own ? 0 : 1,
+            stateBar: filtered && showReadings && !fresh ? staleBar(READINGS.length, all.nodes, n(g.nodes), "Computed before the filter: " + steps + " leaves " + kept + ".", [SELF, "filtered-computed"]) : null,
+            overview: { summary: summaryOf(all, "undirected", filtered ? g.nodes : null, filtered ? g.edges : null), body },
         };
+    }
+    // What the fixture's filter steps `key` ("1", "1-2", "3", ...) leave, each step applied to what the one
+    // before left (as the Data place runs them): the counts from lesmis.filterSteps.statsByState, the degrees
+    // within the kept nodes read from the edge list. ponytail: parses the three fixture step names
+    function keptStats(key) {
+        const D = L(), st = D.filterSteps.statsByState[key], group = new Map(D.rows.map((x) => [x.id, String(x.group)]));
+        const degreesIn = (S) => { const d = new Map([...S].map((id) => [id, 0])); D.edgeList.forEach(([a, b]) => { if (a !== b && S.has(a) && S.has(b)) { d.set(a, d.get(a) + 1); d.set(b, d.get(b) + 1); } }); return d; };
+        let S = new Set(D.rows.map((x) => x.id));
+        key.split("-").forEach((i) => {
+            const name = D.filterSteps.steps[i - 1], k = name.match(/degree >= (\d+)$/), out = name.match(/out group (\w+)$/);
+            if (k) { const d = degreesIn(S); S = new Set([...S].filter((id) => d.get(id) >= Number(k[1]))); }
+            else if (out) S = new Set([...S].filter((id) => group.get(id) !== out[1]));
+        });
+        const degrees = [...degreesIn(S).values()];
+        return { nodes: st.nodes, edges: st.edges, density: AB.num(st.density), components: st.components, isolated: st.isolated, averageDegree: st.averageDegree, maxDegree: Math.max(...degrees), degrees };
     }
 
     // The node weight chosen at load, read-only here, beside the edge weight wherever that shows
@@ -540,9 +577,11 @@
     }
     // The weight chosen at load, read-only here: the Data page is its one home (higher weight means Stronger on every fixture)
     // `table`: the one edge table that carries it, when the graph has several (the others weigh 1)
-    function weight(column, dataState, table) {
-        const r = AB.data("Weight", AB.link("data-page", dataState, column + (table ? " (" + table + ")" : "") + ", stronger", { class: "ab-link" }));
-        AB.tip(r.lastChild, "Set when the data was loaded: a higher " + column + " means a stronger tie" + (table ? "; edges from other tables have no weight and count 1" : "") + ". Every run uses it unless it picks another. Change it on the Data page.", { label: false });
+    // `means`: what a higher weight means as the load set it (stronger, farther or capacity; default stronger)
+    function weight(column, dataState, table, means) {
+        const m = means || "stronger";
+        const r = AB.data("Weight", AB.link("data-page", dataState, column + (table ? " (" + table + ")" : "") + ", " + m, { class: "ab-link" }));
+        AB.tip(r.lastChild, "Set when the data was loaded: a higher " + column + (m === "stronger" ? " means a stronger tie" : m === "farther" ? " means farther apart" : " means more capacity") + (table ? "; edges from other tables have no weight and count 1" : "") + ". Every run uses it unless it picks another. Change it on the Data page.", { label: false });
         return r;
     }
     // The edge weights chosen at load, for every project: one edge type gives the Weight line; two or more give
@@ -644,6 +683,11 @@
     // graph's panel stays (never the left panel's last row). `current`: the state the frame was last asked for
     const CLOSE_OF = { "layout-method": "layout", "transfers-methods": "transfers", background: "canvas" };
     let current = "overview";
+    // The file just loaded: the tree and the drawing of it as read, where those sections have them
+    const fileLoadedFrame = () => { L().fresh = true; const fr = {}; if (hasState("graph-place", "file-loaded")) fr.left = "graph-place/file-loaded"; if (hasState("canvas-and-states", "lesmis-loaded")) fr.canvas = "canvas-and-states/lesmis-loaded"; return fr; };
+    // The Les Miserables filter chip on screen now ("41 of 77 nodes"), so Compute on keeps the filter the reader made
+    const lesmisChip = () => { const f = AB.route && AB.route.frame; return f && (f.dataset || "lesmis") === "lesmis" && f.shown != null ? f.chip : null; };
+    const hasState = (id, st) => !!(AB.sections[id] && AB.sections[id].states.some((x) => (x.id || x) === st));
     registerSection({
         id: SELF,
         title: "Inspector: nothing selected",
@@ -652,7 +696,8 @@
         get closeTo() { return SELF + "/" + (CLOSE_OF[current] || current); },
         frame: (state) => {
             current = state;
-            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : /^door-entries/.test(state) ? doorFrame(state) : state === "filtered" || state === "filtered-computed" ? { chip: AB.count(L().filterSteps.statsByState["1"].nodes, "node", { of: L().nodes }), filterOn: ["degree"] }
+            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : /^door-entries/.test(state) ? doorFrame(state) : state === "filtered" || state === "filtered-computed" ? { chip: lesmisChip() || AB.count(L().filterSteps.statsByState["1"].nodes, "node", { of: L().nodes }), filterOn: ["degree"] }
+                : state === "file-loaded" ? fileLoadedFrame()
                 : state === "components-selected" ? { dock: SELF + "/" + state }
                 : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" }
                 : state === "empty-graph" ? { left: "graph-place/empty", canvas: "canvas-and-states/empty", dock: false }
@@ -677,6 +722,7 @@
             { id: "transfers-methods", label: "Layout popover, transfers (three methods say slow)" },
             { id: "layout-slow", label: "Transfers: a slow method laying out, Stop in the state bar" },
             { id: "reading", label: "While loading: Reading..." },
+            { id: "file-loaded", label: "The file just loaded (miserables.gexf): no notes, no results" },
             { id: "door-entries", label: "Door entries (three tables joined)" },
             { id: "door-entries-as-nodes", label: "Door entries loaded with each entry as a node: two edge types, Loaded weights" },
             { id: "empty-graph", label: "Empty graph: no data" },
@@ -704,6 +750,8 @@
                 el.append(p);
                 return;
             }
+            // a new file: nothing computed on it yet (canvas-and-states' loading card ends the reading)
+            if (state === "reading") { computedOnce = false; lastRead = "overview"; }
             if (state === "layout-slow") { const r = METHODS.find((x) => x.id === "spectral"); method = r.name; slow = { method, rating: r.rating, nodes: T().nodes, ds: "transactions" }; AB.setLayout("running"); }
             drawInspector(el, state);
         },

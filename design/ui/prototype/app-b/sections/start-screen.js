@@ -261,9 +261,13 @@
             const samples = column("Samples",
                 SAMPLES.map((s) => {
                     const d = fx[s.key];
-                    // Opening a project sample adds it to this page view's Recent projects
-                    // (every graph sample opens the Les Miserables project today, so that is what Recent names)
-                    const open = () => { if (!s.go) AB.visit.recents = [{ name: AB.projectNames.lesmis || fx.lesmis.frame.project, dataset: "lesmis", go: ["graph-place", "at-rest"], when: "Today", path: s.name + " sample" }].concat(AB.visit.recents.filter((r) => r.dataset !== "lesmis")); const to = s.go || ["graph-place", "at-rest"]; AB.go(to[0], to[1]); };
+                    // Opening a project sample opens its own project (Les Miserables at rest, the transfers and the
+                    // karate club and protein network just loaded) and adds it to this page view's Recent projects
+                    const open = () => {
+                        const to = s.go || ["graph-place", { lesmis: "at-rest", transactions: "transfers-loaded" }[s.key] || AB.placeOf(s.key, "graph")];
+                        if (!s.go) AB.visit.recents = [{ name: AB.projectNames[s.key] || (d.frame && d.frame.project) || s.name, dataset: s.key, go: to, when: "Today", path: s.name + " sample" }].concat(AB.visit.recents.filter((r) => r.dataset !== s.key));
+                        AB.go(to[0], to[1]);
+                    };
                     return h("div", Object.assign({ class: "ss-sample", role: "link", "aria-label": "Open the " + s.name + " sample" }, AB.act({ onClick: open })),
                         h("div", { class: "ss-pic" + (s.pic ? "" : " ss-pic-icon") }, s.pic ? pic(s.pic, "") : icon(s.key === "nested" ? "file" : "table")),
                         h("div", { class: "ss-sample-text" },

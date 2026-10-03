@@ -384,6 +384,16 @@
                 { id: "l3", name: "group is not 0", meaning: "Keeps the characters whose group is anything but 0", on: true, rule: { attr: "group", type: "cat", cond: "is not", value: "0" }, keep: where((r) => String(r.group) !== "0") },
             ]);
         }
+        if (cfg.steps === "lesmis-neighbors") {
+            const f = neighborStep(), id = (L().rows.find((r) => r.label === f.who) || {}).id;
+            const near = (S, sp) => {
+                let at = new Set([id]);
+                for (let i = 0; i < f.hops; i++) { const next = new Set(at); sp.edges.forEach(([a, b]) => { if (at.has(a)) next.add(b); if (at.has(b)) next.add(a); }); at = next; }
+                return new Set([...S].filter((x) => at.has(x)));
+            };
+            return [{ id: "n1", kind: "neighbors", name: "Neighbors of " + f.who + ", " + AB.count(f.hops, "edge") + " away", on: true, keep: near,
+                meaning: "Keeps " + f.who + " and the nodes within " + AB.count(f.hops, "edge") + " of " + f.who }];
+        }
         if (cfg.steps === "one") return [amount(true)];
         // The project at rest: the amount step is listed but not applied, so nothing says a filter is on
         if (cfg.steps === "one-off") return [amount(false)];
@@ -394,8 +404,10 @@
         ];
         return [amount(cfg.steps !== "undone"), kind()];
     }
+    // The neighbor step the selection bar last committed (a direct visit: Valjean, 1 edge away)
+    const neighborStep = () => (AB.neighborStep && AB.neighborStep.ds === "lesmis" ? AB.neighborStep : { who: "Valjean", hops: 1 });
     function modelFor(cfg) {
-        const m = { steps: initialSteps(cfg), selected: cfg.selectStep || null, log: { past: [], future: [] } };
+        const m = { steps: initialSteps(cfg), selected: cfg.selectStep || null, log: { past: [], future: [] }, from: AB.neighborStep };
         // After undoing the step just added: it stays listed, off, and Redo turns it on again
         if (cfg.undoNotice) m.log.future.push({ s: m.steps[0], was: false, now: true });
         return m;
@@ -502,9 +514,11 @@
         // own lines -- the new single-node groups apart from the real ones, so a jump in a count is explained
         const was = cfg.april && t.march && t.march.edges !== t.edges ? t.march.edges : null;
         const A = TA(), Z = A.dormant;
+        // what the last Load chose (the Data page sets T().loaded); before any, the file as loaded: weight amount
+        const ld = Object.assign({ weight: "amount" }, t.loaded || {}), tEdges = (AB.projectCounts("transactions") || t).edges;
         const rows = [
             { id: "accounts", kind: "node", name: cfg.longName ? LONG_NAME : t.accountsFile, quiet: `account . ${AB.count(t.nodes, "node")}`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
-            { id: "transfers", kind: "edge", name: t.file, quiet: was == null ? edgeLine("transfers", t.edges, t.edges) : `transfers . ${AB.count(t.edges, "row")}, was ${AB.num(was)}; one edge per row`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"], weight: weightLine("amount"),
+            { id: "transfers", kind: "edge", name: t.file, quiet: was == null ? edgeLine("transfers", t.edges, tEdges, ld.per) : `transfers . ${AB.count(t.edges, "row")}, was ${AB.num(was)}; one edge per row`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"], weight: weightLine(ld.weight),
                 info: cfg.afterReplace ? "Replaced Sep 30 with " + t.file : null,
                 report: cfg.april ? [
                     `${AB.count(A.stats.components, "component")}, was ${AB.num(((t.march || {}).stats || t.stats).components)}`,
@@ -698,6 +712,7 @@
         };
         const sync = (s, focus, then) => {
             kept[cfg.state] = model;
+            model.touched = true;
             const showing = s && model.selected === s.id && /^inspector-attribute-and-filter-step\//.test(String((AB.route && AB.route.frame.right) || ""));
             const was = location.hash;
             if (showing) { redraw(focus ? s.id : null); open(s); }
@@ -776,6 +791,7 @@
                 s.name = attr + " " + cond;
             }
             steps.push(s);
+            model.touched = true;
             record(s, false, true);
             model.selected = id;
             kept[cfg.state] = model;
@@ -819,6 +835,12 @@
             record(s, was, s.on);
             AB.announce(s.name + (s.on ? " applied" : " not applied"));
             sync(s, true);
+        };
+        // The step inspector's Apply this step turns the same step on or off here (the step this place has selected)
+        AB.selectedStep = () => {
+            if (String((AB.route && AB.route.frame.left) || "") !== "data-place/" + cfg.state) return null;
+            const s = steps.find((x) => x.id === model.selected);
+            return s ? { on: s.on, flip: () => flip(s) } : null;
         };
         const menuFor = (s, anchor) => AB.openMenu(anchor, [
             { label: "Move up", shortcut: "Ctrl+]", disabled: steps.indexOf(s) === 0 ? "Already first" : false, onClick: () => move(s, -1) },
@@ -1063,6 +1085,7 @@
         "door-entries": { ds: "door", steps: "none" },
         "graph-file": { ds: "lesmis", steps: "none" },
         "lesmis-filters": { ds: "lesmis", steps: "lesmis-degree", selectStep: "l2", scrollTo: "dp-filters" },
+        "lesmis-neighbors": { ds: "lesmis", steps: "lesmis-neighbors", scrollTo: "dp-filters" }, // after Filter to neighbors
         "url-source": { steps: "two", select: "url", url: true },
         "url-changed": { steps: "two", select: "url", url: true, urlChanged: true },
         derived: { steps: "none", derived: true },
@@ -1094,13 +1117,59 @@
     const DATASET = { door: "doorEntries", lesmis: "lesmis", none: "lesmis", wide: "wide", nested: "nested", plainJson: "plainJson", registry: "registry" };
     const cfgOf = (state) => Object.assign({ state: CFG[state] ? state : "at-rest" }, CFG[state] || CFG["at-rest"]);
     // After Replace the steps are the ones the reader had: the transfers Data place they came from
-    const modelOf = (cfg) => (cfg.steps === "kept" ? modelOf(cfgOf(lastTransfers)) : kept[cfg.state] || (kept[cfg.state] = modelFor(cfg)));
+    // (the neighbor step's list is made again once the selection bar commits another)
+    const modelOf = (cfg) => (cfg.steps === "kept" ? modelOf(cfgOf(lastTransfers))
+        : kept[cfg.state] && !(cfg.steps === "lesmis-neighbors" && kept[cfg.state].from !== AB.neighborStep) ? kept[cfg.state] : (kept[cfg.state] = modelFor(cfg)));
     // What the steps that apply leave, for the header's filter chip: the same result the rows show
     function chipOf(cfg) {
         const m = modelOf(cfg);
         if (!m.steps.length) return "Full graph";
         const r = run(cfg, m.steps);
         return r.left < r.total ? AB.count(r.left, "node", { of: r.total }) : "Full graph";
+    }
+
+    // The Les Miserables canvas draws only the nodes the filter steps leave (frame.keep: on this place,
+    // and on any place of the project once the reader applied a step here, AB.projectFilter.lesmis),
+    // painted as the tree paints them. A keep that does not match the chip (another filter, such as
+    // the selection bar's) is left alone.
+    // ponytail: redraws the canvas images after they draw; canvas-and-states should read frame.keep for lesmis as it does for the hosts
+    function keptIds() {
+        const f = AB.route && AB.route.frame;
+        return f && f.dataset === "lesmis" && f.keep && f.keep.size === f.shown ? f.keep : null;
+    }
+    // the drawing's fill circles are in row order, each followed by its outline ring
+    const dropOthers = (keep, sig) => Object.defineProperty((doc) => {
+        const ids = L().rows.map((r) => r.id), at = new Set(), pts = [];
+        let i = 0, drop = false;
+        doc.querySelectorAll("circle").forEach((c) => {
+            if (c.getAttribute("fill") !== "none") {
+                drop = !keep.has(ids[i++]);
+                if (!drop) { at.add(c.getAttribute("cx") + "," + c.getAttribute("cy")); pts.push([+c.getAttribute("cx"), +c.getAttribute("cy")]); }
+            }
+            if (drop) c.remove();
+        });
+        doc.querySelectorAll("line").forEach((l) => { if (!at.has(l.getAttribute("x1") + "," + l.getAttribute("y1")) || !at.has(l.getAttribute("x2") + "," + l.getAttribute("y2"))) l.remove(); });
+        // a label sits just right of its node, 4 px lower
+        doc.querySelectorAll("text").forEach((t) => {
+            const x = +t.getAttribute("x"), y = +t.getAttribute("y");
+            if (!pts.some(([cx, cy]) => x - cx >= 0 && x - cx < 40 && Math.abs(y - 4 - cy) < 3)) t.remove();
+        });
+    }, "name", { value: "kept-" + sig });
+    let artWatch = null;
+    function watchKept() {
+        const cv = document.getElementById("ab-canvas");
+        if (artWatch || !cv) return;
+        artWatch = new MutationObserver(() => {
+            const keep = keptIds(), stage = cv.querySelector(".k-stage");
+            if (!keep || !stage || !AB.lesmisDrawing) return;
+            const sig = [...keep].sort().join(".");
+            if ([...stage.querySelectorAll(":scope > img")].some((x) => x.dataset.kept === sig)) return;
+            const alt = L().title + ", the nodes the filter steps leave";
+            stage.querySelectorAll(":scope > img").forEach((x) => x.remove());
+            stage.prepend(...AB.lesmisDrawing("lesmis-groups-onesize", alt, null, dropOthers(keep, sig)).map((img) => { img.dataset.kept = sig; return img; }));
+            stage.setAttribute("aria-label", alt);
+        });
+        artWatch.observe(cv, { childList: true, subtree: true });
     }
 
     // The attributes each step list reads, on or off (initialSteps); the field list tags them "Filter step".
@@ -1122,11 +1191,13 @@
             if (c.ds === "registry") AB.registryDataset();
             const attrs = modelOf(c).steps.map((s) => s.rule && s.rule.attr).filter(Boolean);
             const f = { dataset: DATASET[c.ds] || "transactions", chip: chipOf(c), filterOn: STEP_ATTRS[c.steps] || (attrs.length ? attrs : null) };
-            // The hosts have every row: the canvas draws only the hosts the steps that apply leave (frame.keep)
-            if (c.ds === "wide" && modelOf(c).steps.length) { const r = run(c, modelOf(c).steps); if (r.set && r.left < r.total) f.keep = r.set; }
+            // The hosts and Les Miserables have every row: the canvas draws only the nodes the steps that apply leave (frame.keep)
+            if ((c.ds === "wide" || c.ds === "lesmis") && modelOf(c).steps.length) { const r = run(c, modelOf(c).steps); if (r.set && r.left < r.total) f.keep = r.set; }
             if (RIGHT[state]) f.right = RIGHT[state];
             // The filter is the project's, not this panel's: every place on this project shows it (app.js reads AB.projectFilter)
-            if (f.dataset !== "lesmis") (AB.projectFilter = AB.projectFilter || {})[f.dataset] = { chip: f.chip, filterOn: f.filterOn, keep: f.keep || null };
+            // Les Miserables is every route's sample: only steps the reader made or applied hold elsewhere
+            if (f.dataset !== "lesmis" || modelOf(c).touched || c.steps === "lesmis-neighbors") (AB.projectFilter = AB.projectFilter || {})[f.dataset] = { chip: f.chip, filterOn: f.filterOn, keep: f.keep || null };
+            if (c.ds === "lesmis") watchKept();
             // A new project: nothing loaded, nothing drawn
             if (c.ds === "none") Object.assign(f, { right: "inspector-nothing-selected/empty-graph", canvas: "canvas-and-states/empty", dock: false });
             return f;
@@ -1140,6 +1211,7 @@
             { id: "door-entries", label: "Door entries: three tables, grouped attributes" },
             { id: "graph-file", label: "A GEXF file: one row, two tables" },
             { id: "lesmis-filters", label: "Les Miserables: a degree step after another, both counts" },
+            { id: "lesmis-neighbors", label: "Les Miserables: the one neighbor step Filter to neighbors made" },
             { id: "url-source", label: "A URL source selected" },
             { id: "url-changed", label: "The URL's data changed" },
             { id: "derived", label: "A derived graph: origin line" },

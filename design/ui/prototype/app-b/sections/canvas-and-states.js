@@ -107,7 +107,7 @@
     // table's Louvain tab, AB.lesmisCommunities) and a Betweenness run (the fixtures' betweenness on its
     // ramp). Before any paint tree has drawn, the tree at rest's winner, PageRank.
     // ponytail: groups and sets paint only their own members, which the drawings already show
-    const COLOR_ROW = /^(PageRank|Louvain|Betweenness( \d+)?)$/;
+    const COLOR_ROW = /^(PageRank( \d+)?|Louvain|Betweenness( \d+)?)$/;
     const BT_RAMP = ["#fde7c8", "#E69F00"];
     function colorWinner() {
         if (!AB.paintRows.length) return "PageRank";
@@ -139,11 +139,29 @@
     function paintRows(doc) {
         sizeNodes(doc);
         const win = colorWinner();
-        if (win === "PageRank" || (win === "Louvain" && !AB.lesmisCommunities)) return paintPagerank(doc);
-        if (!win) return;
+        if (/^PageRank/.test(win || "") || (win === "Louvain" && !AB.lesmisCommunities)) return paintPagerank(doc);
+        if (!win) return paintEverything(doc);
         const keys = Object.keys(PAGERANK), color = {};
         if (win === "Louvain") AB.lesmisCommunities.forEach((c) => c.members.forEach((m) => { const i = L().rows.findIndex((r) => r.label === m); if (i >= 0) color[keys[i]] = c.color; }));
         else L().rows.forEach((r, i) => { color[keys[i]] = btColor(r.betweenness / btMax()); });
+        doc.querySelectorAll("circle").forEach((c) => {
+            const k = color[c.getAttribute("cx") + "," + c.getAttribute("cy")];
+            if (k && c.getAttribute("fill") !== "none") c.setAttribute("fill", k);
+        });
+    }
+    // No row paints Color: Everything's Color line, when a bind icon bound it to a number (AB.paintOf), paints
+    // every node on its ramp, linear over the attribute's values
+    const everythingColor = () => {
+        const p = AB.paintOf("lesmis", "Color", "node"), ev = AB.paintRows.find((r) => r.name === "Everything");
+        if (!p || p.type !== "num" || p.on === "row" || (ev && !ev.eye)) return null;
+        const v = L().rows.map((r) => Number(r[p.name])).filter(Number.isFinite);
+        return v.length ? { name: p.name, lo: Math.min(...v), hi: Math.max(...v) } : null;
+    };
+    function paintEverything(doc) {
+        const e = everythingColor();
+        if (!e) return;
+        const keys = Object.keys(PAGERANK), color = {};
+        L().rows.forEach((r, i) => { color[keys[i]] = rampAt(e.hi > e.lo ? (Number(r[e.name]) - e.lo) / (e.hi - e.lo) : 0); });
         doc.querySelectorAll("circle").forEach((c) => {
             const k = color[c.getAttribute("cx") + "," + c.getAttribute("cy")];
             if (k && c.getAttribute("fill") !== "none") c.setAttribute("fill", k);
@@ -393,8 +411,9 @@
         } else if (win && /^Betweenness/.test(win)) parts.push({ title: "Color: " + win, rows: [{ swatch: AB.ramp(BT_RAMP[0], BT_RAMP[1]), label: AB.range(0, btMax(), "Betweenness") }] });
         else if (win) {
             const go = ["inspector-measure-row", "style"];
-            parts.push({ title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.range(PR_DOMAIN[0], PR_DOMAIN[1], "PageRank"), go }] });
+            parts.push({ title: "Color: " + win, go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.range(PR_DOMAIN[0], PR_DOMAIN[1], "PageRank"), go }] });
         }
+        else if (everythingColor()) { const e = everythingColor(); parts.push({ title: "Color: " + e.name, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.range(e.lo, e.hi, e.name) }] }); }
         if (sz) parts.push({ title: "Size: " + sz.name }); // the legend adds the bound range under it
         return AB.legendCard(parts);
     }
@@ -837,6 +856,18 @@
 
     // The transfers data, for the places that work on it (Data, the many-groups run, a full
     // selection): the density drawing, or colored by the March Louvain run with its legend
+    // A filter step that applies (the frame's chip, "812 of 3,000 nodes") keeps only part of the
+    // transfers: the drawing is clipped to an ellipse holding that share of it, as the selection bar's
+    // neighborhood filter clips the density. The chip itself is the frame's.
+    // ponytail: a centered ellipse sized by the share kept; the element draws the real kept nodes
+    function clipToStep(st) {
+        const f = AB.route && AB.route.frame;
+        const m = f && f.dataset === "transactions" && typeof f.chip === "string" && f.chip.match(/^([\d,]+) of ([\d,]+) /);
+        if (!m) return;
+        const share = Number(m[1].replace(/,/g, "")) / Number(m[2].replace(/,/g, "")), r = Math.max(5, Math.round(30 * Math.sqrt(share)));
+        st.querySelectorAll(":scope > img").forEach((img) => { img.style.clipPath = `ellipse(${r}% ${r * 1.5}% at 50% 50%)`; });
+        st.setAttribute("aria-label", st.getAttribute("aria-label") + "; filtered to " + f.chip);
+    }
     function transfers(el, state) {
         const T = AB.fx.datasets.transactions;
         if (state !== "transfers-communities") {
@@ -844,6 +875,7 @@
             const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized));
             live(st, "transactions");
             turns(st);
+            clipToStep(st);
             AB.append(el, [st, legend(pth ? [pth.legend] : [])]);
             if (state === "selection-full") {
                 AB.notice("Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.", { label: "Narrow the query", go: ["select-where", "where-error"] });
@@ -851,11 +883,16 @@
             }
             return;
         }
-        const lg = AB.fx.datasets.transactionsApril.legends.march;
-        const run = ["inspector-run-row", "many-groups"];
-        const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community"));
+        // A rerun that finished after April replaced March paints April's communities, with April's legend
+        const A = AB.fx.datasets.transactionsApril, right = String((AB.route && AB.route.frame.right) || "");
+        const april = T.file === A.files.transfers.file && (AB.transfersRun === "finished" || right === "inspector-run-row/finished");
+        const lg = A.legends[april ? "april" : "march"], month = april ? "April" : "March";
+        const run = ["inspector-run-row", april ? "finished" : "many-groups"];
+        const alt = "Transfers, " + month + ": accounts colored by Louvain community";
+        const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...AB.drawing("transactions-" + month.toLowerCase() + "-communities", alt));
         live(st, "transactions");
         turns(st);
+        clipToStep(st);
         AB.append(el, [
             st,
             AB.legendCard([...(pathShown("transactions") ? [pathShown("transactions").legend] : []), { title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
@@ -1268,6 +1305,38 @@
     // directly (the page's first drawing) the card stays long enough to be seen
     let firstDraw = true;
     const loadMs = () => (firstDraw ? 1500 : 200);
+    // After Add (April's rows added to March's transfers): the notice says so, and its Undo takes the
+    // added accounts and transfers back out, so the Sources list and the counts read as before
+    function addedNotice() {
+        const T = AB.fx.datasets.transactions, A = AB.fx.datasets.transactionsApril, file = A.files.transfers.file;
+        AB.notice("Rows added from " + file + ": " + AB.count(T.edges, "transfer") + " in all", { label: "Undo", onClick: () => {
+            T.nodes -= A.versionDiff.accountsAdded;
+            T.edges -= A.files.transfers.rows;
+            // the Data page's Add listed the file and named the project for both months (data-page.js)
+            if (T.addedFiles) T.addedFiles = T.addedFiles.filter((x) => x !== file);
+            T.title = T.title.replace(/March and April 2026$/, "March 2026");
+            T.frame.project = T.frame.project.replace(/March and April 2026$/, "March 2026");
+            if (location.hash === AB.href("graph-place", "many-groups")) AB.render(); else AB.go("graph-place", "many-groups");
+            AB.announce("Undid the add of " + file + ": " + AB.count(T.edges, "transfer") + " in all");
+        } });
+    }
+    // The reader's own miserables.gexf, just loaded: the drawing as read, unstyled (nothing run on it yet)
+    function lesmisLoaded(el) {
+        const alt = "Les Miserables: " + AB.count(L().nodes, "node") + " and " + AB.count(L().edges, "edge") + ", unstyled";
+        const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...AB.drawing("lesmis-plain", alt));
+        live(st, "lesmis");
+        turns(st);
+        // nothing paints yet: the legend says so (the field list still lists the sample's own bindings)
+        AB.append(el, [st, AB.legendCard([{ title: "Nothing is colored or sized by a row" }])]);
+    }
+    // The two graph-file samples the start screen opens bare (the shell's frame names these canvases): the plain drawing
+    function sample(el, ds) {
+        const D = AB.fx.datasets[ds], alt = ((D.frame && D.frame.project) || D.graphName || D.file) + ": " + AB.count(D.nodes, "node") + " and " + AB.count(D.edges, "edge") + ", unstyled";
+        const st = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...AB.drawing(ds + "-plain", alt));
+        turns(st);
+        AB.append(el, [st, AB.legendCard([{ title: "Nothing is colored or sized by a row" }])]);
+    }
+    const hasGraphState = (s) => ((AB.sections["graph-place"] || {}).states || []).some((x) => (x.id || x) === s);
     registerSection({
         id: "canvas-and-states",
         title: "Canvas and its states",
@@ -1281,6 +1350,9 @@
             // A project file too large to draw: the header names that project, not the sample on screen before
             if (state === "refused-project") { const c = C(); if (!c.frame) Object.defineProperty(c, "frame", { value: { project: PATENT.project, graphRow: PATENT.graphRow }, enumerable: false, configurable: true }); return { dataset: "citations", left: "graph-place/empty", right: false, dock: false }; }
             if (state === "loading") return { left: "graph-place/empty", right: "inspector-nothing-selected/reading", dock: false };
+            // the tree of the graph just read (graph-place/lesmis-loaded once the tree has it): no runs yet
+            if (state === "karate" || state === "ppi") return { dataset: state };
+            if (state === "lesmis-loaded") return { left: "graph-place/" + (hasGraphState("lesmis-loaded") ? "lesmis-loaded" : "empty"), right: "inspector-nothing-selected/overview" };
             if (state === "door-entries-loading") return { dataset: "doorEntries", left: "graph-place/empty", right: false, dock: false };
             if (state === "transfers-loading") return { dataset: "transactions", left: "graph-place/empty", right: false, dock: false };
             if (state === "registry-loading") return { dataset: AB.registryDataset(), left: "graph-place/empty", right: false, dock: false };
@@ -1303,6 +1375,9 @@
             { id: "hidden-on-canvas", label: "Nodes hidden on canvas" },
             { id: "everything-hidden", label: "Everything hidden" },
             { id: "loading", label: "Loading" },
+            { id: "lesmis-loaded", label: "Les Miserables, just loaded (unstyled)" },
+            { id: "karate", label: "Karate club sample, as opened (unstyled)" },
+            { id: "ppi", label: "Protein interactions sample, as opened (unstyled)" },
             { id: "empty", label: "Empty graph" },
             { id: "refused-too-large", label: "Load refused: too large" },
             { id: "refused-project", label: "A project file too large to draw (patent citations)" },
@@ -1331,7 +1406,12 @@
             restage = null;
             stageSig = sigNow();
             if (state === "everything-hidden") everything(el);
-            else if (state === "loading") loading(el, "lesmis");
+            else if (state === "loading") {
+                // the reader's own miserables.gexf: the card shows, then the graph as read, nothing run on it yet
+                const here = location.hash;
+                loading(el, "lesmis");
+                setTimeout(() => { if (location.hash === here) AB.go("canvas-and-states", "lesmis-loaded"); }, loadMs());
+            }
             else if (state === "door-entries-loading" || state === "transfers-loading") {
                 // Load from the Data page ends on the loaded graph: the card shows, then the drawing
                 // Both land on the Graph place with an empty tree; the transfers stay just loaded (no filter
@@ -1345,8 +1425,10 @@
                 if (state === "door-entries-loading" && !DE.loaded.byLoad) Object.assign(DE.loaded, { per: "row", add: null, fresh: true, weight: null, direction: "directed", byLoad: true });
                 const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : added ? ["graph-place", "many-groups"] : ["graph-place", "transfers-loaded"], here = location.hash;
                 loading(el, state === "door-entries-loading" ? "doorEntries" : "transactions");
-                setTimeout(() => { if (location.hash !== here) return; AB.go(to[0], to[1]); if (added) setTimeout(() => AB.notice("Rows added: " + AB.count(AB.fx.datasets.transactions.edges, "transfer") + " in all"), 100); }, loadMs()); // after the new route draws
+                setTimeout(() => { if (location.hash !== here) return; AB.go(to[0], to[1]); if (added) setTimeout(addedNotice, 100); }, loadMs()); // after the new route draws
             }
+            else if (state === "lesmis-loaded") lesmisLoaded(el);
+            else if (state === "karate" || state === "ppi") sample(el, state);
             else if (state === "registry-loading") {
                 const here = location.hash;
                 loading(el, "registry");

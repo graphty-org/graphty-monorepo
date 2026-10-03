@@ -438,7 +438,7 @@
     // section) calls addNote(); the editor reads AB.noteDraft, and the inspector stays as it was.
     const SUBJECT_ICON = { "inspector-node": "circle-dot", "inspector-edge": "spline", "inspector-run-row": ICON.run, "inspector-measure-row": "chart-column", "inspector-attribute-and-filter-step": ICON.filter, "inspector-several-elements": "circle-dot" };
     // The graph a note is about when nothing is selected: the graph of the project on screen
-    const GRAPH_STATE = { lesmis: "overview", doorEntries: "door-entries", transactions: "transfers", wide: "wide", nested: "wide", plainJson: "wide" };
+    const GRAPH_STATE = { lesmis: "overview", doorEntries: "door-entries", transactions: "transfers", wide: "wide", nested: "wide", plainJson: "wide", karate: "karate", ppi: "ppi" };
     function noteSubject() {
         const r = AB.route, ds = (r && r.frame.dataset) || "lesmis", D = AB.fx.datasets[ds];
         const gname = ds === "lesmis" ? "Co-appearances" : ds === "transactions" ? D.frame.graphRow : D.graphName;
@@ -2474,10 +2474,16 @@
         const ds = AB.route && AB.route.frame.dataset, out = {};
         (painted[ds] || []).filter((p) => p.on === route).forEach((p) => {
             const ch = p.element + "." + (p.prop === "Color" ? "color" : p.element === "edge" ? "width" : "size");
-            out[ch] = p.prop === "Color" ? { field: p.name, palette: p.type === "num" ? "Orange to brown" : "Eight distinct", ramp: p.type === "num" ? ["#ef7818", "#662506"] : ["#E69F00", "#0072B2"], go: "bound" }
+            out[ch] = p.prop === "Color" ? { field: p.name, palette: p.type === "num" ? "Orange to brown" + boundSpan(ds, p) : "Eight distinct", ramp: p.type === "num" ? ["#ef7818", "#662506"] : ["#E69F00", "#0072B2"], go: "bound" }
                 : { field: p.name, type: p.type, range: p.element === "edge" ? "0.5 to 4" : sizeRangeText(), go: "bound" };
         });
         return out;
+    }
+    // A number's bound range, read from the records it binds (", 1 to 36"); empty when none are numbers
+    function boundSpan(ds, p) {
+        const recs = ds === "lesmis" ? AB.fx.datasets.lesmis.rows : (() => { try { return recordsOf(ds, p); } catch (e) { return []; } })();
+        const v = (recs || []).map((r) => Number(valueAt(r, p.name))).filter(Number.isFinite);
+        return v.length ? ", " + num(Math.min(...v)) + " to " + num(Math.max(...v)) : "";
     }
     // Color by and Size by from an attribute's menu: the measure row, its inspector and the colored canvas
     function paintRow(ds, prop, name) {
@@ -2828,7 +2834,36 @@
         return () => { const i = dataEdits.indexOf(e); if (i >= 0) dataEdits.splice(i, 1); };
     }
 
+    // drawnLabels(img): the node labels a canvas drawing (an SVG shown as an img) holds, each { name, x, y, w, h }
+    // in page pixels where the img draws it now. The canvas's label click and the study tool both read it.
+    const labelBoxes = {};
+    async function drawnLabels(img) {
+        const src = img.currentSrc || img.src;
+        if (!src) return [];
+        const got = labelBoxes[src] || (labelBoxes[src] = fetch(src).then((r) => r.text()).then((text) => {
+            const root = new DOMParser().parseFromString(text, "image/svg+xml").documentElement;
+            if (root.nodeName !== "svg") return { vb: [0, 0, 1, 1], out: [] };
+            const vb = (root.getAttribute("viewBox") || "0 0 " + parseFloat(root.getAttribute("width")) + " " + parseFloat(root.getAttribute("height"))).split(/[\s,]+/).map(Number);
+            // laid out once off screen at one pixel per unit, so each label's box is read in the drawing's units
+            const svg = document.importNode(root, true), host = document.createElement("div");
+            svg.setAttribute("width", vb[2]);
+            svg.setAttribute("height", vb[3]);
+            host.style.cssText = "position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none";
+            host.append(svg);
+            document.body.append(host);
+            const s0 = svg.getBoundingClientRect();
+            const out = [...svg.querySelectorAll("text")].map((t) => { const b = t.getBoundingClientRect(); return { name: t.textContent.trim(), x: b.x - s0.x + vb[0], y: b.y - s0.y + vb[1], w: b.width, h: b.height }; }).filter((l) => l.name);
+            host.remove();
+            return { vb, out };
+        }).catch(() => { delete labelBoxes[src]; return { vb: [0, 0, 1, 1], out: [] }; }));
+        const { vb, out } = await got;
+        // the SVG fills the img as "meet" does: scaled to fit, centered
+        const r = img.getBoundingClientRect(), k = Math.min(r.width / vb[2], r.height / vb[3]);
+        const ox = r.x + (r.width - vb[2] * k) / 2 - vb[0] * k, oy = r.y + (r.height - vb[3] * k) / 2 - vb[1] * k;
+        return out.map((l) => ({ name: l.name, x: ox + l.x * k, y: oy + l.y * k, w: l.w * k, h: l.h * k }));
+    }
     Object.assign(AB, {
+        drawnLabels,
         num, count, range, distinctNames, topN, projectCounts, countSource, removeFromData,
         graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
         fieldList, openFieldList, fieldsOf, nestedLoaded, painted, paintBy, paintOf, paintRow, recordsOf, valueAt, fieldIn, attributeMenu, boundOn, nameCols, nameOf, nameWord, problem, truncMiddle, fitMiddle, wordMatch,

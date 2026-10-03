@@ -12,7 +12,10 @@
 //                                                     and a stub (a section with no render, planted for the run),
 //                                                     and passes a good route; and that --try types into a focused
 //                                                     box and fails with nothing focused, that shift- and ctrl-click
-//                                                     select two rows, that a reviewer word is caught, and that an
+//                                                     select two rows (table and paint tree), that a canvas label is
+//                                                     clicked, that a shared name says ambiguous, name#n misses past
+//                                                     the last, role=<role>:<name> takes that role, a hover prints its
+//                                                     tooltip, that a reviewer word is caught, and that an
 //                                                     unknown step is refused
 //   node app-b/study.mjs --counts                     exit 1 if a section file types a fixture count by hand (77 nodes,
 //                                                     "of 254", count: 3000, AB.count(242, "row"), x ? 514 : 510)
@@ -47,6 +50,8 @@
 //                                                     tooltip name; a name several controls share prints "ambiguous"
 //                                                     and takes the first: "<name>#2" takes the second, and
 //                                                     "role=<role>:<name>" (role=treeitem:Louvain) only that role.
+//                                                     A name no control has falls back to a node label drawn on the
+//                                                     canvas (exact, then partial), clicked at its center.
 //                                                     Every hover prints the tooltip; --hover-at hovers a point and
 //                                                     --hover-icon the nth icon-only control (counted in page
 //                                                     order), for a tooltip whose name is not known. task:<id> starts at
@@ -448,6 +453,12 @@ const FIXES = [
         ["--type", "Add label line", "--key", "Enter", "--wait", "600", "--expect", "Pick an attribute", "--expect", "Les Miserables", "--expect-not", "IT estate"]],
     ["the Label '+' with no label drawn adds a label line at once, with no Show labels", "inspector-selection-and-everything/everything",
         ["--click", "Add label line", "--wait", "300", "--expect", "Pick an attribute", "--expect-not", "Show labels"]],
+    // the column menu names its attribute, so the line it adds already reads degree: no field list to pick from
+    ["the Nodes table's degree column menu adds a label line on degree", "table-dock/nodes",
+        ["--click", "degree column menu", "--click", "Add label line", "--wait", "600", "--expect", "77 labels", "--expect-not", "Pick an attribute", "--expect-not", "not available yet"]],
+    ["Show only this row survives the main menu and Export opening and closing", "context-menus/run-row",
+        ["--click", "Show only this row", "--click", "Main menu", "--key", "Escape", "--click", "Main menu", "--click", "Export...", "--key", "Escape",
+            "--expect", "Color: Louvain", "--expect-not", "Color: PageRank"]],
 ];
 
 // ---------- --try: a participant's steps ----------
@@ -480,13 +491,15 @@ async function find(page, raw) {
     if (r) [role, name] = [r[1], r[2]];
     const n = name.match(/^(.*\S)#(\d+)$/);
     if (n) [name, nth] = [n[1], +n[2]];
+    // exact names before partial ones; at each, controls first, then a node's label drawn on the canvas
+    // (a picture, not a control: it is clicked at the center of its box, as a person would)
     for (const exact of [true, false]) {
         const locs = role ? [page.getByRole(role, { name, exact })] : [...ROLES.map((x) => page.getByRole(x, { name, exact })), page.getByLabel(name, { exact }), page.getByText(name, { exact })];
         const seen = new Map(); // one entry per control: text inside a button is that button
         for (const loc of locs) {
             for (const el of await loc.filter({ visible: true }).elementHandles()) {
                 const [key, desc] = await el.evaluate((e) => {
-                    if (e.closest(".ab-tip, [aria-hidden=true]")) return [null]; // the tooltip bubble is not a control
+                    if (e.closest(".ab-tip, [aria-hidden=true], #ab-canvas svg")) return [null]; // the tooltip bubble and the drawing are not controls
                     const c = e.closest("button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio]") || e;
                     c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
                     const said = (c.getAttribute("aria-label") || c.innerText || c.dataset.tip || "").trim().replace(/\s+/g, " ").slice(0, 40);
@@ -495,13 +508,30 @@ async function find(page, raw) {
                 if (key && !seen.has(key)) seen.set(key, { el, desc });
             }
         }
-        const all = [...seen.values()];
+        let all = [...seen.values()];
+        if (!all.length && !role) {
+            all = await page.evaluate(async ([w, exact]) => {
+                const img = [...document.querySelectorAll("#ab-canvas .k-stage > img")].find((i) => i.checkVisibility());
+                const ls = img && window.AB && AB.drawnLabels ? await AB.drawnLabels(img) : [];
+                return ls.filter((l) => (exact ? l.name === w : l.name.toLowerCase().includes(w.toLowerCase())))
+                    .map((l) => ({ at: [l.x + l.w / 2, l.y + l.h / 2], desc: `label "${l.name}" on the canvas` }));
+            }, [name, exact]);
+        }
         if (!all.length) continue;
         if (nth > all.length) return { miss: `"${raw}": only ${all.length} control${all.length === 1 ? " is" : "s are"} called "${name}" (${all.map((x) => x.desc).join(", ")})` };
         if (!nth && all.length > 1) console.log(`ambiguous: "${name}" matches ${all.length} controls (${all.map((x) => x.desc).join(", ")}); clicked the first`);
-        return { el: all[Math.max(nth, 1) - 1].el };
+        return all[Math.max(nth, 1) - 1];
     }
     return { miss: `nothing on screen is called "${name}"` };
+}
+// A click, hover or double-click on what find() found: a control's handle, or a point on the canvas
+async function act(page, f, verb, opt) {
+    if (f.el) return f.el[verb](Object.assign({ timeout: 3000 }, opt));
+    const [x, y] = f.at;
+    if (verb === "hover") return page.mouse.move(x, y);
+    for (const m of opt.modifiers || []) await page.keyboard.down(m);
+    await page.mouse.click(x, y, { button: opt.button || "left", clickCount: verb === "dblclick" ? 2 : 1 });
+    for (const m of opt.modifiers || []) await page.keyboard.up(m);
 }
 // The tooltip on screen now, or null
 const tooltip = (page) => page.evaluate(() => { const t = document.querySelector(".ab-tip:not([hidden])"); return t && t.checkVisibility() ? t.innerText.replace(/\s+/g, " ").trim() : null; });
@@ -553,7 +583,7 @@ async function run(page, list, errors = []) {
             const verb = a === "--hover" ? "hover" : a === "--dblclick" ? "dblclick" : "click";
             const f = await find(page, v);
             if (f.miss) console.log(f.miss);
-            else await f.el[verb](Object.assign({ timeout: 3000 }, CLICKS[a])).catch((e) => console.log(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`));
+            else await act(page, f, verb, CLICKS[a]).catch((e) => console.log(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`));
             await page.waitForTimeout(verb === "hover" ? 800 : 400); // a tooltip shows 500 ms after the pointer arrives
             if (verb === "hover" && !f.miss) console.log(`tooltip: ${JSON.stringify(await tooltip(page))}`);
         } else if (a === "--hover-at" || a === "--hover-icon") {
@@ -642,13 +672,24 @@ try {
             ["a ctrl-click keeps two rows selected", "table-dock/transfers-nodes", ["--click", "ACC-633005", "--ctrl-click", "ACC-325714", "--expect", "selected=2"], 0],
             ["a shift-click adds a second row", "table-dock/transfers-nodes", ["--click", "ACC-633005", "--shift-click", "ACC-325714", "--expect", "selected=2"], 0],
             ["a plain click keeps one row selected", "table-dock/transfers-nodes", ["--click", "ACC-633005", "--click", "ACC-325714", "--expect", "selected=1"], 0],
+            // a node's label drawn on the canvas is clicked where it is drawn, and selects that node
+            ["a label drawn on the canvas is clicked", "graph-place/at-rest", ["--click", "Javert", "--expect", "role=heading:Javert", "--expect-not", "role=heading:Valjean"], 0],
+            ["a ctrl-click on the paint tree selects two rows", "graph-place/at-rest", ["--click", "role=treeitem:PageRank", "--ctrl-click", "role=treeitem:Louvain", "--expect", "selected=2"], 0],
+            // the fifth item: what the run must print
+            ["a name several controls share says ambiguous", "graph-place/at-rest", ["--click", "Louvain"], 0, /^ambiguous: "Louvain"/m],
+            ["a name#n past the last control misses and says how many there are", "graph-place/at-rest", ["--click", "Louvain#99"], 0, /^"Louvain#99": only \d+ controls are called "Louvain"/m],
+            ["role=<role>:<name> takes only that role", "graph-place/at-rest", ["--click", "role=treeitem:Louvain", "--expect", "role=heading:Louvain"], 0, /^(?![\s\S]*ambiguous)/],
+            ["a hover by name prints the tooltip", "graph-place/at-rest", ["--hover", "role=treeitem:PageRank"], 0, /^tooltip: "/m],
         ];
-        for (const [name, r, list, want] of tries) {
+        for (const [name, r, list, want, says] of tries) {
             const { page, errors } = await open(r);
-            const got = await run(page, list, errors);
+            const said = [], log = console.log;
+            console.log = (...x) => said.push(x.join(" "));
+            const got = await run(page, list, errors).finally(() => { console.log = log; });
             await page.close();
-            console.log(`${got === want ? "ok  " : "FAIL"} ${name}${got === want ? "" : `: exit ${got}, wanted ${want}`}`);
-            if (got !== want) code = 1;
+            const ok = got === want && (!says || says.test(said.join("\n")));
+            console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `: exit ${got}, wanted ${want}; printed ${JSON.stringify(said)}`}`);
+            if (!ok) code = 1;
         }
         // a reviewer word on screen or in a tooltip is caught; one in a design note is not
         {

@@ -244,7 +244,15 @@
         const r = AB.route, f = r && r.frame;
         lastLine = b.closest(".ab-sline").dataset.ch;
         boundOpener = f && typeof f.right === "string" ? f.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null;
+        // what the binding state draws: this line's own binding, over the inspector and panels it is on.
+        // The value says it: "Color: Yellow to orange, from Betweenness" or "Size: Degree"
+        const v = b.closest(".ab-sline").querySelector(".ab-bound"), m = v && (v.getAttribute("aria-label") || "").match(/^([^:]+): (.*?)(?:, from (.*))?$/);
+        bindingOpener = m && boundOpener ? { right: boundOpener, left: f.left, canvas: f.canvas, dataset: f.dataset, prop: m[1], source: m[3] || m[2], text: m[2],
+            ramp: (getComputedStyle(v.querySelector(".ab-ramp") || v).backgroundImage.match(/rgb\([^)]*\)/g) || []).map((c) => "#" + c.match(/\d+/g).map((x) => (+x).toString(16).padStart(2, "0")).join("")) } : null;
     }, true);
+    let bindingOpener = null;
+    // a binding opened from a line keeps it until the route leaves the binding state
+    window.addEventListener("hashchange", () => setTimeout(() => { if (!/^#\/style-pickers\/binding$/.test(location.hash)) bindingOpener = null; }, 0));
     const takeOpener = () => { const o = opener; opener = { line: null, token: null }; return o; };
 
     // ---------- anchors ----------
@@ -401,12 +409,14 @@
     // read here from the fixture rows): the hosts' rows, or the researchers' records by stored path
     function rowsOf(ds) {
         const D = AB.fx.datasets[ds];
-        return ds === "wide" ? D.nodeRows : ds === "nested" ? D.document.data.researchers : null;
+        return ds === "wide" ? D.nodeRows : ds === "nested" ? D.document.data.researchers : ds === "lesmis" ? D.rows : null;
     }
     function rangeOf(name) {
         const ds = AB.route && AB.route.frame.dataset, rows = rowsOf(ds);
         if (!rows) return null;
-        const v = rows.map((r) => name.split(".").reduce((o, k) => (o == null ? o : o[k]), r)).filter((x) => typeof x === "number");
+        // a row named after its column ("Degree", "Betweenness 2") reads that column
+        const key = ds === "lesmis" && !(name in rows[0]) ? name.toLowerCase().replace(/ \d+$/, "") : name;
+        const v = rows.map((r) => key.split(".").reduce((o, k) => (o == null ? o : o[k]), r)).filter((x) => typeof x === "number");
         if (!v.length) return null;
         return [Math.min(...v), Math.max(...v)];
     }
@@ -423,8 +433,8 @@
     // (AB.paintBy). Only Color and Size are modeled; other properties stay a picture.
     function commitTo(prop, on) {
         const ds = AB.route && AB.route.frame.dataset;
-        // Les Miserables' drawing takes a Size binding (its Color comes from the paint tree's rows)
-        const ok = ["wide", "nested", "plainJson"].includes(ds) ? /^(Color|Size)$/.test(prop) : ds === "lesmis" && prop === "Size";
+        // Les Miserables takes both too: the line is bound and the drawing reads AB.paintOf
+        const ok = ["wide", "nested", "plainJson", "lesmis"].includes(ds) && /^(Color|Size)$/.test(prop);
         if (!ok) return null;
         return (name) => { if (AB.paintBy(ds, prop, name, on)) AB.repaint = true; };
     }
@@ -499,7 +509,7 @@
                 let palId = B.pal, reversed = false;
                 const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
                 const palName = h("span", { class: "sp-wrap" });
-                const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
+                const drawPal = () => { const p = pal(palId) || B.palOwn, c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
                 drawPal();
                 const palField = wrapField(AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, onClick: () => { palFor = { kind: B.type === "number" ? "number" : "category", id: palId }; AB.go("style-pickers", "palette"); } }));
                 palField.setAttribute("aria-label", "Palette");
@@ -1187,7 +1197,7 @@
         "plus-one-left": () => pressPlus("Tooltip", true),
         "label-show": () => pressPlus("Label"),
         bind: (el) => labelStyle(el, { openSource: true }),
-        binding: (el) => binding(el, "color"),
+        binding: (el) => bindingOpener ? binding(el, lineBinding(bindingOpener), { anchor: find(".ab-sline .ab-bound") }) : binding(el, "color"),
         // bind on an unbound line: Binding for that property, Source alone with its field list open
         "bind-prop": (el) => {
             const B = bindOpener || { prop: "Color", ch: "node.color" };
@@ -1240,6 +1250,17 @@
             binding(el, boundFrom(prop, p.name, p.type), { anchor: find(lineAt(ch)), commit: commitTo(prop, on) });
         },
     };
+    // The binding of the line clicked, read from the line: a preset with that source (PageRank,
+    // riskScore) keeps its own form; else the source's range from the fixture, the line's palette
+    function lineBinding(o) {
+        const ds = o.dataset || "lesmis", preset = Object.values(BINDINGS).find((b) => b.source === o.source && b.ds === ds && !b.error);
+        if (preset) return Object.assign({}, preset, { prop: o.prop });
+        const color = o.prop === "Color", p = color && PALETTES.find((x) => x.name === o.text);
+        const cat = p ? p.kind === "categorical" : false;
+        const r = cat ? null : rangeOf(o.source);
+        return { prop: o.prop, source: o.source, type: cat ? "category" : "number", ds, from: "fit", range: r, out: !color && /^[\d.]+ to [\d.]+/.test(o.text) ? o.text.match(/[\d.]+/g).slice(0, 2) : AB.SIZE_RANGE.map(String),
+            pal: p ? p.id : "own", palOwn: { name: o.text, colors: o.ramp && o.ramp.length ? o.ramp : pal("ylorbr").colors } };
+    }
     function paintedBinding(el, prop) {
         const ds = AB.route && AB.route.frame.dataset, p = (AB.painted[ds] || []).filter((x) => x.on === "row" && x.prop === prop).pop();
         if (!p) return binding(el, "color");
@@ -1249,7 +1270,8 @@
     // The Label popover keeps the inspector it was opened from (a label line knows it); else the state's fixture
     window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) setTimeout(() => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) labelOpener = null; }, 0); });
     window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/palette$/.test(location.hash)) palFor = null; });
-    const rightOf = (s) => (s === "bind-prop" ? (bindOpener && bindOpener.right) || "inspector-selection-and-everything/everything"
+    const rightOf = (s) => (s === "binding" && bindingOpener ? bindingOpener.right
+        : s === "bind-prop" ? (bindOpener && bindOpener.right) || "inspector-selection-and-everything/everything"
         : s === "bound" ? (boundOpener || "inspector-selection-and-everything/everything")
         : s === "palette" && palFor && palFor.kind === "number" ? "inspector-measure-row/style"
         : (s === "label-style" || s === "bind") && labelOpener && labelOpener.right ? labelOpener.right : RIGHT[s] || RIGHT["plus-menu"]);
@@ -1264,6 +1286,7 @@
             const right = rightOf(stateOf(state));
             // bind-prop keeps the panels and the project it was opened from
             if (stateOf(state) === "bind-prop") return Object.assign({ left: "graph-place/at-rest", right }, bindOpener ? { left: bindOpener.left, canvas: bindOpener.canvas, dataset: bindOpener.dataset } : {});
+            if (stateOf(state) === "binding" && bindingOpener) return { right, left: bindingOpener.left, canvas: bindingOpener.canvas, dataset: bindingOpener.dataset };
             // a bound line and a painted row keep the panels they were opened over (the shell carries the project)
             // a direct visit, before any bind: the hosts' Everything with its Color bound to cpu_util_p95_pct
             if (stateOf(state) === "bound") {

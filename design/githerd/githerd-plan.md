@@ -34,7 +34,7 @@ keeps and loses; tasks below name the module they rework.
 
 Each spike: the question, the experiment, the pass condition, the fallback if it fails, and the
 tasks that wait for it. Results of the spikes run so far, with commands and output, are in
-`evidence/platform-facts.md` sections 7 and 8; two more ran in section 7 that have no row: the tmux driving
+`evidence/platform-facts.md` sections 7, 8, 9 and 10; two more ran in section 7 that have no row: the tmux driving
 probe (7.3) and the MCP call-length probe (7.4). Spikes that write to GitHub run in a private scratch repository under the owner's
 account, named for the spike and the date, never on graphty-org; the token cannot delete
 repositories, so the owner deletes it afterwards. Group A's is
@@ -70,21 +70,32 @@ apowers313/githerd-spike-2026-10-03 (`evidence/platform-facts.md` section 9).
 | Spike | Question and experiment | Pass | Fallback | Blocks |
 |---|---|---|---|---|
 | S12 | Does a generated `--settings` file merge with the owner's user settings so that its deny rules win over his allow-all, `mcp__githerd__*` and `Bash(gh pr create:*)` run without a prompt in `--permission-mode default`, `AskUserQuestion` and `Workflow` are denied, and `enabledPlugins` turns a plugin off? | Every item holds | Ask for the rules in the committed project settings by pull request; deny through the guard instead | 5.3 |
+| | **Ran 2026-10-03 [PF 10.1]: passes, every item, against a control without the file. Path denies must be `Edit(...)` rules (`Write(...)` rules are ignored), and the main checkout's local settings apply in worktrees [PF 10]. Design 7.2 changed; it also turns prompt suggestions off** | | | |
 | S13 | Does Opus 5.5 (and Fable) obey a Stop-hook block reason? (Measured on Haiku only [PF 3.1]) | The reply carries a token from the reason | The same text goes into the doorbell after the stop | 5.6 |
-| | **Ran 2026-10-03 on Opus 5.5 [PF 7.1]: passes when the reason agrees with the user; refused openly when it contradicts an explicit user instruction. Design 7.1 and 7.3 changed. Fable not run** | | | |
+| | **Ran 2026-10-03 on Opus 5.5 [PF 7.1]: passes when the reason agrees with the user; refused openly when it contradicts an explicit user instruction. Design 7.1 and 7.3 changed. Fable not run (the configured model is Opus 5.5 [PF 10])** | | | |
 | S14 | Does `claude --resume <id>` in a new tmux window restore the conversation and fire SessionStart with source `resume`? | Both | Fresh sessions with recorded findings | 5.9 |
+| | **Ran 2026-10-03 [PF 10.2]: passes; the conversation is back, SessionStart says `resume`, same session id and name, new pid. Design: no change** | | | |
 | S15 | Does StopFailure fire with `rate_limit`, `overloaded`, `billing_error`, `authentication_failed`? Does UserPromptSubmit fire for tmux-typed text with the text in its input? | Both | Read the transcript's last record for errors; read user records for the nonce | 5.6 |
+| | **Ran 2026-10-03 [PF 10.3] against a local fake API: StopFailure fires instead of Stop with `rate_limit`, `authentication_failed`, `billing_error`; a 529 arrives as `server_error`, not `overloaded`. UserPromptSubmit carries typed text, but also the launch prompt and every background `<task-notification>`. Design 4.10, 7.6, 8.3 and the steering row changed** | | | |
 | S16 | Does SessionStart with source `compact` fire and does its output reach the model? `/compact` in a probe | Model quotes the re-injected record | Re-inject on the next Stop | 5.6 |
+| | **Ran 2026-10-03 on Opus 5.5 [PF 10.4]: passes; Opus quoted the re-injected record token. Design: no change** | | | |
 | S17 | Does a PostToolUse hook's `additionalContext` reach the model? | Model quotes it | News reaches the worker only through tool results and the push refusal | 5.6 |
+| | **Ran 2026-10-03 on Opus 5.5 [PF 10.5]: passes; Opus relayed the news with its token and did not treat it as an injection. Design: no change** | | | |
 | S18 | With `env -i`, can a hook or the Bash tool see the Pushover variables (does the Bash tool re-source `~/.bashrc`)? Probe worker runs `env \| grep -c PUSHOVER` in Bash and in a hook | 0 in both | Banner "worker paging not isolated"; offer the owner the one-line `GITHERD_JOB` check | 5.3 |
 | | **Ran 2026-10-03 [PF 7.2]: passes, 0 in both; Claude Code sets its own `CLAUDE*` variables, now an allow-list in the self-test** | | | |
 | S19 | (2026-10-03 [PF 7.6]: not testable without spending; binary strings recorded) What does the usage-limit screen look like (text, menu options, extra-usage state, reset time), how is a session's account identified, and is "used N% of your weekly limit" readable from a pane? Record the first real occurrence; capture with a nearly spent probe if one is available | Markers and fields recorded | Treat any unknown screen as "do not type"; the worker-hours cap stays | 5.7 |
 | S20 | Does the registry show a permission prompt raised inside a subagent? | `waiting` with `permission prompt` | Pane matching only | 5.7 |
+| | **Ran 2026-10-03 [PF 10.6]: passes; registry `waiting` / `permission prompt`, pane headed "from the general-purpose agent", PermissionRequest carries `agent_id`. Design 7.5 cites it** | | | |
 | S21 | Does CPU time of the session's process tree separate a long gate run from a hung command? | Grows for the gate, flat for `sleep` | Per-command bounds from the push queue plus `githerd_expect` | 5.7 |
+| | **Ran 2026-10-03 [PF 10.7]: passes for the descendant processes only (0 ticks in a hang, 100 ticks per second spinning); the claude process itself burns CPU while its command hangs. Design 7.5 and the stall row changed** | | | |
 | S22 | Does `tmux list-clients` show which window an attached client views, on the `-L githerd` socket? | Yes | Ring only when no client is attached | 5.7 |
+| | **Ran 2026-10-03 [PF 10.8]: passes; `list-clients` names the viewed window, and `list-windows` gives `#{window_active_clients}` directly. Design 7.5 changed** | | | |
 | S30 | What do the known dialogs look like in a pane (permission, plan approval, pickers, update notice, MCP authentication banner)? Capture each (2026-10-03 [PF 7.1, 7.3]: permission, picker and the idle prompt box captured; the rest remain) | A marker list with a test per capture | Any unknown screen blocks typing | 5.7 |
+| | **Ran 2026-10-03 [PF 10.9]: plan approval captured (registry also says `permission prompt`); prompt suggestions found as dim ghost text in the input box, turned off by `promptSuggestionEnabled: false`; an MCP server needing authentication shows no screen; update notices are footer text (from the binary, not captured). Design 7.2 and 7.5 changed** | | | |
 | S32 | What does `background_tasks` in the Stop input hold (ids, output paths)? | Output paths present | Use the session's task directory listing | 5.6 |
+| | **Ran 2026-10-03 [PF 10.10]: entries carry id, type, status, description and command, but no output path; the fallback holds, the path is derived from the id. Design 7.3 changed** | | | |
 | S33 | Does a PreToolUse matcher on the Agent tool receive enough to count concurrent subagents and refuse a third? | Refusal shown to the model | Deny the Agent tool for workers entirely | 5.4 |
+| | **Ran 2026-10-03 [PF 10.11]: passes; the third concurrent Agent call was refused and the model reported it. Hidden agents fire SubagentStop without a start, so the guard counts by agent id. Design 10.1 changed** | | | |
 
 ### Group C: This machine and the repository (run before milestone 2 or 4)
 
@@ -172,7 +183,7 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 | 5.4 The guard (`bin/githerd-guard.mjs`, `shellwords.mjs`) | Every refusal of design 10.1, the write log, Edit and Write path checks, the Agent and browser caps (after S33) | One test per refusal and per allowed alternative | Guard tests pass |
 | 5.5 MCP tools (`mcp.mjs`, `schema.mjs`) | The eleven tools with schemas, protocol version, session identification | Schema tests; refused calls have no effect | Tools answer against a fake daemon |
 | 5.6 Hooks | SessionStart, UserPromptSubmit, Stop gate, StopFailure, Notification, PostToolUse news, spool and fail-open counting (after S13 to S17, S32) | Hook tests with recorded inputs from `platform/exp3*/hook-input.log` | Hooks never make a network call |
-| 5.7 tmux launcher, watchdog and doorbell | Dedicated socket, window start, registry wait, pane capture and screen matching, doorbell with verification, progress signals, recycling, steering (after S19 to S22, S30) | Tests against a fake `claude` that prints recorded screens | A doorbell is never typed into a dialog capture |
+| 5.7 tmux launcher, watchdog and doorbell | Dedicated socket, window start, registry wait, pane capture and screen matching (fixtures from the captures of PF 7.3, 10.6 and 10.9), doorbell with verification, progress signals, recycling, steering (after S19 to S22, S30) | Tests against a fake `claude` that prints recorded screens | A doorbell is never typed into a dialog capture |
 | 5.8 Push queue (`actor/push.mjs`) | Priority queue, pushes as tracked children with hooks, gate output classification, wait state, results as news | Fake remote with a fake gate | Pushes survive a worker's death |
 | 5.9 Death and recovery | `/proc` cwd sweep, `index.lock` removal, GitHub re-read, death counting, resume or fresh (after S14) | Kill a fake worker mid-push | The job continues with correct news |
 | 5.10 Platform self-test | The checks of design 11.4 with the real command line, on its own socket | Run on this machine | Passes on Claude Code 2.1.288 |

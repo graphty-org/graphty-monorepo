@@ -216,7 +216,7 @@ adversarial review added (section 3.10). Columns:
 | Paid service overage | None readable [CAT 9]; the owner says so | `githerd policy park-gate <service>` or `githerd_record`; that gate's failures stop being incidents | O to say it; D | The owner ends the policy |
 | External service outage fails a check | Failed step's log names a remote host with a 5xx, ETIMEDOUT or ECONNRESET [INC2 5] | Classifier class "outside": the daemon re-runs the failed job once after 15 minutes; a 403 or 429 caused by our own burst becomes an `infrastructure` issue. Never a fix job | D | Passes on re-run, or the issue exists |
 | DNS or network stall on this machine | githerd's calls fail with resolve or connect errors and a second host (registry.npmjs.org) also fails | "Unknown since <time>": no decision, no write, no new incident; every deadline and attempt clock paused | D | A full reconcile succeeds |
-| Credential or account state blocks everything | One credential-pattern table, applied first by the classifier to every failure text (PR and master steps, release runs, worker-start probes, push results, worker findings): 401, "Bad credentials", 403 with "auth" or "permission", "Permission denied (publickey)", OIDC 403, npm E401, gpg or ssh signing errors; `gh` login change on `GET /user`; StopFailure `authentication_failed` or `billing_error` [S15]; the token-expiration header, absent on the owner's OAuth token today [PF 9.9] | One owner item per credential; no attempts charged; only what needs that credential stops. A changed `gh` login freezes all dispatch and writes. A signing probe runs before every worker start [S28] | D; O | The next call that needed it succeeds |
+| Credential or account state blocks everything | One credential-pattern table, applied first by the classifier to every failure text (PR and master steps, release runs, worker-start probes, push results, worker findings): 401, "Bad credentials", 403 with "auth" or "permission", "Permission denied (publickey)", OIDC 403, npm E401, gpg or ssh signing errors; `gh` login change on `GET /user`; StopFailure `authentication_failed`, `billing_error`, `oauth_org_not_allowed`, `account_on_hold`, `verification_required` or `cloud_credential_error` [PF 10.3]; the token-expiration header, absent on the owner's OAuth token today [PF 9.9] | One owner item per credential; no attempts charged; only what needs that credential stops. A changed `gh` login freezes all dispatch and writes. A signing probe runs before every worker start [S28] | D; O | The next call that needed it succeeds |
 | Shared GitHub rate budget runs low | `X-RateLimit-Remaining` on every response, never `GET /rate_limit` [PF 1.5] | Under 1500 only master runs and the pull request list are polled; under 500 the daemon posts no new `success` and keeps the last 300 calls for its own holds and polls, because at zero even a conditional request is refused with 403 [PF 9.3] | D | Remaining above 1500 |
 | Claude Code update changes the platform under githerd | `claude --version` before each worker start differs from the last verified version | Platform self-test before any start; failure stops starts, banner, one page; resume used only if the self-test verified it | D | Self-test passes |
 | Repository settings change under githerd | Rulesets and repository settings read with ETag when master moves [R1], [R2] | A required check that has not reported on any pull request head in 24 hours is an incident; a change to `delete_branch_on_merge`, the merge methods or the required checks is a banner and re-checked assumptions | D | Every required check reports |
@@ -272,7 +272,7 @@ adversarial review added (section 3.10). Columns:
 | Stale needs-decision and blocked labels | Each full triage pass (after every 100 merges) | Reversible ones decided with a comment and the label removed; real one-way doors become owner items | W `triage` | Every remaining `needs-decision` is an owner item |
 | Issue needing a one-way-door decision | `githerd_ask_owner` kind `one-way-door` | Owner item with options and undo cost; job parked; slot freed | W; D; O | Answer recorded; job resumes |
 | Owner answers on an issue | An owner comment on an issue with an open owner item: each reconcile, a conditional GET of the comments of every such issue (few, 304 free) | Resume the session with the comment. If the worker reports "no answer yet", the job re-parks on the same item with no new page | D | Job working again |
-| Owner edits an issue after work started | The claim stores the issue body hash, labels and state; a change is news | News is written to the job's news file, delivered by the next tool result or the PostToolUse hook [S17]; `githerd_push` refuses while news is unacknowledged; closed by the owner cancels the job (unpushed work salvaged); `blocked`, `needs-decision` or `githerd:skip` parks it. A pull request from an issue job gets `githerd/merge` success only once its job acknowledged the current revision (decision line 8) | D; W | The worker acknowledged the current revision |
+| Owner edits an issue after work started | The claim stores the issue body hash, labels and state; a change is news | News is written to the job's news file, delivered by the next tool result or the PostToolUse hook [PF 10.5]; `githerd_push` refuses while news is unacknowledged; closed by the owner cancels the job (unpushed work salvaged); `blocked`, `needs-decision` or `githerd:skip` parks it. A pull request from an issue job gets `githerd/merge` success only once its job acknowledged the current revision (decision line 8) | D; W | The worker acknowledged the current revision |
 | Critical issue in nobody's hands | Queue order; lapsed claims | First in the `issue` part of the queue | D | Claimed and progressing |
 | Owner batch order by label | `githerd_record` kind `order`, or `githerd order` [CAT 9] | Issue list fixed when recorded; progress and dropped items on the board | D | Every listed issue closed or labelled `blocked` with a reason |
 | Bulk filing | Many new issues in one poll [INC1 4] | Triage at its bounded rate; unlabelled issues never become `issue` jobs | D; W `triage` | All labelled |
@@ -286,25 +286,25 @@ adversarial review added (section 3.10). Columns:
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| Session died | Registry pid gone (`kill -0` with recorded start time), or absent from `claude agents --json` [PF 2.2] | Kill every process whose `/proc/<pid>/cwd` is inside the job's worktree (orphans lose their parent link), remove a stale `index.lock`, re-read GitHub for the job's branch and pull requests, then continue: resume if verified [S14], else fresh with findings. Second death within 30 minutes: fresh; third: `faulted` with the pane capture | D | Live session again, or the job is complete on GitHub |
-| Session stopped on an API error | StopFailure reason [S15]; fallback the transcript's last record | By reason (section 8.3) | D | Every interrupted job is live or complete |
+| Session died | Registry pid gone (`kill -0` with recorded start time), or absent from `claude agents --json` [PF 2.2] | Kill every process whose `/proc/<pid>/cwd` is inside the job's worktree (orphans lose their parent link), remove a stale `index.lock`, re-read GitHub for the job's branch and pull requests, then continue: resume if verified [PF 10.2], else fresh with findings. Second death within 30 minutes: fresh; third: `faulted` with the pane capture | D | Live session again, or the job is complete on GitHub |
+| Session stopped on an API error | StopFailure reason [PF 10.3]; fallback the transcript's last record | By reason (section 8.3) | D | Every interrupted job is live or complete |
 | Usage limit approaching | The weekly-limit text in pane captures [PF, closing notes], readability [S19] | Once verified: above 80 percent 2 slots, above 90 one, above 95 urgent only. Until then a worker-hours-per-day cap from config | D | n/a |
 | Waiting on a permission prompt | Registry `waiting` with `permission prompt` [PF 2.2]; a pane capture matching the dialog text | Never answered by githerd. The job parks at once on one owner item naming the exact allow rule; the slot is freed; the window stays open so the owner can press 1 from tmux; deadlines pause. `githerd answer <item> allow` adds the rule to the runtime allow overlay used by every later worker | D; O | The session runs again |
 | Permission classifier refusal | Refusal text in the transcript tail, read by the Stop hook | Workers run in the default permission mode, not auto (section 7.2), so the classifier is not consulted; pushes run in the daemon. A refusal that still happens is a blocker recorded with the exact action, never retried by rewording | D | Allowed by rule, or not needed |
 | Claimed but idle | Registry `idle` while the job is `working` and no wait declared | Stop gate blocks once per turn; then the doorbell; delivery counts only with progress (a worktree change, a declared wait or push, or a `githerd_done` or `githerd_ask_owner` call) within 15 minutes; two rings without progress recycle the session fresh | D | Progress, or a new session |
-| Busy but making no progress | No transcript growth (subagent transcripts included), no CPU time in the process tree [S21], no background task output growth, for 20 minutes, outside a `githerd_expect` window | Pane captured and matched against dialog text first: a dialog takes the permission-prompt path and no Escape is sent. Otherwise Escape and a status request; 10 minutes later recycle fresh | D | Progress again, or a new session |
+| Busy but making no progress | No transcript growth (subagent transcripts included), no CPU time in the session's descendant processes [PF 10.7], no background task output growth, for 20 minutes, outside a `githerd_expect` window | Pane captured and matched against dialog text first: a dialog takes the permission-prompt path and no Escape is sent. Otherwise Escape and a status request; 10 minutes later recycle fresh | D | Progress again, or a new session |
 | Stuck repeating a wrong theory | Attempts on one key with no change in outcome | After two, a fresh evidence-first attempt with the old theories; after three, one owner item | D | Fixed, or escalated once |
 | Agent claims done when it is not | `githerd_done` checked against GitHub: base master, not draft, head equals `git ls-remote`, required checks green or waiting only on the owner | A failed check returns what is missing; three in a row end the attempt | D | Done-condition holds |
 | Two sessions on the same work | Claims; for sessions that never claimed, the branch of every live session's cwd and every dirty worktree (`git worktree list`) | The second is told who holds it | D | One holder per item |
 | Session githerd did not start, working on the pipeline | `claude agents --json`: every live session and its cwd [PF 6]; changed files from its branch and worktree | On the board; its changed files are in every worker's claim snapshot; never assigned work, rung or ended | D | Every live session is on the board |
-| Owner takes over a worker | UserPromptSubmit without githerd's nonce [S15], or a user record in the transcript without it | Job steered (section 7.6); `githerd keep <window>` hands it over for good | D; O | The session calls githerd again, or is ended |
+| Owner takes over a worker | UserPromptSubmit without githerd's nonce that is neither the launch prompt nor a `<task-notification>` [PF 10.3], or such a user record in the transcript | Job steered (section 7.6); `githerd keep <window>` hands it over for good | D; O | The session calls githerd again, or is ended |
 | Owner types into the wrong worker | No signal [CAT 9] | Job-named windows; the job text's rule | W | n/a |
 | Owner asks a question and the worker acts on it | No signal [CAT 9] | While steered the Stop gate never pushes; the job text's rule | W | n/a |
 | Worker asks the owner something | A stop whose last message asks a question or has `ACTION NEEDED` and no `githerd_ask_owner` call [PF 3.1] | Block once: decide it, or ask through `githerd_ask_owner` if it is owner-only. `AskUserQuestion` is denied | D | Continues, or one owner item |
 | Doorbell not acted on | No progress within 15 minutes of a ring | Second ring; then recycle | D | Progress |
 | Session start blocked on a dialog | No registry entry 30 s after start [PF 2.2]; pane capture | Captured, window killed, start failure. After a self-test pass, two more real start failures stop starts for good and raise one owner item with the capture (no self-test loop) | D; O | The registry entry exists |
 | Job ends but the session lingers | Done-condition holds while the process lives | `/exit` when idle, SIGTERM after 30 s [PF 2.3]; processes in the worktree killed | D | Registry entry gone |
-| Rules lost to compaction | SessionStart source `compact` [S16] | The hook prints the job record again; 3 compactions recycle fresh. Hard rules are in the guard and the merge decision | D | n/a |
+| Rules lost to compaction | SessionStart source `compact` [PF 10.4] | The hook prints the job record again; 3 compactions recycle fresh. Hard rules are in the guard and the merge decision | D | n/a |
 | Worker in a shared or stale tree | At job start | One job, one worktree at the green commit (detached for `pr` jobs), installed, built with Nx and smoke-tested before the session starts; `git worktree lock` so no session can remove it | D | Checks pass before the session gets the job |
 | Commands that hang or harm shared state | Prevention | The guard refuses stash, reset, checkout of a file, clean, rebase, `--no-verify`, bare `git push`, `gh run rerun`, `gh workflow run`, `gh issue close`, git writes whose `-C` or `cd` leaves the worktree; the daemon reads `core.bare` of the main checkout on each master move | D | n/a |
 | Agent loosens a test or threshold to get green | No mechanical signal [CAT 9]; review job | `loosened` holds the pull request; the rubric defines calibration | W `review` | n/a |
@@ -372,7 +372,7 @@ adversarial review added (section 3.10). Columns:
 | Paid service overage | `park-gate` policy |
 | GPU balance before zero | Not predicted; classified on the first failure and re-dispatched on backoff |
 | Hung tool versus long tool | CPU time, transcript and subagent transcript growth, background output growth, `githerd_expect` |
-| Permission prompt inside a subagent | Pane capture matched against dialog text before any Escape [S20] |
+| Permission prompt inside a subagent | Registry `waiting` with `permission prompt` and the pane's "from the <type> agent" header [PF 10.6]; pane matched before any Escape |
 | githerd down while no session runs | A head without `githerd/merge` cannot merge, and Mergify's own updates create such heads; a pull request already carrying `success` and up to date can still merge (section 10.3). Restart by pm2, by the next session's MCP server, or `githerd ensure` |
 
 ### 3.10 Situations added by the adversarial review
@@ -401,7 +401,7 @@ adversarial review added (section 3.10). Columns:
 | The owner's tmux server is killed | Workers live on their own socket `tmux -L githerd` [PF 2.2] | Unaffected; if the githerd socket dies, working jobs recover one at a time | D | n/a |
 | Jobs waiting on each other in a cycle | The wait graph | A wait that closes a cycle is refused; any wait on a job is capped at 4 hours, then re-judged | D | n/a |
 | An incident fix waits for a review slot | Review of an incident fix | Uses the urgent slot | D | n/a |
-| Worker plugins that demand user interaction | A turn that ends with a question to the user | Generated worker settings disable such plugins [S12]; the job text says skills that ask the user are answered by the worker itself | D | n/a |
+| Worker plugins that demand user interaction | A turn that ends with a question to the user | Generated worker settings disable such plugins [PF 10.1]; the job text says skills that ask the user are answered by the worker itself | D | n/a |
 | Usage limit with no reset time while the owner is away | StopFailure `rate_limit` without a parseable time | Probe after 1 h, 3 h, 6 h with one canary incident worker; nothing else rung until it succeeds | D | A canary turn completes |
 
 ---
@@ -731,12 +731,12 @@ shown ("Stop gate unreachable: N stops allowed unchecked").
 |---|---|---|
 | SessionStart startup | Registers the session; links a worker to its job; checks the model | One status line with banners and faults first |
 | SessionStart resume | Relinks | The job's news |
-| SessionStart compact | Counts the compaction | The job record again [S16] |
-| UserPromptSubmit | In a worker: no nonce, steered; nonce, doorbell delivered | Nothing |
+| SessionStart compact | Counts the compaction | The job record again [PF 10.4] |
+| UserPromptSubmit | In a worker: nonce, doorbell delivered; the launch prompt or a prompt starting `<task-notification>` (a background task's completion notice, which arrives here too [PF 10.3]), nothing; anything else, steered | Nothing |
 | Stop | The Stop gate (7.3); claim comparison for any session | Block with reason, or a one-line note |
 | StopFailure | Section 8.3 | Nothing |
 | Notification `permission_prompt` | Records it; the watchdog confirms with a pane capture | Nothing |
-| PostToolUse (workers) | No daemon call: reads `jobs/<id>/news` and returns it as `additionalContext` if unacknowledged [S17] | The news |
+| PostToolUse (workers) | No daemon call: reads `jobs/<id>/news` and returns it as `additionalContext` if unacknowledged [PF 10.5] | The news |
 | PreToolUse guard (workers) | Fixed refusals locally (section 10.1); claim checks fail closed | Refusal with the allowed alternative |
 
 ### 4.11 githerd's GitHub identity
@@ -847,7 +847,7 @@ label and no worker write matches the event (10.1). Each item carries its one-li
 A session is recycled when: it died; it made no progress past the bound (7.5); two doorbells
 brought no progress; its transcript's last record ends the session (budget, context); it compacted
 3 times in this job; or it lived 12 hours. A cause outside the conversation (death, API overload)
-resumes when [S14] verified resume on the running Claude Code version; a cause in the conversation
+resumes when the self-test [PF 10.2] verified resume on the running Claude Code version; a cause in the conversation
 (stall, wrong theory, budget, compactions) starts fresh with the findings. Any resume failure
 starts fresh. A session is ended only while idle or waiting, except for a stall.
 
@@ -1026,16 +1026,21 @@ Workers are prepared in parallel and started one at a time; only the span from `
 
 ### 7.2 Worker settings
 
-The generated `settings.json` merges with the owner's user settings [S12]:
+The generated `settings.json` merges with the owner's user settings, and its denies win over his
+allow-all [PF 10.1]. The main checkout's `.claude/settings.local.json` applies in every worktree too
+[PF 10], so everything that matters is set here or on the command line:
 
 - **Permission mode** `default`, explicitly, never auto: the owner's settings allow all of Bash,
   Edit and Write [PF 2.2], so routine actions are deterministic and the auto-mode classifier,
   which carries another repository's environment text [R22], is not consulted.
 - **Allow**: `mcp__githerd__*`, `Bash(gh pr create:*)`, `Bash(gh pr edit:*)`, plus the runtime
   allow overlay the owner grows with `githerd answer <item> allow`.
-- **Deny**: tools `AskUserQuestion` and `Workflow`; Edit and Write under `visual-baselines/`,
-  `githerd/`, `.claude/`, `.github/workflows/`, `.husky/`, `tools/prepush.sh` and `~/.githerd/`.
-- **Plugins** that demand interaction with the user are turned off through `enabledPlugins` [S12].
+- **Deny**: tools `AskUserQuestion` and `Workflow`; `Edit(...)` rules (which cover Write too;
+  `Write(...)` rules are ignored [PF 10]) for `visual-baselines/`, `githerd/`, `.claude/`,
+  `.github/workflows/`, `.husky/`, `tools/prepush.sh` and `~/.githerd/`.
+- **Plugins** that demand interaction with the user are turned off through `enabledPlugins` [PF 10.1].
+- **Prompt suggestions** off (`promptSuggestionEnabled: false`): a suggestion is ghost text in the
+  input box that a plain pane capture cannot tell from the owner's unsent text [PF 10.9].
 - **Hooks**: every hook of 4.10, including the PreToolUse guard on Bash, Edit, Write and Agent.
 
 ### 7.3 The Stop gate
@@ -1048,7 +1053,7 @@ Every time a worker's turn ends, the Stop hook asks the daemon, which answers fr
 | Done-condition holds | Allow; the daemon ends the session |
 | `waiting`, or `parked`, or claim "wait" | Allow |
 | GitHub unknown | Allow, with "GitHub unreachable since <t>; githerd will ring you; do not retry or work around it"; an implicit wait on GitHub |
-| `background_tasks` in the Stop input is not empty [PF 3.1], [S32] | Allow; the job waits on a local task; its output growth is progress |
+| `background_tasks` in the Stop input is not empty [PF 3.1], [PF 10.10] | Allow; the job waits on a local task; its output growth is progress (each entry has an id but no path; the output is `/tmp/claude-<uid>/<cwd slug>/<sessionId>/tasks/<id>.output`) |
 | `stop_hook_active` is true | Allow; the watchdog takes over [PF 3.1] |
 | The last message asks the owner something or has `ACTION NEEDED`, and no `githerd_ask_owner` call was made | Block once: "decide this yourself and record why, or call githerd_ask_owner if it is owner-only" |
 | Anything else | Block once with what GitHub still shows missing, and the four ways forward: continue, `githerd_wait`, `githerd_ask_owner`, `githerd_done` with `failed` |
@@ -1066,7 +1071,7 @@ always followed by a doorbell, never by an expected Stop.
 
 A worker that pushed or waits on CI declares it and ends its turn. The session stays open and
 idle, costs nothing and keeps its context. At most 6 sessions wait at once; past that the oldest
-waiting session is ended and its job continues later by resume [S14] or fresh with findings.
+waiting session is ended and its job continues later by resume [PF 10.2] or fresh with findings.
 `parked` jobs end their session, except a permission prompt, whose window stays for the owner.
 
 ### 7.5 Watchdog and doorbell
@@ -1076,11 +1081,13 @@ only; it stops when the last worker ends).
 
 - **Alive**: pid with its recorded start time, or listed by `claude agents --json` [PF 2.2].
 - **Progress**: transcript growth, including the session's subagent transcripts; CPU time of the
-  process tree [S21]; output growth of a declared local task; a push in the queue; a `githerd_expect`
+  session's descendant processes, never of the claude process itself, which spends CPU redrawing
+  while its command hangs [PF 10.7]; output growth of a declared local task; a push in the queue; a `githerd_expect`
   window.
 - **Before any key is sent**, the pane is captured and matched against known screens: the empty
-  prompt box; the permission dialog ("Do you want to proceed?", numbered options) [PF 2.2]; the plan
-  approval dialog (captured in `platform/exp5-planmode-capture.txt`); pickers ("Enter to select",
+  prompt box; the permission dialog ("Do you want to proceed?", numbered options; from a subagent it is
+  headed "from the <type> agent") [PF 2.2, 10.6]; the plan approval dialog ("Ready to code?", "Would
+  you like to proceed?"; the registry says `permission prompt` for it too) [PF 10.9]; pickers ("Enter to select",
   registry `waiting` with `input needed`); the usage-limit screen [S19]. Only the empty prompt box
   with no dialog marker allows typing: a rule line ending in the session's name, then a line that
   is exactly the prompt character with nothing after it, then a rule line (the tmux spike in the
@@ -1094,14 +1101,15 @@ only; it stops when the last worker ends).
   GitHub text. It is typed with `send-keys -l`, the pane is captured again, and Enter is sent only
   if the text sits in the input box; otherwise the line is cleared with `C-u` and "doorbell blocked
   by dialog" is recorded with the capture. No doorbell while a client views that window
-  (`tmux list-clients` [S22]) or the input box holds the owner's unsent text; if that lasts 30
+  (`#{window_active_clients}` from `tmux list-windows` [PF 10.8]) or the input box holds the owner's unsent text; if that lasts 30
   minutes the board says so and the job continues in a new window, leaving the old one to the owner.
 
 ### 7.6 The owner and workers
 
 - **Watching**: `githerd attach` (`tmux -L githerd attach -t githerd`); the board window redraws
   when the state file changes.
-- **Steering**: any prompt without the nonce marks the job steered: no doorbell, no stall
+- **Steering**: any prompt without the nonce, other than the launch prompt and a background task's
+  `<task-notification>` [PF 10.3], marks the job steered: no doorbell, no stall
   recycling, deadlines paused, the Stop gate allows every stop. It ends when the session calls a
   githerd tool again, after 2 hours idle, or when the owner ends the session.
 - **Keeping**: `githerd keep <window> [--with-job]` hands a window to the owner for good.
@@ -1142,7 +1150,7 @@ salvage branch if the job was cancelled; unlock and remove the worktree with `gi
 | Push queue | 2 waiting | above it, only work that needs no push is dispatched |
 | Machine | load under 0.75 x 32 cores [R23], MemAvailable over 15 percent | no new worker; one urgent may start if none runs |
 | Browsers | 4 Chromium trees machine-wide [OD 11] | the guard refuses a launch at the cap |
-| Subagents | 2 concurrent per worker | the guard on the Agent tool [S33] |
+| Subagents | 2 concurrent per worker | the guard on the Agent tool [PF 10.11] |
 | Triage | 1 job, 20 issues | bulk filing rate |
 | Worker hours per day | config, until the usage reading is verified | routine starts; urgent work is exempt |
 
@@ -1167,7 +1175,7 @@ shows each limit with the measurement that applied at the last start.
 
 ### 8.3 Usage limits and API errors
 
-- **Usage stop** (StopFailure `rate_limit` [S15], or the limit screen [S19]): a global pause that
+- **Usage stop** (StopFailure `rate_limit` [PF 10.3], or the limit screen [S19]): a global pause that
   freezes every deadline, the watchdog's recycle rules and every attempt clock; the reset time is
   on the board. After the reset (or, with no time, a probe at 1 h, 3 h, 6 h), one canary worker
   starts, and the rest only after it completes a turn. Nothing is typed into a pane showing the
@@ -1179,8 +1187,9 @@ shows each limit with the measurement that applied at the last start.
   into it (S19 in the plan).
 - **Weekly-limit text**: once [S19] verifies it can be read, above 80 percent routine slots drop to
   2, above 90 percent to 1, above 95 percent urgent only.
-- `overloaded` or a server error: resume after 2 minutes, then 5; a third counts as an attempt.
-- `authentication_failed`, `billing_error`, the Consumer Terms text: credential class; starts stop;
+- `overloaded` or `server_error` (a 529 arrives as `server_error` [PF 10.3]): resume after 2 minutes, then 5; a third counts as an attempt.
+- `authentication_failed`, `billing_error`, `oauth_org_not_allowed`, `account_on_hold`,
+  `verification_required`, `cloud_credential_error`, the Consumer Terms text: credential class; starts stop;
   one owner item; a canary start after the owner acts or the next normal Stop from a session using
   the same account (only a session on the same account lifts the pause; how a session's account is read is part of
   [S19]).
@@ -1312,7 +1321,9 @@ enforces:
   use `githerd_read`.
 - **Refused in Edit and Write**: paths outside the job's worktree and `./tmp`; the denied paths of
   7.2.
-- **Agent tool**: at most 2 concurrent subagents; **browsers**: no launch at the machine cap.
+- **Agent tool**: at most 2 concurrent subagents, counted by id: in at PostToolUse (`agentId`) or
+  SubagentStart, out at SubagentStop with the same id; a stop with no recorded start (Claude Code's
+  hidden agents) is ignored [PF 10.11]; **browsers**: no launch at the machine cap.
 - Every refusal names the allowed alternative. Fixed refusals need no daemon; claim checks fail
   closed.
 - The guard logs every allowed `gh` write a worker makes (verb, item) to a local file the daemon

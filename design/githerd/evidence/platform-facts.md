@@ -1167,3 +1167,281 @@ X-Oauth-Scopes: gist, read:org, repo, workflow
 The advisory request in 9.4 has no such header either. Verdict: absent. `gh` holds an OAuth token,
 which does not expire on a date. Design: nothing to watch until the token type changes; the header
 check stays as a cheap guard (3.2, 4.11).
+
+---
+
+## 10. Claude Code spikes run on 2026-10-03 (group B of the plan)
+
+Claude Code 2.1.288, tmux 3.4. Run from `tmp/githerd/spikes-b/` in the githerd worktree on a private
+tmux socket (`tmux -L githerd-spike-b`, plus `githerd-spike-b-viewer` for the attached client in
+S22); both sockets were removed afterwards and `claude agents --json` listed no probe. Every session
+ran under `env -i HOME PATH TERM LANG`, so the owner's hooks could not page (section 7.2). Except in
+S12, which is about merging with the owner's user settings, sessions used
+`--setting-sources project,local --strict-mcp-config`. The two servers (a fake Anthropic API and an
+MCP endpoint that demands authentication) ran through servherd and were removed. Scripts are copied to
+`spikes-2026-10-03/` with the spike's name as prefix (`b-lib.sh`, `b-hook.sh` and `b-mksettings.sh`
+are shared: a hook that logs its input and prints a canned answer). Model: Opus 5.5 where the answer
+depends on the model (S16, S17), Haiku where only Claude Code's behavior is under test. Pane text is
+transcribed to ASCII as in section 7. S13 on Fable was not run: the configured model is Opus 5.5.
+S19 (the usage-limit screen) stays as section 7.6 left it.
+
+Two facts surfaced on the way, in every session started from a worktree:
+
+- **The main checkout's local settings apply in a worktree.** Every pane opened with
+  "Permission allow rule (../../../../../../.claude/settings.local.json): Write(//...) is not matched
+  by file permission checks -- only Edit(path) rules are". That file is
+  `graphty-monorepo/.claude/settings.local.json`, the main checkout's, not the worktree's. A worker
+  in a githerd worktree gets the owner's local settings too, so its generated `--settings` file must
+  set everything that matters explicitly (it already sets the permission mode on the command line).
+- **`Write(path)` rules are ignored; `Edit(path)` rules cover every file-editing tool.** The same
+  warning says so, and S12 confirms an `Edit(...)` deny refuses the Write tool.
+
+### 10.1 S12: the generated settings merge with the owner's and every item holds
+
+`s12-run.sh test` loads the owner's user settings (allow-all Bash, Edit, Write) plus a generated file:
+
+```
+{"permissions": {"allow": ["mcp__githerd__*", "Bash(gh pr create:*)", "Bash(gh pr edit:*)"],
+                 "deny": ["AskUserQuestion", "Workflow", "Edit(visual-baselines/**)",
+                          "Bash(touch denied-by-settings*)"]},
+ "enabledPlugins": {"ponytail@ponytail": false}, "promptSuggestionEnabled": false}
+```
+
+The githerd MCP server is the stdio server of section 7.4 registered as `githerd`. The same six
+prompts ran in a control session with no `--settings` (`s12-run.sh control`):
+
+```
+                         with --settings                                     control
+githerd block(1)         ran, no prompt ("waited 1s")                        registry waiting, "Do you want to proceed?"
+gh pr create --help      ran, no prompt                                      ran, no prompt (owner allows all Bash)
+touch denied-by-...      "Permission to use Bash with command ... denied"   file created
+Write visual-baselines/  "File is in a directory that is denied by your     file created
+                         permission settings."
+AskUserQuestion,Workflow "AskUserQuestion: No / Workflow: No" in the tool    "Yes ... Yes"
+                         list
+ponytail in transcript   0 mentions                                          2 ("PONYTAIL MODE ACTIVE" injected)
+```
+
+Verdict: passes. Deny rules in `--settings` win over the owner's allow-all, the `mcp__githerd__*`
+allow removes the prompt, denied tools vanish from the tool list, and `enabledPlugins` false keeps a
+plugin's hooks from running. Design changed: 7.2 writes the path denies as `Edit(...)` rules and adds
+`promptSuggestionEnabled: false` (10.9 says why).
+
+### 10.2 S14: resume restores the conversation and fires SessionStart `resume`
+
+`s14-s15-s32-run.sh`, Haiku. The first session was told a codeword, ended with `/exit`, and
+`claude --resume <sessionId>` started in a new tmux session:
+
+```
+pane after resume:  the whole earlier conversation, then "> /exit / See ya!" and an empty prompt box
+> What was the codeword I asked you to remember? Reply with it only.
+* BLUE-HERON-41
+hooks: SessionStart startup ... SessionStart resume   (same session_id 0516ac10)
+registry: new pid 169832, same sessionId, same name githerd-spike-s14
+```
+
+Verdict: passes. Design: no change; 5.5 and 7.4 may resume, and the platform self-test keeps the
+resume check for each new Claude Code version.
+
+### 10.3 S15: StopFailure fires with the reason; UserPromptSubmit carries the typed text
+
+UserPromptSubmit (same run as 10.2) fired for the launch prompt given on the command line, for text
+typed with `send-keys`, and also for a background task's completion notice:
+
+```
+UserPromptSubmit  "Remember the codeword BLUE-HERON-41. Reply with the single word OK."   (argv)
+UserPromptSubmit  "[githerd n0nce-77] reply with the single word PONG"                    (typed)
+UserPromptSubmit  "<task-notification>\n<task-id>b9rvlj71o</task-id>\n<tool-use-id>...</tool-use-id>
+                   \n<output-file>/tmp/claude-1000/<cwd slug>/<sessionId>/tasks/b9rvlj71o.output
+                   </output-file>\n<status>completed</status>\n<summary>Background command ...
+                   completed (exit code 0)</summary>\n</task-notification>"
+```
+
+StopFailure was driven by `s15-fake-api.mjs`, a local server that answers `/v1/messages` with a fixed
+error, through `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN=fake-token`, `CLAUDE_CODE_MAX_RETRIES=0`
+and a private `CLAUDE_CONFIG_DIR`, so the owner's account and state were never touched:
+
+```
+server answer                                   StopFailure error        pane
+429 rate_limit_error                            rate_limit               "API Error: Request rejected (429) . ..."
+529 overloaded_error                            server_error             "API Error: 529 Overloaded. This is a server-side issue ..."
+401 authentication_error                        authentication_failed    "Not logged in . Please run /login"
+400 "Your credit balance is too low ..."        billing_error            "Credit balance too low . Add funds: ..."
+500 api_error                                   server_error             "API Error: 500 Internal server error. ..."
+input keys: cwd, effort, error, hook_event_name, last_assistant_message, prompt_id, session_id, transcript_path
+```
+
+No Stop hook ran for those turns (StopFailure replaces it; its output is ignored, per the binary's
+hook description). The binary lists the full set: `rate_limit, overloaded, authentication_failed,
+oauth_org_not_allowed, account_on_hold, verification_required, billing_error, invalid_request,
+model_not_found, server_error, max_output_tokens, cloud_credential_error, unknown`. A subscription's
+own usage limit (a 429 with the unified rate-limit headers) was not imitated.
+
+Verdict: passes, with two corrections. A 529 arrives as `server_error`, not `overloaded`, so githerd
+must treat the two alike (8.3 already does). And UserPromptSubmit is not only the user: the launch
+prompt and every `<task-notification>` arrive through it without githerd's nonce. Design changed:
+4.10 and 7.6 mark a session steered only for a prompt that has no nonce, is not the launch prompt,
+and does not start with `<task-notification>`; 8.3 lists the extra credential reasons.
+
+### 10.4 S16: SessionStart `compact` fires after `/compact` and its output reaches the model
+
+`s16-s17-run.sh`, Opus 5.5. The hook answers source `compact` with a plain-text job record:
+
+```
+hooks: SessionStart startup, PreCompact manual, SessionStart compact, PostCompact manual (with compact_summary)
+pane:  "Conversation compacted"; footer "0 tokens"
+> Is there any githerd job record in your context? If so, quote its record token exactly ...
+* Yes, there is a githerd job record. A SessionStart hook added it after the conversation was
+  compacted. It is for job pr-7 on branch fix/pr-7, and the job is done when PR #7 is green. The record
+  token, quoted exactly, is RECORD-5TZ.
+```
+
+Verdict: passes. Design: no change (4.10 prints the job record again).
+
+### 10.5 S17: PostToolUse `additionalContext` reaches Opus, which passes it on
+
+The PostToolUse hook on Bash returned
+`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"githerd news for job pr-7: the owner edited issue #12 ... Acknowledge this news in your reply with the token NEWS-ACK-3M."}}`:
+
+```
+> Run echo hi with the Bash tool, then tell me what it printed.
+* Bash(echo hi) -> hi
+* The command printed hi.
+  There's also an update from githerd for job pr-7 (NEWS-ACK-3M): after this job started, the owner
+  edited issue #12 and added a new acceptance line, "keep the old flag".
+```
+
+Verdict: passes; Opus treated the news as information, not as an injection. Design: no change.
+
+### 10.6 S20: a subagent's permission prompt shows in the registry and in the pane
+
+`s20-run.sh`, Haiku, default mode without the owner's allow-all. The main session launched one
+subagent to run `date +%s > sub-perm.txt`:
+
+```
+registry: {"status":"waiting","waitingFor":"permission prompt"}
+pane:  "Bash command . from the general-purpose agent" / the command / "Do you want to proceed?" /
+       "> 1. Yes  2. Yes, and always allow access to <dir> from this project  3. No" / "Esc to cancel . Tab to amend"
+hook:  PermissionRequest with tool_name Bash and agent_id a667808910751921a
+Escape -> the subagent's request was denied (file not written), the main turn went on and ended
+```
+
+The Notification hook did not fire in the 3 s before Escape. Verdict: passes; the dialog names the
+agent it came from. Design: no change beyond the marker list (10.9).
+
+### 10.7 S21: CPU time of the command's processes separates work from a hang; the session's own does not
+
+`s21-run.sh` with `s21-treecpu.sh` sampled every 10 s: `self` is the claude process (utime+stime), `desc`
+is every descendant (including their reaped children). Ticks are 1/100 s:
+
+```
+idle   self +6..+16   desc +0      (0 processes)   registry idle
+hang   self +33..+74  desc +0      (3 processes)   registry busy   timeout 50 tail -f /dev/null
+spin   self +29..+94  desc +1001   (3 processes)   registry busy   timeout 50 sh -c 'while :; do :; done'
+```
+
+A plain `sleep 60` was not used for the hang: the Bash tool refused it ("the Bash tool blocks
+standalone sleep commands", with a pointer to Monitor or `run_in_background`).
+
+Verdict: passes, measured on the descendants only. The claude process spends 0.3 to 0.5 s of CPU per
+10 s while busy even when its command is blocked (it redraws the spinner), so counting it would make
+every hang look like progress. Design changed: 7.5 says "CPU time of the session's descendant
+processes, not of the claude process itself".
+
+### 10.8 S22: tmux reports which window an attached client views
+
+`s22-run.sh`: a second private tmux server's pane runs `tmux -L githerd-spike-b attach`, which is a
+real attached client:
+
+```
+no client:       list-clients prints nothing (exit 0)
+viewing w1:      /dev/pts/7 session=githerd window=1:w1 activity=1791058585
+select-window w2: /dev/pts/7 session=githerd window=2:w2
+list-windows:    0:board active_clients=0  1:w1 active_clients=0  2:w2 active=1 active_clients=1
+after detach:    no clients; 2:w2 active=1 active_clients=0
+```
+
+Verdict: passes. `#{window_active_clients}` on `list-windows` answers "is anyone looking at this
+window" in one call; `#{client_activity}` gives the client's last keypress. Design changed: 7.5 names
+the field.
+
+### 10.9 S30: plan approval, prompt suggestions, the MCP authentication state, update notices
+
+`s30-run.sh`, Haiku in `--permission-mode plan`, with one HTTP MCP server (`s30-auth-mcp.mjs`) that
+answers 401 with a Bearer challenge:
+
+```
+registry: {"status":"waiting","waitingFor":"permission prompt"}      (the same value as a tool prompt)
+pane:  "Ready to code?" / "Here is Claude's plan:" / the plan between dashed rules /
+       "Claude has written up a plan and is ready to execute. Would you like to proceed?" /
+       "> 1. Yes, auto-accept edits  2. Yes, manually approve edits  3. Tell Claude what to change" /
+       "ctrl+g to edit in Vim . ~/.claude/plans/<name>.md"
+Escape -> "User rejected Claude's plan"; registry idle
+MCP:   the server saw POST /mcp, the three discovery GETs and POST /register (twice); nothing appeared on
+       the main screen; /mcp listed "x spike-auth" (failed) with "Run claude --debug to see error logs"
+```
+
+The plan was written to the owner's `~/.claude/plans/`; the probe's file was deleted afterwards.
+
+**Prompt suggestions.** In S17 and S33 the idle prompt box held text nobody typed ("> show me issue
+#12", "> Launch FOXTROT after one of these two finishes?"). `s30-suggestion-run.sh` ran two Haiku
+sessions, one with `{"promptSuggestionEnabled": false}`:
+
+```
+plain capture:   "> cat off.json on.json"            (looks exactly like typed text)
+capture -e:      ESC[39m> ESC[2mcat off.json on.json ESC[0m   (SGR 2: dim)
+setting off:     "> " empty at the same point
+```
+
+A suggestion is produced by a hidden subagent, which also fires SubagentStop with an empty
+`agent_type` (10.11).
+
+**Update notices** were not captured (no update was pending). The binary shows them as footer text,
+not dialogs: "Update available! Run: ...", "Update installed . Restart to update",
+"Auto-update failed".
+
+Verdict: the marker list is complete for the dialogs githerd meets: permission (tool or subagent),
+plan approval, picker, the idle box, and the usage-limit screen from strings only. The MCP
+authentication failure is not a screen. Design changed: 7.2 turns prompt suggestions off for workers
+(otherwise an empty box reads as the owner's unsent text, or, with `-e` ignored, a suggestion could be
+mistaken for it); 7.5 cites these captures instead of the old plan-mode file, and states that the
+registry value `permission prompt` also means plan approval.
+
+### 10.10 S32: `background_tasks` lists running tasks without output paths
+
+Same run as 10.2. The Stop input after the worker started `sleep 40` in the background:
+
+```
+"background_tasks":[{"id":"b9rvlj71o","type":"shell","status":"running","description":"Background sleep task","command":"sleep 40"}]
+```
+
+The output path is not there. It is `/tmp/claude-<uid>/<cwd slug>/<sessionId>/tasks/<id>.output`
+(`$TMPDIR` is unset under `env -i`), which the completion notice of 10.3 names, and a background
+subagent's PostToolUse result names as `outputFile` (10.11).
+
+Verdict: fails as asked; the fallback holds. Design changed: 7.3 and 7.5 find a task's output at
+that path from the id.
+
+### 10.11 S33: a PreToolUse guard on Agent can cap concurrent subagents
+
+`s33-guard.sh` counts allowed Agent calls and frees a slot on SubagentStop; at 2 it denies.
+`s33-run.sh`, Haiku, asked for three subagents in one message, then three with `run_in_background`:
+
+```
+* Agent(Subagent 1) -> Backgrounded agent    * Agent(Subagent 2) -> Backgrounded agent
+* Agent(Subagent 3) -> Error: PreToolUse:Agent hook error: githerd: at most 2 subagents may run at once ...
+* ... CHARLIE failed to launch with the error: githerd: at most 2 subagents ...
+second round: DELTA and ECHO launched, FOXTROT refused with the same text
+decisions: allow n=1, allow n=2, refuse n=2, stop n=1, stop n=0; the same again; then three more stops at 0
+```
+
+Hook inputs: PreToolUse has `tool_use_id` and `tool_input` (description, prompt); PostToolUse's
+`tool_response` is `{"isAsync":true,"status":"async_launched","agentId":...,"outputFile":...}`;
+SubagentStart has `agent_id` and `agent_type`; SubagentStop has `agent_id`, `agent_type`,
+`agent_transcript_path` and `last_assistant_message`. Two further observations: every Agent call was
+launched in the background even when the prompt said not to, and three SubagentStop events came with
+an empty `agent_type` and no SubagentStart (one's last message was the prompt suggestion of 10.9).
+
+Verdict: passes; the refusal reaches the model and it reports it. A plain counter is wrong, though:
+hidden agents stop without starting. Design changed: 10.1 counts subagents by id (PostToolUse
+`agentId` or SubagentStart in, SubagentStop with the same id out) and ignores stops it never saw start.

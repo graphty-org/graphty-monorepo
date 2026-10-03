@@ -190,10 +190,22 @@ export class LabelDeclutter {
         const halfWidth = viewport.width / 2;
         const halfHeight = viewport.height / 2;
         Matrix.FromValuesToRef(
-            halfWidth, 0, 0, 0,
-            0, -halfHeight, 0, 0,
-            0, 0, 0.5, 0,
-            viewport.x + halfWidth, viewport.y + halfHeight, 0.5, 1,
+            halfWidth,
+            0,
+            0,
+            0,
+            0,
+            -halfHeight,
+            0,
+            0,
+            0,
+            0,
+            0.5,
+            0,
+            viewport.x + halfWidth,
+            viewport.y + halfHeight,
+            0.5,
+            1,
             this.toPixels,
         );
         this.transform.multiplyToRef(this.toPixels, this.worldToPixels);
@@ -345,7 +357,10 @@ export class LabelDeclutter {
             return true;
         }
 
-        if (!sameMatrix(camera.getViewMatrix(), this.view) || !sameMatrix(camera.getProjectionMatrix(), this.projection)) {
+        if (
+            !sameMatrix(camera.getViewMatrix(), this.view) ||
+            !sameMatrix(camera.getProjectionMatrix(), this.projection)
+        ) {
             return true;
         }
 

@@ -583,12 +583,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "layout.set", id: "circular", engine: "circular", options: {}, coalesce: "element-layout" },
             ]),
             // The getter reads the four project settings as they are in effect, so the row names them all.
-            layoutBehavior: assigns({ layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 }, labels: { declutter: true } }, [
-                {
-                    op: "config.set",
-                    values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0, labels: { declutter: true } } },
-                },
-            ]),
+            layoutBehavior: assigns(
+                { layout: { preSteps: 5, stepMultiplier: 1, minDelta: 0 }, labels: { declutter: true } },
+                [
+                    {
+                        op: "config.set",
+                        values: {
+                            layoutBehavior: {
+                                preSteps: 5,
+                                stepMultiplier: 1,
+                                minDelta: 0,
+                                labels: { declutter: true },
+                            },
+                        },
+                    },
+                ],
+            ),
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),

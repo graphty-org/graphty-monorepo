@@ -19,6 +19,7 @@
  */
 
 import { DATA_DRAWER_DEFAULT_HEIGHT } from "../constants";
+import { isFiniteNumber } from "../shellLayoutStorage";
 import { DATA_DRAWER_MIN_HEIGHT } from "./canvasLayout";
 
 /**
@@ -64,10 +65,6 @@ export const DEFAULT_CANVAS_LAYOUT: PersistedCanvasLayout = {
     timeSlider: false,
     insightsDismissed: false,
 };
-
-function isFiniteNumber(value: unknown): value is number {
-    return typeof value === "number" && Number.isFinite(value);
-}
 
 /**
  * Reads the canvas region's remembered state, surviving an absent key, an unreadable

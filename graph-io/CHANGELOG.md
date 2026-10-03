@@ -1,3 +1,30 @@
+## 0.3.20 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-io:** read Cytoscape sessions (@graphty/graph-io/cys) ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** a zip reader with no dependency, and readBytes for binary input ([0a5fa5e7](https://github.com/graphty-org/graphty-monorepo/commit/0a5fa5e7))
+- **graph-io:** note DOT parents that read back marked as clusters ([c4bdf035](https://github.com/graphty-org/graphty-monorepo/commit/c4bdf035))
+- **graph-io:** write XGMML columns back the way the source declared them ([87e2ffd9](https://github.com/graphty-org/graphty-monorepo/commit/87e2ffd9))
+- **graph-io:** read and write XGMML (@graphty/graph-io/xgmml) ([0accf71c](https://github.com/graphty-org/graphty-monorepo/commit/0accf71c))
+- **graph-io:** report a repeated GEXF attribute declaration as the shared W_DUPLICATE_ATTRIBUTE ([09e818f5](https://github.com/graphty-org/graphty-monorepo/commit/09e818f5))
+- **graph-io:** opt-in bare-ampersand and surrogate-pair repairs in the XML tokenizer ([61063047](https://github.com/graphty-org/graphty-monorepo/commit/61063047))
+
+### 🩹 Fixes
+
+- **graph-io:** stop an import whose attributes are too sparse before it exhausts memory ([#768](https://github.com/graphty-org/graphty-monorepo/issues/768))
+- **graph-io:** refused ids, Integer overflow and prefixed atts in the XGMML and session readers ([b7894a27](https://github.com/graphty-org/graphty-monorepo/commit/b7894a27))
+- **graph-io:** type DOT graph attributes by their text, as node attributes are ([29e8cb30](https://github.com/graphty-org/graphty-monorepo/commit/29e8cb30))
+- **graph-io:** read an XGMML NaN without a precision warning ([4cf2d18a](https://github.com/graphty-org/graphty-monorepo/commit/4cf2d18a))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.19 (2026-10-03)
 
 ### 🚀 Features

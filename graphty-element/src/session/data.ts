@@ -19,6 +19,7 @@ import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
+import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
 import {
@@ -956,18 +957,15 @@ function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
     return copy;
 }
 
-/** How many leading characters of a file a format is detected from. */
-const DETECTION_SAMPLE = 2048;
-
 /**
  * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
- * size and a way to read its text.
+ * size and a way to read its bytes.
  * @param value - The `file` option.
  * @returns The file, or null when the option holds none.
  */
 function fileOf(
     value: unknown,
-): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+): { name: string; size: number; slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> } } | null {
     if (typeof value !== "object" || value === null) {
         return null;
     }
@@ -976,16 +974,6 @@ function fileOf(
     return typeof file.name === "string" && typeof file.size === "number" && typeof file.slice === "function"
         ? (value as ReturnType<typeof fileOf>)
         : null;
-}
-
-/**
- * The last part of a URL's path, which is what its extension and its name are read from.
- * @param url - The URL.
- * @returns The part, or "" when the path ends in a slash.
- */
-function urlTail(url: string): string {
-    const path = url.split(/[?#]/)[0] ?? "";
-    return path.split("/").pop() ?? "";
 }
 
 /**
@@ -1017,7 +1005,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: byName, config, ...described };
     }
 
-    const detect = (sample: string | undefined, fetched?: string): ImportSource => {
+    const detect = (sample: string | undefined, fetched?: Uint8Array): ImportSource => {
         const detected = sample === undefined ? null : detectFormat({ filename, sample });
         if (detected === null) {
             throw undetectedFormat(name ?? url ?? "the data", 'session.data.import({ type: "graphml", config })');
@@ -1026,51 +1014,23 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: detected, config: fetched === undefined ? config : { ...config, data: fetched }, ...described };
     };
 
-    if (typeof config.data === "string") {
-        return detect(config.data.slice(0, DETECTION_SAMPLE));
+    if (isSourceData(config.data)) {
+        return detect(sampleOf(toSourceInput(config.data)));
     }
 
     if (file !== null) {
+        // Twice the sample, so a UTF-16 file still yields DETECTION_SAMPLE characters.
         return file
-            .slice(0, DETECTION_SAMPLE)
-            .text()
-            .then((sample) => detect(sample));
+            .slice(0, DETECTION_SAMPLE * 2)
+            .arrayBuffer()
+            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
     }
 
     if (url !== undefined) {
-        return fetchText(url).then((text) => detect(text.slice(0, DETECTION_SAMPLE), text));
+        // Read once, as bytes, and handed on: the reader does not fetch it again, and the importer
+        // decodes it.
+        return fetchBytes(url).then((bytes) => detect(sampleOf(bytes), bytes));
     }
 
     return detect(undefined);
-}
-
-/**
- * Read a URL's text, once.
- * @param url - The URL.
- * @returns The text.
- * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
- */
-async function fetchText(url: string): Promise<string> {
-    let response: Response;
-    try {
-        response = await fetch(url);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}".`,
-            source: "data",
-            cause: error,
-        });
-    }
-
-    if (!response.ok) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}": ${String(response.status)} ${response.statusText}`,
-            source: "data",
-            details: { url, status: response.status },
-        });
-    }
-
-    return response.text();
 }

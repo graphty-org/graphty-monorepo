@@ -39,8 +39,12 @@ list json`, multi-component strides, Arrow-style validity bitmaps, roles, proven
   (transfer-aware: shared buffers are copied, exclusive ones transferred), `toBytes()` / `fromBytes()`
   / `fromByteChunks()` for files and the network, with `none` / `structure` / `full` validation of
   untrusted input.
-- **Factories**: `fromEdgeArrays()`, `fromCsr()` (adopts caller arrays with validation),
-  `fromRecords()` (node-link JSON shapes).
+- **Factories**: `fromEdgeArrays()` (with optional `ids` and `edgeIds`), `fromCsr()` (adopts caller
+  arrays with validation), `fromRecords()` (node-link JSON shapes), `fromElements()` (your own node
+  and edge objects, handed back in index order).
+- **Node references**: `NodeRef` (an index or `{ id }`) and `NodeSet` (an index array, `{ mask }` or
+  `{ ids }`), resolved by `resolveNode()`, `resolveNodeSet()` and `resolveNodeMask()`; every
+  algorithm in @graphty/algorithms and every layout in @graphty/layout accepts them.
 
 ## Installation
 
@@ -95,6 +99,35 @@ const bytes = snapshot.toBytes();
 const back = fromBytes(bytes); // validates fully by default
 console.log(back.ids.idOf(0), byId.get("bob")); // "alice" 3.5
 ```
+
+## From Your Own Elements
+
+`fromElements()` builds a snapshot from the objects you already hold and returns them in index
+order, so any result indexed by node or by edge maps straight back to them. Node `i` is the `i`-th
+node given and edge `e` the `e`-th edge given; parallel edges and self-loops are always kept.
+
+```typescript
+import { fromElements } from "@graphty/graph-format";
+
+const people = [{ name: "alice" }, { name: "bob" }, { name: "carol" }];
+const links = [
+    { key: "l1", from: "alice", to: "bob", strength: 2 },
+    { key: "l2", from: "bob", to: "carol", strength: 1 },
+];
+const { snapshot, nodes, edges } = fromElements(people, links, {
+    directed: false,
+    id: (p) => p.name,
+    source: (l) => l.from,
+    target: (l) => l.to,
+    edgeId: (l) => l.key, // optional: makes snapshot.edgeIndexOf("l2") work
+    weight: (l) => l.strength, // optional: omit for an unweighted graph
+});
+console.log(edges[snapshot.edgeIndexOf("l2")] === links[1]); // true
+console.log(nodes[snapshot.ids.requireIndex("carol")] === people[2]); // true
+```
+
+`fromEdgeArrays({ ..., edgeIds })` does the same for edge ids when you already have index arrays:
+the ids become the unique edge column `"id"` with role `"id"`.
 
 ## Invariants
 

@@ -175,6 +175,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
     const frozen = freezeOptions(options);
     return {
         kind: "webgpu",
+        harmonicCloseness: true,
         ctx,
         options: frozen,
         /**
@@ -357,10 +358,11 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             );
         },
         /**
-         * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`
-         * per source when `weighted`. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
+         * Closeness centrality on the device (spec 8.4): the all-pairs sweep with a row sum on small and
+         * weighted graphs, the bit-parallel multi-source search otherwise, one `sssp` per source for a weighted graph
+         * above the all-pairs ceiling. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
          * @param gs - the snapshot
-         * @param o - `weighted`, and a sampled run's `sources` (undirected snapshots only)
+         * @param o - `weighted`, `harmonic` (exact runs), and a sampled run's `sources` (undirected snapshots only)
          * @returns the f32 scores with `precision: "f32"` (spec 9.7) and `sourcesUsed`
          */
         async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {

@@ -12,7 +12,7 @@
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks; P8-T11 adds closeness-sweep and closeness-reduce; P9 (betweenness) adds bc-finalize, bc-forward,
+ * blocks; closeness adds closeness-level and closeness-rowsum with the ClosenessParams block; P9 (betweenness) adds bc-finalize, bc-forward,
  * bc-backward, bc-gather, bc-edge-gather, bc-forward-edge and bc-count (issue #719) with the BcParams block; all-pairs shortest paths
  * (design 8.7) adds apsp-init and apsp-fw with the ApspParams block. P11 (the structure and community phase, plan
  * design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md) adds the graph build on the device (coo-emit,
@@ -45,8 +45,8 @@ import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
 import { bfsNextDegreeWgsl } from "./wgsl/bfs-next-degree.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
-import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
-import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
+import { closenessLevelWgsl } from "./wgsl/closeness-level.wgsl.js";
+import { closenessRowsumWgsl } from "./wgsl/closeness-rowsum.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { cooEmitWgsl } from "./wgsl/coo-emit.wgsl.js";
 import { cooScatterWgsl } from "./wgsl/coo-scatter.wgsl.js";
@@ -139,8 +139,8 @@ export type KernelId =
     | "bfs-next-degree"
     | "sssp-relax"
     | "bf-relax"
-    | "closeness-sweep"
-    | "closeness-reduce"
+    | "closeness-level"
+    | "closeness-rowsum"
     | "bc-finalize"
     | "bc-forward"
     | "bc-backward"
@@ -482,8 +482,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
- * `sssp-pred` hop pass, P8-T9), `perNode` @72 (`closeness-sweep`: 1 also folds every claim into the per-node
- * distance sums of a sampled run), `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * `sssp-pred` hop pass, P8-T9), `pad3` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
@@ -505,7 +504,7 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["stride", "u32"],
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
-    ["perNode", "u32"],
+    ["pad3", "u32"],
     ["pad2", "u32"],
 ]);
 
@@ -519,6 +518,35 @@ export const BC_PARAMS: UniformBlock = UniformBlock.define("BcParams", [
     ["role", "u32"],
     ["pad0", "u32"],
     ["pad1", "u32"],
+]);
+
+/**
+ * `ClosenessParams` (uniform, 64 B): the params of `closeness-level` and `closeness-rowsum` -- `role` @0 (level: 0 a
+ * level, 1 the seed's clear, 2 the seed's sources; rowsum: 0 integer, 1 f32, 2 harmonic), `n` @4, `words` @8 (32-bit
+ * words per node, so `32 x words` sources per batch), `base` @12 (the words of one `bits` region), `total` @16 (the
+ * words the clear zeroes), `level` @20, `row` @24 (the level's row of the submit's count table), `ctrl` @28 (the word
+ * of the control ring in `table`), `count` @32 (the batch's sources), `source` @36 (its first source, or its first
+ * word of the source list), `sourcesAt` @40 (the word of a sampled run's source list in `table`, 0 for the exact
+ * run), `pullAt` @44 (the frontier arcs above which a level pulls), `perNode` @48 (1: a sampled run's per-node
+ * distance sums), `arcCount` @52 (the arcs a push level covers), `pullOk` @56 (1: a level may pull), `pad0` @60.
+ */
+export const CLOSENESS_PARAMS: UniformBlock = UniformBlock.define("ClosenessParams", [
+    ["role", "u32"],
+    ["n", "u32"],
+    ["words", "u32"],
+    ["base", "u32"],
+    ["total", "u32"],
+    ["level", "u32"],
+    ["row", "u32"],
+    ["ctrl", "u32"],
+    ["count", "u32"],
+    ["source", "u32"],
+    ["sourcesAt", "u32"],
+    ["pullAt", "u32"],
+    ["perNode", "u32"],
+    ["arcCount", "u32"],
+    ["pullOk", "u32"],
+    ["pad0", "u32"],
 ]);
 
 /** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
@@ -1085,7 +1113,7 @@ const GRID_CENTROID: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per hub cell, dispatched indirectly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
+/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per word of `hubList`, dispatched directly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
 const GRID_CENTROID_HUB: KernelEntry = {
     id: "grid-centroid-hub",
     body: gridCentroidHubWgsl,
@@ -1425,41 +1453,42 @@ const BF_RELAX: KernelEntry = {
     phase: "P8",
 };
 
-/** `closeness-sweep` (design 8.4 "32 sources per u32 word"; P8-T11, PD-13 / DEP-P8-E): one level of the bit-parallel multi-source BFS -- `advance-expand`'s block-mapped strip over the compacted frontier list with the claim inline (`atomicOr` on the visited word of the four-region `bits` buffer, the won bits into the level's next region and the flags region, one workgroup-memory tally per source flushed by one `atomicAdd` per source per workgroup into `perSource`); 8 storage bindings (the four graph slots, `frontierList` read-only, `counters`, `bits` and `perSource` as `array<atomic<u32>>`) -- exactly at the budget; the inlined Hillis-Steele scan, so `needs: []`. */
-const CLOSENESS_SWEEP: KernelEntry = {
-    id: "closeness-sweep",
-    body: closenessSweepWgsl,
-    entryPoint: "closeness_sweep",
-    bindings: GRAPH_SLOTS.concat(
-        decl(1, 0, "frontierList", "storage-ro", "array<u32>"),
-        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 2, "bits", "storage", "array<atomic<u32>>"),
-        decl(1, 3, "perSource", "storage", "array<atomic<u32>>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
-    ),
+/** `closeness-level` (design 8.4 "32 sources per u32 word"): one level of closeness's bit-parallel multi-source BFS in one dispatch, `32 x P.words` sources per batch -- role 0 the level (push over the out-arcs or pull over the in-arcs, push one invocation per arc, pull one per node, chosen per level on the device from the frontier's arcs against `P.pullAt`, the pull with an early exit once every source has reached the node), role 1 and role 2 the batch's seed; 6 storage bindings (the forward and the reverse CSR as group-1 state, `bits` and `table` as `array<atomic<u32>>`). */
+const CLOSENESS_LEVEL: KernelEntry = {
+    id: "closeness-level",
+    body: closenessLevelWgsl,
+    entryPoint: "closeness_level",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "inRowPtr", "storage-ro", "array<u32>"),
+        decl(1, 3, "inColIdx", "storage-ro", "array<u32>"),
+        decl(1, 4, "bits", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "table", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "ClosenessParams"),
+    ],
     overrideDecls: [],
-    uniforms: [FRONTIER_PARAMS],
+    uniforms: [CLOSENESS_PARAMS],
     needs: [],
     snippetSlots: [],
     phase: "P8",
 };
 
-/** `closeness-reduce` (design 8.4, 9.7; P8-T11, PD-13): the one-lane bookkeeping of the sweep -- role 0 the level boundary (`done` from the previous level's compacted count, `newCount` folded into `reached` and the 64-bit `sum` at `level + 1` with the 16-bit split product and the carry, `level` advanced), role 1 the seed of a batch (the sources' bits into `visited` and the level-0 frontier region, their flags, `counters[0] = k`, `level = U32_MAX`), role 2 the same seed from a sampled run's source list; 3 storage bindings (`counters` and `perSource` as `array<atomic<u32>>`, `bits` plain: one lane writes the seed). */
-const CLOSENESS_REDUCE: KernelEntry = {
-    id: "closeness-reduce",
-    body: closenessReduceWgsl,
-    entryPoint: "closeness_reduce",
+/** `closeness-rowsum` (design 8.7): closeness from a finished all-pairs matrix, one workgroup per row -- the off-diagonal finite entries summed as integers (`P.role` 0), as f32 (1) or as reciprocals (2, harmonic), by a tree reduction; 2 storage bindings (`dist` read-only, `out`). */
+const CLOSENESS_ROWSUM: KernelEntry = {
+    id: "closeness-rowsum",
+    body: closenessRowsumWgsl,
+    entryPoint: "closeness_rowsum",
     bindings: [
-        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 1, "perSource", "storage", "array<atomic<u32>>"),
-        decl(1, 2, "bits", "storage", "array<u32>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
+        decl(1, 0, "dist", "storage-ro", "array<f32>"),
+        decl(1, 1, "out", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "ClosenessParams"),
     ],
     overrideDecls: [],
-    uniforms: [FRONTIER_PARAMS],
+    uniforms: [CLOSENESS_PARAMS],
     needs: [],
     snippetSlots: [],
-    phase: "P8",
+    phase: "P9",
 };
 
 /** `bc-finalize` (design 8.4, 5.4): the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 6 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK`, `sigmaK` and `levelMax` plain: one lane writes the seed; `SCALED` seeds f32 bits). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK`, `sigmaK` and `levelMax` make it six. */
@@ -1845,7 +1874,7 @@ const MST_LINK: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, betweenness the
+ * `"sssp-relax"`, P8-T10 `"bf-relax"`, closeness `"closeness-level"` and `"closeness-rowsum"`, betweenness the
  * six `"bc-*"` entries, all-pairs shortest paths `"apsp-init"` and `"apsp-fw"`, and P11 its seven (the graph
  * build, the group-by-key, label propagation's step and triangle counting) plus Boruvka's `"mst-best"` and
  * `"mst-link"`, so every member of `KernelId`
@@ -1896,8 +1925,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-next-degree": BFS_NEXT_DEGREE,
     "sssp-relax": SSSP_RELAX,
     "bf-relax": BF_RELAX,
-    "closeness-sweep": CLOSENESS_SWEEP,
-    "closeness-reduce": CLOSENESS_REDUCE,
+    "closeness-level": CLOSENESS_LEVEL,
+    "closeness-rowsum": CLOSENESS_ROWSUM,
     "bc-finalize": BC_FINALIZE,
     "bc-forward": BC_FORWARD,
     "bc-backward": BC_BACKWARD,

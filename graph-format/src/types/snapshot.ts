@@ -815,6 +815,11 @@ export interface EdgeArraysInput {
     readonly dst: U32;
     /** Per-edge weights; F64 is downcast to f32 and an f64 shadow column kept only when not f32-exact. */
     readonly weights?: F32 | F64 | undefined;
+    /**
+     * Optional edge ids in edge order (one per edge, all distinct). They become the unique edge
+     * column "id" with role "id", so `snapshot.edgeIndexOf(id)` resolves them.
+     */
+    readonly edgeIds?: readonly EdgeId[] | undefined;
     /** Node columns, keyed by name. */
     readonly nodeColumns?: Readonly<Record<string, TypedArrayData | ColumnInput>> | undefined;
     /** Edge columns, keyed by name. */
@@ -822,6 +827,57 @@ export interface EdgeArraysInput {
     /** Graph metadata. */
     readonly meta?: GraphMetaPatch | undefined;
 }
+
+/**
+ * How fromElements() reads a caller's own node and edge objects: the node id, the two endpoint ids,
+ * and optionally an edge id and a weight.
+ * @template N - the caller's node type
+ * @template E - the caller's edge type
+ */
+export interface ElementAccessors<N, E> {
+    /** Whether the graph is directed. */
+    readonly directed: boolean;
+    /** The id of a node; every node's id must be distinct. */
+    readonly id: (node: N) => NodeId;
+    /** The id of an edge's source node. */
+    readonly source: (edge: E) => NodeId;
+    /** The id of an edge's target node. */
+    readonly target: (edge: E) => NodeId;
+    /** The id of an edge; when given, `snapshot.edgeIndexOf(id)` resolves it. */
+    readonly edgeId?: ((edge: E) => EdgeId) | undefined;
+    /** The weight of an edge; when absent the graph is unweighted. */
+    readonly weight?: ((edge: E) => number) | undefined;
+}
+
+/**
+ * What fromElements() returns: the snapshot plus the caller's own objects in index order, so a
+ * result indexed by node or by edge maps straight back to them.
+ * @template N - the caller's node type
+ * @template E - the caller's edge type
+ */
+export interface ElementsSnapshot<N, E> {
+    /** The frozen snapshot. */
+    readonly snapshot: GraphSnapshot;
+    /** `nodes[i]` is the caller's node at node index i. */
+    readonly nodes: readonly N[];
+    /** `edges[e]` is the caller's edge at logical edge index e. */
+    readonly edges: readonly E[];
+}
+
+// ============================================================ node references and node sets
+
+/**
+ * One node, wherever an algorithm or a layout takes a node: its index, or `{ id }` naming its id in
+ * the snapshot's id map. The id form is explicit because an id can itself be a number.
+ */
+export type NodeRef = number | { readonly id: NodeId };
+
+/**
+ * A set of nodes, wherever an algorithm or a layout takes one: an array of node indices (a plain
+ * array or a typed array), `{ mask }` holding a NodeMask, or `{ ids }` naming node ids in the
+ * snapshot's id map.
+ */
+export type NodeSet = ArrayLike<number> | { readonly mask: NodeMask } | { readonly ids: Iterable<NodeId> };
 
 /**
  * Prebuilt CSR arrays adopted by fromCsr() without copying by default (design section 8.1): the

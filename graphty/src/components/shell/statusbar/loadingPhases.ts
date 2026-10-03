@@ -20,7 +20,7 @@
  * the counts slot; a phase sentence is a progress reading and keeps its digits.
  */
 
-import { formatExactCount } from "./formatCounts";
+import { formatCount, formatPercent } from "../readings/readingFormat";
 
 /** Bytes per step of the unit ladder. */
 const BYTES_PER_STEP = 1024;
@@ -91,17 +91,6 @@ export function formatSeconds(seconds: number): string {
 }
 
 /**
- * Formats a fraction as the whole percentage the bar draws, e.g. `40%`.
- * @param fraction - How far the phase has got, 0 to 1.
- * @returns The percentage, e.g. `40%`.
- */
-export function formatPercent(fraction: number): string {
-    const value = Number.isFinite(fraction) && fraction > 0 ? Math.min(fraction, 1) : 0;
-
-    return `${String(Math.round(value * 100))}%`;
-}
-
-/**
  * Phase 1. Bytes are always known, so this phase always carries both numbers.
  * @param fileName - The file being read, e.g. `fraud.csv`.
  * @param bytesRead - How many bytes have been read.
@@ -144,12 +133,12 @@ export function buildingPhaseLabel(facts: BuildingPhaseFacts): string {
     const { nodes, edges, totalNodes, totalEstimated, secondsLeft } = facts;
 
     if (totalNodes === undefined || totalNodes <= 0) {
-        return `Building graph: ${formatExactCount(nodes)} nodes, ${formatExactCount(edges ?? 0)} edges so far`;
+        return `Building graph: ${formatCount(nodes)} nodes, ${formatCount(edges ?? 0)} edges so far`;
     }
 
     const hedge = totalEstimated === true ? "about " : "";
     const percent = formatPercent(nodes / totalNodes);
-    const head = `Building graph: ${formatExactCount(nodes)} of ${hedge}${formatExactCount(totalNodes)} nodes (${percent})`;
+    const head = `Building graph: ${formatCount(nodes)} of ${hedge}${formatCount(totalNodes)} nodes (${percent})`;
 
     if (secondsLeft === undefined) {
         return head;
@@ -202,7 +191,7 @@ export interface LoadCompletionFacts {
  */
 export function loadCompleteMessage(facts: LoadCompletionFacts): string {
     const { nodes, edges, seconds, mappings } = facts;
-    const loaded = `Loaded ${formatExactCount(nodes)} nodes and ${formatExactCount(edges)} edges in ${formatSeconds(seconds)}.`;
+    const loaded = `Loaded ${formatCount(nodes)} nodes and ${formatCount(edges)} edges in ${formatSeconds(seconds)}.`;
 
     if (mappings === undefined || mappings.length === 0) {
         return loaded;

@@ -2526,6 +2526,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2541,6 +2544,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2557,6 +2562,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2574,6 +2582,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);

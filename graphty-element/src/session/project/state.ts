@@ -12,7 +12,7 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { EdgeId, LayoutId, NodeId, RunId, Scope, SetId } from "../../catalog/types";
+import type { EdgeId, LayoutId, MeasurementDeclaration, NodeId, RunId, Scope, SetId } from "../../catalog/types";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -153,6 +153,8 @@ export interface ProjectState {
     readonly views: ReadonlyMap<string, CameraState>;
     /** The notes, by id. */
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
+    /** What columns were declared to measure, by `<kind>:<name>`. */
+    readonly attributes: ReadonlyMap<string, MeasurementDeclaration>;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -191,5 +193,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         sets: new Map(init.sets),
         views: new Map(init.views),
         notes: new Map(init.notes),
+        attributes: new Map(init.attributes),
     };
 }

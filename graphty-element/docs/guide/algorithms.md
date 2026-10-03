@@ -370,7 +370,7 @@ colour vision. When a community run finds more groups than that, `encode()` deci
 
 ```typescript
 // Default: the 8 largest groups keep their colours; the rest share one grey,
-// and the legend's last row reads "other: K groups"
+// and the legend lists that grey as its last row, with role: "other" and its count
 await element.session.styles.encode({ run, channel: "node.color" });
 
 // Cycle the colours and change node shape on each cycle: group 9 is orange again, as a box

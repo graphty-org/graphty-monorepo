@@ -251,7 +251,8 @@ export type GraphtyErrorCode =
      * method, or exactness was demanded with `{ exact: true }`. `details` carry the estimate,
      * the cap, the graph size and the scopes that would fit. Also the reason a style layer is
      * disabled when a categorical encoding has more distinct values than the palette's capacity
-     * and no `other` binding was declared.
+     * and no `other` binding was declared, and the refusal of `styles.encode({ column })` for a
+     * categorical column with more distinct values than the attribute walk counts (`details.limit`).
      *
      * The caller narrows the scope, samples, raises the cap, or accepts the approximation.
      */
@@ -321,7 +322,10 @@ export type GraphtyErrorCode =
      * The operation is well formed but this build or this host cannot perform it: a
      * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
      * an export format the platform has no encoder for. `details.reason` says which. The caller
-     * uses the stated alternative; retrying does not help.
+     * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
+     * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
+     * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
+     * and `measurement`, and naming a `scale` draws it anyway.
      */
     | "E_UNSUPPORTED"
     /**

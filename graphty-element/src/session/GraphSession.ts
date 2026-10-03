@@ -51,6 +51,7 @@ import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
+import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
@@ -1850,6 +1851,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
+            declarations: () => dispatcher.state.attributes,
         },
         {
             revision: () => inputs.tick.value,
@@ -2372,6 +2375,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         paths,
         scales,
         runs: encodingSourceOf(runs),
+        columns: {
+            attributes: () => data.attributes(),
+            declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
+        },
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),

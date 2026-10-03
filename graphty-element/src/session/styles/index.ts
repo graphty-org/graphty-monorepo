@@ -24,8 +24,15 @@ export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles }
 export { createAutoApplyPolicy } from "./autoApply";
 export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { DefaultBinding } from "./encoding";
-export type { EncodingRun, EncodingSource, EncodingSpec } from "./EncodingSpec";
+export type {
+    ColumnEncodingSpec,
+    EncodingProposal,
+    EncodingRefusalCode,
+    EncodingRun,
+    EncodingSource,
+    EncodingSpec,
+    EncodingTaste,
+} from "./EncodingSpec";
 export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
 export type {
     CompiledLayer,
@@ -41,7 +48,7 @@ export type {
     RepaintRequest,
     ValidationResult,
 } from "./Layer";
-export type { FieldWords, LegendBlock, LegendOptions, LegendSwatch } from "./legend";
+export type { FieldWords, LegendBlock, LegendSwatch } from "./legend";
 export { quotePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";

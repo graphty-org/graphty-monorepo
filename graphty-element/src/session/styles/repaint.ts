@@ -55,7 +55,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AttributeLevel, Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
+import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
 import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
@@ -147,14 +147,6 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
-    /**
-     * What the attribute at one path measures, which picks the scale of a binding that names none.
-     * Absent, or undefined for a path, such a binding reads the attribute as a measurement.
-     * @param path - The column path.
-     * @param target - Whether the asking layer paints nodes or edges.
-     * @returns The level, or undefined when the session does not know it.
-     */
-    readonly level?: (path: Path, target: SelectorTarget) => AttributeLevel | undefined;
 }
 
 /**
@@ -1120,7 +1112,6 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
             const { channel } = descriptor;
             const column = path === null ? undefined : readWholeColumn(store, path);
-            const level = path === null ? undefined : sources.level?.(path, layer.target);
 
             channels.push({
                 column: columnFor(store, channel),
@@ -1131,7 +1122,6 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     binding,
                     scales,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
-                    ...(level === undefined ? {} : { level }),
                 }),
             });
 

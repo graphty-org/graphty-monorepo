@@ -246,13 +246,29 @@ export const ATTRIBUTE_TYPES = ["string", "number", "integer", "boolean", "time"
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 /**
- * What an attribute measures, which decides how a channel reads it: one color per category, a
- * ramp or a size range for a quantity, nothing by default for free text or an identifier.
+ * What a column's values measure, which decides how a binding that names no scale draws it.
+ *
+ * - `"categorical"` -- names of groups with no order: one color per value.
+ * - `"ordinal"` -- groups with an order, such as Low, Medium, High: colors and sizes follow it.
+ * - `"quantitative"` -- amounts: a ramp, or a size range.
+ * - `"time"` -- points in time.
+ *
+ * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export const ATTRIBUTE_LEVELS = ["category", "quantity", "time", "text", "id"] as const;
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
 
-/** What an attribute measures. See {@link ATTRIBUTE_LEVELS}. */
-export type AttributeLevel = (typeof ATTRIBUTE_LEVELS)[number];
+/**
+ * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
+ * catalogue, the file format, or the element's inference from the values.
+ *
+ * OPEN UNION: values may be added in a minor release.
+ */
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
+
+/** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
+export type MeasurementDeclaration =
+    | { readonly measurement: "categorical" | "quantitative" | "time" }
+    | { readonly measurement: "ordinal"; readonly order: readonly (string | number)[] };
 
 /**
  * How expensive a computation is, in the one vocabulary every estimate uses. "instant" is
@@ -331,6 +347,12 @@ export interface FieldDescriptor {
     normalization?: string;
     /** How to read the value, for a quality score whose number alone means little. */
     interpretation?: FieldInterpretation;
+    /**
+     * What the field's values measure, declared by the algorithm. A partition's group field is
+     * `"categorical"` by construction. Absent, the element reads strings and booleans as
+     * categorical and numbers as quantitative.
+     */
+    measurement?: Measurement;
     path: Path;
 }
 
@@ -837,10 +859,14 @@ export interface AttributeDescriptor {
     technicalName: string;
     kind: "node" | "edge";
     type: AttributeType;
-    /** What the attribute measures, which decides the scale a binding with none reads it through. */
-    level: AttributeLevel;
-    /** Whether {@link AttributeDescriptor.level} was worked out from the values or declared with `data.declare`. */
-    levelSource: "inferred" | "declared";
+    /**
+     * What the values measure. Inferred as `"categorical"` for strings and booleans and
+     * `"quantitative"` for numbers; `"ordinal"` and `"time"` are never inferred. A column of
+     * number codes needs a `data.declare` to be read as groups. Absent for a column with no values.
+     */
+    measurement?: Measurement;
+    /** Who said so. Present exactly when `measurement` is. */
+    measurementSource?: MeasurementSource;
     origin: "imported" | "joined" | "computed" | "result";
     /** The fraction of elements that carry a value, from 0 to 1. */
     completeness: number;

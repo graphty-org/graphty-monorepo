@@ -320,6 +320,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeDescriptor,
     Binding,
     BindingOverflow,
     Channel,
@@ -336,6 +337,9 @@ export type {
     LayerKind,
     LayerSource,
     LayerSpec,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     NodeId,
     Path,
     PathKind,
@@ -366,10 +370,13 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
 export type {
     ChannelExplanation,
-    DefaultBinding,
+    ColumnEncodingSpec,
     ElementLayerSpec,
+    EncodingProposal,
+    EncodingRefusalCode,
     EncodingRun,
     EncodingSpec,
+    EncodingTaste,
     ExplainTarget,
     FieldWords,
     HighlightSpec,
@@ -377,7 +384,6 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
-    LegendOptions,
     LegendSwatch,
     RepaintReason,
     RepaintReport,

@@ -39,7 +39,6 @@
  */
 
 import type { Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
 import { groupName, RESULT_ROOT } from "../results/types";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
@@ -78,20 +77,13 @@ export interface LegendSwatch {
      */
     readonly paints?: unknown;
     /**
-     * On an "other" row: the rows it stands for, each with its own value and paint, so a legend
-     * can list what "other" holds and an exported legend lists the same.
+     * What the row stands for. `"other"` marks the one bucket the paint folded the smaller groups
+     * into: its `value` lists the values it holds and its `count` how many elements carry them,
+     * and it is always the last row, kept even when the rows above it are capped.
+     *
+     * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
      */
-    readonly rolledUp?: readonly LegendSwatch[];
-}
-
-/** How `styles.legend()` lays a block out. */
-export interface LegendOptions {
-    /**
-     * The most categories a categorical block lists before the rest roll into one "other" row,
-     * whose {@link LegendSwatch.rolledUp} lists them. Absent, a block lists up to twelve rows and
-     * counts the rest in `overflow`.
-     */
-    readonly maxCategories?: number;
+    readonly role?: "other" | (string & {});
 }
 
 /**
@@ -150,9 +142,9 @@ export interface LegendBlock {
         /** Whether the smallest value lands at the far end of it. */
         readonly reversed: boolean;
     };
-    /** Up to twelve rows. */
+    /** Up to twelve rows, plus the `"other"` row when the paint folded some groups. */
     readonly swatches: readonly LegendSwatch[];
-    /** How many rows did not fit, when some did not. */
+    /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
         /** The number a consumer prints as "and 14 more". */
         readonly hidden: number;
@@ -445,11 +437,19 @@ function readsGroups(path: Path | null): boolean {
 /**
  * The swatches of an encoding that names categories.
  * @param prepared - The prepared binding.
+ * @param order - The values the binding maps, in the order it maps them: an ordinal column's
+ *   declared order, which the rows follow before the rest.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
-function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
+function categorySwatches(prepared: PreparedBinding, order: readonly string[]): readonly LegendSwatch[] {
     const groups = readsGroups(prepared.path);
-    const swatches: LegendSwatch[] = prepared.categories.map((category, index) => ({
+    const rank = (category: string): number => {
+        const at = order.indexOf(category);
+        return at === -1 ? order.length : at;
+    };
+    // A stable sort, so the categories no order names keep their largest-first order.
+    const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
+    const swatches: LegendSwatch[] = categories.map((category, index) => ({
         label: groups ? groupName(index + 1) : category,
         value: category,
         ...swatchPaint(prepared.paint(category)),
@@ -460,50 +460,16 @@ function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
     // The bucket gets one row saying what it holds, so a reader is told what the grey means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.
     if (folded !== undefined) {
-        const rolledUp = lumped.map((category, index) => ({
-            label: groups ? groupName(prepared.categories.length + index + 1) : category,
-            value: category,
+        swatches.push({
+            label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
+            value: lumped,
             ...swatchPaint(folded),
-        }));
-        swatches.push(otherRow(rolledUp, swatchPaint(folded)));
+            count: prepared.counts.other,
+            role: "other",
+        });
     }
 
     return swatches;
-}
-
-/**
- * One "other" row standing for several categories.
- * @param rolledUp - The rows it stands for.
- * @param paint - What it paints, when every row it stands for paints the same.
- * @returns The row.
- */
-function otherRow(
-    rolledUp: readonly LegendSwatch[],
-    paint: Pick<LegendSwatch, "color" | "paints" | "size"> = {},
-): LegendSwatch {
-    return {
-        label: `other: ${String(rolledUp.length)} ${rolledUp.length === 1 ? "group" : "groups"}`,
-        value: rolledUp.map((swatch) => swatch.value),
-        ...paint,
-        rolledUp: Object.freeze([...rolledUp]),
-    };
-}
-
-/**
- * Keep the first categories and roll the rest into one "other" row.
- * @param swatches - A categorical block's rows, largest group first.
- * @param max - How many to keep.
- * @returns The kept rows and, when any were rolled up, the "other" row last.
- */
-function capCategories(swatches: readonly LegendSwatch[], max: number): readonly LegendSwatch[] {
-    if (swatches.length <= max) {
-        return swatches;
-    }
-
-    // A bucket the binding already folded is unpacked, so the row lists categories, not rows.
-    const rolled = swatches.slice(max).flatMap((swatch) => swatch.rolledUp ?? [swatch]);
-
-    return [...swatches.slice(0, max), otherRow(rolled)];
 }
 
 /**
@@ -568,7 +534,9 @@ function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSw
     }
 
     if (prepared.categories.length > 0) {
-        return categorySwatches(prepared);
+        // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
+        // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
+        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}));
     }
 
     if (prepared.domain === null) {
@@ -701,7 +669,6 @@ function departuresOf(
  * @param layers - The stack, bottom first, for the layers that paint over this one.
  * @param at - Where the layer sits in the stack.
  * @param sources - Where the scale's and the field's words come from.
- * @param options - How many categories it lists before rolling the rest into "other".
  * @returns The block.
  */
 function buildBlock(
@@ -710,16 +677,15 @@ function buildBlock(
     layers: readonly Layer[],
     at: number,
     sources: LegendSources,
-    options: LegendOptions,
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
     const all = allSwatches(prepared, layer);
-    const swatches =
-        options.maxCategories !== undefined && prepared.path !== null && prepared.categories.length > 0
-            ? capCategories(all, options.maxCategories)
-            : all;
-    const hidden = Math.max(0, swatches.length - SWATCH_CAP);
+    // The "other" row is what the paint folded, so it is kept whatever the cap drops.
+    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
+    const rows = other === undefined ? all : all.slice(0, -1);
+    const hidden = Math.max(0, rows.length - SWATCH_CAP);
+    const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
 
@@ -736,7 +702,7 @@ function buildBlock(
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
-        swatches: Object.freeze(swatches.slice(0, SWATCH_CAP)),
+        swatches: Object.freeze(swatches),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
         departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
     };
@@ -760,22 +726,9 @@ function buildBlock(
  * A DISABLED LAYER IS NOT IN IT EITHER, because it paints nothing, and a legend row for paint
  * nobody can see is the false claim this whole file is arranged against.
  * @param sources - The stack, the prepared encodings, the scales and the field names.
- * @param options - How many categories a block lists before rolling the rest into "other".
  * @returns The blocks, BOTTOM FIRST -- the same order `styles.list()` returns.
- * @throws A `GraphtyError` with code `E_OPTION_RANGE` when `maxCategories` is not a positive
- *   whole number.
  */
-export function buildLegend(sources: LegendSources, options: LegendOptions = {}): readonly LegendBlock[] {
-    const { maxCategories } = options;
-    if (maxCategories !== undefined && (!Number.isInteger(maxCategories) || maxCategories < 1)) {
-        throw new GraphtyError({
-            code: "E_OPTION_RANGE",
-            message: `maxCategories is how many categories a legend lists, so it is a whole number of at least 1, not ${String(maxCategories)}.`,
-            source: "style",
-            details: { option: "maxCategories", value: maxCategories, min: 1 },
-        });
-    }
-
+export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
     const layers = sources.layers();
     const blocks: LegendBlock[] = [];
 
@@ -787,7 +740,7 @@ export function buildLegend(sources: LegendSources, options: LegendOptions = {})
         }
 
         for (const prepared of sources.encoding(layer.id)) {
-            blocks.push(buildBlock(layer, prepared, layers, at, sources, options));
+            blocks.push(buildBlock(layer, prepared, layers, at, sources));
         }
     }
 

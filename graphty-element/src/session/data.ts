@@ -14,7 +14,7 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, AttributeLevel, EdgeId, ScopeInput } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId, MeasurementDeclaration, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -22,22 +22,23 @@ import type { ImportReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
+import { resolveColumn } from "./columns";
 import {
     type DataImportCommand,
     type DataMutation,
     type DataService,
+    declarationKey,
     type ImportSource,
-    LEVEL_KEY,
     SOURCE_VALUE,
 } from "./commands/data";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
-import { nearestNames } from "./results/ResultsApi";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
+import type { ColumnRef } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceDescriptor,
@@ -71,9 +72,9 @@ interface DataWrites {
     /** The `graph` slice now. */
     slice(): GraphSlice;
     /** Dispatch `data.declare`. */
-    declare(path: string, level: AttributeLevel): Promise<unknown>;
-    /** The `config` slice now, where declared levels are kept. */
-    config(): ReadonlyMap<string, unknown>;
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
+    /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
+    declarations(): ReadonlyMap<string, MeasurementDeclaration>;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -199,8 +200,6 @@ interface Derived {
     readonly snapshot: GraphSnapshot;
     /** The graph's shape, once something asked for it. */
     statistics: GraphStatistics | null;
-    /** The attribute descriptors, once something asked for them. */
-    attributes: readonly AttributeDescriptor[] | null;
     /** The topology fingerprint, once something asked for it. */
     fingerprint: string | null;
 }
@@ -226,6 +225,8 @@ export class SessionData implements SessionDataApi {
     private derived: Derived | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
+    /** The attribute walk, for the current revision. */
+    private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     private disposed = false;
 
     /**
@@ -252,6 +253,7 @@ export class SessionData implements SessionDataApi {
         this.writes = writes;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
+        this.attributeCache = new RevisionCache(() => pages.revision());
     }
 
     /**
@@ -679,45 +681,38 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        const derived = this.derivedFor(this.current());
-        derived.attributes ??= describeAttributes(derived.snapshot, this.records);
-        const config = this.writes.config();
-        const declared = derived.attributes.filter((each) => config.has(`${LEVEL_KEY}${each.path}`));
-        if (declared.length === 0) {
-            return derived.attributes;
+        // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
+        // snapshot alone, an edited value never reached the descriptors.
+        const snapshot = this.current();
+        const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
+        const declarations = this.writes.declarations();
+        if (declarations.size === 0) {
+            return described;
         }
 
-        // ponytail: rebuilt per call while a level is declared; cache on the config slice's
-        // write count if a render loop reads it.
+        // ponytail: overlaid per call while anything is declared; a few dozen spreads.
         return Object.freeze(
-            derived.attributes.map((each) => {
-                const level = config.get(`${LEVEL_KEY}${each.path}`) as AttributeLevel | undefined;
-                return level === undefined ? each : Object.freeze({ ...each, level, levelSource: "declared" as const });
+            described.map((each) => {
+                const declared = declarations.get(declarationKey(each));
+                return declared === undefined
+                    ? each
+                    : Object.freeze({ ...each, measurement: declared.measurement, measurementSource: "declared" });
             }),
         );
     }
 
     /**
-     * Say what an attribute measures, as one undoable step.
-     * @param path - the attribute's path
-     * @param declaration - the level it measures
-     * @param declaration.level - the level
+     * Say what a column measures, as one undoable step.
+     * @param column - the column, such as an entry of {@link SessionData.attributes}
+     * @param declaration - what it measures, with the order of an ordinal column
      * @returns settles once the step is recorded
-     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a path no record carries.
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a declaration that is not one.
      */
-    async declare(path: string, declaration: { readonly level: AttributeLevel }): Promise<void> {
+    async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
         this.requireLive("declare");
-        const paths = this.attributes().map((each) => each.path);
-        if (!paths.includes(path)) {
-            throw new GraphtyError({
-                code: "E_UNKNOWN_ATTRIBUTE",
-                message: `No record carries an attribute at "${path}", so there is nothing to declare.`,
-                source: "data",
-                details: { path, available: paths, candidates: nearestNames(path, paths) },
-            });
-        }
-
-        await this.writes.declare(path, declaration.level);
+        const { kind, name } = resolveColumn(this.attributes(), column);
+        await this.writes.declare({ kind, name }, declaration);
     }
 
     /**
@@ -769,7 +764,7 @@ export class SessionData implements SessionDataApi {
      */
     private derivedFor(snapshot: GraphSnapshot): Derived {
         if (this.derived === null || this.derived.snapshot !== snapshot) {
-            this.derived = { snapshot, statistics: null, attributes: null, fingerprint: null };
+            this.derived = { snapshot, statistics: null, fingerprint: null };
         }
 
         return this.derived;

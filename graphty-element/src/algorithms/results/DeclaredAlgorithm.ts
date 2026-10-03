@@ -10,6 +10,7 @@
 import { resolveOptionValues } from "../../catalog/options";
 import type { AlgorithmDescriptor, FieldDescriptor, RunId } from "../../catalog/types";
 import { createRunResult, resultPath, type RunResult } from "../../session/results";
+import { fieldMeasurement } from "../../session/results/types";
 import type { Caveats } from "../../session/runs/types";
 import { Algorithm } from "../Algorithm";
 import { maskBack } from "../input/maskBack";
@@ -31,12 +32,14 @@ import {
  * passes the catalogue's own. Nothing published to a consumer comes from this path.
  * @param spec - What the run says it filled.
  * @param runId - The run the field belongs to.
+ * @param shape - The run's result shape, which says whether the field names groups.
  * @param declared - The catalogue's descriptors for this algorithm, when the caller holds them.
  * @returns The descriptor.
  */
 function toFieldDescriptor(
     spec: ResultFieldSpec,
     runId: string,
+    shape: AlgorithmOutput["shape"],
     declared?: readonly FieldDescriptor[],
 ): FieldDescriptor {
     const published = declared?.find((candidate) => candidate.name === spec.name && candidate.kind === spec.kind);
@@ -49,6 +52,10 @@ function toFieldDescriptor(
         path: resultPath(runId, spec.name),
         ...(published?.unit === undefined ? {} : { unit: published.unit }),
     };
+    descriptor.measurement = fieldMeasurement(
+        { ...descriptor, ...(published ?? {}), name: spec.name, type: spec.type },
+        shape,
+    );
 
     return spec.normalization === undefined ? descriptor : { ...descriptor, normalization: spec.normalization };
 }
@@ -229,7 +236,7 @@ export abstract class DeclaredAlgorithm<
                 ...(labelOf === undefined ? {} : { labelOf }),
                 runId,
                 shape: output.shape,
-                fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, declared)),
+                fields: output.fields.map((spec) => toFieldDescriptor(spec, runId, output.shape, declared)),
                 measured: { nodes: input.nodeCount, edges: input.edgeCount },
                 graph: output.graph,
                 nodes: output.nodes,

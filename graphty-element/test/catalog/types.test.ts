@@ -145,8 +145,6 @@ describe("catalogue descriptors", () => {
             technicalName: "Betweenness centrality",
             kind: "node",
             type: "number",
-            level: "quantity",
-            levelSource: "inferred",
             origin: "computed",
             completeness: 1,
             sampleValues: [0, 0.25, 0.5],

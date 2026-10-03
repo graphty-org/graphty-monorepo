@@ -23,7 +23,6 @@ export type {
     AlgorithmDescriptor,
     AlgorithmKey,
     AttributeDescriptor,
-    AttributeLevel,
     AttributeType,
     Binding,
     CameraDescriptor,
@@ -55,6 +54,9 @@ export type {
     LayoutId,
     LogSinkDescriptor,
     LogSinkId,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     MetricAvailability,
     NodeId,
     OptionBound,
@@ -79,7 +81,6 @@ export type {
     ThemeDescriptor,
 } from "./types";
 export {
-    ATTRIBUTE_LEVELS,
     ATTRIBUTE_TYPES,
     COST_CLASSES,
     DEPRECATED_ALGORITHMS,

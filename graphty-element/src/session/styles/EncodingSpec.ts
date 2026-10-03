@@ -39,20 +39,26 @@
 import { scaleDescriptor } from "../../catalog/scales";
 import type {
     AlgorithmKey,
+    AttributeDescriptor,
     BindingOverflow,
     Channel,
     Encoding,
     FieldDescriptor,
     LayerSpec,
+    MeasurementDeclaration,
     PaletteId,
     ResultShape,
     RunId,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { nearestNames } from "../results/ResultsApi";
-import { resultPath, resultShapeContract, type RunRef } from "../results/types";
+import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
+import type { CodedFact, ColumnRef } from "../shared";
 import type { ChannelDescriptor, ChannelValueKind } from "./channels";
+import { DEFAULT_SIZE_RANGE } from "./derive";
 import { requireChannel, type RuleBinding } from "./encoding";
+import { columnPaletteFor, sequentialSamples } from "./palettes";
+import type { ScaleRegistry } from "./scales";
 
 // ---------------------------------------------------------------------------------------------
 // What encode() is asked for, and what it needs to know
@@ -109,9 +115,8 @@ export interface EncodingSpec {
     /** Percentiles to cut the extent at, so a few outliers do not flatten everything else. */
     readonly clamp?: RuleBinding["clamp"];
     /**
-     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to
-     * 0.5 to 3 for a node size, 2 to 12 for an edge width, 0.2 to 1 for an opacity, and the unit
-     * interval otherwise.
+     * The numbers a numeric channel answers in, such as `[1, 5]` for a node size. Defaults to the
+     * unit interval, which is a colour ramp's positions and far too small for most sizes.
      */
     readonly range?: RuleBinding["range"];
     /** What an element with no value is painted. Defaults to "skip", which is to leave it alone. */
@@ -121,6 +126,40 @@ export interface EncodingSpec {
     /** What to call the layer. Defaults to the run's label and the channel's plain name. */
     readonly name?: string;
 }
+
+/** What an encoding says beyond what it reads: the channel and the taste. */
+export type EncodingTaste = Omit<EncodingSpec, "run" | "field">;
+
+/**
+ * What `encode()` is asked for when it colors or sizes by a plain data column: an
+ * {@link EncodingSpec} with a column in place of the run.
+ *
+ * Whatever is left off -- the scale, the palette, the range, the overflow -- is chosen from what
+ * the column measures when the layer is created, and written into it. A saved layer therefore
+ * always draws what it says, whatever the data or a later declaration does.
+ */
+export interface ColumnEncodingSpec extends EncodingTaste {
+    /** The column; an `AttributeDescriptor` from `session.data.attributes()` can be passed as is. */
+    readonly column: ColumnRef;
+}
+
+/**
+ * Why a column cannot be drawn on a channel by default, as the code of a {@link CodedFact}.
+ * Every refusal carries `kind`, `name` and `channel` in its params, and:
+ *
+ * - `"E_BAD_LAYER"` -- what the column measures says nothing on this channel (groups on a size,
+ *   amounts on a shape). Params add `measurement`, null for a column with no values.
+ * - `"E_CAP_EXCEEDED"` -- the column has more distinct values than the element counts (`limit`).
+ * - `"E_UNSUPPORTED"` -- the element has no default for a time column yet. Params add `measurement`.
+ *
+ * OPEN UNION: codes may be added in a minor release.
+ */
+export type EncodingRefusalCode = "E_BAD_LAYER" | "E_CAP_EXCEEDED" | "E_UNSUPPORTED" | (string & {});
+
+/** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
+export type EncodingProposal =
+    | { readonly ok: true; readonly binding: RuleBinding }
+    | { readonly ok: false; readonly refusal: CodedFact<EncodingRefusalCode> };
 
 /**
  * What `planEncoding` needs to know about the run it is binding to.
@@ -164,38 +203,20 @@ export interface EncodingSource {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The scale a shape's primary field is read through when the caller names none.
- *
- * A community's group is an integer and a degree is an integer, and reading them the same way is
- * how a partition ends up painted as a continuous ramp from group 0 to group 41. The shape is
- * what tells the two apart, so the shape is what decides -- and only for the field the shape
- * declares primary, because `groupSize` on the same result really is a measurement.
- */
-const PRIMARY_FIELD_SCALES: Partial<Record<ResultShape, string>> = {
-    community: "ordinal",
-    "layered-grouping": "ordinal",
-    "category-table": "ordinal",
-};
-
-/**
  * The scale an encoding reads its field through when the caller names none.
  * @param field - The field being read.
  * @param shape - The run's result shape.
- * @param primary - Whether the field is the one the shape declares primary.
  * @param accepts - The kind of value the channel carries.
  * @returns The scale's name.
  */
-function defaultScale(field: FieldDescriptor, shape: ResultShape, primary: boolean, accepts: ChannelValueKind): string {
+function defaultScale(field: FieldDescriptor, shape: ResultShape, accepts: ChannelValueKind): string {
     if (accepts === "text" || accepts === "boolean") {
         return "passthrough";
     }
 
-    const byShape = primary ? PRIMARY_FIELD_SCALES[shape] : undefined;
-    if (byShape !== undefined) {
-        return byShape;
-    }
+    const measurement = fieldMeasurement(field, shape);
 
-    return field.type === "string" || field.type === "boolean" ? "ordinal" : "linear";
+    return measurement === "categorical" || measurement === "ordinal" ? "ordinal" : "linear";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -363,7 +384,7 @@ function assertFieldFits(field: FieldDescriptor, run: EncodingRun, descriptor: C
  * @param descriptor - The channel.
  * @returns The binding.
  */
-function buildBinding(spec: EncodingSpec, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
+function buildBinding(spec: EncodingTaste, path: string, scale: string, descriptor: ChannelDescriptor): RuleBinding {
     const binding: RuleBinding = { by: path, scale };
 
     // THE PALETTE IS LEFT OFF WHEN THE CALLER NAMED NONE, and that is the point rather than an
@@ -418,7 +439,7 @@ function buildBinding(spec: EncodingSpec, path: string, scale: string, descripto
  * @param descriptor - The channel.
  * @returns The policy, or undefined when the binding carries none.
  */
-function overflowOf(spec: EncodingSpec, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
+function overflowOf(spec: EncodingTaste, scale: string, descriptor: ChannelDescriptor): BindingOverflow | undefined {
     if (descriptor.accepts !== "color") {
         return undefined;
     }
@@ -440,7 +461,7 @@ function overflowOf(spec: EncodingSpec, scale: string, descriptor: ChannelDescri
  * @returns The extra channel bindings, empty unless the policy is "shape".
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
  */
-function overflowCompanion(spec: EncodingSpec, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
+function overflowCompanion(spec: EncodingTaste, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
     if (colour.overflow !== "shape") {
         return {};
     }
@@ -482,9 +503,9 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const { primaryField } = resultShapeContract(run.shape);
     assertShapeEncodes(run, (spec.field ?? primaryField) === primaryField);
 
-    const { field, primary } = resolveField(spec, run, descriptor);
+    const { field } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
-    const scale = spec.scale ?? defaultScale(field, run.shape, primary, descriptor.accepts);
+    const scale = spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
     const binding = buildBinding(spec, path, scale, descriptor);
 
     return {
@@ -494,5 +515,134 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
         selector: { match: "has", path },
         encode: { [spec.channel]: binding, ...overflowCompanion(spec, binding, descriptor) },
         source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Encoding a plain data column
+// ---------------------------------------------------------------------------------------------
+
+/** How many distinct values the attribute walk counts before it stops; past it, too many to name. */
+const DISTINCT_LIMIT = 256;
+
+/** The channels that default to {@link DEFAULT_SIZE_RANGE} for an amount. */
+const SIZE_CHANNELS: ReadonlySet<Channel> = new Set(["node.size", "edge.width"]);
+
+/**
+ * The binding a column gets on a channel, decided from what the column measures.
+ * @param spec - The encoding.
+ * @param column - The column's descriptor, with any declaration already applied.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param scales - The session's scales, which decide the palette.
+ * @returns The binding, or the refusal.
+ */
+export function proposeColumnBinding(
+    spec: ColumnEncodingSpec,
+    column: AttributeDescriptor,
+    declaration: MeasurementDeclaration | undefined,
+    scales: ScaleRegistry,
+): EncodingProposal {
+    const descriptor = requireChannel(spec.channel);
+    const { accepts, channel } = descriptor;
+    const about = { kind: column.kind, name: column.name, channel };
+    const refuse = (
+        code: EncodingRefusalCode,
+        params: Record<string, string | number | null> = {},
+    ): EncodingProposal => ({
+        ok: false,
+        refusal: { code, params: { ...about, ...params } },
+    });
+    const bind = (scale: string, extra: Partial<RuleBinding> = {}): EncodingProposal => ({
+        ok: true,
+        binding: { ...extra, ...buildBinding(spec, column.path, scale, descriptor) },
+    });
+
+    // A scale the caller named is the caller's decision: written as asked.
+    if (spec.scale !== undefined) {
+        return bind(spec.scale);
+    }
+
+    if (accepts === "text" || accepts === "boolean") {
+        return bind("passthrough");
+    }
+
+    const measurement = column.measurement ?? null;
+    const groups = accepts === "color" || accepts === "enum";
+
+    if (measurement === "time") {
+        return refuse("E_UNSUPPORTED", { measurement });
+    }
+
+    if (measurement === "categorical" && groups) {
+        if (column.uniqueCount === undefined) {
+            return refuse("E_CAP_EXCEEDED", { limit: DISTINCT_LIMIT });
+        }
+
+        if (accepts === "enum") {
+            return bind("ordinal", { overflow: spec.overflow ?? "other" });
+        }
+
+        // As for a run: a palette the caller named keeps the strict refusal unless they named an overflow.
+        const palette = spec.palette ?? columnPaletteFor(scales, "ordinal", column.uniqueCount);
+        return bind("ordinal", { palette, ...(spec.palette === undefined ? { overflow: "other" } : {}) });
+    }
+
+    const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
+    if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
+        const [low, high] = spec.range ?? DEFAULT_SIZE_RANGE;
+        const values =
+            accepts === "color"
+                ? sequentialSamples(order.length)
+                : order.map((_, index) => low + ((high - low) * index) / Math.max(1, order.length - 1));
+        return bind("ordinal", {
+            map: Object.fromEntries(order.map((value, index) => [String(value), values[index]])),
+        });
+    }
+
+    if (measurement === "quantitative" && accepts !== "enum") {
+        if (accepts === "color") {
+            return bind("linear", { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) });
+        }
+
+        const range = spec.range ?? (SIZE_CHANNELS.has(channel) ? DEFAULT_SIZE_RANGE : undefined);
+        return bind("linear", range === undefined ? {} : { range: [range[0], range[1]] });
+    }
+
+    return refuse("E_BAD_LAYER", { measurement });
+}
+
+/**
+ * Turn a column encoding into the layer it stands for, with every default written in.
+ * @param spec - What to encode.
+ * @param column - The column's descriptor, with any declaration already applied.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param scales - The session's scales.
+ * @returns The layer, ready to be added like any other.
+ * @throws A `GraphtyError` with the refusal's code and its params as details, when the column
+ *   cannot be drawn on the channel by default; `E_UNKNOWN_CHANNEL` for a channel the element does
+ *   not have.
+ */
+export function planColumnEncoding(
+    spec: ColumnEncodingSpec,
+    column: AttributeDescriptor,
+    declaration: MeasurementDeclaration | undefined,
+    scales: ScaleRegistry,
+): LayerSpec {
+    const proposal = proposeColumnBinding(spec, column, declaration, scales);
+    if (!proposal.ok) {
+        throw new GraphtyError({
+            code: proposal.refusal.code as "E_BAD_LAYER",
+            message: `The ${column.kind} column ${JSON.stringify(column.name)} cannot be drawn on ${spec.channel} by default; name a scale to draw it anyway.`,
+            source: "style",
+            details: proposal.refusal.params,
+        });
+    }
+
+    const descriptor = requireChannel(spec.channel);
+    return {
+        name: spec.name ?? column.name,
+        target: descriptor.target,
+        selector: { match: "has", path: column.path },
+        encode: { [spec.channel]: proposal.binding, ...overflowCompanion(spec, proposal.binding, descriptor) },
     };
 }

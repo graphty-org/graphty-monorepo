@@ -31,11 +31,11 @@ import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
-    AttributeLevel,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
     LayoutId,
+    MeasurementDeclaration,
     RunId,
     Scope,
     ScopeInput,
@@ -63,7 +63,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { ProgressChange } from "./shared";
+import type { ColumnRef, ProgressChange } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -456,24 +456,31 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
-     * Every attribute the graph's records carry, with its type, how complete it is and a few
-     * sample values. Walked once per snapshot and cached.
+     * Every attribute the graph's records carry, with its type, what it measures, how complete
+     * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
      */
     attributes(): readonly AttributeDescriptor[];
     /**
-     * Say what an attribute measures, overriding the level {@link SessionDataApi.attributes}
-     * inferred, as one undoable step. A binding that names no scale reads the attribute by this
-     * level from then on: `"category"` gets one color per value, `"quantity"` a ramp or a size
-     * range.
-     * @param path - the attribute's path, such as `"data.group"`
-     * @param declaration - what it measures
-     * @param declaration.level - the level: `"category"`, `"quantity"`, `"time"`, `"text"` or `"id"`
-     * @returns settles once the step is recorded and the picture repainted
-     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a path no record carries and
-     *     `E_BAD_COMMAND` for a level that is not one of `ATTRIBUTE_LEVELS`.
+     * Say what a column measures, as one undoable step in the `"attributes"` project slice.
+     *
+     * The element infers strings and booleans as categorical and numbers as quantitative, so a
+     * column of number codes (department 1 to 14) is drawn as a ramp until it is declared
+     * categorical. A declaration affects layers created afterwards: a layer that already exists
+     * keeps the binding it stored.
+     *
+     * ```ts
+     * const department = session.data.attributes().find((a) => a.kind === "node" && a.name === "department")!;
+     * await session.data.declare(department, { measurement: "categorical" });
+     * await session.data.declare({ kind: "node", name: "risk" }, { measurement: "ordinal", order: ["low", "high"] });
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param declaration - what it measures; an ordinal column lists its values, lowest first
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
+     *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
-    declare(path: string, declaration: { readonly level: AttributeLevel }): Promise<void>;
+    declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @returns the statistics
@@ -806,7 +813,8 @@ export type ProjectSlice =
     | "visibility"
     | "sets"
     | "views"
-    | "notes";
+    | "notes"
+    | "attributes";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -934,7 +942,7 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
-    /** Settles once the declaration is recorded and the pass that repaints it has run. */
+    /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;

@@ -498,7 +498,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
     {
         name: "data.declare",
         tags: BOTH,
-        command: { op: "data.declare", path: "data.name", level: "category" },
+        command: {
+            op: "data.declare",
+            column: { kind: "node", name: "name" },
+            declaration: { measurement: "ordinal", order: ["a", "b"] },
+        },
     },
     {
         name: "view.save",

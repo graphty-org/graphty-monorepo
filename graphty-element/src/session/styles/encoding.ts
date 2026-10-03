@@ -58,17 +58,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type {
-    AttributeDescriptor,
-    AttributeLevel,
-    Binding,
-    Channel,
-    ChannelValue,
-    PaletteDescriptor,
-    PaletteId,
-    Path,
-    Rgba,
-} from "../../catalog/types";
+import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { compareGroupKeys } from "../results/types";
@@ -82,7 +72,7 @@ import {
     type NodeShapeValue,
     toColorValue,
 } from "./channels";
-import { defaultPaletteFor, overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
+import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
     clamp,
@@ -200,8 +190,6 @@ export interface PrepareBindingOptions {
     readonly scales: ScaleRegistry;
     /** How many elements in scope the run measured nothing for, for the legend's departures. */
     readonly unmeasured?: number;
-    /** What the bound attribute measures, which picks the scale when the binding names none. */
-    readonly level?: AttributeLevel;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -938,110 +926,12 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
  *
  * A channel that carries a measurement reads one; a channel that carries a name, a word or a
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
- * interpolate. A category -- group codes 0, 1, 2 included -- gets one value per group rather
- * than a ramp that suggests group 3 is more than group 1.
+ * interpolate.
  * @param kind - The kind of value the channel accepts.
- * @param level - What the bound attribute measures, when the session knows.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind, level?: AttributeLevel): string {
-    if (kind !== "color" && kind !== "number") {
-        return "passthrough";
-    }
-
-    return level === "category" ? "ordinal" : "linear";
-}
-
-/**
- * The range a numeric channel answers in when the binding does not say: one a reader can see
- * from end to end. Absent, the unit interval, which is a color ramp's positions.
- */
-const DEFAULT_RANGES: Partial<Record<Channel, [number, number]>> = {
-    // The default node is 1 across, so half to three times it.
-    "node.size": [0.5, 3],
-    // The default line is 8 wide.
-    "edge.width": [2, 12],
-    // Never fully transparent: an element painted invisible reads as one that is not there.
-    "node.opacity": [0.2, 1],
-    "edge.opacity": [0.2, 1],
-};
-
-/** What {@link defaultBinding} says a binding with no scale and no range would do. */
-export interface DefaultBinding {
-    /** What the attribute measures. */
-    readonly level: AttributeLevel;
-    /** The scale the binding would read the attribute through. */
-    readonly scale: string;
-    /** The numbers a numeric channel would answer in, when it has a default range. */
-    readonly range?: readonly [number, number];
-    /** The palette a color channel would paint through. */
-    readonly palette?: PaletteId;
-    /** Whether binding the attribute to the channel says something a reader can see. */
-    readonly suitable: boolean;
-    /** Why not, in a sentence a reader sees. Present exactly when `suitable` is false. */
-    readonly reason?: string;
-}
-
-/**
- * Why an attribute cannot drive a channel, or null when it can.
- * @param attribute - The attribute.
- * @param descriptor - The channel.
- * @returns The reason, or null.
- */
-function unsuitable(attribute: AttributeDescriptor, descriptor: ChannelDescriptor): string | null {
-    const { level, plainName } = attribute;
-    const channel = descriptor.shortName.toLowerCase();
-
-    if (descriptor.accepts === "text") {
-        return null;
-    }
-
-    if (descriptor.accepts === "enum") {
-        return `${descriptor.plainName} takes one of a fixed list of values, so it reads ${plainName} only through a scale such as "ordinal".`;
-    }
-
-    if (descriptor.accepts !== "color" && descriptor.accepts !== "number") {
-        return `${descriptor.plainName} is set to a value rather than read from an attribute.`;
-    }
-
-    switch (level) {
-        case "id":
-            return `Every value of ${plainName} is different, so a ${channel} per value tells nothing apart.`;
-        case "text":
-            return `${plainName} is free text with too many values to tell apart by ${channel}.`;
-        case "category":
-            return descriptor.accepts === "number"
-                ? `${plainName} names groups, which have no order, and a ${channel} reads as more or less.`
-                : null;
-        default:
-            return null;
-    }
-}
-
-/**
- * What a binding of one attribute to one channel, with no scale and no range, would do.
- * @param attribute - The attribute, with its level.
- * @param channel - The channel.
- * @param scales - The session's scales, which decide the palette.
- * @returns The scale, range and palette it would use, and whether it is worth offering.
- * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` for a channel the element does not have.
- */
-export function defaultBinding(attribute: AttributeDescriptor, channel: string, scales: ScaleRegistry): DefaultBinding {
-    const descriptor = requireChannel(channel);
-    const scale = defaultScaleFor(descriptor.accepts, attribute.level);
-    const range = descriptor.accepts === "number" ? DEFAULT_RANGES[descriptor.channel] : undefined;
-    const reason = unsuitable(attribute, descriptor);
-
-    return Object.freeze({
-        level: attribute.level,
-        scale,
-        ...(range === undefined ? {} : { range }),
-        ...(descriptor.accepts === "color"
-            ? { palette: defaultPaletteFor(scales, scale, attribute.uniqueCount ?? 0) }
-            : {}),
-        suitable: reason === null,
-        ...(reason === null ? {} : { reason }),
-    });
+function defaultScaleFor(kind: ChannelValueKind): string {
+    return kind === "color" || kind === "number" ? "linear" : "passthrough";
 }
 
 /**
@@ -1255,8 +1145,7 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
  *
  * A channel that carries one of a fixed list reads a SLOT, so its range is the slot numbers
  * themselves and the scale's own group count decides how many there are. Everything else reads
- * the binding's range, which defaults to a visible range for a size, a width or an opacity
- * (`DEFAULT_RANGES`) and to the unit interval otherwise.
+ * the binding's range, which defaults to the unit interval.
  * @param descriptor - The channel.
  * @param binding - The rule binding, read for `range`.
  * @param parts - What preparing the binding worked out.
@@ -1272,7 +1161,7 @@ function rangeFor(
     groups: number,
 ): ScaleContext {
     if (descriptor.accepts !== "enum") {
-        const range = binding.range ?? DEFAULT_RANGES[descriptor.channel];
+        const { range } = binding;
 
         return range === undefined ? parts.context : { ...parts.context, range: [range[0], range[1]] };
     }
@@ -1428,7 +1317,11 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
         );
     }
 
-    const capacity = overflowCapacity(binding.palette);
+    // A channel of a fixed list folds past the values it has; a color, past its palette.
+    const capacity =
+        overflow === "other" && descriptor.accepts === "enum"
+            ? (descriptor.values?.length ?? null)
+            : overflowCapacity(binding.palette);
 
     if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape")) {
         return Number.POSITIVE_INFINITY;
@@ -1513,7 +1406,7 @@ function prepareRule(
     binding: RuleBinding,
     options: PrepareBindingOptions,
 ): PreparedBinding {
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, options.level);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {

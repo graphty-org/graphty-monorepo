@@ -1113,7 +1113,7 @@ const GRID_CENTROID: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per hub cell, dispatched indirectly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
+/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per word of `hubList`, dispatched directly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
 const GRID_CENTROID_HUB: KernelEntry = {
     id: "grid-centroid-hub",
     body: gridCentroidHubWgsl,

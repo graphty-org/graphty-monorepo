@@ -26,6 +26,14 @@ export default defineConfig({
     resolve: { alias: aliases },
     optimizeDeps: {
         include: ["@mantine/hooks"],
+        // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
+        // bundle under node_modules/.vite and trusts it while the lockfile and this config are
+        // unchanged -- it does not notice a SOURCE change that imports a dependency the cache
+        // lacks (lodash/get.js after the per-function lodash imports). That dependency is then
+        // found mid-run, Vite re-bundles and reloads the test page, and the files it was running
+        // report "(0 test)" and fail or hang (issue #885). The scan over the test files finds
+        // every dependency up front; it costs about 5 seconds a run.
+        force: true,
     },
     test: {
         globals: true,

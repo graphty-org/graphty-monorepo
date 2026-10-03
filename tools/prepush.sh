@@ -358,9 +358,20 @@ echo ""
 #
 # Its own flag, per the rule at the top of this file: graphty must not be graded by the
 # fast-test block's failures, nor its failures reported against them.
+#
+# Bounded by GRAPHTY_TEST_TIMEOUT (default 15 minutes; a loaded box takes about 70 s). On
+# 2026-10-03 this step hung for 50 minutes on a Vite dependency reload (issue #885) while every
+# other push queued behind tmp/prepush.lock; a hang now fails the push instead. timeout signals
+# the whole process group, so vitest's Chromium goes with it.
 echo -e "${YELLOW}> graphty tests (full browser suite)${NC}"
 if affected graphty; then
-    (cd graphty && npm run test:run) || { FAILED=1; GRAPHTY_FAILED=1; }
+    GRAPHTY_TEST_TIMEOUT="${GRAPHTY_TEST_TIMEOUT:-15m}"
+    (cd graphty && timeout --kill-after=30s "$GRAPHTY_TEST_TIMEOUT" npm run test:run)
+    rc=$?
+    if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
+        echo -e "${RED}graphty tests did not finish within $GRAPHTY_TEST_TIMEOUT and were stopped${NC}"
+    fi
+    [ $rc -eq 0 ] || { FAILED=1; GRAPHTY_FAILED=1; }
 fi
 
 if [ $GRAPHTY_FAILED -eq 0 ]; then

@@ -35,6 +35,7 @@ import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import { nearestNames } from "./results/ResultsApi";
+import { RevisionCache } from "./revision";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -223,9 +224,8 @@ export class SessionData implements SessionDataApi {
     private readonly writes: DataWrites;
     private readonly pages: PageSources;
     private derived: Derived | null = null;
-    /** Row orders computed for pages, by what they were asked with, at {@link orderRevision}. */
-    private readonly orders = new Map<string, Uint32Array>();
-    private orderRevision = -1;
+    /** Row orders computed for pages, by what they were asked with, for the current revision. */
+    private readonly orders: RevisionCache<Uint32Array>;
     private disposed = false;
 
     /**
@@ -251,6 +251,7 @@ export class SessionData implements SessionDataApi {
         this.readConfig = readConfig;
         this.writes = writes;
         this.pages = pages;
+        this.orders = new RevisionCache(() => pages.revision());
     }
 
     /**
@@ -517,7 +518,7 @@ export class SessionData implements SessionDataApi {
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.
         const revision = this.pages.revision();
-        const rows = this.orderOf(snapshot, target, revision, options);
+        const rows = this.orderOf(snapshot, target, options);
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
@@ -532,36 +533,19 @@ export class SessionData implements SessionDataApi {
      * The rows a page's list holds, in order, computed once per revision and request.
      * @param snapshot - the current snapshot
      * @param target - nodes or edges
-     * @param revision - the revision now
      * @param options - the scope, the order and the node
      * @returns the rows, or null for every row in graph order
      */
-    private orderOf(
-        snapshot: GraphSnapshot,
-        target: "node" | "edge",
-        revision: number,
-        options: EdgePageOptions,
-    ): Uint32Array | null {
+    private orderOf(snapshot: GraphSnapshot, target: "node" | "edge", options: EdgePageOptions): Uint32Array | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         if (scope === undefined && touching === undefined && options.sort === undefined) {
             return null;
         }
 
-        if (revision !== this.orderRevision) {
-            this.orders.clear();
-            this.orderRevision = revision;
-        }
-
         // JSON keeps 1 and "1" apart, which the ids need.
         const key = JSON.stringify([target, scope, options.sort, touching]);
-        let rows = this.orders.get(key);
-        if (rows === undefined) {
-            rows = this.computeOrder(snapshot, target, scope, touching, options.sort);
-            this.orders.set(key, rows);
-        }
-
-        return rows;
+        return this.orders.get(key, () => this.computeOrder(snapshot, target, scope, touching, options.sort));
     }
 
     /**
@@ -771,7 +755,6 @@ export class SessionData implements SessionDataApi {
     dispose(): void {
         this.disposed = true;
         this.derived = null;
-        this.orders.clear();
     }
 
     /**
@@ -945,6 +928,7 @@ export function headlessDataService(
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,
+        progress: (change) => dispatcher.services.progress?.(change),
     });
 
     return {

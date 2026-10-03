@@ -1791,6 +1791,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // per-capability floors in force, and a 0 written here would count as the consumer's own.
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
+    dispatcher.services.progress = (change) => {
+        publish(watchers, "progress:changed", change);
+    };
 
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
@@ -2220,6 +2223,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }
 
             publish(watchers, "run:changed", change);
+            // The announced record is a snapshot without the progress; the live run holds it.
+            const progress = runs.get(change.run.id)?.progress;
+            if (progress !== undefined && (change.phase === "progress" || change.phase === "end")) {
+                const { completed, total, fraction } = progress;
+                publish(watchers, "progress:changed", {
+                    task: "run",
+                    run: change.run.id,
+                    phase: change.phase,
+                    completed,
+                    total,
+                    fraction,
+                });
+            }
         },
     });
 

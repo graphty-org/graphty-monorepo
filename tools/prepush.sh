@@ -211,6 +211,9 @@ fi
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.
 run_step "Declared build tools" "pnpm run check:declared-tools"
 
+# release-hold.json names only real nx projects, each with a reason and a date.
+run_step "Release hold list" "pnpm run check:release-hold"
+
 # graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
 # fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
 run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"

@@ -1,4 +1,11 @@
-import type { GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    type NodeRef,
+    type NodeSet,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { resolveSources, type ScoresResult } from "./betweenness.js";
@@ -27,10 +34,10 @@ export interface ClosenessOptions {
     /** Per-arc weight override, arcCount long, read when `weighted`; a facade passes the exact f64 weights. */
     readonly weights?: NumericVector | undefined;
     /**
-     * Sampled closeness: the source node indices to run from. Duplicates run twice. Each node's score is then
+     * Sampled closeness: the source nodes to run from (indices, `{ mask }` or `{ ids }`). Duplicates run twice. Each node's score is then
      * computed from its distances TO these sources only (see {@link closenessCentrality}).
      */
-    readonly sources?: readonly number[] | undefined;
+    readonly sources?: NodeSet | undefined;
     /**
      * Sampled closeness: how many distinct sources to draw when `sources` is not given, by the same deterministic
      * draw betweenness uses -- the same `(n, k)` draws the same sources every time, and the dispatcher hands an
@@ -236,7 +243,7 @@ export function closenessCentrality(s: GraphSnapshot, options: ClosenessOptions 
         }
         return { scores, iterations: n, converged: true, sourcesUsed: n };
     }
-    const sources = resolveSources(n, options.sources, options.k, "closenessCentrality");
+    const sources = resolveSources(s, options.sources, options.k, "closenessCentrality");
     const search = searcher(n, adjacency(s, options, true), cutoff);
     const total = new Float64Array(n);
     const inverse = new Float64Array(n);
@@ -261,7 +268,7 @@ export function closenessCentrality(s: GraphSnapshot, options: ClosenessOptions 
 /**
  * Closeness centrality of one node, with one search rather than n.
  * @param s - The snapshot
- * @param node - The node index
+ * @param nodeRef - The node: its index, or `{ id }`
  * @param options - As {@link closenessCentrality}, without sampling: one node's exact score is one search
  * @returns The node's score
  * @throws RangeError for a node index outside `[0, nodeCount)`
@@ -269,9 +276,10 @@ export function closenessCentrality(s: GraphSnapshot, options: ClosenessOptions 
  */
 export function nodeClosenessCentrality(
     s: GraphSnapshot,
-    node: number,
+    nodeRef: NodeRef,
     options: Omit<ClosenessOptions, "sources" | "k"> = {},
 ): number {
+    const node = resolveNode(s, nodeRef);
     if (!Number.isInteger(node) || node < 0 || node >= s.nodeCount) {
         throw withCode(
             new RangeError(`nodeClosenessCentrality: node must be an index in [0, ${s.nodeCount}), got ${node}`),

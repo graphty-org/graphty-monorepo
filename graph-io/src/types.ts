@@ -76,6 +76,30 @@ export interface CommonImportOptions {
 }
 
 /**
+ * Which graph of an input that holds several to read: by position or by name, never both. An
+ * importer of a format that can hold several graphs (a Cytoscape session, a CX collection, a JGF
+ * or OBO Graphs `graphs` array) accepts these next to its own options; absent, it reads the first.
+ */
+export interface GraphChoiceOptions {
+    /** The 0-based position of the graph, as `GraphListing.index` gives it. */
+    graphIndex?: number | undefined;
+    /** The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused. */
+    graphName?: string | undefined;
+}
+
+/** One graph of an input that can hold several, as an importer's listGraphs() describes it. */
+export interface GraphListing {
+    /** The value graphIndex takes to read it. */
+    readonly index: number;
+    /** The value graphName takes to read it, or null when the graph has no name. */
+    readonly name: string | null;
+    /** The node count when the input states it cheaply, else null. */
+    readonly nodes: number | null;
+    /** The edge count when the input states it cheaply, else null. */
+    readonly edges: number | null;
+}
+
+/**
  * An importer plugin (design section 8.4): pushes scalars into the caller's sink in one pass and
  * never freezes. `Opts` is its format-specific option set; the default `unknown` lets a caller pass
  * the common options to an importer typed without one.
@@ -117,6 +141,15 @@ export interface GraphImporter<Opts = unknown> {
         sinkFor: (index: number) => GraphSink,
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
+    /**
+     * List the graphs of an input that can hold several without importing them, so a caller can
+     * offer a choice before reading one with `graphIndex` or `graphName`. An importer without this
+     * method does not list its graphs; `import()` reads the first.
+     * @param input - the text, bytes or stream to read
+     * @param options - format-specific and common options
+     * @returns one listing per graph, in document order
+     */
+    listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly GraphListing[]>;
 }
 
 /**
@@ -213,7 +246,13 @@ export interface GraphExporter<Opts = unknown> {
 
 /** The categories of an ImportIssue (design section 8.6). */
 export type IssueCategory =
-    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
+    | "parse-error"
+    | "missing-value"
+    | "validation-error"
+    | "unsupported"
+    | "precision"
+    | "coercion"
+    | "merged";
 
 /** One problem found while importing (design section 8.6). */
 export interface ImportIssue {

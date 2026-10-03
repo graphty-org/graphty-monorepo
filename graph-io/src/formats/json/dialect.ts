@@ -32,17 +32,19 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
 ]);
 
 /**
- * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
- * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`) and tree_data (a
- * nested `id` / `children` record). The exporter writes neither; write node-link instead.
+ * The dialects the importer reads: every JsonDialect plus three it only reads, NetworkX
+ * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`), tree_data (a
+ * nested `id` / `children` record) and OBO Graphs (`graphs[]` of `sub` / `pred` / `obj` edges, the
+ * JSON form of the Gene Ontology and the OBO Foundry ontologies). The exporter writes none of them.
  */
-export type JsonImportDialect = JsonDialect | "adjacency" | "tree";
+export type JsonImportDialect = JsonDialect | "adjacency" | "tree" | "obographs";
 
 /** Every dialect the importer reads, for option checking and messages. */
 export const JSON_IMPORT_DIALECTS: readonly JsonImportDialect[] = Object.freeze([
     ...JSON_DIALECTS,
     "adjacency",
     "tree",
+    "obographs",
 ]);
 
 /** The key under `meta.extra` that holds the shape record (design section 8.5). */
@@ -116,8 +118,9 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
 
 /**
  * The dialect of a parsed JSON document, by the shape rules of design section 8.2 (Cytoscape:
- * `elements` or a top-level array of `{ data }` elements; JGF: `graph.nodes` / `graph.edges` or
- * `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
+ * `elements` or a top-level array of `{ data }` elements; OBO Graphs: `graphs[]` whose first graph
+ * has an edge with `sub` (or `subj`) and `obj` or a `pred`, or a node with `lbl`, `meta` or an OWL
+ * `type`; JGF: `graph.nodes` / `graph.edges` or any other `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
  * `undirected` or an `attributes` record; vis: edges with `from` / `to`; d3: `links` without
  * `directed` / `multigraph` / `graph`; NetworkX adjacency_data: `nodes` and `adjacency` without
  * `links` / `edges`; NetworkX tree_data: `children` without `nodes` / `links` / `edges`; else
@@ -141,7 +144,7 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
         return "jgf";
     }
     if (Array.isArray(root.graphs)) {
-        return "jgf";
+        return isOboGraph(firstJsonObject(root.graphs)) ? "obographs" : "jgf";
     }
     if (!hasKey(root, "edges") && !hasKey(root, "links")) {
         if (hasKey(root, "nodes") && hasKey(root, "adjacency")) {
@@ -169,6 +172,31 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");
     return bare && hasKey(root, "links") ? "d3" : "node-link";
+}
+
+/** The node types of OBO Graphs (the OWL entity kinds). */
+const OBOGRAPHS_NODE_TYPES: ReadonlySet<unknown> = new Set(["CLASS", "INDIVIDUAL", "PROPERTY"]);
+
+/**
+ * Whether a graph of a `graphs[]` document is an OBO Graphs graph rather than JGF: anywhere in its
+ * nodes or edges, an edge with `sub` (or the outdated `subj`) and `obj`, or a `pred`, or a node
+ * with `lbl`, `meta` or a `type` of CLASS / INDIVIDUAL / PROPERTY (design 1.6: looking only at the
+ * first node and edge misses graphs with no edges and graphs whose first node has no `lbl`).
+ * @param graph - the first graph, or null
+ * @returns true for OBO Graphs
+ */
+function isOboGraph(graph: Record<string, unknown> | null): boolean {
+    if (graph === null) {
+        return false;
+    }
+    const isEdge = (e: unknown): boolean =>
+        isJsonObject(e) && ((hasKey(e, "obj") && (hasKey(e, "sub") || hasKey(e, "subj"))) || hasKey(e, "pred"));
+    const isNode = (n: unknown): boolean =>
+        isJsonObject(n) && (hasKey(n, "lbl") || hasKey(n, "meta") || OBOGRAPHS_NODE_TYPES.has(n.type));
+    return (
+        (Array.isArray(graph.edges) && graph.edges.some(isEdge)) ||
+        (Array.isArray(graph.nodes) && graph.nodes.some(isNode))
+    );
 }
 
 /**
@@ -223,6 +251,8 @@ export const DIALECT_DEFAULT_DIRECTED: Readonly<Record<JsonImportDialect, boolea
     // networkx adjacency_data declares `directed`; tree_graph always builds a DiGraph
     adjacency: false,
     tree: true,
+    // OBO Graphs edges point from the subject (child) to the object (parent)
+    obographs: true,
 });
 
 /**

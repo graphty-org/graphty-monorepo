@@ -1,0 +1,8 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+property_value: IAO:0000589 "label" xsd:string
+property_value: seeAlso X:2
+property_value: foo "1.5"  xsd:decimal {q="1"}

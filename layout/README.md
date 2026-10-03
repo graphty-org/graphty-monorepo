@@ -508,6 +508,35 @@ sim.dispose();
   implements the type (`@graphty/webgpu-graph-algorithms` provides one) and the CPU class otherwise. A GPU
   simulation's `step()` returns a `Promise`, so `await sim.step()` when the simulation may come from either.
 
+## The catalog
+
+`LAYOUTS` describes every layout, keyed by name, so an integration can register them all without keeping its own
+table.
+
+<!-- doc-check -->
+
+```typescript
+import { LAYOUTS } from "@graphty/layout";
+
+const fa2 = LAYOUTS.forceAtlas2;
+console.log(fa2.simulation, fa2.weights, fa2.accelerator); // forceatlas2 on-request forceAtlas2
+
+const gpuOnly = Object.values(LAYOUTS).filter((l) => l.requiresAccelerator);
+console.log(gpuOnly.map((l) => l.simulation).join(", ")); // spring-electrical
+```
+
+- `fn`: the one-shot function, `fn(snapshot, options)`, or null for a layout that only runs as a simulation.
+- `simulation`: the `createSimulation` type that steps it, or null.
+- `direction`: the graphs it accepts; every layout takes directed and undirected snapshots.
+- `weights`: `"never"`, `"by-default"` (read unless `weight: false`) or `"on-request"` (read only with `weight: true`
+  or a weight column name).
+- `requiredOptions`: options it cannot run without (`multipartite`'s `subsets`, unless the snapshot has a `subset`
+  node column).
+- `accelerator` and `requiresAccelerator`: the `LayoutAccelerator` method that can run the simulation, and whether
+  there is no CPU implementation.
+
+A test runs every layout to check its entry, so the catalog changes when a layout does.
+
 ## Error Handling
 
 Invalid input throws an `Error` whose message names the problem:

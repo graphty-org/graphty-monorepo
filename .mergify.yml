@@ -32,7 +32,7 @@ pull_request_rules:
           - -draft
           - -conflict
           - label!=hold
-          - -title~=^[a-z]+(\([^)]*\))?!:
+          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
       actions:
           queue:
               name: default

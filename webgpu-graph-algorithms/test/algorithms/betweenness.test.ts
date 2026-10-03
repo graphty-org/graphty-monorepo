@@ -79,6 +79,15 @@ async function expectRejection(promise: Promise<unknown>, code: string): Promise
     return caught as WebGpuGraphError;
 }
 
+/**
+ * An edge list without its weights: the kernel counts hops, and refuses a weighted snapshot.
+ * @param edges - the edge list
+ * @returns the same edges, unweighted
+ */
+function hops(edges: readonly EdgeSpec[]): EdgeSpec[] {
+    return edges.map(([u, v]) => [u, v] as const);
+}
+
 /** The fixture list of design 13 row P9 (sized by gpuScale on a software adapter). */
 function fixtures(): readonly { readonly name: string; readonly s: GraphSnapshot }[] {
     const big = gpuScale() < 1 ? 400 : 2000;
@@ -92,7 +101,7 @@ function fixtures(): readonly { readonly name: string; readonly s: GraphSnapshot
         { name: "complete(64)", s: snapshotOf(completeEdges(64)) },
         { name: "disconnected", s: snapshotOf([...pathEdges(20), [30, 31], [31, 32]], { nodeCount: 40 }) },
         { name: "directed random(300, 1200, 5)", s: snapshotOf(randomEdges(300, 1200, 5), { directed: true }) },
-        { name: "loops and parallels(200, 800, 9)", s: snapshotOf(randomEdgesLoose(200, 800, 9)) },
+        { name: "loops and parallels(200, 800, 9)", s: snapshotOf(hops(randomEdgesLoose(200, 800, 9))) },
     ];
 }
 
@@ -175,7 +184,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
             ["karate", snapshotOf(KARATE_EDGES)],
             ["grid(15, 15)", snapshotOf(gridEdges(15, 15))],
             ["directed random(300, 1200, 5)", snapshotOf(randomEdges(300, 1200, 5), { directed: true })],
-            ["loops and parallels(200, 800, 9)", snapshotOf(randomEdgesLoose(200, 800, 9))],
+            ["loops and parallels(200, 800, 9)", snapshotOf(hops(randomEdgesLoose(200, 800, 9)))],
         ];
         for (const [name, s] of cases) {
             const sources = [0, 3, 7, 11, 19].filter((v) => v < s.nodeCount);
@@ -488,6 +497,21 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expectRejection(betweennessCentrality(ctx, s, { k: 2, sources: [1, 2, 3] }), "E_INVALID_ARGUMENT");
         await expectRejection(betweennessCentrality(ctx, s, { dest: new Float32Array(3) }), "E_INVALID_ARGUMENT");
         await expectRejection(betweennessWithTuning(ctx, s, undefined, { levelsPerSubmit: 0 }), "E_INVALID_ARGUMENT");
+    }, 60_000);
+
+    it("refuses a weighted snapshot unless weighted: false, since the kernel counts hops; a column of ones is hops already", async (t) => {
+        const ctx = await context(t);
+        const weighted = snapshotOf(KARATE_EDGES.map(([u, v], e) => [u, v, 1 + (e % 3)] as const));
+        const refused = await expectRejection(betweennessCentrality(ctx, weighted), "E_UNSUPPORTED");
+        expect(refused.details).toMatchObject({ option: "weighted" });
+        await expectRejection(edgeBetweennessCentrality(ctx, weighted, { weighted: true }), "E_UNSUPPORTED");
+        const hops = await betweennessCentrality(ctx, weighted, { weighted: false });
+        const plain = await betweennessCentrality(ctx, snapshotOf(KARATE_EDGES));
+        expectBitwiseEqual(hops.scores, plain.scores, "weighted: false vs the unweighted snapshot");
+        const ones = snapshotOf(KARATE_EDGES.map(([u, v]) => [u, v, 1] as const));
+        expectBitwiseEqual((await betweennessCentrality(ctx, ones)).scores, plain.scores, "a column of ones");
+        ctx.release(weighted);
+        ctx.release(ones);
     }, 60_000);
 
     afterAll(() => {

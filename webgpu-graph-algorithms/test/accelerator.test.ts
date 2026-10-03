@@ -638,7 +638,7 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         }
     });
 
-    it("carries minimumSpanningTree, delegating to its driver; the seam's weights override is refused", async (t) => {
+    it("carries minimumSpanningTree, delegating to its driver; the seam's weights override and weighted: false are refused", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "accelerator-mst" });
         const acc = createAccelerator(ctx);
@@ -654,6 +654,10 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         await expect(
             acc.minimumSpanningTree(snapshot, { weights: new Float32Array(snapshot.arcCount) }),
         ).rejects.toMatchObject({ code: "E_UNSUPPORTED", details: { option: "weights" } });
+        await expect(acc.minimumSpanningTree(snapshot, { weighted: false })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "weighted" },
+        });
         acc.release(snapshot);
         acc.dispose();
         await expect(acc.minimumSpanningTree(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });

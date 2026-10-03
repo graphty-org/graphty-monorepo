@@ -1,0 +1,164 @@
+2026-09-20T03:55  #13  line 2: held: GPU lane red since 09-19 02:05 UTC and this pull request touches a benchmark group or the lane's scripts
+    feat(webgpu-graph-algorithms): the GPU SpMV family and Afforest WCC (P7)
+2026-09-20T15:17  #15  line 3: held: a commit is breaking but the title has no !
+    feat(algorithms): the graph-format bridge, six indexed ports and the accelerator seam (M8a)
+2026-09-23T21:31  #18  line 3: held: a commit is breaking but the title has no !
+    feat(webgpu-graph-algorithms): grid pyramid and degree tiers (P4)
+2026-09-24T00:39  #22  success  [red but cannot affect it: Hosts]
+    docs: index the parts of the webgpu design that later decisions killed
+2026-09-24T05:42  #20  line 2: held: Hosts lane red since 09-23 23:31 UTC and this pull request touches the host matrix's paths
+    feat(graphty-element)!: v2 declarative style-channel API
+2026-09-24T05:42  #23  line 2: held: Hosts lane red since 09-23 23:31 UTC and this pull request touches the host matrix's paths
+    docs(webgpu-graph-algorithms): explain the attraction gather's 12x gap and price its target
+2026-09-24T18:18  #44  line 2: held: CI lane red since 09-24 17:06 UTC
+    test(remote-logger): send dual-mode requests to the bound port on a fresh socket
+2026-09-24T19:19  #31  line 3: held: a commit is breaking but the title has no !
+    test(graph-io): conformance suite against networkx and the specs, with the fixes it found
+2026-09-25T23:26  #402  line 2: held: CI lane red since 09-25 05:16 UTC
+    fix(tools): stop headless chromium dying at startup in the browser test projects
+2026-09-25T23:27  #349  line 2: held: CI lane red since 09-25 05:16 UTC
+    fix(graphty-element): 2:1 default size that honours a height, warn on early rich props
+2026-09-25T23:27  #379  line 2: held: CI lane red since 09-25 05:16 UTC
+    feat(webgpu-graph-algorithms): the frontier family: BFS, SSSP, Bellman-Ford and closeness on the GPU
+2026-09-26T17:40  #370  line 2: held: CI lane red since 09-26 16:50 UTC
+    fix(graph-io): neo4j import keeps nodes from different id spaces apart
+2026-09-26T17:41  #367  line 2: held: CI lane red since 09-26 16:50 UTC
+    fix(webgpu-graph-algorithms): converged at the iteration cap, and edgeless graphs
+2026-09-26T17:44  #359  line 2: held: CI lane red since 09-26 16:50 UTC
+    test(graphty-element): stories animate their layouts, and algorithms run once
+2026-09-26T17:44  #375  line 2: held: CI lane red since 09-26 16:50 UTC
+    fix(graphty-element): acceleration policy changes detach, reach status and stop at dispose
+2026-09-27T15:50  #538  success  [red but cannot affect it: GPU]
+    ci: publish chromatic builds only when asked
+2026-09-27T16:14  #537  success  [red but cannot affect it: GPU]
+    ci: gate bundle size, formatting of changed files and eslint root config
+2026-09-27T18:15  #541  success  [red but cannot affect it: GPU]
+    ci: switch chromatic off entirely
+2026-09-27T20:25  #507  success  [red but cannot affect it: GPU]
+    feat(algorithms): index-based k-core, Katz, HITS and Louvain
+2026-09-27T20:54  #522  success  [red but cannot affect it: GPU]
+    fix(graphty-element): set the acceleration routing floors from an end-to-end measurement
+2026-09-27T21:53  #540  success  [red but cannot affect it: GPU]
+    feat(graphty-element): sets -- named, first-class collections of nodes and edges
+2026-09-27T23:13  #555  success  [red but cannot affect it: GPU]
+    fix(algorithms): treat node id 0 as a node, not as "no node"
+2026-09-27T23:39  #556  line 2: held: GPU lane red since 09-27 14:51 UTC and this pull request touches a benchmark group or the lane's scripts
+    ci: remove the temporary core-dump check that blocks every release
+2026-09-28T05:31  #570  success  [red but cannot affect it: GPU]
+    feat(workspace): capture like chromatic and make the review page easier to judge
+2026-09-28T08:20  #571  line 2: held: CI lane red since 09-28 05:31 UTC
+    fix(workspace): crop captures to their ink and fix the review page's scrolling
+2026-09-28T23:13  #553  line 3: held: a commit is breaking but the title has no !
+    feat(graphty-element): undo and redo for every change a project saves
+2026-09-29T00:37  #589  line 2: held: CI lane red since 09-28 23:13 UTC
+    ci(visual-review): capture a named commit's Storybooks for seeding
+2026-09-29T06:03  #587  line 3: held: a commit is breaking but the title has no !
+    feat: move algorithms, layout and graphty-element onto graph-format snapshots
+2026-09-29T14:47  #573  line 2: held: CI lane red since 09-29 06:03 UTC  [red but cannot affect it: GPU]
+    docs(graphty-element): specify version 1 of the style and recipe document formats
+2026-09-29T16:18  #588  line 2: held: CI lane red since 09-29 06:03 UTC  [red but cannot affect it: GPU]
+    feat(graphty-element): add the simple extension tier for algorithms, layouts, palettes and logging
+2026-09-29T16:18  #605  line 2: held: CI lane red since 09-29 06:03 UTC  [red but cannot affect it: GPU]
+    fix(compact-mantine): make the attribute glyph's dot render the same every time
+2026-09-29T16:57  #601  line 2: held: CI lane red since 09-29 06:03 UTC  [red but cannot affect it: GPU]
+    fix(workspace): run visual-review Finish in the background and show its progress
+2026-09-29T16:59  #603  line 2: held: CI lane red since 09-29 06:03 UTC  [red but cannot affect it: GPU]
+    fix: master CI's cost-accuracy and performance jobs after the snapshot move
+2026-09-29T19:46  #608  line 2: held: CI lane red since 09-29 06:03 UTC
+    fix: the eigenvector cost refit and the NVIDIA lane's graph-io build
+2026-09-29T22:43  #612  line 2: held: CI lane red since 09-29 21:13 UTC
+    feat(visual-review)!: a standalone package any Storybook repository can set up
+2026-09-29T23:56  #613  line 2: held: CI lane red since 09-29 21:13 UTC
+    feat(algorithms): sampled closeness centrality with sources, k and sourcesUsed
+2026-09-30T00:35  #618  line 2: held: CI lane red since 09-29 21:13 UTC
+    fix(visual-review): keep the Finish step in the status line when a screen opens
+2026-09-30T04:28  #607  line 3: held: a commit is breaking but the title has no !
+    feat(algorithms): finish the graph-format migration -- algorithms 3.0.0, graphty-element 3.1.0
+2026-09-30T07:33  #622  line 2: held: CI lane red since 09-30 04:28 UTC
+    fix(deps): patch brace-expansion for the high audit advisories that fail CI
+2026-09-30T14:04  #626  line 2: held: CI lane red since 09-30 04:28 UTC
+    feat(visual-review): pair renamed stories with their old baselines
+2026-09-30T14:41  #624  line 2: held: CI lane red since 09-30 04:28 UTC
+    fix(graphty-element): pace a running layout by time, not by drawn frames
+2026-09-30T14:41  #552  line 2: held: CI lane red since 09-30 04:28 UTC
+    feat(webgpu-graph-algorithms): exact and sampled betweenness on the GPU
+2026-09-30T14:41  #544  line 2: held: CI lane red since 09-30 04:28 UTC
+    docs(webgpu-graph-algorithms): name the stack CI runs in each measurement record
+2026-09-30T15:30  #625  line 2: held: CI lane red since 09-30 04:28 UTC
+    feat(graphty-element): route betweenness, all-pairs, triangles and label propagation to the gpu
+2026-09-30T15:30  #549  line 2: held: CI lane red since 09-30 04:28 UTC
+    feat(webgpu-graph-algorithms): all-pairs shortest paths by blocked Floyd-Warshall
+2026-09-30T15:30  #550  line 2: held: CI lane red since 09-30 04:28 UTC
+    feat(webgpu-graph-algorithms): triangle counting and label propagation on the GPU
+2026-10-01T00:39  #627  line 2: held: CI lane red since 09-30 23:45 UTC
+    fix(visual-review): rasterize captures on the CPU so text renders the same each time
+2026-10-01T00:40  #635  line 2: held: CI lane red since 09-30 23:45 UTC
+    fix(visual-review): keep keyboard focus on the review page so shortcuts work on an iPad
+2026-10-01T01:30  #636  line 2: held: CI lane red since 10-01 00:39 UTC
+    fix(visual-review): seed each project on its own, and only those asked for
+2026-10-01T12:44  #641  line 3: held: a commit is breaking but the title has no !
+    test(workspace): seed visual baselines
+2026-10-01T12:44  #664  line 3: held: a commit is breaking but the title has no !
+    fix(stories): draw every graph story in the standard frame and silence two console warnings
+2026-10-01T12:44  #666  line 3: held: a commit is breaking but the title has no !
+    fix: remove two Storybook console warnings found by the visual captures
+2026-10-01T12:44  #667  line 3: held: a commit is breaking but the title has no !
+    fix(graphty): light-mode and empty-canvas fixes for graphty app stories
+2026-10-01T15:30  #574  line 2: held: CI lane red since 10-01 14:37 UTC
+    docs(graphty-element): specify the six extension point contracts
+2026-10-01T15:30  #653  line 2: held: CI lane red since 10-01 14:37 UTC
+    fix(algorithms): exact seeded generator; pin the all-pairs parallel-edge and self-loop fixes
+2026-10-01T21:45  #511  line 2: held: CI lane red since 10-01 14:58 UTC
+    chore(compact-mantine): type-check tests and stories in lint
+2026-10-01T21:46  #463  line 2: held: CI lane red since 10-01 14:58 UTC
+    fix(graphty-element): make an edge's animation speed set its speed
+2026-10-01T23:36  #364  line 2: held: CI lane red since 10-01 14:58 UTC
+    fix(compact-mantine): inputs follow the size scale and the password toggle has a name
+2026-10-01T23:57  #677  line 2: held: CI lane red since 10-01 14:58 UTC
+    fix(webgpu-graph-algorithms): size the all-pairs big fixture on lavapipe; longer degree cost row
+2026-10-02T00:18  #675  line 2: held: CI lane red since 10-01 14:58 UTC
+    test(visual-review): fit the review page fault scenarios to a CI runner
+2026-10-02T02:26  #690  line 2: held: CI lane red since 10-01 14:58 UTC
+    fix(remote-logger)!: upgrade selfsigned to 5.5 to drop node-forge
+2026-10-02T03:10  #682  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): ai key store restores itself; app drops its copies
+2026-10-02T03:10  #688  line 2: held: CI lane red since 10-01 14:58 UTC
+    perf(graphty-element): build a WebGPU graph once, after the renderer opens
+2026-10-02T03:16  #679  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): add zoomToNodes to frame a set of nodes in 2D and 3D
+2026-10-02T03:19  #687  line 2: held: CI lane red since 10-01 14:58 UTC
+    fix(webgpu-graph-algorithms): the bellmanFord candidate race and katz on a released snapshot
+2026-10-02T03:19  #681  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): channel descriptors carry a short name, group, default and reason
+2026-10-02T03:20  #686  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): route the triangle count to the GPU on an edge floor
+2026-10-02T03:20  #683  line 2: held: CI lane red since 10-01 14:58 UTC
+    ci(webgpu-graph-algorithms): run paired benchmark groups by import scan, full run weekly
+2026-10-02T03:21  #685  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): interpretation bands for modularity; the app reads them
+2026-10-02T03:22  #670  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(visual-review): redesigned review page and passkey approval for every accept
+2026-10-02T03:22  #684  line 2: held: CI lane red since 10-01 14:58 UTC
+    feat(graphty-element): read node and edge records a page at a time
+2026-10-02T04:20  #668  success  [red but cannot affect it: GPU]
+    fix(graphty-element): make the undo stories compare the picture before and after
+2026-10-02T04:24  #669  success  [red but cannot affect it: GPU]
+    fix(graphty): draw the Graphty story graph larger, labelled and with thick edges
+2026-10-02T05:05  #693  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
+    ci(workspace): pin every runner image instead of the moving latest labels
+2026-10-02T05:11  #696  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
+    fix(graphty-element): draw patterned lines at their opacity in 3D and along their line in 2D
+2026-10-02T05:50  #699  line 2: held: CI lane red since 10-02 04:24 UTC  [red but cannot affect it: GPU]
+    fix(graphty-element): keep an explicitly placed camera instead of auto-framing over it
+2026-10-02T06:15  #698  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
+    fix(algorithms): settle synchronous label propagation on paths and cycles
+2026-10-02T06:21  #700  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
+    fix(graphty-element): restart a seeded layout when data arrives in a later write
+2026-10-02T06:29  #701  line 2: held: Hosts lane red since 10-02 03:44 UTC and this pull request touches the host matrix's paths
+    fix(webgpu-graph-algorithms): forward-slash paths in the benchmark group selector on windows
+2026-10-03T00:01  #758  success  [red but cannot affect it: GPU]
+    feat(graph-io): read and write CX2, and read CX version 1
+2026-10-03T00:27  #759  success  [red but cannot affect it: GPU]
+    fix(layout): seed non-finite start rows in the CPU ForceAtlas2 simulation
+2026-10-03T00:42  #760  success  [red but cannot affect it: GPU]
+    feat(algorithms, layout): machine-readable ALGORITHMS and LAYOUTS catalogs

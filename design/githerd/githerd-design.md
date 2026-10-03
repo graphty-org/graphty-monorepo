@@ -562,7 +562,7 @@ open pull request into master, and the coordination change below makes Mergify r
 |---|---|---|
 | `success` | Every line of the decision below holds | Queues it (if its other conditions hold) and may merge it |
 | `failure`, description = the first failing line ("held: GPU lane red since 14:02 and this pull request touches a benchmark group") | A line fails | The queue rule stops matching, so the pull request leaves the queue instead of blocking the one-at-a-time queue; when githerd posts `success`, the rule matches again and Mergify queues it again |
-| `pending` "githerd is evaluating" | githerd has seen the head but not finished deciding (at most one reconcile) | Stays queued but cannot merge. Never used for a hold, because a pending pull request at the front of the queue blocks every one behind it |
+| `pending` "githerd is evaluating" | No line fails, but a fact about this head is not read yet: its commits, its files, npm's answer for an added package, the patch id or the release dry-run (at most one reconcile). A failing line wins over `pending` | Stays queued but cannot merge. Never used for a hold, because a pending pull request at the front of the queue blocks every one behind it |
 | no status | A head githerd has not seen yet: Mergify just merged master into it, or githerd is down | Stays queued but cannot merge until githerd posts |
 
 githerd posts on every new head within one reconcile (the merge commits Mergify's updates create
@@ -574,8 +574,10 @@ the usual 10 to 30 open pull requests that is well inside the budget.
 
 1. The author is the owner (the `gh` login). Mergify does not look at the author.
 2. **No hold applies**: no code-red gating lane that can affect it (every pull request for CI; for
-   GPU those `scripts/bench-groups.js` maps to a group or that touch the lane's scripts [R8]; for
-   Hosts those touching its paths [R9]), except the pull request recorded as that incident's fix
+   GPU those touching `webgpu-graph-algorithms/src/`, since `scripts/bench-groups.js` maps every
+   file there to at least one group [R8], or the lane's scripts: `webgpu-graph-algorithms/scripts/`,
+   `webgpu-graph-algorithms/benchmarks/` and `.github/workflows/gpu.yml`; for Hosts those
+   matching the `paths` filter of `hosts.yml` [R9]), except the pull request recorded as that incident's fix
    or revert; not "release job running" if it changes release inputs; no `freeze-merges` policy;
    no starvation hold (4.7).
 3. If any commit on the head is breaking (`!` or a `BREAKING CHANGE` footer; unreadable counts as
@@ -591,6 +593,10 @@ the usual 10 to 30 open pull requests that is well inside the budget.
 7. If it changes release inputs: the daemon's release dry-run on the reference worktree merged
    with the head shows no major outside an approved group and no 0.x package going to 1.0.0.
 8. If it came from an `issue` job: the job acknowledged the issue's current revision.
+
+"Release inputs" (lines 2 and 7) are what `nx release` reads: the directory of every published
+package, `nx.json`, `release-hold.json`, `tools/release-hold.mjs`, `tools/changelog-renderer.cjs`
+and `.github/workflows/release.yml`.
 
 Not in the decision, because Mergify already does it: the required checks and `mergeable` (its
 merge conditions and `-conflict`), the `hold` label, the `!` title, queue order, updating from
@@ -767,7 +773,7 @@ A kind exists only if GitHub or the machine can check its done-condition.
 | `pr` | An own failure; a conflict the tools cannot resolve; an owner's visual reject [R14]; an abandoned githerd pull request | one pull request | Required checks green on the current head (base master, not draft), or waiting only on the owner (visual review, owner item) |
 | `issue` | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove | one issue or a triage group | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not pending for a reason the worker can fix. Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
 | `triage` | New or changed issues (20 per job); a refresh after 20 merges; a full pass after 100 merges | a batch | Each issue has one type, priority and effort label from the existing set and a recorded verdict |
-| `review` | A githerd pull request has a new patch id; a sensitive-path pull request (4.6 line 7) | one diff | A verdict for that patch id |
+| `review` | A githerd pull request has a new patch id; a sensitive-path pull request (4.6 line 6) | one diff | A verdict for that patch id |
 | `title` | A title commitlint rejects for length or scope, when the session that made the pull request is not open | one pull request title | `Lint PR Title` green. No worktree |
 | `major` | The owner answers "ship" on a major group | one package's held breaking pull requests | One pull request with the group merged and npm shows the new major |
 

@@ -1,6 +1,6 @@
 /**
- * The project file: save a whole session, open it in another, and get the same project back --
- * without computing a single run again.
+ * The project file: save a whole session as a graphty document, open it in another, and get the
+ * same project back -- without computing a single run again.
  */
 import { assert, describe, it } from "vitest";
 
@@ -28,7 +28,9 @@ function withDegree(): { harness: Harness; calls: () => number } {
         const degrees = snapshot.degree();
         const nodes = [];
         for (let index = 0; index < snapshot.nodeCount; index++) {
-            nodes.push({ id: snapshot.ids.idOf(index), values: { value: degrees[index] } });
+            const id = snapshot.ids.idOf(index);
+            // One value JSON text cannot hold, so a test can tell the columns keep it.
+            nodes.push({ id, values: { value: id === "d" ? Number.POSITIVE_INFINITY : degrees[index] } });
         }
 
         // Each edge carries the label of the node it leaves, so a test can tell edges apart.
@@ -114,21 +116,75 @@ async function busySession(): Promise<Harness> {
     return harness;
 }
 
+/**
+ * Open a file in a session, and the code it was refused with.
+ * @param session - The session.
+ * @param source - The file's text.
+ * @param options - The open options.
+ * @returns The code, or null when it opened.
+ */
+async function refusal(
+    session: Harness["session"],
+    source: string,
+    options: Parameters<Harness["session"]["project"]["open"]>[1] = {},
+): Promise<string | null> {
+    try {
+        await session.project.open(source, options);
+        return null;
+    } catch (error) {
+        return isGraphtyError(error) ? error.code : "not a GraphtyError";
+    }
+}
+
 describe("the project file", () => {
-    it("saves a whole session and opens it in another without computing again", async () => {
+    it("is a graphty document holding every member, and opens in another session without computing again", async () => {
         const source = await busySession();
-        const file = await source.session.project.save({ name: "Network study", app: { legend: true, tab: "values" } });
-        assert.strictEqual(file.type, "application/json");
-        assert.strictEqual(source.session.project.name, "Network study");
+        await source.session.project.rename("Network study");
+        const { text, report: saved } = await source.session.project.save({
+            extensions: { "com.example.app": { tab: "values" } },
+        });
+        const file = JSON.parse(text) as Record<string, unknown>;
+        assert.strictEqual(file.kind, "graphty-document");
+        assert.strictEqual(file.version, 1);
+        assert.strictEqual(file.name, "Network study");
+        assert.deepStrictEqual(saved.written, [
+            "graphty-data",
+            "graphty-session",
+            "graphty-arrangement",
+            "graphty-results",
+            "graphty-style",
+            "graphty-notes",
+            "graphty-view-state",
+        ]);
+        assert.deepStrictEqual(file.requires, ["graphty-data", "graphty-session", "graphty-results"]);
+        assert.strictEqual(saved.bytes, new TextEncoder().encode(text).length);
+        assert.deepStrictEqual(saved.leftOut, []);
         assert.isFalse(source.session.project.dirty);
 
         const { harness: target, calls } = withDegree();
         const { session } = target;
-        const report = await session.project.open(file);
+        const report = await session.project.open(new Blob([text]));
 
-        assert.deepStrictEqual(report.missing, [], "everything came back");
+        assert.strictEqual(report.opened, "project");
+        assert.deepStrictEqual(report.problems, [], "everything came back");
+        assert.includeMembers(
+            [...report.restored],
+            [
+                "config",
+                "graph",
+                "layout",
+                "arrangement",
+                "pins",
+                "runs",
+                "styles",
+                "visibility",
+                "sets",
+                "views",
+                "notes",
+            ],
+        );
+        assert.deepStrictEqual(report.extensions, { "com.example.app": { tab: "values" } });
         assert.strictEqual(report.name, "Network study");
-        assert.deepStrictEqual(report.app, { legend: true, tab: "values" });
         assert.strictEqual(session.project.name, "Network study");
         assert.isFalse(session.project.dirty);
 
@@ -143,7 +199,9 @@ describe("the project file", () => {
             session.runs.list().map((run) => run.id),
             ["links"],
         );
-        assert.strictEqual(session.results.get("links" as RunId)?.node("b")?.value, 2);
+        const result = session.results.get("links" as RunId);
+        assert.strictEqual(result?.node("b")?.value, 2);
+        assert.strictEqual(result?.node("d")?.value, Number.POSITIVE_INFINITY, "a typed column keeps Infinity");
 
         assert.deepStrictEqual(session.styles.toDocument(), source.session.styles.toDocument());
         assert.deepStrictEqual(
@@ -170,7 +228,7 @@ describe("the project file", () => {
         const source = await busySession();
         const [, middle] = source.session.data.edges();
         await source.session.selection.apply({ edges: [middle.id] });
-        const document = source.session.project.toDocument();
+        const { text } = await source.session.project.save();
 
         // A session that has already numbered edges of its own numbers the opened ones afresh.
         const { harness } = withDegree();
@@ -181,8 +239,8 @@ describe("the project file", () => {
             { src: "y", dst: "x" },
         ]);
 
-        const report = await session.project.open(document);
-        assert.deepStrictEqual(report.missing, []);
+        const report = await session.project.open(text, { discard: true });
+        assert.deepStrictEqual(report.problems, []);
 
         const result = session.results.get("links" as RunId);
         for (const edge of session.data.edges()) {
@@ -208,11 +266,11 @@ describe("the project file", () => {
             selector: { match: "member", of: { set: core } },
             set: { "node.color": "#ff0000" },
         });
-        const document = session.project.toDocument();
+        const { text } = await session.project.save();
 
         // The session has issued the set's id already, so the reopened set is minted another.
-        const report = await session.project.open(document);
-        assert.deepStrictEqual(report.missing, []);
+        const report = await session.project.open(text);
+        assert.deepStrictEqual(report.problems, []);
         const [reopened] = session.sets.list();
         assert.notStrictEqual(reopened.id, core);
         assert.deepStrictEqual(
@@ -234,34 +292,145 @@ describe("the project file", () => {
         harness.session.dispose();
     });
 
-    it("opens as one step that undo takes back", async () => {
+    it("opens a project with a fresh history whose baseline is the opened state", async () => {
         const source = await busySession();
+        const { text } = await source.session.project.save();
         const { harness } = withDegree();
         const { session } = harness;
         await session.data.addNodes([{ id: "z" }]);
 
-        await session.project.open(source.session.project.toDocument());
+        await session.project.open(text, { discard: true });
         assert.strictEqual(session.data.nodes().length, 4);
-
-        await session.undo();
-        assert.deepStrictEqual(
-            session.data.nodes().map((node) => node.id),
-            ["z"],
-        );
-        assert.deepStrictEqual(session.runs.list(), []);
+        assert.deepStrictEqual(session.history.steps, []);
+        assert.isFalse(session.canUndo);
 
         source.session.dispose();
         session.dispose();
     });
 
-    it("is dirty after a change and clean after a save", async () => {
+    it("refuses to open a project over unsaved changes unless told to discard them", async () => {
+        const source = await busySession();
+        const { text } = await source.session.project.save();
         const { harness } = withDegree();
         const { session } = harness;
+        await session.data.addNodes([{ id: "kept" }]);
+
+        assert.strictEqual(await refusal(session, text), "E_UNSAVED_CHANGES");
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            ["kept"],
+        );
+        assert.isNull(await refusal(session, text, { discard: true }));
+        source.session.dispose();
+        session.dispose();
+    });
+
+    it("is dirty after a change, clean after a save, and clean again when undo returns to the save", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        const heard: { name: string | null; dirty: boolean }[] = [];
+        session.on("document:changed", (change) => heard.push(change));
+
         assert.isFalse(session.project.dirty);
         await session.data.addNodes([{ id: "a" }]);
         assert.isTrue(session.project.dirty);
         await session.project.save();
         assert.isFalse(session.project.dirty);
+
+        await session.data.addNodes([{ id: "b" }]);
+        assert.isTrue(session.project.dirty);
+        await session.undo();
+        assert.isFalse(session.project.dirty, "undo back to the saved step");
+
+        await session.selection.apply({ nodes: ["a"] });
+        assert.isFalse(session.project.dirty, "the selection is not project state");
+
+        await session.project.rename("Renamed");
+        assert.strictEqual(session.project.name, "Renamed");
+        assert.isTrue(session.project.dirty);
+        await session.undo();
+        assert.isNull(session.project.name, "a rename is one undoable step");
+
+        assert.deepStrictEqual(heard, [
+            { name: null, dirty: true },
+            { name: null, dirty: false },
+            { name: null, dirty: true },
+            { name: null, dirty: false },
+            { name: "Renamed", dirty: true },
+            { name: null, dirty: false },
+        ]);
+        session.dispose();
+    });
+
+    it("lists a run still computing as left out", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }]);
+        const pending = session.runs.start("degree", undefined, { as: "later" as RunId, style: false });
+        const { report } = await session.project.save();
+        assert.deepStrictEqual(report.leftOut, [{ code: "W_RUN_PENDING", params: { slice: "runs", id: "later" } }]);
+        await pending;
+        session.dispose();
+    });
+
+    it("leaves out the members the caller names", async () => {
+        const harness = await busySession();
+        const { report } = await harness.session.project.save({ leaveOut: ["graphty-notes", "graphty-view-state"] });
+        assert.notInclude(report.written, "graphty-notes");
+        assert.notInclude(report.written, "graphty-view-state");
+        harness.session.dispose();
+    });
+
+    it("reports what did not come back: an unknown member kind, edited data, an algorithm this session lacks", async () => {
+        const source = await busySession();
+        const file = JSON.parse((await source.session.project.save()).text) as {
+            members: { kind: string; version: number; graph?: { links: unknown[] }; runs?: { algorithm: string }[] }[];
+        };
+        file.members.push({ kind: "org.example.bookmarks", version: 1 });
+        // A hand edit: one more link, so edges are no longer where the results say.
+        file.members[0].graph?.links.push({ source: "a", target: "d" });
+
+        const { harness } = withDegree();
+        const report = await harness.session.project.open(JSON.stringify(file));
+        assert.deepStrictEqual(report.problems, [
+            { code: "W_UNKNOWN_KIND", params: { index: 7, kind: "org.example.bookmarks" } },
+            { code: "W_DATA_DIFFERS", params: { slice: "runs", id: "links" } },
+        ]);
+        const result = harness.session.results.get("links" as RunId);
+        assert.strictEqual(result?.node("b")?.value, 2, "node values are keyed by id and survive");
+        assert.isUndefined(result?.edge(harness.session.data.edges()[0].id), "edge values are left out");
+
+        const results = file.members.find((member) => member.kind === "graphty-results");
+        results!.runs![0].algorithm = "not-installed";
+        const { harness: other } = withDegree();
+        const missing = await other.session.project.open(JSON.stringify(file));
+        assert.deepInclude(missing.problems, { code: "E_UNKNOWN_ALGORITHM", params: { slice: "runs", id: "links" } });
+        source.session.dispose();
+        harness.session.dispose();
+        other.session.dispose();
+    });
+
+    it("adds a bare style document as one undoable step", async () => {
+        const harness = await busySession();
+        const { session } = harness;
+        const before = session.styles.list().length;
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [
+                {
+                    name: "Routers big",
+                    selector: { match: "expression", where: 'data.type == `"router"`' },
+                    set: { "node.size": 3 },
+                },
+            ],
+        };
+        const report = await session.project.open(JSON.stringify(style));
+        assert.strictEqual(report.opened, "document");
+        assert.deepStrictEqual(report.restored, ["styles"]);
+        assert.strictEqual(session.styles.list().length, before + 1);
+        await session.undo();
+        assert.strictEqual(session.styles.list().length, before);
         session.dispose();
     });
 
@@ -270,18 +439,33 @@ describe("the project file", () => {
         const { session } = harness;
         await session.data.addNodes([{ id: "kept" }]);
 
-        const codeOf = async (source: string | object): Promise<string | null> => {
-            try {
-                await session.project.open(source as string);
-                return null;
-            } catch (error) {
-                return isGraphtyError(error) ? error.code : "not a GraphtyError";
-            }
-        };
-
-        assert.strictEqual(await codeOf("{ not json"), "E_PARSE_FAILED");
-        assert.strictEqual(await codeOf({ nodes: [] }), "E_BAD_DOCUMENT");
-        assert.strictEqual(await codeOf({ format: "graphty-project", version: 2 }), "E_UNSUPPORTED_VERSION");
+        assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
+        assert.strictEqual(await refusal(session, '{ "nodes": [] }'), "E_UNKNOWN_FORMAT");
+        assert.strictEqual(
+            await refusal(session, '{ "kind": "graphty-document", "version": 2, "members": [] }'),
+            "E_UNSUPPORTED_VERSION",
+        );
+        assert.strictEqual(await refusal(session, '{ "kind": "graphty-document", "version": 1 }'), "E_BAD_DOCUMENT");
+        assert.strictEqual(
+            await refusal(
+                session,
+                '{ "kind": "graphty-document", "version": 1, "members": [], "x": { "__proto__": {} } }',
+            ),
+            "E_BAD_DOCUMENT",
+        );
+        assert.strictEqual(
+            await refusal(
+                session,
+                '{ "kind": "graphty-document", "version": 1, "requires": ["org.example.x"], "members": [] }',
+            ),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(
+            await refusal(session, '{ "kind": "graphty-document", "version": 1, "members": [] }', {
+                limits: { fileBytes: 10 },
+            }),
+            "E_TOO_LARGE",
+        );
         assert.deepStrictEqual(
             session.data.nodes().map((node) => node.id),
             ["kept"],

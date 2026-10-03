@@ -1,8 +1,8 @@
 /**
- * @file The runnable examples of the "Project Files" guide (`docs/guide/project-file.md`), kept
- * here so the documented code keeps working. Each test is the guide's code on a standalone
- * session, with its comments turned into assertions; the guide reaches the same session as
- * `element.session`.
+ * @file The runnable examples of the "Project Files" guide (`docs/guide/project-file.md`) that need
+ * no page, kept here so the documented code keeps working. Each test is the guide's code on a
+ * standalone session, with its comments turned into assertions. The quick start, which needs a
+ * page, runs in `test/browser/project-file.test.ts`.
  */
 
 import { assert, describe, it } from "vitest";
@@ -10,54 +10,51 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, isGraphtyError } from "../../session";
 
 describe("the project file guide's examples", () => {
-    it("the quick start: save, open, and read the report", async () => {
+    it("saving without a download, and opening the text in another session", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "ada" }, { id: "grace" }]);
         await session.data.addEdges([{ src: "ada", dst: "grace" }]);
 
-        // Save the whole session as one file, with your own app's state beside it
-        const file = await session.project.save({ name: "Pioneers", app: { panel: "values" } });
+        const { text, report } = await session.project.save({
+            extensions: { "com.example.app": { panel: "values" } },
+        });
+        assert.strictEqual(report.bytes, new TextEncoder().encode(text).length);
+        assert.include(report.written, "graphty-data");
+        assert.deepEqual(report.leftOut, []);
 
-        // ...later, or in another element: open it again
         const later = createGraphSession();
-        const report = await later.project.open(file);
-        assert.strictEqual(report.name, "Pioneers");
-        assert.deepEqual(report.app, { panel: "values" });
-        assert.deepEqual(report.missing, []);
+        const opened = await later.project.open(text);
+        assert.strictEqual(opened.opened, "project");
+        assert.deepEqual(opened.problems, []);
+        assert.deepEqual(opened.extensions, { "com.example.app": { panel: "values" } });
         assert.deepEqual(later.data.nodes(), session.data.nodes());
         assert.strictEqual(later.data.edges().length, 1);
-
-        // open is one undoable step
-        await later.undo();
-        assert.strictEqual(later.data.nodes().length, 0);
 
         session.dispose();
         later.dispose();
     });
 
-    it("name and unsaved changes", async () => {
+    it("the name and unsaved changes", async () => {
         const session = createGraphSession();
-        await session.project.save({ name: "Pioneers" });
+        await session.project.rename("Pioneers"); // one undoable step; sets dirty
         assert.strictEqual(session.project.name, "Pioneers");
-        assert.isFalse(session.project.dirty);
-
-        let heard = 0;
-        session.on("project:changed", () => {
-            heard++;
-        });
-        await session.data.addNodes([{ id: "linus" }]);
         assert.isTrue(session.project.dirty);
-        assert.isAbove(heard, 0);
+        await session.undo(); // the old name again
+        assert.isNull(session.project.name);
 
-        session.project.name = "Pioneers 2";
-        assert.strictEqual(session.project.toDocument().name, "Pioneers 2");
+        const later = createGraphSession();
+        await later.project.open(JSON.stringify(JSON.parse((await session.project.save()).text)), {
+            fileName: "Pioneers.graphty.json",
+        });
+        assert.strictEqual(later.project.name, "Pioneers", "a file with no name takes the file's name");
         session.dispose();
+        later.dispose();
     });
 
     it("refuses a file a newer element wrote", async () => {
         const session = createGraphSession();
         try {
-            await session.project.open(JSON.stringify({ format: "graphty-project", version: 99 }));
+            await session.project.open(JSON.stringify({ kind: "graphty-document", version: 99, members: [] }));
             assert.fail("a newer file must be refused");
         } catch (error) {
             assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_UNSUPPORTED_VERSION");

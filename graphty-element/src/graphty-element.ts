@@ -26,6 +26,7 @@ import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
+import type { ProjectSaveOptions, ProjectSaveReport } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
@@ -99,6 +100,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchDocument: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
@@ -143,6 +145,30 @@ export class Graphty extends LitElement {
      */
     get session(): GraphSession {
         return this.#graph.getSession();
+    }
+
+    /**
+     * Save the project (`session.project.save`) and hand it to the reader as a download named
+     * `<project name>.graphty.json`. Lives on the element, not the session, because the session
+     * also runs in Node, where there is nothing to download to.
+     * @param options - What to leave out, your own extensions, and the file's name.
+     * @returns What the file holds.
+     * @example
+     * ```typescript
+     * saveButton.onclick = () => element.downloadProject();
+     * ```
+     */
+    async downloadProject(
+        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+    ): Promise<ProjectSaveReport> {
+        const { text, report } = await this.session.project.save(options);
+        const url = URL.createObjectURL(new Blob([text], { type: "application/vnd.graphty+json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = options.fileName ?? `${this.session.project.name ?? "project"}.graphty.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return report;
     }
 
     /**
@@ -442,6 +468,12 @@ export class Graphty extends LitElement {
         this.#unwatchProgress ??= session.on("progress:changed", (change) => {
             this.#mirrorProgressChange(change);
         });
+        // The project's name and unsaved state, for a title bar or a Save button beside the tag.
+        this.#unwatchDocument ??= session.on("document:changed", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-document-change", { detail: change, bubbles: true, composed: true }),
+            );
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -557,6 +589,8 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchDocument?.();
+        this.#unwatchDocument = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchProgress?.();

@@ -135,6 +135,18 @@ export type {
     Problem,
 } from "./src/session/notes/types";
 
+// The project file: the whole session as one graphty document, as `element.session.project`
+export type {
+    DocumentChange,
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    SavedProject,
+} from "./src/session/projectFile";
+
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
 

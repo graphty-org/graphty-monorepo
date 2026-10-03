@@ -560,6 +560,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { author: "Fixture author" } },
     },
     {
+        name: "config.set name",
+        variant: "name",
+        tags: BOTH,
+        command: { op: "config.set", values: { name: "Fixture project" } },
+    },
+    {
         name: "config.set layoutBehavior.preSteps",
         variant: "layoutBehavior",
         tags: BOTH,

@@ -272,11 +272,14 @@ export type {
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    DocumentChange,
     ProjectApi,
-    ProjectDocument,
+    ProjectOpenOptions,
     ProjectOpenReport,
-    ProjectPart,
+    ProjectProblem,
     ProjectSaveOptions,
+    ProjectSaveReport,
+    SavedProject,
 } from "./src/session/projectFile";
 
 // ---------------------------------------------------------------------------------------------

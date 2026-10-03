@@ -242,6 +242,20 @@ changed it, and `style:changed`, `visibility:changed` and `run:changed` carry a 
 `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. See
 [Undo and History](./undo#following-changes).
 
+### graphty-document-change
+
+The project's name, or whether it has unsaved changes, changed. The detail is `{ name, dirty }`,
+the same as `session.project.name` and `session.project.dirty`:
+
+```javascript
+element.addEventListener("graphty-document-change", (e) => {
+    const { name, dirty } = e.detail;
+    saveButton.disabled = !dirty;
+});
+```
+
+On the session the same change is `document:changed`. See [Project Files](./project-file).
+
 ### graphty-note-change
 
 A note was written, edited or removed, by a call, an undo or a redo. One event per note:

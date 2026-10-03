@@ -495,7 +495,12 @@ class Session implements ElementSession {
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
-        this.project = projectOf(this, this.dispatcher, parts.canned);
+        this.project = projectOf(this, this.dispatcher, parts.canned, {
+            announce: (change) => {
+                publish(this.watchers, "document:changed", change);
+            },
+            isDerived: (id) => this.sessionRuns.isDerivedId(id),
+        });
     }
 
     /**
@@ -1106,6 +1111,9 @@ function configOf(
         },
         get author() {
             return read().author;
+        },
+        get name() {
+            return read().name;
         },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's

@@ -1,85 +1,151 @@
 # Project Files
 
-A project file is the whole session in one JSON file: the data, the settings, the layout and
-where every node stands, each finished algorithm run with its result, the style layers in order,
-the filter, the kept sets, the notes, the saved camera views and the selection. Save one, send it
-to a colleague, and open it later to pick up exactly where you left off.
+A project file is the whole session in one file: the data, the settings, the layout and where
+every node stands, each finished algorithm run with its result, the style layers, the filter, the
+kept sets, the notes, the saved camera views and the selection. Save one, send it to a colleague,
+and open it later to pick up where you left off. Runs are not computed again: their results are
+in the file.
 
-> The project file format is a draft (version 1) and may still change before it is declared
-> stable.
+A project file is a [graphty document](#the-file) named `<name>.graphty.json`, the same kind of
+file graphty-element already writes for styles and notes.
 
 ## Quick start
+
+A Save button, an Open button and an unsaved-changes marker in the page title:
 
 ```typescript
 import "@graphty/graphty-element";
 
 const element = document.querySelector("graphty-element")!;
-const { session } = element;
-await session.data.addNodes([{ id: "ada" }, { id: "grace" }]);
-await session.data.addEdges([{ src: "ada", dst: "grace" }]);
+const { project } = element.session;
+const saveButton = document.querySelector("#save")!;
+const openInput = document.querySelector<HTMLInputElement>("#open")!;
+saveButton.addEventListener("click", () => {
+    void element.downloadProject();
+});
+openInput.addEventListener("change", () => {
+    const file = openInput.files?.[0];
+    if (!file || (project.dirty && !confirm("Discard unsaved changes?"))) {
+        return;
+    }
 
-// Save the whole session as one file, with your own app's state beside it
-const file = await session.project.save({ name: "Pioneers", app: { panel: "values" } });
-
-// ...later, or in another element: open it again
-const report = await session.project.open(file);
-report.name; // "Pioneers"
-report.app; // { panel: "values" } -- handed back untouched
-report.missing; // [] -- anything that did not come back, by kind, with the reason
-```
-
-- **`save` returns a `Blob`** (`application/json`). Write it wherever you keep files: a download
-  link, the File System Access API, a server. `toDocument()` returns the same content as a plain
-  object, synchronously.
-- **`open` takes the `Blob`, its text, or the parsed object.** It replaces what the session holds
-  and is ONE undoable step: `session.undo()` puts the previous project back.
-- **Runs are not computed again.** Each run's result is stored as columns and handed back to the
-  run, so a project that took minutes to compute opens at once. Style layers that read a run's
-  result paint as soon as the project opens.
-- **The `app` slot is yours.** The element stores whatever JSON-safe value you pass and returns it
-  from `open`. Keep the state of your own interface there -- which panel was open, which tab --
-  and nothing about the graph, which the element already saves.
-- **The same API runs in Node.** `createGraphSession()` from `@graphty/graphty-element/session`
-  has the same `session.project`.
-
-## Name and unsaved changes
-
-```typescript
-session.project.name; // "Pioneers": from the last save or open; null until one is given
-session.project.dirty; // false right after a save or an open
-
-await session.data.addNodes([{ id: "linus" }]);
-session.project.dirty; // true: something a project file saves has changed
-
-session.on("project:changed", () => {
-    // show an unsaved-changes marker from session.project.dirty
+    void project.open(file, { discard: true }).then((report) => {
+        for (const problem of report.problems) {
+            console.warn(problem.code, problem.params);
+        }
+    });
+});
+element.session.on("document:changed", ({ name, dirty }) => {
+    document.title = `${dirty ? "* " : ""}${name ?? "Untitled"}`;
 });
 ```
 
-`name` can also be set directly (`session.project.name = "Pioneers 2"`); the next save writes it.
-Setting the name is not an undoable step.
+- **`element.downloadProject()`** saves the project and hands it to the reader as
+  `<project name>.graphty.json`. Pass `{ fileName }` to choose the name yourself.
+- **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
+  takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
+  fresh undo history.
+- **`project.dirty`** is true when something the file saves has changed since the last save or
+  open. Opening a project over unsaved changes is refused with `E_UNSAVED_CHANGES` unless you pass
+  `{ discard: true }`, so ask the reader first.
+- **`document:changed`** fires when the name or `dirty` changes. The element also dispatches it as
+  the DOM event `graphty-document-change`, with `{ name, dirty }` as its `detail`.
 
-## What does not come back
+graphty-element writes no words for the reader: the text in the example (the confirmation, the
+title) is the page's own.
 
-Opening never fails half way. A part that cannot be restored -- a layer whose run is missing, a
-set whose rule names something the file does not hold -- is left out and listed in
-`report.missing` as `{ kind, id?, reason }`, where `kind` is one of `"data"`, `"config"`,
-`"layout"`, `"positions"`, `"runs"`, `"styles"`, `"visibility"`, `"sets"`, `"notes"`, `"views"`
-or `"selection"`.
+## Saving without a download
+
+`project.save()` returns the file's text and a report, and works in Node too, through
+`createGraphSession()` from `@graphty/graphty-element/session`:
+
+```typescript
+const { text, report } = await session.project.save();
+report.bytes; // the file's size
+report.written; // the member kinds in the file
+report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_PENDING", params: { id } }
+```
+
+Store `text` wherever you keep files. Two options shape the file:
+
+- `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"`, `"graphty-notes"` or
+  `"graphty-view-state"` (the selection).
+- `extensions: { "com.example.app": { panel: "values" } }` stores your own data under a
+  reverse-domain name, at most 64 KB of JSON each. `open` hands it back as `report.extensions`.
+  Keep your interface's state there, and nothing about the graph.
+
+## The name and unsaved changes
+
+```typescript
+await session.project.rename("Pioneers"); // one undoable step; sets dirty
+session.project.name; // "Pioneers"
+await session.undo(); // the old name again
+```
+
+A file with no name of its own takes the file's name without `.graphty.json`.
+
+`dirty` follows the undo history: undoing back to the point of the last save makes it false again.
+The selection and your extensions never set it.
+
+## What did not come back
+
+Opening never fails half way through. A part that cannot be restored is left out and listed in
+`report.problems`, each as a code and its values:
+
+| Code                    | Params                   | What happened                                                           |
+| ----------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| `E_UNKNOWN_ALGORITHM`   | `slice`, `id`            | A run's algorithm is not registered here; the run is left out           |
+| `E_UNKNOWN_LAYOUT`      | `slice`                  | The layout is not registered here; the positions still come back        |
+| `E_UNKNOWN_ATTRIBUTE`   | `slice`, `id`, `needs`   | A style layer reads something nothing answers; it is added switched off |
+| `W_DATA_DIFFERS`        | `slice`, `id`            | The data was edited by hand; the run's per-edge values are left out     |
+| `W_UNKNOWN_KIND`        | `index`, `kind`          | A member this release does not read; skipped                            |
+| `E_UNSUPPORTED_VERSION` | `index`, `kind`, `found` | A member written by a newer release; skipped                            |
+
+`report.restored` lists the parts that came back (`"graph"`, `"config"`, `"layout"`,
+`"arrangement"`, `"pins"`, `"runs"`, `"styles"`, `"visibility"`, `"sets"`, `"views"`, `"notes"`).
+Both lists may gain values in a minor release; leave out a code you do not know.
 
 A file that cannot be opened at all is refused with a `GraphtyError`, and the session is left as
 it was:
 
-| Code                    | When                                                              |
-| ----------------------- | ----------------------------------------------------------------- |
-| `E_PARSE_FAILED`        | The file is not JSON                                              |
-| `E_BAD_DOCUMENT`        | The JSON is not a project file (no `"format": "graphty-project"`) |
-| `E_UNSUPPORTED_VERSION` | A newer graphty-element wrote it; open it with a newer one        |
+| Code                    | When                                                                     |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `E_UNSAVED_CHANGES`     | A project would replace unsaved changes and `discard` was not passed     |
+| `E_TOO_LARGE`           | The file is over `limits.fileBytes` (default 256 MiB)                    |
+| `E_PARSE_FAILED`        | The file is not JSON                                                     |
+| `E_UNKNOWN_FORMAT`      | The JSON is not a graphty document; import graph data with `data.import` |
+| `E_BAD_DOCUMENT`        | The document is malformed                                                |
+| `E_UNSUPPORTED_VERSION` | A newer graphty-element wrote it                                         |
+| `E_UNSUPPORTED`         | It requires a member kind this release does not read                     |
+
+## Other graphty documents
+
+`open` also takes a graphty document that is not a project, such as a saved style or notes. Then
+`report.opened` is `"document"` and the file's styles and notes are added to the session as one
+undoable step, without replacing anything and without asking about unsaved changes.
 
 ## What is not saved
 
 - **The live camera.** Save a named view with `session.views.save` to keep a camera position.
-- **Work in flight.** A run that has not finished is not saved.
+- **Work in flight.** A run that has not finished is listed in `report.leftOut`.
 - **The author name** (`session.config.author`): it belongs to the person, not the project.
-- **The undo history.** Opening is one step on the history the session already has, so one undo
-  puts back what was open before.
+- **The undo history.** An opened project starts a fresh one.
+
+## The file
+
+A graphty document (`kind: "graphty-document"`, version 1) whose members are:
+
+| Member                | Holds                                                              |
+| --------------------- | ------------------------------------------------------------------ |
+| `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect      |
+| `graphty-session`     | the settings, layout, filter and time window, sets and named views |
+| `graphty-arrangement` | each placed node's id and position, and the pinned nodes           |
+| `graphty-results`     | each finished run: what ran, its fields, and its values as columns |
+| `graphty-style`       | the style layers                                                   |
+| `graphty-notes`       | the notes                                                          |
+| `graphty-view-state`  | the selection; never needed to open the file                       |
+
+Node values are keyed by node id. Edge values are keyed by the edge's position in the data
+member, with the data's fingerprint beside them, so a hand edit of the data is detected rather
+than shifting values onto other edges. A column of numbers is stored as base64 little-endian
+`f64` bytes, so `Infinity` and `NaN` survive; any other column is a JSON array.

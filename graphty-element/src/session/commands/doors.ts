@@ -640,6 +640,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getCameraPresets: READ,
             exportCameraPresets: READ,
             exportGraph: READ,
+            downloadProject: exempt(
+                "Hands the saved project to the reader as a file; it changes nothing a project saves.",
+            ),
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1555,10 +1558,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/projectFile.ts",
         half: "session",
         doors: {
-            name: exempt("The project's name labels the file; it is written by the next save, not a step."),
+            name: READ,
             dirty: READ,
-            toDocument: READ,
-            save: READ,
+            rename: {
+                kind: "dispatches",
+                op: "config.set",
+                call: { kind: "call", args: ["Fixture project"] },
+                expect: [{ op: "config.set", values: { name: "Fixture project" } }],
+            },
+            save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             open: exempt(
                 "Opens a file as one transaction: every write goes through the session's own doors, " +
                     "which have rows of their own.",
@@ -1664,6 +1672,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             selectionStyle: READ,
             layoutBehavior: READ,
             author: READ,
+            name: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

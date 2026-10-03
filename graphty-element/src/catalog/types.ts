@@ -53,6 +53,18 @@ export type EdgeId = string;
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 
+/**
+ * The name an algorithm suggests for a run's result, from the run's settings.
+ *
+ * `id` becomes the result path a style layer reads (`results.<id>.value`), so it is lower-case
+ * letters, digits and underscores, starting with a letter: `pagerank`, `louvain_resolution_1_5`.
+ * `label` is what a reader sees in the layer list and the legend: "Influence (damping 0.9)".
+ */
+export interface SuggestedName {
+    readonly id: string;
+    readonly label: string;
+}
+
 /** The identity of a style layer. Element-minted and stable; never an array index. */
 export type LayerId = string;
 

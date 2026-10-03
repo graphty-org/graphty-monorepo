@@ -509,12 +509,12 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. The run id is derived from the result it answers
- * -- the algorithm and its scope -- so it is the same on every such graph.
+ * run's suggested colour, in the call's one step. An unnamed degree run is named after its
+ * algorithm, so the id is "degree" on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
     op: "style.encode",
-    spec: { run: "degree_1yqoid512q50di", field: "value", channel: "node.color" },
+    spec: { run: "degree", field: "value", channel: "node.color" },
 };
 
 /** Every root, and the door of every public member. */

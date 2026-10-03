@@ -97,7 +97,8 @@ Every mechanism below follows these. A mechanism that breaks one is a defect in 
 - **CI-green commit**: the newest master commit whose CI run is green and on which no gating lane
   is red. Pull request updates use it, because GPU and Hosts never run on ordinary pull requests
   [R8], [R9] and master's tip "is almost never green" while master moves [R7].
-- **Failure key**: workflow + job name (shard numbers replaced by `*`) + failed step name. A red
+- **Failure key**: workflow + job name + failed step name, with shard numbers (one or two digits,
+  so `windows-2025` stays) and commit hashes replaced by `*`. A red
   master is a set of keys, each handled on its own [INC1 1].
 - **Sighting**: one poll answer about a workflow run whose (run attempt, `updated_at`) is newer
   than the last answer seen for that same run. A run never seen before is stale, not a sighting,
@@ -469,7 +470,8 @@ conditional request is refused with 403 like any other, so githerd is blind unti
 
 ### 4.3 Facts the daemon computes
 
-- **Lane verdict**: per workflow, the newest completed run on master by sighting order (1.4).
+- **Lane verdict**: per workflow, the newest completed run on master by run id. A late sighting of
+  an older run (1.4) is recorded but does not change the verdict.
 - **Red since**: the first red run of the current red stretch.
 - **Green commit** and **CI-green commit** (1.4).
 - **Release truth**: npm's versions against master's tags and version commits [INC1 2].

@@ -20,18 +20,20 @@ input.addEventListener("change", async () => {
     const firstRows = await draft.rows(draft.tables[0].id, { limit: 20 });
     console.table(firstRows.records.map((row) => row.values));
     console.log(report.counts.nodes, report.counts.edges, report.unmatched.rows);
-    if (report.tooLarge) return draft.dispose();
-    await draft.load();
+    if (report.tooLarge) draft.dispose();
+    else await draft.load();
 });
 ```
+
+`report()` is a dry run: it changes nothing, and `report.counts.nodes` and `report.counts.edges`
+are the nodes and edges the graph would hold after the load. Every type on this page --
+`LoadDraft`, `LoadChoices`, `LoadReport` and the rest -- is exported from
+`@graphty/graphty-element/session`, along with the `isGraphtyError` guard.
 
 When you already know which columns to use, skip the draft:
 
 ```ts
-await element.session.data.import(
-    { config: { file } },
-    { mapping: { source: "from", target: "to", weight: "trips" } },
-);
+await element.session.data.import({ config: { file } }, { mapping: { source: "from", target: "to", weight: "trips" } });
 ```
 
 ## What a draft holds
@@ -47,14 +49,19 @@ await element.session.data.import(
 | `dispose()`       | Lets go of the held rows                                                       |
 
 Table ids are assigned by the element and are the same for every file of the same shape:
-`"rows"` for a single CSV file, `"nodes"` and `"edges"` for a pair of CSV files
-(`config: { nodeFile, edgeFile }`) and for every other format. A GraphML, GEXF, GML, DOT, Pajek or
-JSON file sets its own roles, so its tables are `fixed: true` and a mapping for them is refused.
+`"rows"` for a single CSV file (so its rows are read with `draft.rows("rows")`), and `"nodes"`
+then `"edges"`, in that order, for a pair of CSV files (`config: { nodeFile, edgeFile }`) and for
+every other format. A single CSV file is therefore always `draft.tables[0]`.
+
+`fixed: true` means the format, not the reader, decides each column's role: a GraphML, GEXF, GML,
+DOT, Pajek or JSON file says which fields are node ids and edge endpoints, so a mapping for its
+tables is refused. Only CSV tables have `fixed: false`.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
-`sampleValues`. A column the element gives a role by itself carries it in `suggested`: `"key"`,
-`"label"`, `"source"`, `"target"`, `"weight"`, `"time"` or `"edgeId"`.
+`sampleValues`. A column the element gives a role by itself carries it in `suggested`: `"key"`
+(the node id), `"label"`, `"source"`, `"target"`, `"weight"`, `"time"` or `"edgeId"`. These are
+the same names a mapping uses.
 
 ## Choosing the columns
 
@@ -72,24 +79,42 @@ await draft.report({
 });
 ```
 
-| Role      | Table | Meaning                                                                        |
-| --------- | ----- | ------------------------------------------------------------------------------ |
-| `rowsAre` | any   | `"nodes"` or `"edges"`: what each row becomes                                  |
-| `key`     | nodes | The node id column; `null` numbers the rows                                    |
-| `label`   | nodes | The column that names a node; written to `data.knownFields.nodeLabelPath`      |
-| `source`  | edges | The column holding the node an edge leaves                                     |
-| `target`  | edges | The column holding the node an edge enters                                     |
-| `weight`  | edges | The weight column; `null` weighs every edge 1; written to `edgeWeightPath`     |
-| `time`    | any   | A time column; written to `nodeTimePath` or `edgeTimePath`                     |
-| `edgeId`  | edges | The edge's own id column; written to `edgeIdPath`                              |
+| Role      | Table | Meaning                                       |
+| --------- | ----- | --------------------------------------------- |
+| `rowsAre` | any   | `"nodes"` or `"edges"`: what each row becomes |
+| `key`     | nodes | The node id column; `null` numbers the rows   |
+| `label`   | nodes | The column that names a node                  |
+| `source`  | edges | The column holding the node an edge leaves    |
+| `target`  | edges | The column holding the node an edge enters    |
+| `weight`  | edges | The weight column; `null` weighs every edge 1 |
+| `time`    | any   | A time column                                 |
+| `edgeId`  | edges | The edge's own id column                      |
+
+The load records the label, weight, time and edge id columns in the graph's settings
+(`session.config.data.knownFields`), so every later read of a node's label or an edge's weight
+uses the column the reader chose. You do not write those settings yourself.
 
 `draft.mapping` always reads back in the full form: every table by id, `rowsAre` set, and `source`
 and `target` as `{ column }`.
 
+`report(choices)` and `load(choices)` each take their own choices; `load()` does not reuse the
+ones the last `report()` was given. Hold them in one `LoadChoices` value and pass it to both.
+Typing the value as `LoadChoices` keeps `"leave-out"` and `"merge"` from widening to `string`:
+
+```ts
+import type { LoadChoices } from "@graphty/graphty-element/session";
+
+const choices: LoadChoices = { mapping: { source: "from", target: "to" }, unmatched: "leave-out" };
+const report = await draft.report(choices);
+if (report.tooLarge === null) await draft.load(choices);
+```
+
 Other choices `report`, `load` and `import` take:
 
 - `mode`: `"replace"` (the default) empties the graph first; `"merge"` adds to it, and the report
-  counts against the graph already there.
+  counts against the graph already there. This is the session's own default; the element's
+  `loadFromFile` and `loadFromUrl` methods add to the graph unless they are passed
+  `replace: true` (see [Data Sources](./data-sources#replacing-the-graph)).
 - `unmatched`: an edge naming a node no node row holds. `"add"` (the default) makes the node;
   `"leave-out"` drops the edge.
 - `directed`: writes `data.directed` in the same undoable step as the load.
@@ -101,8 +126,9 @@ Other choices `report`, `load` and `import` take:
 after the load, so the numbers before and after cannot disagree. Beside the import report's
 `counts`, `weights` and `endpoints` it has:
 
-- `unmatched`: `{ rows, values }`, the edge rows naming a node no node row holds (nor the graph,
-  for a merge), and how many distinct names they used. A load with no node rows into an empty
+- `unmatched`: `{ rows, values }`: `rows` is the number of edge rows naming a node no node row
+  holds (nor the graph, for a merge), and `values` the number of distinct node ids those rows
+  name -- the nodes `unmatched: "add"` would create. A load with no node rows into an empty
   graph has none: every node comes from the edges. `draft.rows("edges", { only: "unmatched" })`
   lists those rows.
 - `tooLarge`: `null` when the load fits; otherwise the `details` the load would refuse with as
@@ -112,9 +138,24 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
 each record `{ line, values }`. For a CSV file `line` is the line the row starts on (the header is
 line 1); for other formats it is the row's position. `only: "unmatched"` and `only: "rejected"`
 (rows whose key or endpoints cannot be a node id) read with the choices the last `report()` was
-given.
+given -- the one place a draft reuses earlier choices. A rejected row here is one the mapping
+cannot turn into a node or an edge; it is not a row the format's own schema refused, which
+`data-loading-error-summary` reports after a load.
 
 ## Errors
+
+Every failure is a `GraphtyError` with a `code` and a `details` object. `isGraphtyError` narrows a
+caught value to it:
+
+```ts
+import { isGraphtyError } from "@graphty/graphty-element/session";
+
+try {
+    await draft.load(choices);
+} catch (error) {
+    if (isGraphtyError(error) && error.code === "E_UNKNOWN_ATTRIBUTE") console.log(error.details.candidates);
+}
+```
 
 | Code                          | When                                                                     |
 | ----------------------------- | ------------------------------------------------------------------------ |

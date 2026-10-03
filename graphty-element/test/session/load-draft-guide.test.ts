@@ -71,4 +71,25 @@ describe("the load preview guide's canonical example", () => {
         assert.strictEqual(session.data.statistics().edgeCount, 2);
         session.dispose();
     });
+
+    it("loads with one choices value passed to both report and load", async () => {
+        const block = /```ts\n(import type \{ LoadChoices \}[\s\S]*?)```/.exec(readFileSync(PAGE, "utf8"))?.[1];
+        assert.isDefined(block, "the page has no shared-choices block");
+        const source = block
+            .split("\n")
+            .filter((line) => !line.startsWith("import "))
+            .join("\n");
+        const body = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+        const module = `export default async (draft) => {\n${body}\n};`;
+        const run = (await import(/* @vite-ignore */ `data:text/javascript,${encodeURIComponent(module)}`)) as {
+            default: (draft: unknown) => Promise<void>;
+        };
+        const session = createGraphSession();
+        const csv = "from,to\na,b\nb,c\n";
+        const draft = await session.data.prepare({ config: { file: new File([csv], "trips.csv") } });
+        await run.default(draft);
+        assert.strictEqual(session.data.statistics().edgeCount, 2);
+        assert.strictEqual(session.data.lastImport()?.unmatched.rows, 0);
+        session.dispose();
+    });
 });

@@ -140,7 +140,9 @@ the load would produce before anything is added to the graph. See
 
 ## Replacing the Graph
 
-A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one
+A load through `loadFromFile`, `loadFromUrl` or `addDataFromSource` ADDS to the graph unless you
+pass `replace: true`. (`session.data.import()` and a draft's `load()` take `mode` instead, and
+replace by default; see [Previewing a Load](./load-preview).) A replacing load swaps the graph as one
 undoable step, and a load that fails rolls its whole step back, so a malformed or empty file
 rejects and leaves the current graph exactly as it was:
 

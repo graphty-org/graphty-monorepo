@@ -329,8 +329,9 @@ function ticking(ctx, health) {
 
 /**
  * Takes the start lock: `mkdir`, then owner.json with this process's identity. A stale lock (its
- * owner is gone, or it has no owner.json and is older than 60 s) is stolen by renaming it, which
- * only one launcher can win.
+ * owner is gone, or it has no owner.json and is older than 60 s) is removed only by the holder of
+ * `start.lock.steal`, which judges it again first: renaming a lock judged stale a moment ago could
+ * remove a fresh lock another launcher took in between, and then two launchers would start.
  * @param {LauncherContext} ctx the context
  * @returns {boolean} true when this launcher holds the lock
  */
@@ -345,28 +346,51 @@ function takeLock(ctx) {
         } catch (err) {
             if (err.code !== "EEXIST") throw err;
         }
-        const owner = readJson(join(lock, "owner.json"));
-        let stale;
-        if (owner) stale = !sameProcess(owner);
-        else {
-            let mtime;
-            try {
-                mtime = statSync(lock).mtimeMs;
-            } catch {
-                continue; // released meanwhile: try again
-            }
-            stale = ctx.now().getTime() - mtime > LOCK_STALE_MS;
-        }
-        if (!stale) return false;
-        const moved = `${lock}.stale-${process.pid}-${randomBytes(4).toString("hex")}`;
+        if (!lockStale(ctx, lock)) continue; // released meanwhile, or not stale: the loop decides
+        const steal = `${lock}.steal`;
         try {
-            renameSync(lock, moved);
-        } catch {
-            return false; // another launcher won the steal
+            mkdirSync(steal);
+        } catch (err) {
+            if (err.code !== "EEXIST") throw err;
+            // ponytail: a launcher killed while stealing leaves this behind; it is cleared after
+            // 60 s like an ownerless lock, so a start waits at most that long.
+            if (ctx.now().getTime() - mtimeOf(steal) > LOCK_STALE_MS) rmSync(steal, { recursive: true, force: true });
+            return false;
         }
-        rmSync(moved, { recursive: true, force: true });
+        try {
+            if (lockStale(ctx, lock)) rmSync(lock, { recursive: true, force: true });
+        } finally {
+            rmSync(steal, { recursive: true, force: true });
+        }
     }
     return false;
+}
+
+/**
+ * The modification time of a path, or 0 when it is gone.
+ * @param {string} path the path
+ * @returns {number} milliseconds since the epoch
+ */
+function mtimeOf(path) {
+    try {
+        return statSync(path).mtimeMs;
+    } catch {
+        return 0;
+    }
+}
+
+/**
+ * Whether the start lock is stale: its owner is gone, or it has no owner.json and is older than
+ * 60 s. A lock that no longer exists is not stale.
+ * @param {LauncherContext} ctx the context
+ * @param {string} lock the lock directory
+ * @returns {boolean} true when the lock may be removed
+ */
+function lockStale(ctx, lock) {
+    const owner = readJson(join(lock, "owner.json"));
+    if (owner) return !sameProcess(owner);
+    const mtime = mtimeOf(lock);
+    return mtime > 0 && ctx.now().getTime() - mtime > LOCK_STALE_MS;
 }
 
 /**

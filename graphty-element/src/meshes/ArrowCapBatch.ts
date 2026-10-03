@@ -13,11 +13,12 @@ const INITIAL_SLOTS = 32;
 /**
  * The per-instance values the billboard shader reads, and how many floats each takes.
  *
- * These are the three things that used to be uniforms on a cap's own ShaderMaterial, which is
- * why every cap needed a material of its own. As thin-instance buffers they are rows in three
- * shared arrays, so a red cap and a blue cap at two different sizes are one draw call.
+ * These are the things that used to be uniforms on a cap's own ShaderMaterial, which is why
+ * every cap needed a material of its own. As thin-instance buffers they are rows in shared
+ * arrays, so a red cap and a blue cap at two different sizes are one draw call. The fourth, the
+ * clip, is only ever set on a pattern segment (see `PatternedLineMesh`); a cap is never clipped.
  */
-const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 3 } as const;
+const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 3, arrowClip: 1 } as const;
 
 /** Scratch values for composing a slot's matrix; the placement path allocates nothing. */
 const scratchScaling = new Vector3(1, 1, 1);
@@ -177,6 +178,7 @@ export class ArrowCapBatch {
                 arrowDirection: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowDirection),
                 arrowSize: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowSize),
                 arrowColor: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowColor),
+                arrowClip: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowClip),
             };
 
             for (const [kind, stride] of Object.entries(BILLBOARD_BUFFERS)) {
@@ -247,6 +249,12 @@ export class ArrowCapBatch {
         IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
         this.dirty.add("matrix");
 
+        // Unclipped. A zero here would cut the shape off at its own origin.
+        if (this.billboard) {
+            this.billboard.arrowClip[index] = -1;
+            this.dirty.add("arrowClip");
+        }
+
         return index;
     }
 
@@ -300,6 +308,21 @@ export class ArrowCapBatch {
         this.billboard.arrowColor[at + 1] = rgb.g;
         this.billboard.arrowColor[at + 2] = rgb.b;
         this.dirty.add("arrowColor");
+    }
+
+    /**
+     * Cut one slot's shape off past a point along its own X axis, or stop cutting it. A no-op on a
+     * batch whose shapes hold nothing per instance.
+     * @param index - The slot.
+     * @param clipX - Where to cut, in the shape's own units, or -1 to draw it whole.
+     */
+    setClip(index: number, clipX: number): void {
+        if (this.gone || !this.billboard || this.billboard.arrowClip[index] === clipX) {
+            return;
+        }
+
+        this.billboard.arrowClip[index] = clipX;
+        this.dirty.add("arrowClip");
     }
 
     /**
@@ -401,11 +424,12 @@ export class ArrowCapBatch {
      *
      * The direction it points along, the world-space length it is drawn at and its colour --
      * the three things that were uniforms on a cap's own material and are now rows in the
-     * batch's own arrays. Null on a batch whose caps hold colour on a shared material.
+     * batch's own arrays -- plus where a pattern segment is cut off, -1 for drawn whole. Null on
+     * a batch whose caps hold colour on a shared material.
      * @param index - The slot.
      * @returns What the shader reads for that slot, or null when it reads none of it.
      */
-    appearanceOf(index: number): { direction: Vector3; size: number; colour: Color3 } | null {
+    appearanceOf(index: number): { direction: Vector3; size: number; colour: Color3; clip: number } | null {
         if (!this.billboard) {
             return null;
         }
@@ -425,6 +449,7 @@ export class ArrowCapBatch {
                 this.billboard.arrowColor[colourAt + 1],
                 this.billboard.arrowColor[colourAt + 2],
             ),
+            clip: this.billboard.arrowClip[index],
         };
     }
 
@@ -609,10 +634,11 @@ export class ArrowCap {
 
     /**
      * What the billboard shader draws this cap with: the direction it points along, the length
-     * it is drawn at and its colour. Null for a cap whose colour is on its batch's material.
-     * @returns The three per-instance values, or null.
+     * it is drawn at, its colour and where it is cut off (-1 for whole). Null for a cap whose
+     * colour is on its batch's material.
+     * @returns The per-instance values, or null.
      */
-    get drawnAppearance(): { direction: Vector3; size: number; colour: Color3 } | null {
+    get drawnAppearance(): { direction: Vector3; size: number; colour: Color3; clip: number } | null {
         return this.batch?.appearanceOf(this.slot) ?? null;
     }
 
@@ -656,6 +682,14 @@ export class ArrowCap {
         }
 
         this.batch.placeOriented(this.slot, position, null, this.size);
+    }
+
+    /**
+     * Cut this shape off past a point along its own X axis.
+     * @param clipX - Where to cut, in the shape's own units, or -1 to draw it whole.
+     */
+    setClip(clipX: number): void {
+        this.batch?.setClip(this.slot, clipX);
     }
 
     /**

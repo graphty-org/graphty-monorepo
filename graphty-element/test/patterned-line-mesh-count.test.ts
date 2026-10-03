@@ -141,7 +141,7 @@ describe("patterned line element count", () => {
                         patternCount,
                     );
 
-                    const last = line.meshes[line.meshes.length - 1];
+                    const last = line.elements[line.elements.length - 1];
                     const lastStart = last.position.subtract(start).length();
 
                     assert.isBelow(lastStart, LENGTH, "the last segment starts past the line end");

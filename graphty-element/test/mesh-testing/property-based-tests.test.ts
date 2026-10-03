@@ -19,6 +19,7 @@ import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { edgeLineFor } from "../helpers/edgeLine";
 import { createMeshScene, drawnText, type MeshTestScene, resetRecordedCanvases } from "./real-mesh-harness";
 
 const LINE_TYPES = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
@@ -181,7 +182,7 @@ describe("Property-Based Tests", () => {
                     hexColor,
                     fc.float({ min: 0, max: 1, noNaN: true }),
                     (type, width, color, opacity) => {
-                        const edge = EdgeMesh.create(
+                        const edge = edgeLineFor(
                             ctx.cache,
                             { styleId: nextStyleId(), width: width * 20, color },
                             { line: { type, opacity } },
@@ -189,7 +190,7 @@ describe("Property-Based Tests", () => {
                         );
 
                         if (edge instanceof PatternedLineMesh) {
-                            assert.isAbove(edge.meshes.length, 0);
+                            assert.isAbove(edge.elements.length, 0);
                             return;
                         }
 
@@ -206,7 +207,7 @@ describe("Property-Based Tests", () => {
                     fc.float({ min: Math.fround(0.1), max: Math.fround(5), noNaN: true }),
                     hexColor,
                     (animationSpeed, color) => {
-                        const edge = EdgeMesh.create(
+                        const edge = edgeLineFor(
                             ctx.cache,
                             { styleId: nextStyleId(), width: 20, color },
                             { line: { type: "solid", animationSpeed } },
@@ -228,14 +229,14 @@ describe("Property-Based Tests", () => {
                     fc.constantFrom(...LINE_TYPES.filter((type) => !connected.includes(type))),
                     fc.integer({ min: 2, max: 30 }),
                     (type, patternCount) => {
-                        const edge = EdgeMesh.create(
+                        const edge = edgeLineFor(
                             ctx.cache,
                             { styleId: nextStyleId(), width: 20, color: "#FFFFFF" },
                             { line: { type, patternCount } },
                             ctx.scene,
                         ) as PatternedLineMesh;
 
-                        assert.equal(edge.meshes.length, patternCount);
+                        assert.equal(edge.elements.length, patternCount);
                     },
                 ),
                 { numRuns: 30 },

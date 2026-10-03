@@ -35,6 +35,7 @@ import {
 import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
+import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
@@ -425,6 +426,23 @@ function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | nul
 }
 
 /**
+ * What one pattern element is drawn as: its shape, its colour, its opacity and its scale.
+ *
+ * Keyed the way {@link edgeLineAppearance} keys a line that owns its mesh, so an edge drawn with
+ * dots in two colours counts as two appearances. A 3D element carries its colour in its slot; a
+ * 2D one on its batch's material.
+ * @param element - One element of a patterned line.
+ * @returns The appearance.
+ */
+function patternAppearance(element: Edge["drawnPattern"][number]): string {
+    const slotColour = element.drawnAppearance?.colour.toHexString().toLowerCase();
+    const paint = element.batchMesh === null ? null : materialPaint(element.batchMesh);
+    const hex = slotColour ?? paint?.hex ?? "no-colour";
+
+    return `${element.name}|${hex}|a${String(paint?.alpha ?? element.visibility)}|w${element.span.toFixed(3)}`;
+}
+
+/**
  * What one mesh draws an edge line as, or null when it is not a drawn edge line.
  *
  * The one reading of edge appearance there is, because the element publishes no way to enumerate
@@ -452,7 +470,7 @@ function edgeLineAppearance(mesh: AbstractMesh): string | null {
         return mesh.name;
     }
 
-    if (!OWN_LINE_MESHES.includes(mesh.name as (typeof OWN_LINE_MESHES)[number]) && !mesh.name.startsWith("pattern-")) {
+    if (!OWN_LINE_MESHES.includes(mesh.name as (typeof OWN_LINE_MESHES)[number])) {
         return null;
     }
 
@@ -466,41 +484,25 @@ function edgeLineAppearance(mesh: AbstractMesh): string | null {
 
 /**
  * How far a line's drawn path leaves the straight segment between its own two ends.
- * @param mesh - The line mesh.
+ * @param points - The points the line is drawn through, in order.
  * @returns The largest perpendicular distance, in world units.
  */
-function sagittaOf(mesh: AbstractMesh): number {
-    const positions = mesh.getVerticesData("position");
-
-    if (!positions || positions.length < 9) {
+function sagittaOf(points: readonly Vector3[]): number {
+    if (points.length < 3) {
         return 0;
     }
 
-    const last = positions.length - 3;
-    const ax = positions[0];
-    const ay = positions[1];
-    const az = positions[2];
-    const bx = positions[last] - ax;
-    const by = positions[last + 1] - ay;
-    const bz = positions[last + 2] - az;
-    const span = Math.hypot(bx, by, bz);
+    const start = points[0];
+    const chord = points[points.length - 1].subtract(start);
+    const span = chord.length();
 
     if (span === 0) {
         return 0;
     }
 
-    let furthest = 0;
-
-    for (let offset = 0; offset < positions.length; offset += 3) {
-        const px = positions[offset] - ax;
-        const py = positions[offset + 1] - ay;
-        const pz = positions[offset + 2] - az;
-        const cross = Math.hypot(by * pz - bz * py, bz * px - bx * pz, bx * py - by * px);
-
-        furthest = Math.max(furthest, cross / span);
-    }
-
-    return furthest;
+    return points.reduce((furthest, point) => {
+        return Math.max(furthest, Vector3.Cross(chord, point.subtract(start)).length() / span);
+    }, 0);
 }
 
 /**
@@ -617,9 +619,6 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     });
 
     const scope = await session.scope.resolve("graph");
-    const curves = graph.scene.meshes.filter(
-        (mesh) => (mesh.metadata as { isBezierCurve?: boolean } | null)?.isBezierCurve === true,
-    );
     const planes = graph.scene.meshes.filter((mesh) => mesh.name.startsWith("richTextPlane"));
 
     // READ OFF THE EDGES THEMSELVES, the way a node's label is read off its node. A caption, an
@@ -647,11 +646,18 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // batch and has no mesh in `scene.meshes` to be found by name.
     const drawnCaps = edges.flatMap((edge) => edge.drawnCaps);
 
+    // A curve is a run of slots in a shared line batch and a patterned line a run of slots in
+    // shared shape batches (issue #444), so neither has a mesh of its own in the scene: both are
+    // read off the edge that draws them.
+    const curves = edges.flatMap((edge) => (edge.drawnCurve === null ? [] : [edge.drawnCurve]));
+    const patternElements = edges.flatMap((edge) => edge.drawnPattern);
+
     // The lines drawn from a shared batch, which have no mesh of their own to be read off the
     // scene, and the lines that do, together and in one list -- what an edge is drawn BY is a
     // renderer decision and no assertion should have to know which half an edge fell into.
     const drawnEdgeLines = [
         ...edges.flatMap((edge) => (edge.drawnLine === null ? [] : [edge.drawnLine.name])),
+        ...patternElements.map((element) => patternAppearance(element)),
         ...graph.scene.meshes
             .map((mesh) => edgeLineAppearance(mesh))
             .filter((appearance): appearance is string => appearance !== null),
@@ -667,12 +673,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
-        maxSagitta: curves.reduce((most, mesh) => Math.max(most, sagittaOf(mesh)), 0),
+        maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [
-            ...new Set(graph.scene.meshes.filter((mesh) => mesh.name.startsWith("pattern-")).map((mesh) => mesh.name)),
-        ].sort(),
+        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -681,6 +685,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             // A cap's drawn extent is its own, not its batch's, for the same reason a batched
             // line's is: the batch mesh is one shape and each slot scales it.
             ...drawnCaps.map((cap) => `${cap.name}@${cap.span.toFixed(3)}:${String(cap.visibility)}`),
+            // A pattern element likewise: a slot in its shape's batch.
+            ...patternElements.map(
+                (element) => `${element.name}@${element.span.toFixed(3)}:${String(element.visibility)}`,
+            ),
             // A batched line's drawn extent is its own, not its batch's: the batch mesh is a unit
             // segment and the matrix in the slot carries the length. Spelled the way the scene
             // walk below spells a mesh's extent, so the two halves of the list are comparable.
@@ -697,7 +705,6 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
                 .filter(
                     (mesh) =>
                         (mesh.name.startsWith("edge-style-") && !mesh.hasThinInstances) ||
-                        mesh.name.startsWith("pattern-") ||
                         mesh.name.startsWith("custom-line"),
                 )
                 .map((mesh) => {

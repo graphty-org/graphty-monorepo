@@ -1,5 +1,5 @@
 /**
- * @file In 3D, the number of scene objects grows with styles and nodes, never with edges (issue
+ * @file In 2D and 3D, the number of scene objects grows with styles and nodes, never with edges (issue
  * #441).
  *
  * THE DEFECT THIS GUARDS. Arrow heads were once thin instances of one shared mesh, and a single
@@ -14,14 +14,15 @@
  * buffer on the next frame, and the matrix Babylon draws that edge's instance with is the moved one.
  * A batch that writes its own array and forgets to tell Babylon draws every edge where it was.
  *
- * WHAT IS NOT. 2D. A 2D line still owns its mesh, so a 2D graph still adds one mesh per edge
- * (issue #444). The last test here holds that as a known failure, so the fix for #444 flips it.
+ * EVERY LINE STYLE, IN BOTH MODES (issue #444). A curve, an animated line, each of the eight
+ * patterns and every 2D line is held to the same bound as the default straight 3D line.
  */
 import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import { Mesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
+import type { StaticStyle } from "../../src/catalog/types";
 import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
@@ -236,6 +237,23 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
     });
 
+    it("puts a curve's drawn centre at the middle of the curve, not of its first segment", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none", "edge.curvature": true });
+        await frame();
+        await frame();
+
+        const edge = edges()[0];
+        const curve = edge.drawnCurve;
+        assert.isNotNull(curve);
+        assert.isAbove(curve.length, 3, "a curve is drawn as several segments");
+
+        // A symmetric curve's middle is as far from one end as from the other.
+        const centre = edge.drawnCentre;
+        const fromStart = Vector3.Distance(centre, curve[0]);
+        const fromEnd = Vector3.Distance(centre, curve[curve.length - 1]);
+        assert.closeTo(fromStart, fromEnd, 1e-3 * (fromStart + fromEnd), "the centre is midway along the curve");
+    });
+
     it("uploads a cap batch's matrices, and draws the moved matrix, when a node moves", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();
@@ -281,14 +299,47 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.include(uploads, "arrowSize", "a new cap size is uploaded");
     });
 
-    // Known failure, kept as a tripwire: a 2D line still owns its mesh (issue #444), so 300 edges
-    // are about 300 more meshes. When 2D lines are batched this starts passing, `it.fails` reports
-    // it, and the fix is to change `it.fails` to `it`.
-    it.fails("draws a few hundred 2D edges of one style as one batch", async () => {
-        await graph.setViewMode("2d");
-        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
-        await frame();
+    /**
+     * Every line style the element draws, as the style channels that ask for it, and how many
+     * batches it is entitled to. A dash-dot line alternates two shapes, so it draws from two.
+     */
+    const LINE_STYLES: { name: string; set: StaticStyle; batches: number }[] = [
+        { name: "a solid line", set: {}, batches: 1 },
+        { name: "a curve", set: { "edge.curvature": true }, batches: 1 },
+        { name: "an animated line", set: { "edge.animationSpeed": 1 }, batches: 1 },
+        ...["dot", "star", "box", "dash", "diamond", "sinewave", "zigzag"].map((type) => ({
+            name: `a ${type} line`,
+            set: { "edge.style": type } as StaticStyle,
+            batches: 1,
+        })),
+        { name: "a dash-dot line", set: { "edge.style": "dash-dot" }, batches: 2 },
+    ];
 
-        assert.isAtMost(graph.scene.meshes.length, bound(1), "2D edges grow the scene");
-    });
+    // Issue #444: the straight solid 3D line was the only style drawn as thin instances, so every
+    // other style -- and every line in 2D -- added a mesh per edge, and a patterned line a mesh
+    // per dash. Each case here draws a few hundred edges of one style and counts the scene.
+    for (const mode of ["3d", "2d"] as const) {
+        for (const style of LINE_STYLES) {
+            it(`draws a few hundred edges of ${style.name} in ${mode} as a fixed number of batches`, async () => {
+                if (mode === "2d") {
+                    await graph.setViewMode("2d");
+                }
+
+                await styleEveryEdge(graph, { "edge.arrowHead": "none", ...style.set });
+                await frame();
+                // A second frame, so a style that places its geometry on the first update (a curve,
+                // a pattern that sizes its run to the line's length) has been placed.
+                await frame();
+
+                assert.equal(edges().length, EDGE_COUNT, "the graph must actually load");
+                const meshes = graph.scene.meshes.length;
+                assert.isAtMost(
+                    meshes,
+                    bound(style.batches),
+                    `${String(EDGE_COUNT)} edges of ${style.name} in ${mode} left ${String(meshes)} meshes ` +
+                        `in a scene that started with ${String(empty)}: that is growing with the edges`,
+                );
+            });
+        }
+    }
 });

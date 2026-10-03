@@ -14,6 +14,7 @@ import { assert, beforeEach, describe, test } from "vitest";
 import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
+import { edgeLineFor } from "./helpers/edgeLine";
 
 describe("EdgeMesh", () => {
     let scene: Scene;
@@ -34,7 +35,7 @@ describe("EdgeMesh", () => {
             };
             const style = { line: { width: 0.5, color: "#FF0000" } };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
+            const mesh = edgeLineFor(meshCache, options, style, scene) as AbstractMesh;
 
             assert.exists(mesh);
             assert.equal(mesh.name, "edge-style-test-static");
@@ -58,7 +59,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
+            const mesh = edgeLineFor(meshCache, options, style, scene) as AbstractMesh;
 
             assert.exists(mesh);
             assert.equal(mesh.name, "edge-style-test-animated");
@@ -76,7 +77,7 @@ describe("EdgeMesh", () => {
             };
             const style = { line: {} };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
         });
@@ -89,7 +90,7 @@ describe("EdgeMesh", () => {
             };
             const style = { line: { color: "#FF0000" } };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
         });
@@ -109,7 +110,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
+            const mesh = edgeLineFor(meshCache, options, style, scene) as AbstractMesh;
             const material = mesh.material as StandardMaterial;
 
             // uScale is a property of RawTexture but not in the type definitions
@@ -186,7 +187,7 @@ describe("EdgeMesh", () => {
         });
 
         test("transformMesh positions and orients correctly", () => {
-            const mesh = EdgeMesh.create(
+            const mesh = edgeLineFor(
                 meshCache,
                 { styleId: "test-transform", width: 0.25, color: "#FF0000" },
                 { line: { width: 0.25, color: "#FF0000" } },
@@ -205,7 +206,7 @@ describe("EdgeMesh", () => {
         });
 
         test("transformMesh handles negative coordinates", () => {
-            const mesh = EdgeMesh.create(
+            const mesh = edgeLineFor(
                 meshCache,
                 { styleId: "test-negative", width: 0.25, color: "#FF0000" },
                 { line: { width: 0.25, color: "#FF0000" } },
@@ -229,8 +230,8 @@ describe("EdgeMesh", () => {
             const options = { styleId: "cached-edge", width: 0.25, color: "#FF0000" };
             const style = { line: { width: 0.25, color: "#FF0000" } };
 
-            const mesh1 = EdgeMesh.create(meshCache, options, style, scene);
-            const mesh2 = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh1 = edgeLineFor(meshCache, options, style, scene);
+            const mesh2 = edgeLineFor(meshCache, options, style, scene);
 
             // Both should be instances from the same source mesh
             const instance1 = mesh1 as InstancedMesh;
@@ -241,8 +242,8 @@ describe("EdgeMesh", () => {
         test("creates new mesh for different styleId", () => {
             const style = { line: { width: 0.25, color: "#FF0000" } };
 
-            const mesh1 = EdgeMesh.create(meshCache, { styleId: "edge1", width: 0.25, color: "#FF0000" }, style, scene);
-            const mesh2 = EdgeMesh.create(meshCache, { styleId: "edge2", width: 0.25, color: "#FF0000" }, style, scene);
+            const mesh1 = edgeLineFor(meshCache, { styleId: "edge1", width: 0.25, color: "#FF0000" }, style, scene);
+            const mesh2 = edgeLineFor(meshCache, { styleId: "edge2", width: 0.25, color: "#FF0000" }, style, scene);
 
             assert.notStrictEqual(mesh1, mesh2);
         });
@@ -250,7 +251,7 @@ describe("EdgeMesh", () => {
         test("animated and static lines have different cache keys", () => {
             const options = { styleId: "same-edge", width: 0.25, color: "#FF0000" };
 
-            const staticMesh = EdgeMesh.create(
+            const staticMesh = edgeLineFor(
                 meshCache,
                 options,
                 { line: { width: 0.25, color: "#FF0000" } },
@@ -260,7 +261,7 @@ describe("EdgeMesh", () => {
             // Clear cache to ensure new mesh creation
             meshCache.clear();
 
-            const animatedMesh = EdgeMesh.create(
+            const animatedMesh = edgeLineFor(
                 meshCache,
                 options,
                 { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 } },
@@ -277,14 +278,15 @@ describe("EdgeMesh", () => {
         test("animation observer is added to scene", () => {
             const initialObserverCount = scene.onBeforeRenderObservable.observers.length;
 
-            EdgeMesh.create(
+            edgeLineFor(
                 meshCache,
                 { styleId: "test-observer", width: 0.25, color: "#FF0000" },
                 { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 } },
                 scene,
             );
 
-            assert.equal(scene.onBeforeRenderObservable.observers.length, initialObserverCount + 1);
+            // One for the animation, and one for the flush every line batch uploads its slots on.
+            assert.equal(scene.onBeforeRenderObservable.observers.length, initialObserverCount + 2);
         });
     });
 
@@ -418,7 +420,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.5);
@@ -435,7 +437,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 1);
@@ -452,7 +454,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0);
@@ -469,7 +471,7 @@ describe("EdgeMesh", () => {
                 enabled: true,
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             assert.exists(mesh);
             assert.equal(mesh.visibility, 0.7);

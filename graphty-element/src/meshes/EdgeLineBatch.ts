@@ -18,6 +18,8 @@ const scratchMiddle = new Vector3();
 const scratchScaling = new Vector3(1, 1, 1);
 const scratchRotation = new Quaternion();
 const scratchMatrix = new Matrix();
+const flatSrc = new Vector3();
+const flatDst = new Vector3();
 
 /**
  * The local matrix that puts the renderer's unit line segment between two points.
@@ -106,6 +108,17 @@ export class EdgeLineBatch {
     private readonly flushOnRender: () => void;
 
     /**
+     * Whether every slot lies in the XY plane: a batch of 2D lines (`Simple2DLineRenderer`).
+     *
+     * A 2D LINE STAYS ON THE PLANE WHATEVER Z ITS ENDS CARRY. The rectangle spans local Y and Z,
+     * and only a segment in the XY plane keeps local Y in that plane; given a Z the slot tilts, the
+     * orthographic camera sees it foreshortened, and a line running along Y collapses to nothing.
+     * The per-edge 2D mesh this batch replaced drew a rectangle in XY at the middle's Z, as long as
+     * the XY distance between the ends, and a flat batch places its slots the same way.
+     */
+    private readonly flat: boolean;
+
+    /**
      * Start a batch on one line mesh.
      * @param mesh - The line mesh to draw every edge in this batch from, at the origin and
      *     unrotated: a slot's matrix carries the placement, and this mesh's own world matrix is
@@ -118,6 +131,7 @@ export class EdgeLineBatch {
     constructor(mesh: Mesh, scene: Scene, retire: () => void = (): void => undefined) {
         this.mesh = mesh;
         this.retire = retire;
+        this.flat = (mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
         this.matrices = new Float32Array(INITIAL_SLOTS * FLOATS_PER_SLOT);
 
         // An edge line was never a pick candidate and a batch of them is not one either. Picking
@@ -233,7 +247,17 @@ export class EdgeLineBatch {
             return;
         }
 
-        segmentMatrixToRef(srcPoint, dstPoint, scratchMatrix);
+        if (this.flat) {
+            const z = (srcPoint.z + dstPoint.z) / 2;
+            segmentMatrixToRef(
+                flatSrc.set(srcPoint.x, srcPoint.y, z),
+                flatDst.set(dstPoint.x, dstPoint.y, z),
+                scratchMatrix,
+            );
+        } else {
+            segmentMatrixToRef(srcPoint, dstPoint, scratchMatrix);
+        }
+
         scratchMatrix.copyToArray(this.matrices, index * FLOATS_PER_SLOT);
         this.dirty = true;
     }
@@ -285,6 +309,22 @@ export class EdgeLineBatch {
         const at = index * FLOATS_PER_SLOT + 12;
 
         return new Vector3(this.matrices[at], this.matrices[at + 1], this.matrices[at + 2]);
+    }
+
+    /**
+     * Where the line in one slot starts and ends, read back out of its matrix: the unit segment
+     * runs from -0.5 to 0.5 along the slot's z basis vector, about its translation.
+     * @param index - The slot.
+     * @returns The two ends, as fresh vectors the caller may keep.
+     */
+    endsOf(index: number): [Vector3, Vector3] {
+        const at = index * FLOATS_PER_SLOT;
+        const centre = this.centreOf(index);
+        const half = new Vector3(this.matrices[at + 8], this.matrices[at + 9], this.matrices[at + 10]).scaleInPlace(
+            0.5,
+        );
+
+        return [centre.subtract(half), centre.add(half)];
     }
 
     /** Upload everything written since the last upload, in one call. */

@@ -994,6 +994,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             parallelRank: RENDER,
             parallelCount: RENDER,
             drawnLine: READ,
+            drawnCurve: READ,
+            drawnPattern: READ,
             drawnCentre: READ,
             drawnCaps: READ,
             invalidatePositionCache: RENDER,

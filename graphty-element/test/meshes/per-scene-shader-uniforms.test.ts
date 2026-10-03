@@ -86,7 +86,7 @@ function element(width: number, height: number, eye: Vector3): Element {
         scene,
         line: lineMesh.material as ShaderMaterial,
         arrow: arrowMesh.batchMesh?.material as ShaderMaterial,
-        pattern: patternLine.meshes[0].material as ShaderMaterial,
+        pattern: patternLine.elements[0].batchMesh?.material as ShaderMaterial,
         patternLine,
         dispose: () => {
             lineMesh.dispose(false, true);

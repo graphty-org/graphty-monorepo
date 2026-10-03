@@ -110,6 +110,7 @@ async function busySession(): Promise<Harness> {
     ]);
     await session.positions.pin(["a"]);
     await session.selection.apply({ nodes: ["c"] });
+    await session.visibility.set({ kind: "degree", min: 1 });
     return harness;
 }
 
@@ -159,6 +160,7 @@ describe("the project file", () => {
         session.positions.read(1, at);
         assert.deepStrictEqual(at, { x: 4, y: 5, z: 6 });
         assert.deepStrictEqual([...session.selection.nodes], ["c"]);
+        assert.deepStrictEqual(session.visibility.filter, source.session.visibility.filter);
 
         source.session.dispose();
         session.dispose();
@@ -193,10 +195,42 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("reopens in the session that saved it: a set-scoped run, the filter and a layer follow the set's new id", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        const core = session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Core" });
+        await session.runs.start("degree", undefined, { as: "in_core" as RunId, style: false, scope: { set: core } });
+        await session.visibility.set({ kind: "member", of: { set: core } });
+        await session.styles.add({
+            name: "Core in red",
+            target: "node",
+            selector: { match: "member", of: { set: core } },
+            set: { "node.color": "#ff0000" },
+        });
+        const document = session.project.toDocument();
+
+        // The session has issued the set's id already, so the reopened set is minted another.
+        const report = await session.project.open(document);
+        assert.deepStrictEqual(report.missing, []);
+        const [reopened] = session.sets.list();
+        assert.notStrictEqual(reopened.id, core);
+        assert.deepStrictEqual(
+            session.runs.list().map((run) => run.id),
+            ["in_core"],
+        );
+        assert.deepStrictEqual(session.visibility.filter, { kind: "member", of: { set: reopened.id } });
+        const layer = session.styles.list().find((held) => held.name === "Core in red");
+        assert.deepStrictEqual(layer?.selector, { match: "member", of: { set: reopened.id } });
+        session.dispose();
+    });
+
     it("binds a saved layer to a run whose fields name it by the placeholder", async () => {
         const harness = await busySession();
         const report = await harness.session.styles.applyTemplate(harness.session.styles.toDocument());
         assert.deepStrictEqual(report.unbound, [], "results.links.value is answered by the run links");
+        const [block] = harness.session.styles.legend().filter((entry) => entry.runId === "links");
+        assert.strictEqual(block.field?.plainName, "Connections", "the legend names the column in the run's words");
         harness.session.dispose();
     });
 

@@ -81,4 +81,5 @@ it was:
 - **The live camera.** Save a named view with `session.views.save` to keep a camera position.
 - **Work in flight.** A run that has not finished is not saved.
 - **The author name** (`session.config.author`): it belongs to the person, not the project.
-- **The undo history.** An opened project starts with the open as its one step.
+- **The undo history.** Opening is one step on the history the session already has, so one undo
+  puts back what was open before.

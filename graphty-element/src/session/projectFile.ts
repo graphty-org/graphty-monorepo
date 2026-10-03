@@ -499,6 +499,34 @@ async function readInto(
         await tx.positions.pin(doc.pins);
     });
 
+    // Before the runs: a run over the selection reads it.
+    await attempt("selection", () =>
+        tx.selection.apply({
+            nodes: doc.selection.nodes.filter((node) => nodeIds.has(node)),
+            edges: doc.selection.edges.flatMap((edge) => edgeIds.get(edge) ?? []),
+        }),
+    );
+
+    // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
+    // has already issued its old one, so every `{ set }` the file names is rewritten to the new id.
+    const setIds = new Map<string, string>();
+    const remap = <T>(value: T): T =>
+        JSON.parse(JSON.stringify(value), (key, held: unknown) =>
+            key === "set" && typeof held === "string" ? (setIds.get(held) ?? held) : held,
+        ) as T;
+    const createSet = (set: ProjectDocument["sets"][number]): void => {
+        setIds.set(set.id, tx.sets.create(remap(set.definition) as SetDefinitionInput, { name: set.name }));
+    };
+    // A set that reads a result cannot be made until its run is back; it is tried again after them.
+    const waiting = doc.sets.filter((set) => {
+        try {
+            createSet(set);
+            return false;
+        } catch {
+            return true;
+        }
+    });
+
     for (const run of doc.runs) {
         const id = run.command.as;
         await attempt(
@@ -519,7 +547,7 @@ async function readInto(
                     caveats: run.caveats,
                     fields: run.fields,
                 });
-                const { algorithm, params, ...options } = run.command;
+                const { algorithm, params, ...options } = remap(run.command);
                 try {
                     await tx.runs.start(algorithm, params, { ...options, style: false });
                 } finally {
@@ -530,17 +558,20 @@ async function readInto(
         );
     }
 
-    for (const set of doc.sets) {
+    for (const set of waiting) {
         await attempt(
             "sets",
-            () => Promise.resolve(tx.sets.create(set.definition as SetDefinitionInput, { name: set.name })),
+            () => {
+                createSet(set);
+                return Promise.resolve();
+            },
             set.id,
         );
     }
 
     await attempt("visibility", async () => {
         if (doc.visibility.filter !== null) {
-            await tx.visibility.set(doc.visibility.filter);
+            await tx.visibility.set(remap(doc.visibility.filter));
         }
 
         if (doc.visibility.window !== null) {
@@ -551,7 +582,7 @@ async function readInto(
     });
 
     await attempt("styles", async () => {
-        const report = await tx.styles.applyTemplate(doc.styles);
+        const report = await tx.styles.applyTemplate(remap(doc.styles));
         for (const unbound of report.unbound) {
             missing.push({ kind: "styles", id: unbound.layerId, reason: unbound.reason });
         }
@@ -575,13 +606,6 @@ async function readInto(
     if (doc.views.length > 0) {
         await attempt("views", () => tx.views.save(doc.views));
     }
-
-    await attempt("selection", () =>
-        tx.selection.apply({
-            nodes: doc.selection.nodes.filter((node) => nodeIds.has(node)),
-            edges: doc.selection.edges.flatMap((edge) => edgeIds.get(edge) ?? []),
-        }),
-    );
 }
 
 /**

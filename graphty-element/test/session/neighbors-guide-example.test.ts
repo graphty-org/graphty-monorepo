@@ -26,6 +26,11 @@ describe("the neighbors guide's example", () => {
         expectTypeOf<Root.WeightMeaning>().toEqualTypeOf<SessionEntry.WeightMeaning>();
         expectTypeOf<Root.NeighborOptions["weight"]>().toEqualTypeOf<Root.WeightMeaning | null | undefined>();
         expectTypeOf<NodeEventDetail["nodeId"]>().toEqualTypeOf<SessionEntry.NodeId>();
+        expectTypeOf<Root.NodeId>().toEqualTypeOf<SessionEntry.NodeId>();
+        expectTypeOf<Root.NodeId>().toEqualTypeOf<Root.NodeIdType>();
+        expectTypeOf<Root.Neighbor["weight"]>().toEqualTypeOf<number>();
+        expectTypeOf<Root.Neighbor["edgeCount"]>().toEqualTypeOf<number>();
+        expectTypeOf<ReturnType<SessionEntry.SessionDataApi["neighbors"]>>().toEqualTypeOf<Root.NeighborPage>();
     });
 
     it("lists a clicked node's strongest neighbors with their weights", async () => {

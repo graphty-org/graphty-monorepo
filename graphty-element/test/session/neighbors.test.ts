@@ -295,6 +295,8 @@ describe("a node's neighbors with their weights", () => {
 
         assert.strictEqual(first.total, 29);
         assert.strictEqual(second.offset, 10);
+        const counted = session.data.neighbors("n0", { weight, limit: 0 });
+        assert.deepStrictEqual([counted.records.length, counted.total], [0, 29], "limit 0 counts without rows");
         assert.deepStrictEqual(
             [...first.records, ...second.records].map((row) => row.node.id),
             whole.records.slice(0, 20).map((row) => row.node.id),

@@ -1,6 +1,7 @@
 import { type GraphSink } from "@graphty/graph-format";
 import { csvImporter as rootCsvImporter, importGraph, type ImportReport, type SniffResult } from "@graphty/graph-io";
 import { CSV_ISSUE, csvExporter, csvImporter, type CsvImportOptions } from "@graphty/graph-io/csv";
+import { CYS_ISSUE, cysImporter, type CysImportOptions } from "@graphty/graph-io/cys";
 import { dotExporter, dotImporter } from "@graphty/graph-io/dot";
 import { GEXF_ISSUE, gexfExporter, gexfImporter, type GexfVersion } from "@graphty/graph-io/gexf";
 import { GML_ISSUE, GML_LOSS, gmlExporter, gmlImporter } from "@graphty/graph-io/gml";
@@ -9,6 +10,13 @@ import { type JsonDialect, jsonExporter, jsonImporter, type JsonImportOptions } 
 import { NEO4J_ISSUE, neo4jExporter, neo4jImporter } from "@graphty/graph-io/neo4j";
 import { OBO_ISSUE, oboImporter, type OboImportOptions } from "@graphty/graph-io/obo";
 import { pajekExporter, pajekImporter } from "@graphty/graph-io/pajek";
+import {
+    XGMML_ISSUE,
+    XGMML_LOSS,
+    xgmmlExporter,
+    xgmmlImporter,
+    type XgmmlImportOptions,
+} from "@graphty/graph-io/xgmml";
 import { expectTypeOf } from "vitest";
 
 // Every subpath exposes an importer / exporter pair typed by the 12.4 contract, and the root
@@ -37,6 +45,12 @@ expectTypeOf<JsonImportOptions["oboIds"]>().toEqualTypeOf<"curie" | "iri" | unde
 expectTypeOf<JsonImportOptions["graphName"]>().toEqualTypeOf<string | undefined>();
 expectTypeOf(pajekImporter.format).toBeString();
 expectTypeOf(pajekExporter.format).toBeString();
+expectTypeOf(xgmmlImporter.format).toBeString();
+expectTypeOf(xgmmlExporter.format).toBeString();
+expectTypeOf<XgmmlImportOptions["zAs"]>().toEqualTypeOf<"column" | "position" | undefined>();
+expectTypeOf(cysImporter.format).toBeString();
+expectTypeOf<CysImportOptions["maxUncompressedBytes"]>().toEqualTypeOf<number | undefined>();
+expectTypeOf<CysImportOptions["graphName"]>().toEqualTypeOf<string | undefined>();
 
 // The grouped code tables are frozen string tables.
 expectTypeOf(CSV_ISSUE.EMPTY_INPUT).toBeString();
@@ -46,6 +60,9 @@ expectTypeOf(GML_LOSS.RECORD_NUMBER_TYPE).toBeString();
 expectTypeOf(GRAPHML_ISSUE.XML_SYNTAX).toBeString();
 expectTypeOf(NEO4J_ISSUE.HEADER).toBeString();
 expectTypeOf(OBO_ISSUE.SYNTAX).toBeString();
+expectTypeOf(XGMML_ISSUE.BAD_ATT).toBeString();
+expectTypeOf(XGMML_LOSS.JSON_AS_STRING).toBeString();
+expectTypeOf(CYS_ISSUE.NOT_ZIP).toBeString();
 
 // Format-specific options intersect with the common options under exactOptionalPropertyTypes.
 const csvOptions: CsvImportOptions & { ids?: "canonical" | undefined } = { delimiter: ";", ids: "canonical" };

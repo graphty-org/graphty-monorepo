@@ -55,7 +55,8 @@ const PACKAGE_PREFIX = "webgpu-graph-algorithms/";
  * (every group) rather than silent. When a benchmark starts to reach one, delete it from here.
  * - src/browser/index.ts, src/index.ts, src/accelerator.ts: entry points the Node benchmarks never import.
  * - the algorithms no group measures: bellman-ford, closeness, spectral (and its power-iteration), the layout
- *   calibration, and the two kernels only they compile (bf-relax, closeness-reduce).
+ *   calibration, the kernels only they compile (bf-relax, closeness-level, closeness-rowsum), and indirect-finalize,
+ *   which no benchmarked route dispatches.
  */
 export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/node/index.ts",
@@ -65,6 +66,7 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/kernel/prelude.ts",
     "src/kernel/wgsl.ts",
     "src/browser/index.ts",
+    "src/managed.ts",
     "src/index.ts",
     "src/accelerator.ts",
     "src/algorithms/bellman-ford.ts",
@@ -73,7 +75,8 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/algorithms/spectral.ts",
     "src/layouts/calibrate.ts",
     "src/wgsl/bf-relax.wgsl.ts",
-    "src/wgsl/closeness-reduce.wgsl.ts",
+    "src/wgsl/closeness-level.wgsl.ts",
+    "src/wgsl/closeness-rowsum.wgsl.ts",
     "src/wgsl/indirect-finalize.wgsl.ts",
 ]);
 
@@ -145,6 +148,10 @@ export function kernelModules() {
  */
 function reachedSrc(roots, kernels) {
     const registry = join(PACKAGE_DIR, "src/kernels.ts");
+    // src/managed.ts (acquireAccelerator) imports createAccelerator and through it every algorithm and layout, and
+    // the node and browser entries import it; no benchmark calls it, so following it would put every algorithm in
+    // every group. It is in AFFECTS_EVERY_GROUP instead.
+    const managed = join(PACKAGE_DIR, "src/managed.ts");
     const seen = new Set();
     const stack = [...roots];
     while (stack.length > 0) {
@@ -153,7 +160,7 @@ function reachedSrc(roots, kernels) {
             continue;
         }
         seen.add(file);
-        for (const spec of relativeImports(file)) {
+        for (const spec of file === managed ? [] : relativeImports(file)) {
             const target = resolveImport(file, spec);
             if (target !== null && !(file === registry && spec.startsWith("./wgsl/"))) {
                 stack.push(target);

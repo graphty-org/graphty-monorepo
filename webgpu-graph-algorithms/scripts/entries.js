@@ -21,3 +21,12 @@ export const ENTRIES = Object.freeze({
 export function declarationSpecifier(source) {
     return `./${source.replace(/\.ts$/, ".js")}`;
 }
+
+/**
+ * dist/acquire.d.ts, the declarations of the "./acquire" subpath. That subpath has no bundle of its own: its
+ * `browser` and `default` conditions resolve to dist/browser.js and its `node` condition to dist/node.js, so one
+ * specifier serves both runtimes and the two builds can never meet in one bundle.
+ */
+export const ACQUIRE_SHIM =
+    'export { acquireAccelerator } from "./src/browser/index.js";\n' +
+    'export type { AcceleratorDeclined, AcceleratorReady, AcquireAcceleratorOptions, AcquireResult, ManagedAccelerator } from "./src/types/managed.js";\n';

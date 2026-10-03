@@ -5,19 +5,22 @@
    path, because it creates a row; Esc, X or a click outside close it. Most flow and Weakest cut are
    Analyze entries, not here. A pick field, while active, turns the canvas into a pick target (a
    crosshair and one hint line) and also takes a typed name, so the keyboard can pick too.
-   Weight opens on the attribute set at load ("amount (set at load)"); the other choice is
-   "None (fewest steps)". A found path states its step count and a summary named after the weight
-   attribute, read by the kind the weight was declared with: a distance sums ("Sum of amount along
-   the path: 22,397.82"), a capacity gives its smallest step, a similarity its weakest step, and a
-   weight with no declared kind sums, labeled as a sum. When routes tie, the bar says so and adds a
+   Weight opens on the attribute set at load ("amount (set at load)"), as every run does, and is read
+   by the kind it was declared with: a distance is summed; a similarity (Stronger) is never summed as a
+   distance, the route uses its inverse and says so ("Stronger links count as shorter"); a capacity
+   takes the widest route; a weight with no declared kind is summed and labeled as a sum. The other
+   choice is "None (fewest steps)". A found path states its step count and a summary named after the
+   weight attribute ("Sum of amount along the path: 22,397.82"; a capacity its smallest step, a
+   similarity its weakest step). When routes tie, the bar says so and adds a
    "Route 1 of 2" stepper (previous and next, arrow keys while it has focus).
-   Under Weight, one line names the weight used and how many edges have no value for it and are left
+   Under Weight, one line says how many edges have no value for the weight and are left
    out of a weighted path. On data with a time column, Direction also offers Follow time order
    (needs graphty-element). A found path keeps its hops in path order (the path inspector lists them
    with their dates); a hop dated earlier than the hop before it is flagged on the result bar ("Not in
-   time order: step 2 (7 Mar) is earlier than step 1 (9 Mar)"), and a path whose dates run forward says "Dates in order". On Les Miserables the found path is
-   drawn as the selection (the selection ring on its nodes, its edges in the ring's color); it adds no
-   style layer and moves none.
+   time order: step 2 (7 Mar) is earlier than step 1 (9 Mar)"), and a path whose dates run forward says "Dates in order". On Les Miserables the found path's
+   suggested layer is a highlight (scoped to isInPath == true): it draws the highlight mark (a dashed
+   two-tone ring on its nodes, a dashed casing on its edges) and writes no color, so every color under
+   it stays; nothing else is dimmed. The path is also selected (the selection rings on its nodes).
    Plain ASCII. */
 (function () {
     "use strict";
@@ -161,6 +164,23 @@
         back(to, [], []);
         return out;
     }
+    // What each node on a route received and sent along this trace, read from the edges' own direction
+    // (not the order the route walks them, which runs against the edges on an Either way trace), in the
+    // weight attribute's name and unit as the data declares them; no currency case. Only on a directed
+    // graph, where in and out mean something. graphty-element returns this with the path result;
+    // ponytail: computed here from the fixture's edges until it does.
+    function flowsOf(r, p) {
+        const col = p.weight || p.loaded, D = AB.fx.datasets[p.ds || "lesmis"];
+        if (!col || !D || !D.directed) return null;
+        const f = AB.fieldsOf(p.ds).filter((g) => g.element === "edge").flatMap((g) => g.fields).find((x) => x.name === col);
+        const unit = f && f.unit ? " " + f.unit : "", vals = r.edges.map((e) => e.w[col]).filter((v) => v != null);
+        const tot = (es) => es.reduce((a, e) => a + (e.w[col] || 0), 0);
+        return r.nodes.map((node) => {
+            const got = tot(r.edges.filter((e) => e.target === node)), sent = tot(r.edges.filter((e) => e.source === node));
+            const said = [got ? "in " + fmt(got, vals) + unit : null, sent ? "out " + fmt(sent, vals) + unit : null].filter(Boolean).join(" / ");
+            return { node, col, in: got, out: sent, text: said ? col + " " + said + ", this trace" : "" };
+        });
+    }
     function solve(p) {
         const col = p.weight, kind = col ? KIND[p.meaning] || null : null, adj = new Map();
         const link = (a, b, e) => { if (!adj.has(a)) adj.set(a, []); adj.get(a).push([b, e]); };
@@ -193,6 +213,7 @@
             route: r.nodes, hops: r.edges.length, transfers: r.edges.filter((e) => e.amount != null).map(({ source, target, amount, timestamp }) => ({ source, target, amount, timestamp })),
             dollars: p.ds === "transactions" ? Math.round(sum(r.edges.map((e) => e.amount)) * 100) / 100 : undefined,
             steps: r.edges.length, col, text: col ? say(ws(r)) : "", late: timeFlags(r.edges), timed: r.edges.some((e) => e.timestamp),
+            flows: flowsOf(r, p),
         }));
     }
     // A found path: its ends and settings, its name after its ends, its routes that tie, and the one
@@ -242,44 +263,58 @@
         dock.prepend(h("div", { class: "k-toolbar pp-result", role: "group", "aria-label": "Path found" }, icon("route", "sm"), line, late, stepper ? h("span", { class: "k-toolbar-sep" }) : null, stepper));
     }
 
-    // The found path drawn as the selection on Les Miserables: Valjean's selection rings (the drawing
-    // that marks him) copied onto every node of the route and taken off him when he is not on it, and
-    // the route's edges redrawn in the outer ring's color. The selection, not a style layer: no layer
-    // is added or moved. The at-rest drawing's node circles are in row order, so it says where each
-    // character is drawn; the drawing that marks Valjean draws everyone at the same places.
+    // The found path on Les Miserables, as the at-rest canvas draws it (one node size) with two marks
+    // on top and no color changed: the path row's highlight layer (the highlight mark, outside every
+    // color channel, so the PageRank colors under it stay) and the selection (the selection rings on
+    // its nodes). The mark's two tones are the selection ring's pair in the same band order, read per
+    // theme from the kit drawing that marks Valjean; the highlight band sits just outside the
+    // selection band, dashed (highlight 1: long dash). The at-rest drawing's node circles are in row
+    // order, so it says where each character is drawn.
+    const DASH = "6 3";
     let spots = null;
-    const spotsReady = fetch("kit/canvas/lesmis-groups-rest-light.svg").then((r) => r.text()).then((t) => {
-        const doc = new DOMParser().parseFromString(t, "image/svg+xml");
-        spots = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none").map((c) => [c.getAttribute("cx"), c.getAttribute("cy")]);
-    }).catch(() => {});
+    const rings = {};
+    const parse = (t) => new DOMParser().parseFromString(t, "image/svg+xml");
+    const spotsReady = Promise.all([
+        fetch("kit/canvas/lesmis-groups-rest-light.svg").then((r) => r.text()).then((t) => {
+            spots = [...parse(t).querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none").map((c) => [c.getAttribute("cx"), c.getAttribute("cy")]);
+        }),
+        ...["light", "dark"].map((th) => fetch("kit/canvas/lesmis-groups-valjean-" + th + ".svg").then((r) => r.text()).then((t) => {
+            const doc = parse(t), V = [...doc.querySelectorAll("circle")].find((c) => c.getAttribute("cx") === "698.7" && c.getAttribute("cy") === "394.3" && c.getAttribute("fill") !== "none");
+            if (V) rings[th] = [...doc.querySelectorAll("circle[stroke-width='2']")].filter((c) => c.getAttribute("cx") === "698.7").map((c) => ({ stroke: c.getAttribute("stroke"), dr: +c.getAttribute("r") - +V.getAttribute("r") }));
+        })),
+    ]).catch(() => {});
     function drawPathSelected(nodes) {
         const cv = document.getElementById("ab-canvas"), imgs = cv ? cv.querySelectorAll(".k-stage img") : [];
-        if (!spots) { spotsReady.then(() => { if (spots && AB.route && AB.route.id === "path-popover") drawPathSelected(nodes); }); return; }
+        if (!spots || !rings.light) { spotsReady.then(() => { if (spots && rings.light && AB.route && AB.route.id === "path-popover") drawPathSelected(nodes); }); return; }
         if (!imgs.length || !AB.lesmisDrawing || !nodes) return;
         const rows = AB.fx.datasets.lesmis.rows, spotOf = (n) => spots[rows.findIndex((r) => r.label === n)];
         if (nodes.some((n) => !spotOf(n))) return;
-        const after = (doc) => {
-            const at = (c, x, y) => c.getAttribute("cx") === x && c.getAttribute("cy") === y;
+        const after = (doc, theme) => {
             const fills = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none");
-            const fillAt = (n) => { const [x, y] = spotOf(n); return fills.find((c) => at(c, x, y)); };
-            const V = fillAt("Valjean");
-            if (!V) return;
-            const rings = [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") === "none" && c.getAttribute("stroke-width") === "2" && at(c, V.getAttribute("cx"), V.getAttribute("cy")));
-            if (!rings.length) return;
-            const outer = rings.reduce((a, b) => (+b.getAttribute("r") > +a.getAttribute("r") ? b : a));
+            const fillAt = (n) => { const [x, y] = spotOf(n); return fills.find((c) => c.getAttribute("cx") === x && c.getAttribute("cy") === y); };
             const pts = nodes.map(fillAt);
             if (pts.some((c) => !c)) return;
+            const ns = "http://www.w3.org/2000/svg", top = doc.documentElement, pair = rings[theme] || rings.light;
+            const mk = (tag, at) => { const k = doc.createElementNS(ns, tag); at.forEach(([n, v]) => k.setAttribute(n, v)); return k; };
+            // edges: a dashed two-tone casing under the edge's own stroke, which keeps its color
             pts.slice(1).forEach((b, k) => {
                 const a = pts[k], ax = a.getAttribute("cx"), ay = a.getAttribute("cy"), bx = b.getAttribute("cx"), by = b.getAttribute("cy");
                 const line = [...doc.querySelectorAll("line")].find((l) => (l.getAttribute("x1") === ax && l.getAttribute("y1") === ay && l.getAttribute("x2") === bx && l.getAttribute("y2") === by) || (l.getAttribute("x1") === bx && l.getAttribute("y1") === by && l.getAttribute("x2") === ax && l.getAttribute("y2") === ay));
-                if (line) { line.setAttribute("stroke", outer.getAttribute("stroke")); line.setAttribute("stroke-width", "3"); line.setAttribute("stroke-opacity", "1"); line.parentNode.append(line); }
+                if (!line) return;
+                const ends = ["x1", "y1", "x2", "y2"].map((n) => [n, line.getAttribute(n)]);
+                [[pair[pair.length - 1].stroke, "6"], [pair[0].stroke, "3"]].forEach(([stroke, w]) => line.before(mk("line", ends.concat([["stroke", stroke], ["stroke-width", w], ["stroke-dasharray", DASH], ["stroke-opacity", "1"]]))));
             });
-            const dr0 = +V.getAttribute("r");
-            pts.forEach((c) => { if (c === V) return; rings.forEach((r) => { const k = r.cloneNode(); k.setAttribute("cx", c.getAttribute("cx")); k.setAttribute("cy", c.getAttribute("cy")); k.setAttribute("r", String(+r.getAttribute("r") + +c.getAttribute("r") - dr0)); r.parentNode.append(k); }); });
-            if (!pts.includes(V)) rings.forEach((r) => r.remove());
+            pts.forEach((c) => {
+                const r = +c.getAttribute("r"), at = [["cx", c.getAttribute("cx")], ["cy", c.getAttribute("cy")], ["fill", "none"]];
+                // the selection band (two tones, 2 + 2 px)
+                pair.forEach(({ stroke, dr }) => top.append(mk("circle", at.concat([["r", String(r + dr)], ["stroke", stroke], ["stroke-width", "2"]]))));
+                // the highlight band just outside it (two tones, 1.5 + 1.5 px, long dash, same band order)
+                const out = Math.max(...pair.map((x) => x.dr)) + 1;
+                pair.forEach(({ stroke }, i) => top.append(mk("circle", at.concat([["r", String(r + out + 0.75 + 1.5 * i)], ["stroke", stroke], ["stroke-width", "1.5"], ["stroke-dasharray", DASH]]))));
+            });
         };
-        Object.defineProperty(after, "name", { value: "path-" + nodes.join("|") });
-        AB.lesmisDrawing("lesmis-groups-valjean", "Les Miserables colored by PageRank; the path " + nodes.join(", ") + " selected", null, after).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
+        Object.defineProperty(after, "name", { value: "path-highlight-" + nodes.join("|") });
+        AB.lesmisDrawing("lesmis-groups-onesize", "Les Miserables colored by PageRank; the path " + nodes.join(", ") + " highlighted with a dashed ring and selected, every color unchanged", null, after).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
     }
 
     function render(el, state) {
@@ -291,9 +326,15 @@
             const undo = ds && ds !== "lesmis" ? ["graph-place", AB.placeOf(ds, "graph") || "at-rest"] : ["path-popover", "from-selection"];
             // a path the tree already holds (the at-rest Shortest paths) is selected, not added again
             const lp = AB.lastPath, have = (!ds || ds === "lesmis") && lp && (lp.ds || "lesmis") === "lesmis" && ["Valjean to Javert", "Myriel to Javert"].includes(lp.name);
-            el.append(have ? AB.notice(lp.name + " is already in Shortest paths; it is selected") : AB.notice("Path added", { label: "Undo", go: undo }));
+            el.append(have ? AB.notice(lp.name + " is already in Shortest paths; it is selected") : AB.notice("Found " + foundPath(ds).name, { label: "Undo", go: undo }));
             resultBar(ds);
-            if (!ds || ds === "lesmis") drawPathSelected(foundPath(ds).route && foundPath(ds).route.route);
+            if (!ds || ds === "lesmis") {
+                // the route on screen is the one the result bar and the path inspector show (AB.pathRouteAt)
+                const draw = () => { const p = foundPath(ds), rs = p.routes && p.routes.length ? p.routes : [p.route], r = rs[Math.min(AB.pathRouteAt || 0, rs.length - 1)]; drawPathSelected(r && r.route); };
+                draw();
+                const onRoute = () => { if (AB.route && AB.route.id === "path-popover" && AB.route.state === state) draw(); else document.removeEventListener("ab-path-route", onRoute); };
+                document.addEventListener("ab-path-route", onRoute);
+            }
             return;
         }
         const s = setup(state);
@@ -326,7 +367,7 @@
                     // said under the field, not in a toast that would sit over Find path
                     const was = f.parentNode && f.parentNode.querySelector(".pp-nomatch");
                     if (was) was.remove();
-                    if (!hit) { const say = 'No match for "' + inp.value.trim() + '"'; f.after(h("div", { class: "pp-nomatch k-secondary", role: "status", style: "padding:2px 0 0;font-size:11px" }, say)); inp.setAttribute("aria-invalid", "true"); return; }
+                    if (!hit) { f.after(h("div", { class: "pp-nomatch", role: "status" }, AB.noMatch(inp.value.trim()))); inp.setAttribute("aria-invalid", "true"); return; }
                     choose(which, hit);
                 });
                 f.append(inp);
@@ -375,7 +416,19 @@
             const x = edgeFields().find((y) => y.name === s.weight), pc = AB.projectCounts(ds0 || "lesmis");
             if (!x || !pc) return null;
             const missing = x.fill == null ? 0 : Math.round(pc.edges * (1 - x.fill));
-            return h("span", { class: "pp-loaded" }, "Uses " + s.weight + ". Edges with no " + s.weight + ", left out: " + AB.count(missing, "edge", { of: pc.edges }));
+            // the Weight field above already names the column; this line says only what it leaves out
+            return h("span", { class: "pp-loaded" }, missing ? AB.count(missing, "edge", { of: pc.edges }) + " have no " + s.weight + " and are left out of this path"
+                : "Every edge has a value for " + s.weight);
+        }
+        // How the route reads the weight, by its declared kind: a similarity is never summed as a distance
+        function readAs() {
+            const w = s.weight;
+            if (!w) return null;
+            const say = { stronger: "Stronger links count as shorter: the route adds up 1/" + w + ", so it follows the strongest ties.",
+                farther: "The route adds up " + w + " along its steps and takes the smallest total.",
+                capacity: "The route takes the path whose smallest " + w + " is largest." }[s.meaning]
+                || "No kind was declared for " + w + ": the route adds it up as a distance, and the result is labeled as a sum.";
+            return h("span", { class: "pp-loaded" }, say);
         }
         // Follow time order: on data with a time column on its edges, a path whose dates run forward
         function timeOrder() {
@@ -398,8 +451,8 @@
         function draw() {
             const ready = s.from && s.to;
             const body = [
-                AB.fieldRow("From", pickField("from"), { popover: true }),
-                AB.fieldRow("To", pickField("to"), { popover: true }),
+                AB.fieldRow("From", h("span", { class: "pp-col" }, pickField("from")), { popover: true }),
+                AB.fieldRow("To", h("span", { class: "pp-col" }, pickField("to")), { popover: true }),
                 s.directed ? AB.fieldRow("Direction", h("span", { class: "pp-col" },
                     AB.seg([["follow", "Follow edges"], ["either", "Either way"]], s.direction, (v) => { s.direction = v; draw(); }, { label: "Direction" }),
                     AB.needsElement("graphty-element's shortest path reads every graph as undirected; Follow edges needs a direction option"),
@@ -409,8 +462,7 @@
                     weightUse(),
                     s.weight ? AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
                     overridden() ? h("span", { class: "pp-loaded" }, "This path only. Set at load: " + loadedLine()) : null,
-                    // The same words as Analyze: a path reads a weight as distance, so a Stronger weight is inverted
-                    s.weight && s.meaning === "stronger" ? h("span", { class: "pp-loaded" }, "Shortest path reads a weight as distance: it uses 1/" + s.weight + ".") : null,
+                    readAs(),
                     s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
                 AB.fieldRow("Scope", h("span", { class: "pp-col" },
                     pickField("scope"),
@@ -424,7 +476,7 @@
             const foot = AB.button("Find path", {
                 icon: "route", disabled: np ? "No path between these two in what the graph draws" : ready ? null : "Choose From and To first",
                 // The ends and the weight go with the new row, so the tree and the inspector name this path
-                onClick: () => { AB.redrawLeft = true; AB.lastPath = withRoutes({ ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, meaning: s.meaning, loaded: s.loaded.weight, scope: s.scope, direction: s.directed ? s.direction : "either" }); AB.go("path-popover", AB.lastPath.ds === "transactions" && AB.lastPath.routes.length > 1 ? "found-tied" : "found"); },
+                onClick: () => { AB.redrawLeft = true; AB.pathRouteAt = 0; AB.lastPath = withRoutes({ ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, meaning: s.meaning, loaded: s.loaded.weight, scope: s.scope, direction: s.directed ? s.direction : "either" }); AB.go("path-popover", AB.lastPath.ds === "transactions" && AB.lastPath.routes.length > 1 ? "found-tied" : "found"); },
             });
             const pop = AB.popover({ anchor: anchor(), title: "Path between", body, foot, width: 360 });
             pop.querySelector(".k-popover-body").append(AB.openQuestion("Can From or To be a set, so the path starts at the nearest member? graphty-element takes one source node"));
@@ -486,6 +538,9 @@
                 if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/" + (AB.lastPath && AB.lastPath.routes && AB.lastPath.routes.length > 1 ? "path-tied" : "path"), canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
                 // a loaded project has no path fixture: its own tree, beside the graph's inspector
                 if (ds && ds !== "lesmis") return { own: true, dataset: ds, left: "graph-place/" + (AB.placeOf(ds, "graph") || "at-rest"), dock: false };
+                // Opened directly (no Find path yet): a path the tree does not hold yet, found with the same
+                // settings as the tree's Shortest paths, so it visibly lands under that run and is selected
+                if (!(AB.lastPath && (AB.lastPath.ds || "lesmis") === "lesmis")) AB.lastPath = withRoutes({ ds: "lesmis", from: "Cosette", to: "Javert", weight: "value", meaning: "stronger", loaded: "value", direction: "either" });
                 return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/" + ({ "Valjean to Javert": "path-lesmis", "Myriel to Javert": "path-lesmis-2" }[AB.lastPath && (AB.lastPath.ds || "lesmis") === "lesmis" ? AB.lastPath.name : "Valjean to Javert"] || "path-lesmis-found"), dock: false };
             }
             return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", dock: false };

@@ -4700,3 +4700,28 @@ The seventh simulated study round was the first run on the clickable refined B s
 - **Old text:** "within k hops", "k hops out", "1 to 3 hops"; and, in the round-7 vocabulary entry above, "a neighborhood keeps the glossary's own 'k hops' ('1 to 3 hops'), unchanged."
 - **New text:** "The nodes up to k edges away from a node or set, in a direction, including the start (closed) unless labeled open." Screen wording: the popover's row is "Distance" with 1, 2 or 3 and "edges away"; a filter step is named "Neighbors of {name}, 1 to 3 edges away"; step groups are "one group per distance". Rejected aliases kept as search aliases only: "hops" and "steps". Path length keeps "steps" ("a path of 4 steps"), which this replaces nowhere. This replaces the vocabulary entry's neighborhood clause.
 - **Why:** "edge" is the one noun every domain on the canvas already shares (co-appearances, transfers, citations, interactions), so "edges away" needs no definition, where "hops" is network jargon and "steps" already means a filter step on the same popover ("Add as steps", "as a filter step or as step groups"), which participants misread. With "edges away" for distance, "steps" means path length and filter steps, and "hops" means nothing on screen. Two-way door: wording only, no published key.
+
+## graphty-element requirements from round 8
+
+- **Document and section:** `element-contract.md`.
+- **New text:** "graphty-element offers a node lookup by label, id and attribute value, live and incremental, which the app's find box calls; the app does no matching of its own. It offers a one-hop neighbor query that returns the neighbors with their tie values. Label culling reports how many labels it drew and how many it hid, so every 'N hidden' count is live. Each algorithm in the catalog carries a one-sentence plain-language meaning, which legends and Analyze read."
+- **Open question:** whether selected nodes rank first in label culling. They should not override it.
+- **Why:** finding a node and seeing its neighbors scored 0 of 12, and 5 of 6 who typed an account id (a value) got "No match"; a lookup the app wrote itself would be a workaround of the element. A fixed "64 hidden" that survived showing every name taught people to ignore warnings. Newcomers could not read a legend that named a method with no meaning attached.
+
+## Size encodings scale by area, with a visible minimum
+
+- **Document and section:** `element-contract.md`, size defaults.
+- **New text:** "Size encodings scale by area, with a minimum size that stays visible and clickable. A 0.5 px minimum is too small. The skeleton uses 2 to 12 px until graphty-element sets the default."
+- **Why:** a 0.5 px minimum hides nodes, and the legend's stated size range is the only readout that tells the reader a size step worked.
+
+## compact-mantine: arrow keys in the segmented control
+
+- **Document and section:** the compact-mantine component notes.
+- **New text:** "The segmented control moves between options with the arrow keys. The fix is made in the shared component, not in any section that uses it."
+- **Why:** a broken shared control fixed locally behaves unlike every other copy of it.
+
+## Every count and claim in a message is computed
+
+- **Document and section:** `principles.md` and the wording section of the skeleton's README.
+- **New text:** "Every count and claim in a message is computed from the state it describes, or the message is removed."
+- **Why:** fixed strings that disagreed with the screen ("64 hidden", "32 rows", "sorted by degree", "Covered by PageRank") were the most repeated cause of lost trust in round 8.

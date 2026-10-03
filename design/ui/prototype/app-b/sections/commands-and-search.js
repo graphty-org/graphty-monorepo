@@ -19,20 +19,20 @@
 .qs-why { color: var(--cm-text-secondary); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .qs-quick .k-result .qs-key { margin-inline-start: auto; flex: none; }
 .qs-quick .k-result[aria-disabled="true"] { color: var(--cm-text-tertiary); }
-.qs-quick .k-result mark { background: transparent; color: inherit; font-weight: 650; }
+.qs-quick .k-result mark { background: transparent; color: inherit; font-weight: 550; }
 .qs-foot { display: flex; align-items: center; gap: 12px; padding: 6px 16px 8px; font-size: 11px; color: var(--cm-text-secondary); border-top: 1px solid var(--cm-border); }
 .qs-foot .k-kbd { margin-inline-end: 4px; }
 .qs-quick .ab-empty { padding: 8px 16px; }
 .qs-sheet { column-count: 2; column-gap: 32px; padding: 4px 16px 0; }
 .qs-group { break-inside: avoid; padding-bottom: 14px; }
-.qs-group h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.qs-group h3 { margin: 0 0 4px; font-size: 11px; font-weight: 550; }
 .qs-canvas { margin: 0 16px 12px; padding: 8px 12px 0; border: 1px solid var(--cm-border); border-radius: 6px; }
-.qs-canvas h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; font-size: 12px; font-weight: 600; }
+.qs-canvas h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; font-size: 11px; font-weight: 550; }
 .qs-fixed { gap: 4px; font-weight: 400; }
 .qs-note { margin: 0 0 6px; color: var(--cm-text-secondary); font-size: 11px; }
 .qs-canvas-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
 .qs-canvas h4, .qs-apphead { margin: 0 0 4px; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); }
-.qs-apphead { padding: 0 16px 4px; font-size: 12px; }
+.qs-apphead { padding: 0 16px 4px; }
 .qs-keys { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; align-items: baseline; margin: 0; }
 .qs-keys dt { margin: 0; white-space: nowrap; }
 .qs-keys dt .k-kbd + .k-kbd { margin-inline-start: 3px; }
@@ -100,10 +100,10 @@
         C("present", "View", "play", { aka: ["slides", "slideshow", "presentation"] }),
         C("record-tour", "View", "camera", { aka: ["fly-through", "animation", "movie"] }),
         // Layout
-        C("layout", "Layout", AB.layoutState === "running" ? "pause" : "play", { aka: ["stop", "freeze", "settle", "continue", "unfreeze", "start"] }),
+        C("layout", "Layout", AB.ICON.layout, { aka: ["stop", "freeze", "settle", "continue", "unfreeze", "start"] }),
         C("rerun-layout", "Layout", "refresh-cw", { aka: ["untangle", "relayout", "arrange"] }),
         L("Layout", "refresh-cw", "Reshuffle layout seed", "Canvas menu > Reshuffle layout seed", { go: ["context-menus", "canvas"], aka: ["seed", "random"] }),
-        L("Layout", "refresh-cw", "Unpin all", "Canvas menu > Unpin all", { go: ["context-menus", "canvas"], aka: ["pin", "pinned"] }),
+        L("Layout", "refresh-cw", "Unpin all", "Canvas menu > Unpin all", { go: ["context-menus", "canvas"], aka: ["pin", "pinned", "layout"] }),
         // Selection
         C("create-set", "Selection", I.set, { go: null, off: NEEDS_SEL, aka: ["group", "save selection"] }),
         C("neighborhood", "Selection", "network", { go: null, off: NEEDS_SEL, aka: ["neighbors", "ego", "hops", "steps"] }),
@@ -154,16 +154,8 @@
         const all = list.slice(0, at).concat(measures(), list.slice(at));
         return document.documentElement.hasAttribute("data-design-notes-hidden") ? all.filter((c) => !c.needs) : all;
     }
-    const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
-
-    // A node whose name is the query, exactly (any case), in the project on screen: the first result of
-    // Quick actions and of Find. A stand-in for graphty-element's node lookup by name.
-    function exactNode(q) {
-        const ds = (AB.route && AB.route.frame.dataset) || "lesmis", s = q.trim().toLowerCase();
-        const list = s ? AB.walkList(ds) : [];
-        const i = list.findIndex((w) => w.name.toLowerCase() === s);
-        return i < 0 ? null : { ds, i, w: list[i] };
-    }
+    // Recent puts the door to replacing a source's file in view on the empty palette (it is otherwise below the fold, in Data)
+    const RECENT = ["Re-run layout", "PageRank", AB.cmd("replace-file").label, "Data: Attributes"];
 
     function matches(q) {
         const s = q.trim().toLowerCase();
@@ -224,23 +216,14 @@
                 RECENT.forEach((n) => list.append(resultRow(all.find((c) => c.name === n), "")));
                 groups(all, "");
             } else {
-                const node = exactNode(q);
-                if (node) {
-                    list.append(h("div", { class: "qs-head" }, "Nodes"));
-                    const r = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("circle-dot"), h("span", { class: "qs-name" }, h("mark", null, node.w.name)),
-                        h("span", { class: "qs-why" }, AB.count(node.w.neighbors, "neighbor")));
-                    r._run = () => AB.selectNode(node.ds, node.i);
-                    r.addEventListener("click", r._run);
-                    list.append(r);
-                }
-                if (!hits.length && !node) list.append(AB.noMatch(q.trim()));
+                if (!hits.length) list.append(AB.noMatch(q.trim()));
                 groups(hits.map((x) => x.c), q);
-                // the hand-off: Quick actions finds commands and places; rows and notes are Find's
-                list.append(h("div", { class: "qs-head" }, "Rows and notes"));
-                const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '"'), h("span", { class: "qs-why" }, AB.cmd("find").home), h("span", { class: "k-kbd qs-key" }, AB.cmd("find").shortcut));
-                // the skeleton's Finds with results are "Jav" and the exact node name "Javert"; a rule goes to
-                // Find's Select where offer; anything else is Find's no-match line
-                find._run = () => ruleShaped(q.trim()) ? findRuleFrom(q.trim()) : AB.go("commands-and-search", exactShaped(q.trim()) ? "find-exact" : /^jav/i.test(q.trim()) ? "find" : "find-no-match");
+                // the one hand-off: Quick actions finds commands and places; rows, elements, values and notes
+                // are the one find's (the list's box, AB.focusFind), which takes the text as typed. A rule goes
+                // to Find's Select where offer
+                list.append(h("div", { class: "qs-head" }, "In the graph"));
+                const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '" in the graph'), h("span", { class: "qs-why" }, AB.cmd("find").home), h("span", { class: "k-kbd qs-key" }, AB.cmd("find").shortcut));
+                find._run = () => ruleShaped(q.trim()) ? findRuleFrom(q.trim()) : AB.focusFind(q.trim());
                 find.addEventListener("click", find._run);
                 list.append(find);
             }
@@ -280,7 +263,7 @@
     const GROUPS = [
         { title: "Everywhere", keys: [
             ["Ctrl+K", "Quick actions: commands and places"],
-            ["/", "Find rows and notes"],
+            ["/", "Find rows, elements, values"],
             ["?", "These shortcuts"],
             ["Ctrl+Z", "Undo"], ["Ctrl+Shift+Z, Ctrl+Y", "Redo (Ctrl+Y not on macOS)"],
             ...["open-file", "save", "export", "settings"].map((id) => [AB.cmd(id).shortcut, AB.cmd(id).label]),
@@ -332,69 +315,17 @@
         el.append(AB.modal({ title: "Keyboard shortcuts", body, foot, wide: true }));
     }
 
-    // ---------- Find's note results ----------
-    // Find ("Jav") lists the notes whose text matches, after the rows. A note reads its time and its subject,
-    // which every note carries; its author only when the project holds two or more named authors (a stand-in
-    // for graphty-element's notes.authors()). Neither matching note has an author, which is the usual case:
-    // a name exists only if the writer typed one in Settings. The Graph place draws the Rows part; this
-    // replaces its Notes part with the notes from the Notes place's fixture that match.
-    const FIND_NOTES = [
-        { by: null, at: "Yesterday", about: "about Louvain", go: ["inspector-run-row", "data"],
-            text: "Valjean and Javert land in the same community, with Marius and Cosette." },
-        { by: null, at: "Sep 28", about: "about Valjean and Javert", go: ["inspector-several-elements", "two-nodes"],
-            text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
-    ];
-    // marks the query in a result's text, any case
-    const markQ = (s, q) => { const i = s.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? [s] : [s.slice(0, i), h("mark", null, s.slice(i, i + q.length)), s.slice(i + q.length)]; };
-    function findNotes(q) {
-        q = q || "Jav";
-        const head = [...document.querySelectorAll(".gp-find-head")].find((x) => x.textContent === "Notes");
-        if (!head) return;
-        while (head.nextElementSibling) head.nextElementSibling.remove();
-        FIND_NOTES.forEach((n) => {
-            const sub = [n.by, n.at, n.about].filter(Boolean).join(", ");
-            head.parentNode.append(h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ go: n.go })), icon(AB.ICON.note),
-                h("span", { class: "gp-hit-text" }, markQ(n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text, q), h("span", { class: "gp-hit-sub" }, sub))));
-        });
-    }
-
-    // ---------- Find on a node's exact name ----------
-    // Typed "Javert", the name of a node: that node comes first, under Nodes, and selects it; the rows and
-    // notes that mention it follow. The Graph place draws Find's field and its "Jav" rows; this puts the
-    // whole name in the field, adds the node above the rows and marks the whole name.
-    const EXACT = "Javert";
-    const exactShaped = (q) => q.toLowerCase() === EXACT.toLowerCase() && !!exactNode(q);
-    function findExact() {
+    // ---------- the Find states: the one find (the list's box, lib.js findBox) with text typed ----------
+    // "Jav" lists rows, elements and notes; "Javert" a node's exact name, the node under Elements; an id
+    // with no match is the box's no-match line
+    const typeInFind = (text) => () => {
         const input = document.querySelector(".ab-left .ab-treebar input");
-        const rows = [...document.querySelectorAll(".ab-left .gp-find-head")].find((x) => x.textContent === "Rows");
-        const node = exactNode(EXACT);
-        if (!input || !rows || !node) return;
-        input.value = EXACT;
-        findNotes(EXACT);
-        rows.parentNode.querySelectorAll(".gp-hit-text").forEach((t) => {
-            const sub = t.querySelector(".gp-hit-sub");
-            t.replaceChildren(...markQ([...t.childNodes].filter((x) => x !== sub).map((x) => x.textContent).join(""), EXACT), ...(sub ? [sub] : []));
-        });
-        rows.before(h("div", { class: "gp-find-head" }, "Nodes"),
-            h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ onClick: () => AB.selectNode(node.ds, node.i) })), icon("circle-dot"),
-                h("span", { class: "gp-hit-text" }, h("mark", null, node.w.name), h("span", { class: "gp-hit-sub" }, AB.count(node.w.neighbors, "neighbor")))));
-    }
-
-    // ---------- Find on an id ----------
-    // A query shaped like an id (letters, digits and dashes, no spaces, with a digit or a dash) matches the
-    // id exactly, so a miss is a count and offers no "Closest" guess. The Graph place draws Find's field and
-    // its no-match line; this state puts the id in the field and the count in that line.
-    const ID_QUERY = "ACC-365386";
-    const idShaped = (q) => /^[A-Za-z0-9-]+$/.test(q) && /[\d-]/.test(q);
-    function findId() {
-        const input = document.querySelector(".ab-left input");
-        const none = document.querySelector(".ab-left .ab-fl-none");
-        if (!input || !none || !idShaped(ID_QUERY)) return;
-        input.value = ID_QUERY;
-        const text = AB.count(0, "match", { plural: "matches" }) + " for " + ID_QUERY;
-        none.firstChild.replaceWith(AB.empty(text));
-        AB.announce(text);
-    }
+        if (!input) return;
+        input.value = text;
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+    };
+    const findNotes = typeInFind("Jav"), findExact = typeInFind("Javert"), findId = typeInFind("ACC-365386");
 
     // ---------- Find on a rule ----------
     // A query that compares an attribute with a value ("country == 'GB' and flagged == true") is a rule, not a
@@ -431,16 +362,15 @@
         AB.announce(label);
         requestAnimationFrame(() => offer.focus());
     }
-    // Enter in the tree's Find field with a rule or an exact node name in it goes here, before the field's own name search
+    // Enter in the find box with a rule in it goes to Select where's offer; a name is the one find's (Enter picks)
     document.addEventListener("keydown", (e) => {
         const t = e.target;
         if (e.key !== "Enter" || !t || !t.closest || !t.closest(".ab-left .ab-treebar")) return;
         const q = t.value.trim();
-        if (!ruleShaped(q) && !exactShaped(q)) return;
+        if (!ruleShaped(q)) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (ruleShaped(q)) findRuleFrom(q);
-        else AB.go("commands-and-search", "find-exact");
+        findRuleFrom(q);
     }, true);
 
     // ---------- keys this section owns ----------
@@ -449,7 +379,7 @@
         if (!AB.fx || document.body.dataset.page !== "app") return;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (e.key === "/") { e.preventDefault(); AB.go("commands-and-search", "find"); }
+        // "/" is the shell's (app.js focusFind): it puts focus in the one find box
     });
 
     registerSection({

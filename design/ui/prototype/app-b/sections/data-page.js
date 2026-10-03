@@ -50,7 +50,7 @@
 .dpg-main { grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .dpg-strip { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 8px 16px; border-bottom: 1px solid var(--cm-border); background: var(--cm-bg-secondary); min-width: 0; }
 .dpg-strip-h { color: var(--cm-text-secondary); }
-.dpg-line { font-family: var(--cm-font-family-mono, ui-monospace, monospace); font-size: 12px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; border-radius: 3px; padding: 0 4px; }
+.dpg-line { font-family: var(--cm-font-family-mono, ui-monospace, monospace); font-size: 11px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; border-radius: 3px; padding: 0 4px; }
 .dpg-line:focus-visible { outline: 2px solid var(--cm-border-selected-strong); }
 .dpg-head { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 8px 16px; border-bottom: 1px solid var(--cm-border); min-width: 0; }
 .dpg-ctl { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
@@ -58,7 +58,7 @@
 .dpg-ctl .k-field { min-width: 150px; max-width: 260px; }
 .dpg-ctl input.k-field { min-width: 280px; }
 .dpg-locked { display: inline-flex; align-items: center; gap: 4px; color: var(--cm-text-secondary); }
-.dpg-auto { font-size: 10px; line-height: 14px; padding: 0 4px; border-radius: 3px; color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); flex: none; }
+.dpg-auto { color: var(--cm-text-secondary); }
 .dpg-grid { flex: 1 1 0; min-height: 140px; overflow: auto; }
 .dpg-grid .k-table { width: auto; min-width: 100%; }
 .dpg-grid .k-table th { vertical-align: top; padding-top: 4px; padding-bottom: 4px; height: auto; }
@@ -499,7 +499,7 @@
         // A large file reading: graph-io counts the rows as it reads (half of transfers-2026-03.csv's 9,113)
         reading: () => { const m = edgeOnly(); m.tables[0].reading = true; m.tables[0].readRows = Math.floor(T().edges / 2); m.focusLoad = false; return m; },
         // Regression (d): person_id linked to person by badge, not by its Key
-        "link-by-badge": () => { const m = door(); m.tables[2].roles.person_id.by = "badge"; return m; },
+        "link-by-badge": () => { const m = door({ menu: { col: "person_id", sub: "from" } }); m.tables[2].roles.person_id.by = "badge"; return m; },
         // ----- wide data: 69 and 26 columns -----
         "wide-hosts": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts" }),
         "wide-find-column": () => base({ door: { title: NEW_TITLE, done: ["graph-place", "wide"] }, tables: wideTables(), sel: "hosts", goto: "vu cr" }),
@@ -520,6 +520,7 @@
         "edit-json-links": () => editNested("links"),
         "json-tree": () => nested(),
         "json-researchers": () => nested({ sel: "researchers" }),
+        "json-links": () => nested({ sel: "links" }),
         "json-keep-value": () => { const m = nested({ sel: "researchers", focusGroup: "attributes.profile.contact" }); R0(m).keep.push("attributes.profile.contact"); return m; },
         "json-array-menu": () => nested({ sel: "researchers", menu: { col: "relationships.coauthor_ids" } }),
         "json-affiliations": () => affiliationRows(nested({ sel: "affiliations" })),
@@ -847,6 +848,9 @@
             const e = R.entries;
             const now = entriesNow(m);
             const asNode = t.kind === "node";
+            // near-miss keys first: a person_id that is a people id less its leading zeros (7 for 0007)
+            const nr = unmatchedRows().near;
+            if (t.roles.person_id) out.push(L1(null, count(AB.count(nr.length, "person_id value", { plural: "person_id values" }), "zeros"), " differ from a people id only by leading zeros (such as " + nr[0] + " for " + nr[0].padStart(4, "0") + "). Ids match as written, so these stay unmatched. person_id is Number here and Category in people: matched as text."));
             // one row per unmatched value in this file; the report gives both counts, so values and rows are never mixed
             const unm = (key, num, col, word, other) => L1("warn", count(num + " " + col + " values (" + num + " rows)", key), " are not in " + other + ", for example " + andList(examples(t.sample.filter((r) => FILTERS[key].test(r)).map((r) => r[col]))) + ".", seg(key, col, [["add", "Add as " + word], ["leave", asNode ? "Leave out the link" : "Leave out"]], m.add && m.add[key] ? "add" : "leave"),
                 m.add && m.add[key] ? h("span", { class: "k-secondary" }, num + " " + word + " are added, each with only an id") : null);
@@ -860,14 +864,13 @@
             // The one fixture note about a left-out building (B12): only an edit has notes; a new graph has none yet
             if (m.door.edit && DE().hasNotes() && t.roles.building_id && !(m.add && m.add.bldg)) out.push(L1(null, "1 note is about a node no longer in the graph (B12): it reads 'Not in the current data'."));
             const left = e.rows - now.bothEnds;
-            if (left) out.push(L1(null, count("Show the " + left + " rows", "missing"), "."));
+            if (left) out.push(L1(null, count("Show the " + left + " unmatched rows", "missing"), "."));
             if (!asNode && t.per === "row" && !colWith(t, "edgeId")) out.push(L1("warn", "No Edge id column: notes on entries may move if the row order changes."));
             if (m.door.edit && DE().hasNotes() && t.loadedPer && t.kind === "edge" && t.per !== t.loadedPer) out.push(L1("warn", t.per === "pair" ? "Switching to Pair brings back the edge 1 note on entries is about (Ana Ruiz -> B1)." : "Switching to Row changes which edge each note is about: 1 note on entries will read 'Not in the current data'."));
             if (asNode && !colWith(t, "key")) out.push(L1("warn", "No Key column: each entry is keyed by its row number. Notes on entries may move if the row order changes."));
-            out.push(L1("warn", "person_id is Number here and Category in people: matched as text. ", count(e.leadingZeroKeys + " keys", "zeros"), " have leading zeros (such as 0007): ids match as written, so 0007 and 7 stay two keys."));
             if (asNode) out.push(L1("res", n(e.rows) + " entries became " + n(e.rows) + " entry nodes" + (linkCols(t).length === 2 ? "; " + n(now.bothEnds) + " have both edges." : ".")));
             else if (linkCols(t).length === 2) {
-                out.push(L1("res", n(now.bothEnds) + " entries became " + n(t.per === "pair" ? now.pairEdges : now.bothEnds) + " person-building edges."));
+                out.push(L1("res", n(now.bothEnds) + " entries became " + n(t.per === "pair" ? now.pairEdges : now.bothEnds) + " person-building edges" + (left ? " -- " + AB.count(left, "row") + " with an end not in people or buildings " + (left === 1 ? "is" : "are") + " left out." : ".")));
                 if (t.per === "pair" && m.direction === "undirected") out.push(L1(null, "Undirected: (a, b) and (b, a) are one pair, but every entry runs from a person to a building, so no pairs merge."));
             }
             return out;
@@ -919,7 +922,7 @@
                     { level: "sub", parts: ["How it matched"] });
                 lines.splice(lines.findIndex((l) => l && l.level === "sub" && l.parts[0] === "How it matched") + 1, 1, L1(null, "Every row has both ends."));
             }
-            if (/^transfers-2026-0[34]$/.test(t.name)) lines.push(L1(null, n((t.id === "april" ? TA() : T()).nodes) + " ids found in " + colWith(t, "from") + " and " + colWith(t, "to") + " become nodes of type node."));
+            if (/^transfers-2026-0[34]$/.test(t.name)) lines.push(L1(null, AB.count((t.id === "april" ? TA() : T()).nodes, "node") + " of type node -- every id in " + colWith(t, "from") + " and " + colWith(t, "to") + "; each is an end of some row, so none is unconnected or dropped."));
             if (!m.replaced && /^transfers/.test(t.id)) lines.push(L1(null, pairWord));
             if (t.per === "pair" && m.direction === "undirected") lines.push(L1(null, "Undirected: (a, b) and (b, a) now merge: " + n(rows) + " edges become " + n(rows - R.transfers.reversePairs) + "."));
             const ew = colWith(t, "weight");
@@ -1024,16 +1027,39 @@
     }
 
     // Which sample rows each count shows
-    const MISS_P = ["7", "1530"], MISS_B = ["B12"];
+    // The whole entries table's unmatched rows. The fixture holds 8 sample rows and the report's counts,
+    // so the unmatched rows past the sample are stand-ins made from those counts, one row per unmatched
+    // value (what graphty-element's match report would list): the sample's 7, 1530 and B12 first, the
+    // near-miss keys (a people id less its leading zeros: 7 for 0007) among the person_id values
+    let unmatchedCache = null;
+    function unmatchedRows() {
+        if (unmatchedCache) return unmatchedCache;
+        const e = DE().report.entries, sample = DE().tables[2].sample;
+        const near = ["7", "12", "31", "48", "60"].slice(0, e.leadingZeroKeys);
+        const people = near.concat(["1530"]);
+        for (let i = 1; people.length < e.missingPeople; i++) people.push(String(1530 + i));
+        const bldgs = ["B12"];
+        for (let i = 13; bldgs.length < e.missingBuildings; i++) bldgs.push("B" + i);
+        const at = (i) => "2026-03-" + String(2 + (i * 5) % 28).padStart(2, "0") + "T" + String(6 + (i * 7) % 15).padStart(2, "0") + ":" + String((i * 13) % 60).padStart(2, "0") + ":" + String((i * 29) % 60).padStart(2, "0") + "Z";
+        const fromSample = (k, v) => sample.find((r) => r[k] === v);
+        const madeP = people.map((v, i) => fromSample("person_id", v) || { person_id: v, building_id: ["B1", "B4", "B7", "B2", "B8"][i % 5], time: at(i) });
+        const madeB = bldgs.map((v, i) => fromSample("building_id", v) || { person_id: String(1001 + i * 37), building_id: v, time: at(i + people.length) });
+        // in file order, as the grid lists any rows
+        unmatchedCache = { near, people, bldgs, rows: madeP.concat(madeB).sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0)) };
+        return unmatchedCache;
+    }
+    const MISS_P = () => unmatchedRows().people, MISS_B = () => unmatchedRows().bldgs;
+    // The filters a report count opens that list the whole entries table, not the preview's share
+    const WHOLE = ["missing", "people", "bldg", "zeros"];
     // An added value is matched: its rows leave the unmatched filter (m.add is the report's Add choices)
-    const missP = (m) => (m && m.add && m.add.people ? [] : MISS_P), missB = (m) => (m && m.add && m.add.bldg ? [] : MISS_B);
+    const missP = (m) => (m && m.add && m.add.people ? [] : MISS_P()), missB = (m) => (m && m.add && m.add.bldg ? [] : MISS_B());
     const FILTERS = {
         all: { text: "every row" },
         both: { text: "the rows with both ends", test: (r, m) => !missP(m).includes(r.person_id) && !missB(m).includes(r.building_id) },
         missing: { text: "the rows with an end not matched", test: (r, m) => missP(m).includes(r.person_id) || missB(m).includes(r.building_id) },
-        people: { text: "the rows whose person_id is not in people", test: (r) => MISS_P.includes(r.person_id) },
-        bldg: { text: "the rows whose building_id is not in buildings", test: (r) => MISS_B.includes(r.building_id) },
-        zeros: { text: "the rows whose key differs only by leading zeros", test: (r) => r.person_id === "7" || r.id === "0007" },
+        people: { text: "the rows whose person_id is not in people", test: (r) => MISS_P().includes(r.person_id) },
+        bldg: { text: "the rows whose building_id is not in buildings", test: (r) => MISS_B().includes(r.building_id) },
+        zeros: { text: "the rows whose key differs only by leading zeros", test: (r) => unmatchedRows().near.includes(r.person_id) || unmatchedRows().near.some((v) => r.id === v.padStart(4, "0")) },
         repeated: { text: "the rows with a repeated key", test: (r) => r.id === "1188" },
         none: { text: "the 14 people with no entries", test: () => false },
         noweight: { text: "the building with no floors value", test: (r) => r.floors === "" },
@@ -1164,7 +1190,7 @@
             x.click = () => onClick({ stopPropagation() {} });
             return AB.tip(x, name, { label: false });
         };
-        const auto = (why) => (why ? AB.tip(h("span", { class: "dpg-auto", role: "note", tabindex: "0" }, "auto"), why === true ? "Worked out from the file's name and first line" : why) : null);
+        const auto = (why) => (why ? AB.tip(h("span", { class: "k-badge dpg-auto", role: "note", tabindex: "0" }, "auto"), why === true ? "Worked out from the file's name and first line" : why) : null);
         // The glyph is drawn, not read: a screen reader hears the line's words, not "!"
         const glyph = (level) => h("span", { class: "k-warn-glyph" + (level === "err" ? " k-err-glyph" : ""), "aria-hidden": "true" }, "!");
 
@@ -1299,6 +1325,7 @@
                 const rows = rowsOf(m, t);
                 const jsonRow = t.struct || (t.json && !t.group) || t.childOf;
                 // JSON rows count their items, never their leaf values: [170] for an array, {1,204} for an object
+                // The list is narrow: "3,000 +132" is drawn, so the name keeps its room; the full "3,000 + 132 added" is its accessible name
                 const countText = t.gone ? "" : t.struct ? (t.struct === "array" ? "[" + n(t.count) + "]" : "{" + n(t.count) + "}") : jsonRow && rows != null ? (t.keyed ? "{" + n(rows) + "}" : "[" + n(rows) + "]") : rows != null ? (t.kind === "node" && t.type ? plusAdded(m, t.type, rows) : n(rows)) : "";
                 const ticks = (t.json && !t.group && !t.struct && !t.childOf) || !!t.inRec; // a child table has no checkbox: its home is its column's role menu
                 const box = ticks ? h("span", { class: "k-check", "aria-hidden": "true", "aria-checked": String(isOn(t)) }) : null;
@@ -1313,7 +1340,7 @@
                 const li = h("li", { class: "dpg-t", role: "treeitem", "data-k": "t:" + t.id, tabindex: selected ? "0" : "-1", "aria-selected": selectable(t) ? String(!!selected) : null, "aria-level": String(depth(t) + 1),
                     "aria-expanded": kidsHere ? String(!!t.open) : null, "aria-checked": ticks ? String(isOn(t)) : null, "aria-label": (jsonRow ? t.path : t.name) + (countText ? ", " + countText : "") + (t.unread ? ", not read" : "") + (t.gone ? ", no longer in the file" : ""),
                     "aria-keyshortcuts": kid || t.struct ? null : "Delete Shift+F10", "data-unread": t.unread ? "" : null, "data-gone": t.gone ? "" : null, style: "--dpg-d:" + depth(t) },
-                    disc, glyphOf, h("span", { class: "dpg-name" }, box, label), h("span", { class: "dpg-n" }, countText), status(t), rm);
+                    disc, glyphOf, h("span", { class: "dpg-name" }, box, label), h("span", { class: "dpg-n" }, countText.replace(/ \+ ([\d,]+) added$/, " +$1")), status(t), rm);
                 if (!jsonRow) AB.tip(li.querySelector(".dpg-name"), (fileOf(m, t) || t.name) + (rows != null ? ", " + n(rows) + " rows" : ""), { label: false });
                 else if (t.unread) AB.tip(li.querySelector(".dpg-name"), t.path + ": not read; it holds no array of records", { label: false });
                 else if (t.inRec) AB.tip(li.querySelector(".dpg-name"), t.path + ": an array of records in each " + up(t).type + ", now " + ARR_WORD[(up(t).arrs[t.inRec] || {}).pick] + ". Tick it to use it as a table, one row per item, or choose what it becomes in the " + t.inRec + " column's role menu", { label: false });
@@ -1434,55 +1461,31 @@
                     changed();
                 }, "One edge per", "per", ["Every row its own edge", "One edge per pair of ends, with a count" + (m.direction === "undirected" ? "; (a, b) and (b, a) are one pair" : "")])));
             }
-            if (t.kind === "edge") kids.push(weightPicker(t));
+            if (t.kind === "edge") kids.push(weightLine(t));
             return h("div", { class: "dpg-head" }, kids);
         }
 
         // One edge per: Pair merges the rows that share both ends and combines the rest; Row sets that aside
-        function toPair(t, quiet) {
+        function toPair(t) {
             t.per = "pair";
             t.cols.forEach((c) => { if (!["from", "to", "edgeId"].includes(roleOf(t, c))) t.combine[c] = (COMBINE[typeOfCol(t, c)] || COMBINE.cat)[0][0]; /* bool, a list or a whole value combine as a category */ });
             // count becomes the weight only when the table has none; a weight the reader set keeps
             // its role and combines by its Combine (Sum by default)
             const w = colWith(t, "weight");
             if (!w) t.roles.count = role("weight");
-            if (!quiet) t.said = "One edge per Pair: rows with the same two ends make one edge, and each other column combines" + (w ? "; " + w + " stays the Weight, summed." : "; the number of rows per pair, count, is the Weight.") + " Set aside: one edge per row.";
+            t.said = "One edge per Pair: rows with the same two ends make one edge, and each other column combines" + (w ? "; " + w + " stays the Weight, summed." : "; the number of rows per pair, count, is the Weight.") + " Set aside: one edge per row.";
         }
         function toRow(t) {
             const wasCount = colWith(t, "weight") === "count";
             t.per = "row"; t.combine = {}; delete t.roles.count;
             t.said = "One edge per Row: every row is its own edge. Set aside: the Combine choices and count" + (wasCount ? ", so the Weight is none; no column became the Weight again." : ".");
         }
-        // The Weight picker: the table's Number columns, the number of rows per pair, or none. A column it
-        // picks gets the Weight role under its header, the same setting the role menu shows
-        function weightPicker(t) {
+        // The weight is always visible in the header strip, read-only: the Weight role is chosen under a
+        // column header (the role menu), the one place it is set
+        function weightLine(t) {
             const w = colWith(t, "weight");
-            const nums = t.cols.filter((c) => typeOfCol(t, c) === "num" && !linkCols(t).includes(c) && !t.roles[c]?.locked);
-            const setW = (c) => { if (w && w !== "count") delete t.roles[w]; if (c) t.roles[c] = role("weight"); else delete t.roles.count; };
-            const items = [{ heading: "A column" }].concat(nums.length ? nums.map((c) => ({ label: c, check: w === c, desc: "Each edge weighs its " + c + " value", onClick: () => {
-                if (w === c) return;
-                setW(c);
-                if (w === "count") { delete t.roles.count; t.said = c + " is the Weight. Set aside: the number of rows per pair; One edge per stays Pair, and count stays a column."; }
-                else t.said = c + " is the Weight." + (w ? " Set aside: " + w + " as the Weight; it stays a column." : "");
-                changed(); redraw("w");
-            } })) : [{ label: "No Number column", disabled: "This table has no Number column to weigh by" }],
-            [{ sep: true }], t.locked ? [] : [{ label: "Number of rows per pair", check: w === "count", desc: "Each edge weighs how many rows share its two ends; this needs One edge per Pair", onClick: () => {
-                if (w === "count") return;
-                const wasRow = t.per !== "pair";
-                if (wasRow) toPair(t, true);
-                setW(null); t.roles.count = role("weight");
-                t.said = "The Weight is the number of rows per pair, so One edge per is now Pair." + (w ? " Set aside: " + w + " as the Weight; it stays a column, summed." : wasRow ? " Set aside: one edge per row." : "");
-                changed(); redraw("w");
-            } }], [{ label: "None: each edge counts 1", check: !w, onClick: () => {
-                if (!w) return;
-                setW(null);
-                t.said = "No Weight: each edge counts 1. Set aside: " + (w === "count" ? "the number of rows per pair; One edge per stays Pair." : w + " as the Weight; it stays a column.");
-                changed(); redraw("w");
-            } }]);
-            const word = w === "count" ? "Number of rows per pair" : w || "None (each edge counts 1)";
-            const f = AB.field(word, { caret: true, onClick: (e) => pickMenu(e.currentTarget, items, { label: "Weight" }) });
-            f.dataset.k = "w"; f.setAttribute("aria-haspopup", "menu"); f.setAttribute("aria-label", "Weight, set when loaded: " + word);
-            return h("span", { class: "dpg-ctl" }, h("span", { class: "dpg-lab" }, "Weight"), f);
+            const word = "Weight: " + (w === "count" ? "count, the number of rows per pair" : w || "none (each edge counts 1)");
+            return AB.tip(h("span", { class: "dpg-quiet", role: "note", tabindex: "0", "data-k": "w" }, word), "The Weight role is chosen under a column header", { label: false });
         }
 
         // An edge table's two ends in words: "researcher to institution"
@@ -1637,15 +1640,17 @@
                 const tys = types(m).filter((x) => x.table !== t || r === "links");
                 const items = [];
                 if (!tys.length) items.push({ label: "node", desc: "One new type for every value in the two link columns", check: cur === r, onClick: set(r, "node", null) });
-                tys.forEach((x) => x.unique.forEach((u, i) => items.push({ label: x.name + " by " + u + (i === 0 ? " (Key)" : ""), desc: i === 0 ? "Matches " + c + " to " + x.table.name + "." + u + ", its Key" : "Matches " + c + " to " + x.table.name + "." + u + ", a unique column; the Key stays " + x.unique[0], check: cur === r && t.roles[c].target === x.name && (t.roles[c].by || x.unique[0]) === u, onClick: set(r, x.name, u) })));
+                tys.forEach((x) => { items.push({ heading: x.name }); x.unique.forEach((u, i) => items.push({ label: x.name + " by " + u + (i === 0 ? " (Key)" : ""), desc: i === 0 ? "Matches " + c + " to " + x.table.name + "." + u + ", its Key" : "Matches " + c + " to " + x.table.name + "." + u + ", a unique column; the Key stays " + x.unique[0], check: cur === r && t.roles[c].target === x.name && (t.roles[c].by || x.unique[0]) === u, onClick: set(r, x.name, u) })); });
                 // New type... names the type in a name field, prefilled with the column name without "_id";
                 // choosing it again on a link to a type no table makes renames that type
                 const fresh = cur === r && t.roles[c].fresh ? t.roles[c].target : null;
                 const any = cur === r && t.roles[c].any;
-                items.forEach((x) => { if (any) x.check = false; });
+                items.forEach((x) => { if (any && !x.heading) x.check = false; });
                 // Any of these types...: the column may point at several types; the report counts each
+                // the field list draws no separators: a heading closes the last type's group
+                items.push({ heading: "Other types" });
                 if (tys.length > 1) items.push({ label: "Any of these types...", check: !!any, keep: true, desc: "Ticks the types a value of " + c + " may name; a value that matches two types is refused", onClick: () => anyMenu(fl.querySelector('[aria-label="Any of these types..."]') || fl, t, c, r, tys) });
-                items.push({ sep: true }, { label: "New type...", check: !!fresh, desc: fresh ? "Renames " + fresh + ", the type this column makes" : "Each value of " + c + " becomes a node of a new type; you name it next", onClick: () => {
+                items.push({ label: "New type...", check: !!fresh, desc: fresh ? "Renames " + fresh + ", the type this column makes" : "Each value of " + c + " becomes a node of a new type; you name it next", onClick: () => {
                     nameType(el.querySelector(`[data-k="r:${CSS.escape(c)}"]`), fresh ? "Rename type " + fresh : "New type from " + c, fresh || c.replace(/_id$/, ""), (v) => {
                         if (fresh) renameType(fresh, v);
                         else t.roles[c] = role(r, v, null, { fresh: true });
@@ -1716,7 +1721,7 @@
             const th = (c, ci) => {
                 // time (latest): a derived column with no role of its own
                 if (LATEST.test(c)) return h("th", { class: "dpg-derived", "aria-colindex": String(ci + 1), "data-col": c },
-                    h("div", { class: "dpg-cn" }, h("span", { class: "k-id" }, c), AB.tip(h("span", { class: "dpg-auto", role: "note", tabindex: "0" }, "derived"), "The latest " + c.replace(LATEST, "") + " of each pair, kept as an attribute; " + c.replace(LATEST, "") + " (earliest) holds the Time role", { label: false })));
+                    h("div", { class: "dpg-cn" }, h("span", { class: "k-id" }, c), AB.tip(h("span", { class: "k-badge dpg-auto", role: "note", tabindex: "0" }, "derived"), "The latest " + c.replace(LATEST, "") + " of each pair, kept as an attribute; " + c.replace(LATEST, "") + " (earliest) holds the Time role", { label: false })));
                 const r = roleOf(t, c);
                 const rr = t.roles[c] || {};
                 const a = t.arrs && t.arrs[c];
@@ -1762,16 +1767,17 @@
                 // Long names and paths keep their start and end (the middle ellipsis); the full name is the tooltip
                 const shown = twoTimes(t, c) ? c + " (earliest)" : c;
                 return h("th", { class: c === "count" ? "dpg-derived" : null, "aria-colindex": String(ci + 1), "data-col": c, "data-frozen": c === frozen ? "" : null },
-                    h("div", { class: "dpg-cn" }, h("span", { class: "k-id" }, AB.truncMiddle(shown, t.json ? 28 : 24)), gl, c === "count" ? AB.tip(h("span", { class: "dpg-auto", role: "note", tabindex: "0" }, "derived"), "How many rows each pair had", { label: false }) : null),
+                    h("div", { class: "dpg-cn" }, h("span", { class: "k-id" }, AB.truncMiddle(shown, t.json ? 28 : 24)), gl, c === "count" ? AB.tip(h("span", { class: "k-badge dpg-auto", role: "note", tabindex: "0" }, "derived"), "How many rows each pair had", { label: false }) : null),
                     btn, comb, means);
             };
             const f = m.filter && FILTERS[m.filter];
-            const sample = sampleOf(t);
-            const idx = f && f.test ? sample.map((r, i) => i).filter((i) => f.test(sample[i], m)) : sample.map((r, i) => i);
-            const rows = idx.map((i) => sample[i]);
             // Which other table a cell's value is missing from (the element's report marks it); null when matched
             // a link matched on another unique column (person by badge) misses on every row
             const off = offKey(m, t);
+            const whole = t.id === "entries" && !off && WHOLE.includes(m.filter);
+            const sample = whole ? unmatchedRows().rows : sampleOf(t);
+            const idx = f && f.test ? sample.map((r, i) => i).filter((i) => f.test(sample[i], m)) : sample.map((r, i) => i);
+            const rows = idx.map((i) => sample[i]);
             const missFrom = (c, v) => (off && c === off.col ? "a " + off.by + " in " + off.table : t.id === "entries" && t.roles[c] ? (c === "person_id" && missP(m).includes(v) ? "people" : c === "building_id" && missB(m).includes(v) ? "buildings" : null) : null);
             const cell = (c, v) => (v == null ? "" : /^\d{4}-\d\d-\d\dT/.test(String(v)) ? String(v).replace("T", " ").replace(/:\d\dZ$/, "") : String(v));
             const fz = (c) => (c === frozen ? "" : null);
@@ -1817,7 +1823,7 @@
                     return h("th", { class: "dpg-gh", colspan: String(run.n) }, b);
                 }));
             }
-            const tableEl = h("table", { class: "k-table", "aria-label": (pairEdge(t) ? "Sample pairs of " : "Sample of ") + t.name },
+            const tableEl = h("table", { class: "k-table", "aria-label": (whole ? "Rows of " : pairEdge(t) ? "Sample pairs of " : "Sample of ") + t.name },
                 h("thead", null, groupRow, h("tr", null, cols.map(th))),
                 h("tbody", null, rows.map((row) => {
                     // A row with an end left out stays in the grid, grayed, so the grid agrees with the report
@@ -1841,7 +1847,7 @@
             wrap.append(tableEl);
             // the grid is a preview: say so when the table holds more rows than it shows
             if (!f && sample.length && typeof rowsOf(m, t) === "number" && rowsOf(m, t) > sample.length) wrap.append(h("div", { class: "k-secondary", role: "note", style: "padding:6px 12px;position:sticky;left:0;width:max-content" }, "Showing the first " + sample.length + " of " + n(rowsOf(m, t)) + " rows."));
-            const bar = f ? h("div", { class: "dpg-filter", role: "status" }, h("span", null, "Showing " + f.text + ": " + (rows.length ? rows.length + " of the " + sample.length + " sample rows" : "none of the " + sample.length + " sample rows") + "."), h("span", Object.assign({ class: "ab-link", role: "button", "data-k": "showall" }, AB.act({ onClick: () => { m.filter = null; redraw(); } })), "Show all rows")) : null;
+            const bar = f ? h("div", { class: "dpg-filter", role: "status" }, h("span", null, "Showing " + f.text + ": " + (whole ? AB.count(rows.length, "row", { of: rowsOf(m, t) }) : rows.length ? rows.length + " of the " + sample.length + " sample rows" : "none of the " + sample.length + " sample rows") + "."), h("span", Object.assign({ class: "ab-link", role: "button", "data-k": "showall" }, AB.act({ onClick: () => { m.filter = null; redraw(); } })), "Show all rows")) : null;
             if (!sample.length) wrap.append(AB.empty("No rows to show."));
             const grain = pairEdge(t) && !f ? h("div", { class: "dpg-filter", role: "note" }, h("span", null, "One row per pair: each is one edge, its count the rows it merged.")) : null;
             // once shown for a table it stays, so a choice that drops it to 15 columns never takes the find away mid-task
@@ -1881,7 +1887,7 @@
         function matchReport(t) {
             // A count filters the grid to its rows; pressed again, it shows every row again
             const count = (text, key) => key === "all" && !m.filter ? h("span", null, text) : h("span", Object.assign({ class: "ab-link", role: "button", "data-k": "f:" + key, "aria-pressed": String(m.filter === key) }, AB.act({ onClick: () => { m.filter = key === "all" || m.filter === key ? null : key; redraw("f:" + key); } })), text);
-            const seg = (key, col, opts, value) => segOf(opts, value, (v) => { m.add = m.add || {}; m.add[key] = v === "add"; if (m.filter === "missing" && !(sampleOf(t).some((r) => FILTERS.missing.test(r, m)))) m.filter = null; changed(); }, "Unmatched " + col + " values", "u:" + key, ["Each value becomes a new node with only an id (Gephi's Create missing nodes)", t.kind === "node" ? "The entry node stays; only its link to a missing node is left out" : "The rows are left out; the count stays here"]);
+            const seg = (key, col, opts, value) => segOf(opts, value, (v) => { m.add = m.add || {}; m.add[key] = v === "add"; if (m.filter === "missing" && !(unmatchedRows().rows.some((r) => FILTERS.missing.test(r, m)))) m.filter = null; changed(); }, "Unmatched " + col + " values", "u:" + key, ["Each value becomes a new node with only an id (Gephi's Create missing nodes)", t.kind === "node" ? "The entry node stays; only its link to a missing node is left out" : "The rows are left out; the count stays here"]);
             const cb = {
                 settings: () => openSettings(),
                 chooseFile: () => chooseFile(),
@@ -1976,7 +1982,7 @@
                     const month = (r.file.match(/(\d{4})-(\d{2})/) || []).slice(1);
                     if (month.length) { const name = new Date(Number(month[0]), Number(month[1]) - 1, 1).toLocaleString("en-US", { month: "long" }) + " " + month[0]; X.title = X.title.replace(/\w+ \d{4}$/, name); X.frame.project = X.frame.project.replace(/\w+ \d{4}$/, name); }
                 };
-                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.byLoad = true; DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; Object.assign(DE().loaded, loadedChoices(entries)); } if (transfersT && !m.replaced) T().loaded = Object.assign({ per: transfersT.per }, loadedChoices(transfersT)); if (m.replaced) replaceWith(m.replaced); AB.go(to[0], to[1]); } });
+                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (!to) { AB.flash("Loads " + n(REGISTRY.packages) + " packages and their dependencies as a new graph"); return; } if (m.json === "nested") NX().loaded = nestedChoices(m); if (m.pj) { const P = AB.fx.datasets.plainJson; P.baseFile = P.baseFile || P.file; P.dialect = m.pj; P.file = DIALECTS[m.pj].file || P.baseFile; } if (m.json === "registry") { const pk = table(m, "packages"); const it = table(m, "installed_together"); AB.fx.datasets[registryDataset()].edges = (pk && pk.arrs.dependencies.pick === "edges" ? REGISTRY.dependencyKeys : 0) + (it && it.tick !== false ? REGISTRY.installedTogether : 0); } if (records) { DE().loaded.byLoad = true; DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; Object.assign(DE().loaded, loadedChoices(entries)); } if (transfersT && !m.replaced) T().loaded = Object.assign({ per: transfersT.per }, loadedChoices(transfersT)); if (m.replaced) replaceWith(m.replaced); if (m.tables.some((t) => t.append && t.matches === "transfers")) { const X = T(), S = AB.fx.datasets.transactionsApril.stackedOnMarch; X.nodes = S.accounts; X.edges = S.transfers; AB.transfersAdded = true; } AB.go(to[0], to[1]); } });
             }
             primary.dataset.k = "primary";
             const cancel = AB.button("Cancel", { kind: "secondary", key: "Esc", onClick: () => AB.onPageCancel && AB.onPageCancel() });
@@ -2099,7 +2105,7 @@
             { id: "refused-too-large", label: "Refused: too large to draw" },
             { id: "refused-ids", label: "Refused: missing and duplicate ids" },
             { id: "reading", label: "A large file reading, with its row count" },
-            { id: "link-by-badge", label: "person_id linked to person by badge: no rows match" },
+            { id: "link-by-badge", label: "person_id linked to person by badge: no rows match, its link submenu open" },
             { id: "wide-hosts", label: "Wide data: hosts (69 columns) and connections (26)" },
             { id: "wide-find-column", label: "Wide data: Go to column, \"vu cr\" typed" },
             { id: "wide-link-menu", label: "Wide data: a link's \"by\" list (host by its unique columns)" },
@@ -2117,6 +2123,7 @@
             { id: "edit-json-links", label: "Edit: the research network, links" },
             { id: "json-tree", label: "JSON: the document's tree, tables proposed" },
             { id: "json-researchers", label: "JSON: the researchers table, flattened columns" },
+            { id: "json-links", label: "JSON: the links edge table, weight proposed as its Weight" },
             { id: "json-keep-value", label: "JSON: attributes.profile.contact kept as one value" },
             { id: "json-array-menu", label: "JSON: the four outcomes of coauthor_ids" },
             { id: "json-affiliations", label: "JSON: affiliations as Several rows (a child table)" },

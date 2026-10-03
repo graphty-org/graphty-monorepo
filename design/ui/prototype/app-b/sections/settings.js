@@ -28,8 +28,8 @@
 .st-nav .k-row[aria-disabled="true"] { color: var(--cm-text-disabled); }
 .st-nav-sep { height: 1px; background: var(--cm-border); margin: 6px 12px; }
 .st-main { overflow: auto; padding: 12px 24px 24px; min-width: 0; }
-.st-main h2 { font-size: 15px; line-height: 20px; font-weight: 600; margin: 4px 0 2px; }
-.st-main h3 { font-size: 12px; font-weight: 600; margin: 16px 0 0; color: var(--cm-text-secondary); }
+.st-main h2 { font-size: 15px; line-height: 25px; font-weight: 550; margin: 4px 0 2px; }
+.st-main h3 { font-size: 11px; font-weight: 550; margin: 16px 0 0; color: var(--cm-text-secondary); }
 .st-lede { margin: 0 0 8px; color: var(--cm-text-secondary); max-width: 60ch; }
 .st-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 24px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--cm-border); }
 .st-row:last-child { border-bottom: 0; }
@@ -102,7 +102,7 @@
     const goLink = (text, id, state) => h("a", { class: "st-link", href: AB.href(id, state) }, text);
     const provName = () => ({ openai: "OpenAI", anthropic: "Anthropic", google: "Google", browser: "In this browser" })[S.provider];
     const anyKey = () => ["openai", "anthropic", "google"].some((p) => S["key_" + p]);
-    // The one sentence about what the Assistant sends, word for word on Assistant and on Privacy.
+    // The one sentence about what the Assistant sends, the Assistant section's lede.
     // It ships with no provider, so it is off by the Assistant's one rule: off until a provider is chosen.
     // After a send it reads in the past tense, with what went and a way to see it (S.sent, set by the
     // provider-set state; it stands for the last send to that provider and lapses when the provider changes).
@@ -141,21 +141,14 @@
                                 h("li", null, "Errors and performance"),
                                 h("li", null, "A feedback widget")),
                             help("No file contents ever leave your computer."))) },
-                { label: "Where your data goes", words: "data files saved sent keys privacy exports assistant provider data source password promise hosting country server", wide: true, ctl: null,
+                { label: "Where your data goes", words: "data files saved sent keys privacy exports project usage", wide: true, ctl: null,
                     help: help("A plain statement you can forward to whoever asks."),
                     extra: h("div", { class: "st-limits st-wide" },
                         AB.data("Files you open", "Read on this computer. Never uploaded."),
                         AB.data("Your project", "Saved where you save it."),
-                        AB.data("The Assistant", assistantSends()),
-                        AB.data("Data sources", "A source you connect (a URL, a database) receives only the request for its data, from this computer. Nothing from your graph is sent to it."),
-                        AB.data("Data-source password", "Kept in memory until you close the tab. Never kept in this browser's storage."),
-                        AB.data("Assistant keys", S.remember ? "Kept in this browser until you forget them, while Remember keys is on." : "Kept until you close the tab, then forgotten."),
-                        AB.data("Passwords and keys", "Never written into a project file or anything you export."),
-                        AB.data("Usage data", S.usage ? "Sent, with graph content masked." : "Off. Nothing is sent."),
-                        AB.data("Hosting", "Not decided yet"),
-                        h("div", { class: "st-help" }, "To forget your keys now: ", goLink("Forget all keys", "settings", "forget-keys-confirm"), "."),
-                        h("div", { class: "st-help" }, goLink("Files you exported", "export-dialog", "recent-exports"), " -- exports are saved where you choose, never sent."),
-                        h("div", { class: "st-help" }, h("b", null, "What this does not promise. "), "Once the Assistant's provider or a data source has what was sent, its own terms apply, not graphty's. A browser extension or anyone with this computer can read what is in this browser, keys included.")) },
+                        AB.data("Assistant keys", S.remember ? "Kept in this browser, only while Remember keys is on." : "Remember keys is off, so keys are forgotten when you close the tab."),
+                        AB.data("Usage data", S.usage ? "Sent with graph content masked, only while Share usage data is on." : "Off. Nothing is sent."),
+                        h("div", { class: "st-help" }, goLink("Files you exported", "export-dialog", "recent-exports"), " -- exports are saved where you choose, never sent.")) },
             ] },
             { id: "accessibility", title: "Accessibility and input", icon: "accessibility", items: [
                 { label: "Reduced motion", words: "animation motion camera fly", ctl: seg("Reduced motion", [["system", "System"], ["on", "On"], ["off", "Off"]], "motion"),
@@ -322,7 +315,7 @@
             { id: "headset", label: "Headset" },
             { id: "diagnostics", label: "Diagnostics" },
             { id: "forget-keys-confirm", label: "Forget all keys, asking first" },
-            { id: "search", label: "Search: gpu" },
+            { id: "search", label: "Find: gpu" },
         ],
         render(el, state) {
             state = state || "general";
@@ -336,7 +329,7 @@
             if (state === "assistant-provider-set") S.sent = { host: "Anthropic", at: "14:02", what: "40 node names, 3 statistics" };
             query = state === "search" ? "gpu" : "";
             if (state === "search") current = "performance";
-            const q = h("input", { id: "st-q", type: "search", "aria-label": "Search settings", "aria-describedby": "st-count", placeholder: "Search settings", value: query, autocomplete: "off",
+            const q = h("input", { id: "st-q", type: "search", "aria-label": "Find settings", "aria-describedby": "st-count", placeholder: "Find settings", value: query, autocomplete: "off",
                 on: { input: (e) => { query = e.target.value; paint(); const c = root.querySelector(".st-count").textContent; if (c) AB.announce(c); } } });
             const side = h("div", { class: "st-side" },
                 h("div", { class: "st-search" },

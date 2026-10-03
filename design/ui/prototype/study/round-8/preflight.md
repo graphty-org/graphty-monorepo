@@ -1,35 +1,44 @@
-# Round 8 preflight (attempt 6)
+# Round 8 preflight (attempt 9): PASSED
 
-Run 2026-10-02 from design/ui/prototype, before any session. Every check was redone from scratch
-on the files and the skeleton as they are now; nothing is carried over from an earlier preflight.
+Run on 2026-10-02 from `design/ui/prototype/`, every check done afresh from files and commands. The
+round can start. Advisories at the end do not block it.
 
-**Result: all ten checks pass.** Notes that do not fail a check are listed under each one.
+## Result at a glance
 
-## 1. A fresh round folder
+| Check | Result |
+|---|---|
+| 1. Fresh round folder | pass |
+| 2. Every route exists and renders in the participant view | pass (0 of 78 failed) |
+| 3. Renders of exactly each task's routes, newer than the skeleton | pass (46 folders match the plan; 0 problems on 143 renders) |
+| 4. The study tool proves its own check | pass (no FAIL) |
+| 5. Tree outline matches the skeleton and holds only the outline | pass |
+| 6. Answers stay away from participants | pass |
+| 7. Coverage, domains, datasets, tier 1 share | pass (264 sessions, 169 tier 1 = 64.0 percent) |
+| 8. Decided changes not drawn are excluded or flagged | pass |
+| 9. Every persona has a file | pass |
+| 10. Success criteria carry the round's targets | pass |
 
-Commands: `ls study/round-8/` and `find study/round-8 -mindepth 1 -type d`.
+## 1. Fresh round folder -- pass
 
-Result: PASS. No sessions/, tree-test/, first-click/ or focus-groups/ directory, and no
-subdirectory at all. Present: preflight.md (this file), tree.md, tree-test.md. Note: gate.md is
-not there yet; its absence does not make the round stale.
+Command: `ls -la study/round-8/`. Exit code: 0. Output:
 
 ```
-preflight.md
-tree.md
-tree-test.md
-exit 0
+total 64
+drwxrwxr-x  2 apowers apowers  4096 Oct  2 18:21 .
+drwxrwxr-x 14 apowers apowers  4096 Oct  2 14:00 ..
+-rw-rw-r--  1 apowers apowers 34470 Oct  2 18:21 preflight.md
+-rw-rw-r--  1 apowers apowers  6901 Oct  2 14:45 tree.md
+-rw-rw-r--  1 apowers apowers 11675 Oct  2 15:43 tree-test.md
 ```
 
-```
-exit 0 (no lines above = no subdirectories)
-```
+(preflight.md was the previous attempt's report; this file replaces it.)
 
-## 2. Every route renders in the participant view
+No directory named sessions/, tree-test/, first-click/ or focus-groups/ exists.
 
-Command: `timeout 600 node app-b/study.mjs --check <the 79 routes the plan names>` (one batch;
-the line fit).
+## 2. Every route exists and renders in the participant view -- pass
 
-Result: PASS, exit 0, 0 of 79 routes failed. The dataset each route draws is in brackets.
+Command: `timeout 600 node app-b/study.mjs --check <the 78 routes the plan names>` (one batch).
+Exit code: 0. Full output:
 
 ```
 ok   app-b/#/start-screen/first-run (lesmis)
@@ -99,7 +108,7 @@ ok   app-b/#/inspector-nothing-selected/transfers (transactions)
 ok   app-b/#/data-page/buildings (doorEntries)
 ok   app-b/#/inspector-nothing-selected/door-entries (doorEntries)
 ok   app-b/#/data-page/weight-moved (transactions)
-ok   app-b/#/context-menus/source (transactions)
+ok   app-b/#/data-place/at-rest (transactions)
 ok   app-b/#/data-page/replace (transactions)
 ok   app-b/#/data-page/replace-chosen (transactions)
 ok   app-b/#/data-place/after-replace (transactions)
@@ -110,87 +119,87 @@ ok   app-b/#/context-menus/run-row (lesmis)
 ok   app-b/#/views-place/at-rest (lesmis)
 ok   app-b/#/views-place/saving (lesmis)
 ok   app-b/#/present-mode/presenting (lesmis)
-ok   app-b/#/data-place/at-rest (transactions)
-0 of 79 routes failed
-exit 0
+0 of 78 routes failed
 ```
 
-## 3. Every task and first-click prompt has fresh renders of exactly its routes
+## 3. Renders of exactly each task's routes, newer than the skeleton -- pass
 
-Commands: `node tmp/preflight-r8-a6/cmp.mjs` (compares each shots/tasks/<id>/routes.json with
-the plan's routes for that id, without the app-b/#/ prefix, in order, and checks the folder holds
-exactly 01.png to NN.png, one per route), then `timeout 120 node app-b/study.mjs --fresh <the 46 ids>`.
+### 3a. Stored routes against the plan
 
-Result: PASS. All 46 ids match the plan route for route; --fresh exits 0 with 0 problems on 145
-renders (every render newer than every file under app-b/).
-
-```
-ok   r8-t01: 9 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png 06.png 07.png 08.png 09.png
-ok   r8-t02: 2 routes, routes.json matches, PNGs 01.png 02.png
-ok   r8-t03: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t04: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t05: 2 routes, routes.json matches, PNGs 01.png 02.png
-ok   r8-t06: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t07: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t08: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t09: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t10: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t11: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t12: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t13: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t14: 6 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png 06.png
-ok   r8-t15: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t16: 2 routes, routes.json matches, PNGs 01.png 02.png
-ok   r8-t20: 2 routes, routes.json matches, PNGs 01.png 02.png
-ok   r8-t20-transactions: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t21: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t21-transactions: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t22: 6 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png 06.png
-ok   r8-t23: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t23-transactions: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t24: 6 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png 06.png
-ok   r8-t24-transactions: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t25: 5 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png
-ok   r8-t25-transactions: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t26: 6 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png 05.png 06.png
-ok   r8-t30: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-t32: 3 routes, routes.json matches, PNGs 01.png 02.png 03.png
-ok   r8-t33: 2 routes, routes.json matches, PNGs 01.png 02.png
-ok   r8-t34: 4 routes, routes.json matches, PNGs 01.png 02.png 03.png 04.png
-ok   r8-fc01: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc02: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc03: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc04: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc05: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc06: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc07: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc08: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc09: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc10: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc11: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc12: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc13: 1 routes, routes.json matches, PNGs 01.png
-ok   r8-fc14: 1 routes, routes.json matches, PNGs 01.png
-0 of 46 ids differ
-exit 0
-```
+Command: `node tmp/preflight-r8-a9/routes.mjs` (compares each `shots/tasks/<id>/routes.json` with the
+plan's routes for that id, in order, and checks the folder holds exactly 01.png ... NN.png, one per
+route). Exit code: 0. Full output:
 
 ```
-0 problems on 145 renders
-exit 0
+ok   r8-t01: 9 routes match, pngs 01.png,02.png,03.png,04.png,05.png,06.png,07.png,08.png,09.png
+ok   r8-t02: 2 routes match, pngs 01.png,02.png
+ok   r8-t03: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t04: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t05: 2 routes match, pngs 01.png,02.png
+ok   r8-t06: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t07: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t08: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t09: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t10: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t11: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t12: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t13: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t14: 6 routes match, pngs 01.png,02.png,03.png,04.png,05.png,06.png
+ok   r8-t15: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t16: 2 routes match, pngs 01.png,02.png
+ok   r8-t20: 2 routes match, pngs 01.png,02.png
+ok   r8-t20-transactions: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t21: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t21-transactions: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t22: 6 routes match, pngs 01.png,02.png,03.png,04.png,05.png,06.png
+ok   r8-t23: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t23-transactions: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t24: 6 routes match, pngs 01.png,02.png,03.png,04.png,05.png,06.png
+ok   r8-t24-transactions: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t25: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t25-transactions: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-t26: 5 routes match, pngs 01.png,02.png,03.png,04.png,05.png
+ok   r8-t30: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t32: 3 routes match, pngs 01.png,02.png,03.png
+ok   r8-t33: 2 routes match, pngs 01.png,02.png
+ok   r8-t34: 4 routes match, pngs 01.png,02.png,03.png,04.png
+ok   r8-fc01: 1 routes match, pngs 01.png
+ok   r8-fc02: 1 routes match, pngs 01.png
+ok   r8-fc03: 1 routes match, pngs 01.png
+ok   r8-fc04: 1 routes match, pngs 01.png
+ok   r8-fc05: 1 routes match, pngs 01.png
+ok   r8-fc06: 1 routes match, pngs 01.png
+ok   r8-fc07: 1 routes match, pngs 01.png
+ok   r8-fc08: 1 routes match, pngs 01.png
+ok   r8-fc09: 1 routes match, pngs 01.png
+ok   r8-fc10: 1 routes match, pngs 01.png
+ok   r8-fc11: 1 routes match, pngs 01.png
+ok   r8-fc12: 1 routes match, pngs 01.png
+ok   r8-fc13: 1 routes match, pngs 01.png
+ok   r8-fc14: 1 routes match, pngs 01.png
+0 mismatches; 143 PNGs
 ```
 
-## 4. The study tool's own check is sound
+### 3b. Freshness
 
-Command: `timeout 300 node app-b/study.mjs --prove`.
+Command: `timeout 120 node app-b/study.mjs --fresh r8-t01 ... r8-fc14` (all 46 ids). Exit code: 0.
+Full output:
 
-Result: PASS, exit 0, no FAIL line. (The line "nothing that takes text has focus ..." is the
-expected message of the planted --type failure that the next line proves.)
+```
+0 problems on 143 renders
+```
+
+The newest skeleton file is `app-b/sections/inspector-run-row.js` (18:17:24); the renders date from
+18:22 onward.
+
+## 4. The study tool's own check is sound -- pass
+
+Command: `timeout 300 node app-b/study.mjs --prove`. Exit code: 0. `grep -c FAIL`: 0. Full output:
 
 ```
 ok   a good route passes
 ok   an unknown section fails: no section "no-such-section" (the manifest lists the sections; --list shows every route)
-ok   an unknown state fails: section graph-place has no state "no-such-state" (its states: at-rest, empty, door-entries, louvain-open, many-groups, rerun-failed, transfers-loaded, door-entries-path, door-entries-running, path-found, transfers-running, running, queued, finished, partial, failed, solo, everything-hidden, show-hidden, scope-mark, out-of-date, invalid-drop, find, list-menu, rename, rename-chain, rename-run-group, rename-builtin, rename-run-disabled, notes-eye-off, find-no-match, one-group, long-names, wide, wide-sized, nested, nested-set, plain-json, registry, painted)
+ok   an unknown state fails: section graph-place has no state "no-such-state" (its states: at-rest, empty, door-entries, louvain-open, many-groups, rerun-failed, transfers-loaded, door-entries-path, door-entries-running, path-found, transfers-running, running, queued, finished, partial, failed, solo, everything-hidden, show-hidden, scope-mark, out-of-date, invalid-drop, find, list-menu, list-menu-on, rename, rename-chain, rename-run-group, rename-builtin, rename-run-disabled, notes-eye-off, find-no-match, one-group, long-names, wide, wide-sized, nested, nested-set, plain-json, registry, painted)
 ok   a stub fails: section prove-stub is a stub (no render)
 ok   --type types into a focused box
 nothing that takes text has focus (focus is on h2 "Data"); typed nothing, not "abc"
@@ -200,332 +209,199 @@ ok   a shift-click adds a second row
 ok   a plain click keeps one row selected
 ok   a reviewer word in text or a tooltip fails, one in a design note does not
 ok   an unknown step is refused with exit 2
-exit 0
 ```
 
-## 5. The tree outline matches the skeleton and holds only the outline
+## 5. Tree outline -- pass
 
-Command: `bash tmp/preflight-r8-a6/treelabels.sh` (every outline label, with its parenthetical
-removed, searched in app-b/; the number is how many skeleton files carry that text), plus a
-reading of tree.md against sections/main-menu.js, sections/project-menu.js and lib.js's File list.
+Read `study/round-8/tree.md` and `study/round-8/tree-test.md` in full.
 
-Result: PASS. Every named control in tree.md is in the skeleton. The 26 labels with 0 hits are
-outline descriptions, not control names ("A row's right-click menu", "Each column's role, under
-its name", "Legend card", "Right-click on a node", "Usage data card"); their controls were
-checked by their own words ("Compare with another", "As the file says", "Each row is", "One edge
-per", "Shortest paths", "switcher", "In tour" all found). The main menu order (New project, Open
-recent, the File list, Select where..., Select edges between, Show hidden elements, Settings...,
-Keyboard shortcuts, Help) and the project-name menu (Rename, the File list, Save as..., Close
-project) match the section files. tree.md holds no task text from tree-test.md, no answers,
-no correct locations, no scoring, no routes or section ids, and none of the examples the tree
-tasks name (a country and a score over 50, badge swipes, April, 40 times).
+- Outline only. Command: `grep -nE '[a-z]+-[a-z]+/[a-z]|#/|app-b|correct|Correct|answer|score|Tree [0-9]|tree-[0-9]|Prompt|badge|swipe|April|March|country|Excel|slides|Downloads|colleague' tree.md`.
+  Exit code: 1 (no match). So no route, section id, answer list, scoring, prompt text or example
+  a tree task names is in the outline.
+- Matches the skeleton. Command: `node tmp/preflight-r8-a9/tree-labels.mjs` (looks up every outline
+  label verbatim in app-b's source). 11 lines did not match verbatim, and each is a description, not
+  a label: "Usage data card (first launch only)", "Project name (click it for its menu)", "Graph
+  switcher" (twice), "Shortest paths, opening to each one found", "To ->", "Legend card (top left)",
+  "Right-click on empty canvas", "Right-click on a node", "Nodes | Edges", "Values or Members (with
+  Top 10)". A second search found "Shortest paths", "To", "From", "Values", "Members", "Motion",
+  "Pause layout" and "Resume layout" in the source. Every other label was found verbatim. The
+  outline's regions (start screen, header with main menu and project-name menu, rail Graph / Data /
+  Views / Notes / Assistant, the Data page, canvas menus, toolbar tooltip names, selection bar,
+  inspector Style / Layout / Data tabs, table) are the regions the skeleton draws.
 
-```
-  2  Accessibility and input
-  0  A column header's menu
-  2  Add as steps
-  4  Add label line
-  1  Add node...
-  7  Add note
-  3  Add rows from file...
-  2  Add to set...
-  3  A measure
- 14  Analyze
-  2  Analyze...
-  2  An attribute's menu
-  1  A note's menu
-  4  Apply recipe or style file...
-  1  A row's menu
-  0  A row's right-click menu
-  0  A run that finds groups, opening to its groups
-  6  Assistant
-  0  A tab for a run's groups
- 39  Attribute
- 14  Attributes
- 16  Back
- 17  Cancel
- 16  Canvas
-  3  Clear graph data
-  1  Close project
-  8  Columns
-  0  Compare with another run... / Compare with another row...
-  2  Compute the overview
-  2  Copy link to note
- 10  Create set
- 38  Data
- 14  Data tab
- 15  Delete
-  2  Diagnostics
-  0  Direction: As the file says | Directed | Undirected
-  7  Distance
-  0  Each column's role, under its name
-  0  Each file or address, with its menu
-  0  (each project you opened, with its menu)
-  0  Each row is: a node | an edge
-  0  Each step, with a checkbox to apply it
-  1  Edge id
- 19  Edges
- 18  Edit
-  1  Edit on the Data page
-  2  Edit source...
-  3  Effects
-  2  Enter AR
-  4  Enter VR
-  0  Every note, newest first, each with what it is about and when
- 15  Everything
-  4  Export...
-  1  Export table as CSV...
-  1  File settings
- 11  Fill
-  7  Filters
-  4  Filter to...
-  1  Filter to neighbors
-  2  Find groups
-  1  Find in notes
-  1  Find paths and edge sets
-  3  Find rows and notes
-  6  Fit
-  3  Folders
-  4  Frame selection
-  1  From ->
- 10  Full graph
-  3  General
-  4  Go to column
- 26  Graph
-  0  Graph switcher
-  0  Header: name, kind, where it came from, and "..."
-  4  Headset
-  2  Help
-  6  Hide on canvas
-  1  How it is drawn
-  3  Image
-  2  Invert selection
- 40  Key
-  4  Keyboard shortcuts
- 22  Label
- 11  Layout
-  2  Lay out by these groups
-  1  Layout tab
- 10  Legend
-  0  Legend card
-  3  List options
- 22  Load
-  4  Local only
-  1  Locate...
-  7  Lock
- 10  Made with
-  4  Main menu
-  1  Makes
-  2  Match report
-  1  Measure the graph
-  7  Method
- 12  More
-  1  Motion
- 39  Name
-  5  Neighborhood
-  2  Neighborhood...
-  1  New from data...
-  1  New project
- 24  Nodes
-  2  Nodes | Edges
- 32  Notes
-  1  No thanks
-  1  One edge per: Row | Pair
-  4  Open project or file...
-  2  Open recent
-  1  or drop a file anywhere in this window
- 12  Paints
-  5  Path between
-  3  Path between...
-  2  Performance
-  4  Pin
-  3  Pinned nodes
-  1  Place by
-  9  Position
-  5  Present
-  5  Privacy
-  0  Project name
-  8  Quick actions
-  1  Rank nodes and edges
-  2  Read as...
-  7  Recent
-  1  Recent exports
-  2  Recent projects
-  6  Recipe
-  7  Redo
- 20  Remove
-  3  Remove from list
-  2  Remove from list view
- 18  Rename
-  4  Replace with file...
-  4  Report
-  6  Rerun
-  2  Re-run layout
-  3  Reselect previous
-  2  Reshuffle layout seed
-  2  Restore the suggested look
-  0  Right-click on a node
-  0  Right-click on empty canvas
-  0  Rows added by Analyze, each with its eye
-  4  Run as copy
-  1  Samples
- 19  Save
-  1  Save as...
-  3  Save view
-  1  Search, or say what to find
-  6  Seed
-  2  Select all visible
-  1  Select edges between
- 25  Selection
-  1  Select top N...
-  6  Select where
-  2  Select where...
-  4  Sets
- 17  Settings
-  2  Settings...
-  8  Shape
-  2  Share usage data
-  0  Shortest paths, opening to each one found
- 31  Show
-  1  Show as groups
-  2  Show hidden elements
-  5  Show in table
-  3  Show members in table
-  5  Show only this row
-  1  Show rows removed from list view
-  6  Sizes
-  7  Sources
-  4  Standard views
- 17  Start
- 18  Style tab
-  2  Subtype
- 15  Summary
-  1  Switch to 2D / Switch to 3D
-  3  Table options
-  1  Tables
-  0  The chosen table
-  0  The list of rows, top to bottom
- 32  Time
-  2  Time slider
-  0  To ->
-  5  Tooltip
- 25  Undo
-  2  Unpin all
-  0  Usage data card
-  0  Values or Members
-  4  Version history
-  3  Video
- 27  View
- 10  Views
- 23  Weight
-  2  What is collected
-  8  Why this look
-  0  Your saved views, in order, each with In tour
-  3  Your views
-```
+## 6. Answers stay away from participants -- pass
 
-## 6. Answer keys stay away from participants
+- Every task scenario, tree prompt and first-click prompt was read against the words on its
+  target. None names its answer or the label on the target: the scenarios say "picture file",
+  "names written next to its dot", "a different way of arranging", "go-betweens", "the smallest
+  number of other accounts", "reminders", "in place of March's", "hold both months", "pick out ...
+  all at once", "by itself", "keep that exact angle", where the controls say Export / Image,
+  Label, Layout / Method, Shortest path / Path between / "None (fewest steps)", Add note, Replace
+  with file..., Add rows from file..., Select where, Show only this row, Save view and Present.
+  The one near-echo is listed under Advisories.
+- Participant view: check 2 (`--check`) fails any route that shows the review bar or a reviewer
+  word; none did. Renders read directly: r8-t01/01, r8-t26/01, r8-t24/01, r8-fc14/01, r8-fc05/01
+  and r8-fc06/01 show no review bar, no design notes and no section or state names.
+- r8-t26/01 (the grouped March transfers, also the first screen of r8-t21-transactions and r8-t30)
+  reads "Data version: March" in the Louvain inspector; nothing on it says April is in place.
+- Every 01.png is a start state: the first routes are start-screen/first-run,
+  start-screen/wide-first-use, graph-place/empty, graph-place/at-rest,
+  graph-place/transfers-loaded, graph-place/many-groups, graph-place/louvain-open,
+  graph-place/path-found, data-page/people, data-page/entries, data-page/transfers, and for
+  first-click the screen the prompt is asked on.
+- Render names are 01.png, 02.png ... (check 3a); none carries a route. Task and first-click ids
+  are numbered and name no answer.
 
-Method: every task scenario, tree prompt and first-click prompt read against the words its target
-shows (section source searched for "arrang", "key", "picture", "left", "Top", "Dates in order";
-renders shots/tasks/r8-t01/01.png, r8-t04/01.png, r8-t20/01.png and r8-t24/01.png viewed).
+## 7. Coverage -- pass
 
-Result: PASS. No prompt names its answer or its place, and none uses the label on its target:
-"reminder" for Add note, "picture" for Image, "arranging" for Layout and Method, "bigger dot" for
-Size, "names written" for Label, "pick out" for Select where, "in place of" for Replace with file,
-"hold both months" for Add rows from file, "by itself" for Show only this row, "keep that angle"
-for Save view. The renders show no review bar, no design notes and no section or state names
-(--check in check 2 also fails on a review bar or reviewer word), render files are named 01.png,
-02.png and so on, and every task's 01.png is its start state: the empty first-launch screen for
-r8-t01 to r8-t15 (r8-t04 on the IT estate's empty start), the empty project for r8-t16, an open
-project or the import page for the tier 2 and regression tasks, as their scenarios say.
+Every coverage key has a task whose routes exercise it: first-session r8-t01 (ends on
+export-dialog/image after analyze and style routes); sample r8-t02; load r8-t03 (data-page/graph-file),
+r8-t04 (start-screen/wide-choose, data-page/wide-hosts), r8-t05 (data-page/refused-ids);
+characterize r8-t06 (inspector-nothing-selected/overview, data-place/graph-file); rank r8-t07
+(inspector-measure-row/data); communities r8-t08 (inspector-run-row/data); color-size r8-t09
+(style-pickers/bind-prop); labels r8-t10 (style-pickers/bind); layout r8-t11 (toolbar/layout-open,
+inspector-nothing-selected/layout-method); find-explore r8-t12 (commands-and-search/find-exact,
+inspector-node/data, selection-bar/neighborhood); export r8-t13 (export-dialog/image and /data);
+save r8-t14 (project-menu/save-as, start-screen/returning); filter r8-t20, r8-t20-transactions
+(inspector-attribute-and-filter-step/step); path r8-t21, r8-t21-transactions; note r8-t22, r8-t23,
+r8-t23-transactions; multi-table r8-t24, r8-t24-transactions; weight r8-t25, r8-t25-transactions;
+reuse r8-t26.
 
-Notes, judged not to break the rule:
-- r8-t07 asks for "the top three"; the reading place is headed "Top 10". "Top" is the plain word
-  for the answer, and the scenario names neither the measure nor where to read it.
-- r8-t20 and r8-t20-transactions ask how many "are left"; a filter step writes "N nodes left" only
-  when other steps are above it, which is not the case in either task.
-- r8-t21-transactions asks "whether the dates allow it"; the result line says "Dates in order".
-  The dates are a property of the data the participant must judge; the scenario does not say how.
-- r8-t32 names "flagged" and Great Britain, values of the data the rule needs; the controls
-  (Select where, Select 1) are not named.
-- r8-t24-transactions starts on the import page, which already shows the match line it asks the
-  participant to read; the task is to find and read it, then load and confirm on the graph.
-- The IT estate's sample card on the start screen reads "300 hosts", the count r8-t04 asks for;
-  the card is a sample, not the participant's files, and the task's routes never open it.
+Persona domains, read from each file in `study/personas/`: alert-reviewer bank compliance;
+analyst-alex logistics analytics; bioinformatics-researcher drug discovery; class-project-student
+university coursework; cybersecurity-analyst IT security; cytoscape-holdout molecular biology
+research (core facility); data-journalist journalism; expert-emma network science research;
+explorer-elena product management; fraud-analyst bank fraud investigation;
+gene-ontology-cytoscape-user gene function research; genomics-cytoscape-user genomics (cancer
+genomics lab); gephi-holdout computational social science; intelligence-analyst law enforcement
+intelligence; knowledge-engineer enterprise knowledge graphs; marketing-analyst marketing;
+ml-engineer-recsys machine learning engineering; nonprofit-operations-analyst nonprofit
+operations; recipe-recipient cell biology lab; screen-reader-analyst public health research
+(epidemiology); supply-chain-analyst supply chain. Each persona is a different domain, and every
+covering task has at least 4 personas, so every covering task spans at least two domains.
 
-## 7. Coverage
+No coverage key this round is wide-field or nested-json, so that clause has nothing to check.
 
-Method: the plan's coverage list against each task's routes; each persona file read for its
-field of work; datasets compared with the dataset column of check 2; sessions counted.
-
-Result: PASS.
-- Every key has a task whose routes exercise it: first-session r8-t01; sample r8-t02; load r8-t03,
-  r8-t04, r8-t05; characterize r8-t06; rank r8-t07; communities r8-t08; color-size r8-t09; labels
-  r8-t10; layout r8-t11; find-explore r8-t12; export r8-t13; save r8-t14; filter r8-t20,
-  r8-t20-transactions; path r8-t21, r8-t21-transactions; note r8-t22, r8-t23, r8-t23-transactions;
-  multi-table r8-t24, r8-t24-transactions; weight r8-t25, r8-t25-transactions; reuse r8-t26.
-- Every covering task has personas from at least two fields of work (the smallest, r8-t15 and
-  r8-t16, have six personas from six fields). Fields confirmed from the persona files: for
-  example explorer-elena is a product manager, recipe-recipient a wet-lab cell biology member,
-  gephi-holdout a computational social scientist, cytoscape-holdout runs a university genomics
-  core's network service (the plan files her under molecular biology research; either way every
-  task she is in keeps two or more fields).
-- No key in the list is wide-field or nested-json. r8-t04 draws the wide dataset and lists it;
-  every task's datasets list equals the datasets its routes draw (lesmis for r8-t01 to r8-t03,
-  r8-t05 to r8-t16, r8-t20, r8-t21, r8-t22, r8-t23, r8-t33, r8-t34; transactions for the
-  -transactions tasks, r8-t26, r8-t30, r8-t32; doorEntries for r8-t24 and r8-t25).
-- Sessions: 262 in total; tasks covering tier 1 keys (r8-t01 to r8-t14) hold 161 sessions,
-  61 percent (167, 64 percent, with the usage-data moment r8-t15). Every tier 1 task starts on the
-  empty first-launch screen (start-screen/first-run, or start-screen/wide-first-use for r8-t04).
-- Task and first-click ids (r8-tNN, r8-fcNN) name no answer.
-
-## 8. Decided changes the skeleton does not draw
-
-Method: each undrawn change compared with the tasks' routes; `timeout 300 node app-b/study.mjs
---counts` run to see where hand-typed counts still show.
-
-Result: PASS. Every task touching an undrawn change is flagged in its grader notes or in the
-success criteria's "not testable" list, or does not depend on it:
-- bind icon at rest: r8-t09 and the coloring focus group flagged; Layout's Pause/Resume tooltip:
-  r8-t11 flagged; reopening with the saved selection: r8-t14 flagged; the hop-date inversion line:
-  r8-t21-transactions flagged; the selection-cleared notice, the filter chip's off-steps tooltip,
-  provenance rows in Made with, labeling only noted elements, "Saving as", "Show label anyway",
-  "Not on a bridge edge", the past-limit table, the dated footer and the column menu wording:
-  listed as excluded in the success criteria, and no task's grade rests on them.
-- The chain note chip is drawn on inspector-group-set-path-row/path-notes, the route
-  r8-t23-transactions uses, so that task tests what is drawn.
-- --counts still exits 1. Its six hand-typed counts are on the nested research network
-  (inspector-nothing-selected.js lines 564 and 683) and on style-tab-same-panel/nodes; no task or
-  first-click route draws either, so no participant sees them this round.
-- The message keys, the owner-feedback log, the glossary proposals and the tiering rule have no
-  screen, so no task depends on them.
+Datasets and session shares. Commands: `timeout 120 node app-b/study.mjs --list` (exit 0, 659 rows,
+saved as `tmp/preflight-r8-a9/list.txt`), then `node tmp/preflight-r8-a9/datasets.mjs` (compares
+each task's plan datasets with the dataset column of its stored routes and sums persona counts).
+Exit code: 0. Full output:
 
 ```
-sections/inspector-nothing-selected.js:564: "? 514" types the fixture count 514 by hand; read it from the fixture
-sections/inspector-nothing-selected.js:564: ": 510" types the fixture count 510 by hand; read it from the fixture
-sections/inspector-nothing-selected.js:564: "? 242" types the fixture count 242 by hand; read it from the fixture
-sections/inspector-nothing-selected.js:564: ": 118" types the fixture count 118 by hand; read it from the fixture
-sections/inspector-nothing-selected.js:683: "? 200" types the fixture count 200 by hand; read it from the fixture
-sections/style-tab-same-panel.js:46: "AB.count(28" types the fixture count 28 by hand; read it from the fixture
-6 problems: counts not written by AB.count, banned scope strings, reviewer words
-exit 1
+ok   r8-t01: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 21
+ok   r8-t02: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 10
+ok   r8-t03: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 10
+ok   r8-t04: plan wide, routes draw wide, first start-screen/wide-first-use, sessions 10
+ok   r8-t05: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 8
+ok   r8-t06: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t07: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t08: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t09: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t10: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t11: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 10
+ok   r8-t12: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t13: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 12
+ok   r8-t14: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 10
+ok   r8-t15: plan lesmis, routes draw lesmis, first start-screen/first-run, sessions 6
+ok   r8-t16: plan lesmis, routes draw lesmis, first graph-place/empty, sessions 6
+ok   r8-t20: plan lesmis, routes draw lesmis, first graph-place/at-rest, sessions 6
+ok   r8-t20-transactions: plan transactions, routes draw transactions, first graph-place/transfers-loaded, sessions 6
+ok   r8-t21: plan lesmis, routes draw lesmis, first graph-place/at-rest, sessions 6
+ok   r8-t21-transactions: plan transactions, routes draw transactions, first graph-place/many-groups, sessions 6
+ok   r8-t22: plan lesmis, routes draw lesmis, first graph-place/at-rest, sessions 6
+ok   r8-t23: plan lesmis, routes draw lesmis, first graph-place/louvain-open, sessions 5
+ok   r8-t23-transactions: plan transactions, routes draw transactions, first graph-place/path-found, sessions 5
+ok   r8-t24: plan doorEntries, routes draw doorEntries, first data-page/people, sessions 7
+ok   r8-t24-transactions: plan transactions, routes draw transactions, first data-page/transfers, sessions 5
+ok   r8-t25: plan doorEntries, routes draw doorEntries, first data-page/entries, sessions 6
+ok   r8-t25-transactions: plan transactions, routes draw transactions, first data-page/transfers, sessions 5
+ok   r8-t26: plan transactions, routes draw transactions, first graph-place/many-groups, sessions 7
+ok   r8-t30: plan transactions, routes draw transactions, first graph-place/many-groups, sessions 5
+ok   r8-t32: plan transactions, routes draw transactions, first graph-place/transfers-loaded, sessions 5
+ok   r8-t33: plan lesmis, routes draw lesmis, first graph-place/at-rest, sessions 5
+ok   r8-t34: plan lesmis, routes draw lesmis, first graph-place/at-rest, sessions 4
+sessions 264, tier 1 169 (64.0 percent); 0 dataset mismatches
 ```
 
-## 9. Every persona has a file
+Tier 1 (r8-t01 to r8-t15) is 169 of 264 sessions, 64.0 percent, above 60. Every tier 1 task starts
+on the empty app (start-screen/first-run, or start-screen/wide-first-use for r8-t04, which --list
+gives as the IT estate's start screen). No task or first-click id names its answer.
 
-Command: `ls study/personas/`.
+## 8. Decided changes not drawn -- pass
 
-Result: PASS. All 21 persona ids in the plan (and every focus-group member) have a file:
-alert-reviewer, analyst-alex, bioinformatics-researcher, class-project-student,
+Each decided change was matched to the tasks whose routes pass it.
+
+| Decided change not drawn | Tasks that depend on it | Flagged in the plan? |
+|---|---|---|
+| Weight "Higher means" control on an edge table before Pair | r8-t25 | yes |
+| (empty change) | none | -- |
+| Run settings in the kind line | r8-t08 | yes (r8-t23 starts on graph-place/louvain-open but does not read the kind line) |
+| Many groups: about ten listed, one wording for the rest | r8-t21-transactions (start) | yes (r8-t26, r8-t30 start there but do not read it) |
+| Tied ranks ("3=") | r8-t07 | yes |
+| Result under a filter states its scope | none | -- |
+| Everything row base color and base lines | r8-t01, r8-t10 | yes |
+| Bind icon at rest on Color, Size, Label (both entries) | r8-t01, r8-t09, r8-t10, coloring focus group | yes |
+| Notes row look and label paint only noted elements | none | -- |
+| Quick actions command glyph | r8-fc08 | yes |
+| "Pause layout" / "Resume layout" tooltip | r8-t11 | yes |
+| Body-text contrast for Data place file and step lines | r8-t20, r8-t20-transactions, r8-t26, r8-t30, r8-fc14 | yes, all five |
+| Counted noun on every count | r8-t06 | yes |
+| Counts typed by hand / one formatter / one fixture per dataset | none (see below) | -- |
+| One delete notice | r8-t33 | yes |
+| Reopen with the saved selection | r8-t14 | yes |
+| No screen to test (note value, recipe-opened network, message keys, feedback log, records, recipe format, wording on two domains, tiering, running without the owner's review) | none | -- |
+
+Counts typed by hand. Command: `timeout 120 node app-b/study.mjs --counts`. Exit code: 1. The
+hand-typed counts are in the nested research network's counts (inspector-nothing-selected.js:573,
+inside `nestedCounts`), the layout popover on the nested dataset (line 698, `ds === "nested"`) and
+the style comparison screen's Group 2 (style-tab-same-panel.js:47). No task or first-click route
+draws the nested dataset or style-tab-same-panel. The two delete notices are on the run row's
+Delete (context-menus/run-row, flagged in r8-t33) and the run inspector's Delete, which no task
+asks for. Full output:
+
+```
+sections/context-menus.js:210: "", its 6 c" words a delete notice its own way; a tree row's Delete is AB.deleteRow(name), any other names its count with AB.count
+sections/inspector-nothing-selected.js:573: "? 514" types the fixture count 514 by hand; read it from the fixture
+sections/inspector-nothing-selected.js:573: ": 510" types the fixture count 510 by hand; read it from the fixture
+sections/inspector-nothing-selected.js:573: "? 242" types the fixture count 242 by hand; read it from the fixture
+sections/inspector-nothing-selected.js:573: ": 118" types the fixture count 118 by hand; read it from the fixture
+sections/inspector-nothing-selected.js:698: "? 200" types the fixture count 200 by hand; read it from the fixture
+sections/inspector-run-row.js:666: "deleted("Louvain and " +" words a delete notice its own way; a tree row's Delete is AB.deleteRow(name), any other names its count with AB.count
+sections/style-tab-same-panel.js:47: "AB.count(28" types the fixture count 28 by hand; read it from the fixture
+8 problems: counts not written by AB.count, banned scope strings, reviewer words
+```
+
+## 9. Every persona has a file -- pass
+
+Command: `ls study/personas/`. Exit code: 0. All 21 plan personas, and every focus-group member,
+have a file: alert-reviewer, analyst-alex, bioinformatics-researcher, class-project-student,
 cybersecurity-analyst, cytoscape-holdout, data-journalist, expert-emma, explorer-elena,
 fraud-analyst, gene-ontology-cytoscape-user, genomics-cytoscape-user, gephi-holdout,
 intelligence-analyst, knowledge-engineer, marketing-analyst, ml-engineer-recsys,
 nonprofit-operations-analyst, recipe-recipient, screen-reader-analyst, supply-chain-analyst.
 
-## 10. The success criteria carry the round's targets
+## 10. Success criteria -- pass
 
-Result: PASS. The plan's success criteria open with the round's targets word for word: 80 percent
-graded success or success with difficulty on every tier 1 and tier 2 task, no confirmed
-severity-4 problem unresolved, mean ease rating (SEQ) of at least 5.5 of 7, 70 percent direct
-success on every tree-test task, and tier 1 first.
+The plan's success_criteria opens with the round's targets word for word: at least 80 percent
+graded success or success-with-difficulty on every tier 1 and tier 2 task, no unresolved confirmed
+severity-4 problem, mean ease (SEQ) at least 5.5 of 7 over every session, at least 70 percent
+direct success on every tree task, and tier 1 first.
+
+## Advisories (do not block the round)
+
+- r8-t26's scenario says the work should "run again" on April's numbers; the last step of its
+  success path is the Louvain inspector's Rerun. The graded step is finding Replace with file...,
+  which the scenario does not echo, and the rerun is "reruns or says they would". Graders should
+  not credit a participant who goes to Rerun before replacing the data.
+- r8-fc05 (the "+" on Label, on the Everything row) and r8-fc06 (the "+" on Shape, on the PageRank
+  row) are asked on Style tabs where the decided bind icon at rest is not drawn. Label and Size are
+  behind "+" under the decision too, so the correct click does not change, but a bind icon at rest
+  on the Color line would be one more thing to click. Graders should log a participant who looks
+  for a control on the Color line.
+- Quick actions is drawn as a lightning bolt. r8-fc08 is flagged; r8-t12, r8-fc03 and r8-fc09 also
+  accept Quick actions but each has another correct way.
+- r8-t25's success line names a weight "Number of rows per pair"; the screen says "Weight: count,
+  the number of rows per pair" once One edge per is Pair. Pair is already a success, so grading is
+  unaffected.
+- Twenty-one simulated participants share blind spots; tree-test.md already says a failed tree task
+  is a strong signal and a passed one a weak one.

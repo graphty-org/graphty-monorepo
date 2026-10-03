@@ -468,3 +468,31 @@ The state matrix is `study/structure-comparison/state-matrix.md`; `node app-b/st
 ### Still not done: the avatar, "Export files" and the rail redraw
 
 Unchanged from round 6: not written as done.
+
+## Round 8
+
+How each owner item in `owner-feedback.md` was handled after the eighth simulated study round, run on the clickable refined B skeleton with tasks tiered by the owner's priority. Every route below opens at http://dev.ato.ms:9825/app-b/#/<route>. "Decided" means the change is agreed and not yet drawn. The full reasons are under "Round 8" in `study/decision-log.md`.
+
+### 2026-10-02: the average first-time user first
+
+Applied. The round's tasks were tiered: tier 1 is a first-time user's core path from an empty app with no project open (load your own file or pick a sample, run an analysis, color or size by a value, labels from a field, find a node, save a picture), tier 2 is common repeat work, and specialized work waits. Tier 1 did not pass: the whole first session reached 0% of 21, labels from a field 42% of 12, and finding a node and its neighbors 0% of 12. Picking a sample reached 100%. Decided: every change this round goes to tier 1 problems. The skeleton defects that decided tier 1 tasks (an analysis that never finishes, a canvas that does not repaint after hiding or reordering, a size choice that is never drawn on the sample) are fixed and checked before round 9 starts. The Les Miserables sample opens with nothing run, so a newcomer sees bare data and their own results. Routes `start-screen/first-run` and `start-screen/returning`.
+
+### 2026-09-30, Tableau notes: "+" next to Label starts empty
+
+Still holds. Decided this round: with no label drawn anywhere, the Label "+" adds an empty label line directly and opens its field picker, instead of offering "Show labels" beside it; 10 of 21 people picked "Show labels" and believed names were on when nothing changed. The new line still binds nothing until a field is picked. Route `inspector-group-set-path-row/label-empty`.
+
+### 2026-09-30, Tableau notes: node and edge weight set at load
+
+Still holds. Decided this round: Path between, Analyze and the graph inspector all use the loaded weight by default, read through the kind it was declared with. A distance is summed; a similarity ("stronger") weight is never summed as a distance, and the route says in plain words what it did instead. Routes `path-popover/from-selection` and `path-popover/weight-overridden`.
+
+### 2026-09-30, third review: the data sidebar and loading several sources
+
+Still holds. Decided this round: the unmatched-rows link on the Data page shows every unmatched row (32, not the 3 inside the preview), and near-miss keys such as 7 against 0007 are counted at the top of the report. Route `data-page/entries`.
+
+### Still not done: the avatar, "Export files" and the rail redraw
+
+Closed by a studio decision, reversible: the static gallery mocks these items were written against are marked as replaced by the app-b skeleton, so they are not redrawn. The owner can reopen any of them.
+
+### Every other owner item
+
+Unchanged from round 7, as logged under "Round 7" above.

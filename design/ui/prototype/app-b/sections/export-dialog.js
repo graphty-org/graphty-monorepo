@@ -31,7 +31,7 @@
 .ex-main > * { flex: none; }
 .ex-main .ab-frow { margin-bottom: 0; }
 .ex-head { padding-left: 16px; }
-.ex-title { font-size: 15px; font-weight: 600; line-height: 20px; }
+.ex-title { font-size: 15px; font-weight: 550; line-height: 25px; }
 .ex-sum { color: var(--cm-text-secondary); }
 .ex-set { display: flex; flex-direction: column; gap: 8px; }
 .ex-set .k-field { max-width: 260px; }
@@ -54,7 +54,15 @@
 .ex-rec { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--cm-border); }
 .ex-rec .ex-sum { grid-column: 2; font-size: 11px; }
 .ex-rec .k-btn { grid-row: 1 / span 2; grid-column: 3; }
-.ex-print .xi-preview > img, .ex-print .xi-preview > svg, .ex-print .xi-preview .k-legend-card { filter: grayscale(1); }
+.ex-check { margin-left: 16px; display: flex; flex-direction: column; gap: 8px; }
+.ex-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 560px; }
+.ex-pair figure { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ex-pair figcaption { color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
+.ex-pair .xi-preview { width: 100%; max-width: none; margin-left: 0; }
+.ex-gray > img, .ex-gray > svg, .ex-gray .k-legend-card { filter: grayscale(1); }
+.ex-check .ex-line, .ex-check .ex-steps { padding-left: 0; }
+.ex-fix { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; }
+.ex-code { font: 11px/16px var(--cm-font-family-mono, monospace); overflow-wrap: anywhere; }
 .ex-look { max-width: 416px; }
 .ex-steps { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; padding-left: 16px; }
 .ex-step { display: inline-flex; align-items: center; gap: 4px; }
@@ -161,12 +169,14 @@
     }
 
     // ---------- Image: the Look (Screen or Print), for this file only ----------
-    // The Print look draws the image in gray. It reads the colors the image carries from the canvas's
-    // legend card (the card the image copies): categorical colors are how a gray figure fails, so it
-    // says how many categories fall on nearly the same gray (CIE lightness L* closer than GRAY_STEP),
-    // and for a ramp it prints the value at each gray step. No "no change" band: nothing is drawn
-    // that the reader did not set. It never touches the project's style rows. The frame adds it to
-    // the Image body (ponytail: export-image should draw it among its own fields).
+    // The Print look keeps a grayscale check (the owner's decision, 2026-09-28): the file is written as
+    // the look draws it, and the preview shows it beside its grayscale version -- a check, not a gray
+    // file. It reads the colors the image carries from the canvas's legend card (the card the image
+    // copies): categorical colors are how a gray figure fails, so it names the categories that fall on
+    // nearly the same gray (CIE lightness L* closer than GRAY_STEP) and, next to the preview, the way
+    // to fix it (the painting row's palette); for a ramp it prints the value at each gray step. It never
+    // touches the project's style rows. The frame adds it to the Image body (ponytail: export-image
+    // should draw it among its own fields).
     const GRAY_STEP = 8, STEPS = 5;
     const rgbs = (css) => (css.match(/rgba?\([^)]*\)/g) || []).map((c) => c.match(/[\d.]+/g).slice(0, 3).map(Number));
     function lightness([r, g, b]) {
@@ -201,9 +211,12 @@
         return stops[i].map((v, k) => v + (stops[i + 1][k] - v) * f);
     }
     const stepRow = (label, Ls) => h("span", { class: "ex-step", role: "listitem" }, AB.chit(grayOf(Ls)), label);
+    // Where a colliding row's colors are changed: its Binding popover (palette). ponytail: Louvain only,
+    // the one categorical row a Les Miserables image carries; another row gets the sentence and no link
+    const FIX = { Louvain: ["inspector-run-row", "binding"] };
     function printPart() {
         const parts = legendParts();
-        const cats = parts.flatMap((p) => p.cats.map((c) => ({ label: c.label, L: lightness(c.rgb) }))).sort((a, b) => b.L - a.L);
+        const cats = parts.flatMap((p) => p.cats.map((c) => ({ label: c.label, L: lightness(c.rgb), row: p.title.replace(/^Color: /, "") }))).sort((a, b) => b.L - a.L);
         // runs of neighbors closer than GRAY_STEP in lightness read as one gray
         const runs = [];
         cats.forEach((st, i) => (i && cats[i - 1].L - st.L < GRAY_STEP ? runs[runs.length - 1].push(st) : runs.push([st])));
@@ -212,18 +225,45 @@
         const catLine = !cats.length ? `In gray, no categories need telling apart: ${ramps.length ? "the colors are " + and(ramps.map((p) => p.title.replace(/^Color: /, ""))) + ", a ramp" : "the image has no colors from a row"}.`
             : k ? `In gray, ${AB.count(k, "category", { of: cats.length, plural: "categories" })} cannot be told apart: ${alike.map((r) => and(r.map((x) => x.label))).join("; ")}.`
             : `In gray, all ${AB.count(cats.length, "category", { plural: "categories" })} can be told apart.`;
-        return h("div", null,
-            h("div", { class: "ex-line" }, catLine, " ", AB.needsElement("graphty-element draws the Print look and reports which colors fall on the same gray.")),
+        const rows = [...new Set(alike.flat().map((x) => x.row))];
+        const fix = k ? h("div", { class: "ex-line ex-fix" }, h("b", null, "To fix it:"),
+            `give ${and(rows)} colors that differ in lightness, not only in hue.`,
+            rows.filter((r) => FIX[r]).map((r) => AB.link(FIX[r][0], FIX[r][1], `Change ${r}'s palette`))) : null;
+        return [
+            h("div", { class: "ex-line", role: k ? "alert" : null }, catLine, " ", AB.needsElement("graphty-element draws the Print look and reports which colors fall on the same gray.")),
+            fix,
             ramps.map((p) => [
                 h("div", { class: "ex-line ex-sum" }, `The legend prints the value at each gray step (${p.title}):`),
                 h("div", { class: "ex-steps", role: "list", "aria-label": "Gray steps: " + p.title },
                     Array.from({ length: STEPS }, (_, i) => stepRow(AB.num(p.ramp.lo + ((p.ramp.hi - p.ramp.lo) * i) / (STEPS - 1)), lightness(rampAt(p.ramp.stops, i / (STEPS - 1))))))]),
             cats.length ? [
                 h("div", { class: "ex-line ex-sum" }, "The legend prints each category's value beside its gray:"),
-                h("div", { class: "ex-steps", role: "list", "aria-label": "Gray steps: categories" }, cats.map((c) => stepRow(c.label, c.L)))] : null);
+                h("div", { class: "ex-steps", role: "list", "aria-label": "Gray steps: categories" }, cats.map((c) => stepRow(c.label, c.L)))] : null];
+    }
+    // The check, in the preview's place: the file as written beside its grayscale version, then what
+    // the gray loses and the fix. Screen puts the one preview back.
+    function grayCheck(body) {
+        const old = body.querySelector(":scope > .ex-check");
+        const p = (old || body).querySelector(".xi-preview");
+        if (old) old.replaceWith(p);
+        if (S.look !== "Print" || !p) return;
+        const g = p.cloneNode(true);
+        g.classList.add("ex-gray");
+        const mine = [...p.querySelectorAll("img")], copies = [...g.querySelectorAll("img")];
+        copies.forEach((c, i) => {
+            c.alt = (c.alt || "").replace(/^Preview: /, "In gray: ");
+            // a picture still on its way reaches the gray copy too
+            if (!mine[i].getAttribute("src") || mine[i].hidden) mine[i].addEventListener("load", () => { c.src = mine[i].src; c.hidden = false; }, { once: true });
+        });
+        const wrap = h("div", { class: "ex-check", role: "group", "aria-label": "Grayscale check" });
+        p.before(wrap);
+        wrap.append(h("div", { class: "ex-pair" },
+            h("figure", null, p, h("figcaption", null, "As written")),
+            h("figure", null, g, h("figcaption", null, "In gray, as a black-and-white print shows it"))),
+            ...printPart().flat(2).filter(Boolean));
     }
     function lookBlock(body) {
-        body.classList.toggle("ex-print", S.look === "Print");
+        grayCheck(body);
         const blk = h("div", { class: "ex-set ex-look" },
             AB.fieldRow("Look", h("span", { class: "ex-ctl" },
                 AB.seg([["Screen", "Screen"], ["Print", "Print"]], S.look, (x) => {
@@ -233,21 +273,23 @@
                     const r = nb.querySelector("[role=radio][aria-checked=true]");
                     if (r) r.focus();
                 }, { label: "Look" }),
-                h("span", { class: "ex-sum" }, "For this file only")), { popover: true }),
-            S.look === "Print" ? printPart() : null);
+                h("span", { class: "ex-sum" }, S.look === "Print" ? "For this file only; the preview checks it in gray" : "For this file only")), { popover: true }));
         return blk;
     }
 
     // ---------- reader choices for this visit ----------
-    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", cols: "Visible", onlyStyle: false, compare: true, look: "Screen", adv: {} };
+    const S = { format: "CSV", table: "Nodes", shape: "Generic", scope: "Full graph", cols: "Visible", onlyStyle: false, compare: true, look: "Screen", adv: {} };
     // A table export writes the columns the table shows (its one Columns state), so it needs no
     // picker of its own. table-dock keeps that state private, so this reads its Columns button
     // ("Columns: 7 of 7") on the active tab (a shell gap: table-dock should publish it on AB).
+    const dockTab = () => { const t = document.querySelector("#ab-dock .td-tab[aria-selected=true]"); return t ? t.textContent.trim() : null; };
     function tableCols() {
-        const b = document.querySelector("#ab-dock .td-cols"), tab = document.querySelector("#ab-dock .td-tab[aria-selected=true]");
+        const b = document.querySelector("#ab-dock .td-cols");
         const m = b && b.textContent.match(/(\d+) of (\d+)/);
-        return m && tab && tab.textContent.trim() === S.table ? { shown: +m[1], total: +m[2] } : null;
+        return m && dockTab() === S.table ? { shown: +m[1], total: +m[2] } : null;
     }
+    // Data opens on the table that is showing in the dock, and on Nodes when none is
+    const showingTable = () => (dockTab() === "Edges" ? "Edges" : "Nodes");
     const isTable = () => S.format === "CSV" && S.table !== "Adjacency";
     // The open filter step (Les Miserables' first step, as graph-place/scope-mark shows it): a data
     // export opened with a step open starts from that step's edges
@@ -291,6 +333,18 @@
         const all = L().rows.map((x) => x.betweenness);
         return [all.filter((v) => v >= r.betweenness).length, all.filter((v) => v === r.betweenness).length - 1];
     }
+    // A run's column header names its scope and method, as the table heads it (the runs read all of
+    // Les Miserables, so a step's export still says "full graph"); quoted, since they hold a comma
+    const RUN_H = {
+        pagerank: '"pagerank (full graph, damping 0.85)"',
+        betweenness: '"betweenness (full graph, exact)"',
+        rank: '"betweenness rank (full graph, exact)"',
+        tie: '"betweenness tie (full graph, exact)"',
+        louvain: '"louvain community (full graph, resolution 1.0)"',
+        // a sampled estimate (betweenness from 20 source nodes, as table-dock's sampled run): a rank range
+        low: '"betweenness rank low (full graph, sampled from 20 sources)"',
+        high: '"betweenness rank high (full graph, sampled from 20 sources)"',
+    };
     // PageRank (unweighted, damping 0.85) of the first three fixture rows, as table-dock's PR list has them
     const PR3 = [0.0428, 0.00558, 0.0103];
     // The "Compared with" column: one value per row against the earlier version
@@ -320,8 +374,9 @@
         const rs = L().rows.slice(0, 3);
         const ext = FMT[S.format].ext;
         // the table's own columns, in its order; the rest of its header is not drawn in the skeleton
-        if (ext === "csv" && S.table === "Nodes" && S.cols === "Visible") return ["label,group,degree,pagerank,..."].concat(rs.map((r, i) => [r.label, r.group, r.degree, PR3[i]].join(",") + ",...")).join("\n") + "\n...";
-        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,pagerank,betweenness,betweenness_rank,betweenness_tie,results.louvain.community,x,y,color,size"].concat(rs.map((r, i) => [r.id, r.label, r.group, r.degree, PR3[i], r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
+        // the key is always written (the table's Columns cannot hide it); a run's columns carry their scope and method
+        if (ext === "csv" && S.table === "Nodes" && S.cols === "Visible") return ["id,label,group,degree," + RUN_H.pagerank + ",..."].concat(rs.map((r, i) => [r.id, r.label, r.group, r.degree, PR3[i]].join(",") + ",...")).join("\n") + "\n...";
+        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree," + [RUN_H.pagerank, RUN_H.betweenness, RUN_H.rank, RUN_H.tie, RUN_H.louvain].join(",") + ",x,y,color,size"].concat(rs.map((r, i) => [r.id, r.label, r.group, r.degree, PR3[i], r.betweenness].concat(rankOf(r)).join(",") + ",...")).join("\n") + "\n...";
         if (ext === "csv" && S.table === "Edges") return "source,target,value\n0,1,...\n...";
         if (ext === "csv") return ",Myriel,Napoleon,Mlle.Baptistine,...\nMyriel,0,1,...\n...";
         if (ext === "graphml") return ['<graphml xmlns="http://graphml.graphdrawing.org/xmlns">', '  <key id="label" for="node" attr.name="label" attr.type="string"/>', '  <key id="group" for="node" attr.name="group" attr.type="int"/>', `  <graph edgedefault="${S.adv.GraphML || "undirected"}">`]
@@ -352,6 +407,17 @@
         lay.append(pop);
         requestAnimationFrame(() => { const x = pop.querySelector("[tabindex='0']"); if (x) x.focus(); });
         return pop;
+    }
+    // The summary's first words: what one row is and what it carries, from the settings and the
+    // table's Columns ("every computed value" only while no computed column is left out)
+    function what() {
+        const N = isTx() ? "account" : "node", E = isTx() ? "transfer" : "edge";
+        const tc = isTable() && S.cols === "Visible" ? tableCols() : null;
+        const vals = tc && tc.shown < tc.total ? `with the ${AB.count(tc.shown, "column", { of: tc.total })} the table shows` : null;
+        if (S.format !== "CSV") return `Every ${N} and ${E}, with every attribute and computed value`;
+        if (S.table === "Nodes") return `One row per ${N}, ${vals || "with every computed value"}`;
+        if (S.table === "Edges") return `One row per ${E}, ${vals || "with every " + E + " attribute"}`;
+        return `One row and one column per ${N}, with the ${E} value`;
     }
     function dataBody(fromRow) {
         const f = FMT[S.format];
@@ -384,14 +450,14 @@
             advBtn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); advBtn.click(); } });
         }
         return h("div", { class: "ex-main" },
-            head("Data", `${scopeTxt} - ${isTable() && S.cols === "Visible" ? "the columns the table shows" : "every attribute and run result"}${comparing() ? " - compared with " + earlier : ""} - ${S.format}`),
+            head("Data", `${what()} - ${scopeTxt}${comparing() ? " - compared with " + earlier : ""} - ${S.format}`),
             h("div", { class: "ex-set" },
                 row("Format", dropdown(S.format, Object.keys(FMT), (x) => { S.format = x; redraw(); }, "Format")),
                 row("Scope", dropdown(scopeName(S.scope), scopeOpts.map((o) => ({ label: scopeName(o), check: o === S.scope, onClick: () => { S.scope = o; redraw(); } })), null, "Scope"),
                     S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a filter step's, a set's or the selection's elements needs graphty-element") : null),
                 inline,
                 isTable() ? row("Columns", AB.seg([["Visible", "Shown in the table"], ["All", "Every column"]], S.cols, (x) => { S.cols = x; redraw(); }, { label: "Columns" }),
-                    h("span", { class: "ex-sum" }, S.cols === "All" ? "Hidden columns too" : tableCols() ? `${tableCols().shown} of ${tableCols().total}, as the table's Columns shows them` : `As the ${S.table} table's Columns shows them`)) : null,
+                    h("span", { class: "ex-sum" }, S.cols === "All" ? "Hidden columns too" : tableCols() ? `${AB.count(tableCols().shown, "column", { of: tableCols().total })}, as the table's Columns shows them` : `As the ${S.table} table's Columns shows them`)) : null,
                 updated() && isTable() ? row("Compared with", check(earlier, S.compare, () => { S.compare = !S.compare; redraw(); }),
                     h("span", { class: "ex-sum" }, `Adds a column ${cmpCol()}: ${cmpWhat}`))
                 // one version so far: the same offer, off until an update with new data makes an earlier version
@@ -401,8 +467,33 @@
             notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
             h("div", { class: "ex-h" }, "Preview"),
             h("pre", { class: "ex-pre", tabindex: "0", "aria-label": "Preview of the exported data" }, dataPreview()),
-            FMT[S.format].ext === "csv" && S.table === "Nodes" && S.cols === "All" ? h("div", { class: "ex-line ex-sum" }, "A rank is a whole number (1 = highest) and Tie says how many other nodes share the value, so the column stays numeric in a spreadsheet. A sampled estimate writes Rank low and Rank high columns in its place.") : null,
-            );
+            // the file's guarantees, after the preview, so the body keeps the one order every output has
+            written(st, txN));
+    }
+    // What the file holds, said first, under the title: every row of the scope with no cap, the ids as
+    // loaded, a run's columns headed with scope and method, and a rank as a number with its Tie
+    // (or Rank low and Rank high for a sampled estimate) -- never "4=", which a spreadsheet reads as text
+    function written(st, txN) {
+        const dd = (t, ...d) => [h("dt", null, t), h("dd", null, d)];
+        const tx = isTx(), N = tx ? "account" : "node", E = tx ? "transfer" : "edge";
+        const full = tx ? txN : { nodes: L().nodes, edges: L().edges };
+        // one side of the scope: the rows of that table
+        const side = (nodes) => (S.scope === "Step" ? AB.count(nodes ? st.nodes : st.edges, nodes ? N : E, { of: nodes ? full.nodes : full.edges })
+            : S.scope === "Watchlist" ? (nodes ? AB.count(WATCH.length, N) : `the ${E}s among its ${AB.count(WATCH.length, N)}`)
+            : S.scope === "Selection" ? (nodes ? `${FLAG().id} and the accounts it sent to or received from` : AB.count(FLAG().degree, E))
+            : AB.count(nodes ? full.nodes : full.edges, nodes ? N : E));
+        const csv = FMT[S.format].ext === "csv";
+        const inScope = !csv ? `${side(true)} and ${side(false)}` : S.table === "Adjacency" ? `${side(true)}, one row and one column each` : side(S.table === "Nodes");
+        const firstId = tx ? TX().rows[0].id : L().rows[0].id;
+        const code = (t) => h("span", { class: "ex-code" }, t);
+        return [
+            h("div", { class: "ex-h" }, "What is written"),
+            h("dl", { class: "ex-dl" },
+                dd("Rows", `Every one in the scope, with no cap: ${inScope}`),
+                dd("Ids", "As loaded, never renumbered: ", code(`"${firstId}"`), tx ? "" : ` stays ${L().rows[0].label}'s id`),
+                tx ? null : dd("Run columns", "Headed with the scope and method they were computed with: ", code(RUN_H.betweenness)),
+                tx ? null : dd("Rank", "A whole number (1 = highest) with a separate Tie column, never \"4=\", so the column stays numeric in a spreadsheet. A sampled estimate writes a range instead: ", code(RUN_H.low + "," + RUN_H.high))),
+        ];
     }
     const dataFile = () => `${projectFile()}${S.scope === "Watchlist" ? "_watchlist" : S.scope === "Step" ? "_degree-2-or-more" : S.scope === "Selection" ? "_" + FLAG().id.toLowerCase() : ""}${comparing() ? "_vs-" + EARLIER() : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
 
@@ -443,7 +534,7 @@
     // participant view replaces the needs-graphty-element chip with the summary "Not available yet".
     function reportBody() {
         return h("div", { class: "ex-main" },
-            head("Report", "Not available yet"),
+            head("Report", "Not available in this version"),
             h("p", { class: "ex-line", style: "margin:0" }, `One self-contained HTML file that opens offline and prints to PDF from the browser: a page per view in the tour, in tour order, each figure embedded, the notes and tables as real text, ${AB.legendOn() ? "the legend card as the canvas shows it" : "no legend card (the legend is off, as on the canvas)"}, and the methods text that says how every number was computed, with a choice, Methods text only, that writes just that text.`),
             h("div", { class: "ex-line" }, AB.needsElement("graphty-element keeps no run records a methods writer could read; writing the methods in the app would be the app describing the graph")));
     }
@@ -493,13 +584,30 @@
             if (state === "style") S.onlyStyle = true;
             state = ALIAS[state];
         }
-        if (state === "image-print") S.look = "Print";
+        if (state === "image-print") {
+            S.look = "Print";
+            // The Print check meets a figure painted by category: Louvain shown alone, by the tree's own
+            // gesture (Alt-click on its eye, as graph-place/solo does for PageRank), so the tree, the canvas
+            // and its legend agree; once the legend says Louvain, the dialog is drawn again from it
+            if (!again && AB.soloRow !== "Louvain") requestAnimationFrame(() => {
+                const li = document.querySelector('#ab-left .ab-trow[data-row="louvain"]'), eye = li && li.querySelector(".ab-eye");
+                if (!eye) return;
+                eye.dispatchEvent(new MouseEvent("click", { altKey: true, bubbles: true, detail: 1 }));
+                let tries = 0;
+                const wait = () => {
+                    const t = document.querySelector("#ab-canvas .k-legend-card .k-lg-title");
+                    if (t && /Louvain/.test(t.textContent)) return el.isConnected && redraw();
+                    if (++tries < 60) setTimeout(wait, 50);
+                };
+                wait();
+            });
+        }
         if (state === "image" || state === "image-print") return ctx.renderSection("export-image/image", el);
         if (state === "video") return ctx.renderSection("export-video/still", el);
         // A door only fills a field: the Watchlist row's menu fills Scope (and the node table)
         if (!again && state === "from-row") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Watchlist" });
-        // With a filter step open, a data export starts from that step's edges
-        if (!again && (state === "data" || state === "filter-step")) Object.assign(S, stepOpen() ? { format: "CSV", table: "Edges", scope: "Step" } : { scope: "Full graph" });
+        // Data opens on the table that is showing (Nodes by default); with a filter step open, over that step
+        if (!again && (state === "data" || state === "filter-step")) Object.assign(S, { table: showingTable(), scope: stepOpen() ? "Step" : "Full graph" });
         // After April replaced March: the node table with the "Compared with" column. A selected flagged
         // account: its own edges, the transfers it sent and received
         if (!again && state === "data-updated") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Full graph", compare: true });
@@ -519,7 +627,7 @@
             foot = [AB.button("Close", { kind: "ghost", onClick: () => AB.close() })];
         } else {
             body = dataBody(state === "from-row");
-            foot = [cancel, AB.button("Copy", { kind: "secondary", onClick: () => AB.flash(`Copied ${dataFile()} to the clipboard`) }), AB.button("Export", { icon: "download", onClick: () => done(dataFile()) })];
+            foot = [cancel, AB.button("Copy", { kind: "secondary", icon: "copy", onClick: () => AB.flash(`Copied ${dataFile()} to the clipboard`) }), AB.button("Export", { icon: "download", onClick: () => done(dataFile()) })];
         }
         el.append(frame(state === "recent-exports" ? "recent" : ["from-row", "filter-step", "data-updated", "selection"].includes(state) ? "data" : state, body, foot));
     }
@@ -529,14 +637,13 @@
         title: "Export dialog",
         region: "overlay",
         // The screen behind stays when it is Les Miserables with a filter step on (the export starts
-        // from the step). Recent exports draws Les Miserables when opened from this dialog or Settings
+        // from the step); opened directly, Data is over the full graph and filter-step over the step. Recent exports draws Les Miserables when opened from this dialog or Settings
         // over it; otherwise (a direct link, version history) the transfers case, the project with
         // two data versions.
         frame: (state) => {
             const was = AB.route && AB.route.frame;
-            // Data opened directly (Ctrl+E from the graph) shows Les Miserables with its filter step
-            // open, so the step default is what the reader meets; switching outputs inside the dialog
-            // keeps the screen behind as it was
+            // Switching outputs inside the dialog keeps the screen behind as it was. Data opened directly
+            // shows the graph as it is (Full graph); the filter-step state is the one with a step open
             const inDialog = was && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id);
             // The transfers after Replace: April is the data, March the earlier version
             if (state === "data-updated" || state === "recent-updated") {
@@ -546,7 +653,7 @@
             if (state === "selection") return { left: "graph-place/many-groups", dataset: "transactions" };
             // switching outputs inside the dialog over the transfers keeps the transfers behind it
             if (inDialog && was.dataset === "transactions") return { left: was.left, dataset: "transactions" };
-            if (state === "filter-step" || (state === "data" && !inDialog)) return { left: "graph-place/scope-mark" };
+            if (state === "filter-step") return { left: "graph-place/scope-mark" };
             if (state === "recent-exports") return was && was.dataset === "lesmis" && ["export-dialog", "export-image", "export-video", "settings"].includes(AB.route.id) ? { left: "graph-place/at-rest" } : { left: "graph-place/many-groups", dataset: "transactions" };
             if (was && was.dataset === "lesmis" && was.chip && was.chip !== "Full graph" && was.left) return { left: was.left };
             return { left: "graph-place/at-rest" };
@@ -554,7 +661,7 @@
         closeTo: "graph-place",
         states: [
             { id: "image", label: "Image (the export-image section)" },
-            { id: "image-print", label: "Image with the Print look" },
+            { id: "image-print", label: "Image with the Print look (Louvain shown alone: colors that collide in gray)" },
             { id: "video", label: "Video (the export-video section)" },
             { id: "report", label: "Report, disabled" },
             { id: "recipe", label: "Recipe" },

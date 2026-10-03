@@ -72,8 +72,8 @@
     const URL_NAME = "alerts.bank.example/structuring/2026-03.json";
     const GEXF = "miserables.gexf";
     const FILTERS_TIP = "Filters change what is computed; the eye in the Graph tree only hides.";
-    const KIND = { node: "circle-dot", edge: "spline", file: "network" };
-    const KIND_WORD = { node: "node table", edge: "edge table", file: "graph file" };
+    const KIND = { node: "circle-dot", edge: "spline", file: "network", sets: "folder-open", set: AB.ICON.set };
+    const KIND_WORD = { node: "node table", edge: "edge table", file: "graph file", sets: "set collection", set: "set" };
 
     // Decorate tree rows: a quiet line under a row (not a tree item; read through aria-description)
     function quiet(li, text, plain, wrap) {
@@ -87,6 +87,8 @@
         li.setAttribute("aria-description", [li.getAttribute("aria-description")].concat(texts).filter(Boolean).join(". "));
     }
     // What a table's rows became: one edge per row, or one per linked pair (several rows, one edge)
+    // The weight set at load, as a fact under its edge table's row (its home to change it is the Data page)
+    const weightLine = (column) => (column ? `Weight: ${column}, a higher ${column} is a stronger tie` : null);
     const edgeLine = (name, rows, edges, per) => `${name} . ${AB.count(rows, "row")}, ` + (per === "pair" ? `${AB.count(edges, "edge")}, one per linked pair` : rows === edges ? "one edge per row" : `${AB.count(edges, "edge")}, one per row`);
     const rowEl = (ul, id) => ul.querySelector(`[data-row="${CSS.escape(id)}"]`);
     // The shared warning mark in a row's trailing slot, its reason in the tooltip
@@ -98,7 +100,12 @@
     function problemUnder(li, p) {
         let after = li;
         while (after.nextElementSibling && after.nextElementSibling.classList.contains("dp-quiet")) after = after.nextElementSibling;
-        after.after(h("li", { class: "dp-prob", role: "none", style: li.getAttribute("style") }, AB.problem(p)));
+        // A tree holds only rows, so the block drops its status role here and its row carries the problem as
+        // its description: arrowing onto the row reads it
+        li.setAttribute("aria-description", [li.getAttribute("aria-description"), p.what].filter(Boolean).join(". "));
+        const block = AB.problem(p);
+        block.removeAttribute("role");
+        after.after(h("li", { class: "dp-prob", role: "none", style: li.getAttribute("style") }, block));
     }
 
     // Filter to... from any attribute menu: a step on that attribute in the project's Data place, opened
@@ -260,12 +267,15 @@
     // nothing of its own, so it has no line (not "Kept all")
     // A count that jumped says why beside it: what the reader just changed (jump), or, for a step that
     // keeps everything, that the steps above left it nothing to remove (o.alone: what it keeps on its own)
-    function outcome(s, o, jump) {
+    // "N of M" always says what M is: the full graph, or what the steps above left
+    // above: the names of the applied steps before this one (what a computed count on the full graph is "until")
+    function outcome(s, o, jump, above) {
         if (!s.on || s.gone || !o || !o.kept) return null;
         const why = jump ? `; was ${AB.num(jump.was)} until ${jump.cause}` : "";
-        // A degree step after steps that removed something: both counts, in normal text (no scope switch)
-        if (o.full != null && o.before < o.total) return `${AB.count(o.after, "node")} left; ${AB.num(o.full)} on the full graph` + why;
-        if (o.after !== o.before) return AB.count(o.after, "node", { of: o.before }) + why;
+        const of = AB.count(o.after, "node", { of: o.before }) + (o.before === o.total ? " (the full graph)" : " (what the steps above left)");
+        // A degree step after steps that removed something: its count on the full graph is the count it had until they applied
+        if (o.full != null && o.before < o.total) return of + (why || `; was ${AB.num(o.full)} until ` + (above.length === 1 ? above[0] + " was applied" : "the steps above were applied"));
+        if (o.after !== o.before) return of + why;
         return `Kept all ${AB.count(o.before, "node")}` + (why || (o.alone != null && o.alone < o.total ? ": the steps above left nothing for it to remove" : ""));
     }
     // What a step means, in one line: its tooltip on hover and on keyboard focus
@@ -368,7 +378,11 @@
             return [
                 deg(0, "l1", { meaning: "Keeps the characters with " + k(0) + " or more connections" }),
                 deg(1, "l2", { meaning: "Keeps the characters with " + k(1) + " or more connections among the characters the steps above left", go: ["inspector-attribute-and-filter-step", "computed-step"] }),
-            ].map((x, i) => (i ? Object.assign(x, { rule: Object.assign(x.rule, { before: LF.after.step1, after: LF.after.step2 }) }) : x));
+            ].map((x, i) => (i ? Object.assign(x, { rule: Object.assign(x.rule, { before: LF.after.step1, after: LF.after.step2 }) }) : x)).concat([
+                // On after the degree steps it removes nothing (they left no group 0 character): its line reads
+                // "Kept all", and the chip stays what the degree steps left
+                { id: "l3", name: "group is not 0", meaning: "Keeps the characters whose group is anything but 0", on: true, rule: { attr: "group", type: "cat", cond: "is not", value: "0" }, keep: where((r) => String(r.group) !== "0") },
+            ]);
         }
         if (cfg.steps === "one") return [amount(true)];
         // The project at rest: the amount step is listed but not applied, so nothing says a filter is on
@@ -469,7 +483,7 @@
             return [
                 { id: "people", kind: "node", name: tbl("people").file, quiet: `person . ${AB.count(D().loadedTypes().person, "node")}` + (D().loadedTypes().added.person ? ` (${AB.num(r.people.rows)} + ${D().loadedTypes().added.person} added)` : ""), go: ["data-page", "edit-people"], edit: ["data-page", "edit-people"] },
                 { id: "buildings", kind: "node", name: tbl("buildings").file, quiet: `building . ${AB.count(r.buildings.rows, "node")}`, go: ["data-page", "edit-buildings"], edit: ["data-page", "edit-buildings"] },
-                { id: "entries", kind: D().loaded.per === "nodes" ? "node" : "edge", name: tbl("entries").file, quiet: D().loaded.per === "nodes" ? `entry . ${AB.count(e.rows, "node")}, ${AB.count(D().loadedEdges(), "link edge")}` : edgeLine("entries", e.rows, D().loadedEdges(), D().loaded.per), go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"],
+                { id: "entries", kind: D().loaded.per === "nodes" ? "node" : "edge", name: tbl("entries").file, quiet: D().loaded.per === "nodes" ? `entry . ${AB.count(e.rows, "node")}, ${AB.count(D().loadedEdges(), "link edge")}` : edgeLine("entries", e.rows, D().loadedEdges(), D().loaded.per), go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"], weight: weightLine(D().loadedWeight()),
                     // The first line of the element's match report for this table: its tooltip, not a warning.
                     // Leave out resolved both unmatched lines, so the status matches the Data page's green check.
                     info: `${AB.count(e.rows, "row")}; ${AB.num(e.bothEnds)} have both ends. ${e.missingPeople} person_id values are not in people and ${e.missingBuildings} building_id values are not in buildings: left out (${e.missingRows} rows).` },
@@ -480,7 +494,7 @@
             return [{ id: "gexf", kind: "file", name: GEXF, quiet: `${AB.count(l.nodes, "node")}, ${AB.count(l.edges, "edge")}`, go: ["data-page", "edit-graph-file"], edit: ["data-page", "edit-graph-file"], open: true,
                 children: [
                     { id: "gexf-nodes", kind: "node", name: "nodes", quiet: `node . ${AB.count(l.nodes, "node")}`, go: ["data-page", "edit-graph-file"], noMenu: true },
-                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: edgeLine("edges", l.edges, l.edges), go: ["data-page", "edit-graph-file"], noMenu: true },
+                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: edgeLine("edges", l.edges, l.edges), go: ["data-page", "edit-graph-file"], noMenu: true, weight: weightLine("value") },
                 ] }];
         }
         const t = T();
@@ -490,14 +504,15 @@
         const A = TA(), Z = A.dormant;
         const rows = [
             { id: "accounts", kind: "node", name: cfg.longName ? LONG_NAME : t.accountsFile, quiet: `account . ${AB.count(t.nodes, "node")}`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
-            { id: "transfers", kind: "edge", name: t.file, quiet: was == null ? edgeLine("transfers", t.edges, t.edges) : `transfers . ${AB.count(t.edges, "row")}, was ${AB.num(was)}; one edge per row`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"],
+            { id: "transfers", kind: "edge", name: t.file, quiet: was == null ? edgeLine("transfers", t.edges, t.edges) : `transfers . ${AB.count(t.edges, "row")}, was ${AB.num(was)}; one edge per row`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"], weight: weightLine("amount"),
                 info: cfg.afterReplace ? "Replaced Sep 30 with " + t.file : null,
                 report: cfg.april ? [
                     `${AB.count(A.stats.components, "component")}, was ${AB.num(((t.march || {}).stats || t.stats).components)}`,
                     `${AB.count(Z.singletonCommunities, "new single-node group")}: accounts with no transfers in April, each a group of its own`,
                 ] : null,
                 // The runs made on March's transfers say so where the file changed
-                problem: cfg.april ? { level: "partial", what: "Louvain and the other runs used March's transfers. They show March's results until you rerun them.", action: { label: "Open Louvain", onClick: () => AB.go("inspector-run-row", "data-changed") } } : null },
+                // only where runs exist: a just-loaded project (T().fresh) has none to go out of date
+                problem: cfg.april && !T().fresh ? { level: "partial", what: "Louvain and the other runs used March's transfers. They show March's results until you rerun them.", action: { label: "Open Louvain", onClick: () => AB.go("inspector-run-row", "data-changed") } } : null },
         ];
         if (cfg.url) {
             const flagged = t.attributes.find((a) => a.name === "flagged").values.true;
@@ -512,6 +527,25 @@
                     : cfg.urlChanged ? { level: "partial", what: "The data at this address changed since Sep 29.", action: { label: "Refresh", onClick: () => AB.go("data-place", "refreshing") } } : null });
         }
         return rows;
+    }
+
+    // A set collection file (Sources "+" > Set collection...): its sets arrive in the Graph tree as one
+    // folded folder; Sources lists the file as that folder, folded, its set rows inside. Sizes come
+    // from the fixtures' sets (the transfers' review sets, Les Miserables' top lists).
+    // ponytail: only the transfers and Les Miserables have example sets; other projects keep the flash
+    const SET_FILES = {
+        transactions: () => { const x = T().setsAndPaths; return { file: "review-sets.json", sets: [["Paid " + x.merchant.id, x.payers.count], ["High risk", x.highRisk.count], [x.intersection.name, x.intersection.count]] }; },
+        lesmis: () => { const l = L(); return { file: "miserables-sets.json", sets: [["Valjean's neighbors", l.valjeanNeighbors.length], ["Top " + l.topByDegree.length + " by degree", l.topByDegree.length], ["Top " + l.topByBetweenness.length + " by betweenness", l.topByBetweenness.length]] }; },
+    };
+    // Per project, in this page view: true once a set collection was added, false once it was removed
+    // (the state set-collection starts the transfers with one)
+    const setsIn = {};
+    function collectionRow(cfg) {
+        const ds = DATASET[cfg.ds] || "transactions", c = SET_FILES[ds] && SET_FILES[ds]();
+        if (!c || cfg.derived || !(setsIn[ds] === true || (cfg.sets && setsIn[ds] !== false))) return [];
+        return [{ id: "sets", kind: "sets", name: c.file, quiet: `${AB.count(c.sets.length, "set")}, in the Graph tree as one folder, folded`,
+            remove: () => { const was = setsIn[ds]; setsIn[ds] = false; AB.render(); AB.deleted(c.file + " and " + AB.count(c.sets.length, "set"), () => { setsIn[ds] = was === undefined ? true : was; AB.render(); }); },
+            children: c.sets.map(([name, n], i) => ({ id: "set-" + i, kind: "set", name, quiet: `set . ${AB.count(n, "node")}`, noMenu: true, inSets: c.file })) }];
     }
 
     // A table the reader built from a document (the nested project) is removed by loading the document
@@ -536,17 +570,28 @@
                 h("div", { class: "dp-flat" }, ul),
                 h("div", { class: "dp-oq" }, AB.openQuestion("Whether a derived graph follows its origin when the origin changes, or stays as made.")));
         }
-        const src = sourceRows(cfg);
+        const src = sourceRows(cfg).concat(collectionRow(cfg));
         const treeRow = (s) => ({
             id: s.id, kindIcon: AB.tip(icon(KIND[s.kind]), KIND_WORD[s.kind], { label: false }), name: s.name, selected: cfg.select === s.id, go: s.go, open: s.open, waitDouble: true,
             progress: s.progress, status: s.status, statusText: s.statusText,
-            renameDisabled: s.noMenu ? "A table inside a graph file is named by the file" : null,
+            // A set row of a collection has no panel here: its home is the folder in the Graph tree
+            onOpen: s.inSets ? () => AB.announce(s.name + ": a set from " + s.inSets + ", in its folder in the Graph tree") : undefined,
+            renameDisabled: s.inSets ? "A set is renamed in the Graph tree" : s.noMenu ? "A table inside a graph file is named by the file" : null,
             children: s.children && s.children.map(treeRow),
         });
         const ul = AB.tree(src.map(treeRow), { label: "Sources, one row per table" });
         const all = src.flatMap((s) => [s].concat(s.children || []));
         const menuFor = (s, li) => {
             if (s.noMenu) return AB.announce(s.name + " belongs to " + ((src.find((x) => (x.children || []).includes(s)) || {}).name || GEXF) + "; its menu is on the file's row");
+            // A set collection is not a table: its file can be read again or removed, with its sets
+            if (s.remove) return AB.openMenu(li, [
+                { heading: s.name },
+                { label: "Rename", shortcut: "F2", onClick: () => AB.createThenRename(li, { onSave: (v) => AB.announce("Renamed to " + v) }) },
+                { sep: true },
+                { label: "Refresh", desc: "Reads the file again from where it was loaded; the sets keep their rows if it fails", onClick: () => AB.flash("Refreshing " + s.name) },
+                { sep: true },
+                { label: "Remove", shortcut: "Del", desc: "Removes the file's folder and its sets from the Graph tree", onClick: s.remove },
+            ]);
             AB.openMenu(li, [
                 { heading: s.name },
                 { label: "Rename", shortcut: "F2", onClick: () => AB.createThenRename(li, { onSave: (v) => AB.announce("Renamed to " + v) }) },
@@ -557,38 +602,46 @@
                 { label: "Add rows from file...", desc: "More rows of the same table, kept with the rows already loaded",
                     onClick: () => (s.id === "transfers" ? AB.go("data-page", "add-rows") : AB.flash("Add to " + s.name)) },
                 AB.cmd("edit-source", { go: s.edit || (s.go[1] === "url" ? ["data-page", "url"] : AB.cmd("edit-source").go) }),
-                // Refresh only for an address: a file has nothing to read again (Replace with file... picks it anew), as context-menus/source says
+                // Refresh only for an address (spec: the row menu's Refresh is a URL source's); a file is picked anew with
+                // Replace with file... The same items, in the same words, as context-menus' source menu
                 s.url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", onClick: () => AB.go("data-place", "refreshing") } : null,
                 { sep: true },
                 s.drop ? { label: "Remove", shortcut: "Del", desc: "Stops loading this table from the file; Edit source can bring it back", onClick: () => removeBuilt(s) }
                     : { label: "Remove", shortcut: "Del", needs: "graphty-element does not record which table each node and edge came from, so one table cannot be removed on its own; Clear graph data is in the graph's menu" },
             ].filter(Boolean));
         };
-        all.forEach((s) => {
-            const li = rowEl(ul, s.id);
-            if (!li) return;
-            // a source's line wraps: its last words say how rows became edges
-            quiet(li, s.quiet, false, true);
-            if (s.report) moreLines(li, s.report);
-            if (s.warn) warn(li, s.warn);
-            // The row's verbs are on a visible "..." (the same menu as right-click and Shift+F10); one Tab stop stays the tree's
-            if (!s.noMenu) {
-                const more = AB.iconButton(AB.ICON.options, "Actions for " + s.name, { onClick: () => menuFor(s, more) });
-                more.tabIndex = -1;
-                more.setAttribute("aria-haspopup", "menu");
-                li.append(h("span", { class: "dp-more" }, more));
-            }
-            if (s.problem) problemUnder(li, s.problem);
-            if (s.info) { li.setAttribute("aria-description", (li.getAttribute("aria-description") || "") + ". " + s.info); AB.tip(li.querySelector(".ab-tname"), s.info, { label: false }); }
-            li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
-        });
-        const by = (li) => all.find((s) => s.id === li.dataset.row);
-        guardKeys(ul, {
-            Delete: (li) => { const s = li && by(li); if (s && s.drop) removeBuilt(s); else AB.announce("A table cannot be removed on its own yet; Clear graph data is in the graph's menu"); },
-            Backspace: () => {},
-            "Shift+F10": (li) => menuFor(by(li), li),
-            ContextMenu: (li) => menuFor(by(li), li),
-        });
+        // The row decorations (quiet lines, "...", keys) are drawn on the tree after AB.tree builds it; a fold
+        // or a move rebuilds the tree from its rows, so each new tree is decorated again (flatEl's observer)
+        const decorate = (ul) => {
+            ul._dp = true;
+            all.forEach((s) => {
+                const li = rowEl(ul, s.id);
+                if (!li) return;
+                // a source's line wraps: its last words say how rows became edges
+                quiet(li, s.quiet, false, true);
+                if (s.weight) moreLines(li, [s.weight]);
+                if (s.report) moreLines(li, s.report);
+                if (s.warn) warn(li, s.warn);
+                // The row's verbs are on a visible "..." (the same menu as right-click and Shift+F10); one Tab stop stays the tree's
+                if (!s.noMenu) {
+                    const more = AB.iconButton(AB.ICON.options, "Actions for " + s.name, { onClick: () => menuFor(s, more) });
+                    more.tabIndex = -1;
+                    more.setAttribute("aria-haspopup", "menu");
+                    li.append(h("span", { class: "dp-more" }, more));
+                }
+                if (s.problem) problemUnder(li, s.problem);
+                if (s.info) { li.setAttribute("aria-description", (li.getAttribute("aria-description") || "") + ". " + s.info); AB.tip(li.querySelector(".ab-tname"), s.info, { label: false }); }
+                li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
+            });
+            const by = (li) => all.find((s) => s.id === li.dataset.row);
+            guardKeys(ul, {
+                Delete: (li) => { const s = li && by(li); if (s && s.remove) s.remove(); else if (s && s.drop) removeBuilt(s); else AB.announce("A table cannot be removed on its own yet; Clear graph data is in the graph's menu"); },
+                Backspace: () => {},
+                "Shift+F10": (li) => menuFor(by(li), li),
+                ContextMenu: (li) => menuFor(by(li), li),
+            });
+        };
+        decorate(ul);
         // Every door opens the Data page with the new table added; a recipe or style file picked from
         // File... opens Apply file instead. The skeleton's file picker is a short menu of example files.
         // The project's own example files come first: the one each project's file that will not read opens on its refusal
@@ -616,12 +669,19 @@
                 // no state of its own: the project's own Data page, with the paste or address table added there (AB.pendingAdd)
                 { label: "From a URL...", to: urlTo ? ["data-page", urlTo] : (EDIT_ON[ds] || ["data-page", "edit-source"]), add: urlTo ? null : "url" },
                 { label: "Paste...", to: pasteTo ? ["data-page", pasteTo] : (EDIT_ON[ds] || ["data-page", "edit-source"]), add: pasteTo ? null : "paste" },
-                { label: "Set collection...", desc: "Lands as a folder of sets in the Graph tree", to: ["data-page", "edge-list"] },
+                // The pick adds the project's example collection in place (collectionRow); the Graph tree's own
+                // folded folder is graph-place's to draw
+                { label: "Set collection...", desc: "Lands as one folded folder of sets in the Graph tree", sets: true },
             ],
-            onAdd: (it) => { if (it.pick) return setTimeout(pickFile, 0); AB.pendingAdd = it.add || null; AB.go(it.to[0], it.to[1]); },
+            onAdd: (it) => {
+                if (it.sets && !SET_FILES[ds]) return AB.flash("Choose a set collection file: its sets arrive in the Graph tree as one folded folder");
+                if (it.sets) { setsIn[ds] = true; AB.render(); return AB.announce("Added " + SET_FILES[ds]().file + ": its sets are one folded folder in the Graph tree"); }
+                if (it.pick) return setTimeout(pickFile, 0); AB.pendingAdd = it.add || null; AB.go(it.to[0], it.to[1]); },
         });
+        const flatEl = h("div", { class: "dp-flat" }, ul);
+        new MutationObserver(() => { const u = flatEl.querySelector(":scope > .ab-tree"); if (u && !u._dp) decorate(u); }).observe(flatEl, { childList: true });
         return AB.section({ title: "Sources", collapsible: true, key: "data-place.sources", summary: src.length ? AB.count(src.length, "source") : "No sources", actions: plus },
-            src.length ? h("div", { class: "dp-flat" }, ul) : AB.empty("No data.", { verb: "Add data", go: AB.cmd("add-data").go }));
+            src.length ? flatEl : AB.empty("No data.", { verb: "Add data", go: AB.cmd("add-data").go }));
     }
 
     // ---------- Filters ----------
@@ -782,9 +842,10 @@
             [nameEl, ...nameEl.querySelectorAll("[data-tip]")].forEach((x) => x.removeAttribute("data-tip"));
             AB.tip(li, meaningOf(s), { label: false });
             const jump = model.jumps && model.jumps.get(s.id);
-            const line = outcome(s, res.per.get(s.id), jump);
+            const o = res.per.get(s.id), above = steps.slice(0, steps.indexOf(s)).filter((x) => x.on && !x.gone).map((x) => x.name);
+            const line = outcome(s, o, jump, above);
             // a line that carries its cause wraps rather than hide it behind an ellipsis
-            if (line) quiet(li, line, / on the full graph/.test(line), !!jump || /: /.test(line));
+            if (line) quiet(li, line, o.full != null && o.before < o.total, /; was |: /.test(line));
             li.setAttribute("aria-description", [line, meaningOf(s)].filter(Boolean).join(". "));
             if (s.gone) problemUnder(li, { what: `${s.gone} is not in ${T().file} any more, so this step is skipped.`, todo: "Pick another attribute in the step's rule, or delete the step.", action: { label: "Edit rule", onClick: () => open(s) } });
             li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
@@ -840,11 +901,11 @@
     // type and then by edge table, each a plain subhead (one node type: plain Nodes and Edges); with two
     // or more types each group starts with the built-in type attribute; then computed first (the run
     // icon), then by name. A row ends in its fill when not every element has a value, the run icon,
-    // and its role tags (what uses it). Folders only from the data's nesting; Find past 15. Its rows are
+    // and what uses it (the field list's In use group; a filter step is a mark). Folders only from the data's nesting; Find past 15. Its rows are
     // fieldsOf()'s, the stand-in for graphty-element's session.data.attributes().
-    // ponytail: the field list groups by table under "In use" and takes no groups of its own, so this
-    // place hands it its fields regrouped as a dataset of their own (the node inspector's ownDataset
-    // pattern), usedBy moved into the role tags; a `groups` option on AB.fieldList would replace this.
+    // ponytail: the field list groups by table and takes no groups of its own, so this place hands it
+    // its fields regrouped as a dataset of their own (the node inspector's ownDataset pattern), usedBy
+    // kept so each group leads with "In use (n)"; a `groups` option on AB.fieldList would replace this.
     const TYPE_OF = { people: "person", buildings: "building", researchers: "researcher", institutions: "institution", addresses: "address", accounts: "account", hosts: "host", packages: "package" };
     const TYPE_FIELD = { name: "type", label: "type", parent: null, type: "cat", fill: null, usedBy: null, computed: false, builtin: true };
     // The glyph's word, as the attribute inspector's Read as says it
@@ -859,14 +920,24 @@
         const rule = T0.attributes.find((y) => y.name === "alertRule");
         return Object.values(rule.values).reduce((s, v) => s + v, 0) / T0.nodes;
     }
-    function placeFields(ds) {
+    // A run's result attributes and the row each is the result of: a click opens that row's inspector
+    const RESULT_ROWS = { lesmis: [["PageRank", "num", ["inspector-measure-row", "data"]], ["Louvain", "cat", ["inspector-run-row", "data"]]],
+        transactions: [["Louvain", "cat", ["inspector-run-row", "many-groups"]]] };
+    function placeFields(ds, results) {
         const groups = AB.fieldsOf(ds), nodeGroups = groups.filter((g) => g.element === "node");
         const typed = nodeGroups.length > 1;
-        const roles = new Map(), computed = new Set();
+        const computed = new Set(), stepped = new Set();
         const out = [];
+        // Studio decision: a filter step reading an attribute is a mark beside its uses, not words -- "Weight,
+        // Filter step" was cut to "Weight, Filt..." in the 240 px panel. Read only by a step, the words stay.
+        const uses = (x) => {
+            const all = (x.usedBy || "").split(", ").filter(Boolean), rest = all.filter((t) => t !== "Filter step");
+            if (rest.length < all.length && rest.length) stepped.add(x.name);
+            return rest.length ? rest.join(", ") : x.usedBy;
+        };
         groups.forEach((g) => {
-            g.fields.forEach((x) => { if (x.usedBy) roles.set(x.name, x.usedBy); if (x.computed) computed.add(x.name); });
-            let fields = g.fields.map((x) => Object.assign({}, x, { usedBy: null, fill: fillOf(ds, x) }));
+            g.fields.forEach((x) => { if (x.computed) computed.add(x.name); });
+            let fields = g.fields.map((x) => Object.assign({}, x, { usedBy: uses(x), fill: fillOf(ds, x) }));
             const head = typed ? (g.element === "node" ? TYPE_OF[g.table] || g.table : g.table) : g.element === "node" ? "Nodes" : "Edges";
             // the type attribute leads its group: a group of its own under the subhead, the rest after it
             // unheaded. A table that stores its own type column (the nested records) leads with that one.
@@ -875,10 +946,14 @@
             if (typed) out.push({ table: head, element: g.element, fields: [ownType || TYPE_FIELD] }, { table: null, element: g.element, fields });
             else out.push({ table: head, element: g.element, fields });
         });
+        if (results && results.length) {
+            results.forEach(([n]) => computed.add(n));
+            out.push({ table: "Results", element: "node", fields: results.map(([name, type, go]) => ({ name, label: name, parent: null, type, fill: null, usedBy: null, computed: true, go })) });
+        }
         const key = "data-place:" + ds;
         const D = AB.fx.datasets[key] || (AB.fx.datasets[key] = {});
         Object.defineProperty(D, "_fields", { value: out, enumerable: false, configurable: true });
-        return { key, roles, computed };
+        return { key, computed, stepped };
     }
     const EDIT_ON = { doorEntries: ["data-page", "edit-entries"], lesmis: ["data-page", "edit-graph-file"], wide: ["data-page", "edit-wide-hosts"], nested: ["data-page", "edit-json-researchers"], plainJson: ["data-page", "edit-plain-nodes"], registry: ["data-page", "edit-registry"] };
     const TABLE = { doorEntries: ["door-entries-nodes", "door-entries"], wide: ["wide", "wide"], nested: ["wide", "wide"], plainJson: ["wide", "wide"] };
@@ -898,26 +973,25 @@
             sec.id = "dp-attributes";
             return sec;
         }
-        const own = placeFields(ds);
-        // Studio decision: the row's tags are its roles (Key, Name, Time, Weight, From, To...); a filter
-        // step reading the attribute is a mark, like the run mark, not a tag -- a tag that long was cut
-        // to "Fil" beside Weight in the 240 px panel.
+        // The just-loaded transfers have no runs yet, so no results
+        const own = placeFields(ds, ds === "transactions" && (cfg.fresh || T().fresh) ? null : RESULT_ROWS[ds]);
+        // What uses each attribute is the field list's own In use line; this trail adds only the run mark
+        // and the built-in type's tag
         const trail = (x) => {
-            const all = (own.roles.get(x.name) || "").split(", ").filter(Boolean);
-            const stepped = all.includes("Filter step"), tags = all.filter((t) => t !== "Filter step");
-            if (!tags.length && !stepped && !own.computed.has(x.name) && !x.builtin) return null;
+            if (!own.computed.has(x.name) && !own.stepped.has(x.name) && !x.builtin) return null;
             const mark = (ic, label) => AB.tip(h("span", { class: "dp-mark", role: "img", "aria-label": label }, icon(ic, "sm")), label, { label: false });
-            return AB.tip(h("span", { class: "dp-tags" },
-                own.computed.has(x.name) ? mark(AB.ICON.run, "Computed by a run") : null,
-                stepped ? mark(AB.ICON.filter, "Read by a filter step") : null,
-                x.builtin ? AB.roleTag("Built in", { second: "graphty-element sets each element's type on load" }) : null,
-                // a Name joined from several columns ("Name: given + family") tags as Name; the tooltip says the rest
-                tags.map((t) => (/^Name: /.test(t) ? AB.roleTag("Name", { second: "joined from " + t.slice(6) }) : AB.roleTag(t, { second: "what uses this attribute" })))),
-            [own.computed.has(x.name) ? "Computed by a run" : null, stepped ? "Read by a filter step" : null, x.builtin ? "Built in" : null].concat(tags).filter(Boolean).join(", "), { label: false });
+            return h("span", { class: "dp-tags" },
+                own.computed.has(x.name) ? mark(AB.ICON.run, x.go ? "A run's result: opens its row" : "Computed by a run") : null,
+                own.stepped.has(x.name) ? mark(AB.ICON.filter, "Read by a filter step") : null,
+                x.builtin ? AB.roleTag("Built in", { second: "graphty-element sets each element's type on load" }) : null);
         };
         const list = AB.fieldList({
             size: "panel", dataset: own.key, label: "Attributes", current: cfg.select || null, query: cfg.query || undefined, results: false, trail,
-            onPick(name, type, f) { if (f.builtin) return AB.flash("Opens the type attribute: each element's node type or edge table"); AB.openField(ds, f.name); },
+            onPick(name, type, f) {
+                if (f.go) return AB.go(f.go[0], f.go[1]);
+                if (f.builtin) return AB.flash("Opens the type attribute: each element's node type or edge table");
+                AB.openField(ds, f.name);
+            },
         });
         // ponytail: two field-list behaviors the spec asks of this list that AB.fieldList does not draw
         // yet, applied after each of its draws; both belong in lib.js's fieldList (shell), then this goes:
@@ -940,23 +1014,6 @@
                 name.dataset.full = "";
             });
         };
-        // A folder starts open when one of its own attributes has a role (fieldList opens only on usedBy,
-        // which this list moves into the tags); opened while the list is off screen, so nothing scrolls
-        // Two tables can share a folder path (each node type has its own "attributes"), so a folder is found
-        // under its own table's subhead; a group with no subhead continues the one above it
-        const toOpen = [];
-        AB.fx.datasets[own.key]._fields.forEach((g) => {
-            if (g.table) toOpen.push({ table: g.table, paths: new Set() });
-            g.fields.forEach((x) => { if (x.parent && own.roles.has(x.name)) toOpen[toOpen.length - 1].paths.add(x.parent); });
-        });
-        toOpen.forEach((t, ti) => t.paths.forEach((p) => {
-            let at = -1;
-            const head = [...listbox.children].find((el) => {
-                if (el.matches(".ab-fl-table")) at++;
-                return at === ti && el.matches(".ab-fl-folder[data-open=\"false\"]") && (el.getAttribute("aria-label") || "").startsWith(p + ", ");
-            });
-            if (head) head.click();
-        }));
         decorate();
         new MutationObserver(decorate).observe(listbox, { childList: true });
         // The row menu: right-click, Shift+F10 or the Menu key on the active row
@@ -977,10 +1034,8 @@
     function build(region, cfg, model) {
         const el = h("div", { class: "dp" });
         region.replaceChildren(el);
-        // Data goes out from the same place it comes in: the Export dialog at its Data tab
-        const ex = AB.cmd("export");
-        const exportBtn = AB.iconButton("download", ex.label, cfg.ds === "none" ? { key: ex.shortcut, disabled: "Nothing to export: add data first" } : { key: ex.shortcut, go: ["export-dialog", "data"] });
-        el.append(AB.graphHead("Data", graphName(cfg), { trail: exportBtn }));
+        // No export button here: Export... is in the File list (the main menu and the project menu)
+        el.append(AB.graphHead("Data", graphName(cfg)));
         const scroll = h("div", { class: "dp-scroll" });
         el.append(scroll);
         const redraw = (focusId) => {
@@ -1001,6 +1056,7 @@
 
     const CFG = {
         "at-rest": { steps: "one-off" },
+        "set-collection": { steps: "one-off", sets: true, select: "sets" }, // after Sources "+" > Set collection...
         filters: { steps: "two", selectStep: "s1", kindOn: true },
         "undo-notice": { steps: "undone", undoNotice: true },
         attributes: { steps: "two", select: "amount", scrollTo: "dp-attributes" },
@@ -1049,7 +1105,7 @@
 
     // The attributes each step list reads, on or off (initialSteps); the field list tags them "Filter step".
     // amount_usd is gone after Replace, so only kind remains.
-    const STEP_ATTRS = { two: ["amount", "kind"], undone: ["amount", "kind"], one: ["amount"], "one-off": ["amount"], gone: ["kind"], wide: ["environment", VULN], "wide-computed": ["environment", VULN], "lesmis-degree": ["degree"] };
+    const STEP_ATTRS = { two: ["amount", "kind"], undone: ["amount", "kind"], one: ["amount"], "one-off": ["amount"], gone: ["kind"], wide: ["environment", VULN], "wide-computed": ["environment", VULN], "lesmis-degree": ["degree", "group"] };
 
     registerSection({
         id: "data-place",
@@ -1077,6 +1133,7 @@
         },
         states: [
             { id: "at-rest", label: "Accounts and transfers, the amount step off" },
+            { id: "set-collection", label: "After Set collection...: one folded folder of sets" },
             { id: "filters", label: "A filter step selected" },
             { id: "undo-notice", label: "After undoing a step" },
             { id: "attributes", label: "An attribute selected" },

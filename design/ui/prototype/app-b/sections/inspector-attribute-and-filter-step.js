@@ -21,6 +21,10 @@
         ".ia-dd>.k-field{flex:none;width:auto;max-width:100%}" +
         ".ia-hist{display:flex;align-items:flex-end;gap:1px;height:72px;margin:4px 16px 0}" +
         ".ia-hist>i{flex:1 1 0;background:var(--cm-border-translucent-strong);border-radius:1px 1px 0 0;min-height:1px}" +
+        ".ia-hist>i[data-on]{background:var(--cm-bg-brand)}" +
+        ".ia-hist[data-band]{cursor:crosshair;user-select:none;touch-action:none}" +
+        ".ia-band{display:flex;align-items:center;gap:6px;padding:2px 16px;min-height:24px}" +
+        ".ia-sentence>.ia-date{width:136px}" +
         ".ia-axis{display:flex;justify-content:space-between;padding:2px 16px 0;color:var(--cm-text-secondary);font-size:11px;font-variant-numeric:tabular-nums}" +
         ".ia-dd>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
         ".ia-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}" +
@@ -62,13 +66,44 @@
 
     // The measure row's histogram form (its bars, two-end axis and one caption), drawn here because
     // the measure row keeps its CSS to itself until it renders.
-    function histogram(bins, axis, caption, name) {
+    // band (a date attribute): drag across bars, or Left and Right (Shift extends), to draw a band;
+    // the band writes the ordinary filter step, "<attribute> is between <from> and <to>", through the
+    // one door to a step on an attribute (AB.filterTo). band: { from(i), to(i), unit, onFilter(from, to, n) }
+    function histogram(bins, axis, caption, name, band) {
         const top = Math.max(...bins);
-        return [
-            h("div", { class: "ia-hist", role: "img", "aria-label": "Distribution of " + name }, bins.map((c) => h("i", { style: "height:" + (c ? Math.max(3, (c / top) * 100) : 0) + "%", "data-zero": c ? null : "" }))),
-            h("div", { class: "ia-axis" }, h("span", null, axis[0]), h("span", null, axis[1])),
-            h("div", { class: "ab-cap k-secondary" }, caption),
-        ];
+        const bars = h("div", { class: "ia-hist", role: band ? "group" : "img", "aria-label": "Distribution of " + name + (band ? ": drag across bars, or use the arrow keys, to draw a band" : ""), tabindex: band ? "0" : null, "data-band": band ? "" : null },
+            bins.map((c) => h("i", { style: "height:" + (c ? Math.max(3, (c / top) * 100) : 0) + "%", "data-zero": c ? null : "" })));
+        const out = [bars, h("div", { class: "ia-axis" }, h("span", null, axis[0]), h("span", null, axis[1])), h("div", { class: "ab-cap k-secondary" }, caption)];
+        if (!band) return out;
+        AB.tip(bars, "Drag across bars to draw a band", { label: false });
+        const line = h("div", { class: "ia-band", role: "status" });
+        let s0 = null, e0 = null, start = null;
+        const clear = () => { s0 = e0 = null; [...bars.children].forEach((x) => x.removeAttribute("data-on")); line.replaceChildren(); AB.announce("Band cleared"); };
+        const set = (a, b) => {
+            [s0, e0] = a <= b ? [a, b] : [b, a];
+            [...bars.children].forEach((x, i) => x.toggleAttribute("data-on", i >= s0 && i <= e0));
+            const n = bins.slice(s0, e0 + 1).reduce((p, q) => p + q, 0), from = band.from(s0), to = band.to(e0);
+            line.replaceChildren(h("span", { class: "k-grow" }, AB.count(n, band.unit) + ", " + from + " to " + to + " -- ",
+                h("a", Object.assign({ class: "ab-link", href: "#" }, AB.act({ onClick: (ev) => { ev.preventDefault(); band.onFilter(from, to, n); } })), "Filter to this band")),
+                AB.iconButton("x", "Clear the band", { onClick: clear }));
+        };
+        bars.addEventListener("pointerdown", (e) => { const t = e.target.closest("i"); if (!t) return; start = [...bars.children].indexOf(t); bars.setPointerCapture(e.pointerId); set(start, start); });
+        bars.addEventListener("pointermove", (e) => {
+            if (start == null) return;
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            if (el && el.parentNode === bars) set(start, [...bars.children].indexOf(el));
+        });
+        bars.addEventListener("pointerup", () => (start = null));
+        bars.addEventListener("keydown", (e) => {
+            const d = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+            if (e.key === "Escape" && s0 != null) { e.preventDefault(); return clear(); }
+            if (!d) return;
+            e.preventDefault();
+            const last = bins.length - 1, clamp = (i) => Math.max(0, Math.min(last, i));
+            if (s0 == null) return set(d > 0 ? 0 : last, d > 0 ? 0 : last);
+            if (e.shiftKey) { if (d < 0) set(clamp(s0 + d), e0); else set(s0, clamp(e0 + d)); } else { const i = clamp((d > 0 ? e0 : s0) + d); set(i, i); }
+        });
+        return out.concat(line);
     }
     // A name too long for one line is not repeated here: the header and Summary already carry it
     const none = (name) => AB.empty("No row paints from " + (name.length > 24 ? "this attribute" : name) + ".");
@@ -88,7 +123,7 @@
     function roles(tags, page, col, extra) {
         return AB.fieldRow(tags.length > 1 ? "Roles" : "Role", h("span", { class: "ia-tags" },
             tags.map(([w, second]) => [atColumn(AB.roleTag(w, { second: second + ". Opens the Data page at " + col, go: ["data-page", page] }), col),
-                /^Weight/.test(w) ? h("span", { class: "ia-tagline" }, "-- " + WEIGHT_USE) : null]), extra || null));
+                /^Weight/.test(w) ? h("span", { class: "ia-tagline" }, "Every run uses it unless the run picks another.") : null]), extra || null));
     }
     // ponytail: the Data page has no per-column route, so after the tag's own navigation this finds the
     // column's role control (data-k "r:<col>") once the page draws it, scrolls to it and focuses it.
@@ -109,9 +144,10 @@
     // Changing Name or Time after load: whether graphty-element re-derives what depends on it (spec 5.2)
     const NAME_TIME = () => AB.openQuestion("To confirm with graphty-element: that changing Name or Time after load re-derives what depends on it (labels, search, the walk, a time window)");
     // "N <rows> have no <attr> value: its weight reads 1 | 0" (spec 2.4, missingWeight, default 1)
+    // With nothing missing the line still offers the choice, for a blank a later load may bring
     function blankWeight(n, noun, attr) {
         const holder = h("span", { class: "ia-dd" });
-        const draw = (v) => holder.replaceChildren(AB.count(n, noun) + (n === 1 ? " has" : " have") + " no " + attr + " value: its weight reads",
+        const draw = (v) => holder.replaceChildren(n ? AB.count(n, noun) + (n === 1 ? " has" : " have") + " no " + attr + " value: its weight reads" : "none: every " + noun + " has " + (/^[aeiou]/.test(attr) ? "an " : "a ") + attr + ". A blank would weigh",
             AB.seg([["1", "1"], ["0", "0"]], v, (x) => { draw(x); AB.announce("A blank " + attr + " value weighs " + x); holder.querySelector("[aria-checked=true]").focus(); }, { label: "A blank " + attr + " value weighs" }));
         draw("1");
         return holder;
@@ -121,8 +157,7 @@
     // and says the values were imported, so they never read as computed by graphty.
     const fromRow = (file, go, how) => AB.data("From", h("span", { class: "ia-break" }, file + " (" + (how || "imported, not computed") + ")"), { go });
     // The inspector's Weight tag reads "Weight, set when loaded" (spec 2.4); its link opens the Data page
-    const WEIGHT_USE = "every run uses it unless the run picks another";
-    const WEIGHT = WEIGHT_USE + ". Change it on the Data page";
+    const WEIGHT = "every run uses it unless the run picks another. Change it on the Data page";
 
     // ---------- amount: an edge attribute from the file, Role None ----------
     function amountBody() {
@@ -131,10 +166,10 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                roles([["Weight, set when loaded", WEIGHT]], "edit-source", "amount", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded)")]),
+                roles([["Weight, set when loaded", WEIGHT]], "edit-source", "amount", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger")]),
                 fromRow(t.file, ["data-page", "edit-source"]),
                 AB.data("On", AB.count(t.edges, "edge") + " (transfers)", { go: ["table-dock", "edges"] }),
-                AB.data("Missing", "none: every transfer has an amount (a blank would weigh 1)", { go: ["data-page", "edit-source"] })),
+                AB.fieldRow("Missing", blankWeight(0, "transfer", "amount"))),
             AB.dataTab({
                 // No unit: the file declares none, so the inspector names none
                 Values: { summary: "Total " + fmt(total), body: [
@@ -213,10 +248,10 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                roles([["Weight, set when loaded", WEIGHT]], "edit-entries", "count", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger (chosen when loaded). Derived by One edge per Pair: how many entries each pair made")]),
+                roles([["Weight, set when loaded", WEIGHT]], "edit-entries", "count", [h("span", { class: "ia-tagnote" }, "Higher means: Stronger")]),
                 fromRow(entriesFile(), ["data-page", "edit-entries"], "counted per pair when loaded"),
                 AB.data("On", AB.count(edges, "edge") + " (entries)", { go: ["table-dock", "door-entries"] }),
-                AB.data("Missing", "none: every pair counts at least 1 entry")),
+                AB.fieldRow("Missing", blankWeight(0, "pair", "count"))),
             AB.dataTab({
                 Values: { summary: fmt(e.bothEnds) + " entries in " + fmt(edges) + " pairs", body: [
                     AB.data("Entries", fmt(e.bothEnds) + " in " + fmt(edges) + " pairs, " + (e.bothEnds / edges).toFixed(1) + " on average"),
@@ -255,6 +290,8 @@
     const CONDS = {
         num: ["is at least", "is below", "is between", "is empty"],
         list: ["contains", "does not contain", "is empty"],
+        // a date rule: the same ordinary step a date attribute's histogram band writes
+        time: ["is after", "is before", "is between", "is empty", "is not empty"],
         other: ["is", "is not", "is one of", "is empty", "is not empty"],
     };
     const condsOf = (type) => CONDS[type] || CONDS.other;
@@ -279,17 +316,37 @@
         const cText = h("span", null, o.cond || "");
         const c = AB.field(cText, { caret: true });
         c.hidden = !o.attr;
-        const v = h("input", { class: "k-field ia-num", value: o.value || "", "aria-label": "Value", inputmode: type === "num" ? "decimal" : null, hidden: o.value == null });
+        // "is between" takes two values, "<from> and <to>"; a date rule's values are dates
+        const [v1, v2] = String(o.value || "").split(" and ");
+        const v = h("input", { class: "k-field ia-num", value: v1 || "", "aria-label": "Value", inputmode: type === "num" ? "decimal" : null, hidden: o.value == null });
+        const and = h("span", null, "and");
+        const vEnd = h("input", { class: "k-field ia-num", value: v2 || "", "aria-label": "Value, end" });
+        const dress = () => {
+            [v, vEnd].forEach((x) => { x.type = type === "time" ? "date" : "text"; x.classList.toggle("ia-date", type === "time"); });
+            and.hidden = vEnd.hidden = v.hidden || cText.textContent !== "is between";
+        };
+        const valueText = () => (v.hidden || !v.value ? "" : " " + v.value + (!vEnd.hidden && vEnd.value ? " and " + vEnd.value : ""));
+        // A condition on an edge attribute keeps the edges that pass and the nodes at their ends: said in
+        // one line under the condition, and before any field is picked, so the rule is known in advance
+        const ds = o.ds || AB.route.frame.dataset;
+        const capEl = h("div", { class: "ab-cap k-secondary" });
+        const edgeCap = (name) => {
+            if (o.cap) return capEl.replaceChildren(o.cap);
+            const g = name ? AB.fieldIn(ds, name)[1] : null;
+            capEl.replaceChildren(!name ? "A condition on an edge attribute keeps the edges that pass and the nodes at their ends."
+                : g && g.element === "edge" ? name + " is on edges: this step keeps the edges that pass and the nodes at their ends." : "");
+            capEl.hidden = !capEl.textContent;
+        };
         // The rule is the step's name: the inspector header and the Data place's row follow it
         const rename = () => {
-            const rule = cur + " " + cText.textContent + (v.hidden || !v.value ? "" : " " + v.value);
+            const rule = cur + " " + cText.textContent + valueText();
             if (o.step) {
                 o.step.name = rule;
                 const row = document.querySelector(`#ab-left [data-row="${window.CSS.escape(o.step.id)}"] .ab-tname`);
                 if (row) row.textContent = rule;
             }
             const head = document.querySelector("#ab-right .ab-insp-head .k-name");
-            if (head) head.replaceChildren(attrName(cur), " " + cText.textContent + (v.hidden || !v.value ? "" : " " + v.value));
+            if (head) head.replaceChildren(attrName(cur), " " + cText.textContent + valueText());
         };
         // The attribute picker is the field list at menu size, over the project on screen
         const openPicker = () => AB.openFieldList(a, {
@@ -302,17 +359,25 @@
                 aText.replaceChildren(attrName(name));
                 c.hidden = false;
                 // A new condition starts with no value, so the step keeps every node until one is typed
-                if (!condsOf(t).includes(cText.textContent)) { cText.textContent = condsOf(t)[0]; v.hidden = false; v.value = ""; after.textContent = shown(false); }
+                if (!condsOf(t).includes(cText.textContent)) { cText.textContent = condsOf(t)[0]; v.hidden = false; v.value = vEnd.value = ""; after.textContent = shown(false); }
+                dress();
+                edgeCap(name);
                 rename();
                 AB.announce("Attribute: " + name + ", " + cText.textContent);
                 requestAnimationFrame(() => (v.hidden ? c : v).focus());
             },
         });
         v.addEventListener("change", rename);
+        vEnd.addEventListener("change", rename);
+        dress();
+        edgeCap(o.gone ? null : cur);
+        if (o.gone || o.sentence) capEl.hidden = !o.cap;
+        // A rule handed over whole (a histogram band) names its Data place row at once
+        if (o.step && o.attr && o.step.name !== cur + " " + cText.textContent + valueText()) requestAnimationFrame(rename);
         a.addEventListener("click", openPicker);
         c.addEventListener("click", () => AB.openMenu(c, condsOf(type).map((x) => ({
             label: x, check: x === cText.textContent,
-            onClick: () => { cText.textContent = x; v.hidden = /empty$/.test(x); rename(); AB.announce("Condition: " + x); },
+            onClick: () => { cText.textContent = x; v.hidden = /empty$/.test(x); dress(); rename(); AB.announce("Condition: " + x); },
         }))));
         AB.tip(a, "Attribute", { label: false });
         AB.tip(c, "Condition", { label: false });
@@ -321,7 +386,10 @@
         // What the step keeps of what the steps above left, in the one count wording ("40 of 60 nodes")
         const kept = (n) => AB.count(n, o.unit[0].replace(/s$/, ""), { of: o.before });
         const E = o.edges;
-        var shown = (applied) => (E ? AB.count(applied ? E.after : E.before, "edge", { of: E.before }) + ", " : "") + kept(applied ? o.after : o.before); // var: the picker above calls it
+        // A computed step (o.full) says both counts on one line: what it leaves of what the steps above
+        // left, and what it would keep on the full graph (no scope switch)
+        var shown = (applied) => (o.full != null && applied ? AB.count(o.after, o.unit[0].replace(/s$/, "")) + " left; " + AB.num(o.full) + " on the full graph"
+            : (E ? AB.count(applied ? E.after : E.before, "edge", { of: E.before }) + ", " : "") + kept(applied ? o.after : o.before)); // var: the picker above calls it
         var after = h("span", null, shown(on)); // var: the picker above sets it
         const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(on), "aria-labelledby": "ia-apply-l", "aria-label": "Apply this step" });
         const toggle = () => {
@@ -336,14 +404,12 @@
         return [
             AB.section({ title: "Condition", editable: true },
                 o.gone ? h("div", { class: "ia-problem" }, AB.problem(o.gone)) : null,
-                o.sentence || h("div", { class: "ia-sentence" }, a, c, v),
+                o.sentence || h("div", { class: "ia-sentence" }, a, c, v, and, vEnd),
+                capEl,
                 o.scope ? AB.fieldRow("Scope", h("span", null, o.scope)) : null,
-                o.cap ? h("div", { class: "ab-cap k-secondary" }, o.cap) : null,
                 apply,
-                // Both counts are named: what this step does to what the steps above left, and the full graph
-                // A computed step's two counts are plain text side by side (black, neither a link), so they read as a pair
-                AB.data("This step", h("span", null, after, o.gone ? " (skipped)" : null), o.full != null ? null : { go: ["table-dock", o.unit[1]] }),
-                o.full != null ? AB.data("Full graph", (E ? AB.count(E.full, "edge") + ", " : "") + AB.count(o.full, "node") + " would pass") : null),
+                // A computed step's two counts are one line of plain text (neither a link), so they read as a pair
+                AB.data("This step", h("span", null, after, o.gone ? " (skipped)" : null), o.full != null ? null : { go: ["table-dock", o.unit[1]] })),
             o.noted ? AB.notesSection(1, ["notes-place", "all"], "filter-step") : AB.notesSection(0, null, "filter-step"),
         ];
     }
@@ -364,7 +430,9 @@
     // that in a Scope line and shows both counts: left after the steps above, and on the full graph.
     const LM = () => AB.fx.datasets.lesmis, LF = () => LM().filterSteps;
     const rule = (i) => LF().steps[i].replace(/^Filter to /, "");
-    const step1Scope = () => "the " + fmt(LF().after.step1) + " nodes step 1 (" + rule(0) + ") leaves, not the full graph";
+    // the Data place names a degree step "Degree 5 or more"; the header and Scope line say the same
+    const lmName = (i) => "Degree " + rule(i).split(">= ")[1] + " or more";
+    const step1Scope = () => "the " + fmt(LF().after.step1) + " nodes step 1 (" + lmName(0) + ") leaves, not the full graph";
     const KEEP = [
         { label: "By value", desc: "By an attribute or computed value" }, { label: "Largest component", desc: "The largest component" },
         { label: "k-core", desc: "A k-core" }, { label: "Neighbors", desc: "The neighbors of the selection" },
@@ -396,14 +464,15 @@
         { sep: true },
         { label: "Delete", shortcut: "Del", onClick: () => { AB.deleted("the step " + title, () => AB.go(ID, AB.route.state)); AB.go("data-place", "graph-file"); } },
     ]);
-    const LM_STEP = (title, body) => ({ icon: "funnel", title, kind: "Filter step", prov: ["step 2 in Filters", "data-place", "graph-file"], menu: lmStepMenu(title), body });
-    const lmFrame = (after) => ({ left: "data-place/graph-file", dataset: "lesmis", chip: AB.count(after, "node", { of: LM().nodes }), filterOn: ["degree"] });
+    const LM_STEP = (title, body) => ({ icon: "funnel", title, kind: "Filter step", prov: ["step 2 in Filters", "data-place", "lesmis-filters"], menu: lmStepMenu(title), body });
+    const lmFrame = (after) => ({ left: "data-place/lesmis-filters", dataset: "lesmis", chip: AB.count(after, "node", { of: LM().nodes }), filterOn: ["degree"] });
 
     // ---------- the wide and nested projects (kit/wide-nested.json) ----------
     const W = () => AB.fx.datasets.wide;
     const N = () => AB.fx.datasets.nested;
     const P = () => AB.fx.datasets.plainJson;
     const LONG = "vuln_count_critical_unremediated_over_30_days";
+    const DATE = "patch_last_applied_at";
     const tally = (vals) => { const c = {}; vals.forEach((x) => { c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((p, q) => q[1] - p[1]); };
     const pct = (a, b) => (a && a / b < 0.005 ? "under 1%" : Math.round((a / b) * 100) + "%");
     // The full stored name, wrapping, so it never lives only in a tooltip
@@ -464,7 +533,7 @@
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
                 fromRow(w.file, ["data-page", "edit-wide-hosts"]),
                 AB.data("On", AB.count(w.nodes, "node") + " (hosts)", { go: ["table-dock", "wide"] }),
-                AB.data("Missing", "none: every host has a value")),
+                AB.data("Fill", pct(v.filter((x) => x != null).length, w.nodes) + ": " + fmt(v.filter((x) => x != null).length) + " of " + fmt(w.nodes) + " hosts have a value")),
             AB.dataTab({
                 Values: { summary: "0 to " + max + ", " + some + " hosts at 1 or more", body: histogram(bins, ["0", String(max)],
                     fmt(w.nodes) + " hosts, 0 to " + max + "; " + some + " have at least 1.", LONG) },
@@ -527,7 +596,21 @@
     // (owner rule: a new line binds nothing until the reader picks a field). A direct visit shows a new
     // step on the transfers.
     let curStep = null;
-    AB.openStep = (o) => { curStep = o; AB.go(ID, "step"); };
+    // band: the rule a histogram band hands over with AB.filterTo, merged into the step the Data place opens
+    let band = null;
+    AB.openStep = (o) => {
+        if (band && band.ds === o.ds && band.attr === o.attr) {
+            const b = band;
+            band = null;
+            Object.assign(o, { cond: "is between", value: b.value });
+            if (b.after != null && o.before === b.total) o.after = b.after;
+            if (o.step) o.step.rule = Object.assign(o.step.rule || {}, { attr: o.attr, type: o.type, cond: o.cond, value: o.value });
+        }
+        // a date attribute's step starts on a date rule, not the category ones
+        if (o.attr && o.type && o.cond && !condsOf(o.type).includes(o.cond)) o.cond = condsOf(o.type)[0];
+        curStep = o;
+        AB.go(ID, "step");
+    };
     const stepOf = () => curStep || { ds: "transactions", left: "data-place/new-step", attr: null, before: T().nodes, after: T().nodes, unit: ["nodes", "nodes"] };
     const stepView = () => {
         const o = stepOf();
@@ -593,6 +676,23 @@
             const s2 = vals.slice().sort((a, b) => a - b), med = s2[Math.floor(s2.length / 2)];
             summary = s2.length ? s2[0] + " to " + s2[s2.length - 1] : "no values";
             values.push(AB.data("Range", summary), AB.data("Median", s2.length ? String(med) : "none"));
+        } else if (x.type === "time") {
+            // A date attribute: its histogram, whose band writes the ordinary filter step (is between)
+            const t = vals.map((d) => Date.parse(d)).filter((ms) => isFinite(ms)).sort((p, q) => p - q);
+            const lo = t[0], hi = t[t.length - 1], B = 16, w = (hi - lo) / B || 1;
+            const bins = Array(B).fill(0);
+            t.forEach((ms) => bins[Math.min(B - 1, Math.floor((ms - lo) / w))]++);
+            const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+            const one = unit.replace(/s$/, "");
+            summary = t.length ? day(lo) + " to " + day(hi) : "no values";
+            values.push(AB.data("Range", summary));
+            if (t.length) values.push(...histogram(bins, [day(lo), day(hi)], AB.count(t.length, one) + " with a value, " + summary + ".", x.name, {
+                from: (i) => day(lo + i * w), to: (i) => day(i === B - 1 ? hi : lo + (i + 1) * w - 1), unit: one,
+                onFilter: (from, to, n) => {
+                    band = { ds, attr: x.name, value: from + " and " + to, after: g.element === "edge" ? null : n, total: rows.length };
+                    AB.filterTo(ds, x.name);
+                },
+            }));
         } else if (x.type === "whole") {
             summary = "kept as one value";
             values.push(AB.data("Read", "Each value is kept whole; open it on the Data page to read its parts"));
@@ -606,7 +706,7 @@
                 fullName(x.name),
                 x.type === "whole" || x.type === "list" ? AB.data("Read as", word) : dropdown("Read as", READ_AS(), word === "Number" || word === "Time" ? word : "Category", { needs: OVERRIDE }),
                 fromRow(file, edit),
-                AB.data("On", AB.count(rows.length || AB.fx.datasets[ds].edges, g.element) + " (" + unit + ")", { go: ["table-dock", ds === "lesmis" ? (g.element === "edge" ? "edges" : "nodes") : "wide"] }),
+                AB.data("On", AB.count(rows.length || AB.fx.datasets[ds].edges, g.element) + (unit === g.element + "s" ? "" : " (" + unit + ")"), { go: ["table-dock", ds === "lesmis" ? (g.element === "edge" ? "edges" : "nodes") : "wide"] }),
                 rows.length ? AB.data("Fill", pct(vals.length, rows.length) + ": " + fmt(vals.length) + " of " + fmt(rows.length) + " " + unit + " have a value") : null,
                 AB.data("In use", x.usedBy || "Nothing uses it")),
             AB.dataTab({
@@ -644,7 +744,7 @@
         },
     });
 
-    const STEP = { icon: "funnel", title: "amount >= 1,000", kind: "Filter step", prov: ["step 1 in Filters", "data-place", "filters"], menu: ["context-menus", "filter-step"] };
+    const STEP = { icon: "funnel", title: "amount is at least 1,000", kind: "Filter step", prov: ["step 1 in Filters", "data-place", "filters"], menu: ["context-menus", "filter-step"] };
     // The one attribute menu (AB.attributeMenu), on this attribute's own project
     const aMenu = (ds, name, editOn, table) => (b) => AB.attributeMenu(b, ds, name, { editOn, table });
     const ATTR = (type, title, kind, prov, body, menu) => ({ type, title, kind, prov, menu, body });
@@ -657,8 +757,8 @@
         "link-key": { type: "cat", title: "person_id", kind: "Edge attribute", prov: () => ["from entries.csv", "data-page", "edit-entries"], menu: aMenu("doorEntries", "person_id", ["data-page", "edit-entries"], ["door-entries-nodes", "door-entries"]), body: personIdBody },
         "filter-step": Object.assign({ body: () => filterBody(TRANSFER_STEP(false)) }, STEP),
         "filter-step-noted": Object.assign({ body: () => filterBody(TRANSFER_STEP(true)) }, STEP),
-        "step-attribute-gone": Object.assign({}, STEP, { title: "amount_usd >= 1,000", prov: ["step 1 in Filters", "data-place", "step-attribute-gone"], body: () => filterBody(goneStep()) }),
-        "wide-filter": Object.assign({}, STEP, { title: () => h("span", null, attrName(LONG), " >= 1"), prov: ["step 2 in Filters", "data-place", "wide-filters"], body: () => filterBody(wideStep()) }),
+        "step-attribute-gone": Object.assign({}, STEP, { title: "amount_usd is at least 1,000", prov: ["step 1 in Filters", "data-place", "step-attribute-gone"], body: () => filterBody(goneStep()) }),
+        "wide-filter": Object.assign({}, STEP, { title: () => h("span", null, attrName(LONG), " is at least 1"), prov: ["step 2 in Filters", "data-place", "wide-filters"], body: () => filterBody(wideStep()) }),
         sparse: ATTR("cat", "legacy_asset_tag", "Node attribute", ["from hosts-2026-03.csv", "data-page", "edit-wide-hosts"], sparseBody, aMenu("wide", "legacy_asset_tag", ["data-page", "edit-wide-hosts"], ["wide", "wide"])),
         "long-name": ATTR("num", () => attrName(LONG), "Node attribute", ["from hosts-2026-03.csv", "data-page", "edit-wide-hosts"], longBody, aMenu("wide", LONG, ["data-page", "edit-wide-hosts"], ["wide", "wide"])),
         "list-attribute": ATTR("list", "tags", "Node attribute", ["from network-export-2026-03.json", "data-page", "edit-json-researchers"], listBody, aMenu("nested", "tags", ["data-page", "edit-json-researchers"], ["wide", "wide"])),
@@ -667,8 +767,10 @@
         "plain-field": fieldView("plainJson"),
         "lesmis-field": fieldView("lesmis"),
         "transactions-field": fieldView("transactions"),
+        // a date attribute of the hosts, its histogram ready for a band
+        "date-field": { dyn: () => { picked = { ds: "wide", name: DATE }; return fieldView("wide").dyn(); } },
         step: { dyn: stepView },
-        "computed-step": { dyn: () => LM_STEP(rule(1), () => filterBody(degreeStep())) },
+        "computed-step": { dyn: () => LM_STEP(lmName(1), () => filterBody(degreeStep())) },
         "neighbors-step": { dyn: () => LM_STEP("Neighbors of Valjean", () => filterBody(neighborsStep())) },
     };
     const isStep = (state) => ["filter-step", "filter-step-noted", "step-attribute-gone", "wide-filter", "step", "computed-step", "neighbors-step"].includes(state);
@@ -681,6 +783,7 @@
         "long-name": { left: "data-place/attributes-wide", dataset: "wide" },
         "list-attribute": { left: "data-place/attributes-nested", dataset: "nested" },
         "wide-field": { left: "data-place/attributes-wide", dataset: "wide" },
+        "date-field": { left: "data-place/attributes-wide", dataset: "wide" },
         "nested-field": { left: "data-place/attributes-nested", dataset: "nested" },
         "plain-field": { left: "data-place/plain-json", dataset: "plainJson" },
         "lesmis-field": { left: "data-place/graph-file", dataset: "lesmis" },
@@ -713,6 +816,7 @@
             { id: "nested-field", label: "Any other researcher attribute (nested JSON)" },
             { id: "plain-field", label: "Any attribute of the plain JSON graph (Coauthors)" },
             { id: "lesmis-field", label: "Any Les Miserables attribute (the first number one when opened directly)" },
+            { id: "date-field", label: "A date attribute: its histogram band writes a filter step (hosts)" },
             { id: "transactions-field", label: "Any other transfers attribute: kind, flagged, ... (riskScore when opened directly)" },
             { id: "step", label: "Any project's filter step; directly, a new step on the transfers, its field list open" },
             { id: "computed-step", label: "A computed step after another: Scope line and both counts (Les Miserables)" },

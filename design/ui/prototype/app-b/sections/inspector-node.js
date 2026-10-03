@@ -6,9 +6,12 @@
    (the "edited" state), and Overrides' line clears with "-" on hover.
    Tokens use the Style tab's names (Color, Size, Shape, Label, Opacity); a label line's position is in its
    tooltip. Under a winning line, the rows it covers ("Covers Louvain, ... and Betweenness for Color").
-   A node whose label is hidden to avoid overlap offers Show label anyway (label-hidden, label-shown).
+   A node whose label is hidden to avoid overlap offers Show all labels, the one overlap switch
+   (AB.showAllLabels; label-hidden, label-shown).
+   One node selected opens on the Data tab (why-this-look; the "style" state is the Style tab).
    Data tab: Summary (the attributes in use, then Results: rank, scope when run on a subset, bridges;
-   Degree selects the neighbors; then "N more attributes"), Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
+   Degree selects the node and its one-hop neighbors in the several-elements inspector; then
+   "N more attributes"), Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
    most notes will not; the count is the one link to them, so no name appears here. Plain ASCII.
    See ../README.md. */
 (function () {
@@ -16,6 +19,19 @@
 
     const EDIT_COLOR = "#E41A1C"; // the analyst's own pick in the edited state; the tree's Overrides swatch
     const PR_COLOR = "#662506"; // Valjean's PageRank, 0.0754, the top of the ramp
+
+    // The node's Notes section with notes still offers Add note: the one "+" in its header, as the graph
+    // inspector's does (with none, the empty line's Add note is the door). ponytail: added after
+    // notesSection draws, the same way inspector-nothing-selected does; belongs in lib.js notesSection for
+    // every inspector, and a section redrawn for a note saved this page view loses the "+"
+    function nodeDataTab(parts, o) {
+        const secs = AB.dataTab(parts, o), notes = secs[secs.length - 1], head = notes && notes.querySelector(".k-section-head");
+        if (!head || notes.querySelector(".ab-empty")) return secs;
+        const c = AB.cmd("add-note"), p = AB.plus({ label: c.label, items: [c.label], onAdd: () => AB.addNote() });
+        AB.tip(p, c.label, { key: c.shortcut });
+        head.append(p);
+        return secs;
+    }
 
     // ponytail: the shared whyThisLook() draws its closed summary on its own wrapping line under the
     // head; closed must take one line, so the summary moves into the head and ends in an ellipsis
@@ -104,17 +120,17 @@
             notes: ["Labels keyed by position (each label line its own position) need graphty-element's per-position label channels and explain() reporting them."] });
     }
 
-    // ---------- a node whose label is hidden to avoid overlap, and Show label anyway ----------
+    // ---------- a node whose label is hidden to avoid overlap, and Show all labels ----------
     // graphty-element hides a label that would overlap another (an element-owned rule, shown locked when it
-    // wins). Show label anyway writes the node to one user style layer, "Labels shown anyway (this file)",
-    // where such labels are listed, reordered or removed.
+    // wins). Show all labels is the one overlap switch (AB.showAllLabels, which the canvas, Export and every
+    // label line read): on, no label is hidden; its Undo turns it off again.
     const HIDDEN_LABEL = "Labarre"; // a one-edge neighbor of Valjean; the drawing does not label it
-    const SHOWN_ANYWAY = "Labels shown anyway (this file)";
+    const SHOW_ALL = "Show all labels";
     function labelStyle(state, v) {
         const shown = state === "label-shown";
         const g2 = { name: "Group 2", go: ["inspector-group-set-path-row", "label-two"] };
         const lines = [
-            shown ? { name: SHOWN_ANYWAY, swatch: AB.icon("tag", "sm"), wins: ["label"], values: { label: "Above: " + v.label + ", from label" }, covered: [g2], coveredFor: "Label" }
+            shown ? { name: SHOW_ALL, swatch: AB.icon("tag", "sm"), wins: ["label"], values: { label: "Above: " + v.label + ", from label; " + SHOW_ALL + " is on, so no label is hidden" }, covered: [g2], coveredFor: "Label" }
                 : { name: "Label overlap", swatch: AB.icon("tag", "sm"), locked: true, wins: ["label"], values: { label: "Hidden: it would overlap Valjean's label" }, covered: [g2], coveredFor: "Label" },
             prLine(["color"], "From its PageRank, on the ramp"),
             degreeLine(v),
@@ -123,6 +139,29 @@
         ];
         return whyLook(lines, { kind: "node", element: v.label,
             notes: ["Hiding a label to avoid overlap, and explain() reporting it as a locked line, need a label collision rule in graphty-element."] });
+    }
+
+    // The degree is the door to the neighbors: it selects the node and its one-hop neighbors and opens the
+    // several-elements inspector on them (AB.tablePicks, as the node table's Shift-click and a measure's
+    // count hand a selection over). Focus stays on the new inspector; it never goes back to the node.
+    // ponytail: the neighbors are read from the shell's edge list; graphty-element reports a node's neighbors
+    function neighborsOf(v) {
+        const L = AB.fx.datasets.lesmis, id = String(v.id), ids = new Set();
+        (L.edgeList || []).forEach(([a, b]) => { if (String(a) === id) ids.add(String(b)); else if (String(b) === id) ids.add(String(a)); });
+        return L.rows.filter((r) => ids.has(String(r.id))).map((r) => r.label);
+    }
+    function degreeRow(v, rank) {
+        const nb = neighborsOf(v);
+        const pick = () => {
+            AB.tablePicks = [v.label].concat(nb);
+            AB.announce(AB.count(nb.length + 1, "node") + " selected: " + v.label + " and " + AB.count(nb.length, "neighbor"));
+            AB.go("inspector-several-elements", "two-nodes");
+            // the new inspector's name takes focus, so nothing points back at the node left behind
+            setTimeout(() => { const n = document.querySelector("#ab-right .ab-insp-head .k-name"); if (n) n.focus({ preventScroll: true }); }, 50);
+        };
+        const d = AB.data("Degree", ranked(String(v.degree), rank), nb.length ? { onClick: pick } : undefined);
+        if (nb.length) AB.tip(d, "Select " + v.label + " and " + AB.count(nb.length, "neighbor"), { label: false });
+        return d;
     }
 
     // The Summary's two parts: what the file holds, then what runs computed (never mixed)
@@ -149,13 +188,13 @@
     function lesmisFile(L, v, go) {
         const fields = AB.fieldsOf("lesmis").find((g) => g.element === "node").fields;
         // degree's use (Size) is the Degree row, shown under Results with its rank
-        const inUse = fields.filter((x) => x.usedBy && x.name !== "degree"), rest = fields.filter((x) => !x.usedBy);
+        const inUse = fields.filter((x) => x.usedBy && x.name !== "degree"), rest = fields.filter((x) => !x.usedBy && x.name !== "degree");
         const empty = rest.filter((x) => isEmpty(v[x.name])), shown = rest.filter((x) => !isEmpty(v[x.name]));
         const ds = ownDataset("lesmis:" + v.id, "nodes", shown);
         const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + v.label, empty: empty.map((x) => x.name), emptyWhere: "on " + v.label, trail: (x) => valueTrail(v[x.name]), onPick: (n) => AB.openField("lesmis", n) });
         return {
             inUse: [subhead("From " + L.file), AB.data("id", h("span", { class: "k-mono" }, v.id))]
-                .concat(inUse.map((x) => AB.data(withRole(x.name, x.usedBy), String(v[x.name]), x.name === "group" && go ? { go } : undefined))),
+                .concat(inUse.map((x) => roleData(x.name, x.usedBy, String(v[x.name]), x.name === "group" && go ? { go } : undefined))),
             more: rest.length ? moreSection(rest.length, empty.length, list) : null,
         };
     }
@@ -170,13 +209,12 @@
         const kept = L.filterSteps.after.step1;
         const bw = L.filterSteps.betweennessOnStep1, bwAt = bw.findIndex((x) => x.label === "Valjean") + 1;
         const toMeasure = { go: ["inspector-measure-row", "data"] };
-        const degree = AB.data("Degree", ranked(String(v.degree), of), { go: ["selection-bar", "neighborhood"] });
-        AB.tip(degree, "Select Valjean's " + L.valjeanNeighbors + " neighbors", { label: false });
+        const degree = degreeRow(v, of);
         const bridges = bridgesText(bridgesOf(v));
         const file = lesmisFile(L, v, ["inspector-group-set-path-row", "group-2"]);
         // Every row that contains Valjean, one home: the kept set of the top nodes by degree included
         const top = AB.covers("PageRank", "Color", "lesmis").find((r) => /^Top \d+ by degree$/.test(r.name));
-        return AB.dataTab({
+        return nodeDataTab({
             Summary: {
                 summary: "group " + v.group + "; PageRank #1, Betweenness #" + bwAt + "-#" + (bwAt + 1) + ", Degree #1; " + bridges.toLowerCase(),
                 body: file.inUse.concat([
@@ -223,13 +261,13 @@
         const inTop = top && AB.topN(L.rows, (r) => r.degree, Number(top.name.match(/\d+/)[0])).includes(v);
         const rows = IN_ROWS.filter((r) => r.has.includes(v.label));
         const rowOf = (r) => AB.row({ icon: r.icon, swatch: AB.chit(r.color, r.round), label: r.label, go: r.go });
-        return AB.dataTab({
+        return nodeDataTab({
             Summary: {
                 summary: "group " + v.group + "; Degree " + rank("degree").replace(/ of .*/, "") + (nb == null ? "" : "; " + bridgesText(nb).toLowerCase()),
                 body: file.inUse.concat([
                     subhead("Results"),
                     pr == null ? null : AB.data("PageRank", ranked(AB.num(pr), prRank), { go: ["inspector-measure-row", "data"] }),
-                    AB.data("Degree", ranked(String(v.degree), rank("degree"))),
+                    degreeRow(v, rank("degree")),
                     nb == null ? null : AB.data("Bridges", bridgesText(nb)),
                     file.more,
                 ]),
@@ -258,12 +296,13 @@
             selectionLine(),
             everythingLine(),
         ], { kind: "node", element: title });
-        const data = () => AB.dataTab({
+        const data = () => nodeDataTab({
             Summary: {
                 summary: d.type + ", " + tbl.columns.filter((c) => c !== d.key).map((c) => c + " " + (r[c] || "none")).join(", "),
                 body: [AB.data("type", d.type)].concat(tbl.columns.map((c) => {
                     const used = ((AB.fieldsOf("doorEntries")[d.t] || { fields: [] }).fields.find((x) => x.name === c) || {}).usedBy;
-                    return AB.data(used ? withRole(c, used) : c, c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none");
+                    const val = c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none";
+                    return used ? roleData(c, used, val) : AB.data(c, val);
                 })),
             },
             Notes: { count: r[d.key] === d.id && AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
@@ -317,6 +356,12 @@
     // The name is already cut in the middle by its caller, so it never takes a second, end ellipsis (inspector-node.css)
     const withRole = (label, word) => h("span", { class: "inn-role", style: "display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle" },
         h("span", { style: "flex:none;white-space:nowrap" }, label), h("span", { style: "flex:none" }, AB.roleTag(word, { second: "what uses this attribute" })));
+    // A data row whose name carries a role tag: its value stays at the row's end, aligned with every untagged value
+    const roleData = (label, word, value, o) => {
+        const d = AB.data(withRole(label, word), value, o);
+        d.lastChild.style.marginLeft = "auto";
+        return d;
+    };
     // A flat record's Data tab (a host, a plain JSON node): in use, then "N more attributes"
     function wideData(state, src = "wide", r = wideRow(), name = AB.nameOf(src, r)) {
         const g0 = AB.fieldsOf(src).find((g) => g.element === "node"), fields = g0.fields;
@@ -324,10 +369,10 @@
         const empty = rest.filter((x) => isEmpty(r[x.name])), shown = rest.filter((x) => !isEmpty(r[x.name]));
         const ds = ownDataset(src + ":" + r.id, g0.table, shown);
         const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + name, empty: empty.map((x) => x.name), emptyWhere: "on " + name, query: state === "wide-more" ? "vu cr" : "", trail: (x) => valueTrail(r[x.name]), onPick: (n) => AB.openField(src, n) });
-        return AB.dataTab({
+        return nodeDataTab({
             Summary: {
                 summary: inUse.filter((x) => x.name !== "id").map((x) => fmt(r[x.name])).join(", "),
-                body: inUse.map((x) => AB.data(withRole(AB.truncMiddle(x.name, 24), x.usedBy), x.name === "id" ? h("span", { class: "k-mono" }, r.id) : h("span", { style: "white-space:nowrap" }, fmt(r[x.name]))))
+                body: inUse.map((x) => roleData(AB.truncMiddle(x.name, 24), x.usedBy, x.name === "id" ? h("span", { class: "k-mono" }, r.id) : h("span", { style: "white-space:nowrap" }, fmt(r[x.name]))))
                     .concat(moreSection(rest.length, empty.length, list)),
             },
             Notes: { count: 0, target: ["notes-place", "empty"] },
@@ -407,14 +452,14 @@
         const inUse = fields.filter((x) => x.usedBy && !(joined && parts.includes(x.name)));
         const others = fields.filter((x) => !x.usedBy);
         const empty = others.filter((x) => isEmpty(at(rec, x.name)));
-        const nameRow = joined ? [AB.data(withRole("Name", parts.map((c) => c.split(".").pop()).join(" + ")), AB.nameOf("nested", rec))] : [];
+        const nameRow = joined ? [roleData("Name", parts.map((c) => c.split(".").pop()).join(" + "), AB.nameOf("nested", rec))] : [];
         // one flat list, each field named by its dotted path (x.name), so no folders
         const ds = ownDataset("nested:" + rec.id, "researchers", others.filter((x) => !isEmpty(at(rec, x.name))).map((x) => Object.assign({}, x, { parent: null, label: x.name })));
         const dotted = (x) => (x.parent ? x.parent + "." + x.label : x.label);
         const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + AB.nameOf("nested", rec), empty: empty.map(dotted), emptyWhere: "on " + AB.nameOf("nested", rec), trail: nestedTrail(rec), onPick: (name) => AB.openField("nested", name) });
-        const rows = inUse.map((x) => AB.data(withRole(AB.truncMiddle(dotted(x), 26), x.usedBy), x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name))));
+        const rows = inUse.map((x) => roleData(AB.truncMiddle(dotted(x), 26), x.usedBy, x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name))));
         rows.splice(inUse.length && inUse[0].name === "id" ? 1 : 0, 0, ...nameRow); // the Name after the key
-        return AB.dataTab({
+        return nodeDataTab({
             Summary: {
                 summary: (joined ? [AB.nameOf("nested", rec)] : []).concat(inUse.filter((x) => x.name !== "id").map((x) => fmt(at(rec, x.name)))).join(", "),
                 body: rows.concat(moreSection(others.length, empty.length, list)),
@@ -471,7 +516,8 @@
         const val = (c) => (isEmpty(r[c]) ? h("span", { class: "k-secondary" }, "empty") : fmt(r[c]));
         // A directed weighted graph: the weighted in and out totals, named from the weight attribute
         // ("Total amount in"), never from a domain word. graphty-element does not compute them yet.
-        const weight = AB.fieldsOf("transactions").flatMap((g) => g.fields).find((x) => x.usedBy === "Weight");
+        const tf = AB.fieldsOf("transactions").flatMap((g) => g.fields);
+        const weight = tf.find((x) => x.usedBy === "Weight"), key = tf.find((x) => x.usedBy === "Key");
         const wName = weight ? String(weight.label || weight.name).replace(/ \(edge\)$/, "") : null;
         const totals = AB.fx.datasets.transactions.directed && wName ? ["in", "out"].map((d) => AB.data("Total " + wName + " " + d,
             h("span", null, h("span", { class: "k-secondary" }, "(not available yet) "), AB.needsElement("graphty-element computes a node's weighted in and out totals (the sum of the weight on its incoming and on its outgoing edges) on a directed weighted graph; it does not yet.")))) : [];
@@ -485,10 +531,10 @@
                     selectionLine(),
                     everythingLine(),
                 ], { kind: "node", element: r.id }),
-                Data: () => AB.dataTab({
+                Data: () => nodeDataTab({
                     Summary: {
                         summary: r.kind + ", " + r.country + ", degree " + r.degree,
-                        body: [subhead("From " + AB.fx.datasets.transactions.accountsFile), AB.data("id", h("span", { class: "k-mono" }, r.id))]
+                        body: [subhead("From " + AB.fx.datasets.transactions.accountsFile), key ? roleData("id", key.usedBy, h("span", { class: "k-mono" }, r.id)) : AB.data("id", h("span", { class: "k-mono" }, r.id))]
                             .concat(fromFile.map((c) => AB.data(c, val(c))), subhead("Results"), results.map((c) => AB.data(c, val(c))), totals),
                     },
                     Notes: { count: 0, target: ["notes-place", "many"] },
@@ -504,7 +550,7 @@
     function unknownPathStyle() {
         const why = whyLook([
             { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"], wins: ["label"], values: { label: "Below: 2, from Note count" } },
-            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"], wins: ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
+            Object.assign(prLine(["color"], PR_COLOR + ", 0.0754, highest"), { covered: prCovers(AB.fx.datasets.lesmis.rows.find((r) => r.label === "Valjean")), coveredFor: "Color" }),
             { name: BAD.row, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], wins: ["size"], values: { size: "Nothing: " + BAD.path + " reads nothing" } },
             group2Line(["label"], "Above: Valjean, from label"),
             selectionLine(),
@@ -541,7 +587,8 @@
                     : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
-            { id: "why-this-look", label: "Style tab (why this look)" },
+            { id: "why-this-look", label: "One node selected: opens on the Data tab" },
+            { id: "style", label: "Style tab (why this look)" },
             { id: "why-closed", label: "Why this look closed" },
             { id: "data", label: "Data tab" },
             { id: "edited", label: "A property edited (Overrides)" },
@@ -554,8 +601,8 @@
             { id: "plain-data", label: "Plain JSON (Coauthors): a node's Data tab" },
             { id: "transfers-node", label: "Transfers: an account's Data tab" },
             { id: "why-unknown-path", label: "Why this look: a row whose path reads nothing" },
-            { id: "label-hidden", label: "Label hidden to avoid overlap (Labarre): Show label anyway" },
-            { id: "label-shown", label: "Label shown anyway (Labarre)" },
+            { id: "label-hidden", label: "Label hidden to avoid overlap (Labarre): Show all labels" },
+            { id: "label-shown", label: "Show all labels on (Labarre's label drawn)" },
             { id: "data-no-bridge", label: "Data tab: a node on no bridge edge (Mlle.Baptistine)" },
         ],
         render(el, state) {
@@ -567,13 +614,19 @@
             if (state === "transfers-node") return transfersNode(el);
             // The review states pin the remembered open or closed choice so each one is reachable
             const dataState = state === "data" || state === "data-no-bridge";
+            // One node selected opens on its Data tab; the Style states (and a token's popover drawn over
+            // the inspector, which was opened from the Style tab) open on Style
+            const onData = dataState || (state === "why-this-look" && !(AB.route && AB.route.id === "style-pickers"));
             if (state === "why-closed") AB.mem.set("sec.why.node", "0");
-            else if (!dataState) AB.mem.set("sec.why.node", "1");
+            else if (!onData) AB.mem.set("sec.why.node", "1");
             if (dataState) AB.mem.set("sec.data.node.summary", "1");
+            // Show all labels: its own state turns the one switch on, and its Undo (label-hidden) off
+            if (state === "label-shown") AB.showAllLabels = true;
+            if (state === "label-hidden") AB.showAllLabels = false;
             // Labarre selected any other way (the canvas walk, a table row) lands on why-this-look or data,
-            // and gets the same hidden label and Show label anyway as its own state
+            // and gets the same hidden label and Show all labels as its own state, unless the switch is on
             const wi = walkedOn("lesmis"), L = AB.fx.datasets.lesmis;
-            const hidden = state === "label-hidden" || (wi != null && L.rows[wi] && L.rows[wi].label === HIDDEN_LABEL && state !== "label-shown");
+            const hidden = state === "label-hidden" || (!AB.showAllLabels && wi != null && L.rows[wi] && L.rows[wi].label === HIDDEN_LABEL && state !== "label-shown");
             const label = hidden || state === "label-shown", labelState = hidden ? "label-hidden" : state;
             const v = L.rows.find((r) => r.label === (label ? HIDDEN_LABEL : state === "data-no-bridge" ? NOT_ON_BRIDGE[0] : "Valjean"));
             el.append(AB.inspector({
@@ -581,13 +634,12 @@
                 menu: ["context-menus", "node"],
                 onRename: (name) => AB.flash("Renamed to " + name + ""),
                 // a lasting state: the label stays hidden until the reader shows it anyway
-                stateBar: hidden ? { text: "Label hidden to avoid overlap", why: "Show label anyway adds " + v.label + " to the style layer " + SHOWN_ANYWAY + ", where such labels are listed, reordered or removed.",
-                    actions: [{ label: "Show label anyway", go: ["inspector-node", "label-shown"] }] } : null,
-                tab: dataState ? "Data" : "Style",
+                stateBar: hidden ? { text: "Label hidden to avoid overlap", why: SHOW_ALL + " draws every label, " + v.label + "'s too, even where labels overlap.",
+                    actions: [{ label: SHOW_ALL, go: ["inspector-node", "label-shown"] }] } : null,
+                tab: onData ? "Data" : "Style",
                 tabs: { Style: () => (state === "why-unknown-path" ? unknownPathStyle() : label ? labelStyle(labelState, v) : styleTab(state)), Data: () => dataTab(state) },
             }));
-            // The layer's full name, which the tree and the Why this look line cut short
-            if (state === "label-shown") el.append(AB.notice(v.label + "'s label added to " + SHOWN_ANYWAY, { label: "Undo", go: ["inspector-node", "label-hidden"] }));
+            if (state === "label-shown") el.append(AB.notice(SHOW_ALL + " is on: no label is hidden", { label: "Undo", go: ["inspector-node", "label-hidden"] }));
         },
     });
 })();

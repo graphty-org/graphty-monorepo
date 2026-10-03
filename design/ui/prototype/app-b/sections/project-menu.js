@@ -1,12 +1,15 @@
 /* Project-name menu: opened from the project name in the header (#ab-project), as in Figma.
    Items (spec section 10.2): Rename (F2) | the File list (AB.fileList(), the same five commands and
    words as the main menu) | Save as..., Close project. This menu is "this project"; the main menu is
-   "the app". The dialog it opens itself (Save as) is titled with the project's name.
+   "the app". The dialog it opens itself (Save as) is titled with the project's name; the File
+   list's dialogs (Export...) are the same dialogs as from the main menu, and their titles are
+   their own sections'.
    "Show file location" is gone: a browser cannot show where a file lives.
    The menu opens under the name, so it carries no heading that repeats it (Figma does the same).
    States: closed (the name at rest; a click opens the menu, a double-click or F2 renames -- the
    shell owns both gestures), open, rename (the name is a field in place), long-name (a
-   60-character name, open: the header takes the end ellipsis, the full name in its tooltip),
+   60-character name at rest, menu closed so the pointer reaches it: the header takes the end
+   ellipsis, hovering it shows the full name in its tooltip),
    save-as (the Save as dialog, titled with the name; the new name is a field). A rename lasts for
    this page visit only. Plain ASCII. */
 (function () {
@@ -42,7 +45,7 @@
             { id: "closed", label: "Closed: the project name at rest" },
             { id: "open", label: "Open" },
             { id: "rename", label: "Rename: the name is a field (double-click or F2)" },
-            { id: "long-name", label: "Long name: 60 characters, end ellipsis and tooltip" },
+            { id: "long-name", label: "Long name: 60 characters at rest, end ellipsis, full name on hover" },
             { id: "save-as", label: "Save as: the dialog, titled with the project's name" },
         ],
         render(el, state) {
@@ -52,14 +55,15 @@
             if (t) t.textContent = name;
             const p = document.getElementById("ab-project");
             if (p) {
-                p.setAttribute("aria-expanded", String(state === "open" || state === "long-name"));
+                p.setAttribute("aria-expanded", String(state === "open"));
                 p.setAttribute("aria-label", name + ", project menu");
                 // The header shows about 30 characters; a name that does not fit keeps its full text in the tooltip
-                if (state === "long-name") AB.tip(p, name, { label: false }); else AB.tip(p, "Project menu", { key: "F2", second: "Double-click or F2: rename", label: false });
+                // (tip() adds attributes but never removes them, so the closed state's key and second line go first)
+                if (state === "long-name") { ["data-key", "data-tip2", "aria-description"].forEach((a) => p.removeAttribute(a)); AB.tip(p, name, { label: false }); } else AB.tip(p, "Project menu", { key: "F2", second: "Double-click or F2: rename", label: false });
             }
 
-            // Closed and rename draw nothing in the overlay, so clicks reach the frame
-            if (state === "closed") return;
+            // Closed, long-name and rename draw nothing in the overlay, so the pointer reaches the header
+            if (state === "closed" || state === "long-name") return;
             if (state === "rename") { setTimeout(renameName, 0); return; }
             if (state === "save-as") {
                 // Save as names the project from here on: the header shows the new name, and this page

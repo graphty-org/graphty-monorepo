@@ -11,9 +11,14 @@
    Legend: there is one legend state (AB.legendOn), shared by the canvas, Present and this image;
    its only doors are the toolbar's Legend button and L. This body has no legend switch: the Legend
    line says what the image carries. The image's legend adds a footer with the weight and the
-   scaling the colors used. SVG (the owner's figure format) is listed disabled with the
-   needs-graphty-element chip, since the element's capture is pixels only today; PDF comes later
-   and is not listed. Footer: the one footer note, Cancel, Copy, Export; while waiting
+   scaling the colors used. SVG (the owner's figure format) can be chosen; the needs-graphty-element
+   chip follows the Format field while it is, since the element's capture is pixels only today. A
+   vector has no pixel size, quality or sharper rendering, so Size reads the shape and Advanced goes.
+   PDF comes later and is not listed.
+
+   The preview is the file: its frame has the output's shape, the drawing sits in it as on the
+   canvas, and View changes it (a saved view draws that view's picture; a standard view turns the
+   canvas's picture). Footer: the one footer note, Cancel, Copy, Export; while waiting
    for the layout to settle, the progress takes the note's place. After a copy or an export the
    dialog closes and one notice names the file.
 
@@ -30,7 +35,7 @@
 .xi-fields .k-field { width: 100%; box-sizing: border-box; }
 .xi-busy { opacity: .5; pointer-events: none; }
 .xi-busy [role=button], .xi-busy .k-field { cursor: default; }
-.xi-preview { position: relative; max-width: calc(100% - 16px); box-sizing: border-box; width: 400px; aspect-ratio: 16 / 10; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--cm-bg); }
+.xi-preview { position: relative; max-width: calc(100% - 16px); box-sizing: border-box; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--k-canvas); }
 .xi-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .xi-preview[data-bg="white"] { background: #fff; }
 .xi-preview[data-bg="transparent"] { background-color: #fff; background-image: linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%), linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
@@ -90,7 +95,14 @@
     const MULTS = [1, 2, 4];
     const STANDARD = ["Fit", "Front", "Side", "Top", "Isometric"];   // the View flyout's standard views (3D)
     const BG = { canvas: "Canvas color", white: "White", transparent: "Transparent" };
-    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp" };
+    const EXT = { PNG: "png", JPEG: "jpg", WebP: "webp", SVG: "svg" };
+    const VECTOR = (f) => f === "SVG";                   // no pixel size, no memory limit
+    const limits = (out) => (VECTOR(s.format) ? { ok: true } : check(out.w, out.h));
+    // What each choice of View draws in the preview. A saved view draws its own picture (the
+    // Views place's); a standard view turns the canvas's picture.
+    // ponytail: a stand-in camera per standard view; graphty-element renders the real one
+    const VIEW_ART = { "Whole cast": "lesmis-groups-rest", "Valjean's circle": "lesmis-groups-valjean", "From above": "lesmis-plain" };
+    const CAMERA = { Fit: "scale(1.15)", Front: "scale(0.9, 1)", Side: "scale(0.35, 1)", Top: "scale(1, 0.45)", Isometric: "rotate(-30deg) scale(0.85, 0.55)" };
     const LOSSY = (f) => f === "JPEG" || f === "WebP";   // only these take a Quality
     const NO_ALPHA = "JPEG cannot hold a transparent background.";
     const CLIP_INSECURE = "Copy needs a secure page (HTTPS), and this page is not one.";
@@ -215,7 +227,7 @@
     function body(state) {
         const c = canvasSize();
         const out = outSize();
-        const chk = check(out.w, out.h);
+        const chk = limits(out);
         const busy = state === "waiting-to-settle";
         const P = PRESETS.find((p) => p.id === s.preset);
 
@@ -226,12 +238,12 @@
             return { label: `${m}x -- ${n(c.w * m)} x ${n(c.h * m)}`, check: s.mode === "x" && s.mult === m, disabled: k.ok ? false : k.reason, onClick: () => { s.mode = "x"; s.mult = m; edited(); redraw(); } };
         });
         sizeItems.push({ sep: true }, { label: "Custom...", check: s.mode === "px", onClick: () => { const a = host.querySelector("[data-adv]"); if (a) openAdv(a); } });
-        const size = drop("Size", s.mode === "x" ? `${s.mult}x -- ${n(out.w)} x ${n(out.h)}` : `Custom -- ${n(out.w)} x ${n(out.h)}`, sizeItems);
+        const size = VECTOR(s.format) ? h("span", { class: "xi-line" }, `Vector -- shaped ${n(out.w)} x ${n(out.h)}, sharp at any size`) : drop("Size", s.mode === "x" ? `${s.mult}x -- ${n(out.w)} x ${n(out.h)}` : `Custom -- ${n(out.w)} x ${n(out.h)}`, sizeItems);
 
         const fmtItem = (f) => ({ label: f, check: s.format === f, disabled: f === "JPEG" && s.bg === "transparent" ? NO_ALPHA + " Change Background first." : false, onClick: () => { s.format = f; edited(); redraw(); } });
-        const format = drop("Format", s.format, [fmtItem("PNG"), fmtItem("JPEG"), fmtItem("WebP"),
-            // SVG: listed, disabled with the chip until graphty-element writes SVG figures
-            { label: "SVG", desc: "A vector figure: stays sharp at any size, for papers and slides", needs: "graphty-element writes the graph as an SVG figure (it captures pixels only today)." }]);
+        const format = h("span", { class: "xi-line" }, drop("Format", s.format, [fmtItem("PNG"), fmtItem("JPEG"), fmtItem("WebP"),
+            Object.assign(fmtItem("SVG"), { desc: "A vector figure: stays sharp at any size, for papers and slides" })]),
+            VECTOR(s.format) ? AB.needsElement("graphty-element writes the graph as an SVG figure; it captures pixels only today.") : null);
 
         const pickView = (v) => ({ label: v, check: s.view === v, onClick: () => { s.view = v; edited(); redraw(); } });
         const view = drop("View", s.view, [pickView("Current camera"), { sep: true }, { heading: "Standard views" }, ...STANDARD.map(pickView), { sep: true }, { heading: "Your views" }, ...AB.SAVED_VIEWS.map(pickView)]);
@@ -255,13 +267,14 @@
             AB.fieldRow("Background", bg, { popover: true }),
             AB.fieldRow("Legend", h("span", { class: "xi-line" }, AB.legendOn() ? "As on the canvas, shown in the preview" : "None: the canvas shows no legend",
                 AB.needsElement("graphty-element draws the legend card into the captured image, at the image's scale, with its footer.")), { popover: true }),
-            AB.fieldRow("Advanced", advField, { popover: true }));
+            VECTOR(s.format) ? null : AB.fieldRow("Advanced", advField, { popover: true }));
 
         const head = AB.exportHead(["Image ", h("span", { class: "k-secondary", style: "font-weight:400" }, "." + EXT[s.format])],
             AB.legendOn() ? "Full graph, with the legend" : "Full graph, no legend");
 
-        const draw = previewArt() || (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Preview: Les Miserables as the canvas draws it" + (s.view === "Current camera" ? "" : ", from " + s.view));
-        const preview = h("div", { class: "xi-preview", "data-bg": s.bg, "data-waiting": busy ? "" : null }, draw, previewLegend());
+        // The frame has the file's shape, at most 400 wide and 260 tall
+        const W = Math.min(400, Math.round((260 * out.w) / out.h));
+        const preview = h("div", { class: "xi-preview", style: `width:${W}px;aspect-ratio:${out.w} / ${out.h}`, "data-bg": s.bg, "data-waiting": busy ? "" : null }, viewArt(), previewLegend(W));
 
         return h("div", { class: "ex-main xi-main" }, head, callout(state, chk), preview, hiddenLabels(), fields);
     }
@@ -282,6 +295,16 @@
         return copy;
     }
 
+    // The drawing the file gets from the View chosen
+    function viewArt() {
+        const from = s.view === "Current camera" ? "" : ", from " + s.view;
+        const alt = "Preview: Les Miserables as the image draws it" + from;
+        if (VIEW_ART[s.view]) return (AB.lesmisDrawing || AB.drawing)(VIEW_ART[s.view], alt);
+        const art = previewArt() || (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", alt);
+        art.forEach((x) => { if (x.tagName === "IMG") x.alt = alt; else x.setAttribute("aria-label", alt); if (CAMERA[s.view]) x.style.transform = CAMERA[s.view]; });
+        return art;
+    }
+
     // The labels the image leaves out to avoid overlap: the kit's drawing names these 13 nodes and
     // graphty-element hides every other label where they would overlap.
     // ponytail: the drawing's fixed label set; label lines a row adds are not counted
@@ -300,11 +323,11 @@
 
     // The canvas's legend card, cloned and scaled to the preview, so the preview shows the legend the
     // image will carry. Nothing while the legend is off.
-    function previewLegend() {
+    function previewLegend(W) {
         const card = AB.legendOn() && document.querySelector("#ab-canvas .k-legend-card");
         const c = document.querySelector(".k-canvas");
         if (!card || !c || !c.getBoundingClientRect().width) return null;
-        const k = Math.min(1, 400 / c.getBoundingClientRect().width);
+        const k = Math.min(1, W / c.getBoundingClientRect().width);
         const copy = card.cloneNode(true);
         copy.removeAttribute("id");
         copy.setAttribute("aria-label", "In the image: " + (card.getAttribute("aria-label") || "Legend"));
@@ -331,7 +354,7 @@
 
     function foot(state) {
         const out = outSize();
-        const chk = check(out.w, out.h);
+        const chk = limits(out);
         const cancel = AB.button("Cancel", { kind: "ghost", onClick: () => { closeAdv(); AB.close(); } });
         const now = AB.button("Capture now", { icon: "camera", onClick: () => finish(pending) });
         if (state === "waiting-to-settle") {

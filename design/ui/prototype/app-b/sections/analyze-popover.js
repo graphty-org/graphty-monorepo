@@ -1,6 +1,6 @@
 /* Analyze popover: the algorithm catalog in the one light popover (AB.popover), opened from the
    toolbar's Analyze button (Shift+A, which the shell binds; plain A is graphty-element's canvas key).
-   List level: search, Recent (three entries), then the catalog grouped by what a run adds to the tree.
+   List level: a filter of the list, Recent (three entries), then the catalog grouped by what a run adds to the tree.
    Picking an entry shows its essentials only: Scope (only when something is selected), Weight and its
    meaning, the one key option, Exact | Sampled (only where the exact run would not fit the time
    limit, defaulting to the largest sample that fits); the foot holds the cost line
@@ -12,9 +12,7 @@
 .ap-pop { width: 380px; display: flex; flex-direction: column; }
 .ap-pop > .k-popover-body { flex: 1 1 auto; min-height: 0; max-height: none; padding-top: 0; }
 .ap-pop .k-popover-head .ap-type { margin-right: 4px; }
-.ap-find { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; margin-bottom: 4px; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); color: var(--cm-text-secondary); }
-.ap-find input { flex: 1; min-width: 0; height: 28px; border: 0; outline: 0; background: none; font: inherit; color: var(--cm-text); }
-.ap-find input::placeholder { color: var(--cm-text-tertiary); }
+.ap-find { position: sticky; top: 0; z-index: 1; display: flex; padding: 8px 16px; background: var(--cm-bg); }
 .ap-gh { height: 28px; padding: 8px 16px 0; font-weight: 550; color: var(--cm-text-secondary); }
 .ap-entry { position: relative; isolation: isolate; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 2px 12px 2px 16px; cursor: default; }
 .ap-entry::before { content: ""; position: absolute; inset: 2px 8px; border-radius: 5px; z-index: -1; }
@@ -30,6 +28,7 @@
 .ap-start { flex: none; font-size: 11px; color: var(--cm-text-secondary); }
 .ap-marks { display: inline-flex; gap: 6px; flex: none; color: var(--cm-text-tertiary); }
 .ap-answers { padding: 8px 16px; line-height: 16px; }
+.ap-answers .ap-sub { display: block; }
 .ap-scope { padding-top: 8px; }
 .ap-stack { display: grid; gap: 6px; justify-items: start; min-width: 0; }
 .ap-pop .ab-pop-foot { align-items: center; }
@@ -62,10 +61,10 @@
                 // offers distinct neighbors instead (COUNTS below)
                 // Degree is counted at load: its entry opens the degree histogram and the Nodes column and runs nothing
                 { id: "degree-overview", reader: "Degree: how many edges a node has, counted when the data loaded.", name: "Degree", family: "Degree", out: MEASURE, weight: null, only: ["lesmis"], opens: ["inspector-measure-row", "degree-data"], aliases: ["degree", "connections", "hubs", "popular", "histogram", "distribution"], answers: "How many edges each node has: its histogram and the Nodes column." },
-                { id: "degree", reader: "Links: how many edges a node has.", not: ["lesmis"], name: "Links (count)", rowName: (side) => (distinct() ? "Neighbors" : "Links") + SIDE_WORD[side] + " (count)", family: "Degree", out: MEASURE, weight: null, sides: true, counts: true, aliases: ["degree", "connections", "hubs", "popular", "neighbors", "distinct neighbors"],
-                    answersBy: { both: "How many edges each node has.", in: "How many edges come into each node.", out: "How many edges go out of each node." },
-                    answersDistinct: { both: "How many different nodes each node is linked to.", in: "How many different nodes link into each node.", out: "How many different nodes each node links out to." } },
-                { id: "weighted-degree", reader: "Weighted degree: the sum of a chosen edge weight over a node's edges.", name: "Weighted degree", rowName: (side, w) => (w ? "Total " + w : "Weighted degree") + SIDE_WORD[side], family: "Degree", out: MEASURE, weight: "flow", needsWeight: true, sides: true, aliases: ["weighted degree", "strength", "sum of weights", "total", "volume"],
+                { id: "degree", reader: "Link count: how many edges a node has; on a directed graph, those coming in, going out, or both together.", not: ["lesmis"], name: "Links (count)", rowName: (side) => (distinct() ? "Neighbors" : "Links") + sideWord(side, " total") + " (count)", family: "Degree", out: MEASURE, weight: null, sides: true, counts: true, aliases: ["degree", "connections", "hubs", "popular", "neighbors", "distinct neighbors"],
+                    answersBy: { both: () => "How many edges each node has" + (graphOf(ui.ds).directed ? ", in and out together." : "."), in: "How many edges come into each node.", out: "How many edges go out of each node." },
+                    answersDistinct: { both: () => "How many different nodes each node is linked to" + (graphOf(ui.ds).directed ? ", either way." : "."), in: "How many different nodes link into each node.", out: "How many different nodes each node links out to." } },
+                { id: "weighted-degree", reader: "Weighted degree: the sum of a chosen edge weight over a node's edges.", name: "Weighted degree", rowName: (side, w) => (w ? "Total " + w + sideWord(side, " in and out") : "Weighted degree" + sideWord(side, " total")), family: "Degree", out: MEASURE, weight: "flow", needsWeight: true, sides: true, aliases: ["weighted degree", "strength", "sum of weights", "total", "volume"],
                     answersBy: { both: (w) => "The sum of " + w + " over each node's edges.", in: (w) => "The sum of " + w + " over the edges coming into each node.", out: (w) => "The sum of " + w + " over the edges going out of each node." } },
                 { id: "betweenness", reader: "Betweenness: the share of shortest paths between other nodes that pass through a node.", name: "Betweenness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, aliases: ["brokers", "bridges", "gatekeepers", "bottlenecks"], answers: "Which nodes sit on the most shortest paths between others." },
                 { id: "closeness", reader: "Closeness: one over a node's average distance to the nodes it can reach.", name: "Closeness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, key: ["Variant", "Per component", ["Per component", "Whole graph"], "Per component: distances within each piece. Whole graph: nodes it cannot reach count against it."], aliases: ["reach", "distance to everyone"], answers: "Which nodes reach every other node in the fewest steps." },
@@ -128,17 +127,20 @@
     // A precondition the graph on screen meets switches its entry on
     const disabledOf = (e) => (e.direction && graphOf(ui.ds).directed) || (e.id === "matching" && graphOf(ui.ds).bipartite) ? null : e.disabled;
     const AS = { stronger: "as strength", farther: "as distance", capacity: "as capacity" };
+    // The one line under Higher means: what the chosen reading does (the choices' own words are the control)
+    const MEANS = { stronger: "A bigger weight is a closer tie.", farther: "A bigger weight is a longer hop.", capacity: "A bigger weight lets more flow through." };
     // Link counts and weighted degree: in, out or both, each named from the data
     const SIDES = ["both", "in", "out"];
-    const SIDE_WORD = { both: "", in: " in", out: " out" };
+    // On a directed graph a degree is never bare: both sides together say so ("Links total",
+    // "Total amount in and out", the table's words); on an undirected graph there is one side
+    const sideWord = (side, both) => (side === "in" || side === "out" ? " " + side : graphOf(ui.ds).directed ? both : "");
     // An entry's name and task line: a data-named entry follows the weight (and, once picked, its side)
     // In the list each side is its own row (sideOf), so in, out and total each carry their own line
     const picked = (e) => ui.level === "pick" && ui.picked === e.id;
     const nm = (e, side) => (!e.rowName ? e.name : picked(e) ? e.rowName(ui.side, ui.weight) : e.rowName(side || "both", graphOf(ui.ds).weight));
     const answersOf = (e, side) => {
         if (!e.answersBy) return e.answers;
-        if (e.answersDistinct && picked(e) && distinct()) return e.answersDistinct[ui.side];
-        const a = e.answersBy[picked(e) ? ui.side : side || "both"];
+        const a = e.answersDistinct && picked(e) && distinct() ? e.answersDistinct[ui.side] : e.answersBy[picked(e) ? ui.side : side || "both"];
         return typeof a === "function" ? a((picked(e) ? ui.weight : graphOf(ui.ds).weight) || "a chosen weight") : a;
     };
     // What a link count counts. A stand-in for graphty-element's data summary (repeated pairs): Les
@@ -233,7 +235,24 @@
     const DS_OF = { "transfers-catalog": "transactions", costly: "transactions", declined: "transactions", transfers: "transactions", "transfers-pagerank": "transactions", "weighted-degree": "transactions", "link-counts": "transactions", "node-weight": "doorEntries", "wide-weight": "wide", "link-counts-repeats": "nested" };
     const ALL = GROUPS.flatMap((g) => g.entries);
     const byId = (id) => ALL.find((e) => e.id === id);
+    // Recent: the last three entries run, newest first; each opens with its last settings, kept per
+    // project. Les Miserables' are the runs its tree holds (Louvain and PageRank, both on the loaded weight).
     const RECENT = ["louvain", "pagerank", "shortest-path"];
+    const LAST = { lesmis: { louvain: { key: "1.0", weight: "value", meaning: "stronger" }, pagerank: { key: "0.85", weight: "value", meaning: "stronger" } } };
+    const KEEP = ["weight", "meaning", "nodeW", "dir", "key", "side", "counts", "sampled", "start", "from", "to"];
+    const lastOf = (id) => (LAST[ui.ds] || {})[id] || null;
+    function remember(e) {
+        const s = {};
+        KEEP.forEach((k) => { s[k] = ui[k]; });
+        (LAST[ui.ds] = LAST[ui.ds] || {})[e.id] = s;
+        RECENT.splice(0, RECENT.length, ...[e.id].concat(RECENT.filter((id) => id !== e.id)).slice(0, 3));
+    }
+    // A Recent entry's second line: the settings it opens with
+    const lastLine = (e) => {
+        const s = lastOf(e.id);
+        if (!s) return null;
+        return "Last run: " + [e.key ? e.key[0] + " " + (s.key || e.key[1]) : null, e.weight ? (s.weight ? "weight " + s.weight : "no weight") : null].filter(Boolean).join(", ");
+    };
     // Rows the paint tree holds at rest, per project: analyzing one of these revises that row (matched
     // by the entry's name as picked, so Links in (count) on the transfers finds its row and Links out does not)
     const HAS_ROW = { lesmis: ["PageRank", "Louvain"], transactions: ["Louvain", "Links in (count)"] };
@@ -249,7 +268,7 @@
     function reset(state) {
         // The project on screen: Analyze opened from the door entries or the transfers runs on them
         ui = { state, ds: DS_OF[state] || (AB.route && AB.route.frame.dataset) || "lesmis", level: "list", query: "", picked: null, sel: state === "scoped", scope: "sel" };
-        // Task words find measures through the element's aliases
+        // The box filters the list by name, family and the element's aliases
         const Q = { search: "brokers", "search-important": "important", "search-groups": "groups", "search-route": "cheapest route", "search-total": "total" };
         if (Q[state]) ui.query = Q[state];
         if (state === "no-match") ui.query = "sentiment";
@@ -284,13 +303,14 @@
     }
     const typeIcon = (e) => h("span", { class: "ap-type", "aria-hidden": "true" }, icon(e.out.icon, "sm"));
 
-    function pick(id, quiet, side) {
+    function pick(id, quiet, side, recent) {
         const e = byId(id);
         if (e.opens) return AB.go(e.opens[0], e.opens[1]);
         const G = graphOf(ui.ds);
         // An exact run past the time limit defaults to the largest sample that fits
         const est = e.cost ? estimateOf(e, e.weight ? G.weight : null) : null;
-        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, declined: false, subset: false, side: side || "both", counts: "edges", sampled: est && !est.exact.withinBudget ? "sampled" : "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
+        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, declined: false, subset: false, side: side || "both", counts: "edges", sampled: est && !est.exact.withinBudget ? "sampled" : "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null, fromRecent: false });
+        if (recent && lastOf(id)) Object.assign(ui, lastOf(id), { fromRecent: true });
         if (!quiet) draw();
     }
     function back() {
@@ -300,20 +320,23 @@
         draw();
     }
 
-    // In its group (not under Recent) the one method to start with carries "Start here"
+    // In its group (not under Recent) the one method to start with carries "Start here", at most one per
+    // heading (an entry split into sides badges only its first row)
+    // Under Recent (inGroup false) an entry opens with its last settings and its second line says them
     function entryRow(e, inGroup, side) {
         const dis = disabledOf(e);
-        const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0", "data-entry": e.id }, dis ? {} : AB.act({ onClick: () => pick(e.id, false, side) })),
+        const recent = !inGroup;
+        const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0", "data-entry": e.id }, dis ? {} : AB.act({ onClick: () => pick(e.id, false, side, recent) })),
             typeIcon(e),
-            h("span", { class: "ap-txt" }, h("span", { class: "ap-name" }, h("span", { class: "k-ellipsis" }, nm(e, side)), inGroup && e.start ? h("span", { class: "k-badge ap-start" }, "Start here") : null), h("span", { class: "ap-sub k-ellipsis" }, dis || answersOf(e, side))),
+            h("span", { class: "ap-txt" }, h("span", { class: "ap-name" }, h("span", { class: "k-ellipsis" }, nm(e, side)), inGroup && e.start && (!side || side === SIDES[0]) ? h("span", { class: "k-badge ap-start" }, "Start here") : null), h("span", { class: "ap-sub k-ellipsis" }, dis || (recent && lastLine(e)) || answersOf(e, side))),
             marks(e));
-        return AB.tip(el, e.reader, { label: false });
+        return AB.tip(el, e.family + " family. " + e.reader, { label: false });
     }
 
     // Scope: only when something is selected, as the first line of either level
     function scopeLine() {
         if (!ui.sel) return null;
-        return h("div", { class: "ap-scope" }, AB.fieldRow(lab("On", MEANING.On), AB.seg([["sel", SELECTED.length + " selected nodes"], ["all", "Whole graph"]], ui.scope, (v) => { ui.scope = v; draw(); }, { label: "Run on" }), { popover: true }));
+        return h("div", { class: "ap-scope" }, AB.fieldRow(lab("On", MEANING.On), AB.seg([["sel", AB.count(SELECTED.length, "selected node")], ["all", "Whole graph"]], ui.scope, (v) => { ui.scope = v; draw(); }, { label: "Run on" }), { popover: true }));
     }
 
     function listBody() {
@@ -337,9 +360,9 @@
     }
 
     function findField() {
-        const input = h("input", { type: "search", value: ui.query, placeholder: "Search, or say what to find", "aria-label": "Search algorithms" });
+        const input = h("input", { type: "search", value: ui.query, placeholder: "Filter analyses", "aria-label": "Filter analyses" });
         input.addEventListener("input", () => { ui.query = input.value; host.querySelector(".ap-list").replaceWith(listBody()); });
-        return h("div", { class: "ap-find" }, icon("search", "sm"), input);
+        return h("div", { class: "ap-find" }, h("label", { class: "ab-find" }, icon("search", "sm"), input));
     }
 
     // A dropdown is a field that opens a dark menu of its choices
@@ -388,9 +411,7 @@
         if (ui.weight) {
             row("Higher means", h("span", { class: "ap-stack" },
                 AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], ui.meaning, (v) => { ui.meaning = v; draw(); }, { label: "Higher weight means" }),
-                h("span", { class: "ap-sub" }, "Stronger: a bigger weight is a closer tie."),
-                h("span", { class: "ap-sub" }, "Farther: a bigger weight is a longer hop."),
-                h("span", { class: "ap-sub" }, "Capacity: a bigger weight lets more flow through."),
+                h("span", { class: "ap-sub" }, MEANS[ui.meaning]),
                 AB.needsElement("graphty-element's weight meaning is distance or strength only, and the loaded weight carries no meaning: Capacity and the meaning chosen at load need it")));
         }
         const link = (text, fn) => h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { fn(); draw(); } })), text);
@@ -400,7 +421,7 @@
         const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
         const reads = e.weight === "distance" ? "farther" : e.weight === "capacity" ? "capacity" : "stronger";
         const conv = ui.weight && ui.meaning !== "capacity" && reads !== "capacity" && ui.meaning !== reads
-            ? nm(e) + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
+            ? nm(e) + " reads a weight " + AS[reads] + ", so " + (reads === "farther" ? "stronger links count as shorter" : "longer links count as weaker") + " (it uses 1/" + ui.weight + ")." : null;
         // How many edges have no value for the weight: they are left out of weighted paths
         const wf = ui.weight && AB.fieldsOf(ui.ds).filter((g) => g.element === "edge").flatMap((g) => g.fields).find((x) => x.name === ui.weight);
         const pc = AB.projectCounts(ui.ds), nE = pc && pc.edges, miss = wf && nE ? Math.round(nE * (1 - (wf.fill == null ? 1 : wf.fill))) : 0;
@@ -427,7 +448,7 @@
     function essentialsBody(e) {
         // PageRank on the door entries offers the node weight loaded with them (floors)
         if (ui.state === "node-weight" || (ui.ds === "doorEntries" && e.id === "pagerank")) e = Object.assign({}, e, { nodeWeight: true });
-        const body = h("div", null, scopeLine(), h("div", { class: "ap-answers" }, answersOf(e)));
+        const body = h("div", null, scopeLine(), h("div", { class: "ap-answers" }, answersOf(e), ui.fromRecent ? h("span", { class: "ap-sub" }, "Opened with the last run's settings.") : null));
         const row = (label, ctl, meaning) => body.append(AB.fieldRow(typeof label === "string" ? lab(label, meaning || MEANING[label]) : label, ctl, { popover: true }));
         if (e.weight) weightRows(e, body, row);
         const directed = graphOf(ui.ds).directed;
@@ -454,7 +475,6 @@
                 AB.seg([["exact", "Exact"], ["sampled", "Sampled"]], ui.sampled, (v) => { ui.sampled = v; ui.declined = false; ui.subset = false; draw(); }, { label: "Precision" }),
                 h("span", { class: "ap-sub" }, "Exact: Computed on every node, not estimated. It does not say the ranking is meaningful."),
                 h("span", { class: "ap-sub" }, "Sampled: " + AB.count(est.largestKWithinBudget, "source") + " of " + AB.num(nodesOf()) + ": the largest sample that fits the time limit."),
-                ui.sampled === "sampled" ? h("span", { class: "ap-sub" }, "This run is named " + runName(e) + ".") : null,
                 ui.declined && subsetOf() ? h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.subset = true; ui.declined = false; draw(); } })), "Exact, on the " + AB.count(subsetOf().n, "node") + " in " + subsetOf().name + ". This is a different graph.") : null,
                 ui.subset && subsetOf() ? h("span", { class: "ap-sub" }, "Exact, on the " + AB.count(subsetOf().n, "node") + " in " + subsetOf().name + ". This is a different graph.") : null));
         }
@@ -469,10 +489,14 @@
         const est = ui.sampled === "exact" ? costly(e) : null;
         if (est) { ui.declined = true; draw(); return AB.announce("Not run: would take about " + about(est.exact.seconds)); }
         lastRun = runName(e);
+        remember(e);
         if (e.id === "betweenness") return AB.go("analyze-popover", "running");
         // Louvain on the transfers lands on the graph with its row (35 communities, the fixtures' March run)
         if (ui.ds === "transactions" && e.id === "louvain" && !asCopy) return AB.go("graph-place", "many-groups");
-        if (hasRow(e) && !asCopy) return ui.ds === "lesmis" ? AB.go(e.out.section, "data") : AB.flash("Would update the " + hasRow(e) + " row in place");
+        // Les Miserables' Louvain at its run's settings reruns into its own row: the same 6 communities, dated just now
+        const sameSettings = !(e.key && ui.key && ui.key !== e.key[1]);
+        if (hasRow(e) && !asCopy && ui.ds === "lesmis" && e.id === "louvain" && sameSettings) return AB.go(e.out.section, "updated");
+        if (hasRow(e) && !asCopy) return ui.ds === "lesmis" && e.id !== "louvain" ? AB.go(e.out.section, "data") : AB.flash("Would update the " + hasRow(e) + " row in place");
         AB.flash("Would add " + nm(e) + (asCopy ? " as a copy" : "") + " at the top of the list, running");
     }
 
@@ -560,12 +584,12 @@
             : state === "link-counts-repeats" ? { dataset: "nested", left: "graph-place/nested" } : {}),
         states: [
             { id: "open", label: "Open: Recent and the catalog" },
-            { id: "search", label: "Search: an alias match (brokers)" },
-            { id: "search-important", label: "Search: a task word (important)" },
-            { id: "search-groups", label: "Search: a task word (groups)" },
-            { id: "search-route", label: "Search: a task word (cheapest route)" },
-            { id: "search-total", label: "Transfers: search total, weighted degree total, in and out" },
-            { id: "no-match", label: "Search: no match (sentiment)" },
+            { id: "search", label: "Filter: an alias match (brokers)" },
+            { id: "search-important", label: "Filter: a task word (important)" },
+            { id: "search-groups", label: "Filter: a task word (groups)" },
+            { id: "search-route", label: "Filter: a task word (cheapest route)" },
+            { id: "search-total", label: "Transfers: filter total, weighted degree total, in and out" },
+            { id: "no-match", label: "Filter: no match (sentiment)" },
             { id: "scoped", label: "Five nodes selected: On line first" },
             { id: "essentials", label: "PageRank essentials: loaded weight value" },
             { id: "transfers", label: "Transfers: PageRank essentials, Direction Follow or Ignore (directed data)" },

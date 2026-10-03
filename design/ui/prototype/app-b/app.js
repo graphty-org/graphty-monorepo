@@ -54,7 +54,9 @@
         set(k, v) { try { localStorage.setItem("ab." + k, v); } catch (e) { /* private window: fine */ } },
     };
     // The table dock starts closed at rest; counts, "Show in table" and Shift+T open it
-    const shell = { dock: store.get("dock") || "closed", panels: "shown" };
+    // mode: the view mode key 5 chose ("2d" or "3d"), over every frame until a route that names its own mode opens
+    const shell = { dock: store.get("dock") || "closed", panels: "shown", mode: null };
+    const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
     AB.store = store;
     // Usage data (the owner's telemetry decision): off until the reader opts in, for this page view.
     // The header's privacy chip reads it; Settings > Privacy and the start screen's answer set it
@@ -80,19 +82,20 @@
     }
     if (store.get("theme")) document.documentElement.setAttribute("data-theme", store.get("theme"));
     // Review only: "Design notes" (open questions, "needs graphty-element" marks, and menu items and
-    // controls marked as needing graphty-element) can be hidden for the user-test build
-    // "participant" is the participant view study.mjs opens: notes hidden for good, with no review bar,
-    // no Review button and no key that brings either back
+    // controls marked as needing graphty-element) can be hidden for the user-test build. With notes
+    // hidden the review bar is hidden too (app.css). "participant" is the view study.mjs opens; it is
+    // hidden notes under another name. Neither is a trap: the small Review button in the bottom left
+    // corner and Esc with nothing open both bring the notes and the review bar back.
     const participant = () => store.get("designNotes") === "participant";
     const notesHidden = () => participant() || store.get("designNotes") === "hidden";
     const applyNotes = () => {
         document.documentElement.toggleAttribute("data-design-notes-hidden", notesHidden());
+        document.documentElement.toggleAttribute("data-participant", participant());
         const c = document.getElementById("ab-leave-study");
         if (c) c.hidden = !notesHidden();
     };
     applyNotes();
     function setNotes(hidden) {
-        if (participant()) return;
         store.set("designNotes", hidden ? "hidden" : "");
         applyNotes();
         if (route && document.body.dataset.page === "app") renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state);
@@ -122,6 +125,7 @@
         return { id, state: rest.join("/") || null };
     }
     let route = null;
+    let lastHash = null;
     let railCarry = false; // a rail place opened from a project that is not Les Miserables keeps that project
     let clearing = false; // the next render is a cleared selection: the inspector shows the graph
     let prevLeft = null;
@@ -170,10 +174,14 @@
         const right = refOf(route.frame.right);
         if (route.id === place && (!right || right.id === "inspector-nothing-selected")) return;
         // What was selected, for the notice: elements are counted, a row is named
+        // (a row that holds nodes, such as a set or a group, is counted by its members too)
         const bar = selectionBarFor(route.frame.right);
         const N = { "selection-bar/one-node": [1, "node"], "selection-bar/one-edge": [1, "edge"], "selection-bar/two-nodes": [2, "node"], "selection-bar/five-nodes": [5, "node"] }[bar];
         const head = document.querySelector("#ab-right .ab-insp-head .k-name");
-        const what = N ? AB.count(N[0], N[1]) : head ? head.textContent.trim() : null;
+        const rowLi = document.querySelector('#ab-left [role=treeitem][aria-selected="true"]');
+        const rowR = rowLi && rowLi._entry && rowLi._entry.r;
+        const rowN = rowR && typeof rowR.count === "number" && !rowR.countTip && !rowR.countNoun ? rowR.count : null;
+        const what = N ? AB.count(N[0], N[1]) : rowN != null ? AB.count(rowN, "node") : head ? head.textContent.trim() : null;
         const back = location.hash;
         clearing = true;
         // the tree is drawn again, so the row the inspector showed is no longer marked selected
@@ -182,12 +190,29 @@
         afterRender = () => {
             // nothing is selected: no row of the left panel's tree is marked, whatever its state draws
             document.querySelectorAll('#ab-left [role=treeitem][aria-selected="true"]').forEach((x) => x.setAttribute("aria-selected", "false"));
-            AB.notice("Selection cleared" + (what ? " (" + what + ")" : ""), { label: "Bring it back", onClick: () => { location.hash = back; AB.announce("Selection restored"); } });
+            selSlot = { back, what };
+            AB.notice("Selection cleared" + (what ? " (" + what + ")" : ""), { label: "Bring it back", onClick: () => restoreSelection() });
             AB.announce("Selection cleared" + (what ? " (" + what + ")" : "") + ". Ctrl+Z brings it back");
+            redrawTop();
         };
         if (location.hash === href(place, st)) render(); else go(place, st);
     };
     let afterRender = null;
+    // The cleared selection's slot ({ back, what }): while it is armed, Ctrl+Z, the header's Undo and the
+    // notice's Bring it back restore only that selection and touch no undo or redo step. Any new
+    // selection (a render) or undoable change (a notice with Undo) empties it.
+    let selSlot = null;
+    const redrawTop = () => { if (route && route.frame.top && !route.frame.full) { $("ab-top").replaceChildren(); renderTop($("ab-top")); } };
+    AB.dropSelectionSlot = () => { if (selSlot) { selSlot = null; redrawTop(); } };
+    function restoreSelection() {
+        const s = selSlot;
+        if (!s) return false;
+        selSlot = null;
+        const line = "Selection restored" + (s.what ? " (" + s.what + ")" : "");
+        afterRender = () => { AB.notice(line); AB.announce(line); };
+        if (location.hash === s.back) render(); else location.hash = s.back;
+        return true;
+    }
     const hasSelection = () => !!(route && !route.frame.overlay && !["workspace", "full"].includes(route.sec.region) && route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected");
     AB.toggleDock = function () {
         shell.dock = shell.dock === "open" ? "closed" : "open";
@@ -227,7 +252,7 @@
             el.append(
                 placeHead("Graph"),
                 h("div", { class: "ab-switcher" }, h("span", Object.assign({ class: "ab-switch-btn", role: "button" }, act({ go: ["graphs-switcher", "open"] })), icon("network"), h("span", { class: "k-ellipsis" }, L.frame.graphRow), icon("chevron-down", "sm")), h("span", { class: "k-grow" }), h("span", { class: "k-secondary k-num" }, AB.count(L.nodes, "node"))),
-                h("div", { class: "ab-treebar" }, AB.field("Find rows", { icon: "search", go: ["commands-and-search", "find"] }), AB.iconButton("list-filter", "List options", { go: ["graph-place", "list-menu"] })),
+                h("div", { class: "ab-treebar" }, AB.field("Find rows, elements, values", { icon: "search", onClick: () => focusFind() }), AB.iconButton("list-filter", "List options", { go: ["graph-place", "list-menu"] })),
                 h("div", { class: "k-scroll" }, AB.tree(rows)),
             );
         },
@@ -247,9 +272,9 @@
                             AB.data("Attributes", AB.num(f.attributes), { go: ["data-place", "attributes"] })),
                         AB.section({ title: "Statistics", collapsible: true, key: "graph.statistics" }, AB.data("Modularity of group", AB.num(L.stats.modularityOfGroups), { go: ["inspector-run-row", "data"] })),
                         AB.section({ title: "Layout", collapsible: true, key: "graph.layout", summary: "Force-directed" }, AB.data("Method", "Force-directed")),
-                        AB.section({ title: "Canvas", collapsible: true, key: "graph.canvas", summary: "Default background, overlapping labels shown" },
+                        AB.section({ title: "Canvas", collapsible: true, key: "graph.canvas", summary: "Default background" },
                             h("div", { class: "ab-cap k-secondary" }, "graphty-element settings, not a layer."),
-                            AB.data("Background", "Default"), AB.data("Hide overlapping labels", "Off"), AB.data("Reframe when data changes", "On")),
+                            AB.data("Background", "Default"), AB.data("Show all labels", AB.showAllLabels ? "On" : "Off"), AB.data("Reframe when data changes", "On")),
                         AB.notesSection(0, ["notes-place", "about-graph"]),
                     ],
                 }),
@@ -279,10 +304,10 @@
             const rows = L.topByDegree.slice(0, 12);
             el.append(
                 h("div", { class: "k-dock-tabs" }, h("span", { role: "tablist", class: "ab-tablist" }, tab("Nodes", "nodes", true), tab("Edges", "edges")), h("span", { class: "k-grow" }), AB.iconButton("search", "Find in table", { go: ["commands-and-search", "find"] }), AB.iconButton("ellipsis", "Table options", { go: ["table-dock", "nodes"] }), AB.dockToggle()),
-                h("div", { class: "k-scope" }, "Full graph: " + AB.count(L.nodes, "node") + ". Sorted by degree."),
+                h("div", { class: "k-scope" }, "Full graph: " + AB.count(L.nodes, "node") + ", sorted by degree, highest first"),
                 h("div", { class: "k-table-wrap" }, h("table", { class: "k-table" },
-                    h("thead", null, h("tr", null, h("th", null, "label"), h("th", null, "group ", h("span", { class: "k-profile" }, "10 values")), h("th", { class: "k-n" }, "degree ", h("span", { class: "k-profile" }, "1 to " + L.stats.maxDegree)), h("th", { class: "k-n" }, "betweenness ", h("span", { class: "k-profile" }, "0 to 0.57")))),
-                    h("tbody", null, rows.map((r) => h("tr", act({ onClick: () => AB.selectNode("lesmis", L.rows.findIndex((x) => x.label === r.label)) }), h("td", { class: "k-id" }, r.label), h("td", null, AB.chit(L.groupColors[r.group] || "#808080"), String(r.group)), h("td", { class: "k-n" }, r.degree), h("td", { class: "k-n" }, r.betweenness)))),
+                    h("thead", null, h("tr", null, h("th", null, "label"), h("th", null, "group ", h("span", { class: "k-profile" }, "10 values")), h("th", { class: "k-n" }, "degree ", h("span", { class: "k-profile" }, "1 to " + L.stats.maxDegree)))),
+                    h("tbody", null, rows.map((r) => h("tr", act({ onClick: () => AB.selectNode("lesmis", L.rows.findIndex((x) => x.label === r.label)) }), h("td", { class: "k-id" }, r.label), h("td", null, AB.chit(L.groupColors[r.group] || "#808080"), String(r.group)), h("td", { class: "k-n" }, r.degree)))),
                 )),
             );
         },
@@ -377,8 +402,8 @@
         append(el, [
             menuBtn,
             h("h1", { class: "ab-h1" }, project),
-            AB.iconButton("undo-2", "Undo", { key: "Ctrl+Z", onClick: () => AB.flash("Nothing to undo") }),
-            AB.iconButton("redo-2", "Redo", { key: "Ctrl+Shift+Z", onClick: () => AB.flash("Nothing to redo") }),
+            AB.iconButton("undo-2", selSlot ? "Undo: restore selection" + (selSlot.what ? " (" + selSlot.what + ")" : "") : "Undo", { key: "Ctrl+Z", onClick: () => undoLast() }),
+            AB.iconButton("redo-2", "Redo", { key: IS_MAC ? "Ctrl+Shift+Z" : "Ctrl+Shift+Z Ctrl+Y", onClick: () => redoLast() }),
             AB.tip(h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["settings", AB.usageData ? "privacy-on" : "privacy"] })), icon(AB.ICON.local, "sm"), AB.usageData ? "Usage data on, content masked" : "Local only"), "Privacy settings", { label: false }),
             // The filter chip always says what the graph shows: "Full graph", or "812 of 3,000 nodes" while
             // a filter step removes something. It is a button (a caret, a border) that opens the project's
@@ -485,10 +510,14 @@
         }
         railCarry = false;
         const frame = Object.assign({}, DEFAULT_FRAME, extra);
+        // Key 5's view mode holds over every screen until a route that names its own mode is opened
+        if (location.hash !== lastHash && "mode" in extra) shell.mode = null;
+        lastHash = location.hash;
         if (carried === "panels") ["left", "right", "canvas", "dock", "toolbar", "mode"].forEach((r) => { frame[r] = was.frame[r]; });
         if (carried === "dataset" && sec.region === "right") frame.left = was.frame.left;
         // an inspector opened straight on a loaded project (a direct link) gets that project's own tree, not Les Miserables'
         else if (!carried && sec.region === "right" && extra.dataset && !extra.left && RAIL_STATE[extra.dataset] && RAIL_STATE[extra.dataset].graph) frame.left = "graph-place/" + RAIL_STATE[extra.dataset].graph;
+        if (shell.mode) frame.mode = shell.mode;
         frame[sec.region] = sec.id + "/" + state;
         const leftRef = refOf(frame.left);
         const leftSec = leftRef && AB.sections[leftRef.id];
@@ -508,7 +537,10 @@
         frame.filterOn = extra.filterOn || leftExtra.filterOn || pf.filterOn || (carried ? was.frame.filterOn : null) || null;
         // The node ids the filter steps that apply leave (a Set), where the Data place can say: the canvas draws only those
         frame.keep = extra.keep || leftExtra.keep || pf.keep || (carried ? was.frame.keep : null) || null;
-        if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
+        // The transfers with runs (not just loaded) draw their Louvain communities wherever the canvas is not named,
+        // so the canvas agrees with the Results the Data place and the tree list
+        const dsFrame = Object.assign({}, DATASET_FRAME[frame.dataset], frame.dataset === "transactions" && !AB.fx.datasets.transactions.fresh ? { canvas: "canvas-and-states/transfers-communities" } : {});
+        if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(dsFrame).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
         // the canvas stays as it was drawn (communities, a legend) when an inspector opens beside the same project
         if (carried === "dataset" && sec.region === "right" && !("canvas" in extra)) frame.canvas = was.frame.canvas;
         if (clearing && sec.region !== "right") {
@@ -528,6 +560,9 @@
         // In a loaded project (wide, nested, plain JSON) a place's at-rest names Les Miserables: close to the project's own state
         const placeKey = closeTo && Object.keys(PLACES).find((k) => PLACES[k][2] === closeTo.id);
         if (placeKey && ["wide", "nested", "plainJson", "registry"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
+        // A menu, popover or dialog drawn over a selection closes back to that selection, never past it:
+        // one Esc closes only the overlay, and the selection and panels stay as they were
+        if (sec.region === "overlay" && !extra.own && carried !== "panels" && selectionBarFor(frame.right)) closeTo = refOf(frame.right);
         const hadOverlay = !!(route && route.frame.overlay);
         const hadFocus = describe(document.activeElement);
         const prevId = route && route.id;
@@ -540,7 +575,8 @@
         AB.onPageCancel = null;
         route = { id: sec.id, state, sec, frame, rail: railKey, closeTo };
         if ((sec.id + "/" + state) in USAGE_STATE) AB.usageData = USAGE_STATE[sec.id + "/" + state];
-        // A notice belongs to the screen that raised it
+        // A notice belongs to the screen that raised it; so does a cleared selection's slot
+        selSlot = null;
         document.querySelectorAll(".gp-offer").forEach((f) => f.remove());
         $("ab-notice").replaceChildren();
         // A canvas section showing a state card sets this while it draws ("Nothing is drawn")
@@ -626,7 +662,13 @@
         requestAnimationFrame(setInert);
         // Controls that write data-tip by hand get their label and key; the notice sits over the new bars
         AB.tipSweep(document.getElementById("ab-app"));
-        requestAnimationFrame(() => { AB.tipSweep(document.getElementById("ab-app")); AB.scrollStops(document.getElementById("ab-app")); AB.placeNotice(); });
+        // A pressed Legend button always draws a card: a canvas that drew none gets the shared one
+        // (what paints, or "Nothing is colored or sized by a row")
+        const legendFloor = () => {
+            const cv = $("ab-canvas");
+            if (route && route.frame === frame && !cv.hidden && cv.querySelector(".k-stage") && !cv.querySelector(".k-legend-card") && !AB.toolbarDisabled) { const card = AB.legendCard([]); if (card) cv.append(card); }
+        };
+        requestAnimationFrame(() => { AB.tipSweep(document.getElementById("ab-app")); AB.scrollStops(document.getElementById("ab-app")); AB.placeNotice(); legendFloor(); AB.fitMiddle(document.getElementById("ab-app")); });
         // Focus was lost to the redraw (a toolbar toggle, a direct link): put it back where it was,
         // or on the place's heading, never on the page body
         if (!frame.overlay && !hadOverlay) setTimeout(() => {
@@ -644,14 +686,50 @@
         }, 0);
         // An overlay that places itself a frame later: focus its first item then
         if (frame.overlay && !first) setTimeout(() => { const f = [...$("ab-overlay").querySelectorAll(".k-menu-item:not([aria-disabled='true']), [tabindex='0'], input")].find((x) => x.getClientRects().length && !x.closest("[hidden]")); if (f && !$("ab-overlay").contains(document.activeElement)) f.focus(); }, 50);
+        runDone();
     }
     AB.render = render;
 
-    // ---------- Shift+Arrow: graphty-element's canvas walk from node to node (owner decision) ----------
-    // The walk goes over the node rows of the project on screen, in their file order. Each step
-    // selects the node: its node inspector (with the selection bar, raised by the frame) and an
-    // announcement "<name>, <n> neighbors". The inspector's header names the walked node
-    // (AB.walked, read by AB.inspector); its body is the project's node inspector state.
+    // "/": focus the find box of the Graph place on screen, else open the project's Graph place first
+    // With `text` (Quick actions' hand-off) the box takes it and lists its results, as if typed
+    function focusFind(text) {
+        const box = () => document.querySelector("#ab-left:not([hidden]) .ab-treebar input");
+        const put = (b) => { if (!b) return; b.focus(); if (text != null) { b.value = text; b.dispatchEvent(new Event("input")); } };
+        const graphShown = route && refOf(route.frame.left) && refOf(route.frame.left).id === "graph-place" && !route.frame.overlay;
+        if (graphShown && box()) return put(box());
+        go("graph-place", placeOf(route ? route.frame.dataset : "lesmis", "graph") || "at-rest");
+        setTimeout(() => put(box()), 120);
+    }
+    AB.focusFind = focusFind;
+
+    // The paint tree changed (an eye, a solo, a move, a delete: lib.js raises "ab:paint"): the canvas region
+    // is drawn again at once, so the drawing and its legend follow the tree (AB.paintRows, AB.soloRow)
+    document.addEventListener("ab:paint", () => {
+        const cv = $("ab-canvas"), ref = route && refOf(route.frame.canvas);
+        if (!ref || cv.hidden || route.sec.region === "canvas") return;
+        cv.replaceChildren();
+        renderRegion(cv, "canvas", ref, false);
+        requestAnimationFrame(() => { if (!cv.querySelector(".k-legend-card") && cv.querySelector(".k-stage") && !AB.toolbarDisabled) { const card = AB.legendCard([]); if (card) cv.append(card); } AB.fitMiddle(cv); });
+    });
+
+    // A run finishes: a route that shows a run in progress moves on to its finished state after the
+    // estimate the Run button gave ("Under a second"), unless the reader has gone elsewhere. Only Les
+    // Miserables has a finished state (graph-place/finished: the row on top, painting, with its legend).
+    // ponytail: the transfers and door-entries runs have no finished state yet, so theirs keep running
+    const RUN_DONE = { "analyze-popover/running": { lesmis: "graph-place/finished" }, "graph-place/running": { lesmis: "graph-place/finished" } };
+    function runDone() {
+        const to = route && RUN_DONE[route.id + "/" + route.state];
+        const next = to && to[route.frame.dataset || "lesmis"];
+        if (!next) return;
+        const at = location.hash;
+        setTimeout(() => { if (location.hash === at) go(...next.split("/")); }, 900);
+    }
+
+    // ---------- one node selected from the canvas or the table (AB.selectNode) ----------
+    // The keyboard walk itself (Shift+Arrow) is canvas-and-states'. This keeps the walk's cursor and
+    // the node list it walks (AB.walkList): each project's node rows in file order. A selection opens
+    // the project's node inspector (with the selection bar, raised by the frame); the inspector's
+    // header names the node (AB.walked, read by AB.inspector).
     // ponytail: neighbor counts are counted from the fixture rows here; the element reports them.
     const walk = { ds: null, at: null };
     let walking = false; // set by a step, so the render it causes keeps the cursor
@@ -705,7 +783,9 @@
     AB.selectNode = (ds, i, opts) => {
         const node = walkTo(ds, i);
         if (!node) return;
-        const [id, state] = node.at.split("/");
+        // opts.at: another state of the same inspector (Find opens a node on its Data tab)
+        const [id, state] = ((opts && opts.at) || node.at).split("/");
+        if (opts && opts.at) AB.walked.right = opts.at; // the inspector names the node on that state too
         walking = true;
         if (location.hash === href(id, state)) render();
         else go(id, state);
@@ -720,22 +800,14 @@
         el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); AB.selectNode(ds, i); } });
         return el;
     };
-    function step(dir) {
-        const ds = route.frame.dataset;
-        const from = walk.ds === ds && walk.at != null ? walk.at : -1;
-        const node = walkTo(ds, dir > 0 ? from + 1 : from < 0 ? -1 : from - 1);
-        if (!node) { AB.flash("Nothing is drawn to walk through"); return; }
-        const [id, state] = node.at.split("/");
-        walking = true;
-        // the walk stays on the canvas: focus goes back to the drawing after the redraw
-        const back = () => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); AB.announce(node.name + ", " + node.neighbors + (node.neighbors === 1 ? " neighbor" : " neighbors")); };
-        if (location.hash === href(id, state)) render();
-        else go(id, state);
-        setTimeout(back, 100);
-    }
     AB.walked = null;
 
     // ---------- keys and clicks the shell owns ----------
+    // Undo and Redo, one behavior for the header's buttons and Ctrl+Z / Ctrl+Shift+Z: the selection slot
+    // first, then the notice's own change (its Undo or Redo), else "Nothing to undo"
+    const noticeAction = (word) => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === word);
+    function undoLast() { if (restoreSelection()) return; const u = noticeAction("Undo"); if (u) u.click(); else AB.flash("Nothing to undo"); }
+    function redoLast() { const r = noticeAction("Redo"); if (r) r.click(); else AB.flash("Nothing to redo"); }
     document.addEventListener("keydown", (e) => {
         const t = e.target;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
@@ -756,10 +828,12 @@
         const press = (sel, fallback) => () => { const b = document.querySelector(sel); if (b && b.getAttribute("aria-disabled") !== "true") b.click(); else AB.flash(fallback); };
         const stub = (text) => () => AB.flash(text + " (not available yet)");
         // Ctrl+Z and Ctrl+Shift+Z act on the notice's own change first (its Undo or Redo), then the header's
-        const noticeAction = (word) => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === word);
+        const redo = redoLast;
         const keys = [
-            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = noticeAction("Undo") || noticeAction("Bring it back"); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
-            [() => mod && e.shiftKey && !e.altKey && k === "z", () => { const r = noticeAction("Redo"); if (r) r.click(); else press("#ab-top [aria-label='Redo']", "Nothing to redo")(); }],
+            [() => mod && !e.shiftKey && !e.altKey && k === "z", undoLast],
+            [() => mod && e.shiftKey && !e.altKey && k === "z", redo],
+            // Off macOS, Ctrl+Y is Redo too (on a Mac, Cmd+Y is the browser's history)
+            [() => e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && k === "y" && !IS_MAC, redo],
             [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go(...AB.COMMANDS["open-file"].go)],
             [() => mod && !e.shiftKey && !e.altKey && k === "s", () => AB.COMMANDS.save.onClick()],
             [() => mod && e.shiftKey && !e.altKey && k === "s", stub("Save as")],
@@ -767,13 +841,12 @@
             [() => free && mod && !e.shiftKey && !e.altKey && k === "a", () => go("inspector-selection-and-everything", "selection")],
             [() => free && mod && !e.shiftKey && !e.altKey && k === "g", () => (t && t.closest && t.closest("#ab-left [role=tree]") ? ((route.frame.dataset || "lesmis") === "lesmis" ? go(...AB.COMMANDS["new-folder"].go) : AB.flash("New folder (not available yet)")) : press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")())],
             [() => free && mod && e.shiftKey && !e.altKey && k === "h", press("#ab-toolbar [data-tool='Hide on canvas'], #ab-toolbar [data-tool='Show on canvas']", "Ctrl+Shift+H hides the selection on canvas: select something first")],
-            [() => free && !mod && !e.altKey && e.key === "/", () => go("graph-place", "find")],
+            // "/" puts focus in the Graph place's find box (the one find), opening the project's Graph place when another place shows
+            [() => free && !mod && !e.altKey && e.key === "/", () => focusFind()],
             [() => free && !mod && !e.shiftKey && !e.altKey && k === "i", stub("I inverts the selection")],
             [() => free && !mod && !e.shiftKey && !e.altKey && k === "f", stub("F frames the selection")],
             [() => free && !mod && !e.altKey && e.key === "0", stub("0 fits the graph to the view")],
             [() => free && !mod && !e.altKey && ["1", "3", "7"].includes(e.key), stub(e.key + " turns the camera to the " + { 1: "front", 3: "side", 7: "top" }[e.key])],
-            // graphty-element's canvas key (owner decision): Shift+Arrow walks from node to node on the drawing
-            [() => !mod && e.shiftKey && /^Arrow/.test(e.key) && t && t.closest && t.closest(".k-stage"), () => step(e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1)],
             [() => mod && !e.shiftKey && e.key === ",", () => go("settings", "general")],
             [() => mod && !e.shiftKey && (e.key === "k" || e.key === "K"), () => go("commands-and-search", "quick-actions")],
             [() => mod && !e.shiftKey && (e.key === "b" || e.key === "B"), () => { shell.panels = shell.panels === "shown" ? "hidden" : "shown"; render(); AB.announce(shell.panels === "shown" ? "Panels shown" : "Panels hidden. Ctrl+B shows them"); }],
@@ -782,7 +855,7 @@
             [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "l" || e.key === "L"), () => AB.setLegend(!AB.legendOn())],
             [() => free && !mod && e.key === "?", () => go("commands-and-search", "shortcuts")],
             [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "n" || e.key === "N"), () => AB.addNote()],
-            [() => free && !mod && !e.altKey && e.key === "5", () => { const b = document.querySelector('[data-tool="View"]'); if (b) { b.classList.add("ab-pulse"); setTimeout(() => b.classList.remove("ab-pulse"), 900); } AB.flash("5 switches 2D and 3D (not available yet)"); }],
+            [() => free && !mod && !e.altKey && e.key === "5", () => { shell.mode = route.frame.mode === "2d" ? "3d" : "2d"; render(); AB.announce(shell.mode === "2d" ? "2D view" : "3D view"); }],
             [() => free && !mod && e.shiftKey && e.key === "T", () => AB.toggleDock()],
         ];
         // F6 / Shift+F6: move between regions in their visual order (spec 3.8)
@@ -801,8 +874,8 @@
         else if (e.key === "Escape" && route && route.frame.overlay && route.id !== route.closeTo.id) { e.preventDefault(); AB.close(); }
         else if (e.key === "Escape" && hasSelection()) { e.preventDefault(); AB.clearSelection(); }
         else if (e.key === "Escape" && route && route.id !== route.closeTo.id) { e.preventDefault(); AB.close(); }
-        // Nothing open: in the participant view Esc leaves it (the review bar and design notes come back)
-        else if (e.key === "Escape" && route && notesHidden() && !participant() && !route.frame.overlay) { e.preventDefault(); setNotes(false); }
+        // Nothing open: with design notes hidden (the participant view too) Esc brings them back
+        else if (e.key === "Escape" && route && notesHidden() && !route.frame.overlay) { e.preventDefault(); setNotes(false); }
     });
     document.addEventListener("DOMContentLoaded", () => {
         // A click on empty canvas clears the selection (focus stays on the drawing, so Shift+Arrow walks from here)
@@ -813,7 +886,7 @@
             if (stage) stage.focus({ preventScroll: true });
             AB.clearSelection();
         });
-        if (!participant()) document.body.append(h("button", { id: "ab-leave-study", class: "ab-leave-study", type: "button", "aria-label": "Show design notes", hidden: !notesHidden() || null, on: { click: () => setNotes(false) } }, "Review"));
+        document.body.append(h("button", { id: "ab-leave-study", class: "ab-leave-study", type: "button", "aria-label": "Show design notes", hidden: !notesHidden() || null, on: { click: () => setNotes(false) } }, "Review"));
         $("ab-overlay").addEventListener("click", (e) => { if (e.target === $("ab-overlay") || e.target.classList.contains("ab-modal-wrap")) AB.close(); });
         matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
         new MutationObserver(() => route && document.body.dataset.page === "app" && renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

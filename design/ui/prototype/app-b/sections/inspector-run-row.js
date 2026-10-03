@@ -18,12 +18,14 @@
    weight meaning changed, a filter changed the scope, failed on WebGPU with "Try WebGPU again", finished and
    painting). Made with's one Weight line names the weight and how it was read ("value, stronger"), where an
    unweighted run says "Unweighted"; the All options popover splits it into Weight and Weight conversion.
-   After the settings, Made with points to the data version the run read and when it ran. A hub's name
-   selects its node. After new data (data-changed), one group's stayed, left, joined and silent counts and
-   its stability on both versions, with no verdict. The state bar is one line, at most two buttons. Verbs live in "...". The tab is the
+   After the settings, Made with points to the data version the run read and when it ran; Rerun and
+   Compare with another run are commands, so they live in "..." only (no verbs in an inspector body). A hub's name
+   selects its node. After new data (data-changed), one group's stayed, left, joined and silent counts,
+   with no verdict; no multi-seed stability reading or check is offered. The state bar is one line, at most two buttons. Verbs live in "...". The tab is the
    one last chosen for a run, except in the states that exist to show one tab. The Louvain bound Color
    opens the run's Binding popover (Source, Palette, Order by, Overflow, Exceptions). Other run kinds: Density
-   (readings only: gauge, no eye, no tabs), Link prediction (a pair list on its one body: pair icon, no
+   (readings only: gauge, no eye, no tabs), Transitivity (readings only, offering its per-node
+   counterpart, Local clustering, as a measure child in the tree), Link prediction (a pair list on its one body: pair icon, no
    eye) and a cover (Clique communities, whose Style tab says how a shared member is drawn), each with its
    row in the tree beside it. Plain ASCII. */
 (function () {
@@ -39,16 +41,18 @@
 .rr-col { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 :is(.rr-col, .rr-all) .ab-design-note { white-space: normal; margin-inline-start: 0; flex: 0 1 auto; min-width: 0; }
 .rr-wrap .k-ellipsis { white-space: normal; overflow: visible; }
-.ab-statebar > .k-ellipsis:has(> .rr-bar) { white-space: normal; overflow: visible; text-overflow: clip; }
 .rr-groups { padding: 4px 16px 8px; display: flex; flex-direction: column; gap: 6px; }
 .rr-group { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 6px; align-items: center; min-height: 20px; }
 .rr-members { grid-column: 2 / -1; white-space: normal; }
+/* A community with a hub is one line (swatch, name, hub, size), so the Data tab ends at Notes inside the window */
+.rr-group.rr-hub { grid-template-columns: 12px auto minmax(0, 1fr) auto; }
+.rr-groups:has(> .rr-hub) { gap: 2px; }
 .rr-all { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 16px 8px 112px; }
 `;
     if (!document.getElementById("rr-style")) document.head.append(h("style", { id: "rr-style" }, CSS));
 
     const RUN_LABEL = "a run's name is its label, which graphty-element keeps read-only";
-    const GROUP_LABEL = "a run's groups renumber when it reruns; Create set to name one";
+    const GROUP_LABEL = "a run's groups take their names from the run; Create set to name one";
     const NO_EARLIER = "a rerun replaces the result, and graphty-element keeps no earlier one";
     const MENU = ["context-menus", "run-row"];
     const SELF = "inspector-run-row";
@@ -59,13 +63,14 @@
     // A failed WebGPU run's retry: graphty-element runs it on WebGPU again, never on the CPU instead
     const TRY_GPU = "Try WebGPU again";
     const TRY_GPU_TIP = "Runs it on WebGPU once more; nothing is computed on the CPU instead";
-    const NO_COMPARE = "graphty-element does not compare two runs' results yet";
-    const NO_CHECK = "graphty-element has no null-model or seed-stability check";
     // The states that exist to show one tab; every other state opens on the tab last chosen
     const TAB = { style: "Style", binding: "Style", data: "Data", "all-options": "Data", "hierarchy-level": "Data", "weight-override": "Data",
-        finished: "Style", "settings-changed": "Data", "out-of-date": "Data", "data-changed": "Data", "meaning-changed": "Data", "scope-changed": "Data", failed: "Data", "many-groups": "Data" };
+        finished: "Data", updated: "Data", "settings-changed": "Data", "out-of-date": "Data", "data-changed": "Data", "meaning-changed": "Data", "scope-changed": "Data", failed: "Data", "many-groups": "Data" };
     // The run's date, the name its provenance gives it (no duration is ever its name)
     const RAN = "Sep 28";
+    // Update Louvain row (the Analyze popover's main button on Les Miserables): the same settings rerun into
+    // this row, so the same 6 communities, now dated just now; no second row is added
+    const RAN_NOW = "just now";
     // Made with's one line when no option differs (the readings-only run)
     const DEFAULTS = "Every option at its default";
     // A record field the method does not read (damping, normalization on Louvain)
@@ -73,6 +78,7 @@
     // Each reading's one-line meaning: the reading's name shows it on hover and on keyboard focus
     const MEANING = {
         Communities: "Groups of nodes linked more to each other than to the rest of the graph",
+        Transitivity: "The share of connected triples that close into triangles, over the whole graph",
         "Unconnected nodes": "Nodes with no links at all; none of them belongs to a community",
         Modularity: "How much more often links fall inside communities than chance would give: 0 is no grouping, near 1 is sharply split",
         Density: "The share of all possible links that exist",
@@ -98,6 +104,8 @@
     // Les Miserables: Louvain weighted by value, resolution 1.0
     const LESMIS_RUN = [[1, 25, "#E69F00"], [2, 17, "#56B4E9"], [3, 10, "#009E73"], [4, 10, "#0072B2"], [5, 9, "#D55E00"], [6, 6, "#CC79A7"]];
     const TRANSFERS = ["many-groups", "running", "failed", "data-changed", "finished"];
+    // transfers states where April has already replaced March
+    const APRIL_LOADED = ["running", "failed", "data-changed"];
     // Les Miserables states framed by a filter step that leaves fewer nodes than the run read
     // (out of date by its scope: the result keeps painting the nodes it ran on)
     const SCOPED = ["out-of-date", "scope-changed"];
@@ -108,14 +116,15 @@
             return { lm: true, unit: "node", weight: "value", table: "communities", nodes: fx.datasets.lesmis.nodes, communities: LESMIS_RUN.length, modularity: 0.565, seed: 7, isolated: fx.datasets.lesmis.stats.isolated,
                 rows: LESMIS_RUN.map(([n, c, col], i) => ({ name: "Community " + n, color: col, count: c, hub: LESMIS_HUBS[i] })), other: null,
                 // the data version the run read: Les Miserables has one, the file as loaded
-                version: fx.datasets.lesmis.file, versionGo: null };
+                version: fx.datasets.lesmis.file, versionGo: null, ran: state === "updated" ? RAN_NOW : RAN };
         // the transfers tree and canvas this section is framed by show the March result
         const c = A.louvain.march, lg = A.legends.march;
         return { lm: false, unit: "account", weight: "amount", table: "transfers", nodes: M.nodes, communities: c.communities, modularity: c.modularity, seed: 11, isolated: M.stats.isolated,
             rows: lg.rows.map((r) => ({ name: r.name, color: r.color, count: r.count })), other: lg.other,
             // the data version the run read: March; once April replaced it, the record says so
-            version: state === "finished" ? "March" : "March, now April",
-            versionGo: ["full-canvas-modes", state === "finished" ? "no-versions" : "version-history"] };
+            // (many-groups and finished come before any April load; the rerun states come after it)
+            version: APRIL_LOADED.includes(state) ? "March, now April" : "March",
+            versionGo: ["full-canvas-modes", APRIL_LOADED.includes(state) ? "version-history" : "no-versions"], ran: RAN };
     }
 
     // ---------- the state bar: one line, at most two buttons ----------
@@ -136,17 +145,19 @@
             case "partial":
                 return { text: "Partial result", why: "Stopped at the time limit. The communities found so far paint. They are not final.", actions: [{ label: "Rerun", go: [SELF, "cannot-cancel"] }] };
             case "failed":
-                return { text: h("span", { class: "rr-bar" }, icon("circle-x", "sm"), " Failed on WebGPU and wrote nothing; the March result still shows. ", AB.openQuestion("the element's own wording for a failed WebGPU run, shown word for word in this tooltip")), why: "The rerun on April data failed on WebGPU and wrote nothing. The March result is still shown. Try WebGPU again runs it on WebGPU once more; nothing is computed on the CPU instead.", actions: [{ label: TRY_GPU, tip: TRY_GPU_TIP, go: [SELF, "running"] }] };
+                return { text: h("span", null, icon("circle-x", "sm"), " Failed ", AB.openQuestion("the element's own wording for a failed WebGPU run, shown word for word in this tooltip")), why: "The rerun on April data failed on WebGPU and wrote nothing. The March result is still shown. Try WebGPU again runs it on WebGPU once more; nothing is computed on the CPU instead.", actions: [{ label: TRY_GPU, tip: TRY_GPU_TIP, go: [SELF, "running"] }] };
             case "finished":
-                return { text: h("span", { class: "rr-bar" }, "Finished: now paints Color by its " + AB.count(A.louvain.march.communities, "community", { plural: "communities" }) + ". The result stays in the list."), why: "The run finished and its communities paint the accounts at once; nothing else needs applying. Its result stays in the list, so another run can be set beside it." };
+                return { text: "Finished: " + AB.count(A.louvain.march.communities, "community", { plural: "communities" }), why: "The run finished and its " + AB.count(A.louvain.march.communities, "community", { plural: "communities" }) + " paint the accounts at once; nothing else needs applying. Its result stays in the list, so another run can be set beside it." };
+            case "updated":
+                return { text: "Updated " + RAN_NOW + ", same communities", why: "Louvain ran again with the same settings and replaced its result in this row. It found the same " + AB.count(LESMIS_RUN.length, "community", { plural: "communities" }) + "; no new row was added." };
             case "data-changed":
-                return { text: h("span", { class: "rr-bar" }, "Louvain used March data. It is now April: " + AB.count(A.versionDiff.transfersAdded, "transfer") + " added, " + AB.num(A.versionDiff.transfersRemoved) + " removed."), why: "Louvain ran on March data (" + A.previous.file + "). The data is now April (" + A.file + "). The March communities still paint until you rerun.", actions: [{ label: "Rerun", go: [SELF, "running"] }] };
+                return { text: "Ran on March data", why: "Louvain ran on March data (" + A.previous.file + "). The data is now April (" + A.file + "): " + AB.count(A.versionDiff.transfersAdded, "transfer") + " added, " + AB.num(A.versionDiff.transfersRemoved) + " removed. The March communities still paint until you rerun.", actions: [{ label: "Rerun", go: [SELF, "running"] }] };
             case "meaning-changed":
-                return { text: h("span", { class: "rr-bar" }, "Louvain used value as a strength. It is now a distance."), why: "When Louvain ran, a higher value meant a stronger tie. The Data page now reads a higher value as a longer distance. The communities shown are from the old meaning until you rerun.", actions: [{ label: "Rerun", go: [SELF, "cannot-cancel"] }] };
+                return { text: "Weight meaning changed", why: "When Louvain ran, a higher value meant a stronger tie. The Data page now reads a higher value as a longer distance. The communities shown are from the old meaning until you rerun.", actions: [{ label: "Rerun", go: [SELF, "cannot-cancel"] }] };
             case "out-of-date":
             case "scope-changed": {
                 const L = AB.fx.datasets.lesmis, now = L.filterSteps.after.step1;
-                return { text: h("span", { class: "rr-bar" }, "Ran on " + AB.count(L.nodes, "node") + "; a filter now leaves " + AB.num(now) + ". A rerun keeps this result under \"...\" > Restore an earlier result. ", AB.needsElement(NO_EARLIER)), why: "Louvain ran on the full graph. The filter step \"" + L.filterSteps.steps[0] + "\" now leaves " + AB.count(now, "node") + ". The result still paints the nodes it ran on until you rerun; after a rerun it is kept, and Restore an earlier result in \"...\" brings it back.", actions: [{ label: "Rerun on " + AB.num(now), go: [SELF, "cannot-cancel"] }] };
+                return { text: h("span", null, "Ran on " + AB.count(L.nodes, "node") + " ", AB.needsElement(NO_EARLIER)), why: "Louvain ran on the full graph. The filter step \"" + L.filterSteps.steps[0] + "\" now leaves " + AB.count(now, "node") + ". The result still paints the nodes it ran on until you rerun; after a rerun it is kept, and Restore an earlier result in \"...\" brings it back.", actions: [{ label: "Rerun on " + AB.num(now), go: [SELF, "cannot-cancel"] }] };
             }
             default:
                 return null;
@@ -161,8 +172,11 @@
         const tab = AB.styleTab({
             kind: "node", kinds: ["node"],
             paints: ["Paints " + AB.count(W.nodes, W.unit), ["table-dock", W.table]],
+            // On Les Miserables PageRank sits above Louvain in the tree and also paints Color, so it covers it
+            order: W.lm ? ["Covered by ", AB.link("inspector-measure-row", "style", "PageRank", { class: "ab-link" }), " for Color on " + AB.count(W.nodes, null, { of: W.nodes })] : null,
             set: {},
-            bound: { "node.color": { field: "Louvain communities", palette: "Eight distinct", ramp: [pal[0], pal[pal.length - 1]], go: "palette" } },
+            // no palette here, so the chip names its source (the run's communities); the palette is in Binding
+            bound: { "node.color": { field: "Louvain communities", ramp: [pal[0], pal[pal.length - 1]], go: "palette" } },
         });
         return W.lm ? toBinding(tab, "binding") : tab;
     }
@@ -201,13 +215,15 @@
         // Exceptions: a child that keeps its own color whatever the palette and order give it
         const except = [];
         const body = h("div");
-        const sec = AB.section({ title: "Exceptions", editable: true }, body);
+        const sec = AB.section({ title: "Exceptions", editable: true }, body,
+            h("div", { class: "ab-cap k-secondary" }, "Saved in this binding against the " + run.noun + "'s value, so a rerun keeps it."),
+            h("div", null, AB.needsElement("a rerun that keeps each " + run.noun + "'s value matched to the last run's, so an exception stays on the same group")));
         const draw = () => {
             body.replaceChildren(...(except.length
                 ? except.map((g) => AB.fieldRow(g.name, AB.colorField({ name: g.name, hex: g.color, pct: 100 }), { popover: true }))
                 : [AB.empty("None: every " + run.noun + " takes its color from the palette.")]));
             const left = run.groups.filter((g) => !except.includes(g));
-            const p = AB.plus({ label: "Add an exception", items: left.map((g) => ({ label: g.name, desc: "Keep " + g.name + "'s color whatever the palette and order give it" })), onAdd: (it) => { except.push(run.groups.find((g) => g.name === it.label)); draw(); AB.announce(it.label + " keeps its own color"); } });
+            const p = AB.plus({ label: "Add an exception", items: left.map((g) => ({ label: g.name, desc: "Saves a color against " + g.name + "; it holds whatever the palette and order give, and after a rerun" })), onAdd: (it) => { except.push(run.groups.find((g) => g.name === it.label)); draw(); AB.announce(it.label + " keeps its own color"); } });
             const head = sec.querySelector(".k-section-head"), old = head.querySelector(".ab-plus, .k-icon-btn");
             if (old) old.remove();
             if (p) head.append(p);
@@ -239,35 +255,43 @@
             : AB.num(max) + " to " + AB.count(min, W.unit) + " each, largest first";
         return { summary: cap, body: [
             h("div", { class: "rr-sizes", role: "img", "aria-label": "Community sizes, largest first: " + W.rows.map((r) => r.count).join(", ") + (W.other ? ", then Other, " + W.other.communities + " more communities" : "") }, bars),
-            h("div", { class: "ab-cap k-secondary" }, cap),
+            // The list under the chart gives every size; the caption is kept where "Other" needs its count of communities
+            W.other ? h("div", { class: "ab-cap k-secondary" }, cap) : null,
             groups(W, all),
         ] };
     }
     // A hub's name selects its node, as a canvas click does
-    function hubLink(name) {
+    function hubLink(name, second) {
         const i = AB.walkList("lesmis").findIndex((n) => n.name === name);
         if (i < 0) return name;
         const a = h("span", Object.assign({ class: "ab-link", role: "link" }, AB.act({ onClick: () => AB.selectNode("lesmis", i, { focus: false }) })), name);
-        return AB.tip(a, "Select " + name, { label: false });
+        return AB.tip(a, "Select " + name, { label: false, second });
     }
     // The run's record after its settings: the data version it read (a pointer, never the load choices) and when it ran
     function record(W) {
-        return { "Data version": W.versionGo ? AB.link(W.versionGo[0], W.versionGo[1], W.version) : W.version, Ran: RAN };
+        return { "Data version": W.versionGo ? AB.link(W.versionGo[0], W.versionGo[1], W.version) : W.version, Ran: W.ran.charAt(0).toUpperCase() + W.ran.slice(1) };
     }
+    // A Notes section that holds notes still offers Add note (the one gesture, AB.addNote), as an empty one does
+    function withAddNote(tab) {
+        // dataTab gives a list of sections (or one element)
+        const btn = [].concat(tab).flatMap((n) => (n && n.querySelectorAll ? [...n.querySelectorAll(".ab-sec-btn")] : [])).find((b) => b.textContent === "Notes");
+        const line = btn && btn.closest(".k-section").querySelector(".ab-sec-body .k-data");
+        // one span, so the line reads as one sentence: "1 note -- Open in Notes -- Add note (N)"
+        if (line) line.replaceChildren(h("span", null, ...line.childNodes, h("span", { class: "k-secondary" }, " -- "), AB.tip(h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => AB.addNote() })), "Add note"), "Add note", { key: "N", label: false }), " (N)"));
+        return tab;
+    }
+
     // After new data: what became of one group, as four counts, and its stability on both versions.
     // No verdict: whether the change is real or noise is the reader's call.
     function movement() {
         const A = AB.fx.datasets.transactionsApril, S = A.compareSelection, G = A.louvain.selected;
-        const pct = (x) => Math.round(x * 100) + "% of reruns keep it together";
         return { summary: G.name + ": " + AB.num(S.marchMembersStillInIt) + " stayed, " + AB.num(S.marchMembersLeftIt) + " left, " + AB.num(S.joinedFromOtherGroups + S.joinedNew) + " joined, " + AB.num(S.marchMembersSilent) + " silent", body: [
             h("div", { class: "ab-cap" }, G.name + ", March to April"),
             AB.data("Stayed", AB.count(S.marchMembersStillInIt, "account")),
             AB.data("Left", AB.count(S.marchMembersLeftIt, "account")),
             AB.data("Joined", AB.count(S.joinedFromOtherGroups + S.joinedNew, "account") + ", " + AB.num(S.joinedNew) + " of them new"),
             AB.data("Silent", AB.count(S.marchMembersSilent, "account") + ", no transfers in April"),
-            AB.data("Stability, March", pct(S.holdsInMarchReruns)),
-            AB.data("Stability, April", pct(S.holdsInAprilReruns)),
-            h("div", null, AB.needsElement("member movement between two runs, and stability across reruns, come from graphty-element")),
+            h("div", null, AB.needsElement("member movement between two runs comes from graphty-element")),
         ] };
     }
     // Each community: its swatch, name, size and hub (by degree inside it); "Other" lists its members
@@ -275,7 +299,9 @@
         const lead = (n) => Number(String(n).replace(/\D+/g, " ").trim().split(" ")[0]);
         return h("div", { class: "rr-groups", role: "list", "aria-label": "Communities" }, all.map((r) => {
             let sub = null;
-            if (r.hub) sub = h("span", { class: "rr-members k-secondary" }, "Hub ", hubLink(r.hub[0]), ", " + AB.count(r.hub[1], "link") + " inside");
+            // The hub sits on the community's own line; its links inside the community are the link's second tooltip line
+            if (r.hub) return h("div", { class: "rr-group rr-hub", role: "listitem" }, AB.chit(r.color, true), h("span", { class: "k-ellipsis" }, r.name),
+                h("span", { class: "k-ellipsis k-secondary" }, "Hub ", hubLink(r.hub[0], AB.count(r.hub[1], "link") + " inside " + r.name)), h("span", { class: "k-num k-secondary" }, AB.num(r.count)));
             if (r.other) {
                 const from = lead(W.other.holds);
                 sub = h("span", { class: "rr-members k-secondary" }, "Communities " + from + " to " + (from + W.other.communities - 1));
@@ -371,7 +397,7 @@
         const n = override ? val("5", NOT_IN_FX) : hier ? val(String(W.communities) + ", until rerun at this level", "how many communities the first level holds") : partial ? "Not final" : AB.link("graph-place", W.lm ? "louvain-open" : "many-groups", String(W.communities));
         const q = override ? 0.55 : W.modularity;
         const plain = AB.count(override ? 5 : W.communities, "community", { plural: "communities" }) + " and " + (W.isolated ? AB.count(W.isolated, "unconnected node") : "no unconnected nodes");
-        return AB.dataTab({
+        const tab = AB.dataTab({
             Summary: { summary: partial ? "Not final" : (override ? "Value read as a distance: " : "") + plain + ", modularity " + AB.num(q), body: [
                 partial || hier ? null : h("div", { class: "ab-cap" }, plain),
                 reading("Communities", n),
@@ -381,9 +407,10 @@
             ] },
             Sizes: partial || hier || override ? null : sizes(W),
             "Since March": state === "data-changed" ? movement() : null,
-            "Made with": { summary: shown.map((o) => o[3]).join(", ") + ", ran " + RAN, body: madeWith, provenance: record(W) },
+            "Made with": { summary: shown.map((o) => o[3]).join(", ") + ", ran " + W.ran, body: madeWith, provenance: record(W) },
             Notes: { count: W.lm ? 1 : 0, target: ["notes-place", "about-selection"] },
         }, { kind: "run" });
+        return withAddNote(tab);
     }
 
     // "from Louvain, Sep 28" opens what it names: this run's own record (Made with), in place, in any
@@ -409,7 +436,28 @@
         return wrap;
     }
 
-    // ---------- the readings-only run: one body, no Style ----------
+    // ---------- the readings-only runs: one body, no Style ----------
+    // Transitivity on Les Miserables (graph-level clustering); the fixtures hold no value for it, so it
+    // reads the value the graph inspector's readings show, with the open question beside it
+    const TRANSITIVITY = "0.499";
+    const LOCAL = "Local clustering";
+    function transitivity() {
+        return toRecord(AB.inspector({
+            icon: "gauge", title: "Transitivity", kind: "Run", kindKey: "run-row-readings",
+            provenance: ["from Transitivity, " + RAN, SELF, "transitivity"], menu: MENU, renameDisabled: RUN_LABEL,
+            body: AB.dataTab({
+                Summary: { summary: "Transitivity " + TRANSITIVITY, body: [
+                    reading("Transitivity", h("span", null, TRANSITIVITY + " ", AB.openQuestion("Transitivity on Les Miserables, which the fixtures do not hold"))),
+                    h("div", { class: "ab-cap k-secondary" }, "Per node, the same reading is " + LOCAL + ": the row under this one in the list"),
+                ] },
+                "Made with": { summary: "Transitivity, " + DEFAULTS.toLowerCase() + ", ran " + RAN, body: [
+                    AB.fieldRow("Method", h("span", null, "Transitivity")),
+                    h("div", { class: "ab-cap k-secondary" }, DEFAULTS),
+                ], provenance: record(world("readings-only")) },
+                Notes: { count: 0 },
+            }, { kind: "run" }),
+        }), "from Transitivity, " + RAN);
+    }
     function readingsOnly() {
         const LM = AB.fx.datasets.lesmis;
         return toRecord(AB.inspector({
@@ -532,7 +580,7 @@
     // (under the built-in rows): Density (readings only: the gauge, no eye), Link prediction (a pair
     // list: the pair icon, no eye) and the cover with its communities. Once graph-place draws these rows
     // in a state of its own, the frame uses that state instead.
-    const OWN_TREE = ["readings-only", "pair-list", "cover", "binding-cover"];
+    const OWN_TREE = ["readings-only", "transitivity", "pair-list", "cover", "binding-cover"];
     function runRows(state) {
         const C = lesmisResults().cover, pal = AB.fx.canvas.categorical;
         const sel = (s) => s === state || (s === "cover" && state === "binding-cover");
@@ -541,6 +589,10 @@
                 children: C.groups.map((g) => ({ id: "rr-cover-" + g.name, name: g.name, kindIcon: AB.chit(g.color, true), count: g.count, eye: true, renameDisabled: GROUP_LABEL, onOpen: () => AB.flash("Opens " + g.name + " of " + COVER_NAME + " in the inspector (not available yet)"), menu: ["context-menus", "row"] })) },
             { id: "rr-pairs", name: "Link prediction", kindIcon: "link", eye: null, selected: sel("pair-list"), renameDisabled: RUN_LABEL, go: [SELF, "pair-list"], menu: MENU },
             { id: "rr-density", name: "Density", kindIcon: "gauge", eye: null, selected: sel("readings-only"), renameDisabled: RUN_LABEL, go: [SELF, "readings-only"], menu: MENU },
+            // a graph-level reading with a per-node counterpart offers it as a measure child, not yet computed
+            { id: "rr-transitivity", name: "Transitivity", kindIcon: "gauge", eye: null, open: true, selected: sel("transitivity"), renameDisabled: RUN_LABEL, go: [SELF, "transitivity"], menu: MENU,
+                children: [{ id: "rr-local-clustering", name: LOCAL, kindIcon: "chart-column", dim: true, eye: null, renameDisabled: RUN_LABEL,
+                    onOpen: () => AB.flash("Computes " + LOCAL + " for every node and adds it here as a measure row (not available yet)") }] },
         ];
     }
     function treeWithRuns(el, state, ctx) {
@@ -581,7 +633,6 @@
     // The transfers run's "..." opens in place, so every door stays on the transfers project
     function transfersMenu(anchor, state) {
         const failed = state === "failed";
-        const n = AB.fx.datasets.transactionsApril.louvain.march.communities;
         const graph = ["graph-place", AB.placeOf("transactions", "graph") || "many-groups"];
         pick(anchor, [
             { heading: "Louvain" },
@@ -592,19 +643,19 @@
             { sep: true },
             { label: "Show members in table", go: ["table-dock", "transfers"] },
             { label: "Lay out by these groups" },
-            { label: "Check against a null model and other seeds...", needs: NO_CHECK },
-            { label: "Compare with another run...", needs: NO_COMPARE },
+            { label: "Compare with another run...", desc: "Puts this run's groups beside another run's", go: ["full-canvas-modes", "comparison"] },
             { sep: true },
             AB.cmd("add-note"),
             { label: "Lock" },
             { label: "Hide from list (keeps painting)" },
             { sep: true },
-            { label: "Delete", shortcut: "Del", onClick: () => { AB.go(graph[0], graph[1]); setTimeout(() => AB.deleted("Louvain and " + n + " communities", () => AB.go(SELF, state)), 50); } },
+            { label: "Delete", shortcut: "Del", onClick: () => { AB.go(graph[0], graph[1]); setTimeout(() => AB.deleteRow("Louvain", () => AB.go(SELF, state)), 50); } },
         ]);
     }
 
     function build(state) {
         if (state === "readings-only") return readingsOnly();
+        if (state === "transitivity") return transitivity();
         if (state === "pair-list") return pairList();
         if (state === "cover" || state === "binding-cover") return cover(state);
         // the data was replaced with April since the March run: the row opens out of date
@@ -616,7 +667,7 @@
         const W = world(state);
         return toRecord(AB.inspector({
             icon: AB.ICON.run, title: "Louvain", kind: "Run", kindKey: "run-row",
-            provenance: ["from Louvain, " + RAN, SELF, state],
+            provenance: ["from Louvain, " + W.ran, SELF, state],
             menu: TRANSFERS.includes(state) ? (b) => transfersMenu(b, state) : MENU,
             renameDisabled: RUN_LABEL,
             stateBar: stateBar(state),
@@ -624,7 +675,7 @@
             changed: ["settings-changed", "hierarchy-level", "data-changed", "meaning-changed"].includes(state),
             tabs: { Style: () => styleTab(W), Data: () => dataTab(W, state) },
             tab: TAB[state],
-        }), "from Louvain, " + RAN);
+        }), "from Louvain, " + W.ran);
     }
 
     // The All options popover: every run option, left of the inspector; any edit raises the state bar
@@ -633,38 +684,6 @@
         return AB.popover({
             anchor: "#ab-right [data-rr=all-options]", title: "Louvain options", width: 300,
             body: options(W, "data", true).map(([, l, c]) => AB.fieldRow(l, c, { popover: true })),
-        });
-    }
-
-    // Delete acts at once, with Undo
-    function del() {
-        AB.go("graph-place", "at-rest");
-        // the shell clears the notice slot when the new route renders, so post it after that
-        setTimeout(() => AB.deleted("Louvain and 6 communities", () => AB.go(SELF, "data")), 50);
-    }
-
-    // The "..." menu over the inspector, with Restore an earlier result in view
-    function runMenu() {
-        return AB.menu({
-            anchor: "#ab-right .ab-insp-sub .k-icon-btn", place: "below-end",
-            items: [
-                { heading: "Louvain" },
-                { label: "Rerun", go: [SELF, "cannot-cancel"] },
-                AB.cmd("run-as-copy", { desc: "Keeps this run; the copy lands on top", go: ["graph-place", "finished"] }),
-                { label: "Restore an earlier result", needs: NO_EARLIER },
-                { label: "Restore the suggested look" },
-                { sep: true },
-                { label: "Show members in table", go: ["table-dock", "communities"] },
-                { label: "Lay out by these groups" },
-                { label: "Check against a null model and other seeds...", needs: NO_CHECK },
-                { label: "Compare with another run...", needs: NO_COMPARE },
-                { sep: true },
-                AB.cmd("add-note"),
-                { label: "Lock" },
-                { label: "Hide from list (keeps painting)", go: ["graph-place", "show-hidden"] },
-                { sep: true },
-                { label: "Delete", shortcut: "Del", onClick: del },
-            ],
         });
     }
 
@@ -688,7 +707,9 @@
                 const L = AB.fx.datasets.lesmis;
                 Object.assign(f, { chip: AB.count(L.filterSteps.after.step1, "node", { of: L.nodes }), filterOn: ["degree"] });
             }
-            if (["earlier-results", "all-options", "binding", "binding-cover"].includes(state)) f.overlay = SELF + "/" + state;
+            if (["all-options", "binding", "binding-cover"].includes(state)) f.overlay = SELF + "/" + state;
+            // the "..." menu with Restore an earlier result in view: the run row's one context menu
+            if (state === "earlier-results") f.overlay = "context-menus/run-row";
             return f;
         },
         states: [
@@ -702,9 +723,11 @@
             { id: "cannot-cancel", label: "Running, cannot be stopped" },
             { id: "partial", label: "Partial: stopped at the time limit" },
             { id: "finished", label: "Finished" },
+            { id: "updated", label: "Les Miserables: Update Louvain row, rerun into the same row" },
             { id: "earlier-results", label: "\"...\" menu: Restore an earlier result" },
             { id: "failed", label: "Failed" },
             { id: "readings-only", label: "Readings-only run" },
+            { id: "transitivity", label: "Readings-only run with a per-node counterpart (Transitivity)" },
             { id: "pair-list", label: "A pair-list run (link prediction)" },
             { id: "cover", label: "A cover: communities that share members" },
             { id: "binding", label: "Style: Binding popover (palette, order, overflow, exceptions)" },
@@ -719,7 +742,6 @@
         ],
         render(el, state, ctx) {
             if (ctx && ctx.region === "overlay") {
-                if (state === "earlier-results") el.append(runMenu());
                 if (state === "all-options") el.append(allOptions());
                 if (state === "binding") el.append(bindingPopover(LOUVAIN_RUN()));
                 if (state === "binding-cover") el.append(bindingPopover(COVER_RUN()));

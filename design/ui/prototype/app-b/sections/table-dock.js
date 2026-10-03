@@ -70,6 +70,8 @@
     if (!document.getElementById("td-style")) document.head.append(h("style", { id: "td-style" }, CSS));
 
     const fmt = (n) => Number(n).toLocaleString("en-US");
+    // An amount of money reads as the path popover and the path inspector write it: two decimals ("22,397.82")
+    const amt = (n) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const flash = (what) => () => AB.flash(what + " is not available in this preview");
     // A row with no inspector in this preview: the click marks the row selected (table() does it), nothing more
     const keepRow = () => {};
@@ -102,6 +104,10 @@
     const INOUT = [[0,15,0,68193.7],[0,14,0,49248.17],[0,14,0,51930.42],[0,12,0,42209.54],[0,11,0,36564.23],[0,5,0,17011.32],[0,7,0,30608.46],[0,6,0,29133.17],[0,4,0,16066.09],[0,14,0,43541.09],[1,1,5562.43,5.04],[2,1,9181.9,8.97],[1,1,1866.61,44.63],[2,2,8826.97,52.81],[1,1,213.39,349.71],[0,1,0,316.48],[1,2,2764.87,39.56],[1,3,204.63,691.35],[0,2,0,712.71],[1,2,4362.24,182.8],[3,2,9880.61,268.14],[0,2,0,198.82],[4,3,9714.07,632.04],[2,1,10409.95,401.24],[0,2,0,154.98],[1,1,3892.15,65.68],[2,2,5445.51,259.39],[1,2,5980.33,219.2],[1,4,5406.37,667.32],[1,2,1959.71,310.85],[0,3,0,305.01],[4,3,18090.66,160.52],[1,1,5952.89,382.58],[1,3,3599.88,371.06],[3,3,12011.47,79.15],[2,1,4938.02,162.7],[1,3,15.98,549.73],[2,3,5744.07,312.69],[0,3,0,377.64],[0,1,0,191.17]];
     const NODE_NOTES = { Valjean: 2, Javert: 1, Napoleon: 1 };
     const EDGE_NOTES = { "Javert|Valjean": 1 };
+    // Notes saved in this page view (AB.sessionNotes) count too, as in the tree and every inspector's Notes section
+    const savedAbout = (labels, sec) => AB.sessionNotes.filter((x) => (x.about || []).some((t) => labels.includes(t.label) && (t.go || [])[0] === sec)).length;
+    const nodeNotes = (label) => (NODE_NOTES[label] || 0) + savedAbout([label], "inspector-node");
+    const edgeNotes = (a, b) => (EDGE_NOTES[a + "|" + b] || EDGE_NOTES[b + "|" + a] || 0) + savedAbout([a + " -- " + b, b + " -- " + a], "inspector-edge");
 
     // Item tabs carry the run row's icon and short name; the full name is the tooltip
     const RUN = { label: "Louvain", full: "Louvain, resolution 1.0", icon: AB.ICON.run };
@@ -119,16 +125,16 @@
     }
     const notesCol = { key: "notes", label: "Notes", n: true, cell: (r) => notesCell(r.notes) };
     const current = () => /^#\/table-dock(\/|$)/.test(location.hash);
-    // A result header names its method, then (in parentheses) its unit and, only when a filter step
-    // leaves part of the graph (the header's chip is not "Full graph"), the scope it was computed on
-    const filtered = () => { const c = AB.route && AB.route.frame && AB.route.frame.chip; return !!c && c !== "Full graph"; };
-    const scoped = (label, unit) => { const p = [unit, filtered() ? "full graph" : null].filter(Boolean); return label + (p.length ? " (" + p.join(", ") + ")" : ""); };
+    // A result header names its method, then (in parentheses) its unit and always the scope it was
+    // computed on: "full graph", or "filtered graph" for a run made on what the filter steps leave.
+    // Every run in these fixtures was made on the full graph.
+    const scoped = (label, unit, scope) => label + " (" + [unit, scope || "full graph"].filter(Boolean).join(", ") + ")";
 
     /* A sortable table. cols: [{ key, label, type, n (numeric), profile, cell(row), val(row) (the value sorted on, default row[key]), field (the
        attribute the column shows, default key), edit (true: double-click edits the value in place),
        int (whole numbers only: graphty-element refuses anything else), asc (a rank: the first click
        sorts ascending) }]. No two columns share a display name.
-       The Notes column is added only when a row has a note. o.columns ({ ds, element }) lets the
+       The Notes column is added only when a row has a note, right after the key, and Columns counts it. o.columns ({ ds, element }) lets the
        Columns button choose which attribute columns show (columnsView below); the first column is
        frozen when it is the key. o.ds names the project when there is no o.columns: on a directed
        graph every degree column must say in, out or total. o.sum ({ key, label, split }) adds the footer: the sum
@@ -145,22 +151,36 @@
             if (!foot) return;
             const sel = [...wrap.querySelectorAll("tbody tr[aria-selected='true']")].map((tr) => rowOf.get(tr)).filter(Boolean);
             const add = (rs) => rs.reduce((a, r) => a + Number(r[o.sum.key] || 0), 0);
+            const say = o.sum.fmt || AB.num;
             const sp = o.sum.split;
             if (sp) {
                 // A dated neighbors step: the total split in two, named from the data (in before the date, out after)
                 const rs = sel.length ? sel : rows;
-                foot.replaceChildren("Total " + o.sum.label + " in before " + sp.label + ":", h("span", { class: "k-num" }, AB.num(add(rs.filter((r) => r.to === sp.who && r.timestamp < sp.date)))),
-                    h("span", null, "--"), "Total " + o.sum.label + " out after:", h("span", { class: "k-num" }, AB.num(add(rs.filter((r) => r.from === sp.who && r.timestamp >= sp.date)))),
+                foot.replaceChildren("Total " + o.sum.label + " in before " + sp.label + ":", h("span", { class: "k-num" }, say(add(rs.filter((r) => r.to === sp.who && r.timestamp < sp.date)))),
+                    h("span", null, "--"), "Total " + o.sum.label + " out after:", h("span", { class: "k-num" }, say(add(rs.filter((r) => r.from === sp.who && r.timestamp >= sp.date)))),
                     h("span", null, "(" + AB.count(rs.length, "row") + ")"), AB.needsElement("graphty-element sums a column over the current selection, split at the step's From date"));
                 return;
             }
             // The total is over the selection only: with none, the footer says how to make one
-            foot.replaceChildren(...(sel.length ? ["Sum of " + o.sum.label + ", " + AB.count(sel.length, "row") + ":", h("span", { class: "k-num" }, AB.num(add(sel)))]
+            foot.replaceChildren(...(sel.length ? ["Sum of " + o.sum.label + ", " + AB.count(sel.length, "row") + ":", h("span", { class: "k-num" }, say(add(sel)))]
                 : ["Sum of " + o.sum.label + ": select rows to total them"]), AB.needsElement("graphty-element sums a column over the current selection"));
         };
         wrap.foot = foot;
         wrap.sumUp = sumUp;
-        const cv = o.columns ? columnsView(allCols, o.columns) : null;
+        // The caption says what the rows are sorted by, written from the sort itself, so a header click
+        // updates it ("sorted by Degree, highest first"); none until the table is sorted
+        const caption = h("span", { class: "k-secondary" });
+        wrap.caption = caption;
+        const captionOf = () => {
+            const c = sortKey && allCols.find((x) => x.key === sortKey);
+            if (!c) return "";
+            // a rank sorts ascending to put #1, the highest, first
+            const high = c.asc ? dir > 0 : dir < 0;
+            const way = c.n ? (high ? "highest first" : "lowest first") : c.type === "time" ? (dir < 0 ? "newest first" : "oldest first") : (dir > 0 ? "A to Z" : "Z to A");
+            return "sorted by " + c.label.replace(/ \(.*\)$/, "") + ", " + way;
+        };
+        const notesOn = !o.raw && rows.some((r) => r.notes); // raw records: a "notes" attribute is data, not a note count
+        const cv = o.columns ? columnsView(allCols, Object.assign({ extra: notesOn ? 1 : 0 }, o.columns)) : null;
         const tds = (o.columns && o.columns.ds) || o.ds || "lesmis"; // the project whose attributes the columns show
         const valOf = (c, r) => (c.val ? c.val(r) : r[c.key]);
         const cellOf = (c, r) => (c.cell ? c.cell(r) : String(r[c.key]));
@@ -171,7 +191,8 @@
             // On a directed graph a degree column says which way: in, out or total
             const ds = o.ds || (o.columns && o.columns.ds), vague = ds && AB.fx.datasets[ds] && AB.fx.datasets[ds].directed ? names.filter((n) => /degree|\blinks?\b/.test(n) && !/\b(in|out|total)\b/.test(n)) : [];
             if (vague.length) console.error("table-dock: a degree column on a directed graph does not say in, out or total in " + (o.label || "a table") + ": " + vague.join(", "));
-            if (!o.raw && rows.some((r) => r.notes)) cols = cols.concat(notesCol); // raw records: a "notes" attribute is data, not a note count
+            // The Notes column follows the key (frozen) columns, so it shows without scrolling sideways
+            if (notesOn) { const k = cols.findIndex((c) => !c.id); cols = k < 0 ? cols.concat(notesCol) : cols.slice(0, k).concat(notesCol, cols.slice(k)); }
             const tbody = h("tbody");
             // The rows are one Tab stop: the arrows, Home and End move between them (as the tree does)
             tbody.addEventListener("keydown", (e) => {
@@ -254,6 +275,7 @@
                 // the row a click just opened keeps focus after the redraw, so Find (Ctrl+F) and the arrows still work
                 if (focusRow && stop && stop.getAttribute("aria-selected") === "true") { focusRow = false; setTimeout(() => stop.isConnected && stop.focus({ preventScroll: true }), 0); }
                 sumUp();
+                caption.textContent = captionOf();
                 cols.forEach((c) => {
                     const th = heads[c.key];
                     if (!th) return;
@@ -282,7 +304,7 @@
             }));
             fill();
             // named for its element, and when Columns hides some, how many of the table's columns show
-            wrap.replaceChildren(h("table", { class: "k-table", "aria-label": (o.label || "Table") + (cv && cv.visible().length < cv.total ? ", " + cv.visible().length + " of " + cv.total + " columns shown" : "") }, h("thead", null, thead), tbody), ...(rows.length || !o.empty ? [] : [o.empty]));
+            wrap.replaceChildren(h("table", { class: "k-table", "aria-label": (o.label || "Table") + (cv && cv.visible().length + (notesOn ? 1 : 0) < cv.total ? ", " + cv.visible().length + " of " + cv.total + " columns shown" : "") }, h("thead", null, thead), tbody), ...(rows.length || !o.empty ? [] : [o.empty]));
             sumUp();
         };
         build();
@@ -370,13 +392,13 @@
                 return out.filter((c) => locked.includes(nameOf(c))).concat(out.filter((c) => !locked.includes(nameOf(c))));
             },
             // every hand-built column (two may read one field) plus the fields none of them reads
-            total: cols.length + fields.filter((f) => !handBuilt.has(f.name)).length,
+            total: cols.length + fields.filter((f) => !handBuilt.has(f.name)).length + (where.extra || 0),
             onChange: null,
         };
         cv.button = AB.button("", { kind: "ghost", onClick: () => { colsAt = Object.assign({}, colsAt, { ds, element }); AB.go("table-dock", "columns"); } });
         cv.button.classList.add("td-cols");
         cv.button.setAttribute("aria-haspopup", "dialog");
-        cv.label = () => { cv.button.textContent = "Columns: " + cv.visible().length + " of " + cv.total; };
+        cv.label = () => { cv.button.textContent = "Columns: " + (cv.visible().length + (where.extra || 0)) + " of " + cv.total; };
         cv.refresh = () => { cv.label(); if (cv.onChange) cv.onChange(); };
         cv.label();
         live[k] = cv;
@@ -567,16 +589,15 @@
         const ms = lesmisMeasures(o.sampled);
         const at = (members ? members.map((m) => Lx.rows.findIndex((r) => r.label === m)) : Lx.rows.map((_, i) => i)).filter((i) => !nodeGone(Lx.rows[i].label));
         const rows = at.map((i) => {
-            const r = Lx.rows[i], x = { label: r.label, group: r.group, notes: NODE_NOTES[r.label] || 0 };
+            const r = Lx.rows[i], x = { label: r.label, group: r.group, notes: nodeNotes(r.label) };
             ms.forEach((m) => { x[m.key] = m.vals[i]; x[m.key + "Rank"] = m.ranks[i]; });
             return x;
         });
-        // Each run adds a score column and a rank column; the header names the method, and the scope only
-        // when the run's set is not the graph on screen (a filter step leaves part of it)
+        // Each run adds a score column and a rank column; both headers name the method and the scope
         // a result column's profile: its values and range ("77 values, 1 to 36"), then anything the reader must know
         const prof = (vals, more) => AB.num(vals.length) + " values, " + AB.num(Math.min(...vals)) + " to " + AB.num(Math.max(...vals)) + (more ? "; " + more : "");
         const score = (key, label, profile, unit) => ({ key, label: scoped(label, unit), type: "num", n: true, profile, cell: (r) => AB.num(r[key]) });
-        const rank = (m, label, profile) => ({ key: m.key + "Rank", label, type: "num", n: true, asc: true, profile, val: (r) => r[m.key + "Rank"].rank, cell: (r) => r[m.key + "Rank"].text });
+        const rank = (m, label, profile) => ({ key: m.key + "Rank", label: scoped(label), type: "num", n: true, asc: true, profile, val: (r) => r[m.key + "Rank"].rank, cell: (r) => r[m.key + "Rank"].text });
         const SHARED = "#1 is highest; equal values at 3 significant digits share one rank, marked =";
         const bt = ms[2];
         const cols = [
@@ -608,7 +629,7 @@
         if (location.hash === AB.href("inspector-edge", "style")) AB.render(); else AB.go("inspector-edge", "style");
     }
     function edgesTable(o) {
-        const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: EDGE_NOTES[a + "|" + b] || 0 })).filter((r) => !edgeGone(r));
+        const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: edgeNotes(a, b) })).filter((r) => !edgeGone(r));
         // A cell edit that went through: one undoable step (graphty-element's updateEdges), its notice offers Undo
         if (o && o.edited && rows.find(REFUSE)) {
             const r = rows.find(REFUSE), old = r.value;
@@ -630,7 +651,7 @@
     function communitiesTable() {
         const rows = COMMUNITIES.map((c) => ({ c, n: c.n, size: c.size, density: c.density, inside: c.inside, leaving: c.leaving, notes: c.notes || 0 }));
         const cols = [
-            { key: "n", label: "community", type: "cat", cell: (r) => [AB.chit(r.c.color, true), "Community " + r.n] },
+            { key: "n", label: "community", type: "cat", id: true, cell: (r) => [AB.chit(r.c.color, true), "Community " + r.n] },
             { key: "size", label: "size", type: "num", n: true, profile: "6 to 25" },
             { key: "density", label: "density", type: "num", n: true, profile: "0.147 to 1", cell: (r) => AB.num(r.density) },
             { key: "inside", label: "edges inside", type: "num", n: true },
@@ -664,17 +685,30 @@
         const Tx = T();
         const src = o.rows || Tx.firstRows.map((r) => ({ source: r.from_account, target: r.to_account, amount: r.amount, timestamp: r.timestamp }));
         const rows = src.map((r) => ({ from: r.source, to: r.target, amount: Number(r.amount), timestamp: r.timestamp, member: windowed && inWindow(r.timestamp) }));
+        const W = WEIGHT();
         const cols = [
             { key: "from", field: "from_account", label: "from_account", type: "text", id: true },
             { key: "to", field: "to_account", label: "to_account", type: "text", id: true },
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
-            { key: "amount", label: "amount", type: "num", n: true, edit: true, cell: (r) => AB.num(r.amount) },
+            { key: "amount", label: W, type: "num", n: true, edit: true, cell: (r) => amt(r.amount) },
         ];
+        if (o.trace) {
+            // A path trace, in path order: each hop says whether its date follows the hop before, and what the
+            // account it reaches received and sent along this trace, named from the weight column. graphty-element
+            // returns these with the path result (the path inspector reads the same); ponytail: computed here from
+            // the fixture's hops until it does.
+            const sum = (k, id) => rows.reduce((a, x) => a + (x[k] === id ? x.amount : 0), 0);
+            rows.forEach((r, i) => Object.assign(r, { inOrder: i === 0 || r.timestamp >= rows[i - 1].timestamp ? "Yes" : "No", got: sum("to", r.to), sent: sum("from", r.to) }));
+            const money = (k) => (r) => (r[k] ? amt(r[k]) : "");
+            cols.push({ key: "inOrder", label: "Dates in order", type: "bool", profile: "Yes when this hop is not earlier than the hop before it" },
+                { key: "got", label: "to_account: " + W + " in (this trace)", type: "num", n: true, profile: "What to_account received along this trace", cell: money("got") },
+                { key: "sent", label: "to_account: " + W + " out (this trace)", type: "num", n: true, profile: "What to_account sent on along this trace; blank at the trace's end", cell: money("sent") });
+        }
         // A transfer row opens that transfer in the edge inspector (inspector-edge/transfer reads AB.pickedTransfer)
         const edgeOpen = AB.route && /^inspector-edge\/transfer$/.test(String(AB.route.frame.right || ""));
         return table(cols, rows, { label: "Edges", sort: o.split ? "timestamp" : null, dir: o.split ? 1 : -1, columns: { ds: "transactions", element: "edge" }, who: (r) => r.from + " - " + r.to,
             selected: o.rows ? () => true : edgeOpen ? (r) => sameTransfer(r, AB.pickedTransfer) : null,
-            sum: { key: "amount", label: "amount", split: o.split },
+            sum: { key: "amount", label: "amount", split: o.split, fmt: amt },
             onRow: o.rows ? keepRow : (r, e) => { if (adds(e)) return; AB.pickedTransfer = r; focusRow = true; AB.go("inspector-edge", "transfer"); } });
     }
     // Rows a to b of n, and the page arrows: graphty-element pages and sorts the whole table, this preview holds one page
@@ -700,8 +734,8 @@
         const risk = Tx.attributes.find((a) => a.name === "riskScore");
         const all = AB.count(Tx.nodes, "account");
         // On a directed graph every degree says which way; a weighted one is named from its column ("Total amount in")
-        const res = (key, label, unit, profile, val) => ({ key, label: scoped(label, unit), type: "num", n: true, profile: profile + ", on all " + all, val,
-            cell: (r) => { const v = val ? val(r) : r[key]; return v == null ? "--" : AB.num(v); } });
+        const res = (key, label, unit, profile, val, f) => ({ key, label: scoped(label, unit), type: "num", n: true, profile: profile + ", on all " + all, val,
+            cell: (r) => { const v = val ? val(r) : r[key]; return v == null ? "" : (f || AB.num)(v); } });
         const both = (f) => (r) => (r.amountIn == null || r.amountOut == null ? null : f(r.amountIn, r.amountOut));
         const W = WEIGHT();
         const cols = [
@@ -710,10 +744,10 @@
             res("linksIn", "Links in", "count", "Transfers received"),
             res("linksOut", "Links out", "count", "Transfers sent"),
             res("degree", "Links total", "count", "Transfers sent and received, 1 to " + fmt(Tx.stats.maxDegree)),
-            res("amountIn", "Total " + W + " in", null, "The sum of " + W + " over transfers received"),
-            res("amountOut", "Total " + W + " out", null, "The sum of " + W + " over transfers sent"),
-            res("amountTotal", "Total " + W + " in and out", null, "The sum of " + W + " over transfers received and sent", both((a, b) => a + b)),
-            netCol ? res("amountNet", "Total " + W + " in minus out", null, "Received minus sent; sorts by the signed value", both((a, b) => a - b)) : null,
+            res("amountIn", "Total " + W + " in", null, "The sum of " + W + " over transfers received", null, amt),
+            res("amountOut", "Total " + W + " out", null, "The sum of " + W + " over transfers sent", null, amt),
+            res("amountTotal", "Total " + W + " in and out", null, "The sum of " + W + " over transfers received and sent", both((a, b) => a + b), amt),
+            netCol ? res("amountNet", "Total " + W + " in minus out", null, "Received minus sent; sorts by the signed value", both((a, b) => a - b), amt) : null,
             { key: "kind", label: "kind", type: "cat", edit: true, profile: "3 values" },
             { key: "country", label: "country", type: "cat", edit: true },
             { key: "riskScore", label: "riskScore", type: "num", n: true, edit: true, profile: risk.range[0] + " to " + risk.range[1], cell: (r) => (r.riskScore == null ? "" : String(r.riskScore)) },
@@ -721,7 +755,7 @@
         ].filter(Boolean);
         // The footer totals the selection
         return table(cols, rows, { sort: sort || "degree", label: "Nodes", columns: { ds: "transactions", element: "node" }, who: (r) => r.id,
-            sum: { key: "amountIn", label: "total " + W + " in" },
+            sum: { key: "amountIn", label: "total " + W + " in", fmt: amt },
             selected: (r) => !!(r.i >= 0 && AB.walked && AB.walked.dataset === "transactions" && AB.walked.index === r.i),
             onRow: (r, e) => { if (adds(e) || r.i < 0) return; focusRow = true; AB.selectNode("transactions", r.i, { focus: false }); } });
     }
@@ -747,15 +781,39 @@
             { key: "id", label: "id", type: "text", id: true },
             { key: "kind", label: "kind", type: "cat" },
             { key: "country", label: "country", type: "cat" },
-            { key: "march", label: "Links total (count, March)", type: "num", n: true, cell: (r) => AB.num(r.march) },
-            { key: "april", label: "Links total (count, April)", type: "num", n: true, cell: (r) => AB.num(r.april) },
+            { key: "march", label: scoped("Links total", "count, March"), type: "num", n: true, cell: (r) => AB.num(r.march) },
+            { key: "april", label: scoped("Links total", "count, April"), type: "num", n: true, cell: (r) => AB.num(r.april) },
             { key: "change", label: "Change in links total", type: "num", n: true, profile: "April minus March; sorts by the signed value", cell: (r) => signed(r.change) },
         ];
         return table(cols, rows, { sort: "march", label: "Nodes", ds: "transactions", who: (r) => r.id, onRow: (r) => { const i = Tx.rows.findIndex((x) => x.id === r.id); if (i >= 0) AB.selectNode("transactions", i); } });
     }
 
-    // Play, the track, the window readout, the window length, close
+    // Play, the track, the window readout, the window length, Filter to this window, close
     const LENGTHS = [[1, "1 day"], [7, "1 week"], [31, "1 month"]];
+    // The window as the ordinary filter step on the time attribute ("timestamp is between 2026-03-09 and
+    // 2026-03-15"), written through the one door to a step on an attribute (AB.filterTo), which adds the
+    // step to Data > Filters. The rule is handed over as a date attribute's histogram band hands its own:
+    // ponytail: a one-shot wrap of AB.openStep, until AB.filterTo takes the rule as an argument.
+    const TIME_ATTR = () => T().attributes.find((a) => /^timestamp\b/.test(a.name)).name.replace(/ \(edge\)$/, "");
+    const iso = (d) => "2026-03-" + String(d).padStart(2, "0");
+    function filterToWindow() {
+        const attr = TIME_ATTR(), value = iso(win.start) + " and " + iso(Math.min(31, win.start + win.len - 1)), open = AB.openStep;
+        AB.openStep = (o) => {
+            AB.openStep = open;
+            if (o.ds === "transactions" && o.attr === attr) {
+                Object.assign(o, { type: "time", cond: "is between", value });
+                if (o.step) o.step.rule = Object.assign(o.step.rule || {}, { attr, type: "time", cond: "is between", value });
+            }
+            open(o);
+        };
+        AB.filterTo("transactions", attr);
+    }
+    // A run over time windows is one run row; the window it paints follows the slider ("PageRank, week 2 of 5")
+    const WINDOW_RUN = "PageRank";
+    const windowName = () => {
+        const unit = { 1: "day", 7: "week", 31: "month" }[win.len];
+        return WINDOW_RUN + ", " + unit + " " + (Math.floor((win.start - 1) / win.len) + 1) + " of " + Math.ceil(31 / win.len);
+    };
     function timeSlider(onHide, onMove) {
         const readout = h("span", { class: "k-strong k-num" });
         const winEl = h("span", { class: "k-window" });
@@ -795,8 +853,9 @@
             if (playing) move(win.start + win.len > 31 ? 1 : win.start + win.len);
         });
         show();
+        const keep = AB.button("Filter to this window", { kind: "ghost", icon: AB.ICON.filter, tip: "Adds a filter step in Data > Filters: " + TIME_ATTR() + " is between the window's first and last day", onClick: filterToWindow });
         return h("div", { class: "k-timeslider td-slider", role: "group", "aria-label": "Time slider" },
-            play, track, readout, lenField,
+            play, track, readout, lenField, keep,
             AB.iconButton("x", "Hide the time slider", { onClick: onHide }));
     }
 
@@ -821,12 +880,12 @@
         if (!line) return;
         const old = line.querySelector(".td-find");
         if (old) { old.querySelector("input").focus(); return; }
-        const input = h("input", { type: "search", "aria-label": "Find in table", placeholder: "Find in table", value: q || "" });
+        const input = h("input", { role: "searchbox", "aria-label": "Find in table", placeholder: "Find in table", value: q || "" });
         const none = h("span");
         let at = -1;
-        const close = () => { chip.remove(); const tr = root.querySelector("tbody tr[aria-selected='true']") || root.querySelector("tbody tr"); if (tr) tr.focus(); };
+        const close = () => { chip.remove(); none.remove(); const tr = root.querySelector("tbody tr[aria-selected='true']") || root.querySelector("tbody tr"); if (tr) tr.focus(); };
         const x = AB.tip(h("span", Object.assign({ class: "td-tab-x", role: "button" }, AB.act({ onClick: close })), icon("x", "sm")), "Clear find");
-        const chip = h("span", { class: "td-chip td-find" }, icon("search", "sm"), input, x, none);
+        const chip = h("span", { class: "td-chip td-find" }, icon("search", "sm"), input, x);
         const land = (step) => {
             const v = input.value.trim(), trs = [...root.querySelectorAll("tbody tr[data-who]")];
             const hits = v ? trs.filter((tr) => AB.wordMatch(tr.dataset.who, v) || tr.dataset.who.toLowerCase().includes(v.toLowerCase())) : [];
@@ -849,7 +908,7 @@
             if (e.key === "Enter") { e.preventDefault(); land(true); }
             if (e.key === "Escape") { e.preventDefault(); close(); }
         });
-        line.append(chip);
+        line.append(chip, none);
         input.focus();
         if (q) land(false);
     }
@@ -921,24 +980,19 @@
                 AB.nav(x, "table-dock", "nodes");
                 t = nodesTable(m.members);
                 root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, AB.count(m.size, "node", { of: Lx.nodes }))), t, t.foot);
-            } else if (active === "nodes" && state === "no-match") {
-                // Find over the table matched no row: the find chip, the headers kept, the one empty line
-                const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Clear find");
-                AB.nav(x, "table-dock", "nodes");
-                t = nodesTable([], null, { empty: AB.noMatch(NO_MATCH) });
-                root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, icon("search", "sm"), "Find: " + NO_MATCH, x), h("span", null, AB.count(0, "node", { of: Lx.nodes }))), t);
             } else if (active === "nodes") {
                 // Sorted by one measure, the other measures beside it: the ranking view (no separate top-N table)
                 const sampled = state === "sampled";
                 t = nodesTable(null, state === "column-menu" ? "degree" : null, sampled ? { sampled, sort: "betweennessRank", dir: 1 } : null);
                 // Paged and sorted by a result, as every table is at any size (past the drawing limit too)
                 const shown = t.querySelectorAll("tbody tr").length;
-                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "sorted by " + (sampled ? "rank range by betweenness" : "degree")), pager(1, shown, liveCounts().nodes)), t.agree, t, t.foot);
-                if (state === "find") setTimeout(() => openFind(root, FIND), 0);
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().nodes, "node"), ROW_HINT, t.caption, pager(1, shown, liveCounts().nodes)), t.agree, t, t.foot);
+                // Find (Ctrl+F) open on a row it landed on, or on a word that matches no row
+                if (state === "find" || state === "no-match") setTimeout(() => openFind(root, state === "find" ? FIND : NO_MATCH), 0);
             } else if (active === "edges") {
                 t = edgesTable(quiet ? null : state === "edit-refused" ? { refuse: REFUSE } : state === "edited" ? { edited: true } : null);
                 const shown = t.querySelectorAll("tbody tr").length;
-                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().edges, "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "sorted by value"), pager(1, shown, liveCounts().edges)), t, t.foot);
+                root.replaceChildren(strip(t), scope(scopeCount(liveCounts().edges, "edge"), ROW_HINT, t.caption, pager(1, shown, liveCounts().edges)), t, t.foot);
             } else if (active === "communities") {
                 root.replaceChildren(strip(null), scope(AB.count(COMMUNITIES.length, "community", { plural: "communities" })), communitiesTable());
             } else if (active === "pairs") {
@@ -969,7 +1023,7 @@
             onClick: () => AB.openStep({ ds: "citations", left: "graph-place/empty", attr: S.sortedBy, type: "num", cond: "is in the top", value: AB.num(S.n), before: C.nodes, after: S.nodes, unit: ["nodes", "nodes"] }) });
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }];
         root.replaceChildren(tabStrip("past-limit", tabsOpen, "nodes", () => {}, "table-options", null),
-            scope(C.notDrawnLine, "Past the drawing limit the table still lists every row; right-click a row, then Neighborhood..., to keep that row and its neighbors", h("span", { class: "k-secondary" }, "sorted by " + S.sortedBy), keep, pager(1, rows.length, C.nodes)), t);
+            scope(AB.count(C.nodes, "node"), "Past the drawing limit the table still lists every row; right-click a row, then Neighborhood..., to keep that row and its neighbors", t.caption, keep, pager(1, rows.length, C.nodes)), t);
     }
 
     // A patent's neighbors past the drawing limit: the ordinary neighbors filter step (Keep: Neighbors), in the
@@ -1028,13 +1082,8 @@
         const parts = ds === "nested" && element === "node" ? Object.values(AB.nestedLoaded().name || {}) : [];
         const joined = parts.some((p) => p.length > 1), nameParts = parts.flat();
         const nameCol = joined ? [{ key: "Name", label: "Name", type: "cat", val: who, cell: who }] : [];
-        // By default the key and the attributes in use, then the file's next columns until 8 show (studio
-        // decision: a wide table never opens on two columns); Columns shows or hides any of them
-        const byDefault = (fields) => {
-            const ok = fields.filter((f) => !(joined && nameParts.includes(f.name)));
-            const used = ok.filter((f) => f.usedBy), room = Math.max(0, 8 - typeCol.length - nameCol.length - used.length);
-            return used.concat(ok.filter((f) => !f.usedBy).slice(0, room)).map((f) => f.name);
-        };
+        // By default the key and the attributes in use (spec section 6); Columns shows or hides any other
+        const byDefault = (fields) => fields.filter((f) => f.usedBy && !(joined && nameParts.includes(f.name))).map((f) => f.name);
         return table(typeCol.concat(nameCol), rows, { raw: true, label: element === "node" ? "Nodes" : "Edges", who, onRow: open, columns: { ds, element, byDefault } });
     }
     function wideDock(root, active0, at) {
@@ -1071,25 +1120,36 @@
         const edgeOpen = AB.route && /^inspector-edge\//.test(String(AB.route.frame.right || ""));
         let active = active0 || (withSlider || path || edgeOpen ? "edges" : "nodes");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        // With the slider on, the run over time windows has its item tab, named like its run row; its name
+        // follows the window the slider shows
+        let runTab = null;
+        if (withSlider) tabsOpen.push({ id: "windowed", label: (runTab = h("span", null, windowName())), full: WINDOW_RUN + " over time windows of " + TIME_ATTR() + "; it paints the window the time slider shows", icon: AB.ICON.run,
+            close: () => { tabsOpen.pop(); draw(); } });
+        const pickTab = (t) => {
+            if (t.id === "windowed") return flash(WINDOW_RUN + "'s values for the window on screen")();
+            active = t.id; draw();
+        };
         // The table lists the whole data; under a filter step its count says so (the canvas draws what the filter leaves)
         const chip = AB.route && AB.route.frame.chip;
         const version = chip && chip !== "Full graph" ? "before the filter" : null;
         // A ranked table opens sorted by the result that opened it: the project's table opens on Total amount in
         // (studio decision: the weighted in-degree is the ranking the transfers' tasks ask for first)
         const ranked = state === "transfers" ? "amountIn" : null;
-        let tableHost = null, colsHost = null, footHost = null;
+        let tableHost = null, colsHost = null, footHost = null, captionHost = null;
         const drawTable = () => {
             if (!tableHost) return;
-            const t = state === "changes" && active === "nodes" ? changesTable() : active === "edges" ? transferEdges(withSlider, { rows: path && active === "edges" ? path : null, split: dated ? { who: dated.who, date: DATED.from, label: DATED.label } : null }) : transferNodes(ranked);
+            const t = state === "changes" && active === "nodes" ? changesTable() : active === "edges" ? transferEdges(withSlider, { rows: path && active === "edges" ? path : null, trace: state === "path-members", split: dated ? { who: dated.who, date: DATED.from, label: DATED.label } : null }) : transferNodes(ranked);
             tableHost.replaceChildren(t);
             colsHost.replaceChildren(t.colsButton || "");
             footHost.replaceChildren(t.foot || "");
+            if (captionHost) captionHost.replaceChildren(t.caption.textContent ? t.caption : "", t.caption.textContent ? ", " : "", "from the node file " + Tx.accountsFile);
         };
         const draw = () => {
             at(active, "transactions");
             colsHost = h("span", { style: "display:contents" });
-            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, withSlider ? "slider-options" : "transfers-options", colsHost));
-            if (withSlider) root.append(timeSlider(() => AB.go("table-dock", "transfers"), drawTable));
+            captionHost = null;
+            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, pickTab, withSlider ? "slider-options" : "transfers-options", colsHost));
+            if (withSlider) root.append(timeSlider(() => AB.go("table-dock", "transfers"), () => { if (runTab) runTab.textContent = windowName(); drawTable(); }));
             if (dated && active === "edges") {
                 const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all edges");
                 AB.nav(x, "table-dock", "transfers");
@@ -1106,7 +1166,7 @@
             } else if (active === "edges") {
                 root.append(scope(AB.count(Tx.edges, "edge", { version }), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null, pager(1, Tx.firstRows.length, Tx.edges)));
             } else {
-                root.append(scope(AB.count(Tx.nodes, "node", { version }), ROW_HINT, h("span", { class: "k-secondary" }, (ranked ? "sorted by Total " + WEIGHT() + " in, " : "") + "from the node file " + Tx.accountsFile), pager(1, transferNodes().querySelectorAll("tbody tr").length, Tx.nodes)));
+                root.append(scope(AB.count(Tx.nodes, "node", { version }), ROW_HINT, (captionHost = h("span", { class: "k-secondary" })), pager(1, transferNodes().querySelectorAll("tbody tr").length, Tx.nodes)));
             }
             tableHost = h("div", { style: "display:contents" });
             footHost = h("div", { style: "display:contents" });
@@ -1188,13 +1248,16 @@
         draw();
     }
 
+    // Export... in Table options is the one Export command (cmd("export")), opened on the table showing:
+    // the Edges tab on the edge table (Data), any other tab on the node table
+    const exportTo = () => ["export-dialog", colsAt && colsAt.active === "edges" ? "data" : "table"];
     // The loaded projects' Table options open in place, over the project's own table (its route draws Les Miserables)
     function wideOptions(e) {
         const btn = e && e.currentTarget && e.currentTarget.closest ? e.currentTarget : document.querySelector("#ab-dock [aria-label='Table options']");
         AB.openMenu(btn, [
             { label: "Time slider", disabled: "This data has no time attribute" },
             { sep: true },
-            { label: "Export table as CSV...", onClick: () => AB.go("export-dialog", "table") },
+            AB.cmd("export", { onClick: () => AB.go(...exportTo()) }),
         ]);
     }
     // ---------- menus drawn in the overlay region ----------
@@ -1208,7 +1271,7 @@
                     : { label: "Time slider", disabled: "This data has no time attribute" },
                 time === "off" ? { label: "New column", sub: true, go: ["table-dock", "new-column"] } : null,
                 { sep: true },
-                { label: "Export table as CSV...", go: ["export-dialog", "table"] },
+                AB.cmd("export", { go: exportTo() }),
             ].filter(Boolean),
         }));
     }

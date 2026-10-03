@@ -5,7 +5,9 @@
    Right and Left arrows step (also Page Down / Page Up and Space, which presentation clickers send),
    locked or not; Esc leaves. The view's name appears once, in the caption
    at the foot, with the step counter and previous / next. Lock the canvas is graphty-element's
-   setInputEnabled(false): off by default, remembered per project, no notice.
+   setInputEnabled(false): off by default, remembered per project, no notice. Locked, the canvas is
+   inert: no click, double-click, drag, wheel or canvas key (orbit, walk) reaches it, so the camera
+   and the selection stay where the view put them; stepping and Esc still work.
    Each view is the project's canvas as its rows paint it now (the canvas section's own drawing and
    legend card), seen from the view's camera: graphty-element stores no view snapshot yet, so a view
    keeps where it looks from, not the paint it had when it was saved. The legend card is shown or
@@ -27,7 +29,7 @@
 .pm-lock { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
 .pm-foot { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2; width: min(720px, calc(100% - 32px)); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 10px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); line-height: 18px; }
 .pm-cap { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.pm-cap b { font-weight: 600; }
+.pm-cap b { font-weight: 550; }
 .pm-cap span { color: var(--cm-text-secondary); }
 .pm .ab-legend { top: 56px; bottom: auto; z-index: 1; max-height: calc(100% - 140px); overflow: auto; }
 .pm-step { flex: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -123,6 +125,7 @@
             });
             stage.setAttribute("aria-label", paintAlt + ", " + v.frame);
             canvas.setAttribute("aria-label", locked ? "Graph, locked" : "Graph");
+            canvas.inert = locked;
             box.setAttribute("aria-checked", String(locked));
             name.textContent = v.name;
             cap.textContent = state === "long-caption" && v.name === AB.SAVED_VIEWS[1] ? LONG_CAPTION : v.caption;

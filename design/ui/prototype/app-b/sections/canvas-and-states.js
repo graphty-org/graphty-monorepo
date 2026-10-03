@@ -101,13 +101,49 @@
     const PR_DOMAIN = [0.0033, 0.0754];
     const PR_STOPS = ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"]; // kit.css .k-ramp-measure
     const rampColor = (v) => rampAt(Math.max(0, Math.min(1, (v - PR_DOMAIN[0]) / (PR_DOMAIN[1] - PR_DOMAIN[0]))));
-    // While Louvain alone is shown (its eye soloed, AB.soloRow), it paints: each node in its community's
-    // color (the table's Louvain tab, AB.lesmisCommunities). ponytail: another soloed row keeps PageRank's
-    // paint here until the canvas paints any row from its members
+    // The paint tree decides Color (AB.paintRows, top first): the top shown row that paints Color wins,
+    // a hidden folder hides the rows inside it, and a row shown alone (AB.soloRow) is the only one shown.
+    // Rows that paint Color here: PageRank (its ramp), Louvain (each node in its community's color, the
+    // table's Louvain tab, AB.lesmisCommunities) and a Betweenness run (the fixtures' betweenness on its
+    // ramp). Before any paint tree has drawn, the tree at rest's winner, PageRank.
+    // ponytail: groups and sets paint only their own members, which the drawings already show
+    const COLOR_ROW = /^(PageRank|Louvain|Betweenness( \d+)?)$/;
+    const BT_RAMP = ["#fde7c8", "#E69F00"];
+    function colorWinner() {
+        if (!AB.paintRows.length) return "PageRank";
+        if (AB.soloRow) return COLOR_ROW.test(AB.soloRow) ? AB.soloRow : null;
+        let under = 0; // rows below this level sit inside a hidden folder
+        for (const r of AB.paintRows) {
+            if (under && r.level > under) continue;
+            under = 0;
+            if (!r.eye) { under = r.level; continue; }
+            if (COLOR_ROW.test(r.name)) return r.name;
+        }
+        return null;
+    }
+    const btMax = () => Math.max(...L().rows.map((r) => r.betweenness));
+    const btColor = (v) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(BT_RAMP[0].slice(i, i + 2), 16) * (1 - v) + parseInt(BT_RAMP[1].slice(i, i + 2), 16) * v).toString(16).padStart(2, "0")).join("");
+    // A Size binding on Les Miserables (AB.paintOf: a bind icon's line or a Size by row) sizes each node
+    // over the one size range, AB.SIZE_RANGE (px across), linear over the attribute's values
+    const sizeBound = () => { const p = AB.paintOf("lesmis", "Size", "node"); return p && p.type === "num" ? p : null; };
+    function sizeNodes(doc) {
+        const p = sizeBound();
+        if (!p) return;
+        const keys = Object.keys(PAGERANK), v = L().rows.map((r) => Number(r[p.name])), lo = Math.min(...v), hi = Math.max(...v), at = {};
+        L().rows.forEach((r, i) => { const t = hi > lo ? (v[i] - lo) / (hi - lo) : 0; at[keys[i]] = (AB.SIZE_RANGE[0] + t * (AB.SIZE_RANGE[1] - AB.SIZE_RANGE[0])) / 2 + 1; });
+        doc.querySelectorAll("circle").forEach((c) => {
+            const r = at[c.getAttribute("cx") + "," + c.getAttribute("cy")];
+            if (r != null) c.setAttribute("r", String(c.getAttribute("fill") === "none" ? r + 0.7 : r));
+        });
+    }
     function paintRows(doc) {
-        if (AB.soloRow !== "Louvain" || !AB.lesmisCommunities) return paintPagerank(doc);
+        sizeNodes(doc);
+        const win = colorWinner();
+        if (win === "PageRank" || (win === "Louvain" && !AB.lesmisCommunities)) return paintPagerank(doc);
+        if (!win) return;
         const keys = Object.keys(PAGERANK), color = {};
-        AB.lesmisCommunities.forEach((c) => c.members.forEach((m) => { const i = L().rows.findIndex((r) => r.label === m); if (i >= 0) color[keys[i]] = c.color; }));
+        if (win === "Louvain") AB.lesmisCommunities.forEach((c) => c.members.forEach((m) => { const i = L().rows.findIndex((r) => r.label === m); if (i >= 0) color[keys[i]] = c.color; }));
+        else L().rows.forEach((r, i) => { color[keys[i]] = btColor(r.betweenness / btMax()); });
         doc.querySelectorAll("circle").forEach((c) => {
             const k = color[c.getAttribute("cx") + "," + c.getAttribute("cy")];
             if (k && c.getAttribute("fill") !== "none") c.setAttribute("fill", k);
@@ -137,7 +173,7 @@
             .map((li) => { const v = li.querySelector(".ab-sv .k-grow"), t = v ? v.textContent.trim() : ""; return li.hasAttribute("data-bound") ? { pos: li.dataset.label, field: t } : { pos: li.dataset.label, text: t }; });
     }
     const labelsOf = (ds) => Object.keys(labelRows).filter((k) => k.startsWith(ds + "|") && labelRows[k].length).map((k) => ({ title: k.slice(ds.length + 1), lines: labelRows[k] }));
-    const sigNow = () => { readInputs(); return JSON.stringify([layoutMethod, labelsOf(dsNow()), AB.soloRow || null]); };
+    const sigNow = () => { readInputs(); return JSON.stringify([layoutMethod, labelsOf(dsNow()), colorWinner(), (sizeBound() || {}).name]); };
     let restage = null, stageSig = "", pend = 0;
     new MutationObserver(() => {
         if (pend) return;
@@ -347,19 +383,22 @@
         return [...new Set([d[0], nice(at(0.25)), nice(at(0.5)), nice(at(0.75)), d[d.length - 1]])];
     }
 
-    // The legend for the drawing at rest: PageRank wins color. Nothing sizes the nodes at rest (one
+    // The legend for the drawing: the Color winner (colorWinner). Nothing sizes the nodes at rest (one
     // size), so the card has no size part until a row sizes them.
     function pagerankLegend() {
-        const go = ["inspector-measure-row", "style"];
-        // Louvain shown alone paints by community: its legend says so
-        if (AB.soloRow === "Louvain" && AB.lesmisCommunities) {
+        const win = colorWinner(), sz = sizeBound(), parts = [];
+        if (win === "Louvain" && AB.lesmisCommunities) {
             const run = ["inspector-run-row", "style"];
-            return AB.legendCard([{ title: "Color: Louvain", go: run, rows: AB.lesmisCommunities.map((c) => ({ swatch: AB.chit(c.color, true), label: "Community " + c.n, count: AB.num(c.size), go: run })) }]);
+            parts.push({ title: "Color: Louvain", go: run, rows: AB.lesmisCommunities.map((c) => ({ swatch: AB.chit(c.color, true), label: "Community " + c.n, count: AB.num(c.size), go: run })) });
+        } else if (win && /^Betweenness/.test(win)) parts.push({ title: "Color: " + win, rows: [{ swatch: AB.ramp(BT_RAMP[0], BT_RAMP[1]), label: AB.range(0, btMax(), "Betweenness") }] });
+        else if (win) {
+            const go = ["inspector-measure-row", "style"];
+            parts.push({ title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.range(PR_DOMAIN[0], PR_DOMAIN[1], "PageRank"), go }] });
         }
-        return AB.legendCard([
-            { title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: AB.range(PR_DOMAIN[0], PR_DOMAIN[1], "PageRank"), go }] },
-        ]);
+        if (sz) parts.push({ title: "Size: " + sz.name }); // the legend adds the bound range under it
+        return AB.legendCard(parts);
     }
+
     // What the size layer reads on one node, as hover and selection say it ("degree 36"). `cut`: the
     // name as the legend title and the row's inspector cut it (the hover bubble); spoken text keeps it whole
     function sizeValue(ds, i, cut) {
@@ -493,9 +532,16 @@
     }
     // The walk: its project, the path from its start (each step { i, set }: set names a ] or [ jump),
     // whether it is on, the order, and `off` while Space has taken the node out of the selection
-    const W = { ds: null, path: [], on: false, order: null, off: false, told: false };
+    // `teach`: this walk is the project's first, so its pill carries the keys hint (null until the walk turns on);
+    // `told`: the spoken hint has been said in this walk. The hint teaches once per project, remembered in this browser.
+    const W = { ds: null, path: [], on: false, order: null, off: false, told: false, teach: null };
+    function teachOnce(ds) {
+        if (W.teach !== null) return;
+        W.teach = AB.mem.get("walk.taught." + ds) !== "1";
+        AB.mem.set("walk.taught." + ds, "1");
+    }
     const top = () => W.path[W.path.length - 1];
-    function startAt(ds, i) { Object.assign(W, { ds, path: i >= 0 ? [{ i, set: null }] : [], on: false, off: false, told: false, order: W.ds === ds && W.order ? W.order : ordersOf(ds)[0] }); }
+    function startAt(ds, i) { Object.assign(W, { ds, path: i >= 0 ? [{ i, set: null }] : [], on: false, off: false, told: false, teach: null, order: W.ds === ds && W.order ? W.order : ordersOf(ds)[0] }); }
     // The entry with nothing selected: the drawn node with the most neighbors, ties to the first
     function entry(ds) { let best = 0; for (let i = 1; i < walkLen(ds); i++) if (degreeAt(ds, i) > degreeAt(ds, best)) best = i; return best; }
     // Keep the walk in step with the selection: another node selected some other way starts a new walk
@@ -507,7 +553,7 @@
         else if (sel < 0 && !W.off) W.on = false;
         if (state === "walked" && sel >= 0 && W.path.length < 2) {
             const nb = neighbors(ds, sel), here = location.hash;
-            if (nb && nb.length) { W.path = [{ i: nb[0][0], set: null }, { i: sel, set: null }]; W.on = true; W.told = true; }
+            if (nb && nb.length) { W.path = [{ i: nb[0][0], set: null }, { i: sel, set: null }]; W.on = true; W.told = true; teachOnce(ds); }
             else if (!nb && ds === "lesmis") lmReady.then(() => { if (location.hash === here && LM_ADJ) { syncWalk(ds, state); redrawPill(); } });
         }
     }
@@ -546,7 +592,8 @@
     function land(ds, i, lead) {
         W.on = true;
         W.off = false;
-        const first = !W.told;
+        teachOnce(ds);
+        const first = W.teach && !W.told;
         W.told = true;
         const text = say(ds, i, lead) + (first ? " Shift+Enter goes back, O changes the order, Space selects, Esc ends the walk." : "");
         if (ds === "registry") { regSel = i; AB.render(); refocus(); }
@@ -669,7 +716,7 @@
             p ? h("div", { class: "cs-pr" }, h("span", { class: "k-num" }, p.text), p.from != null ? h("span", { class: "k-secondary" }, "from " + nameAt(ds, p.from)) : null) : null,
             h("div", { class: "cs-pr k-num" }, valuesOf(ds, i, p).join(", ")),
             h("div", { class: "cs-pr" }, h("span", null, "Neighbors by"), order, h("span", { class: "k-kbd" }, "O"), os.includes("weight") ? null : h("span", { class: "k-secondary" }, "no edge weight set")),
-            h("div", { class: "cs-pr cs-hint k-secondary" }, "Shift+Arrow: next neighbor. Shift+Enter: back. " + (setsOf(ds).length ? "] and [: next and previous member of a set. " : "") + "Space: " + (sel ? "take out of" : "add to") + " the selection. Esc: end walk."));
+            W.teach ? h("div", { class: "cs-pr cs-hint k-secondary" }, "Shift+Arrow: next neighbor. Space: select. ?: keys.") : null);
         // a click on the switch keeps the walk: focus goes back to the drawing
         pill.addEventListener("mousedown", (e) => e.preventDefault());
         el.append(pill);
@@ -892,10 +939,12 @@
         restage = () => { el.replaceChildren(); door(el); };
         AB.append(el, [stage, legend(pth ? [pth.legend] : [])]);
     }
-    // The path a Find path just added on the door entries or the transfers, while the tree shows it
+    // The path a Find path just added on the door entries or the transfers, while the tree shows it, or
+    // its inspector does beside another place (the Notes place while a note on it is written or saved)
     function pathShown(ds) {
-        const left = (AB.route && AB.route.frame.left) || "";
-        if (!(ds === "doorEntries" ? /door-entries-path$/ : /path-found$/).test(left)) return null;
+        const left = (AB.route && AB.route.frame.left) || "", right = String((AB.route && AB.route.frame.right) || "");
+        const inspected = ds === "doorEntries" ? right === "inspector-group-set-path-row/path-door-entries" : /^inspector-group-set-path-row\/path(-style|-reversed|-tied|-notes)?$/.test(right);
+        if (!(ds === "doorEntries" ? /door-entries-path$/ : /path-found$/).test(left) && !inspected) return null;
         const lp = AB.lastPath && AB.lastPath.ds === ds ? AB.lastPath : null, P = AB.fx.datasets.transactions.setsAndPaths.path;
         const from = lp ? lp.from : ds === "doorEntries" ? "Ana Ruiz" : P.from.id, to = lp ? lp.to : ds === "doorEntries" ? "Priya Nair" : P.to.id;
         const go = ["inspector-group-set-path-row", ds === "doorEntries" ? "path-door-entries" : "path"];
@@ -1287,13 +1336,16 @@
                 // Load from the Data page ends on the loaded graph: the card shows, then the drawing
                 // Both land on the Graph place with an empty tree; the transfers stay just loaded (no filter
                 // steps, no runs) until a screen that starts with results opens
-                if (state === "transfers-loading") AB.fx.datasets.transactions.fresh = true;
+                // Add keeps the project as it was (its runs, layers and filter steps): only a new load is fresh
+                const added = state === "transfers-loading" && AB.transfersAdded;
+                AB.transfersAdded = false;
+                if (state === "transfers-loading" && !added) AB.fx.datasets.transactions.fresh = true;
                 // Reached without a Load (a direct link): it loads what the Data page opens on, One edge per Row, no weight
                 const DE = AB.fx.datasets.doorEntries;
                 if (state === "door-entries-loading" && !DE.loaded.byLoad) Object.assign(DE.loaded, { per: "row", add: null, fresh: true, weight: null, direction: "directed", byLoad: true });
-                const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : ["graph-place", "transfers-loaded"], here = location.hash;
+                const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : added ? ["graph-place", "many-groups"] : ["graph-place", "transfers-loaded"], here = location.hash;
                 loading(el, state === "door-entries-loading" ? "doorEntries" : "transactions");
-                setTimeout(() => { if (location.hash === here) AB.go(to[0], to[1]); }, loadMs());
+                setTimeout(() => { if (location.hash !== here) return; AB.go(to[0], to[1]); if (added) setTimeout(() => AB.notice("Rows added: " + AB.count(AB.fx.datasets.transactions.edges, "transfer") + " in all"), 100); }, loadMs()); // after the new route draws
             }
             else if (state === "registry-loading") {
                 const here = location.hash;

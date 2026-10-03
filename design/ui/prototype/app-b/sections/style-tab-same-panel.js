@@ -41,7 +41,8 @@
         });
     }
 
-    function group2(kind) {
+    // Group 2 sets only node properties, so it opens on Nodes in both states: a row opens on the side it paints
+    function group2() {
         const g = AB.fx.datasets.lesmis.frame.legend.rows.find((r) => r.label === "2");
         const size = AB.count(g.count, "node") + ", " + AB.count(28, "edge");
         return AB.inspector({
@@ -50,7 +51,7 @@
             menu: ["context-menus", "row"], tab: "Style",
             tabs: {
                 Style: () => AB.styleTab({
-                    kinds: ["node", "edge"], kind, set: { "node.color": g.color },
+                    kinds: ["node", "edge"], kind: "node", set: { "node.color": g.color },
                     paints: ["Paints " + size, SELECT],
                     order: ["Covered by ", pr(), " for Color on " + g.count + " of " + g.count],
                 }),
@@ -75,7 +76,7 @@
                     AB.link("style-tab-same-panel", kind === "node" ? "edges" : "nodes", kind === "node" ? "Show the Edges side" : "Show the Nodes side", { class: "ab-link" })),
                 h("div", { class: "stsp-cols" },
                     col("Everything (bottom of the Graph tree)", h("div", { class: "stsp-panel" }, everything(kind))),
-                    col("Group 2 (in For the report)", h("div", { class: "stsp-panel" }, group2(kind))))));
+                    col("Group 2 (in For the report; sets only node properties, so it opens on Nodes)", h("div", { class: "stsp-panel" }, group2())))));
         },
     });
 })();

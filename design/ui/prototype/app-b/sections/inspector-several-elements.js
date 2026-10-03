@@ -4,7 +4,7 @@
    the Notes row's label wins on the noted picks (Valjean and Javert, "2 of 5"), Group 2's label on
    Valjean alone ("1 of 5"); the rest win on all five. The lines are the node inspector's, same order. Data: Summary with the same rows in the
    same order as a node's (id, label, group, PageRank, Betweenness, Degree), led by the Size row whose
-   tooltip is the one names list; Memberships ("3 of 5"); Notes. No verbs in the body: commands are
+   tooltip is the one names list; Memberships ("3 of 5 nodes"); Notes, with the "+" in its header. No verbs in the body: commands are
    in "..." (context-menus/several) and on the selection bar.
 
    Numbers: node attributes from kit/fixtures.json (Les Miserables); PageRank from the measure row's
@@ -54,29 +54,56 @@
     }
     const prOf = (L, n) => (n in PR ? PR[n] : AB.lesmisPR ? AB.lesmisPR[L.rows.findIndex((r) => r.label === n)] : 0);
     const count = (S, list) => S.nodes.filter((x) => list.includes(x.label)).length;
-    const of = (S, k) => k + " of " + S.n;
-    const range = (vals) => {
-        const lo = Math.min(...vals), hi = Math.max(...vals);
-        return lo === hi ? String(lo) : lo + " to " + hi;
+    // A part of the selection, through the one formatter: "2 of 5" in the coverage column, whose
+    // heading names the unit; "3 of 5 nodes" where it stands alone
+    const of = (S, k, noun) => AB.count(k, noun || null, { of: S.n });
+    // The value of a Data row named after its column (the row's name already names it): "11 to 36"
+    const span = (vals) => {
+        const sorted = [...vals].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        const lo = sorted[0], hi = sorted[sorted.length - 1];
+        const w = (v) => (typeof v === "number" ? AB.num(v) : String(v));
+        return lo === hi ? w(lo) : w(lo) + " to " + w(hi);
     };
-    const plural = (k, w) => k + " " + w + (k === 1 ? "" : "s");
+    const minmax = (vals) => [Math.min(...vals), Math.max(...vals)];
 
     // ---------- Style: Why this look with coverage ----------
     function styleTab(S) {
         const all = of(S, S.n);
         const lines = [
             { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), wins: ["label below"], coverage: of(S, count(S, NOTED)), go: ["inspector-selection-and-everything", "notes-row"], values: { "label below": "Note count, on " + S.names.filter((n) => NOTED.includes(n)).join(" and ") } },
-            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), wins: ["color"], coverage: all, go: ["inspector-measure-row", "style"], values: { color: "PageRank ramp, " + range(S.names.map((n) => prOf(AB.fx.datasets.lesmis, n))) } },
-            { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), hiddenRow: true, wins: ["size"], coverage: all, go: ["inspector-measure-row", "style"], values: { size: "degree " + range(S.nodes.map((x) => x.degree)) } },
+            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), wins: ["color"], coverage: all, go: ["inspector-measure-row", "style"], values: { color: "PageRank ramp, " + AB.range(...minmax(S.names.map((n) => prOf(AB.fx.datasets.lesmis, n))), "PageRank") } },
+            { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), hiddenRow: true, wins: ["size"], coverage: all, go: ["inspector-measure-row", "style"], values: { size: AB.range(...minmax(S.nodes.map((x) => x.degree)), "Degree") } },
             { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), wins: ["label above"], coverage: of(S, count(S, GROUP_2)), go: ["inspector-group-set-path-row", "label-two"], values: { "label above": "label, on " + S.names.filter((n) => GROUP_2.includes(n)).join(" and ") } },
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
         ];
         return [
-            AB.whyThisLook(lines, { kind: "several", element: S.n + " nodes", coverage: true,
+            AB.whyThisLook(lines, { kind: "several", element: AB.count(S.n, "node"), coverage: true,
                 coverageReason: "explain() takes one node or edge; an explain over a set, returning how many of the selected elements each row wins, is filed.",
                 notes: [AB.openQuestion("Editing a token for " + S.n + " nodes: does it write " + S.n + " entries in the Overrides row, or one? The token's popover is headed for one node today.")] }),
         ];
+    }
+
+    // ---------- Notes: a section holding notes still offers Add note ----------
+    // The one "+" in the Notes header, as the node and graph inspectors draw it (with no notes, the
+    // empty line's own Add note is the door). The shared section redraws itself once when this page
+    // view saved a note, so the "+" is added again after that.
+    // ponytail: section-local, like inspector-node's; belongs in the shared notesSection.
+    function addNoteTo(root) {
+        const btn = root && [...root.querySelectorAll(".ab-sec-btn")].find((b) => b.textContent === "Notes");
+        const sec = btn && btn.closest(".k-section"), head = sec && sec.querySelector(".k-section-head");
+        if (!head || sec.querySelector(".ab-empty") || head.querySelector(".ise-add-note")) return;
+        const c = AB.cmd("add-note"), p = AB.plus({ label: c.label, items: [c.label], onAdd: () => AB.addNote() });
+        AB.tip(p, c.label, { key: c.shortcut });
+        p.classList.add("ise-add-note");
+        head.append(p);
+    }
+    function withAddNote(tab) {
+        const wrap = h("div", null, ...[].concat(tab));
+        addNoteTo(wrap);
+        const secs = [...wrap.childNodes];
+        requestAnimationFrame(() => requestAnimationFrame(() => { const p = secs[0] && secs[0].parentNode; if (p && p.isConnected) addNoteTo(p); }));
+        return secs;
     }
 
     // ---------- Data: Summary, Memberships, Notes ----------
@@ -84,9 +111,9 @@
         const groups = [...new Set(S.nodes.map((x) => x.group))].sort((a, b) => a - b);
         const toAttr = { go: ["inspector-attribute-and-filter-step", "attribute"] };
         const toMeasure = { go: ["inspector-measure-row", "data"] };
-        const size = AB.link("table-dock", "nodes", S.n + " nodes" + (S.among == null ? "" : ", " + plural(S.among, "edge")));
+        const size = AB.link("table-dock", "nodes", AB.count(S.n, "node") + (S.among == null ? "" : ", " + AB.count(S.among, "edge")));
         AB.tip(size, S.names.join(", "), { label: false });
-        const member = (ic, swatch, label, k, go) => (k ? AB.row({ icon: ic, swatch, label, trail: of(S, k), go }) : null);
+        const member = (ic, swatch, label, k, go) => (k ? AB.row({ icon: ic, swatch, label, trail: of(S, k, "node"), go }) : null);
         const g2 = S.nodes.filter((x) => x.group === 2).length;
         const memberships = [
             member("circle-dot", AB.chit("#E69F00", true), "Community 1", count(S, COMMUNITY_1), ["inspector-group-set-path-row", "community-1"]),
@@ -94,45 +121,92 @@
             member(AB.ICON.set, AB.chit("#CC79A7", true), "Watchlist", count(S, WATCHLIST), ["inspector-group-set-path-row", "watchlist"]),
             member(AB.ICON.set, AB.chit(L.groupColors["2"], true), "Group 2", g2, ["inspector-group-set-path-row", "group-2"]),
         ].filter(Boolean);
-        return AB.dataTab({
+        return withAddNote(AB.dataTab({
             Summary: {
-                summary: S.n + " nodes" + (S.among == null ? "" : ", " + plural(S.among, "edge") + " among them, " + S.leaving + " leaving"),
+                summary: AB.count(S.n, "node") + (S.among == null ? "" : ", " + AB.count(S.among, "edge") + " among them, " + AB.num(S.leaving) + " leaving"),
                 body: [
                     AB.data("Size", size),
-                    S.leaving == null ? null : AB.data("Edges leaving", String(S.leaving), { go: ["table-dock", "edges"] }),
-                    AB.data("id", plural(S.n, "value")),
-                    AB.data("label", plural(S.n, "value")),
+                    S.leaving == null ? null : AB.data("Edges leaving", AB.num(S.leaving), { go: ["table-dock", "edges"] }),
+                    AB.data("id", AB.count(S.n, "value")),
+                    AB.data("label", AB.count(S.n, "value")),
                     AB.data("group", groups.length === 1 ? String(groups[0]) : groups.join(", "), toAttr),
-                    AB.data("PageRank", range(S.names.map((n) => prOf(L, n))), toMeasure),
-                    AB.data("Betweenness", range(S.nodes.map((x) => x.betweenness)), toMeasure),
-                    AB.data("Degree", range(S.nodes.map((x) => x.degree)), { go: ["selection-bar", "neighborhood"] }),
+                    AB.data("PageRank", span(S.names.map((n) => prOf(L, n))), toMeasure),
+                    AB.data("Betweenness", span(S.nodes.map((x) => x.betweenness)), toMeasure),
+                    AB.data("Degree", span(S.nodes.map((x) => x.degree)), { go: ["selection-bar", "neighborhood"] }),
                 ],
             },
-            Memberships: { summary: memberships.length + " rows", body: memberships },
+            Memberships: { summary: AB.count(memberships.length, "row"), body: memberships },
             Notes: { count: 2, target: ["notes-place", "about-selection"] },
-        }, { kind: "several" });
+        }, { kind: "several" }));
+    }
+
+    // ---------- a node's neighborhood: the one list of who the node is tied to ----------
+    // The selection is Javert and his neighbors. The neighbors come from the published edge list the
+    // shell derives (AB.fx.datasets.lesmis.edgeList); the tie value is the edge's co-appearance count,
+    // which the fixtures do not carry, so Javert's are typed here from the published graph
+    // (miserables.json, Knuth 1993), as table-dock.js types its edge values.
+    // ponytail: one node's ties only; read every edge's value from the fixtures once they carry it.
+    const CENTER = "Javert";
+    const TIES = { Valjean: 17, Enjolras: 6, Fantine: 5, Thenardier: 5, Babet: 2 }; // every other tie of Javert's is 1
+    function neighborhood(L) {
+        const at = L.rows.findIndex((r) => r.label === CENTER);
+        const id = L.rows[at].id;
+        const ties = L.edgeList.filter(([a, b]) => a === id || b === id).map(([a, b]) => {
+            const i = L.rows.findIndex((r) => r.id === (a === id ? b : a));
+            return { i, name: L.rows[i].label, value: TIES[L.rows[i].label] || 1 };
+        }).sort((x, y) => y.value - x.value || x.name.localeCompare(y.name));
+        const nodes = [L.rows[at], ...ties.map((t) => L.rows[t.i])];
+        const names = nodes.map((n) => n.label);
+        const set = new Set(nodes.map((n) => n.id));
+        const among = L.edgeList.filter(([a, b]) => set.has(a) && set.has(b)).length;
+        const degSum = nodes.reduce((s, n) => s + n.degree, 0);
+        return { at, ties, nodes, names, n: nodes.length, among, leaving: degSum - 2 * among };
+    }
+    function connectionsTab(S) {
+        const rows = S.ties.map((t) => AB.row({ icon: "circle-dot", label: t.name, trail: AB.count(t.value, "shared chapter"), onClick: () => AB.selectNode("lesmis", t.i) }));
+        return withAddNote(AB.dataTab({
+            [CENTER + "'s " + AB.count(S.ties.length, "connection")]: { summary: "by shared chapters, most first", body: rows },
+            Notes: { count: 2, target: ["notes-place", "about-selection"] },
+        }, { kind: "several" }));
+    }
+    // Esc on the neighborhood goes back to the single node it grew from (the shell's Esc would clear it)
+    if (!window.__iseEsc) {
+        window.__iseEsc = true;
+        document.addEventListener("keydown", (e) => {
+            const r = AB.route;
+            if (e.key !== "Escape" || e.defaultPrevented || !r || r.id !== "inspector-several-elements" || r.state !== "neighborhood" || r.frame.overlay) return;
+            const t = e.target;
+            if (t && t.closest && t.closest("input, textarea, [contenteditable], #ab-overlay, [role=menu], [role=dialog], [role=listbox]")) return;
+            e.preventDefault();
+            AB.selectNode("lesmis", AB.fx.datasets.lesmis.rows.findIndex((x) => x.label === CENTER));
+        }, true);
     }
 
     // ---------- the door entries: Ana Ruiz and B1, the two targets of one door-entries note ----------
     function doorTwo(el) {
         const D = AB.fx.datasets.doorEntries, pair = D.loaded.per === "pair";
-        const all = "2 of 2";
+        const all = AB.count(2, null, { of: 2 });
         const style = () => [AB.whyThisLook([
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
         ], { kind: "several", element: "2 nodes", coverage: true })];
-        const data = () => AB.dataTab({
+        const data = () => withAddNote(AB.dataTab({
             Summary: {
                 summary: "2 nodes (a person and a building), " + (pair ? "1 edge" : "edges per entry") + " between them",
                 body: [
                     AB.data("Size", "2 nodes, " + (pair ? "1 edge (count 22)" : "22 entry edges")),
                     AB.data("type", "person 1, building 1"),
+                ],
+            },
+            Members: {
+                summary: "Ana Ruiz, B1",
+                body: [
                     AB.row({ icon: "user", label: "Ana Ruiz", trail: "person", go: ["inspector-node", "door-ana"] }),
                     AB.row({ icon: "building-2", label: "B1", trail: "building", go: ["inspector-node", "door-b1"] }),
                 ],
             },
             Notes: { count: 1, target: ["notes-place", "door-entries"] },
-        }, { kind: "several" });
+        }, { kind: "several" }));
         const insp = AB.inspector({ icon: "circle-dot", title: "2 nodes", kind: "Elements", kindKey: "several",
             renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
             menu: ["context-menus", "several"], tab: "Data", tabs: { Style: style, Data: data } });
@@ -163,35 +237,35 @@
         const valueOf = (f) => {
             const vals = hosts.map((x) => x[f.name]).filter((v) => v != null);
             if (!vals.length) return "no value";
-            if (f.type === "num") return range(vals);
-            if (f.type === "time") return range(vals.map((v) => String(v).slice(0, 10)));
+            if (f.type === "num") return span(vals);
+            if (f.type === "time") return span(vals.map((v) => String(v).slice(0, 10)));
             if (f.type === "cat" || f.type === "bool") return tally(vals);
-            return plural(new Set(vals).size, "value");
+            return AB.count(new Set(vals).size, "value");
         };
-        const size = h("span", null, "5 nodes, " + plural(among, "edge"));
+        const size = h("span", null, AB.count(hosts.length, "node") + ", " + AB.count(among, "edge"));
         AB.tip(size, hosts.map((x) => AB.nameOf("wide", x)).join(", "), { label: false });
-        const all = "5 of 5";
+        const all = AB.count(hosts.length, null, { of: hosts.length });
         const style = () => [AB.whyThisLook([
             { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
-        ], { kind: "several", element: "5 nodes", coverage: true })];
+        ], { kind: "several", element: AB.count(hosts.length, "node"), coverage: true })];
         const rest = AB.section({ title: more + " more attributes", collapsible: true, collapsed: true, key: "data.several.more",
             summary: empties ? empties + " empty on all five" : null },
         AB.fieldList({ size: "panel", dataset: "wide", element: "node", label: "Host attributes",
             onPick: (name) => AB.flash("Shows " + name + " for the five hosts") }));
-        const data = () => AB.dataTab({
+        const data = () => withAddNote(AB.dataTab({
             Summary: {
-                summary: "5 nodes, " + plural(among, "edge") + " among them, " + leaving + " leaving",
+                summary: AB.count(hosts.length, "node") + ", " + AB.count(among, "edge") + " among them, " + AB.num(leaving) + " leaving",
                 body: [
                     AB.data("Size", size),
-                    AB.data("Edges leaving", String(leaving)),
+                    AB.data("Edges leaving", AB.num(leaving)),
                     ...inUse.map((f) => AB.data(AB.truncMiddle(f.name, 22), valueOf(f))),
                     rest,
                 ],
             },
             Notes: { count: 0, target: ["notes-place", "empty"] },
-        }, { kind: "several" });
-        const insp = AB.inspector({ icon: "circle-dot", title: "5 nodes", kind: "Elements", kindKey: "several",
+        }, { kind: "several" }));
+        const insp = AB.inspector({ icon: "circle-dot", title: AB.count(hosts.length, "node"), kind: "Elements", kindKey: "several",
             renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
             menu: ["context-menus", "several"], tab: "Data", tabs: { Style: style, Data: data } });
         insp.classList.add("ise");
@@ -204,22 +278,23 @@
         region: "right",
         rail: "graph",
         closeTo: "graph-place",
-        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }, { id: "door-two", label: "Door entries: Ana Ruiz and B1" }, { id: "wide", label: "Five hosts: in-use attributes, then the rest" }],
+        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }, { id: "door-two", label: "Door entries: Ana Ruiz and B1" }, { id: "wide", label: "Five hosts: in-use attributes, then the rest" }, { id: "neighborhood", label: "Javert's neighborhood: his connections by name" }],
         frame: (state) => (state === "two-nodes" ? { left: "graph-place/at-rest" } : state === "door-two" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "wide" ? { dataset: "wide", left: "graph-place/at-rest" } : { left: "graph-place/at-rest" }),
         render(el, state) {
             if (state === "door-two") return doorTwo(el);
             if (state === "wide") return wideFive(el);
             const L = AB.fx.datasets.lesmis;
-            const S = pick(L, state === "two-nodes");
+            const nbr = state === "neighborhood";
+            const S = nbr ? neighborhood(L) : pick(L, state === "two-nodes");
             const insp = AB.inspector({
                 icon: "circle-dot",
-                title: S.n + " nodes",
+                title: nbr ? "Neighborhood of " + CENTER + " (" + AB.count(S.n, "node") + ")" : AB.count(S.n, "node"),
                 kind: "Elements",
                 kindKey: "several",
                 renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
                 menu: ["context-menus", "several"],
-                tab: state === "data" ? "Data" : state === "style" ? "Style" : undefined,
-                tabs: { Style: () => styleTab(S), Data: () => dataTab(L, S) },
+                tab: state === "data" || nbr ? "Data" : state === "style" ? "Style" : undefined,
+                tabs: { Style: () => styleTab(S), Data: () => (nbr ? connectionsTab(S) : dataTab(L, S)) },
             });
             insp.classList.add("ise");
             el.append(insp);

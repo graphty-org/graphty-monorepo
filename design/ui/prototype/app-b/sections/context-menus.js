@@ -26,9 +26,33 @@
     const flash = (label) => done(label + " (not available yet)");
     // Delete: immediate, with Undo
     const del = (label, what) => ({ label, shortcut: "Del", onClick: () => { AB.close(); setTimeout(() => AB.deleted(what), 0); } });
-    // Deleting an element from the data is "Delete" (Del) like every other delete; Hide on canvas keeps it.
-    // The table's row menu calls the same command "Remove from data" (its desc says it is not only the canvas)
-    const removeData = (what, table) => (table ? { ...del("Remove from data", what), desc: "Removes it from the data, not only from the canvas; Undo puts it back" } : del("Delete", what));
+    // A tree row's Delete is its Delete key (AB.deleteRow): the row goes, the notice is the tree's own, Undo puts it back
+    const delRow = (name) => ({ label: "Delete", shortcut: "Del", onClick: () => { AB.close(); setTimeout(() => AB.deleteRow(name), 0); } });
+    // Deleting an element from the data is "Delete" (Del) like every other delete, on the canvas and in the
+    // table alike; Hide on canvas keeps it
+    const removeData = (what) => ({ ...del("Delete", what), desc: "Removes it from the data, not only from the canvas; Undo puts it back" });
+    // Create set on a selection is the selection bar's Create set, pressed once the menu has closed back to
+    // that selection, so the menu and the bar are one command with one effect and one confirmation
+    const createSet = () => C("create-set", { go: null, onClick: () => {
+        addEventListener("hashchange", () => requestAnimationFrame(() => {
+            const b = document.querySelector("#ab-toolbar [data-tool='Create set']");
+            if (b) b.click(); else AB.go(...AB.COMMANDS["create-set"].go);
+        }), { once: true });
+        AB.close();
+    } });
+    // Create set on a row: an independent set row on top of the tree (AB.combinedRows, where the tree draws
+    // a Combine result), named after the row, so it survives the run's rerun
+    const createSetFrom = (n, r) => C("create-set", { desc: "A set on top of the tree, named after this row, that survives a rerun", go: null, onClick: () => {
+        const c = { id: "set-from-" + (r.id || n), name: n, count: typeof r.count === "number" ? r.count : null, go: r.go || ["inspector-group-set-path-row", "style"] };
+        if (!(AB.combinedRows || []).some((x) => x.id === c.id)) AB.combinedRows = (AB.combinedRows || []).concat(c);
+        addEventListener("hashchange", () => AB.notice("Created '" + n + "' in Sets", { label: "Undo", onClick: () => {
+            AB.combinedRows = AB.combinedRows.filter((x) => x !== c);
+            AB.redrawLeft = true;
+            AB.render();
+        } }), { once: true });
+        AB.redrawLeft = true;
+        AB.close();
+    } });
 
     // Two-state commands: one item whose label swaps; both labels for a mixed selection
     const twoState = (on, off, isOn, desc) => (isOn === "mixed"
@@ -85,7 +109,7 @@
     const frameSel = () => C("frame-selection");
 
     // One node: the canvas right-click and the inspector's "...". The table's row menu (o.table) is the
-    // same list word for word, minus Show in table, with Remove from data for Delete
+    // same list word for word, minus Show in table
     const nodeItems = (o) => [
         { heading: o.name },
         C("neighborhood"),
@@ -94,7 +118,7 @@
         { sep: true },
         C("analyze"),
         { sep: true },
-        C("create-set"),
+        createSet(),
         { label: "Add to set...", ...flash("Add to set") },
         // only a node that is in a set gets its Remove from; in the fixtures that is Valjean in Watchlist
         o.name === "Valjean" ? { label: "Remove from Watchlist", ...done("Removed Valjean from Watchlist", { label: "Undo", onClick: () => AB.announce("Valjean is back in Watchlist") }) } : null,
@@ -103,10 +127,11 @@
         { sep: true },
         ...pin(o.pinned),
         C("hide-on-canvas"),
-        removeData(o.name + " and its edges", o.table),
         { sep: true },
         C("add-note"),
         o.table ? null : showInTable(),
+        { sep: true },
+        removeData(o.name + " and its edges"),
     ].filter(Boolean);
 
     // The graph's one list: the empty canvas's right-click and the nothing-selected inspector's "..."
@@ -141,7 +166,8 @@
         C("rename", flash("Rename")),
         { sep: true },
         C("replace-file", { desc: "Opens the file picker, then the Data page with every role carried over; the graph is untouched if it fails" }),
-        { label: "Add rows from file...", desc: "More rows of the same table, kept with the rows already loaded", ...(url ? flash("Add rows from file") : { go: ["data-page", "add-rows"] }) },
+        // the decided label, as the Data place's own row menu says it; it opens the page headed "Add to transfers" (data-page add-rows)
+        { label: "Add rows from file...", desc: "More rows of the same table from a file, kept with the rows already loaded", ...(url ? flash("Add to structuring alerts") : { go: ["data-page", "add-rows"] }) },
         C("edit-source", { desc: "The Data page at this table" }),
         // Refresh only for an address: a file has nothing to read again (Replace with file... picks it anew)
         url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", go: ["data-place", "refreshing"] } : null,
@@ -151,15 +177,16 @@
 
     // Compare with another run...: the run rows on screen, earlier runs of the same measure first (a
     // copy lands on top, so the rows below this one are earlier), then later runs of it, then the other
-    // runs. A copy keeps its run's name, so the opened row is skipped by its element, not its name. The
-    // comparison page holds the transfers' two Louvain runs; elsewhere a pick says it is not available yet
+    // runs. A second run of an algorithm is numbered (Louvain 2, graph-place's run label), so the measure
+    // is the name without that number; the opened row is skipped by its element. The comparison page
+    // holds the transfers' two Louvain runs; elsewhere a pick says it is not available yet
     function compareRuns(n) {
         const me = rowEl(n);
         const lis = [...document.querySelectorAll("#ab-left [data-row]")];
         const at = lis.indexOf(me);
         const runs = lis.map((li, i) => ({ i, r: li._entry && li._entry.r }))
             .filter(({ i, r }) => lis[i] !== me && r && r.menu && r.menu[1] === "run-row" && r.kindIcon === AB.ICON.run); // group runs only, not paths
-        const measure = (x) => x.split(/[,:(]/)[0].trim();
+        const measure = (x) => x.split(/[,:(]/)[0].trim().replace(/\s+\d+$/, "");
         const same = runs.filter(({ r }) => measure(r.name) === measure(n));
         const earlier = same.filter(({ i }) => i > at), later = same.filter(({ i }) => i < at), other = runs.filter(({ r }) => measure(r.name) !== measure(n));
         const pick = ({ r }) => ({ label: r.name, ...(AB.route && AB.route.frame.dataset === "transactions" ? { go: ["full-canvas-modes", "comparison"] } : flash("Compare " + n + " with " + r.name)) });
@@ -180,9 +207,6 @@
     const rowOf = (n) => { const li = rowEl(n); return (li && li._entry && li._entry.r) || null; };
     const rowAt = (state, id) => { const r = rowEl(who(state)); return [r || `#ab-left [data-row=${id}]`, 55, 50, false]; };
     const RUN = "Louvain"; // run rows are named by their algorithm
-    // The delete notice names the style layers that go with the run (the element's runs.bindings;
-    // Louvain's suggested look is one layer, Fill color by community)
-    const RUN_DELETED = (n) => (n || RUN) + ", its 6 communities and " + AB.count(1, "style layer");
 
     // A hosts number attribute with its own inspector state (inspector-attribute-and-filter-step/long-name)
     const HOST_NUMBER = "vuln_count_critical_unremediated_over_30_days";
@@ -249,10 +273,11 @@
                 { label: "Select endpoints", go: ["inspector-several-elements", "two-nodes"] },
                 { sep: true },
                 C("hide-on-canvas"),
-                removeData("the edge " + n),
                 { sep: true },
                 C("add-note"),
                 showInTable("edges"),
+                { sep: true },
+                removeData("the edge " + n),
             ],
         },
         several: {
@@ -265,7 +290,7 @@
                 { sep: true },
                 C("analyze"),
                 { sep: true },
-                C("create-set"),
+                createSet(),
                 { label: "Lay out members...", ...flash("Lay out members") },
                 { label: "Extract as graph", needs: "graphty-element cannot copy a subgraph into a new graph yet" },
                 { label: "Merge nodes...", needs: "graphty-element has no merge of nodes and their edges" },
@@ -274,11 +299,12 @@
                 { sep: true },
                 ...pin("mixed"),
                 C("hide-on-canvas"),
-                removeData("5 nodes and their edges"),
                 { label: "Copy ids", ...done("Copied 5 ids") },
                 { sep: true },
                 C("add-note"),
                 showInTable(),
+                { sep: true },
+                removeData("5 nodes and their edges"),
             ],
         },
         "several-path": {
@@ -291,7 +317,7 @@
                 { sep: true },
                 C("analyze"),
                 { sep: true },
-                C("create-set"),
+                createSet(),
                 { label: "Create path", go: ["inspector-group-set-path-row", "path-lesmis"] },
                 { label: "Lay out members...", ...flash("Lay out members") },
                 { label: "Extract as graph", needs: "graphty-element cannot copy a subgraph into a new graph yet" },
@@ -300,11 +326,12 @@
                 { sep: true },
                 ...pin(false),
                 C("hide-on-canvas"),
-                removeData("2 nodes and 1 edge"),
                 { label: "Copy ids", ...done("Copied 3 ids") },
                 { sep: true },
                 C("add-note"),
                 showInTable(),
+                { sep: true },
+                removeData("2 nodes and 1 edge"),
             ],
         },
         canvas: {
@@ -335,11 +362,11 @@
                     } }),
                 { sep: true },
                 { label: "Select members", go: ["inspector-several-elements", "style"] },
-                { label: "Show members in table", go: ["table-dock", "members-of-row"] },
                 { sep: true },
                 C("analyze"),
+                { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
-                C("create-set", { desc: "A set on top of the tree that survives a rerun", go: null, ...done("Created '" + n + "' in Sets") }),
+                createSetFrom(n, r),
                 combine(el),
                 moveTo(el, n),
                 { label: "Collapse on canvas", needs: "graphty-element cannot draw a group as one node yet" },
@@ -351,9 +378,9 @@
                 { sep: true },
                 C("add-note"),
                 { label: "Open notes", go: ["inspector-group-set-path-row", "notes"] },
-                { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
+                { label: "Show members in table", go: ["table-dock", "members-of-row"] },
                 { sep: true },
-                del("Delete", n),
+                delRow(n),
             ]; },
         },
         "notes-row": {
@@ -380,16 +407,16 @@
                 { sep: true },
                 { label: "Select top N...", go: ["context-menus", "top-n"] },
                 { sep: true },
-                showInTable(),
-                { label: "Filter to...", go: ["data-place", "filters"] },
+                { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
                 { sep: true },
                 ...lock(false),
                 ...listItems("pagerank"),
+                { label: "Filter to...", go: ["data-place", "filters"] },
                 { sep: true },
                 C("add-note"),
-                { label: "Compare with another row...", go: ["full-canvas-modes", "comparison"] },
+                showInTable(),
                 { sep: true },
-                del("Delete", n),
+                delRow(n),
             ],
         },
         "run-row": {
@@ -402,20 +429,23 @@
                 C("rename", { needs: "graphty-element names a run after its algorithm and settings; a run cannot be renamed yet" }),
                 { sep: true },
                 { label: "Rerun", go: ["graph-place", "running"] },
-                C("run-as-copy", { desc: "Keeps this run; the copy lands on top", go: ["graph-place", "finished"] }),
-                { label: "Restore the suggested look", desc: "Puts back the style layers the algorithm suggests", ...flash("Restore the suggested look") },
-                { label: "Show members in table", go: ["table-dock", "communities"] },
-                { label: "Lay out by these groups", ...flash("Lay out by these groups") },
-                { label: "Restore an earlier result", needs: "graphty-element keeps only the latest result of a run" },
+                // ponytail: no Graph place state draws a copy of this run on top yet (graph-place's "finished"
+                // is a new Betweenness run), so the copy says so rather than open another algorithm's result
+                C("run-as-copy", { desc: "Runs again under a new name; this row is left unchanged", go: null, ...flash("Run " + n + " as copy") }),
                 { label: "Check against a null model and other seeds...", needs: "graphty-element has no null-model or seed-stability check" },
                 { label: "Compare with another run...", desc: "Puts this run's groups beside another run's", sub: true, onClick: sub(el, compareRuns(n)) },
+                { sep: true },
+                { label: "Restore the suggested look", desc: "Puts back the style layers the algorithm suggests", ...flash("Restore the suggested look") },
+                { label: "Lay out by these groups", ...flash("Lay out by these groups") },
+                { label: "Restore an earlier result", needs: "graphty-element keeps only the latest result of a run" },
                 { sep: true },
                 ...lock(false),
                 ...listItems("louvain"),
                 { sep: true },
                 C("add-note"),
+                { label: "Show members in table", go: ["table-dock", "communities"] },
                 { sep: true },
-                del("Delete", RUN_DELETED(n)),
+                delRow(n),
             ],
         },
         folder: {
@@ -432,7 +462,7 @@
                 ...lock(false),
                 ...listItems("folder"),
                 { sep: true },
-                del("Delete", n + " and its rows"),
+                delRow(n),
             ],
         },
         // An attribute's menu is the one attribute menu (AB.attributeMenu), the same list Data >
@@ -544,7 +574,7 @@
         render(el, state) {
             // An old link to the removed run-delete confirmation: Delete acts at once
             if (state === "run-delete") {
-                setTimeout(() => { AB.go("graph-place", "at-rest"); setTimeout(() => AB.deleted(RUN_DELETED()), 0); }, 0);
+                setTimeout(() => { AB.go("graph-place", "at-rest"); setTimeout(() => AB.deleteRow(RUN), 0); }, 0);
                 return;
             }
             const s = STATES[state] || STATES.node;

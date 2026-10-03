@@ -1,6 +1,8 @@
 /* Apply file: one dialog for a recipe or a style file (structure-b-refined.md 12.2, streamline-3
-   "Apply recipe or style file"). Opened from the project-name menu's Apply recipe or style file...,
-   Quick actions, or a dropped file. Titled "Apply <kind>: <name> to <project>": a file header (name, who saved
+   "Apply recipe or style file"). Every file intake opens it: the project-name menu's Apply recipe
+   or style file..., Quick actions, Open project or file..., a source's add, and a dropped file.
+   graphty-element recognizes a recipe or style file from its contents (the header says what it was
+   read as), so there is no second apply flow. Titled "Apply <kind>: <name> to <project>": a file header (name, who saved
    it and when), then one list of the rows the file adds, drawn with the shared AB.tree, each row
    with its binding inline in the count slot -- the matched attribute, or a picker when the data
    lacks it, after what the row paints. Matched bindings collapse into one line ("4 of 4 attributes
@@ -14,8 +16,8 @@
    property it paints and keeps her layers scoped to a set: the dialog lists each layer it replaces
    with its match count and names the ones it keeps; Apply acts at once and the notice reads
    "Replaced 3 layers, kept 2." with Undo (Ctrl+Z presses it). The rule is graphty-element's
-   StyleManager's. An older 1.x style file is one problem block and "Apply these settings",
-   with each setting a checkbox.
+   StyleManager's. An older 1.x style file is one notice naming every setting it still carries
+   ("Older style file: its layers cannot be applied. It also sets ...") and "Apply these settings".
    Data facts are kit/fixtures.json: March accounts carry alertRule; April's accounts file has only
    id, kind, country, riskScore and flagged; 7 of the Watchlist's accounts are in April.
    Section-local fact (WL): the recipe's Watchlist also names 12 ids a spreadsheet turned into dates
@@ -37,8 +39,10 @@
    (kit/wide-nested.json, 69 host and 26 connection attributes): six attributes, four matched by name
    and type, two renamed since February, each chosen through the field list. Section-local facts:
    the recipe file, its February names (vuln_crit_30d, owner) and its rows.
-   Every binding choice is the field list at menu size (AB.openFieldList) over the data on screen;
-   "Leave unbound" and "Use no weight" are the link beside it, as Analyze's "Use no weight".
+   Every binding choice is the field list at menu size (AB.openFieldList) over the data on screen.
+   An attribute's "Choose an attribute" lists the suited attributes first (category attributes; for
+   a number slot, numbers), then the others, then Leave unbound as the list's last entry. A run's
+   weight keeps the typed list with "Use no weight" beside it, as Analyze's "Use no weight".
    April's attributes: AB.fx.datasets.transactionsApril carries file columns but no attribute list,
    so this file gives it one (non-enumerable, March's types for April's columns) for fieldsOf.
    The section also draws the left panel, canvas and (after applying) the inspector, so the tree
@@ -72,10 +76,6 @@
 .ra-reason .k-i { flex: none; margin-top: 3px; }
 .ra-reason b { color: var(--cm-text); font-weight: 550; }
 .ra-foot .k-btn { flex: none; }
-.ra-sets { list-style: none; margin: 0; padding: 0 16px 8px; }
-.ra-sets li { display: flex; align-items: center; gap: 10px; height: 32px; border-top: 1px solid var(--cm-border); }
-.ra-sets li:first-child { border-top: 0; }
-.ra-sets .ra-val { font-family: var(--cm-font-family-mono); font-size: 11px; color: var(--cm-text-secondary); margin-inline-start: auto; }
 `;
     if (!document.getElementById("ra-style")) document.head.append(h("style", { id: "ra-style" }, css));
 
@@ -265,17 +265,17 @@
                 "Matched by name and type in " + graph + (r.weight ? "; read as Capacity, as the recipe saved it. This run's own weight: the loaded weight is unchanged" : ""), { label: false });
             const c = st.choice[r.id];
             const none = r.weight ? "None" : "unbound";
-            // The binding choice is the field list at menu size over the data on screen
+            // The binding choice is the field list at menu size over the data on screen; an attribute's
+            // lists the suited ones first and ends with Leave unbound (a weight keeps its typed list)
             const f = AB.field(c === "unbound" ? "Leave unbound" : c ? AB.truncMiddle(c, 24) : (r.weight ? "Choose" : "Choose an attribute"), { caret: true,
-                onClick: (e) => AB.openFieldList(e.currentTarget, { dataset, kind: r.weight ? "number" : r.kind, element: r.weight ? "edge" : "node", current: c, results: false, notes: false,
-                    label: (r.weight ? "Weight" : "Attribute") + " for " + r.reads, onPick: (name) => pick(r, name) }) });
+                onClick: (e) => AB.openFieldList(e.currentTarget, Object.assign({ dataset, current: c, results: false, notes: false, label: (r.weight ? "Weight" : "Attribute") + " for " + r.reads },
+                    r.weight ? { kind: "number", element: "edge", onPick: (name) => pick(r, name) } : { items: choices(r, c) })) });
             f.dataset.raPick = r.id;
             // Choosing the missing data is the main action: the first open choice takes focus
             if (!wide && !c && r === open()[0]) f.setAttribute("data-autofocus", "");
             f.setAttribute("aria-haspopup", "listbox");
-            const leave = c === none ? null : h("span", Object.assign({ class: "ab-link" , role: "button" }, AB.act({ onClick: () => pick(r, none) })), r.weight ? "Use no weight" : "Leave unbound");
-            if (leave && !r.weight) AB.tip(leave, "The row is added hidden and marked unbound; bind it later from its Style tab", { label: false });
-            f.setAttribute("aria-label", r.reads + ": " + (c || "choose an attribute"));
+            const leave = !r.weight || c === none ? null : h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => pick(r, none) })), "Use no weight");
+            f.setAttribute("aria-label", r.reads + ": " + (c === "unbound" ? "leave unbound" : c || "choose an attribute"));
             AB.tip(f, r.reads + " is not in " + (other ? host.file || "this data" : wide ? W().file : r.weight ? TA().files.transfers.file : TA().files.accounts.file), { label: false });
             if (!r.weight) return h("span", { class: "ra-bind" }, r.reads, h("span", { class: "ra-arrow" }, "->"), f, leave);
             // The meaning control shows only while the column is unmatched; it starts at the recipe's Capacity
@@ -293,6 +293,18 @@
                 li.querySelector(".ab-tcount").replaceChildren(...bindingFor(r).filter(Boolean));
             });
             listWrap.replaceChildren(tr);
+        };
+        // "Choose an attribute": the node attributes, the suited type first (category; numbers for a
+        // number slot, the rest disabled), each group by name, then Leave unbound as the last entry
+        const choices = (r, c) => {
+            const want = r.kind === "number" ? "num" : "cat";
+            const all = AB.fieldsOf(dataset).filter((g) => g.element === "node").flatMap((g) => g.fields).sort((a, b) => a.name.localeCompare(b.name));
+            const item = (x) => ({ label: x.name, check: c === x.name, disabled: want === "num" && x.type !== "num" ? "Not a number" : false, onClick: () => pick(r, x.name) });
+            const first = all.filter((x) => x.type === want), rest = all.filter((x) => x.type !== want);
+            return [first.length ? { heading: want === "num" ? "Number attributes" : "Category attributes" } : null, ...first.map(item),
+                rest.length ? { heading: "Other attributes" } : null, ...rest.map(item),
+                { heading: "No attribute" },
+                { label: "Leave unbound", check: c === "unbound", desc: "The row is added hidden and marked unbound; bind it later from its Style tab", onClick: () => pick(r, "unbound") }].filter(Boolean);
         };
         const pick = (r, c) => { st.choice[r.id] = c; AB.closeMenu(); drawList(); drawFoot(); const f = listWrap.querySelector(`[data-ra-pick="${r.id}"]`); if (f) f.focus(); };
         drawList();
@@ -332,7 +344,7 @@
                 swap.keep.map((l) => l.name + " (" + l.prop + ", " + l.n + ")").join(", ") + ". Nothing else in your tree changes.")),
         ] : null;
         const body = h("div", null,
-            h("div", { class: "ra-head" }, icon(isStyle ? "palette" : "book-open", "sm"), h("b", null, file.file), h("span", { class: "k-secondary" }, savedLine(file))),
+            h("div", { class: "ra-head" }, icon(isStyle ? "palette" : "book-open", "sm"), h("b", null, file.file), h("span", { class: "k-secondary" }, "Read as a " + file.kind + ". " + savedLine(file)), recognized()),
             meta,
             h("div", { class: "ra-sh" }, "Rows it adds", h("span", { class: "k-grow" }), summary),
             listWrap, missingIds, noneHere, swapBlock);
@@ -347,37 +359,24 @@
         return wrap;
     }
 
+    // graphty-element recognizes the file kind from its contents, whichever door the file came through
+    const recognized = () => AB.needsElement("graphty-element recognizes a recipe or style file from its contents, so every file intake (Open project or file..., a source's add, a drop) opens this one dialog");
+
     function finish(wrap) {
         wrap.querySelector(".k-modal").classList.add("ra-modal");
         wrap.querySelector(".k-modal-foot").classList.add("ra-foot");
         return wrap;
     }
 
-    // ---------- an older (1.x) style file: one problem block, its settings as checkboxes ----------
-    const LEGACY_SETTINGS = [
-        { id: "mode", name: "View mode", val: "2D" },
-        { id: "layout", name: "Layout", val: "ngraph" },
-        { id: "bg", name: "Background", val: "#101820" },
-    ];
+    // ---------- an older (1.x) style file: one notice naming the settings it still carries ----------
+    const LEGACY_SETTINGS = [["view mode", "2D"], ["layout", "ngraph"], ["background", "#101820"]];
     function legacyDialog() {
-        const on = { mode: true, layout: true, bg: true };
-        const applyBtn = AB.button("Apply these settings", { onClick: () => { if (LEGACY_SETTINGS.some((s) => on[s.id])) backToGraph(); } });
-        const list = h("ul", { class: "ra-sets", "aria-label": "Settings the file carries" });
-        const draw = () => {
-            list.replaceChildren(...LEGACY_SETTINGS.map((s) => {
-                const flip = () => { on[s.id] = !on[s.id]; draw(); list.querySelector(`[data-set="${s.id}"]`).focus(); };
-                const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "data-set": s.id, "aria-checked": String(on[s.id]), "aria-label": s.name + " " + s.val,
-                    on: { click: flip, keydown: (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } } } });
-                return h("li", null, box, h("span", null, s.name), h("span", { class: "ra-val" }, s.val));
-            }));
-            applyBtn.setAttribute("aria-disabled", LEGACY_SETTINGS.some((s) => on[s.id]) ? "false" : "true");
-        };
-        draw();
+        const sets = LEGACY_SETTINGS.map(([k, v]) => k + " " + v);
+        const what = "Older style file: its layers cannot be applied. It also sets " + sets.slice(0, -1).join(", ") + " and " + sets[sets.length - 1] + ".";
         const body = h("div", null,
-            h("div", { class: "ra-head" }, icon("history", "sm"), h("b", null, LEGACY.file), h("span", { class: "k-secondary" }, "Made with graphty-element 1.x")),
-            Object.assign(AB.problem({ level: "partial", what: "Its layers are in the older 1.x form and cannot be applied.", todo: "Its other settings still apply. Keep the ones you want." }), { className: "ab-problem ra-missing" }),
-            list);
-        const foot = h("div", { style: "display:contents" }, h("span", { class: "k-grow" }), AB.button("Cancel", { kind: "secondary", onClick: backToGraph }), applyBtn);
+            h("div", { class: "ra-head" }, icon("history", "sm"), h("b", null, LEGACY.file), h("span", { class: "k-secondary" }, "Read as a style file, made with graphty-element 1.x"), recognized()),
+            Object.assign(AB.problem({ level: "partial", what }), { className: "ab-problem ra-missing" }));
+        const foot = h("div", { style: "display:contents" }, h("span", { class: "k-grow" }), AB.button("Cancel", { kind: "secondary", onClick: backToGraph }), AB.button("Apply these settings", { onClick: backToGraph }));
         return finish(AB.modal({ title: "Apply style file: " + LEGACY.file + " to " + T().frame.project, body, foot }));
     }
 

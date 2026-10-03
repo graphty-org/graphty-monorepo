@@ -8,7 +8,7 @@
 (function () {
     const CSS = `
 .as-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-.as-conv { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; line-height: 18px; }
+.as-conv { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 12px; line-height: 18px; }
 .as-q { align-self: flex-end; max-width: 85%; padding: 6px 10px; border-radius: 8px; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .as-sent { align-self: flex-end; margin-top: -8px; }
 .as-a { color: var(--cm-text); display: flex; flex-direction: column; gap: 6px; }
@@ -33,13 +33,13 @@
 .as-stopped { display: flex; align-items: center; gap: 6px; color: var(--cm-text-secondary); }
 .as-turn-a { display: flex; flex-direction: column; gap: 6px; }
 .as-table-wrap { overflow-x: auto; max-width: 100%; }
-.as-table { table-layout: fixed; font-size: 12px; }
+.as-table { table-layout: fixed; }
 .as-table th, .as-table td { height: 24px; /* row pitch 24 px: each name link gets its 24 px target (WCAG 2.5.8) */ padding: 0 6px; }
 .as-table th, .as-table td { padding: 0 4px; }
 .as-table td:first-child { overflow: hidden; text-overflow: ellipsis; }
 .as-tool.is-stopped { white-space: normal; }
 .as-composer { flex: none; border-top: 1px solid var(--cm-border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-.as-composer textarea { font: inherit; font-size: 12px; resize: none; min-height: 56px; padding: 6px 8px; border-radius: 5px; border: 0; background: var(--cm-bg-secondary); color: var(--cm-text); }
+.as-composer textarea { font: inherit; resize: none; min-height: 56px; padding: 6px 8px; border-radius: 5px; border: 0; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .as-composer textarea:disabled { opacity: 0.6; }
 .as-composer-foot { display: flex; align-items: center; gap: 6px; }
 .as-mic { border: 0; background: none; padding: 0; font: inherit; }

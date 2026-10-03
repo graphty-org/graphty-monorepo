@@ -33,7 +33,7 @@
 .fcm-li[hidden] { display: none; }
 .fcm-added { display: grid; gap: 2px; padding: 0 12px 6px 40px; }
 .fcm-added > div { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
-.fcm-big { color: var(--cm-text); font-weight: 600; }
+.fcm-big { color: var(--cm-text); font-weight: 550; }
 .fcm-changed { grid-column: 2 / -1; display: grid; gap: 2px; padding: 4px 0 2px; color: var(--cm-text-secondary); }
 .fcm-changed > span { display: block; }
 .fcm-changed .k-badge { margin-inline-end: 6px; }
@@ -44,6 +44,8 @@
 .fcm-plot { flex: 1 1 auto; min-height: 0; display: flex; }
 .fcm-plot svg { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; color: var(--cm-text-secondary); }
 .fcm-scatter svg text { fill: var(--cm-text-secondary); font-size: 22px; }
+.fcm-scatter svg .fcm-band { fill: var(--cm-text-secondary); fill-opacity: .14; stroke: var(--cm-text-secondary); stroke-opacity: .5; stroke-width: 2; }
+.fcm-scatter svg .fcm-bandlab { fill: var(--cm-text); font-weight: 550; }
 .fcm-tbl { width: calc(100% - 32px); margin: 0 16px 8px; border-collapse: collapse; line-height: 16px; }
 .fcm-tbl th, .fcm-tbl td { padding: 4px 4px 4px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--cm-border); }
 .fcm-tbl th { font-weight: 550; color: var(--cm-text-secondary); }
@@ -54,10 +56,13 @@
 .fcm-pick .k-field { width: 260px; max-width: 100%; }
 .fcm-side { grid-row: 2; }
 .fcm-cmpcanvas { grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+/* Side by side, each drawing starts under its header and fades out at its foot (the drawing is a
+   crop of a larger one), so the legend sits on the canvas below it, not over it */
+.fcm-cmpcanvas .k-stage { top: 0; transform: translateX(-50%); -webkit-mask-image: linear-gradient(to bottom, #000 85%, transparent); mask-image: linear-gradient(to bottom, #000 85%, transparent); }
 .fcm-cmpcanvas + .fcm-cmpcanvas { border-inline-start: 1px solid var(--cm-border); }
 .fcm-cvhead { display: flex; align-items: baseline; gap: 8px; min-height: 36px; padding: 8px 12px; line-height: 16px; flex: none; background: var(--cm-bg); border-bottom: 1px solid var(--cm-border); flex-wrap: wrap; }
 .fcm-metric { display: flex; align-items: baseline; gap: 8px; padding: 0 16px 4px; line-height: 16px; }
-.fcm-num { font-size: 20px; line-height: 28px; font-weight: 600; }
+.fcm-num { font-size: 20px; line-height: 28px; font-weight: 550; }
 .fcm-bar { position: relative; height: 12px; margin: 4px 16px 2px; border-radius: 4px; background: var(--cm-bg-secondary); }
 .fcm-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
 .fcm-bar .fcm-bar-range { background: var(--cm-border); }
@@ -356,8 +361,8 @@
         const descriptive = h("div", { class: "fcm-cap", style: "padding-top:10px" }, "Descriptive only; no statistical test." + (state === "rest" ? " Enrichment analysis isn't part of graphty." : ""));
         const bar = (mark) => h("div", { class: "fcm-bar", "aria-hidden": "true" },
             h("i", { class: "fcm-bar-mark", style: `left:calc(${mark * 100}% - 1px)` }));
-        // Stability across reruns (several seeds) is graphty-element's to compute; until it is, it is never drawn as a result
-        const noStability = (what) => AB.data(what, h("span", { class: "k-secondary" }, "not available yet; it needs graphty-element"));
+        // Stability across reruns (several seeds), in the run inspector's wording (inspector-run-row)
+        const stability = (x) => pct(x) + " of reruns keep it together";
         let sections;
         // ponytail: the decided figure, typed here because the kit holds only the adjusted mutual
         // information (0.449); read it from the fixture once the kit carries the adjusted Rand index
@@ -365,7 +370,19 @@
         if (partitions) {
             const grew = L.grew.slice(0, L.ringRankInGrew).map((c) => AB.row({ label: c.name, selected: state === "group" && c.name === SEL.name, trail: fmt(c.marchSize) + " to " + fmt(c.aprilSize) + " (+" + fmt(c.change) + ")",
                 go: c.name === SEL.name ? ["full-canvas-modes", "group"] : null, onClick: c.name === SEL.name ? null : flash("Select " + c.name + " on both sides") }));
+            // The one community across the two versions comes first, so it is what the reader sees
+            const groupSection = state === "group" ? AB.section(SEL.name + ", March to April",
+                AB.data("Stayed", AB.count(S.marchMembersStillInIt, "account")),
+                AB.data("Left", AB.count(S.marchMembersLeftIt, "account")),
+                AB.data("Joined", AB.count(S.joinedFromOtherGroups + S.joinedNew, "account") + " (" + S.joinedNew + " new)"),
+                AB.data("Silent", AB.count(S.marchMembersSilent, "account") + ", no transfers in April"),
+                AB.data("Stability, March", stability(S.holdsInMarchReruns)),
+                AB.data("Stability, April", stability(S.holdsInAprilReruns)),
+                AB.data("Number", "kept from March: most members stayed; " + MATCHED_BY),
+                h("div", { class: "fcm-cap", style: "padding-top:6px" }, AB.link("full-canvas-modes", "comparison", "All communities")),
+                AB.needsElement("Member movement, and stability across reruns, come from graphty-element")) : null;
             sections = [
+                groupSection,
                 AB.section("Agreement",
                     h("div", { class: "fcm-cap", style: "padding-top:4px;color:var(--cm-text)" }, "Agreement ", h("b", { class: "k-num" }, AB.num(ARI, 2)), " (adjusted Rand index; 1 = the same groups)"),
                     bar(ARI),
@@ -382,17 +399,7 @@
                     AB.data("Singles", Z.singletonCommunities + " new groups of one account, no transfers in April"),
                     AB.data("Not in April", String(L.unmatchedMarch.length)),
                     AB.needsElement("Matching community numbers across data versions, and the split of single-account groups, come from graphty-element's partition comparison")),
-                state === "group"
-                    ? AB.section(SEL.name + ", March to April",
-                        AB.data("Stayed", AB.count(S.marchMembersStillInIt, "account")),
-                        AB.data("Left", AB.count(S.marchMembersLeftIt, "account")),
-                        AB.data("Joined", AB.count(S.joinedFromOtherGroups + S.joinedNew, "account") + " (" + S.joinedNew + " new)"),
-                        AB.data("Silent", AB.count(S.marchMembersSilent, "account") + ", no transfers in April"),
-                        AB.data("Number", "kept from March: most members stayed; " + MATCHED_BY),
-                        noStability("Stability"),
-                        h("div", { class: "fcm-cap", style: "padding-top:6px" }, AB.link("full-canvas-modes", "comparison", "All communities")),
-                        AB.needsElement("Member movement, and stability across reruns, come from graphty-element"))
-                    : AB.section("Grew the most", grew),
+                state === "group" ? null : AB.section("Grew the most", grew),
             ];
         } else if (state === "rankings") {
             const T = R.scatter.topBoth, off = R.spearmanOffBottom;
@@ -455,24 +462,44 @@
         return wrap;
     }
 
-    // Two rankings as a scatter: one dot per account, rank 1 at the left and the top. The straight
-    // runs at the right and the bottom are the tied accounts.
+    // Two rankings as a scatter: one dot per account, rank 1 at the left and the top. A block of
+    // tied values (the accounts at the bottom of a measure, which share one value and so one rank
+    // range) is drawn as one labeled band over that rank range, not as a run of dots.
     function scatter(R, xName, yName, flip) {
         const n = R.n, W = 1000, P = 60;
         const pos = (r) => P + ((r - 1) / (n - 1)) * (W - 2 * P);
+        // each axis's bottom tie block and its words: "1,314 accounts tied at 0 betweenness"
+        const tieOf = (name) => name.startsWith("PageRank")
+            ? { t: R.bottomTiePR, words: "tied at the lowest PageRank" } : { t: R.bottomTieBC, words: "tied at " + AB.num(R.bottomTieBC.value) + " betweenness" };
+        const tx = tieOf(xName), ty = tieOf(yName);
+        const tiedX = (x) => x >= tx.t.from, tiedY = (y) => y >= ty.t.from;
+        // where each band reaches on the other axis: the spread of its accounts' other rank
+        const ext = [Infinity, -Infinity], eyt = [Infinity, -Infinity];
         let d = "";
-        R.scatter.points.forEach(([pr, bc]) => { const [x, y] = flip ? [bc, pr] : [pr, bc]; d += "M" + pos(x).toFixed(1) + " " + pos(y).toFixed(1) + "h0"; });
-        const svg = h("div", { class: "fcm-plot", role: "img", "aria-label": "Scatter of " + AB.count(n, "account") + ": " + xName + " rank across, " + yName + " rank down" });
+        R.scatter.points.forEach(([pr, bc]) => {
+            const [x, y] = flip ? [bc, pr] : [pr, bc];
+            if (tiedX(x)) { ext[0] = Math.min(ext[0], y); ext[1] = Math.max(ext[1], tiedY(y) ? ty.t.to : y); }
+            if (tiedY(y)) { eyt[0] = Math.min(eyt[0], x); eyt[1] = Math.max(eyt[1], tiedX(x) ? tx.t.to : x); }
+            if (!tiedX(x) && !tiedY(y)) d += "M" + pos(x).toFixed(1) + " " + pos(y).toFixed(1) + "h0";
+        });
+        const rect = (x0, x1, y0, y1) => `x="${pos(x0).toFixed(1)}" y="${pos(y0).toFixed(1)}" width="${(pos(x1) - pos(x0)).toFixed(1)}" height="${(pos(y1) - pos(y0)).toFixed(1)}"`;
+        const label = (x0, y0, lines) => lines.map((l, i) => `<text class="fcm-bandlab" x="${(pos(x0) + 12).toFixed(1)}" y="${(pos(y0) + 30 + i * 28).toFixed(1)}">${l}</text>`).join("");
+        const xBand = AB.count(tx.t.count, "account"), yBand = AB.count(ty.t.count, "account");
+        const svg = h("div", { class: "fcm-plot", role: "img", "aria-label": "Scatter of " + AB.count(n, "account") + ": " + xName + " rank across, " + yName + " rank down; "
+            + yBand + " " + ty.words + " drawn as one band, " + xBand + " " + tx.words + " as another" });
         svg.innerHTML = `<svg viewBox="0 0 ${W} ${W}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
 <rect x="${P}" y="${P}" width="${W - 2 * P}" height="${W - 2 * P}" fill="none" stroke="currentColor" stroke-opacity=".35"/>
 <path d="${d}" stroke="currentColor" stroke-opacity=".45" stroke-width="5" stroke-linecap="round"/>
+<rect class="fcm-band" ${rect(eyt[0], eyt[1], ty.t.from, ty.t.to)}/>
+<rect class="fcm-band" ${rect(tx.t.from, tx.t.to, ext[0], ext[1])}/>
+${label(eyt[0], ty.t.from, [yBand, ty.words])}
+${label(tx.t.from, ext[0], [xBand, tx.words])}
 <text x="${P}" y="${P - 18}">${yName} rank, 1 at the top</text>
 <text x="${W - P}" y="${W - 18}" text-anchor="end">${xName} rank, 1 at the left</text></svg>`;
-        const tA = R.bottomTiePR, tB = R.bottomTieBC;
         return h("div", { class: "fcm-cmpcanvas", role: "region", "aria-label": xName + " and " + yName },
             h("div", { class: "fcm-cvhead" }, h("b", null, xName + " and " + yName), h("span", { class: "k-secondary k-num" }, "April data, " + AB.count(n, "account"))),
             h("div", { class: "fcm-scatter" }, svg,
-                h("div", { class: "fcm-cap", style: "padding:8px 0 0" }, "One dot per account. The straight runs are ties: " + fmt(tA.count) + " accounts share the lowest PageRank and " + fmt(tB.count) + " have zero betweenness.")));
+                h("div", { class: "fcm-cap", style: "padding:8px 0 0" }, "One dot per account. Each shaded band is one block of tied accounts: they share one value, so they share one rank range.")));
     }
 
     // The kept comparison as a run row on top of the transfers' Graph tree. The tree is the Graph

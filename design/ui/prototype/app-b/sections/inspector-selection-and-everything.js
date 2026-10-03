@@ -56,11 +56,16 @@
     function everythingStyle(state) {
         const mine = A.boundOn(ID + "/" + state);
         const edited = state === "everything-edited" || Object.keys(mine).length > 0;
+        // In Les Miserables PageRank paints every node's Color over this fill, so the line says so
+        // rather than let the swatch seem to disagree with the orange canvas (the paint-order grammar).
+        const ds = A.route && A.route.frame.dataset, n = C().nodes;
+        const covered = (!ds || ds === "lesmis") && !mine["node.color"]
+            ? ["Covered by ", A.link("inspector-measure-row", "style", "PageRank", { class: "ab-link" }), " for Color on " + n + " of " + n + " nodes"] : null;
         return A.styleTab({
             kinds: ["node", "edge"], kind: state === "everything-edges" ? "edge" : "node",
             base: A.BASE_STYLE, set: state === "everything-edited" ? { "node.size": 1.5 } : {}, changed: state === "everything-edited" ? ["node.size"] : [], bound: mine,
             paints: "Paints " + C().nodes + " nodes, " + C().edges + " edges",
-            order: edited ? "Your change is in the Everything layer, under every other row" : "Default look, under every other row",
+            order: covered && !edited ? covered : edited ? "Your change is in the Everything layer, under every other row" : "Default look, under every other row",
         });
     }
     function everythingData() {
@@ -83,20 +88,25 @@
                 caption: "B12's note is about a building the load left out; it is painted only once B12 is in the graph." };
         }
         if (ds === "transactions") return { nodes: [], edges: [], notes: 0, list: ["notes-place", "all"] };
-        return { nodes: ["Valjean", "Javert", "Napoleon"].map((n) => [n, ["inspector-node", "data"]]), edges: [["Javert -- Valjean", ["inspector-edge", "data"]]], notes: 4, list: ["notes-place", "all"],
+        // each member selects itself, as a canvas hot spot or a table row does (the shell's one way to select a node)
+        const rows = A.fx.datasets.lesmis.rows;
+        return { nodes: ["Valjean", "Javert", "Napoleon"].map((n) => [n, () => A.selectNode("lesmis", rows.findIndex((r) => r.label === n))]), edges: [["Javert -- Valjean", ["inspector-edge", "data"]]], notes: 4, list: ["notes-place", "all"],
             caption: "Napoleon's note is about a node a filter step removes; he is painted only while he is in the graph." };
     }
     const plural = (k, w) => k + " " + w + (k === 1 ? "" : "s");
     const notedText = (N) => plural(N.nodes.length, "node") + (N.edges.length ? ", " + plural(N.edges.length, "edge") : "");
     // No layer until a look is added (graphty-element refuses a layer that writes nothing, and a layer paints
     // nodes or edges, not both): the first look on a side adds that side's layer, the Everything pattern.
-    // Its selector reads graphty-element's note count (notes.count > `0`), so in the product a label bound
-    // to Note count draws only on the noted elements. The skeleton's canvas does not model that scope yet:
-    // canvas-and-states.js lmScope() applies a row titled "Notes" to every node.
+    // Its selector reads graphty-element's note count (notes.count > `0`), so a look added here (an outline,
+    // a label bound to Note count) draws only on the noted elements. The canvas owns that scope
+    // (canvas-and-states.js lmScope(), which still applies a row titled "Notes" to every node, and paints
+    // no row's outline); this panel only states it.
     function notesStyle(state) {
         const N = noted(), empty = state === "notes-row";
         // the count is the link; the hint after it is plain text
-        const paints = A.paintsLine("Paints " + notedText(N) + " (noted)", N.list);
+        // A look on the Nodes side adds only the node layer, so the Paints line counts only the noted nodes
+        // (the shared rule: a side is counted only when the row sets something on it)
+        const paints = A.paintsLine("Paints " + (empty ? notedText(N) : plural(N.nodes.length, "node")) + " (noted)", N.list);
         if (empty) paints.replaceChildren(h("span", null, [...paints.childNodes], ". Nothing set -- + to add a look")); // one flow, so it wraps as a sentence
         const look = state === "notes-row-outlined" ? { set: { "node.outline": "#D55E00" } }
             : state === "notes-row-label" ? { labels: [{ pos: "Below", field: "Note count", type: "num" }] } : {};
@@ -106,8 +116,9 @@
         const N = noted();
         if (!N.notes) return A.dataTab({ Summary: [A.empty("No notes.", { verb: "Add note", key: "N", onClick: () => A.addNote() }), A.data("Paints", "0 nodes")] }, { kind: "notes-row" });
         const secs = A.dataTab({
-            Summary: [A.data("Noted elements", notedText(N)), A.data("Notes about them", String(N.notes), { go: N.list })],
-            Members: [N.nodes.map(([n, go]) => A.row({ label: n, go })), N.edges.map(([n, go]) => A.row({ icon: "spline", label: n, go })),
+            Summary: [A.data("Noted elements", notedText(N)), A.data("Notes about them", String(N.notes), { go: N.list }),
+                A.data("Shown or hidden", "by this row's eye only")],
+            Members: [N.nodes.map(([n, go]) => A.row(typeof go === "function" ? { label: n, onClick: go } : { label: n, go })), N.edges.map(([n, go]) => A.row({ icon: "spline", label: n, go })),
                 h("div", { class: "ab-cap k-secondary" }, N.caption)],
         }, { kind: "notes-row" });
         const head = secs.map((s) => s.querySelector(".k-section-head")).find((hd) => hd && hd.textContent.trim() === "Members");

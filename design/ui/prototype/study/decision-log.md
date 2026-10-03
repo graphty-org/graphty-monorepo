@@ -730,3 +730,94 @@ Why: this fixes three confirmed severity-3 findings with wording. A second switc
 - Making the graph the selection when nothing is selected. Commands that act on the selection would quietly act on the whole graph.
 - Held until participants can type: the distinct-neighbor count, the leading-zero matching rule (only the affected rows are reported this round), the Columns picker, per-row metadata on Recent exports, the list of members who joined or left, a percent column in the comparison, and the walk along links.
 - Saved views that keep the look. They stay out until the owner rules on it. Views hold the camera only; this is a studio decision.
+
+## Round 8
+
+Every participant in this round is simulated. It tested the clickable refined B skeleton (`app-b/`) with the study's tasks tiered by the owner's priority of 2026-10-02 (`owner-feedback.md`): tier 1 is a first-time user's core path from an empty app, tier 2 is common repeat work. The evidence behind each item is in `study/round-8/insights.md` and `study/round-8/tree-test.md`. Every decision below is a studio decision unless it quotes `owner-feedback.md`; each is reversible unless it says otherwise.
+
+### Targets
+
+Targets NOT MET. The bar: every tier 1 task (a first-time user's core path, tested from an empty app) and every tier 2 task reaches at least 80 percent graded success or success-with-difficulty over its sessions; no confirmed severity-4 problem is left unresolved; the mean ease rating (SEQ) over every session is at least 5.5 of 7; every tree-test task reaches at least 70 percent direct success (correct with no backtracking). Tier 1 comes first: until every tier 1 task meets its bar, the studio's changes go to tier 1 problems.
+
+Missed:
+
+- Tier 1, a whole first session from an empty app with no project open -- bring in your own file or pick a sample, see the graph, run one analysis, color or size by its result, label the nodes, and save a picture: 0% of 21 graded sessions.
+- Tier 1, show labels taken from a field (the label line starts empty): 42% of 12 graded sessions.
+- Tier 1, find a node by name, read about it, see its neighbors: 0% of 12 graded sessions.
+- Tree-test direct success, of 21 each: tree-3, 29%; tree-4, 52%; tree-7, 38%; tree-9, 62%; tree-11, 10%; tree-14, 38%; tree-15, 43%.
+- Severity 4: the list's search box ("Find rows and notes") cannot find a node, an id or an attribute value, and results appear only after Enter.
+- Severity 4: the Label "+" menu offers "Show labels" beside "Label line". People pick Show labels to put names on, and it changes nothing visible. The Label heading is not a control, and the "+" has no tooltip of its own.
+- Severity 4: the "Show the 32 rows" link shows only the unmatched rows inside the preview sample (3). The unmatched rows cannot be copied or exported. Leading-zero near-misses (7 versus 0007) are reported but cannot be matched.
+
+### Decisions
+
+**Fix the skeleton defects that decided tier 1 tasks, before any design change (shell).** (1) A Betweenness run, and every run, finishes and its row lands visible and listed. (2) Hiding, showing alone and Move above repaint both the canvas and the canvas legend. (3) A size choice is committed and drawn on the Les Miserables sample. (4) Add on the add-rows page keeps every layer and the filter. (5) The Quick actions "Add label line" command adds a label line in the current project instead of opening the IT estate project. `study.mjs --check` (or a `--try` script) gains a check that proves each of the five, and it runs before round 9 sessions start.
+Why: four round 8 tasks were decided by these defects: the whole first session (0 of 21; 14 stalled on Betweenness, 16 on a canvas that did not repaint) and sizing (12 of 12 completed the steps, 0 saw a dot change, ease 2.00). Without those tasks success is 90% and ease 4.59. Until they are fixed, the tier 1 scores measure the skeleton, not the design.
+
+**The Label "+" adds a label line (shell).** The "Show labels" channel (`node.labelShow` and `edge.labelShow` in `lib.js`) is offered only when a row beneath this one in the stack sets a label. With no label drawn anywhere, the "+" holds one item and `plus()` runs it at once: it adds an empty label line and opens its field picker. The item is renamed from "Label line" to "label line" so the `plus()` tooltip reads "Add label line", the same term the attribute menu and Quick actions use. The Label heading word runs the same command. The new line still starts empty, as the owner ruled on 2026-09-30. No notice or Undo for adding an empty line; its own remove control undoes it.
+Why: severity 4 on a tier 1 task (labels from a field, 42%): 20 of 21 first clicks went to the Label "+", 12 of 21 then chose "Show labels", and 10 stopped believing names were on. "Show labels" is a real graphty-element setting (label enabled: false), so it is narrowed to where it can matter rather than deleted.
+
+**Messages state live counts; one name for the overlap switch (shell).** The label line states its result from live state, for example "77 names, 64 hidden to avoid overlap". "Show all labels" is the one name for the existing overlap switch (today "Labels shown anyway"); no link is added inside the status line. The README's wording section gains a rule: every count and claim in a message is computed from the state it describes, or the message is removed (this covers "64 hidden", "32 rows", "sorted by degree", "Covered by PageRank" and "paints").
+Why: fixed strings that disagree with the screen were the most repeated cause of lost trust in round 8, and one term per concept keeps "show all" and "Labels shown anyway" from reading as two controls.
+
+**The list's box is the one find over the whole project (shell).** It becomes one live list: focus stays in the box; Down enters the list, Enter picks, Esc clears and then closes; the selection changes only on a pick. Results come in groups: Rows (kept, first, as today: sets, runs, layers, groups), Elements (nodes and edges matched by label, id or attribute value, read over the full graph; a hit that a filter step leaves out is still listed and names that step), and Notes (kept). A value hit is one row, "Select where <attribute> is <value> (<count>)", that opens the existing Select where dialog through `AB.whereFrom`. Picking an element selects and frames it and opens its inspector on Data. The placeholder reads "Find rows, elements, values" (reversible). Quick actions "Find..." leads to Graph > Find, "/" focuses the box, Ctrl+K stays commands only with the single "Find '<text>' in the graph" handoff, and the label in `app.js`'s tree bar matches.
+Why: severity 4 on a tier 1 task (find a node, 0 of 12): 16 of 21 first clicks chose this box; 5 of 6 typed an account id (a value) and got "No match"; 8 of 12 waited because results came only after Enter. The value offer is one more row in the same list and the only change aimed at selecting by a rule (tree-11, 10% direct). Rows stay because large trees need them in every domain (the hosts project has 69 rows), and elements cover edges as well as nodes because the model's Find works over every element of the full graph.
+
+**The Les Miserables sample opens with nothing run (shell).** No pre-run PageRank layer, legend or "1 row not listed still paints" line (reversible). No "Worked examples" group this round. When the reader binds a run, the canvas legend names the method with one plain sentence (placeholder text, marked as coming from graphty-element's algorithm catalog), names every channel in use including size, and states the bound size range. The skeleton uses 2 to 12 px as its size range everywhere it is shown.
+Why: the pre-run analysis blurred the data with someone else's work, covered the reader's own color and size results, and gave newcomers a legend they could not read. The legend is the only readout that tells the reader a color or size step worked, and a 0.5 px minimum hides nodes.
+
+**The static gallery mocks are marked as replaced (shell, `index.html`).** The gallery says the app-b skeleton replaces them.
+Why: a reversible studio decision. The owner's open items on those mocks (the avatar, "Export files", the rail redraw) are closed by replacing the mocks rather than redrawing them; the owner can reopen them.
+
+**A node opens on its data, and its degree selects its neighbors (`inspector-node.js`).** A single selected node opens the inspector on its Data tab, not Style. The degree on the Data tab and the "N connections" chip both select the node's one-hop neighbors and move to the several-elements inspector. Focus never jumps to Valjean afterward.
+Why: severity 4 on a tier 1 task (find a node, read about it, see its neighbors: 0 of 12). All 12 wanted the node's data first; 9 of 21 clicked the connections chip, which did nothing. "No screen names a node's neighbors" is a confirmed severity-4 problem in the round 8 findings.
+
+**A neighborhood is listed by name (`inspector-several-elements.js`).** When the selection is a node's neighborhood, the list is titled "Javert's 17 connections" and lists every member by name with its tie value, sorted by tie strength (for example "Valjean, 17 shared chapters"), using the existing list helper. Esc returns to the single node.
+Why: this is the one home for "who is this node tied to". No table filter, Connections list on the Data tab or "Edges of X" offer is added, so the job has one way. A list reads where 17 to 36 canvas labels would overlap.
+
+**Neighborhood lands on that list (`selection-bar.js`).** Neighborhood selects the one-hop neighbors, as the spec says, and lands on the several-elements list. "Filter to neighbors" draws the count it reports (18 of 77 drawn, not 77) and does not jump to Valjean.
+Why: the same tier 1 task. The Neighborhood row read "Javert and 17 neighbors" and named no one, and the filter's report disagreed with the drawing.
+
+**"Show all labels" works (`inspector-node.js`).** The route formerly labeled "Labels shown anyway", renamed "Show all labels" by the shell's single term, no longer says "not available yet".
+Why: 12 of 12 label sessions hit that dead end; a skeleton defect, not a design one.
+
+**The attribute menu's "Add label line" works (`inspector-attribute-and-filter-step.js`).** It adds a label line bound to that attribute instead of saying "not available yet".
+Why: the second route to the tier 1 label job was a dead end.
+
+**Analyze's box filters the list of analyses (`analyze-popover.js`).** Placeholder and aria-label both read "Filter analyses" (were "Search, or say what to find" and "Search algorithms"). At most one "Start here" per heading. Headings stay as they are this round.
+Why: the box promised a question-answering search that does not exist, and it is where participants stopped when trying to find a node or select by a rule (12 of 21 opened it first on tree-11). Four "Start here" badges defeat their purpose. Question-shaped headings go to a tree-test comparison first.
+
+**Export > Data opens on the table that is showing (`export-dialog.js`).** Nodes by default, with the line "one row per node, with every computed value". The hidden-label warning reads the live hidden count, not a fixed "64".
+Why: exporting data had the round's worst first click (10%), and tree-7 reached 38% direct; 13 of 21 backed out of Export > Data doubting it held computed scores. A fixed count that survives showing every name teaches people to ignore warnings.
+
+**The table's export goes through the one Export dialog (`table-dock.js`).** "Export table as CSV..." becomes "Export..." in both places it occurs and opens the one Export dialog on the table that is showing. The table caption follows the sort. Any table-only CSV path is removed.
+Why: 15 of 21 exported through the table's own CSV entry. Keeping the entry and routing it to the one dialog gives one export with two ways in.
+
+**The unmatched-rows view shows every unmatched row (`data-page.js`).** It filters the whole table, not `sampleOf` (the 7 preview rows), so "Show the 32 unmatched rows" shows 32. Near-miss keys (for example 7 against 0007) are counted in plain text at the top of the report. The table's own Export takes the rows out; no "Export these rows" button.
+Why: severity 4. The link promised 32 and showed 3, and 7 of 7 wanted to send the list to the data owner. The 3 is a skeleton defect; the near-miss count is the design part. "Match ignoring leading zeros" waits (tier 2).
+
+**Path between reads the loaded weight by its kind, and highlights only the path (`path-popover.js`).** The weight chosen at load stays the default for every run, read through the kind it was declared with. A distance is summed. A similarity, or "stronger", weight is not summed as a distance: the route either uses its inverse, said in plain words ("stronger links count as shorter"), or opens on "None (fewest steps)" with a line saying why the loaded weight was not used. A weight with no declared kind is summed and labeled as a sum. The same rule holds in Analyze and in the graph inspector, so no single algorithm overrides the loaded weight on its own. The path's suggested style is a highlight layer scoped to `isInPath == true`: it writes only the highlight mark, never a color channel, and never dims anything else. The fix that keeps a typed end matching a node stays as written.
+Why: the owner decided that weight is chosen at load and every run uses it unless the run overrides it (`owner-feedback.md`, 2026-09-30), so the defect is summing a similarity as a distance, not the default itself. Summing it silently answers a different question than the route promises. Dimming what is not on the path breaks the repository's rule that an algorithm's styles paint only its own results; dimming belongs to how any selection is shown, and a highlight mark never competes with data colors.
+
+**Layout's toolbar icon reads as arranging (`toolbar.js`).** A glyph that reads as arranging, not play; the toolbar stays icons only.
+Why: a cheap fix to a confirmed misreading on the tier 1 path.
+
+**Esc closes the layout method dialog (`inspector-run-row.js`).** Wherever this section opens the dialog, if the dialog lives here; otherwise no change.
+Why: a focus repair noted in round 8; the owner of the dialog's file applies it.
+
+### Considered and rejected
+
+- Deleting the "Show labels" setting outright. It is a real graphty-element capability (label enabled: false); it is offered only when a row beneath sets a label.
+- A "Worked examples" sample group or a second sample mode. One bare sample is enough this round.
+- A Size heading of its own, or renaming the heading "Shape and size". This waits for a re-test on working wiring (11 of 12 reached the control); it is a tree-test comparison in round 9.
+- Analyze headings written as questions. These go to a round 9 tree-test comparison before any skeleton change.
+- Neighbors as a filtered table, a Connections list on the Data tab, or "Edges of X" in the edge table. Each would be a second home for one job.
+- Selected nodes always keeping their labels. This breaks on dense graphs, and the neighborhood list answers the question.
+- Ctrl+K focusing the find box. It would leave Quick actions with no way in.
+- An "Export these rows" button. The table's Export covers it.
+- "Match ignoring leading zeros", the full value-and-count Select where builder, and a parse-error message for Select where. These are tier 2 and deferred.
+- Splitting find results into more groups (separate Nodes and Edges groups, or Rows split by kind). These wait until a task fails without them.
+- A scope header ("Style for all 77 nodes"), filter-chip removal, "Use as edge weight...", a Layout tab when nothing is selected, note stamps, "Rerun all", and folding settings under More. None has corroborated tier 1 evidence.
+- Showing where a value came from ("from the file" or "computed by ...") on the legend. This is tier 2 and deferred.
+- A legend entry that shows one row alone. The eye's tooltip is the one door; it is deferred with the rest of the solo work.
+- Undo notices for adding an empty label line. The line's own remove control already undoes it.

@@ -3,9 +3,11 @@
    filter on presses the icon and names itself as the list heading ("About Valjean").
    Each note: text, its target chips, then a "Cites" line of dashed run chips (an earlier run
    carries a history icon), and the meta line (time, ", edited", "..." in its trailing slot on
-   hover). No name is the normal case: no fixture note has one except in the "two-authors" and
-   "one-author" states; the author shows before the time only when the project holds notes from
-   two or more named people (graphty-element's notes.authors()). Clicking a note (or Enter) selects
+   hover). No name is the normal case: no fixture note has one except in the "two-authors",
+   "one-author" and named-writing states (Ada Okafor's note); the author shows before the time only
+   when the project holds notes from two or more named people (graphty-element's notes.authors()),
+   so a note saved with Your name set shows its name beside Ada's. A cited run opens its record; a
+   cited run a rerun replaced opens the settings the cite pinned ("earlier-cite"). Clicking a note (or Enter) selects
    every target and keeps Notes open, with the note marked; a chip selects only its own (Right
    arrow from a note reaches its chips). Edit (double-click the text, or the menu) turns the note
    into the editor in place; Delete acts at once with Undo. Add note (N, "+", or any other door)
@@ -71,9 +73,19 @@
         edge: { label: "Javert -- Valjean", icon: "spline", go: ["inspector-edge", "data"] },
         graph: { label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] },
         pagerank: { label: "PageRank", icon: "chart-column", go: ["inspector-measure-row", "data"] },
-        betweenness: { label: "Betweenness", icon: "chart-column", go: ["inspector-measure-row", "data"] },
+        // Betweenness on the whole graph (the value n4 quotes) is the measure inspector's "covered" record
+        betweenness: { label: "Betweenness", icon: "chart-column", go: ["inspector-measure-row", "covered"] },
         watchlist: { label: "Watchlist", swatch: "#CC79A7", /* the Watchlist set's color in the Graph tree */ go: ["inspector-group-set-path-row", "watchlist"] },
+        // A path keeps the path's color and says "Path", as the path inspector's Notes chip draws it
+        path: { label: "Valjean to Javert", swatch: "#D55E00", path: true, go: ["inspector-group-set-path-row", "path-lesmis"] },
     };
+    // A cite pins the run it was read from. When a rerun replaced that run there is no inspector for it,
+    // so its chip opens the settings the cite pinned (the "earlier-cite" popover), with a link to today's run.
+    const EARLIER = {
+        PageRank: { ran: "Sep 28, 15:40, on the CPU", set: [["Damping", "0.85"], ["Iterations", "Up to 100"], ["Weight", "None"]] },
+        Louvain: { ran: "Sep 27, 10:02, on the CPU", set: [["Method", "Louvain"], ["Weight", "None"], ["Seed", "3"]] },
+    };
+    const earlier = (t) => Object.assign({ earlier: true }, t, EARLIER[t.label]);
 
     // The walk step that selects a target node (1-based, as frame.walk takes it), or null
     const walkOf = (t) => t.walk || (t.node ? L().rows.findIndex((r) => r.label === t.label) + 1 || null : null);
@@ -98,9 +110,9 @@
         const c3 = state === "earlier-group" ? Object.assign({}, T.community3, { earlierGroup: true }) : T.community3;
         const nap = state === "missing-target" ? Object.assign({}, T.napoleon, { gone: true }) : T.napoleon;
         const list = [
-            { id: "n1", by: state === "two-authors" || state === "one-author" ? "Ada Okafor" : null, when: at(9, 30, 9, 12), about: [c3],
+            { id: "n1", by: state === "two-authors" || state === "one-author" || author ? "Ada Okafor" : null, when: at(9, 30, 9, 12), about: [c3],
                 text: "Myriel's household and the people he meets in Digne." },
-            { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, when: at(9, 29, 17, 40), about: [c3, nap], cites: [state === "earlier-group" ? Object.assign({ earlier: true }, T.louvain) : T.louvain],
+            { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, when: at(9, 29, 17, 40), about: [c3, nap], cites: [state === "earlier-group" ? earlier(T.louvain) : T.louvain],
                 text: "Napoleon is here only because Myriel meets him once." },
             { id: "n3", when: at(9, 29, 15, 5), edited: true, about: [T.louvain],
                 text: "Valjean and Javert land in the same community, with Marius and Cosette." },
@@ -109,7 +121,7 @@
             // A target set whose members changed after the note was written (graphty-element's set:changed): the note says so in place
             state === "missing-target" ? { id: "n5", when: at(9, 28, 16, 2), about: [Object.assign({ changed: true }, T.watchlist)], cites: [T.pagerank],
                 text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." } :
-            { id: "n5", when: at(9, 28, 16, 2), about: [T.valjean, T.javert], cites: [Object.assign({ earlier: true }, T.pagerank)],
+            { id: "n5", when: at(9, 28, 16, 2), about: [T.valjean, T.javert], cites: [earlier(T.pagerank)],
                 text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
             { id: "n6", when: at(9, 28, 12, 30), about: [T.edge],
                 text: "They share 17 chapters. This is the edge to keep in the pursuit figure." },
@@ -119,6 +131,8 @@
         // One: the project holds only its note about the graph; the graph inspector beside it reads "1 note"
         if (state === "one-note") return savedIn("lesmis").concat(list.filter((n) => n.id === "n7"));
         if (state === "long-note" || state === "editing-long") list.unshift(longNote());
+        if (state === "path-note") list.unshift({ id: "n8", when: at(10, 1, 9, 30), about: [T.path],
+            text: "The shortest chain from Valjean to Javert is one step: they meet directly. Keep this path in the pursuit figure." });
         return savedIn("lesmis").concat(list);
     }
     // The door-entries project: two node types, so each node chip names its type ("Ana Ruiz . person");
@@ -153,7 +167,7 @@
         });
     }
     // The list a state shows; "selected" keeps the list it was opened from
-    const OWN_LIST = ["one-note", "many", "long-note", "editing-long", "chip-removed-saved"];
+    const OWN_LIST = ["one-note", "many", "long-note", "editing-long", "chip-removed-saved", "path-note"];
     let listState = null;
 
     // Notes saved in this page view (newest first), the note the list marks, and what it selected
@@ -184,7 +198,7 @@
     }
     // The graph as a subject says so in words: "the whole graph", not the graph's name
     const labelOf = (t) => (t.icon === "network" ? "the whole graph" : t.label);
-    const look = (t) => (t.swatch ? AB.chit(t.swatch, true) : icon(t.icon, "sm"));
+    const look = (t) => (t.swatch ? [AB.chit(t.swatch, true), t.path ? h("span", { style: "font-weight:550" }, "Path") : null] : icon(t.icon, "sm"));
 
     // One chip for targets and cited runs. onRemove adds an x (the editor). A target the data no
     // longer has is struck through and selects nothing; an earlier run or group carries a history icon.
@@ -214,11 +228,22 @@
         el.setAttribute("aria-label", (o.cite ? "Cites " : "") + lab + (why ? ", " + why.toLowerCase() : ""));
         // An earlier group may be numbered differently now: its chip opens the run, not today's group
         const target = t.earlierGroup ? ["inspector-run-row", "data"] : t.go;
-        const goTo = (e) => { e.stopPropagation(); clearTimeout(pending); show(o.note || null, target.join("/"), walkOf(t)); };
+        // A cited run a rerun replaced opens the settings its cite pinned; any other chip opens its record
+        if (t.earlier) el.dataset.cite = (o.note || "") + ":" + t.label;
+        const goTo = (e) => {
+            e.stopPropagation(); clearTimeout(pending);
+            if (!t.earlier) return show(o.note || null, target.join("/"), walkOf(t));
+            cited = { t, note: o.note, from: AB.route ? AB.route.state : "all", right: AB.route && AB.route.frame.right };
+            AB.go("notes-place", "earlier-cite");
+        };
         el.addEventListener("click", goTo);
         el.addEventListener("keydown", (e) => { if (e.key === "Enter") goTo(e); });
         return el;
     }
+    // Every key a note answers to, in aria-keyshortcuts form (the list's keydown handler below)
+    const KEYS = "ArrowUp ArrowDown Home End ArrowRight Enter N Delete Shift+F10";
+    // The earlier cite whose pinned settings the "earlier-cite" popover shows (a direct link: n5's PageRank)
+    let cited = null;
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Cmd" : "Ctrl";
     let nameHintSeen = false; // the no-name line shows until the first note is saved in this page view
     // The project's author setting (Settings > Your name, graphty-element's session.author). Empty is the
@@ -285,7 +310,7 @@
         const by = names && n.by ? n.by : null;
         // The spoken name carries what the note is about and cites, since the label replaces the row's content
         const label = () => [n.text, "note on " + n.about.map(labelOf).join(", "), n.cites ? "cites " + n.cites.map((t) => t.label).join(", ") : null, by, stamp(n.when) + (n.edited ? ", edited" : "")].filter(Boolean).join("; ");
-        const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label(), "aria-keyshortcuts": "ArrowRight Delete Shift+F10" });
+        const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label(), "aria-keyshortcuts": KEYS });
         const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/"), n.about.length === 1 ? walkOf(n.about[0]) : null); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
         const edit = () => {
             clearTimeout(pending);
@@ -295,14 +320,19 @@
                 // A change to the text or to what the note is about (a subject removed) is saved, and marks it edited
                 const moved = ok && (v.about.length !== n.about.length || v.about.some((t, i) => t !== n.about[i]));
                 const uncited = ok && (v.cites.length !== (n.cites || []).length);
-                if (ok && (v.text !== n.text || moved || uncited)) {
+                const changed = ok && (v.text !== n.text || moved || uncited);
+                if (changed) {
                     if (uncited) { n.cites = v.cites.length ? v.cites.slice() : null; const c = citesLine(); citesEl.replaceWith(c); citesEl = c; }
                     n.text = v.text; text.textContent = v.text;
                     if (moved) { n.about = v.about.slice(); about.replaceChildren(...n.about.map((t) => chip(t, { note: n.id }))); }
                     if (!n.edited) { n.edited = true; meta.append(", edited"); }
                     li.setAttribute("aria-label", label());
                 }
-                wrap.replaceWith(li); li.focus();
+                const ul = wrap.parentNode;
+                wrap.replaceWith(li);
+                // A saved note appears at the top of the list, focused (the list's one Tab stop)
+                if (changed && ul) { ul.prepend(li); ul.querySelectorAll(".np-note").forEach((x) => (x.tabIndex = x === li ? 0 : -1)); }
+                li.focus();
             } });
             wrap.append(ed);
             li.replaceWith(wrap);
@@ -441,7 +471,7 @@
     // route before it (read in frame(), before the shell moves on). A note-count link keeps all three,
     // so the list is the notes of that project and that selection, never Les Miserables'.
     let from = null;
-    const OPENED = ["all", "about-selection", "about-graph", "door-entries"];
+    const OPENED = ["all", "about-selection", "about-graph", "door-entries", "empty"];
     function openedFrom() {
         const r = AB.route;
         if (!r || !r.frame || !r.frame.right) return;
@@ -471,6 +501,21 @@
         if (!sel) return null;
         const labels = sel.map((x) => x[0]);
         return { heading: sel.length ? "About " + sel.map((x) => x[1]).join(", ") : "About the selection", has: (t) => labels.includes(t.label) };
+    }
+
+    // The settings an earlier cite pinned, read-only, beside its chip; today's run is one link away
+    function earlierPopover(c) {
+        const t = c.t;
+        return AB.popover({
+            anchor: `#ab-left .np-cite[data-cite="${c.note}:${t.label}"]`, width: 280,
+            title: t.label + ", the run this note cites",
+            body: [
+                h("div", { class: "ab-cap k-secondary" }, "A rerun replaced this run. These are the settings it ran with. ", AB.needsElement("graphty-element keeps a cited run's settings after a rerun replaces it")),
+                (t.set || []).map(([k, v]) => AB.fieldRow(k, v, { popover: true })),
+                AB.fieldRow("Ran", t.ran || "", { popover: true }),
+                h("div", { class: "ab-cap", style: "padding-top: 8px" }, AB.link(t.go[0], t.go[1], "Open the current " + t.label, { class: "ab-link" })),
+            ],
+        });
     }
 
     function filterButton(state) {
@@ -509,6 +554,9 @@
         return bar;
     }
 
+    // A project's notes as the Notes place lists them at rest, for the one find's Notes group (lib.js findBox)
+    AB.notesOf = (ds) => (ds === "doorEntries" ? doorNotes() : ds === "lesmis" ? notes("all") : savedIn(ds));
+
     registerSection({
         id: "notes-place",
         title: "Notes place",
@@ -537,6 +585,8 @@
             { id: "long-note", label: "A 600-character note and a long subject" },
             { id: "editing-long", label: "Editing a 600-character note" },
             { id: "chip-removed-saved", label: "A subject removed, then saved; the last subject removed from another" },
+            { id: "path-note", label: "A note about a path (the path's color)" },
+            { id: "earlier-cite", label: "A cited run a rerun replaced: the settings the note cites" },
         ],
         frame(state) {
             // After Save the inspector the note was written from stays (AB.addNote's contract)
@@ -544,13 +594,17 @@
             if (OPENED.includes(state)) openedFrom();
             // Opened from a project's inspector (a note count, a note link): that project and selection stay
             if (!keep && from && OPENED.includes(state) && (state !== "door-entries" || from.ds === "doorEntries")) return keptFrame();
+            // Empty with nothing it was opened from: a project that holds no notes, so every count beside it reads none
+            if (state === "empty") return { dataset: "transactions" };
+            if (state === "earlier-cite") return Object.assign({ overlay: "notes-place/earlier-cite" }, cited && cited.right ? { right: cited.right } : {});
             if (state === "door-entries") return { dataset: "doorEntries", right: (keep && keep.right) || "inspector-nothing-selected/door-entries" };
             if (state === "about-selection") return { right: "inspector-node/data" };
             if (state === "writing" || state === "writing-named") {
                 const d = AB.noteDraft;
-                return Object.assign({ right: (d && d.right) || "inspector-node/data" }, d && d.dataset && d.dataset !== "lesmis" ? { dataset: d.dataset } : {});
+                if (d && d.right) AB.keepTab = true;
+                return Object.assign({ right: (d && d.right) || "inspector-node/data" }, d && d.right ? { canvas: d.canvas, dock: d.dock } : {}, d && d.dataset && d.dataset !== "lesmis" ? { dataset: d.dataset } : {});
             }
-            if (state === "all" && keep) return Object.assign({ right: keep.right }, keep.dataset !== "lesmis" ? { dataset: keep.dataset } : {});
+            if (state === "all" && keep) { AB.keepTab = true; return Object.assign({ right: keep.right }, keep.canvas ? { canvas: keep.canvas, dock: keep.dock } : {}, keep.dataset !== "lesmis" ? { dataset: keep.dataset } : {}); }
             // A selected note keeps the project it belongs to on screen
             if (state === "selected") return Object.assign({ right: selRight }, projectOf() !== "lesmis" ? { dataset: projectOf() } : {}, selWalk ? { walk: selWalk } : {});
             if (state === "one-note") return { right: "inspector-nothing-selected/overview" };
@@ -559,7 +613,13 @@
             if (state === "filter-step-on") return { chip: AB.count(AB.fx.datasets.lesmis.filterSteps.after.step1, "node", { of: AB.fx.datasets.lesmis.nodes }), filterOn: ["degree"] };
             return {};
         },
-        render(el, state) {
+        render(el, state, ctx) {
+            if (state === "earlier-cite") {
+                cited = cited || { t: notes("all").find((n) => n.id === "n5").cites[0], note: "n5", from: "all" };
+                if (ctx && ctx.region === "overlay") { el.append(earlierPopover(cited)); return; }
+                state = cited.from; // the list the chip was clicked in stays beside the popover
+            }
+            setTimeout(() => { AB.keepTab = false; }, 0); // used once, by the inspector drawn beside this screen
             const afterSave = !!AB.noteKeep;
             AB.noteKeep = null; // used once, by the frame of the screen Save lands on
             // The author setting holds while a note is written and saved; any other state opens on its own
@@ -570,16 +630,15 @@
             // While a note is being written, "+" returns to it rather than starting a second draft
             const add = AB.plus({ label: "Add note (N)", items: ["Note"], onAdd: () => { const d = writing && el.querySelector(".np-editor textarea"); if (d) { d.focus(); AB.announce("Writing a note"); } else AB.addNote(); } });
             el.append(AB.placeHead("Notes", [add]));
-            if (state === "empty") {
-                el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() }));
-                return;
-            }
+            // Empty, opened from an element with no notes: this graph's notes about that selection, none
+            if (state === "empty" && ds === "lesmis") state = "about-selection";
             if (OWN_LIST.includes(state)) listState = state; else if (state !== "selected") listState = null;
             const list = state === "selected" ? listState || state : state;
             const all = ds === "doorEntries" ? doorNotes() : ds === "transactions" ? (list === "many" ? transferNotes() : []).concat(savedIn("transactions")) : ds === "lesmis" ? notes(list) : savedIn(ds); // a just-loaded project has only the notes written in it
             if (!all.length && !writing) { el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() })); return; }
             const names = showNames(all);
             const f = filterOf(state);
+            const noneAbout = f && !all.some((n) => n.about.some(f.has));
             const shown = f ? all.filter((n) => n.about.some(f.has)) : all;
             // Filter to degree >= 2 removes Napoleon (degree 1): his note is kept, listed apart.
             const removedNote = state === "filter-step-on" ? (n) => n.about.includes(T.napoleon) : () => false;
@@ -588,7 +647,8 @@
             el.append(findBar(scroll, state), scroll);
             // One count, named for what it counts: every note in this project, or a filter's part of it
             if (f) scroll.append(h("div", { class: "np-head" }, f.heading, h("span", { class: "k-secondary" }, " . " + AB.count(shown.length, "note", { of: all.length }))));
-            else if (all.length) scroll.append(h("div", { class: "np-count" }, AB.count(all.length, "note") + " in this project"));
+            else if (all.length) scroll.append(h("div", { class: "np-count" }, AB.count(all.length, "note") + " in this graph"));
+            if (noneAbout && !writing) scroll.append(AB.empty("No notes about " + f.heading.replace(/^About /, "") + ".", { verb: "Add note", key: "N", onClick: () => AB.addNote() }));
             if (writing) {
                 // The subject comes from the door that opened the editor (AB.addNote); a direct link writes about
                 // Valjean, and the two-authors list (the graph inspector beside it) about the whole graph
@@ -601,11 +661,13 @@
                         focusNote = saved[0].id;
                         nameHintSeen = true;
                         // The list of the project it was written in, beside the inspector it was written from
-                        AB.noteKeep = { right: (draft && draft.right) || (state === "two-authors" ? "inspector-nothing-selected/overview" : "inspector-node/data"), dataset: ds };
+                        // and that inspector opens on its Notes where it has a state for it (path -> path-notes)
+                        const withNotes = (ref) => { const [id, st] = String(ref).split("/"), sec = AB.sections[id]; return sec && sec.states.some((x) => (x.id || x) === st + "-notes") ? id + "/" + st + "-notes" : ref; };
+                        AB.noteKeep = { right: draft && draft.right ? withNotes(draft.right) : state === "two-authors" ? "inspector-nothing-selected/overview" : "inspector-node/data", canvas: draft && draft.canvas, dock: draft && draft.dock, dataset: ds };
                         AB.go("notes-place", ds === "doorEntries" ? "door-entries" : "all");
                         return;
                     }
-                    // Cancelled: back to where the editor was opened, focus on the control that opened it
+                    // Canceled: back to where the editor was opened, focus on the control that opened it
                     const from = AB.noteFrom;
                     AB.noteFrom = null;
                     if (from && from.hash && from.hash !== location.hash) { location.hash = from.hash; setTimeout(() => AB.refocus(from.focus), 80); }
@@ -633,14 +695,17 @@
             if (state === "editing") all.find((n) => n.id === "n5").edit();
             if (state === "editing-long") all.find((n) => n.id === "n0").edit();
             if (state === "chip-removed-saved") {
-                // Regression: remove Javert from a two-subject note and Save, with the real controls
-                all.find((n) => n.id === "n5").edit();
-                const ed = scroll.querySelector(".np-editor");
-                ed.querySelectorAll(".np-chip")[1].querySelector(".np-x").click();
-                [...ed.querySelectorAll(".k-btn")].find((b) => b.textContent.trim().startsWith("Save")).click();
-                // Then the one subject of another note removed: it is now about the whole graph, whose x is disabled
+                // The one subject of a note removed: it is now about the whole graph, whose x is disabled
                 all.find((n) => n.id === "n4").edit();
                 scroll.querySelector(".np-editor .np-chip .np-x").click();
+                // Then, with the real controls, Javert removed from a two-subject note and saved: the
+                // note moves to the top of the list, focused (after the open editor's own focus)
+                const n5 = all.find((n) => n.id === "n5");
+                n5.edit();
+                const ed = [...scroll.querySelectorAll(".np-editor textarea")].find((t) => t.value === n5.text).closest(".np-editor");
+                ed.querySelectorAll(".np-chip")[1].querySelector(".np-x").click();
+                [...ed.querySelectorAll(".k-btn")].find((b) => b.textContent.trim().startsWith("Save")).click();
+                requestAnimationFrame(() => requestAnimationFrame(() => n5.li.focus()));
             }
             if (state === "find-no-match") {
                 const q = el.querySelector(".ab-treebar input");

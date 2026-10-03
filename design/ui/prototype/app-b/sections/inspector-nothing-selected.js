@@ -12,10 +12,16 @@
    on the Data page. Notes are graphty-element API: the count is the fixture's (one note about the
    Les Miserables graph, none about the transfers). Readings not computed are one line whose
    link opens the graph's "..." (context-menus/graph) at Compute the overview. A run's readings live
-   on its row only. With a filter on, the Nodes count agrees with the header chip ("60 of 77 nodes") and no
-   value names its set: readings computed before the filter get the one state bar, "4 readings are for
-   all 77 nodes -- Compute on 60", the only filtered mark in this inspector (spec 5.3).
+   on its row only. With a filter on, the Nodes count agrees with the header chip ("60 of 77 nodes").
+   Readings computed before the filter get the one state bar, "4 readings are for all 77 nodes --
+   Compute on 60": the only filtered mark in this inspector (spec 5.3), so no reading carries its own
+   ", on 60 of 77".
    Edges name their row word and whether each is a distinct pair. A wide project sums its attributes in one line.
+   Notes: one note about the graph still offers Add note, the one "+" in the Notes section's header
+   (no note: the empty line's own Add note). Esc with nothing selected keeps this panel (closeTo is
+   this route), so it never snaps back to the row the left panel last showed.
+   Weights: two or more edge types give one "Loaded weights" line, each type with its weight and its
+   meaning as the Data page set it ("count, stronger"; "km, farther"), stronger when none was set.
    Numbers: kit/fixtures.json (datasets.lesmis, .transactions). The four overview readings (average
    clustering 0.573, transitivity 0.499, diameter 5, degree assortativity -0.165) are not in the
    fixtures; they were computed with networkx 3.1 on les_miserables_graph(), the published graph the
@@ -43,7 +49,7 @@
 .ins-m:hover, .ins-m:focus-visible { background: var(--cm-bg-hover); }
 .ins-m[aria-checked="true"] { background: var(--cm-bg-selected); }
 .ins-m .ins-ck { width: 12px; flex: none; }
-.ins-m .ins-rec { font-size: 10px; color: var(--cm-text-secondary); padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ins-m .ins-rec { color: var(--cm-text-secondary); }
 .ins-m .k-i { color: var(--cm-icon-secondary); }
 .ins-note { color: var(--cm-text-secondary); font-size: 11px; line-height: 1.4; margin: -4px 0 8px; }
 .ins-pop .ab-frow { padding: 0; }
@@ -56,7 +62,7 @@
 .ins-ccdf .ins-axis { fill: none; stroke: var(--cm-border); stroke-width: 1; }
 .ins-ccdf text { fill: var(--cm-text-secondary); font-size: 10px; }
 .ins-zero { flex: none; text-align: center; color: var(--cm-text-secondary); font-size: 11px; line-height: 1.3; }
-.ins-zero b { display: block; color: var(--cm-text); font-size: 13px; font-weight: 500; }
+.ins-zero b { display: block; color: var(--cm-text); font-size: 13px; font-weight: 550; }
 .ins-print { padding: 0 8px 8px 16px; color: var(--cm-text-secondary); font-size: 11px; line-height: 1.45; }
 .ins-print p { margin: 0 0 4px; }
 .ins-print .ins-hit { color: var(--cm-text); }
@@ -68,7 +74,7 @@
 .ins-m .ins-sz, .ins-mh .ins-sz { width: 44px; flex: none; text-align: right; color: var(--cm-text-secondary); }
 .ins-m .ins-wt, .ins-mh .ins-wt { width: 60px; white-space: nowrap; flex: none; text-align: right; color: var(--cm-text-secondary); }
 .ins-m .ins-cost { width: 30px; flex: none; text-align: right; }
-.ins-slow { font-size: 10px; color: var(--cm-text); padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cm-border-strong, var(--cm-border)); }
+.ins-slow { outline-color: var(--cm-border-strong); }
 .ins-mh { display: flex; align-items: center; gap: 6px; height: 18px; font-size: 11px; color: var(--cm-text-secondary); }
 .ins-mh .ins-ck { width: 12px; flex: none; }
 .ins-mh .ins-cost { width: 30px; flex: none; }
@@ -197,7 +203,7 @@
             AB.fieldRow("Background", bg),
             check("Print-safe colors", printOn, "One Print look for gray paper and color-blind readers: darker lines, larger labels, and a grayscale check that names the colors that print alike. On a diverging color, darkness shows the distance from the midpoint on both sides and an up or down triangle shows the side (filled against outlined when a higher row sets Shape); the check tests every pair of steps across the midpoint.", "graphty-element ships no Looks and no grayscale check yet (element issue #331)", (v) => { report.hidden = !v; }),
             report,
-            check("Hide overlapping labels", false, "Labels that would overlap another are left out until you zoom in"),
+            check("Show all labels", !!AB.showAllLabels, "Off: a label that would overlap another is hidden until you zoom in. On: every label is drawn.", null, (v) => { AB.showAllLabels = v; }),
             check("Show filtered-out nodes faintly", false, "Off: a filter step removes nodes from the drawing. On: they stay, faint, and take no part in computing or layout."),
             check("Reframe when data changes", true, "Off keeps the camera where it is when the data reloads, so a composed figure stays composed."));
     }
@@ -272,10 +278,10 @@
             const r = h("div", { class: "ins-m", role: "radio", tabindex: on ? "0" : "-1", "aria-checked": String(on) },
                 h("span", { class: "ins-ck" }, on ? icon("check", "sm") : null),
                 h("span", { class: "k-grow k-ellipsis" }, x.name),
-                x.rec ? h("span", { class: "ins-rec" }, "Recommended") : null,
+                x.rec ? h("span", { class: "k-badge ins-rec" }, "Recommended") : null,
                 h("span", { class: "ins-sz k-num" }, x.rating === "any" ? "Any" : n(x.rating)),
                 h("span", { class: "ins-wt" }, wt),
-                h("span", { class: "ins-cost" }, over ? h("span", { class: "ins-slow" }, "slow") : null));
+                h("span", { class: "ins-cost" }, over ? h("span", { class: "k-badge ins-slow" }, "slow") : null));
             AB.tip(r, why, { label: false });
             const pick = () => {
                 if (x.name === method) return;
@@ -395,8 +401,8 @@
     }
     // The one "not computed" line: `more` when some readings already show
     const notComputed = (more) => h("div", { class: "k-data" }, AB.link("context-menus", "graph", (more ? READINGS.length + " more readings" : "Readings") + " not computed", { class: "ab-link" }));
-    // A reading's value. It never names its set: with a filter on, the state bar is the only filtered mark (spec 5.3)
-    const at = (v) => AB.count(Number(v));
+    // A reading's value. It never names its set: with a filter on, the state bar is the one filtered mark
+    const at = (v) => AB.count(Number(v), null);
     const ifNot0 = (name, v, dock) => (Number(v) ? rd(name, at(v), dock ? [v, dock] : null) : null);
     // A filter changed the scope under computed readings: the one state bar, and its Compute on
     const staleBar = (k, all, kept, why, go) => ({ text: k + " readings are for all " + AB.count(all, "node"), why, actions: [{ label: "Compute on " + kept, go }] });
@@ -509,7 +515,7 @@
             : { nodes: all.nodes, edges: all.edges, density: String(s.density), components: f.components, isolated: s.isolated, averageDegree: s.averageDegree, maxDegree: s.maxDegree, degrees: D.rows.map((r) => r.degree) };
         const kept = AB.count(g.nodes, "node", { of: all.nodes });
         // Filtered, the counts follow the filter and the Nodes count agrees with the header chip, as on every
-        // project; no value names its set: the state bar is the only filtered mark, until Compute on 60
+        // project; the four computed before the filter keep their values under the state bar until Compute on 60
         const r = (k, v) => rd(k, at(v));
         const counts = [...countRows({ nodes: all.nodes, edges: g.edges }, filtered ? g.nodes : null, { pairs: g.edges - (s.parallelEdges || 0) }), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
             r("Density", g.density), rd(f.componentsName, at(g.components), [g.nodes, filtered ? "nodes" : [SELF, "components-selected"]]),
@@ -540,15 +546,17 @@
         return r;
     }
     // The edge weights chosen at load, for every project: one edge type gives the Weight line; two or more give
-    // one "Loaded weights" line naming each type's weight. `types`: [{ name, weight (a column or none), edit (its Data page state), table }]
+    // one "Loaded weights" line naming each type's weight and its meaning. `types`: [{ name, weight (a column or
+    // none), means ("stronger", "farther" or "capacity", as the Data page's Higher means set it; default stronger),
+    // edit (its Data page state), table }]
     function weightsLine(types) {
-        const many = types.length > 1;
-        const none = (t) => AB.link("data-page", t.edit, many ? t.name + " none" : "None (each edge counts 1)", { class: "ab-link" });
-        if (!many) return types[0].weight ? weight(types[0].weight, types[0].edit, types[0].table) : AB.data("Weight", none(types[0]));
-        const parts = types.map((t) => (t.weight ? AB.link("data-page", t.edit, t.name + " " + t.weight + ", stronger", { class: "ab-link" }) : none(t)));
+        if (types.length < 2) return types[0].weight ? weight(types[0].weight, types[0].edit, types[0].table) : AB.data("Weight", AB.link("data-page", types[0].edit, "None (each edge counts 1)", { class: "ab-link" }));
+        // each part in one form, "<edge type> <weight>, <meaning>": "entries count, stronger"; a type with no
+        // weight column has weight none, in the Data page's words: "person_id links none, each edge counts 1"
+        const parts = types.map((t) => AB.link("data-page", t.edit, t.name + " " + (t.weight ? t.weight + ", " + (t.means || "stronger") : "none, each edge counts 1"), { class: "ab-link" }));
         const r = AB.data("Loaded weights", parts.flatMap((a, i) => (i ? ["; ", a] : [a])));
         r.firstChild.tabIndex = 0;
-        AB.tip(r.firstChild, "Set when the data was loaded, one per edge type: a higher weight means a stronger tie, and \"none\" counts each edge 1. Every run uses them unless it picks another. Change them on the Data page.", { label: false });
+        AB.tip(r.firstChild, "Set when the data was loaded, one per edge type: the weight column, then what a higher weight means (stronger, farther or capacity). A type whose weight is none counts each edge 1. Every run uses them unless it picks another. Change them on the Data page.", { label: false });
         return r;
     }
 
@@ -619,7 +627,7 @@
                 ...(EDGES.length > 1 ? EDGES.map(([w, k]) => AB.data(w, n(k))) : []),
                 direction(dir, "Chosen at load: a JSON document does not say"),
                 // only links can carry a weight column
-                weightsLine(EDGES.length ? EDGES.map(([w]) => (w === "links" ? { name: w, weight: NL.weight, edit: "edit-json-links", table: "links" } : { name: w, edit: "edit-json-researchers" })) : [{ name: "", edit: "edit-json-researchers" }]),
+                weightsLine(EDGES.length ? EDGES.map(([w]) => (w === "links" ? { name: w, weight: NL.weight, means: NL.means, edit: "edit-json-links", table: "links" } : { name: w, edit: "edit-json-researchers" })) : [{ name: "", edit: "edit-json-researchers" }]),
                 notComputed()].filter(Boolean) },
         };
     }
@@ -632,12 +640,18 @@
     }
     const TRANSFERS_FRAME = { dataset: "transactions", left: "graph-place/many-groups" };
     const POP = { "layout-method": "layout-method", "transfers-methods": "transfers-methods", background: "background" };
+    // Esc and an outside click: a popover closes to the tab it opened from; with nothing selected the
+    // graph's panel stays (never the left panel's last row). `current`: the state the frame was last asked for
+    const CLOSE_OF = { "layout-method": "layout", "transfers-methods": "transfers", background: "canvas" };
+    let current = "overview";
     registerSection({
         id: SELF,
         title: "Inspector: nothing selected",
         region: "right",
         rail: "graph",
+        get closeTo() { return SELF + "/" + (CLOSE_OF[current] || current); },
         frame: (state) => {
+            current = state;
             const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : /^door-entries/.test(state) ? doorFrame(state) : state === "filtered" || state === "filtered-computed" ? { chip: AB.count(L().filterSteps.statsByState["1"].nodes, "node", { of: L().nodes }), filterOn: ["degree"] }
                 : state === "components-selected" ? { dock: SELF + "/" + state }
                 : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" }
@@ -684,6 +698,9 @@
                 const nodes = state === "transfers-methods" ? T().nodes : ds === "nested" ? 200 : D && typeof D.nodes === "number" ? D.nodes : L().nodes;
                 const p = state === "background" ? backgroundPopover() : layoutPopover(nodes);
                 p.classList.add("ins-pop");
+                // The shell's Esc skips an overlay whose closeTo is this same section, so Esc is routed here
+                // (as selection-bar's popover does): it closes to the tab the popover opened from
+                p.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); e.stopImmediatePropagation(); AB.close(); } });
                 el.append(p);
                 return;
             }
@@ -694,6 +711,17 @@
     const popOf = (state) => (isTransfers(state) ? "transfers-methods" : "layout-method");
     // The Layout group, for the toolbar's Layout popover: the same lines, the same method popover
     AB.layoutGroup = (state) => layoutSection(popOf(state || "layout"), state);
+    // The graph's Notes section with notes still offers Add note: the one "+" in its header (with none, the
+    // empty line's Add note is the door). ponytail: added here after notesSection; the shell could take it into
+    // notesSection for every inspector, and a section redrawn for a note saved this page view loses it
+    function withAddNote(secs) {
+        const notes = secs[secs.length - 1], head = notes && notes.querySelector(".k-section-head");
+        if (!head || notes.querySelector(".ab-empty")) return secs;
+        const c = AB.cmd("add-note"), p = AB.plus({ label: c.label, items: [c.label], onAdd: () => AB.addNote() });
+        AB.tip(p, c.label, { key: c.shortcut });
+        head.append(p);
+        return secs;
+    }
     function drawInspector(el, state, tab) {
         drawn = { el, state };
         const v = view(state);
@@ -705,7 +733,7 @@
             tabs: {
                 Style: () => [canvasSection(state)],
                 Layout: () => [layoutSection(popOf(state), state)],
-                Data: () => AB.dataTab({ Summary: v.overview, Notes: { count: v.notes, target: ["notes-place", "about-graph"] } }, { kind: "graph" }),
+                Data: () => withAddNote(AB.dataTab({ Summary: v.overview, Notes: { count: v.notes, target: ["notes-place", "about-graph"] } }, { kind: "graph" })),
             },
         });
         insp.classList.add("ins-root");

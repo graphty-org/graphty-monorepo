@@ -6,8 +6,9 @@
    its cap (5,000, in index order) it truncates and says so, which the app shows in the one notice.
    Numbers are kit/fixtures.json's transfers: 3,000 accounts (2,610 personal), 9,113 transfers,
    14 flagged accounts selected, all personal. The Query tab's hint names no attributes (version 5):
-   its one link, Insert attribute..., opens the field list at menu size and inserts the picked
-   attribute's stored path at the cursor (quoted when a name holds a dot). The wide states run on
+   its link, Insert attribute..., opens the field list at menu size and inserts the picked
+   attribute's stored path at the cursor (quoted when a name holds a dot); + condition joins a
+   second condition with "and" and opens the same list. The wide states run on
    kit/wide-nested.json's hosts (300 hosts, 69 attributes), counted from its rows. Plain ASCII. */
 (function () {
     "use strict";
@@ -17,7 +18,7 @@
     const css = `
 .sw-body { display: grid; gap: 8px; }
 .sw-pad { padding: 0 16px; }
-.sw-input { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--cm-font-family-mono); font-size: 12px; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); padding: 4px 8px; }
+.sw-input { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--cm-font-family-mono); font-size: 11px; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); padding: 4px 8px; }
 .sw-input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--cm-border-danger); }
 textarea.sw-input.sw-q { height: 40px; resize: none; }
 textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
@@ -250,9 +251,18 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 requestAnimationFrame(() => requestAnimationFrame(() => { const f = list && list.querySelector("input, .ab-fl-list"); if (f) f.focus(); }));
             };
             insert = h("span", Object.assign({ class: "ab-link", role: "button", "aria-haspopup": "listbox", "aria-expanded": "false" }, AB.act({ onClick: openList })), "Insert attribute...");
-            // The hint names no attribute and has one link (a second condition is typed: "... and ...")
+            // + condition joins a second condition with "and" and opens the same field list for its attribute
+            const addCondition = () => {
+                if (s.q.trim() && !/\band\s*$/i.test(s.q)) s.q = s.q.replace(/\s*$/, "") + " and ";
+                draw();
+                const f = el.querySelector(".sw-input");
+                f.focus();
+                f.setSelectionRange(s.q.length, s.q.length);
+                el.querySelector(".sw-hint .ab-link").click();
+            };
+            // The hint names no attribute: Insert attribute... and + condition
             const hint = s.tab === "where"
-                ? h("span", null, "The same expressions as filters. ", insert)
+                ? h("span", null, "The same expressions as filters. ", insert, " ", AB.button("+ condition", { kind: "ghost", onClick: addCondition }))
                 : (wide ? "One id per line, or comma separated. Matched against the " + (fromAttr ? "nodes'" : "hosts'") + " " + (P.nodeKey || "id") + " column." : "One id per line, or comma separated. Matched against the id column of accounts-2026-03.csv.");
             const pick = (k, v) => { s[k] = v; if (k === "on" && !wide) s.q = v === "edges" ? "amount > 0" : "kind == 'personal'"; draw(); };
             const body = h("div", { class: "sw-body" },
@@ -293,7 +303,7 @@ textarea.sw-input { height: 96px; resize: vertical; line-height: 16px; }
                 hl.update(shareOf(r2));
             }
             const pop = AB.popover({ anchor: "#ab-toolbar", place: "above-toolbar", title: "Select", body, foot, width: 440 });
-            pop.addEventListener("pointerdown", (e) => { if (!insert.contains(e.target)) shut(); });
+            pop.addEventListener("pointerdown", (e) => { if (!e.target.closest(".sw-hint")) shut(); });
             el.prepend(hl);
             el.append(pop);
             requestAnimationFrame(() => hl.update(shareOf(r)));

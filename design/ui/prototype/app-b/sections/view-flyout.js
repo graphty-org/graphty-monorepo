@@ -7,7 +7,7 @@
     "use strict";
     if (!document.getElementById("vf-style")) {
         document.head.append(h("style", { id: "vf-style" },
-            ".vf-tag{margin-inline-start:6px;padding:0 4px;border:1px solid #ffffff4d;border-radius:4px;font-size:10px;line-height:14px;color:#ffffffb2}"
+            ".vf-tag{margin-inline-start:6px}"
             + ".k-menu.vf-many{max-width:280px}.vf-views{max-height:192px;overflow-y:auto;overscroll-behavior:contain}"
             + ".vf-views .k-menu-item>span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"));
     }
@@ -141,7 +141,7 @@
             list.filter((it) => !it.sep && !it.heading).forEach((it, i) => {
                 const row = els[i];
                 if (!row) return;
-                if (it.tag3d) row.children[1].append(h("span", { class: "vf-tag" }, "3D"));
+                if (it.tag3d) row.children[1].append(h("span", { class: "k-badge vf-tag" }, "3D"));
                 if (it.view) viewRows.push(row);
                 if (it.xrNote) row.children[1].append(AB.needsElement(XR_REASON));
             });

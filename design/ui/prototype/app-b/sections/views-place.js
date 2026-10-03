@@ -26,11 +26,8 @@
 `;
     if (!document.getElementById("vp-css")) document.head.append(h("style", { id: "vp-css" }, CSS));
 
-    const RENAME_REASON = "graphty-element cannot rename a saved camera view yet";
     // The element records 2D video, but a tour stop takes a 3D position and target
     const TOUR_2D = "A tour moves the camera in 3D. Switch to 3D to export one";
-    // Worded for anyone: a saved view keeps the name it was saved under (the element has no rename for it)
-    const RENAME_OFF = "A saved view keeps the name it was saved with";
     // TEMPORARY WORKAROUND, for the study only: the app holds the order and the In tour marks because
     // graphty-element's exportCameraPresets returns an unordered record with no tour membership.
     const ORDER_NEEDS = "An ordered saved-view collection with tour membership: exportCameraPresets returns an unordered record, so the app holds the order and the In tour marks until the element has one";
@@ -79,8 +76,7 @@
 
     function rowMenu(li, v, list) {
         AB.openMenu(li, [
-            // Disabled with its reason, not `needs`: a participant must see Rename and why it is off
-            { label: "Rename", shortcut: "F2", disabled: RENAME_OFF },
+            { label: "Rename", shortcut: "F2", onClick: () => nameRow(li, v) },
             { label: "Update to current camera", onClick: () => AB.notice(v.name + " now keeps the current camera", { label: "Undo", onClick: () => AB.announce(v.name + " restored") }) },
             { sep: true },
             { label: "Delete", onClick: () => del(li, v, list) },
@@ -110,20 +106,22 @@
         box.addEventListener("dblclick", (e) => e.stopPropagation());
 
         const name = h("span", { class: "vp-name", "data-name": "" }, v.name);
-        if (!v.isNew) AB.tip(name, v.name, { label: false, second: "Rename needs graphty-element: " + RENAME_REASON });
+        if (!v.isNew) AB.tip(name, v.name, { label: false });
         const li = h("li", { class: "vp-row", role: "option", tabindex: o.selected ? "0" : "-1", draggable: "true", "data-id": v.id, "data-row": v.id, "aria-selected": o.selected ? "true" : "false", "aria-label": said() },
             h("span", { class: "vp-thumb" }, AB.drawing(v.art, "")),
             h("span", { class: "vp-text" }, name),
             box);
-        // Selecting a row marks it at once; the inspector shows the view's fixture state
-        li.addEventListener("click", () => { list.querySelectorAll(".vp-row").forEach((x) => { x.setAttribute("aria-selected", String(x === li)); x.tabIndex = x === li ? 0 : -1; }); AB.go("inspector-saved-view", v.tour ? "view" : "tour-off"); });
+        // Selecting a row marks it at once and keeps this list (the tree's rule), so a double-click
+        // lands on the same row and renames it; the inspector shows the view's fixture state
+        const open = () => { AB.keepLeft = true; AB.go("inspector-saved-view", v.tour ? "view" : "tour-off"); };
+        li.addEventListener("click", (e) => { if (e.detail > 1 || e.target.closest("input")) return; list.querySelectorAll(".vp-row").forEach((x) => { x.setAttribute("aria-selected", String(x === li)); x.tabIndex = x === li ? 0 : -1; }); open(); });
         li.addEventListener("contextmenu", (e) => { e.preventDefault(); rowMenu(li, v, list); });
-        li.addEventListener("dblclick", () => AB.flash("Rename needs graphty-element: " + RENAME_REASON));
+        li.addEventListener("dblclick", (e) => { if (!e.target.closest("input")) nameRow(li, v); });
         li.addEventListener("keydown", (e) => {
             if (e.target !== li) return;
-            if (e.key === "Enter") AB.go("inspector-saved-view", v.tour ? "view" : "tour-off");
+            if (e.key === "Enter") open();
             else if (e.key === " ") flip(e);
-            else if (e.key === "F2") AB.flash("Rename needs graphty-element: " + RENAME_REASON);
+            else if (e.key === "F2") nameRow(li, v);
             else if (e.key === "F10" && e.shiftKey) rowMenu(li, v, list);
             else if (e.key === "Delete") del(li, v, list);
             else if ((e.ctrlKey || e.metaKey) && (e.key === "]" || e.key === "[")) {
@@ -167,9 +165,10 @@
         list.addEventListener("dragend", () => { if (dragged) dragged.removeAttribute("data-ghost"); line.remove(); dragged = null; });
     }
 
-    // The new row opens in rename, "View 4" selected. Enter saves; Esc keeps "View 4". A standard
-    // view's name shows the element's refusal under the field and keeps the field open.
-    function nameNew(li, v, typed) {
+    // Rename in the row: double-click, F2 or the menu's Rename; the new row opens in rename, "View 4"
+    // selected. Enter saves; Esc keeps the old name. A standard view's name shows the element's
+    // refusal under the field and keeps the field open.
+    function nameRow(li, v, typed) {
         const err = (n) => {
             const input = li.querySelector(".ab-rename");
             if (!input) return;
@@ -181,13 +180,19 @@
         const open = (n) => {
             const old = li.querySelector(".vp-err");
             if (old) old.remove();
-            AB.createThenRename(li, {
-                onSave: (name) => {
-                    if (!STANDARD.some((s) => s.toLowerCase() === name.trim().toLowerCase())) { v.name = name; li.setAttribute("aria-label", v.name + (v.tour ? ", in tour" : ", not in tour")); return; }
-                    li.querySelector(".vp-name").textContent = v.name;
-                    setTimeout(() => { open(name); }, 0);
-                },
-            });
+            const onSave = (name) => {
+                const nameEl = li.querySelector(".vp-name");
+                if (!STANDARD.some((s) => s.toLowerCase() === name.trim().toLowerCase())) {
+                    v.name = name;
+                    li.setAttribute("aria-label", v.name + (v.tour ? ", in tour" : ", not in tour"));
+                    if (nameEl.dataset.tip) nameEl.dataset.tip = name;
+                    return;
+                }
+                nameEl.textContent = v.name;
+                setTimeout(() => { open(name); }, 0);
+            };
+            if (v.isNew) AB.createThenRename(li, { onSave });
+            else AB.renameInPlace(li.querySelector(".vp-name"), { onSave, focusAfter: li });
             if (n) err(n);
         };
         open(typed);
@@ -271,7 +276,7 @@
             reorderable(list);
             el.append(list);
             const at = (id) => list.querySelector('[data-id="' + id + '"]');
-            if (fresh) requestAnimationFrame(() => nameNew(at(fresh.id), fresh, state === "save-name-taken" ? "Top" : null));
+            if (fresh) requestAnimationFrame(() => nameRow(at(fresh.id), fresh, state === "save-name-taken" ? "Top" : null));
             // The view applies its camera; a row it named was deleted, so the notice names it and the view shows without it
             if (state === "applied-missing") requestAnimationFrame(() => AB.notice("Applied Whole cast without Group 1: that row was deleted", { label: "Update view", onClick: () => AB.announce("Whole cast updated") }));
             if (state === "in-tour-2d") requestAnimationFrame(() => headMenu(el.querySelector('[aria-label="More for views"]'), views.length));

@@ -21,6 +21,15 @@ it needs HTTP, not `file://`). `#/map` lists every section and state.
 `design/ui/framework/glossary.md`; this README does not keep its own. Every door to a command uses
 its `cmd()` label word for word (below).
 
+**Every count and claim in a message is computed from the state it describes, or the message is
+removed.** A number or a fact typed into a string ("64 hidden", "32 rows", "sorted by degree",
+"Covered by PageRank", "Paints 10 nodes") goes stale the moment the screen changes, and a line that
+disagrees with the screen costs more trust than no line. Read it from the state the line is about
+(`AB.paintRows`, `AB.labelStatus`, `covers()`, `AB.projectCounts`), and when nothing on the page
+holds that state, leave the line out. One term per concept: the overlap switch is **Show all labels**
+everywhere (never "Labels shown anyway" or "show all"), and adding a label line is **Add label line**
+everywhere (the Label "+", its heading word, an attribute's menu, Quick actions).
+
 A section writes only its own file. If you need something shared, write it inside your file
 and say so in your report; do not edit `app.js`, `lib.js`, `app.css` or another section.
 
@@ -105,20 +114,21 @@ canvas click on a node goes the same way. A section frame never sets `toolbar: "
 for a selection its inspector already shows; name a toolbar only for a bar the inspector cannot
 imply (`selection-bar/hidden`).
 
-**The canvas walk (Shift+Arrow).** With focus on the drawing (`.k-stage`), Shift+Right or
-Shift+Down selects the next node of the project on screen and Shift+Left or Shift+Up the previous
-one, in file order: Les Miserables' rows, the transfers' accounts, the door entries' people then
-buildings, the hosts, the researchers, the plain JSON graph's nodes. Each step opens that project's node inspector state
-(`inspector-node/why-this-look`, `transfers-node`, `door-ana` or `door-b1`, `wide-data`, `nested-data`, `plain-data`) with the
-selection bar, names the node in the inspector header and the bar, announces "<name>, <n>
-neighbors" and keeps focus on the drawing. A click on the drawing (a hot spot, or empty canvas, which clears the selection) also leaves focus on it, so Shift+Arrow walks from there, starting after the node clicked. `AB.walked` is `{ dataset, index, name, neighbors,
-right }` while a walk is on screen, else `null`. `AB.selectNode(dataset, index)` makes the same
-selection without a step (a canvas hot spot: Valjean, monitor-prod-iad-03, the first researcher, the first
-Coauthors node, Ana Ruiz; a row of the wide or nested table), and `AB.walkList(dataset)` is the walk's node list.
-`AB.openField(dataset, name)` (defined by the attribute inspector) opens any project's attribute
-from any list (Les Miserables' open `inspector-attribute-and-filter-step/lesmis-field`; the transfers and
-door entries keep their own states). A frame may set `walk: n` to draw the walk after
-n steps (`canvas-and-states/walked` is Les Miserables after two: `{ right:
+**The canvas walk (Shift+Arrow)** is `canvas-and-states`' (graphty-element's canvas key, the owner's
+decision): with focus on the drawing it walks between neighbors, and the section's own pill and
+announcement say where it is; the shell has no second walk. A click on the drawing (a hot spot, or
+empty canvas, which clears the selection) leaves focus on it, so Shift+Arrow walks from there. The
+shell keeps the selection one node makes: `AB.selectNode(dataset, index)` (a canvas hot spot:
+Valjean, monitor-prod-iad-03, the first researcher, the first Coauthors node, Ana Ruiz; a row of the
+wide or nested table) opens that project's node inspector state (`inspector-node/why-this-look`,
+`transfers-node`, `door-ana` or `door-b1`, `wide-data`, `nested-data`, `plain-data`) with the
+selection bar and names the node in the inspector header. `AB.walked` is `{ dataset, index, name,
+neighbors, right }` while such a node is on screen, else `null`, and `AB.walkList(dataset)` is the
+project's node list in file order. `AB.openField(dataset, name)` (defined by the attribute inspector)
+opens any project's attribute from any list (Les Miserables' open
+`inspector-attribute-and-filter-step/lesmis-field`; the transfers and door entries keep their own
+states). A frame may set `walk: n` to draw the selection on the nth node of that list
+(`canvas-and-states/walked` is Les Miserables after two steps: `{ right:
 "inspector-node/why-this-look", walk: 2 }`).
 
 **Staying in the project on screen.** A door out of the wide, nested, plain JSON, door-entries or
@@ -163,45 +173,51 @@ uses the helper; a section-local copy of any of them is a defect.
 
 | job | helper | what it does |
 |---|---|---|
-| Tooltip | `tip(el, name, { key, second, label })` | The one tooltip: a light bubble 500 ms after the pointer arrives, at once on keyboard focus (`:focus-visible`), at once for a neighbor within 1 s of the last one hiding; Esc dismisses it; the pointer can rest on it; a 500 ms long press shows it on touch. The bubble is hidden from speech: `name` becomes the control's `aria-label` (unless `label: false`, for a control whose visible text names it) and `key` its `aria-keyshortcuts`, drawn as a key chip. `second` is a second line, only for a disabled reason or a modifier gesture ("Alt-click: show only this row"). "Undo (Ctrl+Z)" is split into name and key for you. A section may instead write `data-tip`, `data-key` and `data-tip2` attributes; the shell gives such an icon-only control its label after each render |
+| Tooltip | `tip(el, name, { key, second, label })` | The one tooltip: a light bubble 500 ms after the pointer arrives, at once on keyboard focus (`:focus-visible`), at once for a neighbor within 1 s of the last one hiding; Esc dismisses it; the pointer can rest on it; a 500 ms long press shows it on touch. The bubble is hidden from speech: `name` becomes the control's `aria-label` (unless `label: false`, for a control whose visible text names it, where a tooltip that says more than the text becomes its `aria-description`; a labeled plain icon gets `role="img"`) and `key` its `aria-keyshortcuts`, drawn as a key chip. `second` is a second line, only for a disabled reason or a modifier gesture ("Alt-click: show only this row"). "Undo (Ctrl+Z)" is split into name and key for you. A section may instead write `data-tip`, `data-key` and `data-tip2` attributes; the shell gives such an icon-only control its label after each render |
 | Add | `plus({ label: "Add to Line", items, onAdd(item), go, fields })` | The one "+", only in a section or list header (`section({ actions: AB.plus(...) })`). One item: adds it at once. Two to 15: a dark menu. Past 15: the field list at menu size, its find over the items. `fields` (fieldList options) makes it the field list of those fields at any length, `onAdd({ label: name, type, ...field })`. None: returns `null`, so the "+" disappears. `go` sends it to a route instead (a picker section that draws its own menu) |
 | Name a new thing | `createThenRename(rowEl, { onSave })` | A new item gets a default name and opens straight into rename, its name selected |
 | Edit a value in detail | `popover({ anchor, title, body, foot, width, place, onClose })` | The one light popover (`onClose`, for one opened in place rather than as a route, is what its X does instead of the shell's close): a title and an X; each change applies live; Esc or a click outside closes it; focus starts on the first field and returns to the anchor; the shell keeps the panels as they were (no redraw). Placement is automatic: left of the inspector, level with the anchor, for an anchor in the inspector; directly above the toolbar for an anchor in the toolbar or the selection bar. `foot` only when the popover creates something |
 | A field in a popover or a body | `fieldRow(label, control, { popover })` | Label column 88 px in the inspector, 96 px in popovers; 24 px rows; 8 px gap; labels top-aligned. Never set your own label widths |
 | Read-only block | `section({ title, collapsible: true, summary, key })` | Collapsible with a chevron and a one-line summary when closed, remembered per KIND in `key` (`why.node`, `data.run.made-with`, `notes.group`) |
-| Editable block | `section({ title, editable: true, actions })` | Always open: no accordion in anything editable (`editable` refuses `collapsible`) |
+| Editable block | `section({ title, editable: true, actions, titleAct })` | Always open: no accordion in anything editable (`editable` refuses `collapsible`). `titleAct: { name, onClick }` makes the heading word the section's own command, with `name` as its tooltip (the Label heading: Add label line) |
 | Nothing here | `empty(text, { verb, key, go or onClick })`, `noMatch(q)` | One gray line, the verb a link: "No notes. Add note (N)". A filter with no matches: `No match for "x"`. No icons, buttons or footnotes |
 | A notice | `notice(text, { label, go or onClick })` | The one notice slot, owned by the shell: centered 8 px above the lowest bar (the toolbar, or the selection bar when it shows), 6 s, paused while hovered, at most one action. It returns an empty placeholder, so appending the result anywhere is harmless. A started run shows no notice |
-| After a delete | `deleted("Louvain and 6 groups", onUndo)` | "Deleted Louvain and 6 groups" with Undo. Deleting never asks first |
+| After a delete | `deleted("Louvain and 6 groups", onUndo)` | "Deleted Louvain and 6 groups" with Undo. Deleting never asks first. A count in the text is written with `count()` |
+| A row menu's (or an inspector menu's) Delete of a tree row | `deleteRow(name, onUndo)` | Deletes the tree row named `name` exactly as its Delete key does: the row goes, the notice names what went with it from the row's own count ("Deleted Louvain and 6 groups"), Undo puts it back. With no such row on screen it gives `deleted(name, onUndo)`. Never word a row's delete notice yourself |
 | The one confirmation | `confirm({ verb, thing, loss, onConfirm })` | Only for what cannot be undone, which today is Forget all keys: "Forget all keys?", one sentence on what is lost, Cancel and the verb |
 | A control the skeleton does not model | `flash(text)` | The same notice with no action |
 | Needs graphty-element | `needsElement(reason)` | The one design-note chip, placed after the control it qualifies; the reason is its tooltip |
 | An open question | `openQuestion(text)` | The same chip, worded "Open question" |
-| A menu | `menu({ anchor, place, label, items, back })` | A dark menu. Item: `{ label, shortcut, go or onClick, sub, check, disabled: true or "reason", desc, needs: "reason", toggle: [label when on, label when off], on }`, `{ sep: true }`, `{ heading }`. One line per item: `desc` becomes the item's tooltip; a second line only says why an item is disabled. `needs` draws the item disabled with the chip; "Hide design notes" hides only the chip, and the item stays listed with its reason on its second line in participant words: `needs: "graphty-element cannot copy a subgraph into a new graph yet"` reads "Not available yet: this version cannot copy a subgraph into a new graph yet". Write `needs` as the reason (a sentence about graphty-element, or a fragment such as "a grouping"), never as "Not available yet". Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes to `back`); Esc closes one level; hover opens a submenu after 200 ms. Disabled items stay focusable |
+| A menu | `menu({ anchor, place, label, items, back })` | A dark menu. Item: `{ label, shortcut, go or onClick, sub, check, disabled: true or "reason", desc, needs: "reason", toggle: [label when on, label when off], on }`, `{ sep: true }`, `{ heading }`. One line per item: `desc` becomes the item's tooltip; a second line only says why an item is disabled. `needs` draws the item disabled with the chip, the reason in the chip's tooltip; the item is product text, so "Hide design notes" (and the participant view) keeps it, disabled, drops the chip and gives its reason as the disabled second line in plain words ("This version cannot copy a subgraph into a new graph yet", or "Not available in this version" for a fragment). Write `needs` as the reason (a sentence about graphty-element, or a fragment such as "a grouping"), never as "Not available yet". Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes to `back`); Esc closes one level; hover opens a submenu after 200 ms. Disabled items stay focusable |
 | A menu that is not a route | `openMenu(anchor, items)`, `closeMenu()` | A dark menu of 15 items or fewer (it has no find; past 15 it warns). The "+" menu uses this |
 | An attribute's menu | `attributeMenu(anchor, dataset, name, { editOn, table, noTable })` | **The one attribute menu**: Data > Attributes' rows, the attribute inspector's More actions (an inspector `menu` may be a function of its button) and a table column's menu. It has no Color by or Size by (painting from an attribute is a bind in a row's Style tab); Add label line and Select where come from `cmd()`; Filter to... is `AB.filterTo` (a step on the attribute in the project's Data place, opened through `AB.openStep`); Select where <attribute> is... (`cmd("select-where-attribute", { attribute })`) is `AB.whereFrom`: the one Select where dialog with that attribute's condition filled in (`select-where/attribute`), which keeps both set kinds (a fixed Create set and Create set from rule); Read as... is `AB.openField` |
 | Paint from an attribute | `paintBy(dataset, "Color" or "Size", name, on)`, `paintRow`, `paintOf`, `boundOn(route)`, `painted` | A binding in a loaded project (wide, nested, plain JSON): `on` is `"row"` (a measure row named after the attribute, `graph-place/painted`, `inspector-measure-row/painted-color`) or the inspector route whose line a bind icon bound (Everything's Color). The tree, the canvas and its legend, the field lists' In use and the inspectors read it; a Binding popover that picks a source sets `AB.repaint`, so closing it redraws the panels |
 | Find or pick an attribute | `fieldList(o)`, `openFieldList(anchor, o)`, `fieldsOf(dataset)` | **The field list**, every attribute picker and attribute list (below). `openFieldList` opens it at menu size from a control, as `openMenu` does; a section drawing it in its own overlay places it with `position(fieldList(o), anchor, place)`; at panel size append `fieldList({ size: "panel", ... })` |
 | What went wrong | `problem({ what, todo, action, level })` | **The problem block**: a red "x" (error) or yellow "!" (`level: "partial"`), the line saying what happened, a second line saying what to do, and at most one action (`{ label, go or onClick }`) under them. The Data page's refusals and partial loads, the Binding popover's and Why this look's unknown path |
-| A name that does not fit | `truncMiddle(text, max, ranges)` | The middle ellipsis for attribute names and paths (`cpu_util...p95_pct`): keeps the start and the end within `max` characters, bolds `ranges`, and puts the full text in the tooltip and the accessible name. Field lists, column headers, legends, Why this look. Prose (node, note, source and row names) uses the end ellipsis, `k-ellipsis` |
+| A name that does not fit | `truncMiddle(text, max, ranges)`, `fitMiddle(root)` | The middle ellipsis for attribute names and paths (`cpu_util...p95_pct`): keeps the start and the end within `max` characters, bolds `ranges`, and puts the full text in the tooltip and the accessible name. After every render the shell runs `fitMiddle` over the app: a middle-cut name still wider than its box is cut again from the middle until it fits, so a box's end ellipsis never cuts it a second time (call it yourself on an element drawn later). A legend title "Color: <attribute>" (also Size, Width, Shape, Label) gets the middle ellipsis on its attribute. Field lists, column headers, legends, Why this look. Prose (node, note, source and row names) uses the end ellipsis, `k-ellipsis` |
 | Find by word starts | `wordMatch(name, query)` | The one matcher: names split at `_ . - [ ]`, spaces and case changes, and so does what is typed; each typed word starts a word of the name, in order ("vu cr", "cpu p95", "kernel_version", "profile.field"). Returns the matched `[start, end)` ranges for bold, or `null`. Any find over names uses it (the field list, Go to column) |
 | A count or a measure | `count(n, noun, { of, plural, version, on, onOf, also })`, `range(lo, hi, column, { on, onOf, also })`, `num(v, digits = 3)` | **The one number formatter.** `count(L.nodes, "node")` is "77 nodes", `count(60, "node", { of: L.nodes })` "60 of 77 nodes", `version` adds the data version in parentheses when it is not what the screen shows ("before the filter"). **The set rule lives only here**: `on` is the size of the set a value was computed over (`onOf` its whole, default the project's nodes), and the set is named only when it is not the graph on screen (the filter chip's count, `AB.route.frame.shown`) or when `also: true` says the same measure appears elsewhere over another set: `count(0.0754, null, { on: 77 })` is "0.0754, on all 77" while the chip reads "60 of 77 nodes" and "0.0754" on the full graph; `count(0.419, null, { on: 60, also: true })` "0.419, on 60 of 77". A range always names its column: `range(0.0033, 0.0754, "PageRank")` "PageRank 0.00330 to 0.0754". `num` writes a whole number with thousands separators and anything else to three significant digits ("0.0868", "0.00101", "0.570", "6.60"). Read the number from `AB.fx` (or `AB.projectCounts`), never type it: `node app-b/study.mjs --counts` fails on a count typed by hand in a section file, also inside `AB.count(...)` |
 | Column names | `distinctNames(names, where)` | Two columns never share one display name: every list of column headers (the table, Columns, an export's columns) passes its names through it; a clash is a console error |
 | Top 10 | `topN(items, valueOf, n = 10)` | The highest `n` with ties kept whole: every item reaching the nth value, so a tie at the cut is never split. Every Top 10 list uses it |
 | A command | `cmd(id, extra?)`, `COMMANDS` | A menu item from the one command table (below) |
 | The File list | `fileList()` | **The one File list**: Open project or file..., Save, Export..., Apply recipe or style file..., Version history, as `cmd()` items. The main menu and the project-name menu both append it where their File group goes, so the two show identical words. Never list these commands one by one |
-| Clear the selection | `clearSelection()` | **The one way to empty the selection**: the empty canvas and Escape call it. The selection becomes empty and the inspector shows the graph on screen as its subject; the left panel stays the place and the project it was, drawn again so no row stays marked selected. The graph is never put into the selection. It raises the notice "Selection cleared (1 node)" (elements are counted, a row is named: "Selection cleared (Watchlist)") with **Bring it back**, which reopens what was selected; while the notice shows, Ctrl+Z presses it (so only the selection comes back), and after it the next Ctrl+Z undoes as usual. It is spoken as "Selection cleared (1 node). Ctrl+Z brings it back" |
+| Clear the selection | `clearSelection()` | **The one way to empty the selection**: the empty canvas and Escape call it. The selection becomes empty and the inspector shows the graph on screen as its subject; the left panel stays the place and the project it was, drawn again so no row stays marked selected. The graph is never put into the selection. It raises the notice "Selection cleared (1 node)" (elements are counted, and so is a row that holds nodes: "Selection cleared (9 nodes)"; a row that holds none, a measure, is named) with **Bring it back**, and arms the selection slot: while it is armed, Ctrl+Z, the header's Undo (named "Undo: restore selection (9 nodes)") and Bring it back restore only that selection, touching no undo or redo step, and the line then reads "Selection restored (9 nodes)". Any new selection (a render) or undoable change (a notice with Undo) empties the slot. It is spoken as "Selection cleared (1 node). Ctrl+Z brings it back" |
 | What a row menu acts on | `AB.menuTarget` | `{ name, kind }` of the row whose menu is opening: the tree sets it on right-click and Shift+F10, the inspector frame on its "..." (a `menu` given as `[id, state]`). A row-menu section heads its menu with `AB.menuTarget.name` and acts on it, never on a fixed row |
 | Everything's base values | `BASE_STYLE` | **The one base style** (`{ "node.color": "#808080", "edge.width": 8, ... }`): every section that shows Everything or its look reads it. The fill is the gray the drawings paint, so the panel never disagrees with the picture. A local copy is a defect |
 | Several choices | `seg([[value, label, extra]], value, onChange, { label })` | A segmented control for 2 to 4 short options: one Tab stop, arrows move and select |
 | The canvas toolbar | `toolbarButton(icon, name, { key, popup, pressed, open, disabled, go, onClick, tool })`, `toolbarBar(items, label)`, `mainToolbar()` | 32 px icon buttons, no text. `popup: "dialog"` or `"menu"` sets `aria-haspopup` and `aria-expanded`; `pressed` sets `aria-pressed`. **Blue fill means pressed** (a toggle that is on); **gray fill means open** (its flyout or popover shows; by default when the overlay on screen is the button's `go` target). The bar is one Tab stop; arrows move; Alt+Down, Enter or Space opens a flyout. While a state card shows, a canvas section sets `AB.toolbarDisabled = "Nothing is drawn"` and every button but Quick actions is disabled with that reason. `mainToolbar()` is the standard bar: Analyze, then Layout, View and Legend, then Quick actions |
 | A project's counts | `projectCounts(ds)`, `countSource(ds, fn)`, `removeFromData(ds, { nodes, edges })` | **The one reader of a project's node and edge counts**, `{ nodes, edges }` as the data is now: the fixture's counts (or what `countSource` registered for a project a section builds, such as the nested one) minus every Remove from data in this page view. `removeFromData` records what a removal took and returns the Undo that gives it back, so after the table removes Valjean (1 node, 36 edges) the table, Everything and the graph inspector all say 76 nodes. Read counts here, never from `AB.fx` directly where an edit could change them. A section never assigns `AB.projectCounts`: `--counts` fails on it |
-| Legend state | `legendOn()`, `setLegend(bool)`, `legendButton()`, `legendCard(parts)` | On by default, remembered per project. The toolbar's Legend button and L are its only doors: nothing else opens or closes it, and the card has no X. `legendCard([{ title: "Color: group", rows: [{ swatch, label, count }], more: "28 more communities" }])` draws the card top left and returns `null` while the legend is off. The card is read-only (the canvas carries no controls; `go` is ignored); `legendCard([])` draws "Nothing is colored or sized by a row", so a pressed Legend button always shows a card |
-| Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is its state (pause while running, play otherwise) and a click opens the Layout popover (`toolbar/layout-open`: Pause or Resume, then the graph's Layout group), wherever the bar is drawn; `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
+| Legend state | `legendOn()`, `setLegend(bool)`, `legendButton()`, `legendCard(parts)` | On by default, remembered per project. The toolbar's Legend button and L are its only doors: nothing else opens or closes it, and the card has no X. `legendCard([{ title: "Color: group", rows: [{ swatch, label, count }], more: "28 more communities" }])` draws the card top left and returns `null` while the legend is off. A part titled after a run ("Color: Betweenness 2") gets the method's one plain sentence under its title (`methodSentence`, placeholder text marked as coming from graphty-element's algorithm catalog), and a "Size: ..." part with no rows gets the bound range, "2 to 12 px", so the legend names every channel in use and what it means. A row's `count` that is a number (or a number already written by `num`) is drawn with its noun by `count()`: `noun` on the row or the part, default "node" ("Community 1  10 nodes", "person  411 nodes"). The card is read-only (the canvas carries no controls; `go` is ignored); `legendCard([])` draws what the field lists say paints, or "Nothing is colored or sized by a row". A pressed Legend button always shows a card: after every render the shell adds `legendCard([])` to a drawn canvas that has none (not while a state card shows) |
+| Layout state | `AB.layoutState` ("running", "paused" or "settled"), `setLayout(state)`, `layoutButton()` | The Layout button's icon is always `ICON.layout` (move: arranging, never play or pause, which read as playing an animation; the popover's Motion line says whether it moves) and a click opens the Layout popover (`toolbar/layout-open`: Pause or Resume, then the graph's Layout group), wherever the bar is drawn; `setLayout` swaps the button in place and announces "Layout paused", "Layout running" or "Layout settled" |
 | The project's name and Recent | `AB.projectNames[dataset]`, `AB.visit` | A rename or Save as in the project menu sets `projectNames`, which the header reads. `AB.visit.fresh` is set by a first-launch start screen; from then on the start screen's Recent lists only `AB.visit.recents` (what was opened or saved in this page view), never the returning reader's fixture projects |
 | A row shown alone | `AB.soloRow` | The name of the row whose eye is soloed (the tree sets it; a tree drawn again clears it). The Les Miserables canvas and its legend paint from it (Louvain by community) |
+| What the paint tree paints | `AB.paintRows`, the `ab:paint` event, `moveRowAbove(name, other)` | **The canvas and its legend follow the tree.** `AB.paintRows` is the paint tree's every row in paint order, top first, `{ name, eye, level }` (the tree publishes it whenever it draws; other trees, such as Filter steps, do not). An eye, a solo (Alt-click), a move (Ctrl+] or a drag), a delete or its Undo raises `ab:paint` on the document, and the shell draws the canvas region again at once, before the tree's `onEye` runs; the canvas section reads `AB.paintRows` and `AB.soloRow` to decide what paints and what its legend says. A state bar's Move above calls `moveRowAbove("Betweenness", "PageRank")`, the tree's own move (out of a folder if it has to; a hidden row it moves is shown; same announcement, same repaint), never a move of its own; it returns the move's Undo, which the state bar's notice gives as its Undo. The Les Miserables drawing and its legend read Color from the top shown row that paints Color (PageRank, Louvain, a Betweenness run), and Size from a Size binding (`paintOf`) |
+| A run finishing | the shell's `RUN_DONE` (app.js) | A route showing a run in progress (`analyze-popover/running`, `graph-place/running`) moves on to the finished state 0.9 s later ("Under a second"), unless the reader went elsewhere: on Les Miserables `graph-place/finished`, the new row on top, painting, with its legend. A section never starts a timer of its own for this |
+| Add a label line | `addLabelLine(field?)`, `labelStatus(ds, field)`, `overlapHidden(ds, names)`, `AB.showAllLabels` | **The one Add label line.** Quick actions, an attribute's menu (with that field), the Label heading and its "+" all add a label line in the project on screen: the Style tab on screen takes it in place, else the project's Everything row opens and takes it; an open menu or dialog closes first. With no field the line starts empty and its field list opens (the owner's rule); no notice and no Undo, since its own "-" removes it. A bound label line states its result under itself from live state, `labelStatus`: "77 names, 64 hidden to avoid overlap" (the field's Name role makes the noun "name"; a project whose rows are a sample gets no line). `overlapHidden` is the one overlap rule (the names graphty-element hides; none while `AB.showAllLabels`, the Show all labels switch, is on): the canvas, Export and the label line read it, so they never disagree |
+| The one find | `treebar({ find: { rows(q), notes(q), hide } })`, `findHits(ds, q)` | **The list's box finds everything the project holds**, as one live list under the box (placeholder "Find rows, elements, values"): Rows (the caller's, first), Elements (nodes and edges by name, id or an attribute value, read over the full graph; a hit a filter step leaves out is listed and says "left out by" that step), then one row per matched value, "Select where group is 2 (14 nodes)", which opens the one Select where dialog through `AB.whereFrom`, then Notes (the caller's). `rows` and `notes` return `[{ label, sub, onPick }]`; `hide` is the tree the list stands in for. Each group is a listbox group named by its heading; "No match" is a message, not an option. Focus stays in the box: Down and Up move, Enter picks (the first result when none is marked), Esc clears, then closes and returns focus to the list's current row; the selection changes only on a pick. Picking an element selects and frames it and opens its inspector on Data (`AB.selectNode(ds, i, { at })`). A node or edge whose name is exactly what was typed puts Elements first, so Enter picks it. "/" focuses the box (opening the project's Graph place first), through `AB.focusFind(text?)`, the one door: Quick actions' Find... and its one hand-off, "Find '<text>' in the graph", call it with the text typed. The Notes group reads `AB.notesOf(ds)` (the Notes place's list) |
+| A bound size | `SIZE_RANGE`, `sizeRangeText()` | **2 to 12 px**, the skeleton's one size range: a bound Size line (`boundOn`), the Binding popover and the legend all state it. Never type another range |
 | A path's route on screen | `AB.pathRouteAt`, `AB.setPathRoute(i)` | Routes that tie: the path popover's result bar and the path inspector step the same index, so they never name different routes |
-| One meaning per icon | `ICON` | `view` bookmark, `set` circle-check, `createSet`, `run` layers, `legend` list, `note` message-square, `addNote`, `filter` funnel (data filters only), `options` ellipsis, `swap` arrow-left-right, `mode3d` box, `mode2d` square, `hidden` eye-off, `shown` eye |
+| One meaning per icon | `ICON` | `view` bookmark, `set` circle-check, `createSet`, `run` layers, `legend` list, `note` message-square, `addNote`, `filter` funnel (data filters only), `options` ellipsis, `swap` arrow-left-right, `mode3d` box, `mode2d` square, `hidden` eye-off, `shown` eye, `layout` move (the Layout button and the Layout command); `play` is only for presenting and media. **A tag** ("Start here", "3D", "auto", "Recommended") is the kit's `k-badge`, 16 px with 11 px text, never a local pill; on a dark menu it takes the menu's inks (`app.css`) |
 
 ### Frames and building blocks
 
@@ -242,7 +258,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | `drawing(name, alt)` | both theme images of `kit/canvas/<name>-{light,dark}.svg` |
 | `placeHead(title, actions?)` | a left panel's 40 px title row |
 | `graphHead(place, graphName, { notes, trail })` | the Graph and Data places' title row: a quiet place word, then the graphs switcher (and the graph's note count). Every view of the paint tree uses it |
-| `treebar({ placeholder, value, onKey, onInput, menuGo, menuOpen })` | the find line under a list: the shared find field and the list options ellipsis (`#ab-list-btn`) |
+| `treebar({ placeholder, value, onKey, onInput, menuGo, menuOpen, find })` | the find line under a list: the shared find field and the list options ellipsis (`#ab-list-btn`); with `find`, the one find over the project (see "The one find") |
 | `typeGlyph(type)` | the one glyph per attribute type: "Abc" category (and id, text), "#" number, a calendar for time, "T\|F" yes or no, "[ ]" a list, "{ }" a sub-object kept whole. Every list, table header, attribute inspector header and tree row named after an attribute (a Size by or Label by row, a recipe's rows) uses it; never a lucide `hash`, `type`, `list` or `circle-check` for a type (those mean other things). In a kind slot it is drawn at 10 px so it fits the 20 px slot and names line up |
 | `renderSection(ref, el)`, `close()` | as on `ctx` |
 | `fx` | `kit/fixtures.json`, loaded before any render (`AB.fx.datasets.lesmis`, `.transactions`, `.scenarios`), plus `AB.fx.datasets.doorEntries`, which the shell adds (below), and `wide`, `nested` and `plainJson` from `kit/wide-nested.json` |
@@ -379,7 +395,7 @@ Their routes redirect:
 | `inspector-source/replaced` | `data-page/replace` |
 | `inspector-source/derived` | `data-place/derived` |
 
-**The header**, left to right: main menu, project name (click: its menu; double-click or F2:
+**The header**, left to right: main menu (a 32 px button), project name (click: its menu; double-click or F2:
 rename in place), Undo, Redo, the privacy chip, the filter chip. The privacy chip reads "Local only"
 while usage data is off and "Usage data on, content masked" after opt-in, and always opens Settings >
 Privacy. Its state is `AB.usageData`; whatever answers the question (Settings > Privacy's switch, the
@@ -395,6 +411,13 @@ with no "Filtered:" before it: the shell rewrites any counted chip a section giv
 so `AB.route.frame.chip` always reads "60 of 77 nodes". A chip with no count ("Filtered: neighbors
 of Ana Ruiz", where the fixtures hold none) is shown as given.
 
+**Text contrast.** A fact the reader acts on is at body-text contrast (`var(--cm-text)`): where the
+data is, the filter chip, a count and its scope ("812 of 3,000 nodes (the full graph)"), a source's
+counts, a step's result, a row's count, the Paints line, a problem's "what to do", and the "not
+drawn" message. Caption gray (`var(--cm-text-secondary)`) is only for a truly secondary note: field
+labels in a popover, key chips, role tags, the "Esc" hint, a tooltip's second line. A section's own
+line under a row (the Data place's source and step lines) follows the same rule.
+
 **Every region has a heading.** The shell gives the rail, canvas, toolbar, table dock and any left
 panel or inspector without one a visually hidden `h2` ("Places", "Graph drawing", "Canvas toolbar",
 "Table", "Left panel", "Inspector"), so a screen reader names the region that holds focus.
@@ -403,12 +426,17 @@ panel or inspector without one a visually hidden `h2` ("Places", "Graph drawing"
 have no keys.
 
 **Keys the shell owns** (outside text fields): Ctrl+, Settings; Ctrl+K Quick actions; Shift+A
-Analyze; P the Path popover; L the legend; ? shortcuts; 5 the view mode; Shift+T the table; Esc
+Analyze; P the Path popover; L the legend; / the Graph place's find box; ? shortcuts; 5 switches 2D and 3D (the mode it picks holds
+on every screen until a route that names its own mode opens); Shift+T the table; Esc
 closes one level, starting with the innermost (a handler that closes, cancels or clears something
-calls `preventDefault()`, and the shell then leaves that press alone), and with nothing open while a
-reviewer has hidden design notes it shows them again (never in the participant view study.mjs opens); Ctrl+Z and Ctrl+Shift+Z press the notice's own
-Undo or Redo (or a cleared selection's Bring it back) first, then the header's; Shift+Arrow on the drawing walks from node to node (graphty-element's canvas
-key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G groups what
+calls `preventDefault()`, and the shell then leaves that press alone), and with nothing open while
+design notes are hidden (the participant view too) it shows them again. A menu, popover or dialog
+drawn over a selection closes back to that selection (its inspector route), so one Esc never also
+clears it. Ctrl+Z and the header's Undo are one action: they restore a cleared selection first (above),
+else press the notice's own Undo; Ctrl+Shift+Z, off macOS Ctrl+Y, and the header's Redo press the
+notice's Redo. A tree row's Delete is the same from its key, its row menu and its inspector menu
+(`deleteRow`); Shift+Arrow on the
+drawing walks from node to node (graphty-element's canvas key, above). F2 renames (the tree, the inspector header, the project name). Ctrl+G groups what
 is selected: with focus in the tree it is New folder, anywhere else the selection bar's Create set. T is not a key: the time slider opens
 from the table's options. Never bind W, A, S, D, Q, E, the arrows, = or -: they are
 graphty-element's canvas keys.
@@ -461,10 +489,13 @@ element's channel id (`"node.color"`, `"edge.arrowHead"`).
   that opens a menu after adding** (it adds a line at the first free position -- Above, Below,
   Right, Left, the four corners, Center -- and opens the From data list on it at once, focus on its
   first item), and **a label line is the one new line not pre-filled**: until a field is picked it
-  reads "Pick a field" in gray, its accessible name is "Label, Right: no field, draws nothing", and
-  it writes nothing. Esc leaves the draft. "+" disappears once every position is used. **Show** is
-  offered only while the row has no label line, so with no lines "+" holds two items, Label and
-  Show. Bind or a click on a label line's value opens `style-pickers/label-style`. Without
+  reads "Pick an attribute" in gray, its accessible name is "Label, Right: no attribute, draws nothing", and
+  it writes nothing. Esc leaves the draft. "+" disappears once every position is used. **Show
+  labels** (`node.labelShow`, `edge.labelShow`: graphty-element's label `enabled: false`) is offered
+  only where a row beneath this one sets a label (`styleTab({ labelBelow: true })`) and the row has no
+  label line of its own. With no label drawn anywhere the "+" holds one item, "label line", so it
+  reads "Add label line" and runs at once; the Label heading word runs the same command. A bound line
+  states its result under itself (`labelStatus`, "77 names, 64 hidden to avoid overlap"). Bind or a click on a label line's value opens `style-pickers/label-style`. Without
   `labels`, a bound `node.label` draws as one Above line. The position words come from
   `CHANNELS.positions` (graphty-element's TextLocation ids and their plain words; a stand-in, its
   comment names the missing per-position label channels). Edge labels keep their one middle line.
@@ -508,14 +539,23 @@ status, statusText, progress }`.
 
 - Left to right: disclosure, the kind slot, swatch, name, then fixed slots: count, note count, and
   one slot shared by the lock and the eye (the eye shows on hover, focus, the selected row and
-  when the row is hidden; a locked row shows its lock until hovered).
+  when the row is hidden; a locked row shows its lock until hovered). A row with a `menu` shows a
+  "..." on hover, focus and the selected row, in the note slot's place (the inspector's Notes
+  section says that count), so it never covers a count and the eye keeps its slot; it opens the same menu as right-click and Shift+F10.
+- A number in `count` (also a bare numeric string such as "1") is written with its noun by
+  `count()`: `countNoun` (default "node": a set, group, community, path or label row counts nodes),
+  or "item" for a row with `countTip`, whose tooltip says in full what it counts. A string `count`
+  with its noun ("6 groups") is drawn as given, at body-text contrast. The note slot reads "1 note",
+  never a bare number by an icon; a closed row adds its `notesInside` (notes about its children) to
+  its own, "3 notes", its tooltip "1 note about Louvain, 2 notes inside; expand to see them". The
+  slot is the one place a row counts notes: never draw a second badge beside it.
 - `status` ("running", "queued", "partial", "stale", "error", "filtered") replaces the kind icon,
   its sentence (`statusText`) in that icon's tooltip. The only line under a row is a running
   progress bar (`progress` 0 to 1). Counts are blank when empty.
 - One Tab stop, roving focus on the selected row; arrows, Home, End; Left and Right collapse and
   expand; Enter opens; Space toggles the eye (Alt-click solos); F2 renames (Tab renames the next);
-  Delete deletes with the Undo notice (built-in and pinned rows refuse); Shift+F10 opens `menu`;
-  Ctrl+] and Ctrl+[ move a row among its siblings. One click selects in place and keeps the left
+  Delete deletes with the Undo notice (built-in and pinned rows refuse; a row that holds rows names its count, "Deleted Louvain and 6 groups", so the key and a row menu's Delete, which calls `deleteRow(name)`, are one action with one notice); Shift+F10 opens `menu`;
+  Ctrl+] and Ctrl+[, or a drag, move a row among its siblings (a pinned row never moves). One click selects in place and keeps the left
   panel, so a real double-click on the name renames. A row whose `go` replaces the left panel (a
   Sources row opens the Data page) sets `waitDouble: true`: its single click waits out the
   double-click interval (350 ms) before it opens, the Notes place's rule, so a double-click still
@@ -555,9 +595,9 @@ uses its command's label word for word; a door that rewords it is a second patte
   (`tip()`), **one design-note chip** (`needsElement()`, `openQuestion()`).
 - **Items that need graphty-element** are drawn disabled with the chip (`needs` on a menu item,
   `data-needs` on a design-note-only control). "Hide design notes" in the review bar hides every
-  chip and every `data-needs` control, but never product text: a menu item marked `needs` stays
-  listed, disabled, its second line the reason ("Not available yet: <reason>"). The owner reviews
-  with notes showing; user tests run with them hidden.
+  chip, every `data-needs` control and every menu item marked `needs`, so the user-test build lists
+  only what works. Product text that is not marked is never hidden. The owner reviews with notes
+  showing; user tests run with them hidden.
 - **A disabled control always says why, to a participant too.** In the participant view every
   tooltip, menu reason and notice that says "needs graphty-element" is rewritten once, in `lib.js`
   (`plainReason`): the reason stays and the library's name goes. "Needs graphty-element: X" reads
@@ -579,6 +619,9 @@ uses its command's label word for word; a door that rewords it is a second patte
 - Real content only: numbers and names from `kit/fixtures.json` (Les Miserables for the graph,
   transfers for Data and Path). Never lorem ipsum, never an invented count.
 - Chrome colors only from `var(--cm-*)` and the kit's `--k-*` roles; data colors from the fixtures.
+- One type scale: 11 px for every control and body line (13 px for a page or project title, 15 px for a
+  page heading, mono at 11 px too), weight 450 for text, 550 for emphasis and headings (400 for the kit's
+  quiet second line). No 10, 12 or 600; a size or weight off this scale is drift.
 - Nothing is dead: every clickable control navigates, opens its popover or menu, or changes
   something visibly in place. A command the skeleton does not model calls `AB.flash(...)`.
 - No verbs in inspector bodies: the only button in a body is the state bar.
@@ -588,10 +631,11 @@ uses its command's label word for word; a door that rewords it is a second patte
   labels on the product surface.
 - The review bar (pink) is not the product. Do not put product controls in it. Its "Hide design
   notes" switch comes first after the title, so a narrow window never pushes it off screen. While
-  notes are hidden by that switch, a small quiet "Review" button in the bottom left corner
-  (`#ab-leave-study`) and Esc with nothing open bring them back, so the view is never a trap on a
-  touch screen. The participant view that study.mjs opens (`ab.designNotes` set to `participant`)
-  is locked: no review bar, no Review button, and no click or key brings design notes back.
+  notes are hidden, the review bar is hidden too (no section or state names, no state switchers),
+  and a small quiet "Review" button in the bottom left corner (`#ab-leave-study`) and Esc with
+  nothing open bring both back, so the view is never a trap, on a touch screen too. The participant
+  view that study.mjs opens (`ab.designNotes` set to `participant`) is the same view and leaves the
+  same two ways, except that the Review button is invisible there until hovered or focused.
 - Check your section at 1440 x 900, 1366 x 768 and 1024 x 768, light and dark, with no
   horizontal page scroll and no console errors.
 
@@ -631,13 +675,21 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
   either branch of a ternary (`x ? 514 : 510` fails on both; a duration or size such as `loadMs` is
   not a count); on a
   part of a whole written another way than `AB.count(n, noun, { of })` ("Filtered: " before a
-  count, "3,000 to 812 nodes", "3,000 -> 812", two numbers around an arrow icon); and on a banned
-  scope string anywhere in the skeleton ("within 1%", "near #", "not used yet", "Change..."); and on
+  count, "3,000 to 812 nodes", "3,000 -> 812", two numbers around an arrow icon); on a
+  delete notice worded its own way (`deleted("Louvain and " + n + " communities")`, ", its 6
+  communities and ...": a tree row's Delete is `AB.deleteRow(name)`, and any other count in a notice
+  goes through `AB.count`); and on a banned scope string anywhere in the skeleton ("within 1%", "near #", "not used yet", "Change..."); and on
   a section that assigns `AB.projectCounts` (it registers a project's counts with `AB.countSource`);
   and on a string a participant can read (a notice, a tooltip, a label) holding a reviewer word,
   "skeleton", "not wired", "not modeled" or "stand-in". Say what the product would do, or "(not
   available yet)"; a design note (`openQuestion`, `needsElement`) is review-only and may keep them,
   but only when the text is written inside the call.
+- `node app-b/study.mjs --fixes`: the defects that decided round 8's tier 1 tasks, each a participant's
+  click-through with `--expect`: a Betweenness run finishes and lands listed and painting; hiding,
+  showing alone and Move above change the legend; a size choice on Les Miserables is drawn with its
+  range; Add on the add-rows page keeps the layers and the filter; Quick actions' Add label line adds
+  a line in the project on screen; the Label "+" adds a line with no Show labels. Run it before a
+  round's sessions: until every line is ok, those tasks measure the prototype.
 - `node app-b/study.mjs --prove`: proves `--check` fails on an unknown section, an unknown state and
   a stub (a section with no render, planted for the run), and passes a good route; and proves `--try`:
   `--type` types into a focused box and exits 1 with nothing focused, `--shift-click` and
@@ -653,6 +705,7 @@ Rules 1, 2, 4, 6, 7 and 8 live in shared code, so every section gets them; every
   `--click`, `--rclick`, `--dblclick` (rename), `--shift-click`, `--ctrl-click`, `--alt-click` (add
   to the selection, solo a row), `--hover` (a name), `--key` (a key), `--type` (text, typed a key at
   a time into what has focus; exits 1, typing nothing, when nothing that takes text has focus),
+  `--wait` (milliseconds, for what the app does on its own: a run finishing, a load landing),
   `--expect` and `--expect-not` (text on screen; `role=menu` for a role; `selected=2` for exactly two
   selected rows), `--hover-at x,y` and `--hover-icon n` (hover a point, or the nth icon-only control
   in page order, to read a tooltip whose name is unknown). Every hover prints the tooltip. A name

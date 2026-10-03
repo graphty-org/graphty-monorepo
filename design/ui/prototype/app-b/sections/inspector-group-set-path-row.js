@@ -44,7 +44,9 @@
     const COLOR_NAMES = { "#E69F00": "Orange", "#56B4E9": "Sky blue", "#009E73": "Bluish green", "#F0E442": "Yellow", "#0072B2": "Blue", "#D55E00": "Vermilion", "#CC79A7": "Reddish purple", "#000000": "Black", "#BDBDBD": "Gray" };
     // The Color popover's swatches say their own name (aria-label) and hex (aria-description); a name read there is kept here
     const colorName = (hex) => COLOR_NAMES[hex.toUpperCase()] || hex.toUpperCase();
-    const COMMUNITIES = { 1: [25, "#E69F00"], 2: [17, "#56B4E9"], 3: [10, "#009E73", 2], 4: [10, "#0072B2"], 5: [9, "#D55E00"], 6: [6, "#CC79A7"] };
+    // [size, color, notes, [hub, links inside the community]]: the hub is the member with the most links inside
+    // its own community (the same hubs inspector-run-row's Sizes lists)
+    const COMMUNITIES = { 1: [25, "#E69F00", 0, ["Gavroche", 16]], 2: [17, "#56B4E9", 0, ["Valjean", 15]], 3: [10, "#009E73", 2, ["Myriel", 9]], 4: [10, "#0072B2", 0, ["Fantine", 9]], 5: [9, "#D55E00", 0, ["Thenardier", 8]], 6: [6, "#CC79A7", 0, ["Gillenormand", 5]] };
 
     const STATES = [
         { id: "style", label: "Style tab" },
@@ -55,7 +57,7 @@
         { id: "label-empty", label: "Label: a new line, no field yet" },
         { id: "label-two", label: "Label: name above, degree below" },
         { id: "label-all-used", label: "Label: every position used" },
-        { id: "label-by", label: "Add label line for degree, from its menu" },
+        { id: "label-by", label: "Add label line from degree's menu: no field picked yet" },
         { id: "label-top-n", label: "Label only the top 10 by degree: a top-N rule row" },
         { id: "invalid-value", label: "Style: an invalid value" },
         { id: "notes", label: "Notes, from a row's note count" },
@@ -92,6 +94,10 @@
     const pr = () => lnk("PageRank", ["inspector-measure-row", "style"]);
     const memberRow = (name, trail) => AB.row({ label: name, trail, go: ["inspector-node", name === "Valjean" ? "why-this-look" : "data"] });
     const acctRow = (id, trail) => AB.row({ label: h("span", { class: "k-id" }, id), trail, onClick: () => AB.flash("Selects " + id + "") });
+    // A name that selects its node in Les Miserables, as a canvas click does
+    const selectByName = (name) => () => { const i = AB.walkList("lesmis").findIndex((n) => n.name === name); if (i >= 0) AB.selectNode("lesmis", i, { focus: false }); };
+    // A group's or a set's Summary ends with Compare with the rest (decision log: the comparison screen's "a community and the rest")
+    const COMPARE_KINDS = ["Group", "Set", "Rule set"];
     const scope = (L) => ["Scope", "Full graph, " + L.nodes + " nodes"];
     const version = (L) => ["Data version", L.file + ", current"];
 
@@ -222,7 +228,7 @@
             styleNote: RULE_NOTE,
             set: { "node.color": "#F0E442" },
             paints: () => h("div", null, AB.paintsLine("Paints 0 nodes"), none()),
-            summary: [["Size", "0 nodes"]],
+            summary: [["Size", "0 nodes"]], noCompare: true,
             membersSummary: "None",
             members: [none()],
             made: [["Rule", h("span", { class: "k-mono" }, "degree >= 40")]],
@@ -269,7 +275,7 @@
     }
 
     function communityModel(c) {
-        const L = L0(), [size, def, notes] = COMMUNITIES[c] || COMMUNITIES[3];
+        const L = L0(), [size, def, notes, hub] = COMMUNITIES[c] || COMMUNITIES[3];
         const key = "Louvain/" + c, color = RECOLOR[key] || def;
         // Community 3 is Myriel's circle (the table's Louvain tab, the notes): its 10 members are the group-1 rows
         const known = String(c) === "3" ? GROUPS[1][3] : null;
@@ -283,7 +289,7 @@
             paints: ["Paints " + size + " nodes", SELECT],
             edgesInside: c === "3" || c === 3 ? GROUPS[1][0] : null, // Myriel's circle: the 10 edges among its 10 members (GROUPS[1])
             order: ["Covered by ", pr(), " for Color on " + size + " of " + size],
-            summary: [["Size", size + " nodes", SELECT]],
+            summary: [["Size", size + " nodes", SELECT], ["Hub", hub[0] + ", " + AB.count(hub[1], "link") + " inside", selectByName(hub[0])]],
             membersSummary: known ? "All " + known.length + ", by degree within the community" : "Not ranked",
             members: known ? known.map(([n, d]) => memberRow(n, String(d))) : [AB.empty("Louvain ranks no members.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
             dist: known, distOf: "degree within the community",
@@ -308,18 +314,24 @@
             all: [["Weight", "Not used: fewest edges"], scope(L), version(L)],
         };
     }
-    // The path the last Find path added on Les Miserables (path-popover's AB.lastPath and its first route)
+    // The path the last Find path added on Les Miserables (path-popover's AB.lastPath), on the route the
+    // result bar shows (AB.pathRouteAt): routes that tie step together here, in the bar and on the canvas
     function lesmisFoundModel() {
         const lp = AB.lastPath && (AB.lastPath.ds || "lesmis") === "lesmis" ? AB.lastPath : null;
         if (!lp || !lp.route) return lesmisPathModel();
-        const r = lp.route, nodes = r.route.length, edges = r.hops, size = AB.count(nodes, "node") + ", " + AB.count(edges, "edge");
+        const rs = lp.routes && lp.routes.length ? lp.routes : [lp.route];
+        if (AB.pathRouteAt >= rs.length) AB.pathRouteAt = 0;
+        const r = rs[AB.pathRouteAt], nodes = r.route.length, edges = r.hops, size = AB.count(nodes, "node") + ", " + AB.count(edges, "edge");
         const at = (n) => ["inspector-node", n === "Valjean" ? "why-this-look" : "data"];
         return Object.assign(lesmisPathModel(), {
             title: lp.name, color: "#009E73", set: { "node.color": "#009E73", "edge.color": "#009E73" },
             paints: ["Paints " + size, SELECT],
             order: ["Covered by ", pr(), " for Color on " + nodes + " of " + nodes + " nodes"],
             summary: [["Size", size, SELECT], ["From", lp.from, at(lp.from)], ["To", lp.to, at(lp.to)]].concat(r.text ? [["Along the path", r.text.replace(/^.*: /, "") + " (" + r.text.replace(/: .*$/, "").toLowerCase() + ")"]] : []),
+            membersLead: rs.length > 1 ? routeStepper(rs.length) : null,
             members: r.route.map((n, i) => memberRow(n, i === 0 ? "start" : i === nodes - 1 ? "end" : "hop " + i)),
+            // a weight other than the one chosen at load is this run's override, recorded in Made with
+            made: (lp.weight || null) !== (lp.loaded || null) || (lp.weight && lp.meaning !== "stronger") ? [["Weight", (lp.weight ? lp.weight + ", " + lp.meaning : "None: fewest steps") + " (this run's override)"]] : [],
             all: [["Weight", lp.weight ? lp.weight + ", " + lp.meaning : "Not used: fewest edges"], scope(L0()), version(L0())],
         });
     }
@@ -463,21 +475,21 @@
         };
     }
 
-    // The row Label by makes from an attribute's menu (spec, "Painting an imported attribute"): named after the attribute, its type
-    // glyph as the icon, one Above line already bound to it, painting every element with a value
+    // The row Add label line makes from an attribute's menu (spec, "Painting an imported attribute"): named after the attribute, its type
+    // glyph as the icon, one Above line with no field picked yet, so it paints nothing until a field is picked
     function labelByModel() {
         const L = L0();
         return {
             title: "degree", icon: AB.typeGlyph("num"), kind: "Measure",
             provenance: ["from the attribute degree", "inspector-attribute-and-filter-step", "attribute"],
-            set: {}, labels: [{ pos: "Above", field: "degree", type: "num" }],
-            paints: ["Paints " + L.nodes + " nodes", SELECT],
-            order: "Wins Label Above on " + L.nodes + " of " + L.nodes + ": nothing above it labels these nodes",
+            // Add label line starts with no field picked: one draft line, its field list open (render opens it)
+            set: {}, labels: [{ pos: "Above", draft: true }], openDraft: true,
+            paints: () => h("div", null, AB.paintsLine("Paints 0 nodes"), AB.empty("Draws nothing until the label line has a field.")),
             // Top-N labeling has no label option of its own: a row's selector (a top-N rule) picks the nodes
             styleNote: ["To label only the highest, put the label line on a row whose rule picks them: ", lnk("Top 10 by degree", [SELF, "label-top-n"]), "."],
-            summary: [["Size", L.nodes + " nodes, every node with a degree", SELECT]],
-            membersSummary: "Not ranked",
-            members: [AB.empty("Every node has a degree.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
+            summary: [["Size", "0 nodes: the label line has no field yet"]],
+            membersSummary: "None yet",
+            members: [AB.empty("No field picked yet.")],
             made: [],
             all: [["Attribute", "degree"], scope(L), version(L)],
         };
@@ -592,6 +604,7 @@
             }
         }
         const tab = AB.styleTab(o);
+        bindAtRest(tab); new MutationObserver(() => bindAtRest(tab)).observe(tab, { childList: true, subtree: true });
         // An attribute path takes the middle ellipsis (spec 2.5); the shared label line draws the end
         // ellipsis, so the long field's value is redrawn here with AB.truncMiddle
         // (again after every redraw of the tab's body). 16 characters fit the value column at 1024 wide.
@@ -623,6 +636,42 @@
         return tab;
     }
 
+    // Bind at rest: the Color, Size and Label lines show their bind icon without hover, named "Color by
+    // attribute", "Size by attribute" and "Label by attribute"; "-" keeps the hover rule. A label line's
+    // icon opens what its value opens (the Label popover, or the field list on a line with no field yet).
+    // ponytail: laid over AB.styleTab here; it belongs in the shared styleTab so every Style tab gets it.
+    const REST = { "node.color": "Color", "edge.color": "Color", "node.size": "Size", "node.label": "Label", "edge.label": "Label" };
+    if (!document.querySelector("style[data-igs-bind]")) document.head.append(h("style", { "data-igs-bind": "" }, [
+        ".igs .ab-sline[data-bind-rest] .ab-sact { visibility: visible !important; }",
+        ".igs .ab-sline[data-bind-rest] .ab-sact .k-icon-btn[data-bind] { display: inline-grid !important; }",
+        ".igs .ab-sline[data-bind-rest]:not(:hover):not(:focus-within):not([data-selected]) .ab-sact .k-icon-btn:not([data-bind]) { display: none; }",
+        // at rest the icon takes a 16 px slot in the line's end padding (over the field's own empty end
+        // padding), so a color's full hex still fits beside its swatch in the 240 px panel
+        ".igs .ab-sline[data-bind-rest]:not(:hover):not(:focus-within):not([data-selected]) .ab-sact { padding-inline-start: 0; right: 0; background: none; }",
+        ".igs .ab-sline[data-bind-rest]:not(:hover):not(:focus-within):not([data-selected]) .ab-sact .k-icon-btn { width: 16px; }",
+        // the field stops 12 px short of the line's end, so the 16 px icon keeps the 24 px target spacing (WCAG 2.5.8)
+        // (the field's own end padding and gaps tighten by 10 px, so a six-digit hex fits whole)
+        ".igs .ab-sline[data-bind-rest] .ab-sv { margin-inline-end: 12px; }",
+        ".igs .ab-sline[data-bind-rest]:not(:hover):not(:focus-within):not([data-selected]) .ab-sv { gap: 3px; padding-inline-end: 4px; }",
+        ".igs .ab-sline[data-bind-rest]:is(:hover, :focus-within, [data-selected]) .ab-sv { margin-inline-end: 52px; }",
+    ].join("\n")));
+    function bindAtRest(tab) {
+        tab.querySelectorAll(".ab-sline[data-ch]:not([data-bind-rest])").forEach((li) => {
+            const what = REST[li.dataset.ch], sact = li.querySelector(".ab-sact");
+            if (!what || !sact) return;
+            const name = what + " by attribute";
+            let b = [...sact.children].find((x) => !/^Remove/.test(x.getAttribute("aria-label") || ""));
+            if (!b) {
+                const v = li.querySelector(".ab-sv");
+                b = AB.iconButton("database", name, { onClick: () => { if (v) v.click(); } });
+                b.setAttribute("aria-haspopup", (v && v.getAttribute("aria-haspopup")) || "dialog");
+                sact.prepend(b);
+            }
+            b.dataset.tip = name; b.setAttribute("aria-label", name); b.setAttribute("data-bind", "");
+            li.setAttribute("data-bind-rest", "");
+        });
+    }
+
     // ---------- Data tab ----------
     function dataTab(m, base, hot) {
         const madeBody = [
@@ -632,9 +681,10 @@
                 : h("div", { id: "igs-all-options" }, AB.empty("All at their defaults.", { verb: "All options...", go: [SELF, base + "/all-options"] })),
             m.question ? h("div", { class: "igs-q" }, AB.openQuestion(m.question)) : null,
         ];
+        const summary = COMPARE_KINDS.includes(m.kind) && !m.noCompare ? m.summary.concat([["The rest", "Compare with the rest", ["full-canvas-modes", "rest"]]]) : m.summary;
         const parts = AB.dataTab({
             Summary: { summary: m.summary[0][1], // a row that selects (no route) keeps the link look a routed row gets from the shell
-            body: m.summary.map(([k, v, go]) => (typeof go === "function" ? AB.data(k, h("span", { class: "ab-link" }, v), { onClick: go }) : AB.data(k, v, go ? { go } : null))) },
+            body: summary.map(([k, v, go]) => (typeof go === "function" ? AB.data(k, h("span", { class: "ab-link" }, v), { onClick: go }) : AB.data(k, v, go ? { go } : null))) },
             Members: { summary: m.membersSummary, body: [m.dist && m.dist.length > 1 && AB.histogram ? AB.histogram(distModel(m.dist, m.distOf)) : null,
                 m.membersLead || null,
                 m.members.length > 1 ? h("div", { class: "ab-cap k-secondary" }, m.membersSummary, m.membersOrder ? ". " + m.membersOrder : null, m.membersNote ? [" ", m.membersNote] : null) : null,
@@ -645,14 +695,37 @@
         const notes = parts[parts.length - 1];
         // A note on a path carries the path's color swatch and the word "Path", not an icon only: the
         // Notes section shows that chip, as the notes list and the note box draw it (notes-place's np-chip look)
-        if (m.kind === "Path" && notes) {
+        const onLine = (root) => {
+            if (m.kind !== "Path" || !root || root.querySelector(".igs-note-on")) return;
             const chip = h("span", { class: "np-chip", "aria-label": "Path, " + m.title }, AB.chit(m.color, true), h("span", { style: "font-weight:550" }, "Path"), h("span", { class: "np-label k-ellipsis" }, m.title));
-            const line = h("div", { class: "np-chips", style: "padding:2px 16px 4px" }, h("span", { class: "np-on" }, "Note on:"), chip);
-            const body = notes.querySelector(".k-data, .ab-empty, [class*=empty]");
-            if (body) body.before(line); else notes.append(line);
-        }
-        if (hot) { notes.classList.add("igs-hot"); notes.id = "igs-notes"; }
+            const line = h("div", { class: "np-chips igs-note-on", style: "padding:2px 16px 4px" }, h("span", { class: "np-on" }, "Note on:"), chip);
+            const body = root.querySelector(".k-data, .ab-empty, [class*=empty]");
+            if (body) body.before(line); else root.append(line);
+        };
+        const mark = (sec) => { if (hot && sec) { sec.classList.add("igs-hot"); sec.id = "igs-notes"; } };
+        onLine(notes);
+        mark(notes);
+        // With notes there, the Notes line still offers Add note (N): the one gesture, AB.addNote(). The shared
+        // section redraws itself once when this page view saved a note, so the link, the Note on line and the
+        // highlight are added again after that
+        addNoteLink(notes);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (!shown || !shown.el.isConnected) return;
+            addNoteLink(shown.el);
+            const sec = [...shown.el.querySelectorAll(".k-section")].find((x) => (x.querySelector(".ab-sec-btn") || {}).textContent === "Notes");
+            onLine(sec);
+            mark(sec);
+            if (hot && sec) sec.scrollIntoView({ block: "start" });
+        }));
         return parts;
+    }
+    function addNoteLink(root) {
+        const open = root && [...root.querySelectorAll(".k-data a.ab-link")].find((a) => a.textContent === "Open in Notes");
+        const line = open && open.parentNode;
+        if (!line || (line.nextSibling && line.nextSibling.classList && line.nextSibling.classList.contains("igs-add-note"))) return;
+        const add = AB.empty("", { verb: "Add note", key: "N", onClick: () => AB.addNote() });
+        add.classList.add("igs-add-note");
+        line.after(add);
     }
 
     // The members' values as the one histogram (AB.histogram, the measure row's): one bar per whole value
@@ -673,7 +746,7 @@
     }
 
     // ---------- the section ----------
-    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path-lesmis-found", "path", "path-reversed", "path-tied", "path-notes", "path-door-entries"];
+    const DATA_STATES = ["data", "group", "notes", "rule-set", "path-lesmis", "path-lesmis-found", "path", "path-reversed", "path-tied", "path-notes", "path-door-entries"];
     const baseOf = (state) => {
         const s = String(state || "style").replace(/\/all-options$/, "");
         return RENAMED[s] || s;
@@ -733,7 +806,8 @@
                 menu: ["context-menus", "row"],
                 onRename: (name) => { if (rowId) AB.renamedRows[rowId] = name; AB.flash("Renamed to " + name); },
                 renameDisabled: m.renameDisabled || null,
-                tab: options || DATA_STATES.includes(base) ? "Data" : "Style",
+                // a run's group (community-<n>) opens on Data, as Group 2 does: its hub and Compare with the rest are there
+                tab: options || DATA_STATES.includes(base) || base.startsWith("community-") ? "Data" : "Style",
                 tabs: { Style: () => styleTab(m, base), Data: () => dataTab(m, base, base === "notes" || base === "path-notes") },
             }));
             el.firstChild.classList.add("igs");
@@ -751,6 +825,7 @@
                 layer.hidden = false;
                 layer.append(pop);
                 requestAnimationFrame(() => requestAnimationFrame(() => { const f = pop.querySelector("[tabindex='0']"); if (f) f.focus(); })); });
+            if (m.openDraft && !options) requestAnimationFrame(() => { const v = el.querySelector('.ab-sline[data-ch="node.label"]:not([data-bound]) .ab-sv'); if (v) { v.focus(); v.click(); } });
             if (base === "notes" || base === "path-notes") requestAnimationFrame(() => { const n = el.querySelector("#igs-notes"); if (n) n.scrollIntoView({ block: "start" }); });
         },
     });

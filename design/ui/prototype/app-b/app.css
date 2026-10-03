@@ -100,6 +100,14 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-find input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; font: inherit; color: var(--cm-text); outline: none; padding: 0; }
 .ab-find input::placeholder { color: var(--cm-text-tertiary); }
 .k-icon-btn[data-open] { background: var(--cm-bg-pressed, var(--cm-bg-hover)); }
+/* findBox(): the one find's live list under the treebar (Rows, Elements, Notes) */
+.ab-findres { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 0 8px; }
+.ab-find-head { padding: 8px 16px 2px; font-size: 11px; line-height: 16px; font-weight: 550; color: var(--cm-text-secondary); }
+.ab-find-hit { display: flex; flex-direction: column; justify-content: center; min-height: 28px; margin: 0 8px; padding: 2px 8px; border-radius: 5px; cursor: pointer; color: var(--cm-text); }
+.ab-find-hit:hover { background: var(--cm-bg-hover); }
+.ab-find-hit[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-hover)); box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
+.ab-find-sub { display: block; font-size: 11px; line-height: 15px; color: var(--cm-text-secondary); }
+.ab-find-more { padding: 2px 16px; }
 
 /* The paint tree */
 .ab-tree { list-style: none; margin: 0; padding: 4px 8px 8px; }
@@ -121,6 +129,8 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-tcount { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto !important; }
 .ab-insp-head .k-name { flex: 0 1 auto; min-width: 0; }
 .ab-tcount, .ab-tnotes { flex: none; color: var(--cm-text-secondary); display: inline-flex; align-items: center; gap: 2px; }
+/* A fact the reader acts on is at body-text contrast; caption gray is only for a truly secondary note (README, "Text contrast") */
+.ab-tcount { color: var(--cm-text); }
 .ab-eye, .ab-eye-slot { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; flex: none; color: var(--cm-icon-secondary); }
 .ab-eye:hover { background: var(--cm-bg-hover); color: var(--cm-icon); }
 .ab-eye[aria-pressed="true"] { color: var(--cm-icon-tertiary, var(--cm-icon-secondary)); }
@@ -187,7 +197,7 @@ body[data-page="map"] .ab-app { display: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ab-trow[aria-selected="true"] { background: color-mix(in srgb, var(--cm-bg-selected) 55%, transparent); } }
 
 /* The one Paints line (spec 5.1 item 4) */
-.ab-paints { display: flex; align-items: flex-start; gap: 6px; padding: 6px 16px 8px; color: var(--cm-text-secondary); line-height: 16px; }
+.ab-paints { display: flex; align-items: flex-start; gap: 6px; padding: 6px 16px 8px; color: var(--cm-text); line-height: 16px; }
 .ab-paints > .k-i { flex: none; margin-top: 0; }
 /* Tree columns line up on every row: disclosure 16, kind 20 (a 16 px icon or a type mark), swatch 20, then the name */
 .ab-trow > .ab-kind { width: 20px; min-width: 20px; }
@@ -256,10 +266,13 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-empty .ab-link { cursor: pointer; }
 
 /* Design notes (review only, never product UI): one dashed chip for "needs graphty-element" and
-   "Open question". The review bar's switch hides every chip and every design-note-only control
-   marked data-needs; a menu item marked data-needs stays (disabled), so no product text is hidden. */
+   "Open question". The review bar's switch hides every chip, every design-note-only control marked
+   data-needs (but not a menu item: that is product text and stays, disabled), and the review bar itself (the Review corner button brings it back). */
 .ab-design-note { display: inline-flex; align-items: center; min-height: 16px; margin-inline-start: 4px; padding: 0 5px; border: 1px dashed var(--k-annot-ink); border-radius: 4px; color: var(--k-annot-ink); font-size: 10px; line-height: 14px; font-weight: 500; white-space: nowrap; cursor: help; vertical-align: middle; flex: none; }
 html[data-design-notes-hidden] :is(.ab-design-note, [data-needs]:not(.k-menu-item), .k-annot-tag, .ab-review-only) { display: none !important; }
+/* With notes hidden the app shows no review bar (no section or state names); the site map keeps its own */
+html[data-design-notes-hidden] body[data-page="app"] #ab-review { display: none !important; }
+html[data-design-notes-hidden] body[data-page="app"] { --ab-review-h: 0px; }
 
 /* Menus: one line per item; the second line only says why an item is disabled */
 .k-menu-item .ab-design-note { margin-inline-start: 8px; }
@@ -305,6 +318,11 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs]:not(.k-menu-ite
 .ab-style-head .k-seg > * { display: inline-flex; align-items: center; gap: 4px; }
 .ab-sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--cm-bg-brand); }
 .ab-style-body .k-section { padding-bottom: 4px; }
+/* A label line's result, computed from the project ("77 names, 64 hidden to avoid overlap"): a fact, body contrast */
+.ab-sstatus { margin: -2px 0 4px; padding: 0 8px 0 112px; font-size: 11px; line-height: 16px; color: var(--cm-text); }
+/* section({ titleAct }): the heading word is the section's command (Label: Add label line) */
+.ab-sec-act { cursor: pointer; border-radius: 3px; }
+.ab-sec-act:hover { text-decoration: underline; }
 .ab-sline { position: relative; display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; margin-bottom: 4px; border-radius: 4px; }
 .ab-sact { position: absolute; right: 8px; top: 0; display: flex; padding-inline-start: 4px; background: var(--cm-bg); border-radius: 4px; }
 .ab-sact .k-icon-btn { width: 24px; height: 24px; }
@@ -323,7 +341,7 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs]:not(.k-menu-ite
 .ab-sin:focus { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
 .ab-bound { color: var(--cm-text); }
 .ab-bound .ab-ramp { width: 24px; }
-.ab-aa { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font-weight: 600; font-size: 11px; flex: none; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ab-aa { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font-weight: 550; font-size: 11px; flex: none; box-shadow: inset 0 0 0 1px var(--cm-border); }
 .ab-aa:hover { background: var(--cm-bg-hover); }
 .ab-serr { padding: 0 8px 4px 108px; font-size: 11px; line-height: 16px; }
 
@@ -400,11 +418,11 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs]:not(.k-menu-ite
 .k-seg > [aria-pressed="true"], .k-seg > [role="radio"][aria-checked="true"], .k-seg > [data-pressed] { background: var(--cm-bg-secondary); color: var(--cm-text); box-shadow: none; font-weight: 550; }
 /* Dark theme: a light popover (edits a value) sits one step lighter than a dark menu (chooses), so the two surfaces stay apart */
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .k-popover { background: #383838; }
-    :root:not([data-theme="light"]) .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: #2c2c2c; }
+    :root:not([data-theme="light"]) .k-popover { background: var(--cm-bg-secondary); }
+    :root:not([data-theme="light"]) .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: var(--cm-bg); }
 }
-:root[data-theme="dark"] .k-popover { background: #383838; }
-:root[data-theme="dark"] .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: #2c2c2c; }
+:root[data-theme="dark"] .k-popover { background: var(--cm-bg-secondary); }
+:root[data-theme="dark"] .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: var(--cm-bg); }
 /* Header chips: one style (the privacy chip's), the filter chip included */
 #ab-filter { gap: 4px; }
 /* In-panel object links underline only on hover or focus, so three stacked links do not shout */
@@ -492,7 +510,12 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .ab-fl-count { flex: none; font-size: 11px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
 .ab-fl-menu .ab-fl-count { color: var(--k-menu-ink2); }
 .ab-fl-menu .ab-find { background: rgba(255, 255, 255, 0.08); color: var(--k-menu-ink2); }
-.ab-fl-menu .ab-find input { color: #fff; }
+.ab-fl-menu .ab-find input { color: var(--cm-text-menu); }
+/* The one tag is the kit's k-badge (16 px, 11 px text, 5 px corner). On a dark menu its edge and text take the menu's inks */
+.k-badge { flex: none; }
+.k-menu .k-badge, .ab-fl-menu .k-badge { outline-color: var(--cm-border-translucent-strong); color: var(--k-menu-ink2); }
+/* A run's method sentence in the legend explains the title, so it sits under the title, not under the swatches */
+.k-legend-card .k-lg-sub.ab-lg-about { padding-inline-start: 0; }
 .ab-fl-menu .ab-find input::placeholder { color: var(--k-menu-ink3); }
 .ab-fl-table { font-weight: 550; }
 .ab-fl-panel .ab-fl-table { height: 28px; display: flex; align-items: center; padding: 0 16px; color: var(--cm-text-secondary); }
@@ -517,14 +540,14 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .ab-fl-none { padding: 4px 16px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
 .ab-fl-none .ab-empty { padding: 0; }
 .ab-fl-menu .ab-fl-none, .ab-fl-menu .ab-fl-none .ab-empty { color: var(--k-menu-ink2); }
-.ab-mid b { font-weight: 700; }
+.ab-mid b { font-weight: 550; }
 
 /* ---------- the problem block (lib.js problem): what happened, what to do, one action ---------- */
 .ab-problem { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--cm-bg-secondary, var(--cm-bg-hover)); }
 .ab-problem > .k-warn-glyph { margin-top: 1px; }
 .ab-problem-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; line-height: 16px; }
 .ab-problem-what { font-weight: 550; }
-.ab-problem-todo { color: var(--cm-text-secondary); }
+.ab-problem-todo { color: var(--cm-text); }
 .ab-problem-act { padding-top: 4px; }
 
 /* ---------- the way back from the participant view (review only) ---------- */
@@ -537,8 +560,29 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 }
 .ab-leave-study:hover, .ab-leave-study:focus-visible { opacity: 1; background: var(--cm-bg); }
 .ab-leave-study[hidden] { display: none; }
+/* In the participant view (study.mjs) it is invisible until hovered or focused: a participant never reads
+   "Review", and the moderator still finds it in the corner, or presses Esc */
+[data-participant] .ab-leave-study:not(:hover, :focus-visible) { opacity: 0; }
 /* The Paints line's link is 16 px of text: 4 px of padding above and below (an inline box, so the
    line does not move) makes its target 24 px tall (WCAG 2.5.8) */
 .ab-paints-link { padding: 4px 0; }
 /* A disabled item's reason wraps under its label, so a long reason never widens the menu past 320 px */
 .k-menu-item[data-described] .k-menu-desc { white-space: normal; max-width: 280px; }
+
+/* The header's main menu button is 32 px (spec 9), left of the project name */
+#ab-rail-menu { width: 32px; height: 32px; }
+/* A tree row's "...": shown on hover, focus and the selected row, over the count slot (so names never
+   shift), in the row's own background */
+/* In the row's flow, in the note slot's place: it never covers a count, and the eye keeps its slot */
+.ab-topt { display: none; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 4px; color: var(--cm-icon-secondary); }
+.ab-topt:hover { background: var(--cm-bg-hover); color: var(--cm-icon); }
+.ab-trow:is(:hover, :focus-within, [aria-selected="true"]) > .ab-topt { display: grid; }
+/* the "..." takes the note slot's place while it shows (the inspector's Notes section says the count) */
+.ab-trow:is(:hover, :focus-within, [aria-selected="true"]):has(> .ab-topt) > .ab-tnotes { display: none; }
+.ab-trow[data-drop] { box-shadow: inset 0 2px 0 var(--cm-bg-brand); }
+/* A legend title names an attribute: one line, cut in the middle (fitMiddle), never clipped */
+.ab-legend .k-lg-title { overflow: hidden; white-space: nowrap; }
+/* The note slot reads "1 note" (a count carries its noun); at caption size it leaves the name room */
+.ab-trow .ab-tnotes { font-size: 11px; }
+.ab-trow .ab-tcount:not(:empty) + .ab-tnotes:not(:empty) { margin-inline-start: 6px; }
+.ab-trow .ab-tname { min-width: 52px; }

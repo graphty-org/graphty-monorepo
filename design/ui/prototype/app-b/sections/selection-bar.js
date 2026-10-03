@@ -81,22 +81,42 @@
     // Every Les Miserables drawing (canvas-and-states defines AB.lesmisDrawing, after this file loads)
     // leaves the hidden names out, whoever is selected next. canvas-and-states could read
     // AB.hiddenOnCanvas itself; until then the hiding is added here, around its drawing function.
+    // The same wrapper applies a Filter to neighbors step on Valjean, so the canvas section's own
+    // redraws (the walk ring, a new layout) keep only the nodes the step keeps.
     let inner = AB.lesmisDrawing;
-    const hiding = (base, alt, edit, after) => inner(base, alt, edit, hiddenSet.size ? hideNames([...hiddenSet], after) : after);
+    const hiding = (base, alt, edit, after) => {
+        const f = lesmisFilter();
+        if (f) {
+            const keep = keepNear(f.hops, f.who), prev = after;
+            after = prev ? Object.defineProperty((doc, theme) => { prev(doc, theme); keep(doc, theme); }, "name", { value: prev.name + "-" + keep.name }) : keep;
+        }
+        return inner(base, alt, edit, hiddenSet.size ? hideNames([...hiddenSet], after) : after);
+    };
     Object.defineProperty(AB, "lesmisDrawing", { configurable: true, get: () => inner && hiding, set: (f) => { inner = f; } });
 
-    // Filtered to neighbors: only the nodes within the step's hops of Valjean, and the edges among
-    // them, are drawn (read from the drawing's own edges)
-    function keepNear(hops) {
+    // The Les Miserables names within `hops` edges of a node, the node first, read from the published
+    // edges. The Neighborhood selection, its Covers line, the filter chip and the filtered drawing all
+    // read this one list, so they never disagree.
+    // ponytail: walked here over the fixture's edges; graphty-element's neighborhood returns the list
+    function nearNames(who, hops) {
+        const label = {};
+        L().rows.forEach((r) => { label[r.id] = r.label; });
+        let keep = new Set([who]);
+        for (let i = 0; i < hops; i++) {
+            const next = new Set(keep);
+            L().edgeList.forEach(([a, b]) => { if (keep.has(label[a])) next.add(label[b]); if (keep.has(label[b])) next.add(label[a]); });
+            keep = next;
+        }
+        return [...keep];
+    }
+    // Filtered to neighbors: only the nodes within the step's hops of its node, and the edges among
+    // them, are drawn
+    function keepNear(hops, who) {
         const fn = (doc) => {
             const key = (x, y) => x + "," + y;
             const lines = [...doc.querySelectorAll("line")].map((l) => [l, key(l.getAttribute("x1"), l.getAttribute("y1")), key(l.getAttribute("x2"), l.getAttribute("y2"))]);
-            let keep = new Set([key("698.7", "394.3")]);
-            for (let i = 0; i < hops; i++) {
-                const next = new Set(keep);
-                lines.forEach(([, a, b]) => { if (keep.has(a)) next.add(b); if (keep.has(b)) next.add(a); });
-                keep = next;
-            }
+            if (!spots) return;
+            const keep = new Set(nearNames(who, hops).map(spotOf).filter(Boolean).map(([x, y]) => key(x, y)));
             const pts = [];
             doc.querySelectorAll("circle").forEach((c) => { const k = key(c.getAttribute("cx"), c.getAttribute("cy")); if (keep.has(k)) pts.push([+c.getAttribute("cx"), +c.getAttribute("cy")]); else c.remove(); });
             lines.forEach(([l, a, b]) => { if (!keep.has(a) || !keep.has(b)) l.remove(); });
@@ -106,7 +126,7 @@
                 if (!pts.some(([cx, cy]) => x - cx >= 0 && x - cx < 40 && Math.abs(y - 4 - cy) < 3)) t.remove();
             });
         };
-        Object.defineProperty(fn, "name", { value: "keepNear" + hops });
+        Object.defineProperty(fn, "name", { value: "keepNear" + hops + "-" + who });
         return fn;
     }
     // A Les Miserables node other than Valjean is selected (the drawings with a selection all mark Valjean)
@@ -120,10 +140,11 @@
         // only the Les Miserables drawing has these selections; another project's canvas keeps its own
         if (!cv || !d || (AB.route && (AB.route.frame.right === "inspector-node/edited" || AB.route.frame.dataset !== "lesmis"))) return;
         const imgs = cv.querySelectorAll(".k-stage img");
+        if (state === "two-nodes" && AB.tablePicks && AB.tablePicks.length > 2) return;
         const f = state === FILTERED ? filteredOf() : null;
         if (f && f.who !== "Valjean") return;
-        const own = state === "two-nodes" ? ringJavert : f ? keepNear(f.hops) : null;
-        const after = own;
+        // the filter itself is applied by the drawing wrapper above
+        const after = state === "two-nodes" ? ringJavert : null;
         const alt = hiddenSet.size ? d[1].replace(/, Valjean not drawn$/, "") + ", " + [...hiddenSet].join(", ") + " not drawn" : d[1];
         if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], alt, null, after).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
         // "1 node not drawn" is said once, in the tree footer (graph-place), not again on the legend card
@@ -173,7 +194,7 @@
     const L = () => AB.fx.datasets.lesmis;
     const T = () => AB.fx.datasets.transactions.setsAndPaths;
     function subject(state) {
-        if (state === "two-nodes") return { names: "Valjean, Javert", n: 2 };
+        if (state === "two-nodes") return AB.tablePicks && AB.tablePicks.length >= 2 ? { names: AB.tablePicks.join(", "), n: AB.tablePicks.length } : { names: "Valjean, Javert", n: 2 };
         if (state === "five-nodes") return { names: "Valjean, Javert, Thenardier, Fantine, Cosette", n: 5 };
         if (state === "neighborhood-directed") return { names: T().merchant.id, n: 1, directed: true };
         if (isLong(state)) return { names: LONG.from, n: 1 };
@@ -194,6 +215,7 @@
         else picked = picked.includes(who) ? picked.filter((x) => x !== who) : picked.concat(who);
     }, true);
     function selectedNames(state) {
+        if (state === "two-nodes" && AB.tablePicks && AB.tablePicks.length > 1) return AB.tablePicks.slice();
         if (["two-nodes", "five-nodes"].includes(state) && picked.length > 1) return picked.slice();
         return subject(state).names.split(", ");
     }
@@ -206,29 +228,38 @@
         if (other() === null) lastSel.forEach((n) => hiddenSet.add(n));
     }
 
-    // The walk's readout, visible over the bar: the node and the number it is read with, named
-    // ("Valjean, 36 connections"), never a bare number
-    function readout(state) {
-        if (state !== "one-node") return null;
-        const ds = (AB.route && AB.route.frame.dataset) || "lesmis";
-        const w = AB.walked && AB.walked.dataset === ds ? AB.walked : null;
-        const name = subject(state).names;
-        const n = w ? w.neighbors : ds === "lesmis" && name === "Valjean" ? L().valjeanNeighbors : null;
-        if (n == null) return null;
-        return h("div", { class: "k-caption", style: "padding:2px 8px;border-radius:5px;background:var(--cm-bg);box-shadow:var(--cm-field-shadow)" }, name + ", " + AB.count(n, "connection"));
-    }
-
     // Filter to neighbors: one filter step, counted by the header's filter chip. The state draws the
     // last one committed (a direct visit: Valjean, 1 hop) over the panels it was committed from.
     const FILTERED = "filtered-to-neighbors";
     let filtered = null;
     const filteredOf = () => filtered || { ds: "lesmis", who: "Valjean", hops: 1, dir: "both", frame: null };
+    // The step on screen, on Les Miserables (the one drawing whose node positions this file knows)
+    const lesmisFilter = () => {
+        if (!AB.route || AB.route.id !== "selection-bar" || AB.route.state !== FILTERED) return null;
+        const f = filteredOf();
+        return f.ds === "lesmis" ? f : null;
+    };
     function chipOf(f) {
-        // counts only where the fixtures hold them: Valjean and his neighbors; the merchant and its payers
-        const n = f.hops !== 1 ? null
-            : f.ds === "lesmis" && f.who === "Valjean" ? [L().valjeanNeighbors + 1, L().nodes]
-            : f.ds === "transactions" && f.who === T().merchant.id && f.dir === "in" ? [T().payers.count + 1, AB.fx.datasets.transactions.nodes] : null;
-        return "Filtered: " + (n ? AB.count(n[0], "node", { of: n[1] }) : "neighbors of " + f.who);
+        // counts only where the fixtures hold them: a listed node's degree (1 edge away, either way), and
+        // the merchant's payers (its In step; the merchant's degree is not in the fixtures)
+        const total = AB.projectCounts(f.ds) || {};
+        const row = f.hops === 1 && f.dir === "both" && AB.walkList ? (AB.walkList(f.ds) || []).find((r) => r.name === f.who) : null;
+        const n = f.ds === "lesmis" ? nearNames(f.who, f.hops).length
+            : f.hops !== 1 ? null
+            : f.ds === "transactions" && f.who === T().merchant.id && f.dir === "in" ? T().payers.count + 1
+            : row && typeof row.neighbors === "number" ? row.neighbors + 1 : null;
+        return n && total.nodes ? AB.count(n, "node", { of: total.nodes }) : "Filtered: neighbors of " + f.who;
+    }
+    // The transfers past the drawing limit stay a density drawing; the step keeps only the density
+    // around the account, so the drawing visibly shrinks to the neighborhood. The shell redraws the
+    // canvas after this bar, so the cut is a style rule on the stage, not an edit of its images.
+    // ponytail: a fixed ellipse around the merchant's anchor; the element draws the real neighborhood
+    function cutDensity() {
+        const f = filteredOf(), r = 5 * f.hops;
+        const a = (f.who === T().merchant.id && (T().anchors || {}).merchant) || { x: 50, y: 50 };
+        const st = h("style", {}, `#ab-canvas .k-stage > img { clip-path: ellipse(${r}% ${r * 1.5}% at ${a.x}% ${a.y}%); }`);
+        document.head.append(st);
+        window.addEventListener("hashchange", () => st.remove(), { once: true });
     }
     function filteredFrame() {
         const f = filteredOf();
@@ -302,7 +333,7 @@
         if (ds) directed = !!(AB.fx.datasets[ds] || {}).directed;
         const mine = !ds && !directed && walkedOther() ? AB.walked : null;
         const who = ds ? subject("one-node").names : directed ? (AB.walked && AB.walked.dataset === "transactions" ? AB.walked.name : T().merchant.id) : mine ? mine.name : "Valjean";
-        const nbrs = mine ? mine.neighbors : L().valjeanNeighbors;
+        const nbrs = !ds && !directed ? nearNames(who, 1).length - 1 : 0;
         let hops = 1, dir = "both";
         // An optional window on any date column of the project, a node's or an edge's: None by default,
         // so a project with no date column shows no Window line at all. graphty-element's neighborhood
@@ -353,7 +384,7 @@
             if (directed) dirBox.replaceChildren(AB.seg([["out", "Out"], ["in", "In"], ["both", "Both"]], dir, (d) => { dir = d; again(dirBox); }, { label: "Direction" }));
             // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
             if (ds) said.textContent = "Covers: " + who + " and every node " + away() + (directed && dir === "out" ? " it points to" : directed && dir === "in" ? " that points to it" : "") + (col ? ", counting only " + (col.element === "edge" ? "edges" : "nodes") + " with " + windowText() : "") + ".";
-            else if (!directed) said.textContent = hops === 1 ? "Covers: " + who + " and " + AB.count(nbrs, "neighbor") + "." : "Covers: " + who + " and everyone " + away() + ".";
+            else if (!directed) said.textContent = hops === 1 ? "Covers: " + who + " and " + AB.count(nbrs, "neighbor") + "." : "Covers: " + who + " and " + AB.count(nearNames(who, hops).length - 1, "node") + " " + away() + ".";
             else if (col) said.textContent = "Covers: " + who + " and every account " + away() + (dir === "out" ? " that it pays" : dir === "in" ? " that pays it" : ", either way") + ", counting only " + (col.element === "edge" ? "transfers" : "accounts") + " with " + windowText() + ".";
             else if (hops === 1 && dir === "in" && who === T().merchant.id) said.textContent = "Covers: " + who + " and the " + T().payers.count + " accounts that paid it.";
             else said.textContent = "Covers: " + who + " and every account " + away() + (dir === "out" ? " that it pays." : dir === "in" ? " that pays it." : ", either way.");
@@ -392,8 +423,10 @@
                 AB.button("Filter to neighbors", { onClick: () => {
                     const fr = AB.route.frame;
                     // the panels it was committed from; the Les Miserables popover keeps Valjean's
+                    // the Les Miserables step keeps the node it was opened on selected (Valjean on a direct visit)
                     filtered = { ds: ds || (directed ? "transactions" : "lesmis"), who, hops, dir: directed ? dir : "both",
-                        frame: ds || directed ? { dataset: fr.dataset, left: fr.left, right: fr.right, canvas: fr.canvas, dock: false } : null };
+                        frame: ds || directed ? { dataset: fr.dataset, left: fr.left, right: fr.right, canvas: fr.canvas, dock: false }
+                            : mine ? { left: "graph-place/at-rest", right: mine.right, walk: mine.index + 1 } : null };
                     commit(["selection-bar", FILTERED], "Added filter step: " + stepName(), back);
                 } }),
             ],
@@ -401,12 +434,21 @@
         // Closing keeps the selection (Esc never clears it). The shell's Esc does nothing here, because
         // closeTo is this same section, and its X and outside click go to the Les Miserables bar; so
         // Esc and the X are routed here, and the transfers popover closes to its own graph place.
-        const out = ds ? ["selection-bar", "one-node"] : directed ? ["graph-place", "many-groups"] : ["selection-bar", "one-node"];
-        const shut = (e) => { e.preventDefault(); e.stopImmediatePropagation(); AB.go(out[0], out[1]); };
+        // The Les Miserables popover closes to the neighborhood it selected, the inspector listing it
+        const out = ds ? ["selection-bar", "one-node"] : directed ? ["graph-place", "many-groups"] : ["inspector-several-elements", "two-nodes"];
+        if (!ds && !directed && AB.route) AB.route.closeTo = { id: out[0], state: out[1] };
+        const shut = (e) => { e.preventDefault(); e.stopImmediatePropagation(); if (AB.route && AB.route.closeTo.id === out[0]) AB.close(); else AB.go(out[0], out[1]); };
         p.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(e); });
         const x = p.querySelector(".k-popover-head [aria-label='Close']");
         if (x) x.addEventListener("click", shut, true);
         return p;
+    }
+
+    // Neighborhood selects one hop (spec): the node and its neighbors become the selection, which the
+    // several-elements inspector lists (it reads AB.tablePicks, as from the node table)
+    function selectNear(who) {
+        AB.tablePicks = nearNames(who, 1);
+        return "inspector-several-elements/two-nodes";
     }
 
     // On another project the one-node states keep its panels: the bar, its Neighborhood popover and Hide
@@ -448,10 +490,10 @@
             // Hide on canvas keeps the node it hid in the inspector (the walk stays on it), not Valjean
             : state === "hidden" && AB.walked && AB.walked.dataset === "lesmis" ? { left: "graph-place/at-rest", right: AB.walked.right, walk: AB.walked.index + 1 }
             // Neighborhood keeps the node the reader selected (found, clicked or walked to), not Valjean
-            : state === "neighborhood" && walkedOther() ? { left: "graph-place/at-rest", right: AB.walked.right, walk: AB.walked.index + 1, dock: false, overlay: "selection-bar/neighborhood" }
+            : state === "neighborhood" && walkedOther() ? { left: "graph-place/at-rest", right: selectNear(AB.walked.name), walk: AB.walked.index + 1, dock: false, overlay: "selection-bar/neighborhood" }
             : Object.assign({
                 left: "graph-place/at-rest",
-                right: state === "two-nodes" ? "inspector-several-elements/two-nodes" : state === "five-nodes" ? "inspector-several-elements/style" : "inspector-node/why-this-look",
+                right: state === "neighborhood" ? selectNear("Valjean") : state === "two-nodes" ? "inspector-several-elements/two-nodes" : state === "five-nodes" ? "inspector-several-elements/style" : "inspector-node/why-this-look",
             }, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : state === "long-name-path" ? { dock: false, overlay: "selection-bar/long-name-path" } : {})),
         render(el, state, ctx) {
             if (ctx.region === "overlay") {
@@ -464,6 +506,7 @@
             if (state === "hidden") hideSel();
             else if (state !== "one-edge") { lastSel = selectedNames(state); lastState = state; }
             patchCanvas(state);
+            if (state === FILTERED && filteredOf().ds === "transactions") cutDensity();
             if (isLong(state)) patchLongName();
             const b = bar(state);
             const wrap = h("div", { style: "display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%" });
@@ -475,8 +518,6 @@
             }
             // Notes are graphty-element API, except a note on an edge picked on the canvas
             if (state === "one-edge") wrap.append(AB.needsElement("graphty-element's notes attach to a node, a set or the graph; a note on an edge needs an edge subject"));
-            const r = readout(state);
-            if (r) wrap.append(r);
             wrap.append(b);
             el.append(wrap);
             ctx.renderSection("toolbar/at-rest", el);

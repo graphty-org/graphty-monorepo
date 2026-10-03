@@ -1,5 +1,5 @@
 /* Graph place, version 3: the paint tree. Top to bottom: the title line (a quiet "Graph", the
-   graphs switcher, and the graph's note count as quiet words, with no speech bubble, at its end), the treebar (Find rows and notes, the list options
+   graphs switcher, and the graph's note count as quiet words, with no speech bubble, at its end), the treebar (Find rows, elements, values; the list options
    ellipsis), the tree in paint order (Selection pinned at the top, Notes under it, Overrides under
    Notes once it holds something, Everything pinned at the bottom), and one footer line, the most
    specific message winning. Every row is drawn by the shared AB.tree: status is an icon in the kind
@@ -46,6 +46,26 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
 .gp-tree .ab-trow[data-dim] :is(.ab-kind, .ab-sw-slot) { opacity: .4; } /* ponytail: the shared dim only grays the name, which reads as not dimmed in dark mode; move to app.css */
 .gp-graph-notes { flex: none; margin-inline-end: 8px; font-size: 11px; }
 .gp-stack { box-shadow: 3px -3px 0 -1px var(--gp-stack2), 3px -3px 0 0 var(--cm-bg); margin-inline-end: 3px; }
+/* ponytail: a locked row always shows its lock (spec 3.3): the lock gets its own column left of the eye, so
+   hover brings the eye up beside it instead of hiding the lock. Move to app.css (its lock rules hide the
+   lock on hover and on a hidden row) and delete this. */
+.gp-tree.ab-tree .ab-trow[data-locked] .ab-le { width: 40px; grid-template-columns: 20px 20px; }
+.gp-tree.ab-tree .ab-trow[data-locked] .ab-le > * { grid-area: auto; }
+.gp-tree.ab-tree .ab-trow[data-locked] .ab-le .ab-lock { visibility: visible; grid-column: 1; }
+.gp-tree.ab-tree .ab-trow[data-locked] .ab-le .ab-eye { grid-column: 2; }
+.gp-tree.ab-tree .ab-trow[data-locked] > .ab-topt { right: 44px; }
+/* ponytail: the selected row's members, marked in the node table (spec 3.10); the table dock should read
+   AB.treeMarked and draw this itself */
+.td .k-table tr[data-tree-marked] td:first-child, #ab-dock tr[data-tree-marked] td:first-child { box-shadow: inset 3px 0 0 var(--cm-border-selected); }
+.gp-runnone { list-style: none; padding: 2px 8px 4px 56px; }
+.gp-scope { display: inline-flex; flex: none; color: var(--cm-icon); }
+.ab-legend .gp-scope { margin-inline-start: -4px; }
+.ab-legend .gp-scoped { flex: none; }
+/* ponytail: a run's group row draws its color in the kind slot, so its empty swatch slot only narrows the name
+   ("Comm..." in a 240 px tree); move to app.css for every group row and delete this */
+.gp-tree .ab-trow[aria-level="2"] > .ab-sw-slot:empty { display: none; }
+/* a run of many groups holds no notes on its groups, so their empty note slot gives its width to the name */
+.gp-many .ab-trow[aria-level="2"] > .ab-tnotes:empty { min-width: 0; }
 `;
     if (!document.getElementById("gp-style")) document.head.append(h("style", { id: "gp-style" }, CSS));
 
@@ -78,6 +98,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         { n: 6, size: 6, color: "#CC79A7" },
     ];
 
+    // A second Louvain run (the same networkx call, resolution 1.5, seed 7): 7 communities. A run is named by
+    // its algorithm and numbered from the second; its options live in its inspector, never in its name.
+    const LOUVAIN2 = [21, 15, 12, 11, 10, 6, 2];
+    const OKABE = ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442"];
+
     // When another section drives the frame, the tree marks the row the inspector beside it shows.
     // The path the last Find path added on Les Miserables (path-popover's AB.lastPath), a third row under Shortest paths
     const lmFound = () => { const lp = AB.lastPath; return lp && (lp.ds || "lesmis") === "lesmis" && lp.route && !["Valjean to Javert", "Myriel to Javert"].includes(lp.name) ? lp : null; };
@@ -87,7 +112,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const [id, st = ""] = String(r.frame.right).split("/");
         let row = {
             "inspector-measure-row": st === "edge-measure" || st === "edge-measure-data" ? null : /^degree/.test(st) ? "degree" : st === "covered" || st === "on-filter" ? "bt" : "pagerank",
-            "inspector-run-row": st === "readings-only" ? null : "louvain",
+            "inspector-run-row": { "readings-only": "density", "pair-list": "pairs" }[st] || "louvain",
             "inspector-folder": "folder",
             "inspector-several-rows": st.startsWith("result-") ? "combined-" + st.slice(7) : null,
             "inspector-selection-and-everything": { selection: "selection", "notes-row": "notes", "notes-row-outlined": "notes", "notes-data": "notes", overrides: "overrides" }[st] || "everything",
@@ -95,7 +120,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         }[id] || null;
         if (id === "inspector-measure-row" && /^painted-/.test(st)) row = "paint-" + st.slice(8);
         const sel = { "inspector-node": "1", "inspector-edge": "1", "inspector-several-elements": st === "two-nodes" ? String((AB.tablePicks || []).length || 2) : "5" }[id] || null;
-        return { row, sel, edited: id === "inspector-node" && st === "edited" };
+        return { row, sel, selNoun: id === "inspector-edge" ? "edge" : null, edited: id === "inspector-node" && st === "edited" };
     }
 
     // One swatch for a run's shared palette: its first color, the second peeking behind
@@ -105,8 +130,40 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         s.style.setProperty("--gp-stack2", c2);
         return s;
     }
+    // ponytail: Louvain 2 and the failed Closeness have no state in inspector-run-row or inspector-measure-row,
+    // so their rows draw the one inspector frame (AB.inspector) beside the tree themselves; move each to a
+    // state of its inspector section and give the row a go instead
+    function inspectBeside(o) {
+        const right = document.getElementById("ab-right");
+        if (right) right.replaceChildren(AB.inspector(Object.assign({ kindKey: "run-row", renameDisabled: RUN_LABEL, menu: ["context-menus", "run-row"] }, o)));
+    }
+    const LOUVAIN2_RES = "1.5";
+    function louvain2Inspector() {
+        const sizes = LOUVAIN2.map((n, i) => AB.data("Community " + (i + 1), AB.count(n, "node")));
+        inspectBeside({
+            icon: AB.ICON.run, swatch: stack(OKABE[0], OKABE[1]), title: "Louvain 2", kind: "Run, resolution " + LOUVAIN2_RES,
+            body: AB.dataTab({
+                Summary: [AB.data("Communities", AB.num(LOUVAIN2.length))],
+                Sizes: sizes,
+                "Made with": { body: [AB.data("Method", "Louvain"), AB.data("Resolution", LOUVAIN2_RES + " (Louvain: 1.0)"), AB.data("Weight", "value, stronger"), AB.data("Seed", "7")] },
+            }, { kind: "run" }),
+        });
+    }
+    const FAILED = "Closeness failed: the GPU device was lost during the run. Nothing was computed on the CPU.";
+    function failedInspector() {
+        inspectBeside({
+            icon: "circle-x", title: "Closeness", kind: "Run",
+            stateBar: { text: "Failed: the GPU device was lost", why: FAILED,
+                actions: [{ label: "Try WebGPU again", tip: "Runs it on WebGPU once more; nothing is computed on the CPU instead", onClick: () => AB.flash("Runs Closeness on WebGPU again (not available yet)") }] },
+            body: AB.dataTab({
+                Summary: [AB.data("Result", "None: the run wrote nothing")],
+                "Made with": { body: [AB.data("Method", "Closeness"), AB.data("Ran on", "WebGPU")] },
+            }, { kind: "run" }),
+        });
+    }
     const builtin = (o) => Object.assign({ pinned: true, builtin: true, eye: true }, o);
-    const selectionRow = (count) => builtin({ id: "selection", name: "Selection", kindIcon: "scan", count, go: ["inspector-selection-and-everything", "selection"] });
+    // the selection's count names what is selected: "1 node", or "1 edge" beside the edge inspector
+    const selectionRow = (count, noun) => builtin({ id: "selection", name: "Selection", kindIcon: "scan", count, countNoun: noun || undefined, go: ["inspector-selection-and-everything", "selection"] });
     // Notes keeps its name and cannot be deleted, but drags like any row
     const notesRow = (eye, count) => ({ id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, count: count === undefined ? 4 : count, countTip: "Noted nodes and edges", eye, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] });
     const everythingRow = (eye) => builtin({ id: "everything", name: "Everything", kindIcon: "base-layer", eye, go: ["inspector-selection-and-everything", "everything"] });
@@ -133,7 +190,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     function projectModel(state) {
         const ins = fromInspector();
         let rows;
-        if (DOOR.includes(state)) rows = [selectionRow(ins && ins.sel), notesRow(true, doorNoted()), everythingRow(true)];
+        if (DOOR.includes(state)) rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), notesRow(true, doorNoted()), everythingRow(true)];
         else if (freshT(state)) rows = [selectionRow(null), notesRow(true, null), everythingRow(true)];
         else { rows = manyModel(false); rows[2].selected = false; }
         if (state !== "door-entries" && state !== "transfers-loaded") rows.splice(2, 0, newRow(state));
@@ -154,9 +211,10 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     const paintedDs = () => (AB.paintedLast && AB.paintedLast.ds) || "wide";
     const loadedDs = (state) => LOADED_STATE[state] || (state === "painted" ? paintedDs() : null) || (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset) ? AB.route.frame.dataset : null);
     const VULN = "vuln_count_critical_unremediated_over_30_days";
+    let paintedAll = false; // the direct visit to painted: the hosts show all three ways an attribute paints
     function loadedModel(state) {
         const ins = fromInspector();
-        const rows = [selectionRow(ins && ins.sel), notesRow(true, null), everythingRow(true)];
+        const rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), notesRow(true, null), everythingRow(true)];
         if (state === "wide-sized") rows.splice(2, 0, { id: "vuln", name: VULN, attr: true, kindIcon: AB.typeGlyph("num"), swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "long-name"], menu: ["context-menus", "measure-row"] });
         // The measure rows Color by and Size by made (AB.painted), named after the attribute, newest on top
         const ds = loadedDs(state);
@@ -166,6 +224,18 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
                 swatch: !color ? null : num ? AB.ramp("#ef7818", "#662506") : stack("#E69F00", "#56B4E9"),
                 go: ["inspector-measure-row", "painted-" + p.prop.toLowerCase()], menu: ["context-menus", "measure-row"] });
         });
+        // Painting an attribute adds no new row kind (spec 3.2). On the direct visit to painted the hosts also
+        // show the other two: Show as groups on a category (a group row, one child per value) and Label by
+        // (a row named after the attribute, with its type glyph)
+        if (state === "painted" && paintedAll && ds === "wide") {
+            const attrs = AB.fx.datasets.wide.nodeAttributes, pal = AB.fx.canvas.categorical;
+            const cat = attrs.find((a) => a.name === "tier"), lab = attrs.find((a) => a.name === "hostname");
+            const open = (name) => () => AB.flash("Opens " + name + " in the inspector (not available yet)");
+            rows.splice(2, 0,
+                { id: "label-hostname", name: lab.name, attr: true, kindIcon: AB.typeGlyph("text"), eye: true, onOpen: open(lab.name), menu: ["context-menus", "measure-row"] },
+                { id: "groups-tier", name: cat.name, attr: true, kindIcon: AB.typeGlyph("cat"), swatch: stack(pal[0], pal[1]), count: groups(Object.keys(cat.values).length), eye: true, open: true, onOpen: open(cat.name), menu: ["context-menus", "run-row"],
+                    children: Object.entries(cat.values).map(([v, n], i) => ({ id: "tier-" + v, name: v, kindIcon: AB.chit(pal[i % pal.length], true), count: n, countNoun: "host", eye: true, onOpen: open(cat.name + " is " + v), menu: ["context-menus", "row"] })) });
+        }
         if (state === "nested-set") rows.splice(2, 0, { id: "ml-set", name: "Machine learning researchers, more than 500 cites in 5 years", kindIcon: AB.ICON.set, swatch: AB.chit("#009E73", true), count: 23, eye: true, go: ["inspector-group-set-path-row", "long-name"], menu: ["context-menus", "row"] });
         if (ins && ins.row) rows.forEach((r) => { r.selected = r.id === ins.row; });
         return rows;
@@ -181,11 +251,12 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const g = (label) => L.frame.legend.rows.find((r) => r.label === label);
         const g2 = g("2"), g8 = g("8");
         const ins = fromInspector();
-        const SEL = { rename: "g2", "rename-chain": "g2", "rename-run-group": "c3", "rename-builtin": "everything", "rename-run-disabled": "louvain", partial: "louvain", queued: "louvain", running: null, failed: null, "louvain-open": "louvain", finished: null, "show-hidden": "g6" };
+        const rt = AB.route;
+        const SEL = { rename: "g2", "rename-chain": "g2", "rename-run-group": "c3", "rename-builtin": "everything", "rename-run-disabled": "louvain", partial: "louvain", queued: "louvain", running: null, failed: "failed", "louvain-open": "louvain", finished: null, "show-hidden": "g6" };
         let selRow = state in SEL ? SEL[state] : state === "empty" || state === "list-menu" ? null : "pagerank";
         if (ins) selRow = ins.row;
         const openLouvain = ["louvain-open", "rename-run-group"].includes(state) || /^c\d$/.test(selRow || "");
-        const rows = [selectionRow(ins && ins.sel), notesRow(state !== "notes-eye-off", state === "empty" ? null : state === "door-entries" ? 3 : undefined)];
+        const rows = [selectionRow(ins && ins.sel, ins && ins.selNoun), notesRow(state !== "notes-eye-off", state === "empty" ? null : state === "door-entries" ? 3 : undefined)];
         if (state === "empty") return rows.concat(everythingRow(true));
         if (ins && ins.edited) rows.push(builtin({ id: "overrides", name: "Overrides", kindIcon: "pencil", count: 1, go: ["inspector-selection-and-everything", "overrides"], menu: ["context-menus", "row"] }));
         // A Combine result (inspector-several-rows) stays on top of the tree, under the built-in rows
@@ -201,14 +272,15 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         // A run that found one group: its one child, and the footer's "1 group"
         if (state === "one-group") rows.push({ id: "components", name: "Connected components", kindIcon: AB.ICON.run, swatch: AB.chit("#0072B2", true), count: groups(1), eye: true, open: true, renameDisabled: RUN_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "run-row"],
             children: [{ id: "cc1", name: "Component 1", kindIcon: AB.chit("#0072B2", true), count: L.nodes, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "row"] }] });
-        if (state === "failed") rows.push({ id: "failed", name: "Closeness", kindIcon: "chart-column", eye: null, status: "error", statusText: "Failed: the GPU device was lost during the run. Nothing was computed on the CPU.", renameDisabled: RUN_LABEL, go: ["graph-place", "failed"], menu: ["context-menus", "run-row"] });
-        // "Show label anyway" on a node writes to this one style layer (this file only); each forced label is a child,
-        // so it can be seen, reordered or removed like any row
-        const forced = [{ id: "label-valjean", name: L.rows.find((r) => r.label === "Valjean").label, kindIcon: "tag", eye: true, go: ["inspector-node", "why-this-look"], menu: ["context-menus", "row"] }];
-        rows.push({ id: "labels-anyway", name: "Labels shown anyway (this file)", kindIcon: "tag", count: forced.length, eye: true,
-            onOpen: () => AB.flash("Opens Labels shown anyway (this file) in the inspector (not available yet)"), menu: ["context-menus", "row"], children: forced });
-        const filtered = state === "scope-mark" ? { status: "filtered", statusText: "Ran on " + AB.count(L.nodes, "node") + "; a filter now leaves " + AB.num(L.filterSteps.after.step1) } : {};
-        rows.push(Object.assign({ id: "pagerank", name: "PageRank", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", state === "scope-mark" ? "scope-mark" : "style"], menu: ["context-menus", "measure-row"] }, filtered,
+        // A failed run stays a row: the error icon, the element's message in its tooltip and in its inspector's state bar
+        if (state === "failed") rows.push({ id: "failed", name: "Closeness", kindIcon: "chart-column", eye: null, status: "error", statusText: FAILED, renameDisabled: RUN_LABEL, onOpen: failedInspector, menu: ["context-menus", "run-row"] });
+        // Louvain expanded: a second Louvain run sits on top of the first, numbered. Only on this place's own
+        // route: the run-row inspector, the communities table and Update Louvain row frame this state with
+        // Les Miserables' one Louvain run (its Data tab says no other run is there to compare with)
+        if (state === "louvain-open" && rt && rt.id === "graph-place") rows.push({ id: "louvain2", name: "Louvain 2", kindIcon: AB.ICON.run, swatch: stack(OKABE[0], OKABE[1]), count: groups(LOUVAIN2.length), eye: true, renameDisabled: RUN_LABEL,
+            onOpen: louvain2Inspector, menu: ["context-menus", "run-row"],
+            children: LOUVAIN2.map((size, i) => ({ id: "l2c" + (i + 1), name: "Community " + (i + 1), kindIcon: AB.chit(OKABE[i], true), count: size, eye: true, renameDisabled: GROUP_LABEL, onOpen: () => AB.flash("Opens Louvain 2's Community " + (i + 1) + " in the inspector (not available yet)"), menu: ["context-menus", "row"] })) });
+        rows.push(Object.assign({ id: "pagerank", name: "PageRank", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", state === "scope-mark" ? "scope-mark" : "style"], menu: ["context-menus", "measure-row"] },
             state === "out-of-date" ? { status: "stale", statusText: "Out of date: the data changed after this run. It paints the earlier values until rerun." } : {}));
         const louvainStatus = state === "queued" ? { status: "queued", statusText: "Queued, 2nd. Starts when " + BT_NEW + " finishes", go: ["inspector-run-row", "queued"] }
             : state === "partial" ? { status: "partial", statusText: "Stopped at the time limit: the communities found so far paint", go: ["inspector-run-row", "partial"] } : {};
@@ -217,7 +289,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             count: groups(LOUVAIN.length), notes: 1, inside: LOUVAIN.reduce((t, c) => t + (c.notes || 0) + AB.sessionNotes.filter((x) => x.about.some((a) => a.label === "Community " + c.n)).length, 0), notesGo: ["inspector-run-row", "data"], eye: true, open: openLouvain, renameDisabled: RUN_LABEL,
             go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"],
             children: LOUVAIN.map((c) => ({ id: "c" + c.n, name: "Community " + c.n, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, notes: c.notes, notesGo: c.notes ? ["inspector-group-set-path-row", "notes"] : null, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-group-set-path-row", "community-" + c.n], menu: ["context-menus", "row"] })),
-        }, filtered, louvainStatus));
+        }, louvainStatus));
         rows.push({
             id: "paths", name: "Shortest paths", kindIcon: "route", swatch: AB.chit("#D55E00"), eye: true, open: true, renameDisabled: RUN_LABEL,
             go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"],
@@ -226,6 +298,13 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
                 { id: "p2", name: "Myriel to Javert", kindIcon: "route", swatch: AB.chit("#0072B2"), count: 3, eye: true, go: ["inspector-group-set-path-row", "path-lesmis-2"], menu: ["context-menus", "row"] },
             ].concat(lmFound() ? [{ id: "p3", name: lmFound().name, kindIcon: "route", swatch: AB.chit("#009E73"), count: lmFound().route.route.length, eye: true, go: ["inspector-group-set-path-row", "path-lesmis-found"], menu: ["context-menus", "row"] }] : []),
         });
+        // Runs with nothing to paint (spec 3.1): graph-level readings (the gauge) and a pair list (the pair
+        // icon). Still rows, with no eye and no swatch, so they take no part in paint order. The run-row
+        // inspector draws these two itself beside its own states, so they are left out there.
+        if (!String((rt && rt.frame.left) || "").startsWith("inspector-run-row/")) {
+            rows.push({ id: "density", name: "Density", kindIcon: "gauge", eye: null, renameDisabled: RUN_LABEL, go: ["inspector-run-row", "readings-only"], menu: ["context-menus", "run-row"] });
+            rows.push({ id: "pairs", name: "Link prediction", kindIcon: "link", eye: null, renameDisabled: RUN_LABEL, go: ["inspector-run-row", "pair-list"], menu: ["context-menus", "run-row"] });
+        }
         // The kept set "Top 9 by degree" (inspector-several-rows combines it with Group 8): the nodes whose
         // degree reaches the 9th highest
         const cut = [...L.rows].sort((a, b) => b.degree - a.degree)[8].degree;
@@ -246,6 +325,19 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         rows.push(everythingRow(state !== "everything-hidden"));
         // Everything hidden: the rows above it are hidden too, so only Groups 2 and 8 paint (the canvas draws that)
         if (state === "everything-hidden") rows.forEach((r) => { if (["pagerank", "louvain", "paths", "watchlist"].includes(r.id)) r.eye = false; });
+        // While the filter chip reads a part of the graph, every number in the tree was taken on the whole
+        // graph: each counted row and each run carries the scope mark (the shared tree's "filtered" status),
+        // its sentence in the tooltip. The built-in rows carry none: Selection counts what is selected now,
+        // and Notes the elements notes are attached to, neither computed over the graph.
+        if (state === "scope-mark") {
+            const all = AB.count(L.nodes, "node"), left = AB.num(L.filterSteps.after.step1);
+            const scope = (list) => list.forEach((x) => {
+                if (!x.builtin && !x.status && (x.count != null || /^(pagerank|louvain|paths|bt)$/.test(x.id)))
+                    Object.assign(x, { status: "filtered", statusText: (x.count != null ? "Counted on " : "Ran on ") + all + "; a filter now leaves " + left });
+                if (x.children) scope(x.children);
+            });
+            scope(rows);
+        }
         if (state === "rename-chain") renamed.g2 = renamed.g2 || "Valjean's family";
         const mark = (list) => list.forEach((r) => {
             r.selected = r.id === selRow;
@@ -266,10 +358,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // Many groups: the transfers March Louvain run (fixtures: 35 communities, largest first), past 20
     // groups, so it arrives collapsed and, expanded, gets its own find line with Sort
     function manyModel(open = false) {
+        // the groups and the "N more communities" row are the canvas legend's (one wording in the tree, the legend
+        // and the inspector): the fixture colors the largest 7, by size
         const T = AB.fx.datasets.transactionsApril;
-        const lv = T.louvain.march, colors = T.communityColors;
-        const named = lv.largest.map((size, i) => ({ n: i + 1, size, color: colors["Community " + (i + 1)] })).filter((c) => c.color);
-        const rest = lv.communities - named.length;
+        const lv = T.louvain.march, lg = T.legends.march;
+        const named = lg.rows.map((r) => ({ n: Number(r.name.replace(/\D/g, "")), name: r.name, size: r.count, color: r.color }));
         const go = ["inspector-run-row", "many-groups"];
         // the run's story (AB.transfersRun, inspector-run-row) or a data replace marks the Louvain row
         const replaced = AB.fx.datasets.transactions.file === T.files.transfers.file;
@@ -280,8 +373,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             selectionRow(null), notesRow(true, null),
             {
                 id: "louvain", name: "Louvain", kindIcon: AB.ICON.run, selected: true, swatch: stack(named[0].color, named[1].color), count: groups(lv.communities), eye: true, open, renameDisabled: RUN_LABEL, go, menu: ["context-menus", "run-row"], ...mark,
-                children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, eye: true, renameDisabled: GROUP_LABEL, go, menu: ["context-menus", "row"] }))
-                    .concat({ id: "more", name: rest + " more communities", kindIcon: AB.chit("#BDBDBD", true), eye: true, renameDisabled: GROUP_LABEL, go: ["table-dock", "transfers"], menu: ["context-menus", "row"] }),
+                children: named.map((c) => ({ id: "m" + c.n, name: c.name, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, eye: true, renameDisabled: GROUP_LABEL, go, menu: ["context-menus", "row"] }))
+                    .concat({ id: "more", name: lg.other.communities + " more communities", kindIcon: AB.chit("#BDBDBD", true), eye: true, renameDisabled: GROUP_LABEL, go: ["table-dock", "transfers"], menu: ["context-menus", "row"] }),
             },
             // A link count on a directed graph, named as the catalog names it, so it never reads as an amount
             { id: "links-in", name: "Links in (count)", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, renameDisabled: RUN_LABEL,
@@ -340,12 +433,14 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
 
     // ---------- notes and scope marks on the tree's rows (spec 2.1 and 3.3) ----------
     // ponytail: these extend what AB.tree draws (lib.js), which today has one note slot, no click on
-    // it, no ", N notes" in the row's name and a warning icon for "filtered"; once the shell's tree
-    // does these, delete decorate() and pass notesInside again.
+    // it and no ", N notes" in the row's name; once the shell's tree does these, delete decorate() and
+    // pass notesInside again. The scope mark is the shared tree's "filtered" status icon, unchanged here.
     // - the note slot counts only notes about the row itself; a click on it selects the row and opens
     //   its notes (r.notesGo); the row's accessible name ends ", 2 notes"
     // - a collapsed row whose children carry notes gets a hollow "N inside" mark (r.inside), gone when expanded
-    // - computed before the current filter is the funnel, not the warning that out of date uses
+    // ponytail: the shared tree draws "filtered" in the kind slot; move it beside the count in lib.js and
+    // delete scopeMark and its use in decorate()
+    const scopeMark = (text) => AB.tip(h("span", { class: "gp-scope", "aria-hidden": "true" }, icon("triangle-alert", "sm")), text, { label: false });
     function decorate(t) {
         t.querySelectorAll(".ab-trow").forEach((li) => {
             const r = li._entry && li._entry.r;
@@ -361,8 +456,16 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
                 slot.after(AB.tip(h("span", { class: "gp-inside k-num", "aria-hidden": "true" }, String(r.inside)), AB.count(r.inside, "note") + " inside, about its groups; expand to see them", { label: false }));
                 li.setAttribute("aria-description", AB.count(r.inside, "note") + " inside");
             }
+            // The scope mark sits beside the row's number (or where its number goes), not on its kind icon
+            const st = li.querySelector('.ab-status[data-status="filtered"]'), tc0 = li.querySelector(".ab-tcount");
+            if (st && tc0 && !li.querySelector(".gp-scope")) {
+                st.replaceWith(h("span", { class: "ab-kind" }, typeof r.kindIcon === "string" ? icon(r.kindIcon) : r.kindIcon || null));
+                tc0.prepend(scopeMark(r.statusText));
+            }
             // The rename gesture, named on the row's tooltip (a name that cannot change already gives its reason)
             const nm = li.querySelector(".ab-tname");
+            // A failed run says what failed on its name too (F2 still gives the rename refusal)
+            if (r.status === "error" && nm) AB.tip(nm, r.statusText, { label: false });
             if (nm && !nm.dataset.tip) AB.tip(nm, r.name, { label: false, second: "Double-click to rename" });
             // A row hidden from the list says so in words: the eye is paint, the list is only the list
             if (r.dim && nm && !li.querySelector(".gp-unlisted")) {
@@ -372,8 +475,6 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             }
             // A row named after an attribute or a path keeps its start and end (the full name is its tooltip)
             if (r.attr && nm && !nm.querySelector(".ab-mid")) nm.replaceChildren(AB.truncMiddle(r.name, 20));
-            const fs = li.querySelector('.ab-status[data-status="filtered"]');
-            if (fs) fs.replaceChildren(icon(AB.ICON.filter));
         });
     }
     // A click on a row's note count: select the row, open its Data tab at Notes. Captured before the
@@ -400,92 +501,71 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     }
 
     // ---------- Find: rows first, then notes ----------
-    function drawFind(b) {
-        // The results are one list box of options; the two headings are text inside it
-        b.setAttribute("role", "listbox");
-        b.setAttribute("aria-label", "Find results");
-        b.append(h("div", { class: "gp-find-head" }, "Rows"));
-        const hit = (ic, sw, text, sub, target) => b.append(h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ go: target })), icon(ic), sw, h("span", { class: "gp-hit-text" }, text, sub ? h("span", { class: "gp-hit-sub" }, sub) : null)));
-        const hi = (s) => { const i = s.indexOf("Jav"); return [s.slice(0, i), h("mark", null, "Jav"), s.slice(i + 3)]; };
-        hit("route", AB.chit("#D55E00"), hi("Valjean to Javert"), "in Shortest paths", ["inspector-group-set-path-row", "path-lesmis"]);
-        hit("route", AB.chit("#0072B2"), hi("Myriel to Javert"), "in Shortest paths", ["inspector-group-set-path-row", "path-lesmis-2"]);
-        hit(AB.ICON.set, AB.chit("#CC79A7", true), "Watchlist", "a member: Javert", ["inspector-group-set-path-row", "watchlist"]);
-        b.append(h("div", { class: "gp-find-head" }, "Notes"));
-        hit(AB.ICON.note, null, hi("Valjean and Javert land in the same community..."), "about Louvain", ["inspector-run-row", "data"]);
-        // a note about nodes: picking it selects them
-        hit(AB.ICON.note, null, hi("Javert follows Valjean through the whole book..."), "about Valjean and Javert", ["inspector-several-elements", "two-nodes"]);
-    }
-
-    // `here`: another project than Les Miserables, whose list-menu states are not drawn: the menu opens in place
-    function listMenu(state, here) {
+    // The list menu opens in place over the tree on screen, so it never redraws the rows it is about: its
+    // check reads the tree behind it (on in show-hidden). `here`: another project than Les Miserables, whose
+    // not-listed rows are not drawn. `collapse` closes every row of the tree on screen.
+    function listMenu(state, here, collapse) {
         const btn = document.getElementById("ab-list-btn");
         if (!btn) return;
-        if (here) return AB.openMenu(btn, [
-            AB.cmd("new-folder", { go: null, onClick: () => AB.flash("New folder (not available yet)") }),
-            { label: SHOW_NOT_LISTED, check: false, onClick: () => AB.flash("Shows the rows removed from the list view (not available yet)") },
-            { label: "Collapse all", onClick: () => AB.flash("Collapses every row (not available yet)") },
-        ]);
+        const on = state === "show-hidden";
         AB.openMenu(btn, [
-            AB.cmd("new-folder"),
-            { label: SHOW_NOT_LISTED, check: state === "show-hidden", onClick: () => AB.go("graph-place", state === "show-hidden" ? "at-rest" : "show-hidden") },
-            { label: "Collapse all", onClick: () => AB.go("graph-place", "at-rest") },
+            here ? AB.cmd("new-folder", { go: null, onClick: () => AB.flash("New folder (not available yet)") }) : AB.cmd("new-folder"),
+            here ? { label: SHOW_NOT_LISTED, check: false, onClick: () => AB.flash("Shows the rows removed from the list view (not available yet)") }
+                : { label: SHOW_NOT_LISTED, check: on, onClick: () => AB.go("graph-place", on ? "at-rest" : "show-hidden") },
+            { label: "Collapse all", onClick: collapse },
         ]);
     }
 
-    // Find in another project's tree: rows whose name holds the term stay, the rest hide; no row
-    // matching is the field list's no-match line, with Clear
-    // In the transfers, Find also matches account ids (AB.fx.datasets.transactions rows): a click on
-    // one, or Enter on the only one, selects that account
-    function findHere(scroll, input, accounts, enter) {
-        const q = input.value.trim().toLowerCase();
-        const rows = [...scroll.querySelectorAll(".ab-trow")];
-        rows.forEach((li) => { const n = li.querySelector(".ab-tname"); li.hidden = !!q && !(n && n.textContent.toLowerCase().includes(q)); });
-        scroll.querySelectorAll(".ab-fl-none, .gp-acc").forEach((x) => x.remove());
-        if (!q) return;
-        const accs = accounts ? T().rows.map((r, i) => [r, i]).filter(([r]) => r.id.toLowerCase().includes(q)) : [];
-        if (accs.length) {
-            scroll.prepend(h("div", { class: "gp-acc", role: "listbox", "aria-label": "Accounts" }, h("div", { class: "gp-find-head" }, "Accounts"),
-                accs.slice(0, 10).map(([r, i]) => h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ onClick: () => AB.selectNode("transactions", i) })),
-                    icon("circle"), h("span", { class: "gp-hit-text" }, r.id, h("span", { class: "gp-hit-sub" }, r.kind + ", " + r.country))))));
-            if (enter && accs.length === 1) return AB.selectNode("transactions", accs[0][1]);
-        }
-        const hits = rows.filter((li) => !li.hidden).length;
-        if (hits || accs.length) return AB.announce([hits && hits + (hits === 1 ? " row matches" : " rows match"), accs.length && AB.count(accs.length, "account") + " match"].filter(Boolean).join(", "));
-        const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { input.value = ""; findHere(scroll, input, accounts); input.focus(); } })), "Clear");
-        scroll.prepend(h("div", { class: "ab-fl-none" }, AB.noMatch(input.value.trim()), " ", clear));
-        AB.announce('No match for "' + input.value.trim() + '"');
+    // ---------- a selected row's members, marked in the table (spec 3.10) ----------
+    // AB.treeMarked is { row, members } (node names) for the Les Miserables row selected in the tree, or
+    // null. A measure row paints every node, so it marks none. Outlining the members on the canvas needs
+    // graphty-element (its hover layer taking a set).
+    // ponytail: the Watchlist's members are also typed in inspector-group-set-path-row, inspector-several-
+    // elements and export-dialog; one shared copy in the fixtures would replace all four
+    const WATCHLIST = ["Valjean", "Javert", "Thenardier", "Mme.Thenardier", "Eponine"];
+    const PATHS = { p1: ["Valjean", "Javert"], p2: ["Myriel", "Valjean", "Javert"] };
+    function membersOf(id) {
+        const L = AB.fx.datasets.lesmis, names = (f) => L.rows.filter(f).map((x) => x.label);
+        const comm = (n) => ((AB.lesmisCommunities || []).find((c) => c.n === n) || {}).members || [];
+        const g = /^g(\d)$/.exec(id), c = /^c(\d)$/.exec(id);
+        if (g) return names((x) => String(x.group) === g[1]);
+        if (c) return comm(Number(c[1]));
+        if (id === "louvain") return LOUVAIN.flatMap((x) => comm(x.n));
+        if (id === "top") { const cut = [...L.rows].sort((a, b) => b.degree - a.degree)[8].degree; return names((x) => x.degree >= cut); }
+        if (id === "watchlist") return WATCHLIST;
+        if (id === "paths") return [...new Set(Object.values(PATHS).flat())];
+        return PATHS[id] || null;
     }
-
-    // ---------- a finished run paints the canvas ----------
-    // ponytail: canvas-and-states has no state for Les Miserables painted by a new run; until it has,
-    // this recolors its drawing (AB.lesmisDrawing, as selection-bar's patchCanvas does) and swaps its
-    // legend. on: the row's eye; off puts PageRank's paint and legend back.
-    const BT_RAMP = ["#fde7c8", "#E69F00"];
-    const mix = (t) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(BT_RAMP[0].slice(i, i + 2), 16) * (1 - t) + parseInt(BT_RAMP[1].slice(i, i + 2), 16) * t).toString(16).padStart(2, "0")).join("");
-    let prLegend = null;
-    function paintNewRun(on) {
-        const cv = document.getElementById("ab-canvas"), stage = cv && cv.querySelector(".k-stage");
-        const imgs = stage ? stage.querySelectorAll(":scope > img") : [];
-        if (!imgs.length || !AB.lesmisDrawing) return;
-        const rows = AB.fx.datasets.lesmis.rows, max = Math.max(...rows.map((r) => r.betweenness));
-        // the drawing's node circles (outline rings have no fill) are in the fixture's row order
-        const betweenness2 = (doc) => [...doc.querySelectorAll("circle")].filter((c) => c.getAttribute("fill") !== "none").forEach((c, i) => { if (rows[i]) c.setAttribute("fill", mix(rows[i].betweenness / max)); });
-        const alt = "Les Miserables colored by " + (on ? BT_NEW : "PageRank") + ", every node one size";
-        AB.lesmisDrawing("lesmis-groups-onesize", alt, null, on ? betweenness2 : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
-        stage.setAttribute("aria-label", alt);
-        const cur = cv.querySelector(".ab-legend");
-        if (on) {
-            if (cur && !prLegend) prLegend = cur;
-            const card = AB.legendCard([{ title: "Color: " + BT_NEW, rows: [{ swatch: AB.ramp(BT_RAMP[0], BT_RAMP[1]), label: AB.range(0, max, "Betweenness") }] }]);
-            if (cur && card) cur.replaceWith(card);
-        } else if (cur && prLegend) { cur.replaceWith(prLegend); prLegend = null; }
+    // ponytail: the table dock does not read AB.treeMarked yet, so the tree marks the node table's rows
+    // itself after each dock render; delete markTable and its observer once table-dock draws the mark
+    function markTable() {
+        const m = AB.treeMarked, set = new Set((m && m.members) || []);
+        document.querySelectorAll("#ab-dock tbody tr[data-who]").forEach((tr) => {
+            const on = set.has(tr.dataset.who);
+            tr.toggleAttribute("data-tree-marked", on);
+            if (on) tr.setAttribute("aria-description", "Member of " + m.row); else if (tr.getAttribute("aria-description") === "Member of " + (tr._gpRow || "")) tr.removeAttribute("aria-description");
+            tr._gpRow = on ? m.row : null;
+        });
+    }
+    let dockWatch = null;
+    function setMarked(id, name) {
+        const ds = (AB.route && AB.route.frame.dataset) || "lesmis";
+        const members = ds === "lesmis" && id ? membersOf(id) : null;
+        AB.treeMarked = members ? { row: name, members } : null;
+        const dock = document.getElementById("ab-dock");
+        if (dock && !dockWatch) { dockWatch = new MutationObserver(markTable); dockWatch.observe(dock, { childList: true, subtree: true }); }
+        markTable();
     }
 
     // ---------- the place ----------
     function render(el, state) {
         if (state === "rows-with-notes") state = "find"; // version 2 id: Find covers it
+        // The list menu open over the tree: list-menu over the tree at rest, list-menu-on over the tree
+        // showing the rows removed from the list view (its option checked)
+        const menuNow = state === "list-menu" || state === "list-menu-on";
+        if (state === "list-menu-on") state = "show-hidden";
         // A direct visit to painted, before any Color by: the hosts colored by cpu_util_p95_pct
-        if (state === "painted" && !AB.paintOf(paintedDs(), "Color") && !AB.paintOf(paintedDs(), "Size")) AB.paintBy("wide", "Color", "cpu_util_p95_pct", "row");
+        if (state === "painted" && !AB.paintOf(paintedDs(), "Color") && !AB.paintOf(paintedDs(), "Size")) { AB.paintBy("wide", "Color", "cpu_util_p95_pct", "row"); paintedAll = true; }
         // The researchers' kept set, then sized by a nested path: an attribute row named by its dotted path
         if ((state === "nested-set" || state === "nested") && !AB.paintOf("nested", "Size")) AB.paintBy("nested", "Size", "attributes.profile.metrics.citations.last_5_years", "row");
         // The hosts at rest: sized by their 46-character attribute (wide-sized draws its own row for it)
@@ -506,37 +586,44 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { trail: graphNotes ? AB.link("notes-place", "about-graph", AB.count(graphNotes, "note"), { class: "ab-link k-secondary gp-graph-notes", "aria-label": AB.count(graphNotes, "note") + " about this graph" }) : null });
         const finding = state === "find" || state === "find-no-match";
         const other = !!(ds || tGraph || doorGraph);
+        // Collapse all closes every row of the tree on screen (set once the tree is drawn)
+        let collapseAll = () => AB.go("graph-place", "at-rest");
+        // The list's box is the one find (lib.js findBox): Rows from this tree (a set also by a member's
+        // name), Elements and values from the project, Notes from the Notes place. The find states open
+        // with their text typed
+        const scroll = h("div", { class: "k-scroll" });
+        const flatRows = (list) => list.flatMap((r) => [r].concat(r.children ? flatRows(r.children) : []));
         const bar = AB.treebar({
             value: state === "find" ? "Jav" : state === "find-no-match" ? "xyz" : null,
-            onKey: (e, input) => {
-                // Another project finds in its own tree, in place: the find states are Les Miserables'
-                if (other && e.key === "Enter") return findHere(scroll, input, tGraph, true);
-                if (other && e.key === "Escape" && input.value) { input.value = ""; return findHere(scroll, input, tGraph); }
-                // the skeleton's one search with results is "Jav"; anything else finds nothing
-                if (e.key === "Enter" && input.value) AB.go("graph-place", /^jav/i.test(input.value) ? "find" : "find-no-match");
-                if (e.key === "Escape" && finding) AB.go("graph-place", "at-rest");
+            find: {
+                hide: scroll,
+                rows: (q) => flatRows(rowsNow).filter((r) => !r.builtin && r.go).map((r) => {
+                    if (AB.wordMatch(r.name, q) || r.name.toLowerCase().includes(q.toLowerCase())) return { label: r.name, sub: null, onPick: () => AB.go(r.go[0], r.go[1]) };
+                    const m = !other && /^(g\d|watchlist|top)$/.test(r.id) ? (membersOf(r.id) || []).find((x) => x.toLowerCase().startsWith(q.toLowerCase())) : null;
+                    return m ? { label: r.name, sub: "a member: " + m, onPick: () => AB.go(r.go[0], r.go[1]) } : null;
+                }).filter(Boolean),
+                notes: (q) => (AB.notesOf ? AB.notesOf(AB.route.frame.dataset || "lesmis") : []).filter((n) => n.text.toLowerCase().includes(q.toLowerCase()))
+                    .map((n) => ({ label: n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text, sub: "about " + n.about.map((t) => t.label).join(" and "), onPick: () => { const t = n.about.find((x) => x.go); if (t) AB.go(t.go[0], t.go[1]); else AB.go("notes-place", "all"); } })),
             },
-            onInput: (input) => { if (other) return findHere(scroll, input, tGraph); if (!input.value && finding) AB.go("graph-place", "at-rest"); },
-            menuGo: ["graph-place", state === "list-menu" ? "at-rest" : "list-menu"],
-            menuClick: ds || tGraph || doorGraph ? () => listMenu(state, true) : null,
-            menuOpen: state === "list-menu",
+            menuGo: ["graph-place", "list-menu"],
+            menuClick: () => listMenu(state, other, collapseAll),
+            menuOpen: menuNow,
         });
-        const scroll = h("div", { class: "k-scroll" });
         el.append(head, bar, scroll);
-        if (state === "find") { drawFind(scroll); return; }
-        if (state === "find-no-match") {
-            const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ go: ["graph-place", "at-rest"] })), "Clear");
-            scroll.append(h("div", { class: "ab-fl-none" }, AB.noMatch("xyz"), " ", clear)); // the field list's no-match line
-            AB.announce('No match for "xyz"');
-            requestAnimationFrame(() => { const i = bar.querySelector("input"); if (i) i.focus(); });
-            return;
-        }
+        if (finding) requestAnimationFrame(() => { const i = bar.querySelector("input"); if (i) i.focus(); });
 
         redraw = () => { if (el.isConnected) { el.replaceChildren(); render(el, state); } };
         const rowsNow = many ? manyModel() : model(state);
         keepEyes(rowsNow);
-        const treeOpts = { label: "Paint order, top wins", onEye: (r) => { eyes[eyeKey(r.id)] = r.eye; if (state === "finished" && r.id === "betweenness-new") paintNewRun(r.eye); } };
+        const treeOpts = { label: "Paint order, top wins", onEye: (r) => { eyes[eyeKey(r.id)] = r.eye; } };
         const tree = AB.tree(rowsNow, treeOpts);
+        collapseAll = () => {
+            const shut = (list) => list.forEach((x) => { if (x.children) { x.open = false; shut(x.children); } });
+            shut(rowsNow);
+            const cur = scroll.querySelector(".ab-tree");
+            if (cur) cur.replaceWith(AB.tree(rowsNow, treeOpts));
+            AB.announce("Every row collapsed");
+        };
         const flat = (rs) => rs.flatMap((r) => [r].concat(r.children || []));
         // The selected row is kept in the rows too, so a tree drawn again from them (Ctrl+] or Ctrl+[) keeps it
         const markPicked = (id) => flat(rowsNow).forEach((r) => { r.selected = String(r.id) === id; });
@@ -545,6 +632,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (!li || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.target.closest(".ab-eye, .ab-disc")) return;
             picked = li.dataset.row;
             markPicked(picked);
+            setMarked(picked, li._entry && li._entry.r.name);
         }, true);
         // The row not listed opens its own menu (Show in list view) on right-click and Shift+F10
         const notListed = (e) => { const li = e.target.closest && e.target.closest('.ab-trow[data-dim][data-row="g6"]'); return li; };
@@ -555,6 +643,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             e.preventDefault(); e.stopPropagation(); notListedMenu(li);
         }, true);
         const manyRun = many || (TRANSFERS.includes(state) && !freshT(state));
+        if (manyRun) scroll.classList.add("gp-many");
         tree.classList.add("gp-tree");
         let foot = footer(state);
         AB.append(scroll, [tree, foot]);
@@ -574,6 +663,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         };
         scroll.addEventListener("click", (e) => { if (e.altKey && e.target.closest && e.target.closest(".ab-eye")) setTimeout(soloFoot); }, true); // captured: the eye stops its click
         decorate(tree);
+        // the row selected on arrival marks its members in the table too
+        const selNow = flat(rowsNow).find((x) => x.selected);
+        setMarked(selNow ? String(selNow.id) : null, selNow && selNow.name);
         scroll.addEventListener("click", onNoteCount, true);
         // Shift- or Ctrl-click on one of the two kept sets while the other is selected: both rows, together
         scroll.addEventListener("click", (e) => {
@@ -587,11 +679,24 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         }, true);
         // the tree redraws itself on expand, collapse, delete and move: decorate the new one
         // The run's find line: a line of the tree right under the run, only while the run is expanded past
-        // 20 groups (spec 3.9). It filters the run's groups by name (word starts) and holds Sort.
+        // 20 groups (spec 3.9). It filters the run's groups by name or by member (word starts) and holds Sort.
+        // A group's members are the accounts the fixture places in it; "N more communities" holds the rest.
         let runFind = null, runSort = "size";
+        const accts = AB.fx.datasets.transactionsApril.rows;
         const filterRun = (t) => {
             const q = runFind ? runFind.querySelector("input").value.trim() : "";
-            t.querySelectorAll('.ab-trow[aria-level="2"]').forEach((li) => { const n = li.querySelector(".ab-tname"); li.hidden = !!q && !AB.wordMatch(n ? n.textContent : "", q); });
+            const kids = [...t.querySelectorAll('.ab-trow[aria-level="2"]')];
+            const named = kids.map((li) => li._entry && li._entry.r.name);
+            const hit = (li) => {
+                const name = li._entry ? li._entry.r.name : "";
+                if (AB.wordMatch(name, q)) return true;
+                const mine = li._entry && li._entry.r.id === "more" ? (a) => !named.includes(a.community) : (a) => a.community === name;
+                return accts.some((a) => mine(a) && AB.wordMatch(a.id, q));
+            };
+            kids.forEach((li) => { li.hidden = !!q && !hit(li); });
+            t.querySelectorAll(".gp-runnone").forEach((x) => x.remove());
+            if (q && runFind && !kids.some((li) => !li.hidden)) runFind.after(h("li", { class: "gp-runnone ab-fl-none", role: "none" }, AB.noMatch(q)));
+            if (q) AB.announce(kids.some((li) => !li.hidden) ? AB.count(kids.filter((li) => !li.hidden).length, "group") + " match" : 'No match for "' + q + '"');
         };
         const syncRunFind = (t) => {
             if (!runFind) return;
@@ -624,7 +729,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             };
             const sortBtn = AB.iconButton("arrow-up-down", "Sort: size", { onClick: () => AB.openMenu(sortBtn, SORTS.map((v) => ({ label: v[0].toUpperCase() + v.slice(1), check: runSort === v, onClick: () => sortRun(v) }))) });
             runFind = h("li", { class: "gp-runfind", role: "none" },
-                h("label", { class: "ab-find" }, icon("search", "sm"), h("input", { type: "search", placeholder: "Find in Louvain", "aria-label": "Find groups in Louvain by name", on: { input: () => filterRun(scroll.querySelector(".ab-tree")) } })),
+                h("label", { class: "ab-find" }, icon("search", "sm"), h("input", { type: "search", placeholder: "Find in Louvain", "aria-label": "Find groups in Louvain by name or member", on: { input: () => filterRun(scroll.querySelector(".ab-tree")) } })),
                 sortBtn);
             syncRunFind(tree);
         }
@@ -654,19 +759,32 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             hover("watchlist");
         }
         if (state === "one-group") AB.announce("Connected components found 1 group");
+        // ponytail: the legend under a filter: canvas-and-states draws PageRank's range with no set, so its number
+        // gets the set and the scope mark here; move to canvas-and-states (AB.range's { on }) and delete this
+        if (state === "scope-mark") setTimeout(() => {
+            const lab = [...document.querySelectorAll("#ab-canvas .ab-legend .k-lg-row .k-ellipsis")].find((x) => /^PageRank [\d.]+ to [\d.]+$/.test(x.textContent));
+            if (!lab) return;
+            const [, lo, hi] = lab.textContent.match(/([\d.]+) to ([\d.]+)/);
+            const scope = AB.range(Number(lo), Number(hi), "PageRank", { on: L.nodes }).replace(/^.*?, /, "");
+            const why = "Computed on " + AB.count(L.nodes, "node") + "; a filter now leaves " + AB.num(L.filterSteps.after.step1);
+            lab.classList.add("gp-scoped");
+            lab.after(scopeMark(why));
+            const card = lab.closest(".ab-legend");
+            card.append(h("div", { class: "k-lg-sub" }, scope[0].toUpperCase() + scope.slice(1) + "; the filter leaves " + AB.num(L.filterSteps.after.step1)));
+            card.setAttribute("aria-label", "Legend: Color: PageRank, " + lab.textContent + ", " + scope + "; the filter leaves " + AB.num(L.filterSteps.after.step1));
+        });
         // A run paints as soon as it finishes: it lands on top, so it wins Color
+        // (the canvas paints from the tree, AB.paintRows)
         if (state === "finished") {
-            const on = (rowsNow.find((r) => r.id === "betweenness-new") || {}).eye !== false;
-            prLegend = null;
-            setTimeout(() => paintNewRun(on)); // after the shell draws the canvas
             AB.announce(BT_NEW + " finished and now paints Color");
         }
+        if (state === "failed") setTimeout(failedInspector); // after the shell draws the inspector region
         if (state === "rename-chain") { f2("g8"); AB.announce("Renamed to Valjean's family. Renaming Group 8"); }
         // A name that cannot change ignores the gesture; its tooltip says why
         if (state === "rename-run-group") hover("c3");
         if (state === "rename-builtin") hover("everything");
         if (state === "rename-run-disabled") hover("louvain");
-        if (state === "list-menu") requestAnimationFrame(() => requestAnimationFrame(() => listMenu(state)));
+        if (menuNow) requestAnimationFrame(() => requestAnimationFrame(() => listMenu(state, other, collapseAll)));
         // The row the reader clicked stays marked while the inspector beside it shows that row, also when a
         // menu over the panels closes and the frame names another inspector
         if (picked) requestAnimationFrame(() => {
@@ -707,11 +825,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (state === "many-groups") return { dataset: "transactions", canvas: "canvas-and-states/transfers-communities", right: "inspector-run-row/many-groups" };
             // The transfers after a rerun on April data failed (the tree's Louvain row and its inspector say so)
             if (state === "rerun-failed") { AB.transfersRun = "failed"; if (AB.replaceTransfers) AB.replaceTransfers(); return { dataset: "transactions", canvas: "canvas-and-states/transfers-communities", right: "inspector-run-row/failed" }; }
-            if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", chip: AB.count(AB.fx.datasets.lesmis.filterSteps.after.step1, "node", { of: AB.fx.datasets.lesmis.nodes }), filterOn: ["degree"] };
+            if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", shown: AB.fx.datasets.lesmis.filterSteps.after.step1, chip: AB.count(AB.fx.datasets.lesmis.filterSteps.after.step1, "node", { of: AB.fx.datasets.lesmis.nodes }), filterOn: ["degree"] };
             if (state === "queued" || state === "partial") return { right: "inspector-run-row/" + state };
             if (state === "running" || state === "failed" || state === "finished") return { right: "inspector-nothing-selected/overview" };
             if (state === "everything-hidden") return { right: "inspector-selection-and-everything/everything", canvas: "canvas-and-states/everything-hidden" };
-            if (state === "show-hidden") return { right: "inspector-group-set-path-row/one-member" };
+            if (state === "show-hidden" || state === "list-menu-on") return { right: "inspector-group-set-path-row/one-member" };
             if (state === "find" || state === "list-menu" || state === "rows-with-notes") return { right: "inspector-nothing-selected" };
             if (state === "rename" || state === "rename-chain") return { right: "inspector-group-set-path-row/kept-2" };
             if (state === "rename-run-group") return { right: "inspector-group-set-path-row/community-3" };
@@ -745,6 +863,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "invalid-drop", label: "Invalid drop" },
             { id: "find", label: "Find results" },
             { id: "list-menu", label: "List menu" },
+            { id: "list-menu-on", label: "List menu, removed rows shown (checked)" },
             { id: "rename", label: "Renaming Group 2" },
             { id: "rename-chain", label: "Rename, Tab to the next row" },
             { id: "rename-run-group", label: "Rename refused: a run's group" },

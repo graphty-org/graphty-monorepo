@@ -1,16 +1,18 @@
 /* Bottom toolbar, version 3: five 32 px icon buttons, no text -- Analyze | Layout, View, Legend |
    Quick actions. Layout opens the graph's Layout group (AB.layoutGroup, the inspector's own
-   component) as a popover above the bar, under one line that pauses or resumes; its icon still
-   shows whether the layout is moving. Every name and key is in the one tooltip (AB.tip, via AB.toolbarButton). Select
-   and the View mode button are gone: View opens view-flyout (camera, views, 2D/3D, VR, AR). In a
-   headset the toolbar becomes the hand menu, which keeps text labels. Plain ASCII. */
+   component) as a popover above the bar, under one line that pauses or resumes. Layout's glyph is
+   "move" (arranging), never play or pause: participants read a play glyph as "play an
+   animation"; the popover's Motion line says whether it is moving. The bar's own Layout button
+   comes from AB.layoutButton in lib.js, so its glyph changes there. Every name and key is in the
+   one tooltip (AB.tip, via AB.toolbarButton). View opens view-flyout (camera, views, 2D/3D, VR,
+   AR). In a headset the toolbar becomes the hand menu, which keeps text labels. Plain ASCII. */
 (function () {
     document.head.append(h("style", null,
         ".tb-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}" +
         ".tb-annot{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}" +
         ".tb-annot a{color:inherit}" +
         ".tb-hand{width:320px;max-height:calc(100vh - 140px);overflow:auto;padding:12px;border-radius:13px;background:var(--cm-bg-menu);color:var(--cm-text-menu);color-scheme:dark;box-shadow:var(--cm-elevation-400)}" +
-        ".tb-hand-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:600}" +
+        ".tb-hand-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:550}" +
         ".tb-hand-needs{margin:0 0 8px;padding:6px 8px;border:1px dashed var(--k-menu-ink3);border-radius:8px;font-size:11px;color:var(--cm-text-menu-secondary)}" +
         ".tb-hand-needs .ab-needs{color:var(--cm-text-menu)}" +
         ".tb-hand .k-tab{color:var(--cm-text-menu-secondary)}.tb-hand .k-tab[aria-selected=true]{color:var(--cm-text-menu)}" +
@@ -22,6 +24,7 @@
         ".tb-hand-row + .tb-hand-row{border-top:1px solid var(--cm-border-menu)}" +
         ".tb-hand-row[data-dim] .tb-name{color:var(--cm-text-menu-disabled)}" +
         ".tb-hand-row .tb-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+        ".tb-hand-row .tb-sw{display:grid;place-items:center;width:28px;flex:none}" +
         ".tb-hand-row .tb-count{color:var(--cm-text-menu-secondary);font-size:11px}" +
         ".tb-hand-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;color:var(--cm-text-menu)}" +
         ".tb-hand-icon:hover,.tb-hand-icon:focus-visible{background:var(--cm-border-menu)}" +
@@ -58,7 +61,7 @@
     function toolbar(state) {
         const mode = (AB.route && AB.route.frame.mode) || "3d";
         const layout = state === "export-waiting"
-            ? TB("pause", "Layout", { tool: "Layout", disabled: "Waiting to capture the image" })
+            ? TB("move", "Layout", { tool: "Layout", disabled: "Waiting to capture the image" })
             : AB.layoutButton();
         return AB.toolbarBar([
             TB("flask-conical", "Analyze", { key: "Shift+A", popup: "dialog", go: ["analyze-popover", "open"] }),
@@ -106,11 +109,11 @@
         const multi = (cs) => h("span", { class: "ab-multi" }, cs.map((c) => AB.chit(c, true)));
         // The graph tree's top-level rows that have an eye, in paint order, Notes included; counts as the tree shows them
         const rows = [
-            { name: "Notes", swatch: icon(AB.ICON.note), count: "4", eye: true },
+            { name: "Notes", swatch: icon(AB.ICON.note), count: AB.count(4, "item"), eye: true },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), eye: true },
             { name: "Louvain", swatch: multi(["#E69F00", "#56B4E9", "#009E73"]), count: AB.count(6, "group"), eye: true },
             { name: "Shortest paths", swatch: AB.chit("#D55E00"), eye: true },
-            { name: "Watchlist", swatch: AB.chit("#CC79A7", true), count: "5", eye: true },
+            { name: "Watchlist", swatch: AB.chit("#CC79A7", true), count: AB.count(5, "node"), eye: true },
             { name: "For the report", swatch: icon("folder-open"), eye: true },
             { name: "Everything", swatch: icon("base-layer"), eye: true },
         ];
@@ -123,7 +126,7 @@
             const running = AB.layoutState === "running";
             return h("div", { class: "tb-hand-tools" },
                 hb("flask-conical", "Analyze", "last settings", { go: ["analyze-popover", "open"] }),
-                hb(running ? "pause" : "play", "Layout", running ? "Pause" : "Resume", { onClick: () => { AB.setLayout(running ? "paused" : "running"); page(false); } }),
+                hb("move", "Layout", running ? "Pause" : "Resume", { onClick: () => { AB.setLayout(running ? "paused" : "running"); page(false); } }),
                 hb(AB.ICON.mode3d, "View", "VR", { go: ["view-flyout", "3d"] }),
                 hb(AB.ICON.legend, "Legend", AB.legendOn() ? "On" : "Off", { onClick: () => AB.setLegend(!AB.legendOn()) }),
                 hb(AB.ICON.quickActions, "Quick actions", null, { go: ["commands-and-search", "quick-actions"] }),
@@ -137,7 +140,7 @@
                     const shown = solo ? solo === r : r.eye;
                     const eye = AB.tip(h("span", Object.assign({ class: "tb-hand-icon", role: "button" }, AB.act({ onClick: () => { r.eye = !r.eye; solo = null; draw(); } })), icon(r.eye ? AB.ICON.shown : AB.ICON.hidden, "lg")), (r.eye ? "Hide " : "Show ") + r.name);
                     const so = AB.tip(h("span", Object.assign({ class: "tb-hand-icon", role: "button", "aria-pressed": String(solo === r) }, AB.act({ onClick: () => { solo = solo === r ? null : r; draw(); } })), icon("target", "lg")), "Show only this row");
-                    return h("div", { class: "tb-hand-row", role: "listitem", "data-dim": shown ? null : "" }, r.swatch, h("span", { class: "tb-name" }, r.name), r.count ? h("span", { class: "tb-count" }, r.count) : null, so, eye);
+                    return h("div", { class: "tb-hand-row", role: "listitem", "data-dim": shown ? null : "" }, h("span", { class: "tb-sw" }, r.swatch), h("span", { class: "tb-name" }, r.name), r.count ? h("span", { class: "tb-count" }, r.count) : null, so, eye);
                 }));
             };
             draw();

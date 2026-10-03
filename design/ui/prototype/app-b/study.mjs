@@ -25,6 +25,10 @@
 //                                                     AB.projectCounts (register counts with AB.countSource); or if a
 //                                                     string a participant can read holds a reviewer word (skeleton,
 //                                                     not wired, not modeled, stand-in) outside a design note
+//   node app-b/study.mjs --fixes                      exit 1 unless every click-through in FIXES passes: the defects that
+//                                                     decided round 8's tier 1 tasks (a run finishing, the legend following
+//                                                     hide, solo and Move above, a size choice drawn, Add keeping layers,
+//                                                     Add label line staying in the project). Run it before a round's sessions
 //   node app-b/study.mjs --shoot [--dark] <route> ... participant-view PNGs: shots/app-b/<section>--<state>[--dark].png
 //   node app-b/study.mjs --task <id> <route> ...      a task's routes in order: shots/tasks/<id>/01.png, 02.png, ...
 //                                                     and shots/tasks/<id>/routes.json (the routes, in order). Exit 1,
@@ -36,7 +40,7 @@
 //   node app-b/study.mjs --try <out.png> <route or task:<id>> [--click "<name>" | --rclick "<name>" | --dblclick "<name>"
 //                                                     | --shift-click "<name>" | --ctrl-click "<name>" | --alt-click "<name>"
 //                                                     | --hover "<name>" | --hover-at x,y | --hover-icon <n> | --key <Key>
-//                                                     | --type "<text>" | --expect "<text>" | --expect-not "<text>"] ...
+//                                                     | --type "<text>" | --wait <ms> | --expect "<text>" | --expect-not "<text>"] ...
 //                                                     a participant's click-through: opens the route, does each step
 //                                                     in order, saves what is on screen; prints the PNG path and what a
 //                                                     participant would notice. <name> is what the control says or its
@@ -52,6 +56,7 @@
 //                                                     --type types the text into what has focus, a key at a time, and
 //                                                     exits 1 (typing nothing) when nothing that takes text has focus;
 //                                                     --expect exits 1 unless that text (role=<role>, e.g. role=menu;
+//                                                     role=<role>:<name>, e.g. role=treeitem:Louvain, named as a click names it;
 //                                                     selected=N, exactly N rows selected) is visible at that step,
 //                                                     --expect-not unless it is gone: a click-through regression, which
 //                                                     --check (direct loads) cannot see. A script error, a 404 or a
@@ -88,9 +93,9 @@ const proto = resolve(here, "..");
 const { chromium } = await import(resolve(proto, "../../../node_modules/playwright/index.mjs"));
 
 const args = process.argv.slice(2);
-const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix|counts)$/.test(a));
+const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix|counts|fixes)$/.test(a));
 if (!mode) {
-    console.error("usage: node app-b/study.mjs --list | --matrix | --counts | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click|--dblclick|--shift-click|--ctrl-click|--alt-click|--rclick|--hover name | --hover-at x,y | --hover-icon n | --key Key | --type text | --expect text]...");
+    console.error("usage: node app-b/study.mjs --list | --matrix | --counts | --fixes | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click|--dblclick|--shift-click|--ctrl-click|--alt-click|--rclick|--hover name | --hover-at x,y | --hover-icon n | --key Key | --type text | --expect text]...");
     process.exit(2);
 }
 const dark = args.includes("--dark");
@@ -161,6 +166,8 @@ if (mode === "--counts") {
     // "Filtered: " before a count; a reduction written "a to b nodes" or "a -> b" (with a count beside it)
     const PART = /["'`]Filtered:\s*["'`]?\s*\+\s*(?:AB\.|A\.)?(?:count|fx|num)|["'`]Filtered:\s*[\d$]|\}\s*(?:to|->)\s*\$\{[^}]*\}\s*(?:nodes?|edges?|rows?)\b|\)\s*\+\s*["'`]\s*->\s*["'`]\s*\+\s*(?:AB\.)?(?:num|count|n|fmt)\(|(?:num|count|fmt|\bn)\([^()]*\)\)\s*,\s*icon\(["']arrow-right["']/;
     const BANNED = /within 1%|near #|not used yet|Change\.\.\./;
+    // A delete notice worded its own way: "Louvain and " + n + " communities", ", its 6 communities and ..."
+    const DELETE_OWN = /deleted\([^)]*\band\s*["'`]\s*\+(?!\s*(?:AB|A)\.count\()|["'`][^"'`\n]*\bits \d+ [a-z]/;
     const bad = [];
     for (const f of (await readdir(join(here, "sections"))).filter((x) => x.endsWith(".js")).sort()) {
         // comments may cite the fixtures' numbers: block comments keep their line breaks, line comments go
@@ -181,6 +188,8 @@ if (mode === "--counts") {
                 if (deep.has(Number(t[1]))) bad.push(`sections/${f}:${i + 1}: "${t[0].trim()}" types the fixture count ${t[1]} by hand; read it from the fixture`);
             }
             // a part of a whole is "60 of 77 nodes", from AB.count(n, noun, { of }), on every surface
+            const dl = code.match(DELETE_OWN);
+            if (dl) bad.push(`sections/${f}:${i + 1}: "${dl[0].slice(0, 60)}" words a delete notice its own way; a tree row's Delete is AB.deleteRow(name), any other names its count with AB.count`);
             const w = code.match(PART);
             if (w) bad.push(`sections/${f}:${i + 1}: "${w[0]}" writes a part of a whole its own way; use AB.count(n, noun, { of })`);
             // a project's counts have one reader, the shell's, which adds every Remove from data
@@ -229,8 +238,9 @@ async function contextFor(narrow) {
     if (contexts.has(narrow)) return contexts.get(narrow);
     const viewport = narrow ? { width: 1024, height: 768 } : { width: 1440, height: 900 };
     const c = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: dark ? "dark" : "light" });
-    // The participant view: design notes hidden for good ("participant": the shell draws no review bar
-    // and no Review button, and no click or key brings design notes back), and the review bar gone.
+    // The participant view: design notes and the review bar hidden ("participant"). Like any view with
+    // notes hidden, Esc with nothing open and the small Review corner button leave it; the review bar
+    // stays hidden here even then, so a click-through never shows section or state names.
     await c.addInitScript((theme) => {
         // every page starts from a clean store, so a state one route remembers (the legend off, a
         // collapsed section) never carries into the next route a run opens in the same context
@@ -416,9 +426,33 @@ async function matrix() {
     return problems.length ? 1 : 0;
 }
 
+// ---------- --fixes: the defects that decided round 8's tier 1 tasks ----------
+// Each is [what must hold, start route, --try steps]. Legend text is the check that the drawing changed:
+// the legend is the one readout of what paints.
+const FIXES = [
+    ["1. a Betweenness run from Analyze finishes, and its row lands listed and painting", "analyze-popover/open",
+        ["--click", "Betweenness#2", "--click", "role=button:Run", "--wait", "1500", "--expect", "role=treeitem:Betweenness 2", "--expect", "Color: Betweenness 2"]],
+    ["2a. hiding, showing and showing alone repaint the canvas legend", "graph-place/finished",
+        ["--hover", "role=treeitem:Betweenness 2", "--click", "Hide Betweenness 2", "--expect-not", "Color: Betweenness 2", "--click", "Show Betweenness 2", "--expect", "Color: Betweenness 2",
+            "--hover", "role=treeitem:Louvain", "--alt-click", "Hide Louvain", "--expect", "Color: Louvain"]],
+    ["2b. hiding the row that paints at rest takes its color off the canvas legend", "graph-place/at-rest",
+        ["--hover", "role=treeitem:PageRank", "--click", "Hide PageRank", "--expect-not", "Color: PageRank"]],
+    ["2c. Move above puts a covered row over the row that covered it, and the legend follows", "inspector-measure-row/covered",
+        ["--click", "Move above", "--wait", "300", "--expect", "Color: Betweenness"]],
+    ["3. a size choice on Les Miserables is committed and drawn, with its range", "inspector-selection-and-everything/everything",
+        ["--click", "Size#2", "--click", "Size by attribute", "--click", "degree", "--key", "Escape", "--wait", "300", "--expect", "Size: degree", "--expect", "2 to 12 px"]],
+    ["4. Add on the add-rows page keeps every layer and the filter", "data-page/add-rows",
+        // the transfers at rest have every filter step off, so the chip reads Full graph before and after
+        ["--click", "role=button:Add", "--wait", "2500", "--expect", "17,483", "--expect", "role=treeitem:Louvain", "--expect-not", "Analyze (Shift+A) to add results"]],
+    ["5. Quick actions' Add label line adds a label line in the project on screen", "commands-and-search/quick-actions",
+        ["--type", "Add label line", "--key", "Enter", "--wait", "600", "--expect", "Pick an attribute", "--expect", "Les Miserables", "--expect-not", "IT estate"]],
+    ["the Label '+' with no label drawn adds a label line at once, with no Show labels", "inspector-selection-and-everything/everything",
+        ["--click", "Add label line", "--wait", "300", "--expect", "Pick an attribute", "--expect-not", "Show labels"]],
+];
+
 // ---------- --try: a participant's steps ----------
 const CLICKS = { "--click": {}, "--hover": {}, "--rclick": { button: "right" }, "--dblclick": {}, "--shift-click": { modifiers: ["Shift"] }, "--ctrl-click": { modifiers: ["Control"] }, "--alt-click": { modifiers: ["Alt"] } };
-const STEPS = new Set([...Object.keys(CLICKS), "--hover-at", "--hover-icon", "--key", "--type", "--expect", "--expect-not"]);
+const STEPS = new Set([...Object.keys(CLICKS), "--hover-at", "--hover-icon", "--key", "--type", "--expect", "--expect-not", "--wait"]);
 // The key names keyboard.press knows (case matters: "Space", not "space"), each part of a chord such as Control+Shift+z
 const KEYS = new Set(["Shift", "Control", "Alt", "Meta", "ControlOrMeta", "Enter", "Tab", "Backspace", "Delete", "Escape", "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
     "Home", "End", "PageUp", "PageDown", "Insert", "ContextMenu", ...Array.from({ length: 12 }, (_, i) => "F" + (i + 1))]);
@@ -431,6 +465,7 @@ function refuse(list) {
         if (v === undefined) return `--try: ${a} needs a value`;
         if (a === "--hover-at" && !/^\d+,\d+$/.test(v)) return `--try: --hover-at takes x,y in pixels, not "${v}"`;
         if (a === "--hover-icon" && !/^[1-9]\d*$/.test(v)) return `--try: --hover-icon takes a number from 1, not "${v}"`;
+        if (a === "--wait" && !/^\d{1,5}$/.test(v)) return `--try: --wait takes milliseconds, not "${v}"`;
         if (a === "--key" && !keyOk(v)) return `--try: --key takes a key name such as Enter, Space, Escape, ArrowDown, F2, a, or a chord such as Control+f; not "${v}"`;
     }
     return null;
@@ -505,7 +540,10 @@ async function run(page, list, errors = []) {
                 if (seen !== (a === "--expect")) code = 1;
                 continue;
             }
-            const loc = v.startsWith("role=") ? page.getByRole(v.slice(5)) : page.getByText(v, { exact: false });
+            // role=<role>, or role=<role>:<name> as a click names a control (an exact name first, else a partial one)
+            const rn = v.match(/^role=([a-z]+)(?::(.+))?$/);
+            const byRole = async () => { for (const exact of [true, false]) { const l = page.getByRole(rn[1], { name: rn[2], exact }); if ((await l.filter({ visible: true }).count()) > 0) return l; } return page.getByRole(rn[1], { name: rn[2] }); };
+            const loc = rn ? (rn[2] ? await byRole() : page.getByRole(rn[1])) : page.getByText(v, { exact: false });
             // text in a field counts too: what --type put in a query or a name is on screen
             seen = (await loc.filter({ visible: true }).count()) > 0 || (!v.startsWith("role=") && await page.evaluate((w) => [...document.querySelectorAll("input, textarea")].some((f) => f.checkVisibility() && f.value.includes(w)), v));
             if (seen !== (a === "--expect")) { console.log(`${a === "--expect" ? "expected on screen, not there" : "expected gone, still on screen"}: "${v}"`); code = 1; }
@@ -530,6 +568,9 @@ async function run(page, list, errors = []) {
             await page.mouse.move(at[0], at[1]);
             await page.waitForTimeout(800);
             console.log(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+        } else if (a === "--wait") {
+            // what the app does on its own after a moment (a run finishing, a load landing)
+            await page.waitForTimeout(+v);
         } else if (a === "--key") {
             await page.keyboard.press(v);
             await page.waitForTimeout(400);
@@ -553,7 +594,7 @@ async function run(page, list, errors = []) {
 
 let code = 0;
 try {
-    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark|matrix|counts)$/.test(a));
+    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark|matrix|counts|fixes)$/.test(a));
     if (mode === "--list") {
         const { page } = await open("map");
         const rows = await page.evaluate(() => AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))).flatMap((id) => {
@@ -659,6 +700,20 @@ try {
         }
     } else if (mode === "--matrix") {
         code = await matrix();
+    } else if (mode === "--fixes") {
+        // The five defects that decided round 8's tier 1 tasks, each as a participant's click-through.
+        // Run before a round's sessions: until every line is ok, those tasks measure the prototype.
+        let bad = 0;
+        for (const [name, r, list] of FIXES) {
+            console.log(`-- ${name}`);
+            const { page, errors } = await open(r);
+            const got = await run(page, list, errors);
+            await page.close();
+            console.log(`${got ? "FAIL" : "ok  "} ${name}`);
+            if (got) bad++;
+        }
+        console.log(`${bad} of ${FIXES.length} fixes failed`);
+        if (bad) code = 1;
     } else if (mode === "--try") {
         // --try <out.png> <route> then steps; a step that finds nothing is reported and the run goes on.
         const out = rest[0];

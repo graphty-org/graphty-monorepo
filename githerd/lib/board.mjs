@@ -85,9 +85,20 @@ function endReason(state, claim, now, startedAt) {
 export function targetsConflict(a, b) {
     if (a === b) return true;
     if (!a.startsWith("path:") || !b.startsWith("path:")) return false;
-    const pa = a.slice(5).replace(/\/+$/, "");
-    const pb = b.slice(5).replace(/\/+$/, "");
+    const pa = trimSlashes(a.slice(5));
+    const pb = trimSlashes(b.slice(5));
     return pa === pb || pa.startsWith(`${pb}/`) || pb.startsWith(`${pa}/`);
+}
+
+/**
+ * A path without its trailing slashes.
+ * @param {string} path the path
+ * @returns {string} the path
+ */
+function trimSlashes(path) {
+    let end = path.length;
+    while (end > 0 && path[end - 1] === "/") end--;
+    return path.slice(0, end);
 }
 
 /**

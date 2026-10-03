@@ -275,19 +275,28 @@ function runs(raw) {
         }
     }
     if (caps !== undefined) {
-        for (const [kind, cap] of Object.entries(object(caps, "runs.caps"))) {
-            if (!NAME.test(kind)) fail(`runs.caps.${kind}: a run kind is lowercase letters, digits and "-"`);
-            const at = `runs.caps.${kind}`;
-            onlyKeys(object(cap, at), ["turns", "budgetUsd", "timeoutMinutes"], `${at}.`);
-            for (const key of ["turns", "budgetUsd", "timeoutMinutes"]) {
-                if (cap[key] === undefined) fail(`${at}.${key} is required`);
-            }
-            out.caps[kind] = numbers(cap, { turns: 0, budgetUsd: 0, timeoutMinutes: 0 }, at, {
-                budgetUsd: { min: 0.01, integer: false },
-            });
-        }
+        for (const [kind, cap] of Object.entries(object(caps, "runs.caps"))) out.caps[kind] = runCap(kind, cap);
     }
     return out;
+}
+
+/**
+ * One run kind's caps under `runs.caps`: turns, budgetUsd and timeoutMinutes, all required.
+ * @param {string} kind the run kind
+ * @param {unknown} cap its caps
+ * @returns {any} the checked caps
+ */
+function runCap(kind, cap) {
+    if (!NAME.test(kind)) fail(`runs.caps.${kind}: a run kind is lowercase letters, digits and "-"`);
+    const at = `runs.caps.${kind}`;
+    const raw = /** @type {any} */ (cap);
+    onlyKeys(object(raw, at), ["turns", "budgetUsd", "timeoutMinutes"], `${at}.`);
+    for (const key of ["turns", "budgetUsd", "timeoutMinutes"]) {
+        if (raw[key] === undefined) fail(`${at}.${key} is required`);
+    }
+    return numbers(raw, { turns: 0, budgetUsd: 0, timeoutMinutes: 0 }, at, {
+        budgetUsd: { min: 0.01, integer: false },
+    });
 }
 
 /**
@@ -399,7 +408,11 @@ export function normalizeConfig(input) {
 }
 
 const run = (cwd, ...args) =>
-    execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    execFileSync(
+        "git", // NOSONAR(S4036): the owner's git from his own PATH, as tools/ runs it
+        args,
+        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
 
 /**
  * The main checkout's root, the same from every worktree: the real path of the parent of the git

@@ -50,7 +50,7 @@ export function identify(pid) {
  */
 export function sameProcess(record, { cmdlineIncludes } = {}) {
     const now = identify(record.pid);
-    if (!now || now.startTime !== record.startTime || now.bootId !== record.bootId) return false;
+    if (now?.startTime !== record.startTime || now?.bootId !== record.bootId) return false;
     if (cmdlineIncludes === undefined) return true;
     let cmdline;
     try {

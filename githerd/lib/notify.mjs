@@ -53,7 +53,7 @@ const SEVERITY = ["info", "done", "waiting", "error"];
  * @returns {string} the cleaned message
  */
 function clean(message) {
-    const ascii = message.replace(/\s+/g, " ").replace(/[^\x20-\x7e]/g, "?");
+    const ascii = message.replaceAll(/\s+/g, " ").replaceAll(/[^\x20-\x7e]/g, "?");
     return ascii.length > MAX_MESSAGE ? `${ascii.slice(0, MAX_MESSAGE - 3)}...` : ascii;
 }
 
@@ -67,7 +67,7 @@ function clean(message) {
 function buildArgv(command, status, message) {
     return command.map((arg) => {
         const expanded = arg === "~" || arg.startsWith("~/") ? homedir() + arg.slice(1) : arg;
-        return expanded.replace(/\{(status|message)\}/g, (_, name) => (name === "status" ? status : message));
+        return expanded.replaceAll(/\{(status|message)\}/g, (_, name) => (name === "status" ? status : message));
     });
 }
 

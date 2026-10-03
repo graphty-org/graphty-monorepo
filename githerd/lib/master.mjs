@@ -77,11 +77,27 @@ export function updateLane(name, saved, runs, config, now) {
     };
     /** @type {LaneRecord} */
     const lane = { ...prev, inFlight: {}, shas: { ...prev.shas } };
-    /** @type {LaneEvent[]} */
-    const events = [];
     const sorted = [...runs].sort(newestFirst);
+    recordShas(lane, sorted);
+    const events = trackInFlight(lane, prev, sorted, name, config.lanes[name], now);
 
-    // What each recent commit's newest run says; the verdict and greenSha are read from this.
+    const done = sorted.find((r) => r.status === "completed");
+    const backwards =
+        done &&
+        prev.runId !== null &&
+        (done.id < prev.runId || (done.id === prev.runId && done.run_attempt < prev.attempt));
+    if (!done || backwards) return { lane, events };
+    applyDone(lane, prev, done, name, at, events);
+    return { lane, events };
+}
+
+/**
+ * Records what each recent commit's newest run says (the verdict and greenSha are read from this),
+ * keeping the last SHA_MEMORY commits.
+ * @param {LaneRecord} lane the record being built
+ * @param {WorkflowRun[]} sorted the runs, newest first
+ */
+function recordShas(lane, sorted) {
     const seen = new Set();
     for (const r of sorted) {
         if (seen.has(r.head_sha)) continue;
@@ -91,9 +107,24 @@ export function updateLane(name, saved, runs, config, now) {
     }
     const keys = Object.keys(lane.shas);
     for (const k of keys.slice(0, Math.max(0, keys.length - SHA_MEMORY))) delete lane.shas[k];
+}
 
-    const laneConfig = config.lanes[name];
+/**
+ * Records the runs in flight, and a `lane-stuck` event once for a gating lane's run queued or
+ * running past `maxMinutes`.
+ * @param {LaneRecord} lane the record being built
+ * @param {LaneRecord} prev the record from the last poll
+ * @param {WorkflowRun[]} sorted the runs, newest first
+ * @param {string} name the lane id
+ * @param {{gating: string, maxMinutes: number | null} | undefined} laneConfig the lane's config
+ * @param {number} now the poll's time
+ * @returns {LaneEvent[]} the events
+ */
+function trackInFlight(lane, prev, sorted, name, laneConfig, now) {
+    const at = new Date(now).toISOString();
     const maxMs = (laneConfig?.maxMinutes ?? DEFAULT_MAX_MINUTES) * 60_000;
+    /** @type {LaneEvent[]} */
+    const events = [];
     for (const r of sorted) {
         if (r.status === "completed") continue;
         const entry = { ...(prev.inFlight?.[r.id] ?? { sha: r.head_sha, firstSeenAt: at }) };
@@ -111,14 +142,20 @@ export function updateLane(name, saved, runs, config, now) {
         }
         lane.inFlight[r.id] = entry;
     }
+    return events;
+}
 
-    const done = sorted.find((r) => r.status === "completed");
-    const backwards =
-        done &&
-        prev.runId !== null &&
-        (done.id < prev.runId || (done.id === prev.runId && done.run_attempt < prev.attempt));
-    if (!done || backwards) return { lane, events };
-
+/**
+ * Applies the newest completed run: green at once, red only on a second sighting of the same
+ * attempt and conclusion; any other conclusion leaves the verdict as it was.
+ * @param {LaneRecord} lane the record being built
+ * @param {LaneRecord} prev the record from the last poll
+ * @param {WorkflowRun} done the newest completed run
+ * @param {string} name the lane id
+ * @param {string} at the poll's time, ISO
+ * @param {LaneEvent[]} events gets `lane-green` or `lane-red`
+ */
+function applyDone(lane, prev, done, name, at, events) {
     const outcome = classify(done.conclusion);
     const ref = {
         lane: name,
@@ -134,32 +171,30 @@ export function updateLane(name, saved, runs, config, now) {
         conclusion: done.conclusion,
         updatedAt: done.updated_at ?? at,
     });
-    if (outcome === "green") {
+    if (outcome !== "red") {
+        // Green, or cancelled, skipped, neutral, action_required: the previous verdict stands.
         lane.pendingRed = null;
+        if (outcome !== "green") return;
         lane.verdict = "green";
         if (prev.verdict !== "green") events.push({ event: "lane-green", ...ref });
-    } else if (outcome === "red") {
-        const p = prev.pendingRed;
-        const second = p && p.runId === done.id && p.attempt === done.run_attempt && p.conclusion === done.conclusion;
-        const confirmed = prev.verdict === "red" && prev.runId === done.id && prev.attempt === done.run_attempt;
-        if (second) {
-            lane.pendingRed = null;
-            lane.verdict = "red";
-            if (prev.verdict !== "red") events.push({ event: "lane-red", ...ref });
-        } else if (!confirmed) {
-            lane.pendingRed = {
-                runId: done.id,
-                attempt: done.run_attempt,
-                conclusion: done.conclusion,
-                sha: done.head_sha,
-                seenAt: at,
-            };
-        }
-    } else {
-        // cancelled, skipped, neutral, action_required: the previous verdict stands.
-        lane.pendingRed = null;
+        return;
     }
-    return { lane, events };
+    const p = prev.pendingRed;
+    const second = p?.runId === done.id && p.attempt === done.run_attempt && p.conclusion === done.conclusion;
+    const confirmed = prev.verdict === "red" && prev.runId === done.id && prev.attempt === done.run_attempt;
+    if (second) {
+        lane.pendingRed = null;
+        lane.verdict = "red";
+        if (prev.verdict !== "red") events.push({ event: "lane-red", ...ref });
+    } else if (!confirmed) {
+        lane.pendingRed = {
+            runId: done.id,
+            attempt: done.run_attempt,
+            conclusion: done.conclusion,
+            sha: done.head_sha,
+            seenAt: at,
+        };
+    }
 }
 
 /**

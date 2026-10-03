@@ -16,7 +16,7 @@ import type { EdgeId, LayoutId, NodeId, RunId, Scope, SetId } from "../../catalo
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
-import type { RunRecord } from "../runs/types";
+import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
@@ -105,6 +105,11 @@ export interface RunEntry {
     readonly held?: HeldCaptures;
     /** Whether auto-apply has painted it. */
     readonly painted: boolean;
+    /**
+     * What auto-apply decided to paint on its first completion (`runs.painting`). Absent for an
+     * entry recorded without a decision.
+     */
+    readonly painting?: RunPainting;
     /** Whether its id was derived rather than author-assigned. */
     readonly derived: boolean;
     /** Whether the graph changed while it computed. */

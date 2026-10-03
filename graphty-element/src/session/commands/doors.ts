@@ -1391,7 +1391,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             bindings: READ,
-            landing: READ,
+            painting: READ,
             queue: READ,
         },
     },

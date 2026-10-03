@@ -114,6 +114,9 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
+// What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
+export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
+
 // Notes: text people write about the graph, as `element.session.notes`
 export type {
     Note,

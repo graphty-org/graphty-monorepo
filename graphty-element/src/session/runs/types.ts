@@ -18,7 +18,6 @@
 
 import type {
     AlgorithmKey,
-    Channel,
     EdgeId,
     EdgeReading,
     FieldDescriptor,
@@ -30,6 +29,7 @@ import type {
     ScopeInput,
     SetId,
 } from "../../catalog/types";
+import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
@@ -660,23 +660,67 @@ export interface RunRemoval {
 }
 
 /**
- * What a run's suggested style did when it landed on the style stack.
+ * What became of one style suggestion a run made when it first completed.
  *
- * A run paints itself on its first completion, and a reader who is not told what that changed
- * looks at the old picture and never sees the new result. This is what a consumer reads to say
- * "Louvain now colors the drawing; PageRank moved below", or "held back: your layer already colors
- * every node".
+ * Branch on `outcome` and keep a default branch: more outcomes may be added in a minor release.
+ * Ids only, never names, so a consumer looks a layer or run up live (`styles.get(id)`,
+ * `runs.get(id)`) and words the result itself.
  */
-export interface RunLanding {
-    /** The channels the run's own layers paint, in stack order. */
-    readonly applied: readonly Channel[];
+export type SuggestionOutcome =
+    | {
+          /** The suggestion was added to the style stack. */
+          readonly outcome: "painted";
+          readonly suggestion: StyleSuggestion;
+          /** The layers it added: one for an encoding, one per half for a highlight. */
+          readonly layerIds: readonly LayerId[];
+          /**
+           * Set when it was placed directly beneath a hand-written layer that drives one of its
+           * channels on some elements, so that layer still shows there.
+           */
+          readonly beneathLayerId?: LayerId;
+      }
+    | {
+          /** Not added: a hand-written layer already drives this channel on every element. */
+          readonly outcome: "suppressed";
+          readonly suggestion: StyleSuggestion;
+          /** That layer. */
+          readonly byLayerId: LayerId;
+      }
+    | {
+          /** Not added: a later member of the same batch suggested the same channel. */
+          readonly outcome: "merged";
+          readonly suggestion: StyleSuggestion;
+          /** The batch member whose suggestion for this channel was used instead. */
+          readonly intoRunId: RunId;
+      }
+    | {
+          /** Not added: the style stack refused it. The same error went to `style:problem`. */
+          readonly outcome: "refused";
+          readonly suggestion: StyleSuggestion;
+          /** The code of that error. */
+          readonly code: GraphtyErrorCode;
+      };
+
+/**
+ * What the element decided to paint for a run when it first completed.
+ *
+ * A snapshot of that one decision, kept with the run so undo and redo carry it. It does not track
+ * later edits to the stack; `styles.legend()` and `styles.explain()` answer what shows now.
+ */
+export interface RunPainting {
     /**
-     * Suggestions held back because a layer somebody wrote already paints that channel on every
-     * element, each with the layer that holds it.
+     * Where the decision stands. More states may be added in a minor release.
+     *
+     * - `"decided"`: `suggestions` is the decision; empty when the run had nothing to draw.
+     * - `"pending"`: the run has not finished, or it is a batch member and the batch has not.
+     * - `"opted-out"`: started with `style: false`.
+     * - `"not-succeeded"`: it failed or was cancelled.
+     * - `"no-styles"`: this session has no style stack.
+     * - `"restored"`: the run was recorded without a decision, so none is known.
      */
-    readonly withheld: readonly { readonly channel: Channel; readonly byLayer: LayerId }[];
-    /** Channels this run now paints over another run's layer, each with that run. */
-    readonly tookOver: readonly { readonly channel: Channel; readonly from: RunId }[];
+    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "restored";
+    /** One entry per suggestion; empty unless `state` is `"decided"`. */
+    readonly suggestions: readonly SuggestionOutcome[];
 }
 
 /**
@@ -740,16 +784,16 @@ export interface RunsApi {
      */
     bindings(id: RunId): readonly LayerId[];
     /**
-     * What a finished run's suggested style applied, held back, or took over.
+     * What the element decided to paint when a run first completed: one outcome per style
+     * suggestion the run made.
      *
-     * Read once the run has finished: `await runs.start(...)`, then `runs.landing(run.id)`.
-     * `applied` and `tookOver` describe the style stack as it stands now, so a layer removed or
-     * moved since is reflected; `withheld` is what was decided on the run's first completion.
+     * Readable as soon as `await run` returns. A re-run keeps the first decision, because a
+     * re-run does not repaint. `"painted"` means the layer was added, not that it is visible:
+     * a layer added later may cover it, which `styles.legend()` shows.
      * @param id - The run id.
-     * @returns The report, or undefined for a run this session does not hold or that has not
-     *     succeeded.
+     * @returns The decision, or undefined when this session holds no run with that id.
      */
-    landing(id: RunId): RunLanding | undefined;
+    painting(id: RunId): RunPainting | undefined;
     /** The runs waiting to start, in queue order. */
     readonly queue: readonly QueueEntry[];
 }

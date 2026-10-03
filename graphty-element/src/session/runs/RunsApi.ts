@@ -46,8 +46,16 @@ import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
-import { type AutoApplyPolicy, type PaintHold, suggestionCommand } from "../styles/autoApply";
+import {
+    authoredDriving,
+    type AutoApplyPolicy,
+    bare,
+    idOf,
+    type PaintHold,
+    suggestionCommand,
+} from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
+import type { Layer } from "../styles/Layer";
 import {
     ManagedRun,
     type RunBody,
@@ -80,8 +88,8 @@ import {
     type ResolvedScope,
     type Run,
     type RunChange,
-    type RunLanding,
     type RunOptions,
+    type RunPainting,
     type RunPhase,
     type RunRemoval,
     type RunsApi,
@@ -89,6 +97,7 @@ import {
     type RunSpec,
     type StaleNote,
     type StartOptions,
+    type SuggestionOutcome,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -305,12 +314,57 @@ export interface SessionRunsApi extends RunsApi {
 /** What a run with no captures keeps. */
 const NO_HELD: HeldCaptures = new Map();
 
-/** What a run landed as in a session with no style stack: nothing. */
-const NO_LANDING: RunLanding = Object.freeze({
-    applied: Object.freeze([]),
-    withheld: Object.freeze([]),
-    tookOver: Object.freeze([]),
-});
+/** A run whose decision is not made yet. */
+const PENDING: RunPainting = bare("pending");
+
+/** A run recorded without a decision. */
+const RESTORED: RunPainting = bare("restored");
+
+/**
+ * The layers a style command added, read off what it resolved with: one layer for an encoding,
+ * one per half for a highlight.
+ * @param outcome - What the command resolved with.
+ * @returns Their ids.
+ */
+function addedLayers(outcome: unknown): LayerId[] {
+    const result = typeof outcome === "object" && outcome !== null && "result" in outcome ? outcome.result : undefined;
+
+    return [result]
+        .flat()
+        .filter((layer): layer is Layer => typeof layer === "object" && layer !== null && "id" in layer)
+        .map((layer) => layer.id);
+}
+
+/**
+ * What became of a suggestion that was added: its layers, and the hand-written layer it was
+ * placed directly beneath, if any.
+ * @param suggestion - The suggestion.
+ * @param outcome - What its command resolved with.
+ * @param stack - The stack after it, bottom first.
+ * @returns The outcome.
+ */
+function paintedOutcome(suggestion: StyleSuggestion, outcome: unknown, stack: readonly Layer[]): SuggestionOutcome {
+    const layerIds = Object.freeze(addedLayers(outcome));
+    const top = Math.max(...layerIds.map((id) => stack.findIndex((layer) => layer.id === id)));
+    const above = top < 0 ? undefined : stack[top + 1];
+
+    return Object.freeze({
+        outcome: "painted",
+        suggestion,
+        layerIds,
+        ...(above !== undefined && authoredDriving(above, suggestion.channels) ? { beneathLayerId: above.id } : {}),
+    });
+}
+
+/**
+ * What became of a suggestion the stack refused.
+ * @param suggestion - The suggestion.
+ * @param error - Why.
+ * @returns The outcome, carrying the code `style:problem` carried.
+ */
+function refusedOutcome(suggestion: StyleSuggestion, error: unknown): SuggestionOutcome {
+    return Object.freeze({ outcome: "refused", suggestion, code: isGraphtyError(error) ? error.code : "E_INTERNAL" });
+}
 
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,
@@ -617,6 +671,15 @@ class Runs implements SessionRunsApi {
     private readonly holds = new Map<RunId, PaintHold>();
 
     /**
+     * What a batch decided for its members when it released their hold. Kept beside the runs
+     * slice rather than in it, because the release paints through the batch's transaction after
+     * each member's entry is written; `painting()` reads it for an entry still marked pending.
+     * Undo takes the members' entries away with the batch, and redo brings back entries this
+     * still answers for.
+     */
+    private readonly released = new Map<RunId, RunPainting>();
+
+    /**
      * Runs that are not listed although their handle lives on: removed while still going, or
      * cancelled by an undo before they were recorded. Listed again once a run of theirs starts,
      * or a redo brings their entry back.
@@ -808,12 +871,29 @@ class Runs implements SessionRunsApi {
         return Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
     }
 
-    landing(id: RunId): RunLanding | undefined {
-        if (this.get(id)?.status !== "succeeded") {
+    /**
+     * What the element decided to paint when a run first completed.
+     * @param id - The run id.
+     * @returns The decision, or undefined when this session holds no run with that id.
+     */
+    painting(id: RunId): RunPainting | undefined {
+        const run = this.get(id);
+
+        if (run === undefined) {
             return undefined;
         }
 
-        return this.options.styling?.landing(id) ?? NO_LANDING;
+        const entry = this.dispatcher.state.runs.get(id);
+
+        if (entry === undefined) {
+            return run.status === "failed" || run.status === "canceled" ? bare("not-succeeded") : PENDING;
+        }
+
+        if (entry.painting?.state === "pending") {
+            return this.released.get(id) ?? entry.painting;
+        }
+
+        return entry.painting ?? (this.options.styling === undefined ? bare("no-styles") : RESTORED);
     }
 
     /**
@@ -1347,7 +1427,13 @@ class Runs implements SessionRunsApi {
         const decision = this.options.styling?.completed(run, prior?.painted === true, hold) ?? {
             painted: prior?.painted === true,
             paint: [],
+            painting: bare("no-styles"),
         };
+
+        if (decision.painting !== undefined) {
+            // A fresh first completion: whatever an earlier batch decided for this id is gone.
+            this.released.delete(run.id);
+        }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
             record: run.record,
@@ -1355,6 +1441,8 @@ class Runs implements SessionRunsApi {
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),
             painted: decision.painted,
+            // A re-run keeps the decision of its first completion.
+            ...(prior?.painting === undefined ? {} : { painting: prior.painting }),
             derived: this.derivedIds.has(run.id),
             stale: ctx.state.graph.token !== token,
         });
@@ -1362,7 +1450,16 @@ class Runs implements SessionRunsApi {
 
         try {
             draft.runs.set(run.id, entry);
-            this.paint(draft, run.id, decision.paint);
+            const outcomes = this.paint(draft, run.id, decision.paint);
+
+            if (decision.painting !== undefined) {
+                // Written after the layers, which need the run's entry to bind to.
+                const painting: RunPainting = Object.freeze({
+                    state: decision.painting.state,
+                    suggestions: Object.freeze([...decision.painting.suggestions, ...outcomes]),
+                });
+                draft.runs.set(run.id, Object.freeze({ ...entry, painting }));
+            }
 
             if (command.applySuggestedStyles === true) {
                 this.applySuggested(draft, run);
@@ -1378,21 +1475,30 @@ class Runs implements SessionRunsApi {
      * @param draft - The draft.
      * @param runId - The run they come from.
      * @param suggestions - What to paint.
+     * @returns What became of each.
      */
-    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): void {
+    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): SuggestionOutcome[] {
         const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
-            return;
+            return [];
         }
 
-        for (const suggestion of suggestions) {
+        return suggestions.map((suggestion) => {
             try {
-                styles.execute(suggestionCommand(suggestion, true), draft);
+                const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+
+                return paintedOutcome(
+                    suggestion,
+                    outcome,
+                    draft.styles.map((each) => each.layer),
+                );
             } catch (error) {
                 this.options.styling?.refused(runId, error);
+
+                return refusedOutcome(suggestion, error);
             }
-        }
+        });
     }
 
     /**
@@ -1749,11 +1855,8 @@ class Runs implements SessionRunsApi {
                     }
                 }
 
-                for (const suggestion of hold?.release() ?? []) {
-                    const runId = typeof suggestion.spec.run === "string" ? suggestion.spec.run : label;
-                    await via(suggestionCommand(suggestion, true)).catch((error: unknown) => {
-                        this.options.styling?.refused(runId, error);
-                    });
+                if (hold !== undefined) {
+                    await this.release(hold, via);
                 }
             };
 
@@ -1784,6 +1887,43 @@ class Runs implements SessionRunsApi {
                 ...(partial ? { partialReason: `${completed} of ${specs.length} members finished.` } : {}),
             };
         };
+    }
+
+    /**
+     * Paint what a batch held, and record for each member what became of its suggestions.
+     * @param hold - The batch's hold.
+     * @param via - The batch's transaction.
+     */
+    private async release(hold: PaintHold, via: DispatchFunction): Promise<void> {
+        const { paint, settled, members } = hold.release();
+        const outcomes = new Map<RunId, SuggestionOutcome[]>(members.map((id) => [id, []]));
+        const record = (outcome: SuggestionOutcome): void => {
+            outcomes.get(idOf(outcome.suggestion.spec.run))?.push(outcome);
+        };
+
+        settled.forEach(record);
+
+        for (const suggestion of paint) {
+            const runId = idOf(suggestion.spec.run);
+
+            try {
+                const outcome = await via(suggestionCommand(suggestion, true));
+                record(
+                    paintedOutcome(
+                        suggestion,
+                        outcome,
+                        this.dispatcher.state.styles.map((each) => each.layer),
+                    ),
+                );
+            } catch (error) {
+                this.options.styling?.refused(runId, error);
+                record(refusedOutcome(suggestion, error));
+            }
+        }
+
+        for (const [id, suggestions] of outcomes) {
+            this.released.set(id, Object.freeze({ state: "decided", suggestions: Object.freeze(suggestions) }));
+        }
     }
 
     /**

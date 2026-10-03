@@ -1,512 +1,193 @@
 # githerd implementation plan
 
-Builds the design in `design/githerd/githerd-design.md` (section numbers below refer to it). Each
-task is sized for one agent, lands as its own conventional commit with scope `githerd`, and is
-testable on its own. Tasks inside a milestone run in the listed order unless a task says it can run
-in parallel.
+This plan builds `githerd-design.md` (section numbers below refer to it). It has two parts:
 
-Rules for every task:
+1. **Spikes**: every platform or GitHub behavior the design leans on that has not been verified on
+   this machine. Each is a short experiment with a pass condition and a fallback that the design
+   already names. A spike runs before the first task that depends on it, and its result is written
+   into `evidence/platform-facts.md` or `evidence/repo-facts.md`, so the design's citation moves from
+   `[S n]` to a verified fact.
+2. **Milestones**: independently testable tasks, in order. Each task lands as its own signed
+   conventional commit with scope `githerd`.
 
-- Plain `.mjs` with JSDoc types, Node standard library only (no runtime dependencies), modeled on
-  `visual-review/`. Tests are vitest in node (`githerd/test/*.test.mjs`).
-- The package's coverage thresholds are 80% lines, functions and statements and 75% branches;
-  `pnpm exec nx run githerd:coverage`, `pnpm exec nx run githerd:lint` and
-  `./tools/run-knip.sh --workspace githerd` must pass at the end of every task.
-- Tests that create git repositories isolate git config through `GIT_CONFIG_GLOBAL`, reusing
-  `visual-review/test/helpers.mjs`, so the owner's global `commit.gpgsign=true` never applies.
-- Tests that spawn processes kill every process group they started in `afterEach` and assert that
-  none is left. Timing is asserted by what was or was not called, not by wall-clock thresholds.
+The code on branch feat/githerd predates the design. Section 13 of the design says what each module
+keeps and loses; tasks below name the module they rework.
+
+## Rules for every task
+
+- Plain `.mjs` with JSDoc types, Node standard library only, modeled on `visual-review/`. Tests are
+  vitest in node (`githerd/test/*.test.mjs`). Coverage 80 percent lines, functions and statements,
+  75 percent branches; `pnpm exec nx run githerd:coverage`, `githerd:lint` and
+  `./tools/run-knip.sh --workspace githerd` pass at the end of every task.
+- Tests that create git repositories isolate git config through `GIT_CONFIG_GLOBAL`
+  (`visual-review/test/helpers.mjs`). Tests that spawn processes kill what they started and assert
+  nothing is left. Timing is asserted by what was called, never by wall-clock thresholds.
 - Never run git stash, reset, checkout of a file, clean or rebase. Scratch files go in
-  `tmp/githerd/<task>/`.
-- No test touches the real GitHub, the real servherd or the real `claude` unless the task says it
-  is a manual smoke test; those use dry-run and a dollar cap.
-- Nothing posts to GitHub until the owner merges a config change that turns an `actions` group on.
-
-## Milestone 1: daemon, launcher, status and paging, in dry-run
-
-Outcome: every Claude session in the repository gets `githerd_status`, `githerd_claim`,
-`githerd_release`, `githerd_report`, `githerd_escalate` and `githerd_resolve`; the owner's phone
-hears about a red master once per incident and by the paging policy; nothing on GitHub changes.
-
-### 1.1 Package scaffold
-
-- Files: `githerd/package.json` (`"name": "@graphty/githerd"`, `"private": true`, `"type":
-  "module"`, `bin: { "githerd": "bin/githerd.mjs" }`, scripts copied from visual-review,
-  devDependencies at visual-review's versions), `githerd/project.json` (nx `test`, `coverage`,
-  `lint`; no build), `githerd/tsconfig.json`, `githerd/vitest.config.mjs`, `githerd/README.md`,
-  `githerd/CLAUDE.md` (no runtime dependencies, the dry-run invariant, never real gh writes in
-  tests), `githerd/lib/version.mjs` (reads `version.json` next to `bin/` when present, else
-  `package.json`).
-- Root edits: `pnpm-workspace.yaml`, `eslint.config.js`, `knip.config.ts`,
-  `tools/ci-test-matrix.mjs` (a `githerd` shard), `commitlint.config.js` (scope `githerd`),
-  `.gitignore` (`/.githerd/`, `/.githerd-dev/`), root `package.json` devDependency, CLAUDE.md
-  (Package Directory row, CI Test Shards list, Monorepo Structure line).
-- Tests: `test/smoke.test.mjs` -- `version.mjs` prefers `version.json` over `package.json`.
-- Done: `pnpm install` clean; `./tools/run-tests.sh githerd` and `tools/prepush.sh` pass.
-
-### 1.2 Config
-
-- Files: `githerd/lib/config.mjs`: `CONFIG_FILE`, `DEFAULTS`, `normalizeConfig` (strict, unknown
-  and forbidden keys rejected, repository lists merged onto the default protected lists, `incidents`
-  requirement of design section 13), `repoRoot()` (realpath of the git common dir's parent),
-  `defaultBranch(root)` (from `git symbolic-ref refs/remotes/origin/HEAD`), `resolveConfig(root,
-  env)` in the order of design section 3.4, `effectiveMode(config, override)` (only lowers).
-  `githerd.config.json` at the repository root with graphty's values.
-- Tests: `test/config.test.mjs` -- `GITHERD_CONFIG` wins; otherwise the default branch's file is
-  read from a temporary repository with a bare remote; neither yields "not configured"; a working
-  tree edit is ignored; defaults filled; unknown and forbidden keys rejected; a list cannot drop a
-  default protected path; an override of `paused` lowers `acting` and `acting` is ignored;
-  graphty's real file validates.
-- Done: tests pass.
-
-### 1.3 Schema validator, MCP core and outgoing-text check
-
-- Files: `githerd/lib/schema.mjs` (the keywords of design section 3), `githerd/lib/mcp.mjs`
-  (`initialize`, `tools/list`, `tools/call` with validation and `isError`, `ping`, -32601, no reply
-  to notifications), `githerd/lib/text.mjs` (`assertAscii`, `checkOutgoing` with the secret and
-  attribution patterns of design section 14).
-- Tests: `test/schema.test.mjs`, `test/mcp.test.mjs`, `test/text.test.mjs` (each secret pattern,
-  each attribution line, an environment value whose name contains TOKEN).
-- Done: tests pass.
-
-### 1.4 GitHub client with dry-run gate
-
-- Files: `githerd/lib/github.mjs`: `createGitHub({repo, exec, mode, ledger, rate})` with `get(path,
-  {fresh})` (in-memory ETag plus the body it validates; `fresh` sends no ETag), `graphql(query,
-  vars)` (refuses mutations), `write()` and `mutate()` (dry-run or paused: `would-do`; acting:
-  perform and log `action`; both run `checkOutgoing`), the rate rules of design section 6.3
-  including the secondary-limit back-off and the credential classification, 60 second timeouts,
-  `downSince` bookkeeping. `githerd/test/helpers/fake-gh.mjs` records every call and exposes
-  `writes()`.
-- Fixtures: trimmed copies of `tmp/githerd/spikes/github-work/*.out` in `githerd/test/fixtures/`.
-- Tests: `test/github.test.mjs` -- ETag sent and its body returned on 304; a new client sends no
-  ETag; `fresh` sends none; rate back-off at 1000 and 300; a secondary-limit 403 backs off and
-  doubles; a 403 without rate headers is a credential failure; dry-run `write()` never calls
-  `exec`; a body with `ghp_` is refused in acting mode.
-- Done: tests pass.
-
-### 1.5 State store, ledger and process identity
-
-- Files: `githerd/lib/store.mjs`: `loadState` (state, then `.bak`, then empty with the recovery
-  flags of design section 5.8; newer schema read-only; older migrated after a copy), `saveState`
-  through one promise chain with unique temporary names, `appendLedger`, `readLedger` (torn last
-  line skipped), monthly rotation. `githerd/lib/proc.mjs`: `identify(pid)` returning `{pid,
-  startTime, bootId}` from `/proc`, `sameProcess(record, {cmdlineIncludes})`.
-- Tests: `test/store.test.mjs` (round trip; torn file falls back; both corrupt start empty; two
-  concurrent saves leave a valid file; newer schema refused), `test/proc.test.mjs` (a live child
-  matches; a changed start time or boot id does not; cmdline check).
-- Done: tests pass.
-
-### 1.6 Master lanes and verdict
-
-- Files: `githerd/lib/master.mjs`: `updateLane`, `masterVerdict` (with `greenSha` and `pending`),
-  `stuckLaneRuns(lanes, config, now)`, `findSuspects`, `releaseState`.
-- Tests: `test/master.test.mjs` from fixtures -- newest completed picked; older id ignored; red
-  needs two sightings; green on first; re-run attempt replaces; cancelled GPU keeps the verdict;
-  Hosts absent is fine; `greenSha` stays on the verified commit while newer ones are in flight; a
-  run queued past `maxMinutes` is reported once; release failed, stalled, and stalled only by a
-  stuck lane.
-- Done: tests pass.
-
-### 1.7 Pull requests and why-stuck
-
-- Files: `githerd/lib/prs.mjs`: `updatePrs(saved, nodes, master, config)`, conflict sightings,
-  required-context verdict, `decideBreaking(title, commits, truncated)`, files matched against
-  `protectedPaths` and `noAutoMergePaths`, owner gate and reject marker, stacked detection,
-  `whyStuck` in the order of design section 6.5.
-- Tests: `test/prs.test.mjs` -- UNKNOWN never changes state; the #519 and #490 shapes are
-  "conflicting"; breaking from a `feat(x)!:` title, a `fix(y)!:` commit subject under a plain
-  title, `BREAKING CHANGE` and `BREAKING-CHANGE` footers, and a 250-commit list; a head not yet
-  checked counts as breaking; a reject block newer than the head sets `ownerRejected`; every
-  why-stuck reason has a case; a live session on the PR's branch shows "worked by session".
-- Done: tests pass.
-
-### 1.8 Issues and merged pull requests
-
-- Files: `githerd/lib/issues.mjs` (high-water mark, PR items dropped, paging),
-  `githerd/lib/merged.mjs` (merged search parse, changed paths accumulated, closing references,
-  `rankForRefresh(issues, paths)` by mentions of changed paths or their leading directories).
-- Tests: `test/issues.test.mjs`, `test/merged.test.mjs` -- high-water never moves back; the #365
-  fixture (389 files, truncated to 100) still yields paths; closed-by references are excluded; an
-  issue naming a changed file ranks above one naming only its top directory.
-- Done: tests pass.
-
-### 1.9 Claims, sessions and escalations
-
-- Files: `githerd/lib/board.mjs`: `claim`, `release`, `expire(now, startedAt)`, `heartbeat`,
-  `report`, `escalate`, `resolve`, `resolveDerived`; `fixPr` accepted from sessions only.
-- Tests: `test/board.test.mjs` -- second holder refused with details; renew; expiry; dead session
-  lapses; after a daemon restart a session gets one interval before lapsing; anyone may release a
-  dead holder's claim; path prefix conflict; a run token cannot set `fixPr`; escalation dedupe;
-  derived escalation clears.
-- Done: tests pass.
-
-### 1.10 Notifier and paging policy
-
-- Files: `githerd/lib/notify.mjs`: runs `notify.command` off the caller's path with a 15 second
-  timeout, `{status}` and `{message}` substituted, no shell, `~` expanded; per-key sent marks; up
-  to 3 retries per key; `maxPerHour` folding with the bypass list; `brokenSince` after 3 failures in
-  a row. `githerd/lib/paging.mjs`: `pagesFor(event, state, config)` implementing the table and rules
-  of design section 5.5.
-- Tests: `test/notify.test.mjs` with a fake command that appends its argv to a file (one alert per
-  key; a hanging command is killed at 15 s and retried; the third failure sets `brokenSince`; the
-  cap folds escalations but not master-red; a null command only logs), `test/paging.test.mjs`
-  (master red pages `waiting` at once with runs off, and only after the run ends when a run will
-  handle it; `error` at 2 hours; recovered is `info` and only after a page; session escalations
-  never page; run-failed, denied, blocked and release kinds never page; visual-review is batched;
-  digest and daily notices are `info`).
-- Done: tests pass.
-
-### 1.11 Session tools and status text
-
-- Files: `githerd/lib/tools.mjs`: the six session tools of design section 7.1 as pure functions
-  over a state object; the status text, with items by authors other than the owner shown by number and author
-  only, run text prefixed `[run text]`, and the PHONE ALERTS BROKEN banner; `format: "json"`.
-- Tests: `test/tools.test.mjs` -- each tool's happy path and refusals; the status example of design
-  section 7.1 from a fixture state; another author's PR title is not shown; the banner leads every tool
-  result while notifications are broken.
-- Done: tests pass.
-
-### 1.12 Daemon: HTTP server and poll loop
-
-- Files: `githerd/bin/githerd-daemon.mjs`, `githerd/lib/daemon.mjs` (`startDaemon({root, port,
-  exec, now, env})`: bind 127.0.0.1, write `daemon.json` with identity, the fence before every poll
-  and write, `/health` with the fields of design section 3.2, `/rpc`, `/heartbeat`; the poll loop
-  with skip-if-busy and `loopTickAt`; the calls of design section 6; config re-read with the
-  last-valid fallback; git with `GIT_TERMINAL_PROMPT=0` and timeouts; events and paging through
-  1.6-1.10; daily alive notice; startup notify check; SIGTERM handling of design section 3.2).
-- Tests: `test/daemon.test.mjs` -- `/health` fields; `tools/list` has the six tools; a scripted
-  timeline (green, red once, red twice, old run, recovered) pages exactly once and logs the right
-  events; a restart in the middle of the timeline keeps the lane verdict on the first poll after
-  it; an invalid config on master keeps the last valid one and escalates once; a daemon whose
-  `daemon.json` names another live daemon exits without writing; SIGTERM leaves a valid state file;
-  the dry-run fake gh records zero writes across the timeline.
-- Done: tests pass; with `GITHERD_CONFIG` set, `node githerd/bin/githerd-daemon.mjs` runs one poll
-  against the real repository in a scratch state directory (manual) and prints a sane status.
-
-### 1.13 Launcher
-
-- Files: `githerd/bin/githerd-mcp.mjs`, `githerd/lib/launcher.mjs`: immediate `initialize` and
-  `tools/list`; `ensureDaemon()` in the background exactly as design section 3.1 (root, config,
-  run mode, warm path on `codeHash` and `loopTickAt`, the upgrade wait on `runsInFlight`, `git
-  archive` into `versions/<version>-<hash8>/` with `version.json`, `start` for a new hash and
-  `restart` for a wedged loop, pm2 autorestart turned on after every `start`, the rename-based lock
-  steal, the 15 minute restart limit, the timeout's log line and page); the stdio proxy with a 45
-  second wait; heartbeats keyed on `process.ppid` that run `ensureDaemon()` on failure; quiet exit
-  outside a git repository.
-- Tests: `test/launcher.test.mjs` with `test/helpers/fake-servherd.mjs` (spawns the command
-  detached, records pids, returns "existing" for an unchanged command, implements `restart`):
-  `initialize` answers while the fake servherd sleeps 20 s; cold start; warm reuse without calling
-  servherd; five launchers against a stale lock make exactly one servherd call; a lock without
-  `owner.json` younger than 60 s is not stolen; after a `start` the daemon's pm2 process is
-  re-created with autorestart on (a fake pm2 records it); a hung-but-online daemon gets `restart`, not
-  `start`; a stale `lastPollOkAt` alone causes no restart; a new hash waits while a run is in
-  flight; a worktree's local code never becomes the daemon; a killed daemon returns after a failed
-  heartbeat; with `GITHERD_URL` set servherd is never called; stdout holds only JSON-RPC lines.
-- Manual smoke (`githerd/scripts/smoke-launcher.sh`): five-at-once against the real servherd under
-  a scratch name; removes its entry at the end.
-- Done: tests pass; the smoke script prints one daemon pid and leaves no entry or process.
-
-### 1.14 CLI
-
-- Files: `githerd/bin/githerd.mjs`: `status`, `ledger`, `runs`, `run <id>`, `mode`, `ack`, `veto`,
-  `ensure`, `restart`, `dev`, `doctor [--send-test]` with the checks of design section 12
-  (including the signed `git commit-tree -S` with a 10 second timeout, the code hash, supervision
-  as pm2 autorestart on the daemon's process, and the deploy-key fingerprint warning).
-- Tests: `test/cli.test.mjs` against a daemon on port 0 -- each command's output and exit code;
-  `mode acting` is refused; `doctor` reports a missing gh, a hanging signer and a missing notify
-  command; `dev` uses the `githerd-dev` name and `.githerd-dev/`.
-- Done: tests pass.
-
-### 1.15 Registration and the coordination rule
-
-- Files: `.mcp.json`; CLAUDE.md gains the paragraph of design section 19 and a short "githerd"
-  subsection pointing at `githerd/README.md`; the README documents the prerequisites of design
-  section 17.
-- Verification (manual, in the PR description): in a new worktree from `./tools/worktree-new.sh`,
-  record whether Claude Code asks to approve the githerd server, and that a session lists the
-  tools before the daemon is up.
-- Done: a session in the worktree lists the githerd tools and `githerd_status` answers.
-
-### 1.16 Dry-run soak, part one
-
-- Precondition: the owner's prerequisites of design section 17 (notify credentials, MCP approval).
-- Run the daemon on the real repository with `GITHERD_CONFIG` set (until the config is on master)
-  for at least 72 hours.
-- Pass criteria: zero writes outside `would-do`; every master red and recovery in the window paged
-  as the policy says, checked against the Actions history, and at least one red incident replayed
-  from fixtures through the live daemon if none happened; no lane verdict moved backwards; rate use
-  under 5%; no orphan processes; the daemon killed by hand once with a session open and once with
-  none, with the recovery time recorded; after one container restart, the daemon came back when
-  the first session opened (there is no cron or systemd to bring it back sooner).
-- Retire `tmp/master-watch/watch.sh` and `stuck-prs.sh` once the soak passes.
-- Done: the soak results are in the PR description.
-
-## Milestone 2: judgment runs, run prompts and re-triage, in dry-run
-
-Outcome: events that need judgment start bounded, credential-free headless runs; the first weekly
-digest shows a full re-triage pass; every write is recorded, not performed.
-
-### 2.1 Runner and isolation
-
-- Files: `githerd/lib/runner.mjs`: the run directory (`mcp.json`, `settings.json` with the guard on
-  Bash, Edit and Write, the sandbox request and deny rules, attribution off and auto-memory off;
-  `run-gitconfig`; `result.schema.json`; `prompt.md`), the allowlisted environment, the argv of
-  design section 9.3 with `--tools` per kind, detached spawn, `stream.jsonl`, the init check
-  (mode, one server, tool list), immediate kill on backgrounding, timeout and process-group kill,
-  outcome classification, spend (full budget without a result line), admission against spend plus
-  running budgets with the master-red share, `interrupted` and `lost` handling with process
-  identity, the servherd leftover check. `githerd/test/helpers/fake-claude.mjs`.
-- Tests: `test/runner.test.mjs` -- the child environment is exactly the allowlist (no `PUSHOVER_*`,
-  no `GH_TOKEN`); argv uses `--tools` and pre-approves only the read tools and `mcp__githerd`; a
-  read-only kind whose init lists Bash is killed; init in `default` mode is killed; a denial with
-  exit 0 escalates; `error_max_turns` fails; a backgrounded call is killed at once; a hang is
-  killed at the timeout and charged its full budget; two runs admitted together cannot exceed the
-  cap; one master-red run always fits; a shutdown marks runs `interrupted` and consumes no attempt.
-- Manual verification, $0.50 cap, recorded in `githerd/CLAUDE.md`: (1) `--settings` works with
-  `--setting-sources project,local` and the guard fires; (2) whether the repository CLAUDE.md loads;
-  (3) a sandboxed Bash run cannot read `~/.config/gh/hosts.yml`, cannot run `git credential fill`
-  successfully, and cannot reach `api.github.com`; (4) from a run spawned by the servherd-managed
-  daemon, `timeout 30 git commit -S` in a scratch repository finishes within 10 seconds; (5) the
-  attribution setting keeps Co-Authored-By out of a run's commit. (3) is checked only where
-  bubblewrap and socat are installed: the sandbox is defense in depth, and code-editing kinds run
-  without it (design section 9.3). If (4) fails, code-editing kinds stay off.
-- Done: tests pass and the manual answers are recorded.
-
-### 2.2 Guard hook
-
-- Files: `githerd/bin/githerd-guard.mjs` (one try/catch that exits 2 on any error),
-  `githerd/lib/shellwords.mjs`.
-- Tests: `test/guard.test.mjs` -- a table of at least 60 commands: every `git push` spelling, `gh`,
-  `curl api.github.com`, `ssh`, `git credential`, stash, reset, switch, restore, clean, rebase,
-  checkout (denied), `git checkout MERGE_HEAD -- visual-baselines/x.png` during a merge in a
-  pr-conflict run (allowed) and outside a merge (denied), unsigned commits, commit messages with
-  each attribution line, `servherd`, `pm2`, `nohup`, `setsid`, a trailing `&`, `pnpm run dev`,
-  `storybook`, publish commands; Edit and Write to each protected path; malformed JSON input and an
-  unreadable run directory (denied); allowed commands (`git commit -S -m "fix: x"`, `pnpm exec nx
-  run x:test`, `git merge <sha>`).
-- Done: tests pass.
-
-### 2.3 Run-only tools
-
-- Files: `githerd/lib/run-tools.mjs`: the tools of design section 7.2 with per-kind visibility, the
-  token check, the write cap, the marker, `checkOutgoing`, batch-only targets for label, comment
-  and propose, label sets limited to types, priorities and efforts, `githerd_gh_get` path and named
-  query rules, search qualifier stripping and pacing, every answer filtered to the owner's
-  text with a count of what was hidden (task 2.10), ledger filtering of run-written fields, `githerd_finish_branch` handing
-  off to the actor.
-- Tests: `test/run-tools.test.mjs` -- hidden without a token, rejected with a wrong one; a
-  code-editing kind does not see `githerd_gh_get` or search; `repos/other/x` and
-  `repos/<repo>/actions/secrets` are refused; `repo:other/x` in a search is stripped; a label outside
-  the three sets (`master-fix`, `gpu`, `blocked`) is refused; a target outside the batch is refused;
-  another author's comment is absent from a backlog run's context; a code-editing run's ledger slice has
-  no summaries; the eleventh write is refused; dry-run writes are `would-do`.
-- Done: tests pass.
-
-### 2.4 githerd-owned worktrees and checked pushes
-
-- Files: `githerd/lib/worktrees.mjs` (create from the green SHA or a PR branch, run `worktreeSetup`,
-  the `.claude`/`CLAUDE.md`/`.mcp.json` diff check before a PR run, record, remove only recorded
-  ones without `--force`, log failures), `githerd/lib/actor/push.mjs` (the checks of design section
-  8.3 and the push, recording `pushedByGitherd`).
-- Tests: `test/worktrees.test.mjs` and `test/actor-push.test.mjs` on temporary repositories with a
-  bare remote -- an unsigned commit is refused; an attribution line is refused; a change to
-  `githerd.config.json` or `.claude/` is refused; a visual-baseline file reset to the green SHA's
-  bytes passes; a merge whose parent is not the given green SHA is refused; a diff with `ghp_` is
-  refused; a PR branch that changed `.claude/` gets no run; a source scan finds no stash, reset,
-  checkout, clean or rebase; dry-run pushes nothing.
-- Done: tests pass.
-
-### 2.5 Run prompts
-
-- Files: `githerd/prompts/preamble.md` and `githerd/prompts/playbooks/*.md` for the nine kinds of
-  design section 18 (generic, plain ASCII); `.claude/githerd-rules.md` with graphty's rules.
-- Tests: `test/prompts.test.mjs` -- every kind has a playbook; the files are ASCII; the preamble
-  contains the ACTION NEEDED ban, the background ban, the never-push rule and the untrusted-input
-  rule; the runner's `prompt.md` includes the rules file read from a given SHA, not the working
-  tree.
-- Done: tests pass.
-
-### 2.6 Dispatcher
-
-- Files: `githerd/lib/dispatch.mjs`: the table of design section 10, the limits of section 10.1,
-  the priority queue, debounce, claim and session-branch ownership, the 30 minute recent-head skip,
-  the 15 minute master-red hold, the agent-ready rubric by author only, batching.
-- Tests: `test/dispatch.test.mjs` -- one test per row; a fake run that leaves a new head on every
-  attempt stops at 3 pr-fix runs; a conflict that survives master moving stops at 2; a second
-  master-red run starts only when the failing jobs change; 4 runs per PR per 24 hours; an
-  outside push resets the PR limits and a githerd push does not; a PR whose head branch a live
-  session reports gets no run; a master-red run is skipped when a session claims `master` during
-  the hold; another author's issue that a run labeled is never agent-ready; `blocked` and
-  `needs-*` are excluded.
-- Done: tests pass.
-
-### 2.7 Weekly re-triage
-
-- Files: `githerd/lib/retriage.mjs`: GraphQL export, batches, `runsPerHour`, the weekly budget,
-  resume after restart, the candidate-to-filter hand-off, at most 3 duplicate candidates per issue.
-- Tests: `test/retriage.test.mjs` -- paging over a 202-issue fixture; batch boundaries; schedule;
-  resume; a rejected candidate never becomes a proposal; a confirmed one does; a fourth duplicate
-  candidate is dropped.
-- Done: tests pass.
-
-### 2.8 Real-run smoke
-
-- `githerd/scripts/smoke-runs.sh`, dry-run, real repository, $3 total: one `triage` run on 3 recent
-  issues, one `master-red` run replayed from a recorded red CI run, one `pr-conflict` run on a
-  scratch PR fixture, and one re-triage batch of 10 issues.
-- Done: each run ends `done` or `escalated` with a valid result; `permission_denials` is empty; the
-  ledger shows only `would-do` writes; where bubblewrap and socat are installed, the sandbox
-  check of 2.1 holds inside the master-red run;
-  no `claude`, launcher or servherd leftover remains. A read-only run whose issues need nothing
-  may end `nothing-to-do`, which is also a valid result.
-- On this container the Bash sandbox cannot run (no `bwrap` or `socat`). The code-editing steps
-  run anyway, unsandboxed, and the summary lists the missing commands; the sandbox check runs once
-  both are installed. The triage step picks only the owner's issues.
-
-### 2.9 Dry-run soak, part two
-
-- One week in dry-run with runs on and `dryRunDailyBudgetUsd` 5, including one full re-triage pass
-  on its weekly budget.
-- Done: no run ended `init-mismatch` or `backgrounded`; spend stayed under the caps; no limit in
-  section 10.1 was exceeded; the digest lists the re-triage results and every escalation.
-
-### 2.10 Owner-only input
-
-The defense against malicious code is trusted input plus githerd-checked pushes, not the Bash
-sandbox (design sections 9.3 and 14).
-
-- Files: `githerd/lib/github.mjs` (`login()`: `gh api user`); `githerd/lib/daemon.mjs` (the login
-  asked every poll into `state.trust`, null at start, no runs and a `login-unresolved` escalation
-  while unresolved, the owner gate's reject marker from the owner's comments only);
-  `githerd/lib/board.mjs` (`byOwner`); `githerd/lib/dispatch.mjs`, `githerd/lib/prs.mjs` and
-  `githerd/lib/retriage.mjs` (only the owner's issues and PRs, only the owner's comments);
-  `githerd/lib/run-tools.mjs` (every answer filtered to the owner's text, with a `hidden` count);
-  `githerd/lib/tools.mjs` (the TRUST status line); `githerd/lib/config.mjs` (`trustedAuthors`
-  removed and rejected); `githerd/lib/runner.mjs` (no sandbox refusal; "Sandbox disabled" is a
-  logged note).
-- Tests: an issue and a PR by another author, a bot or a deleted account get no run of any kind;
-  another author's comment on the owner's issue never appears in a run tool's output or the
-  re-triage export; the login comes from the client, not the config, and `trustedAuthors` is
-  rejected; an unresolved login blocks every run and escalates; code-editing runs start without
-  bwrap or socat; the skipped and hidden counts appear in status.
-- Done: tests pass. The weekly digest (task 3.6) lists the same counts.
-
-### 2.11 Prioritization
-
-The owner's work-prioritization strategy (design section 10.2): one deterministic queue, each
-position explainable in one line, no weighted score.
-
-- Files: `githerd/lib/queue.mjs` (the work queue: cross-kind order, PRs oldest first with quick
-  unblockers ahead, stacked PRs waiting for their base, the owner's waiting list, issues by
-  priority, bug, age and effort, aging capped at high, unlabeled issues triaged first, the skips,
-  the open-PR cap, the owner-applied `githerd:next` and `githerd:skip`); `githerd/lib/dispatch.mjs`
-  (release before PR runs, PR runs and the backlog run in queue order, the `backlog-high` profile
-  for effort:high, a run that can never fit the day waits without stopping the pass);
-  `githerd/lib/runner.mjs` (model and caps by profile); `githerd/lib/config.mjs`
-  (`backlog.wipCap` default 3, `backlog.agingDays`, `backlog.efforts` removed, `backlog-high`
-  defaults); `githerd/lib/tools.mjs` (`githerd_next`, the `queue` status section);
-  `githerd/lib/daemon.mjs` (override labels checked against the issue's events);
-  `githerd/lib/issues.mjs` (`createdAt`); `githerd/lib/run-tools.mjs` (`githerd_split_issue`, the
-  flake record); `githerd/prompts/playbooks/backlog.md` (split, never ask the owner about size);
-  the coordination rule in the repository's CLAUDE.md.
-- Tests: `test/queue.test.mjs` -- the cross-kind order; PRs oldest first, a stacked PR waits for
-  its base, owner-waiting PRs listed and not worked, quick unblockers first; the issue order
-  (priority, then bug, then age, then effort); aging capped at high; unlabeled issues triaged
-  first; the skips; the open-PR cap; overrides only with `ownerLabels`. `test/dispatch.test.mjs`
-  -- a stuck release starts before a PR fix; PR runs oldest first; effort:high gets the
-  `backlog-high` profile and no escalation; a never-fitting run does not stop the pass.
-  `test/runner.test.mjs` -- `backlog-high` gives opus and the larger caps. `test/tools.test.mjs` --
-  two concurrent `githerd_next` calls get different items, each claimed; taken and held items are
-  skipped; status shows the queue with reasons. `test/run-tools.test.mjs` -- `githerd_split_issue`
-  in dry-run records `would-do` lines and in acting mode writes. `test/daemon.test.mjs` -- the
-  override labels count only when the owner applied them, and the events are read again only when
-  the record changes.
-- Done: tests pass.
-
-## Milestone 3: the actor and acting
-
-Outcome: githerd acts, one `actions` group at a time. Tasks 3.1 and 3.2 land before milestone 2 so
-acting step 1 can follow the first soak; the rest follow milestone 2.
-
-### 3.1 Gate and heartbeat statuses
-
-- Files: `githerd/lib/actor/status.mjs`: `githerd/gate` per design section 8 (red master, breaking
-  or unchecked head, the master-fix record ignoring githerd's own `master-fix` label), the hourly
-  `githerd/alive` status; `.github/workflows/githerd-watchdog.yml` (every 30 minutes, fails when
-  master's head has no `githerd/alive` newer than 90 minutes).
-- Tests: `test/actor-status.test.mjs` -- no post while unknown; one post per change; failure text
-  names the red SHA; a breaking head gets failure; the fix PR gets success while red; a `master-fix`
-  label githerd added is ignored; alive at most hourly; dry-run records only.
-- Done: tests pass.
-
-### 3.2 Auto-merge, breaking hold, labels and branch updates
-
-- Files: `githerd/lib/actor/merge.mjs`: auto-merge with `expectedHeadOid` under the rules of design
-  section 8 (checked head, `noAutoMergePaths`, the owner's PR, stacked); breaking hold and the
-  grouped `decision` escalation; `update-branch` only when master's head is `greenSha`, once per
-  (head, green SHA), at most 3 per poll; label bootstrap.
-- Tests: `test/actor-merge.test.mjs` -- each rule and exclusion; a PR touching `githerd/` never gets
-  auto-merge; a head changed since the check is not enabled; update-branch is refused while
-  `pending`; the refire is capped per poll; dry-run records only.
-- Done: tests pass.
-
-### 3.3 Visual review
-
-- Files: `githerd/lib/actor/visual.mjs`: start or reuse `ownerGate.reviewServer` through servherd,
-  read its URL, keep the batched `visual-review` escalation, start the pr-fix run on a reject.
-- Tests: `test/actor-visual.test.mjs` with the fake servherd -- one server for many PRs; one page per
-  new PR, folded per poll; the escalation clears when the gate passes.
-- Done: tests pass.
-
-### 3.4 Proposals, grace, vetoes and execution
-
-- Files: `githerd/lib/actor/proposals.mjs`: label and comment, the 15 minute veto query, the two veto
-  forms, `shownToOwnerAt` and `graceUntil`, the daily new-proposal notice, the fresh pre-close
-  query, the evidence check, close with `closeAs`, the daily cap; the revert path of design section
-  8.2 (immediate `waiting` page, fresh head read, worktree from the culprit SHA, signed revert, head
-  re-read before the PR, escalate on any change, refuse a culprit touching protected paths); the
-  post-restart rule for overdue proposals.
-- Tests: `test/actor-proposals.test.mjs` -- label removed and an unmarked comment veto; a marked
-  comment does not; grace extends to 3 days after first shown; a stale cached veto answer is not
-  used for the close; a proposal citing an unmerged PR is voided; a revert where the head moved
-  between check and PR escalates; a culprit that touched `visual-baselines/` is escalated; the
-  revert happy path on a temporary repository; a proposal whose grace ended before a restart waits
-  for a fresh query and 3 more days.
-- Done: tests pass.
-
-### 3.5 Incident issue
-
-- Files: `githerd/lib/actor/incident.mjs`: open, update, close; carries the revert proposal and its
-  veto instructions.
-- Tests: `test/actor-incident.test.mjs` -- one issue per incident; comments only on change; closed on
-  recovery; dry-run records only.
-- Done: tests pass.
-
-### 3.6 Weekly digest
-
-- Files: `githerd/lib/digest.mjs`: the contents of design section 12.1 (including the skipped and
-  hidden counts of `state.trust`, as status shows them), a seeded sample, the file, the `info`
-  notice, `shownToOwnerAt` for listed proposals.
-- Tests: `test/digest.test.mjs` -- a recorded week produces the expected sections; the sample is
-  stable; the notice is under 200 characters and `info`.
-- Done: tests pass.
-
-### 3.7 Switching to acting
-
-- Files: `githerd/README.md` gains "Turning githerd on": the prerequisites and steps of design
-  section 17, with pass criteria for each step: step 1 after soak one passes; step 2 after soak two
-  passes and a week of acting step 1 with no wrong status; step 3 after a week of step 2 with no
-  `denied` push and no limit exceeded; step 4 after a week of step 3 with no vetoed proposal the
-  evidence check should have caught. `lib/rollout.mjs` checks the measurable criteria and raises the
-  `approval` escalation.
-- Tests: `test/rollout.test.mjs` -- the criteria from ledger fixtures.
-- Done: the README section exists; the step 1 config PR is ready for the owner to merge.
-
-## Order and parallelism
-
-- Milestone 1: 1.1 first; then 1.2, 1.3, 1.4, 1.5 in parallel; then 1.6 to 1.11 in parallel; then
-  1.12, 1.13, 1.14; then 1.15 and 1.16. Tasks 3.1 and 3.2 can run in parallel with 1.16.
-- Acting step 1 (statuses and PR upkeep) after 1.16 passes.
-- Milestone 2: 2.1 to 2.5 in parallel; then 2.6 and 2.7; then 2.8 and 2.9.
-- Milestone 3: 3.3 to 3.6 in parallel after 2.6; then 3.7.
+  `tmp/githerd/<task>/`. Servers only through servherd, stopped afterwards.
+- No test touches the real GitHub, servherd or `claude` unless the task says it is a spike or a
+  smoke test. Nothing writes to GitHub until its write group is `acting` (milestone 8).
+- Plain ASCII everywhere.
+
+---
+
+## Part 1. Spikes
+
+Each spike: the question, the experiment, the pass condition, the fallback if it fails, and the
+tasks that wait for it. Spikes that write to GitHub use a docs-only pull request with no version
+plan, after the reference worktree's release dry-run shows no bump, and record the cost.
+
+### Group A: GitHub (run before milestone 3)
+
+| Spike | Question and experiment | Pass | Fallback | Blocks |
+|---|---|---|---|---|
+| S1 | Does `PUT /pulls/{n}/merge` with `sha` and `merge_method: merge` refuse a moved head and enforce the ruleset? Merge a docs-only pull request once with a stale `sha` (expect 409), once with checks pending (expect refusal), once correctly | 409 on a stale head; refusal while required checks are not green; merge commit on success | Read the head immediately before merging and merge only when it equals the evaluated head; the ruleset still enforces checks | 3.2 |
+| S2 | Does `PUT /pulls/{n}/update-branch` with `expected_head_sha` work while the repository's `allow_update_branch` is false [R1]? Call it on a test pull request | Branch updated; a stale `expected_head_sha` is refused | Always use the local merge path through the push queue | 3.4 |
+| S3 | Does `PATCH /pulls/{n}` with `base=master` retarget a stacked pull request and trigger CI? Stack a test pull request on another, merge the base, retarget | Base changes; CI runs on the child | Delete the merged base branch through the API so GitHub retargets | 3.4 |
+| S4 | Does a conditional GET at zero remaining return 304 or 403? Observe when another session drains the budget, or with a throwaway token | Recorded either way | If 403: the reserve of 300 calls is kept for polls too | 1.2 |
+| S5 | Does `GET /advisories` honor `If-None-Match`? Does `sort=updated` show the braces advisory of 10-02 with its update time? | 304 on the second request; the advisory present | Activity-triggered check at most every 15 minutes | 1.4 |
+| S6 | Do check runs carry `annotations_count`, and do annotations carry the balance text, runner loss, deprecation warnings and the release gate's `::notice::` text? Read annotations of recorded release skips and GPU failures | Counts present; texts found where expected | Read the job log only; the classifier loses the annotation-only cases (recorded as residual risk) | 1.4, 3.3 |
+| S7 | Does a GPU job rejected for balance fail fast and cost nothing? Where does the text appear? Read the recorded balance failures' timings and the machine.dev billing page | Fails within minutes, no charge | No backoff re-dispatch; the item ends only on the owner's answer or a later green run | 3.3 |
+| S8 | Does `gh run rerun <run> --job <id>` on an old run re-test that run's commit, and how are attempts numbered? Re-run one job of an old green CI run | Same head sha; `run_attempt` incremented | Dispatch the workflow on the old commit (`workflow_dispatch` where the workflow allows it) | 3.3 |
+| S9 | Do queued jobs on the rented label expose `created_at` and a null `started_at` while queued? What is the worst pickup time recorded? Read the jobs list during a GPU run and the recorded month | Fields present; a pickup bound computed | A fixed 20-minute bound | 1.3 |
+| S10 | Does a GitHub App installation token have its own rate budget and can it post statuses, merge and open revert pull requests on this repository? Only after the owner answers question 2 of design 12.3 | All four work | `gh`'s token with the reserve | 3.1 |
+| S11 | Does the current token return `github-authentication-token-expiration`? Read one response's headers | Recorded either way | Absent: nothing to watch until the token type changes | 1.2 |
+
+### Group B: Claude Code (run before milestone 5, on a private tmux socket, with the configured model)
+
+| Spike | Question and experiment | Pass | Fallback | Blocks |
+|---|---|---|---|---|
+| S12 | Does a generated `--settings` file merge with the owner's user settings so that its deny rules win over his allow-all, `mcp__githerd__*` and `Bash(gh pr create:*)` run without a prompt in `--permission-mode default`, `AskUserQuestion` and `Workflow` are denied, and `enabledPlugins` turns a plugin off? | Every item holds | Ask for the rules in the committed project settings by pull request; deny through the guard instead | 5.3 |
+| S13 | Does Opus 5.5 (and Fable) obey a Stop-hook block reason? (Measured on Haiku only [PF 3.1]) | The reply carries a token from the reason | The same text goes into the doorbell after the stop | 5.6 |
+| S14 | Does `claude --resume <id>` in a new tmux window restore the conversation and fire SessionStart with source `resume`? | Both | Fresh sessions with recorded findings | 5.9 |
+| S15 | Does StopFailure fire with `rate_limit`, `overloaded`, `billing_error`, `authentication_failed`? Does UserPromptSubmit fire for tmux-typed text with the text in its input? | Both | Read the transcript's last record for errors; read user records for the nonce | 5.6 |
+| S16 | Does SessionStart with source `compact` fire and does its output reach the model? `/compact` in a probe | Model quotes the re-injected record | Re-inject on the next Stop | 5.6 |
+| S17 | Does a PostToolUse hook's `additionalContext` reach the model? | Model quotes it | News reaches the worker only through tool results and the push refusal | 5.6 |
+| S18 | With `env -i`, can a hook or the Bash tool see the Pushover variables (does the Bash tool re-source `~/.bashrc`)? Probe worker runs `env \| grep -c PUSHOVER` in Bash and in a hook | 0 in both | Banner "worker paging not isolated"; offer the owner the one-line `GITHERD_JOB` check | 5.3 |
+| S19 | What does the usage-limit screen look like (text, menu options, extra-usage state, reset time), how is a session's account identified, and is "used N% of your weekly limit" readable from a pane? Record the first real occurrence; capture with a nearly spent probe if one is available | Markers and fields recorded | Treat any unknown screen as "do not type"; the worker-hours cap stays | 5.7 |
+| S20 | Does the registry show a permission prompt raised inside a subagent? | `waiting` with `permission prompt` | Pane matching only | 5.7 |
+| S21 | Does CPU time of the session's process tree separate a long gate run from a hung command? | Grows for the gate, flat for `sleep` | Per-command bounds from the push queue plus `githerd_expect` | 5.7 |
+| S22 | Does `tmux list-clients` show which window an attached client views, on the `-L githerd` socket? | Yes | Ring only when no client is attached | 5.7 |
+| S30 | What do the known dialogs look like in a pane (permission, plan approval, pickers, update notice, MCP authentication banner)? Capture each | A marker list with a test per capture | Any unknown screen blocks typing | 5.7 |
+| S32 | What does `background_tasks` in the Stop input hold (ids, output paths)? | Output paths present | Use the session's task directory listing | 5.6 |
+| S33 | Does a PreToolUse matcher on the Agent tool receive enough to count concurrent subagents and refuse a third? | Refusal shown to the model | Deny the Agent tool for workers entirely | 5.4 |
+
+### Group C: This machine and the repository (run before milestone 2 or 4)
+
+| Spike | Question and experiment | Pass | Fallback | Blocks |
+|---|---|---|---|---|
+| S23 | Does a shared `NX_CACHE_DIRECTORY` work across worktrees (hits on the second worktree, no corruption under two concurrent builds)? | Hits and clean builds | Per-worktree cache; the push bound is raised to the cold-build time | 4.2 |
+| S24 | With `flock` added to `tools/prepush.sh`, are waiters visible in `/proc/locks` and is the lock released when the holder is SIGKILLed? | Both | Count `prepush.sh` processes | 4.1 |
+| S25 | On a container restart, does PID 1's start time change while `boot_id` stays? Observe at the next restart | As expected | Treat any unexplained pid mismatch as a restart | 1.9 |
+| S26 | With servherd passing `autorestart` and `exp_backoff_restart_delay` to pm2, does a killed daemon come back, and does the supervisord stanza bring servherd's process back after pm2 is killed? | Both | The MCP-server restarters only | 2.1 |
+| S27 | Is githubstatus.com's components JSON readable without auth, and does it name Actions? | Yes | The two-heads symptom alone | 1.4 |
+| S28 | Does `git commit-tree -S` in a scratch repository succeed non-interactively with the owner's gpg-agent from a process started like a worker? | Signed object created in under a second | Probe by a signed commit in the job's worktree on a throwaway branch | 5.2 |
+| S29 | Does a real rejects-only Finish comment match the parser? Is `visual-review update <pr>` safe to run unattended (no prompt, exits non-zero on a non-baseline conflict)? | A fixture from a real comment parses; update behaves | Owner item with the exact command for baseline-only conflicts | 3.4 |
+| S31 | Does `nx release --dry-run` in the reference worktree say whether anything would publish (version plans present or not)? | Clear yes or no | Release pending only from npm against tags and version commits | 1.6 |
+
+---
+
+## Part 2. Milestones
+
+### Milestone 1: facts, classification and decisions, as pure code over recorded data
+
+Outcome: every rule that turns GitHub facts into decisions is a pure function, and the replay suite
+proves it against the recorded month. Nothing runs against GitHub.
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 1.1 Replay harness | Copy the recorded month (`tmp/githerd-v2/incidents/`, about 2 MB) into `githerd/test/replay/data/`; a fixture builder that turns it (`runs-master.jsonl`, `runs-pr.jsonl`, `failed-jobs.jsonl`, `prs.json`, `issues.json`, the logs) into a minute-by-minute sequence of poll answers, including the two backwards answers of 10-02 | The builder's own tests; a sequence for one known day matches the record | `test/replay/` runs a scenario end to end in under a minute |
+| 1.2 Polls and sightings (`github.mjs`, `master.mjs`) | Persisted ETags; sighting keyed on (run id, run attempt, `updated_at`); `since` overlap and dedupe; rate tiers and reserve | Replay: backwards answers are no sighting; re-run attempts are seen | Idle replay days cost only 304s |
+| 1.3 Lane facts | Lane verdict for every workflow, red-since, green and CI-green commits, queue age | Replay: the 11.5-hour stretch of 10-01 gives four keys with the true red-since | Facts match the record |
+| 1.4 Classifier | The ordered classes of design 4.4 with one pattern table and a fixture per pattern from the recorded logs; drift diff of `Set up job` | One test per pattern; replay: the 10 Build and 7 Chromatic bursts become shared incidents at the second pull request; audit failures on dependency-free pull requests are master-side at the first | Every recorded failure gets a class a person agrees with (printed list reviewed in the commit) |
+| 1.5 Merge decision and stacks (`prs.mjs`) | Lines 1 to 10 and holds of design 4.6; stack chains; related set from claims and diff intersection; patch id excluding `visual-baselines/**` | Unit tests per line; replay: every merge that landed while a gating lane was red would have been held, and every other held merge is printed for review | The printed list is reviewed |
+| 1.6 Release truth | Tags against npm against version commits; release pending with the dry-run answer (stubbed until S31); gate notice reading | Fixtures for each half-state, a 409, an expired-artifact skip | Each case gives the right incident or none |
+| 1.7 Incident procedure | The outcome table of design 4.5 as a pure function of re-run results and suspects | Unit tests per row | The flaky-benchmark scenario reverts nothing |
+| 1.8 Queue and records (`queue.mjs`, `board.mjs`) | Job kinds, states, deadlines with pauses, budgets, queue order, claims with snapshot versions and cycle refusal, the invariant check | Unit tests per transition and per pause; invariant violations produce faults | Every state has a tested exit |
+| 1.9 State, liveness and fatal mode (`store.mjs`, `daemon.mjs`, `proc.mjs`) | `~/.githerd/` layout, `alive` and `progress`, start counter, lock with fixed cwd, spool, ledger replay, container restart by PID 1 start time, fatal mode on uncaught exceptions | Crash tests: kill mid-write; three starts in 10 minutes enter fatal mode; a stale lock is taken | No test leaves a process |
+| 1.10 Board and CLI read verbs (`cli.mjs`) | `status`, `board`, `why`, `mode`, reading `state.json` when the daemon is down | Snapshot tests of board text from replay states | `githerd status` answers with the daemon stopped |
+
+### Milestone 2: the read-only daemon on the real repository
+
+Outcome: githerd runs forever on this machine in dry-run, and its would-dos are compared with what
+actually happened.
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 2.1 servherd restart | In the servherd repository: an `autorestart` option (with `exp_backoff_restart_delay`) on its start command and MCP tool; through its own pull request and tests (needs S26) | servherd's tests; S26's kill test | A killed process returns |
+| 2.2 Install and launcher (`launcher.mjs`) | `githerd install` (servherd command with fixed cwd and `env -i`, the supervisord stanza text, the App steps, the notify-script line); the MCP server's `alive` check and restart lock; the pm2 re-creation workaround removed | Launcher tests with a fake servherd | One daemon after concurrent starts from three cwds |
+| 2.3 Two busy days in dry-run | Run the daemon; review the ledger's would-dos against the record: red-master detection, classification, holds, merge decisions, release truth | A written comparison in the pull request description | No would-do a person judges wrong remains unexplained |
+
+### Milestone 3: the daemon's own actions on GitHub
+
+Each task adds its write group in dry-run first; it acts only in milestone 8.
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 3.1 Write function and identity | One write function with mode gate, ledger, read-back and next-poll confirmation; App token support (after S10) | Dry-run makes zero writes; a write that does not stick is retried once and shown | Group `statuses` ready |
+| 3.2 Merge executor | One merge per reconcile with fresh re-reads and the `sha` guard (after S1); auto-merge disarming; close Mergify pull request #777 with a pointer to design 4.6 (a daemon write in group `upkeep`, done once when the group acts) | Fake GitHub tests: moved head, red lane appears between decision and merge, stray auto-merge | Group `merges` ready |
+| 3.3 Incident actions | Red-head re-run, parent re-test, revert pull request, intermittent issue, backoff re-dispatch for paid capacity, CI re-run for expired artifacts, lane-not-progressing (after S6 to S9) | Replay plus fake GitHub; the paid-lane budget is never exceeded | Group `incidents` ready |
+| 3.4 Updates and stacks | Update paths in order (review tool, update-branch, local merge through the push queue), child updates and retargets (after S2, S3, S29) | Fake repositories with stacks and baseline-only conflicts | Group `upkeep` ready |
+| 3.5 Owner items, paging and presence (`notify.mjs`) | Items on GitHub or the board, batching, change-only repeats, presence, the daily digest, "phone alerts broken" | Unit tests; replay of an absent week sends at most one digest a day | Group `owner-items` ready |
+| 3.6 Proposals | Duplicate, obsolete, already-merged and not-needed closes with confirmation and grace counted in owner-present days; vetoes | Unit tests | Group `proposals` ready |
+
+### Milestone 4: repository changes
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 4.1 Lock in the gate | `tools/prepush.sh` takes `flock` on a lock file outside every worktree and writes its holder to a sidecar file (after S24) | Two concurrent gates serialize; a killed holder releases | Merged to master |
+| 4.2 Shared Nx cache | `NX_CACHE_DIRECTORY` for workers and the daemon (after S23) | Second worktree hits the cache | Documented in `githerd/CLAUDE.md` |
+| 4.3 Project settings | Register githerd's MCP server and hooks in `.claude/settings.json`, pointing at `~/.githerd/graphty-monorepo/current/` | Owner session start prints the status line | Merged to master |
+| 4.4 Config | `githerd.config.json` with bounds for every number and the model allow list | Config tests | Merged to master |
+
+### Milestone 5: the worker platform
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 5.1 Reference worktree (`worktrees.mjs`) | Locked detached worktree at the green commit, refreshed on moves; audit exactly as `ci.yml` runs it; commitlint; release dry-run; gate on the green commit; failures are platform faults | Fake repository tests; the 10-02 advisory fixture fails the audit | Facts from it feed milestone 1's functions |
+| 5.2 Job worktrees | Detached worktrees, lock, install, Nx build, smoke test, holder detection, salvage branches, removal without `--force`, signing probe (after S28) | Fake repository tests | A failed preparation is `faulted`, never a session |
+| 5.3 Generated settings and environment | `settings.json`, `mcp.json`, `env -i` allow-list, runtime allow overlay (after S12, S18) | Snapshot tests of generated files | S12 and S18 pass with them |
+| 5.4 The guard (`bin/githerd-guard.mjs`, `shellwords.mjs`) | Every refusal of design 10.1, the write log, Edit and Write path checks, the Agent and browser caps (after S33) | One test per refusal and per allowed alternative | Guard tests pass |
+| 5.5 MCP tools (`mcp.mjs`, `schema.mjs`) | The eleven tools with schemas, protocol version, session identification | Schema tests; refused calls have no effect | Tools answer against a fake daemon |
+| 5.6 Hooks | SessionStart, UserPromptSubmit, Stop gate, StopFailure, Notification, PostToolUse news, spool and fail-open counting (after S13 to S17, S32) | Hook tests with recorded inputs from `platform/exp3*/hook-input.log` | Hooks never make a network call |
+| 5.7 tmux launcher, watchdog and doorbell | Dedicated socket, window start, registry wait, pane capture and screen matching, doorbell with verification, progress signals, recycling, steering (after S19 to S22, S30) | Tests against a fake `claude` that prints recorded screens | A doorbell is never typed into a dialog capture |
+| 5.8 Push queue (`actor/push.mjs`) | Priority queue, pushes as tracked children with hooks, gate output classification, wait state, results as news | Fake remote with a fake gate | Pushes survive a worker's death |
+| 5.9 Death and recovery | `/proc` cwd sweep, `index.lock` removal, GitHub re-read, death counting, resume or fresh (after S14) | Kill a fake worker mid-push | The job continues with correct news |
+| 5.10 Platform self-test | The checks of design 11.4 with the real command line, on its own socket | Run on this machine | Passes on Claude Code 2.1.288 |
+
+### Milestone 6: job kinds
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 6.1 Job texts | One text per kind: target, done-condition in words, findings, rules, review rubric | Snapshot tests | Reviewed for plain language |
+| 6.2 Done verification | Each kind's done-condition against GitHub, the ancestor rule, defects check | Unit tests per kind | `githerd_done` refuses every false claim in the fixtures |
+| 6.3 Owner layer | `githerd_ask_owner`, `githerd_record`, orders and policies, re-park without a page | Unit tests | Items behave as design 5.6 |
+| 6.4 Smoke test with one real worker | One `issue` job on a low-priority issue, end to end, in dry-run for merges | Manual, watched | The job ends `done` with a pull request and no owner page |
+
+### Milestone 7: self-update and configuration safety
+
+| Task | Build | Test | Done when |
+|---|---|---|---|
+| 7.1 Self-update | `versions/<sha>/`, replay gate, protocol test, self-test, rollback | A deliberately broken version rolls back | Rollback is loud |
+| 7.2 Version skew | Protocol versions; previous protocol served while old sessions live | Old client against new daemon | No attempt charged for a mismatch |
+| 7.3 Config adoption | Last-good file, replay gate, revert pull request on refusal | A harmful config (a write group to `acting` without coverage) is refused | Fatal mode only with no good config ever |
+
+### Milestone 8: rollout
+
+Write groups: `statuses`, `merges`, `upkeep`, `incidents`, `owner-items`, `proposals`, `workers`.
+A group moves to `acting` by a config change on master only after its ledger covered at least one
+real occurrence of each situation it acts on, with would-dos matching what should have happened
+(`githerd mode` shows the coverage).
+
+1. `statuses`.
+2. `merges` (closes Mergify pull request #777 first), watched for one busy day.
+3. `incidents` and `upkeep`.
+4. `owner-items`.
+5. `workers` with one slot and the self-test passing; then three.
+6. `proposals` last, because closes are the least reversible.
+
+### Dependencies at a glance
+
+Spikes in group A gate milestone 3; group B gates milestone 5; group C gates milestones 2 and 4.
+Milestone 1 starts at once: its tasks stub the answers of S4, S5, S6, S9, S11, S25, S27 and S31
+and are finished when those spikes report. Milestone 6 needs 5. Milestone 8 needs everything before
+it, and each of its steps needs only the groups before it.

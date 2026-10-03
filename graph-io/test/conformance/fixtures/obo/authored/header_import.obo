@@ -1,0 +1,6 @@
+format-version: 1.4
+ontology: t
+import: http://purl.obolibrary.org/obo/bfo.owl
+
+[Term]
+id: X:1

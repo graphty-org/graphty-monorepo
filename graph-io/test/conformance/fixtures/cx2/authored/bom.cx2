@@ -1,0 +1,7 @@
+﻿[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"name":{"d":"string"}}}]},
+{"nodes":[{"id":1,"v":{"name":"café"}},{"id":2,"v":{"name":"naïve"}}]},
+{"edges":[{"id":1,"s":1,"t":2}]},
+{"status":[{"error":"","success":true}]}
+]

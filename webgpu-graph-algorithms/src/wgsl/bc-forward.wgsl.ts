@@ -12,7 +12,9 @@
  * observes INVALID_INDEX the unique winner, which appends `t` to the log; and, as a SEPARATE condition, the COUNT:
  * every arc that reaches `t` at `level + 1` adds `sigma[s][u]` into `sigma[s][x]`, winner or not, which is what makes
  * sigma the number of shortest paths rather than of claims. The add detects a u32 wrap from `atomicAdd`'s return
- * value (`old + add < old`) and raises `sigmaOverflow` (counters word 27); the count is never clamped. The winners of
+ * value (`old + add < old`) and raises `sigmaOverflow` (counters word 27); the count is never clamped. Under
+ * `SCALED` (a batch rerun because the u32 counts wrapped) the count is skipped and `bc-count` pulls rescaled f32
+ * counts after the level instead. The winners of
  * a strip are packed into the log with one workgroup-memory counter and ONE global `atomicAdd` on `stackTop` (word
  * 26) per strip. Uniformity (spec 3.5 rule 1): the range and the aggregate are `workgroupUniformLoad`s and the strip
  * loop steps a uniform `p0`, so every barrier is in uniform control flow. The order of the log inside a level is
@@ -82,7 +84,7 @@ fn bc_forward(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
                 if (atomicLoad(&depthK[x]) == INVALID_INDEX) {       // the pre-check of design 16.1
                     won = atomicMin(&depthK[x], next) == INVALID_INDEX;   // the claim: the one winner appends
                 }
-                if (atomicLoad(&depthK[x]) == next) {                // the count: EVERY arc on a shortest path adds
+                if (!SCALED && atomicLoad(&depthK[x]) == next) {     // the count: EVERY arc on a shortest path adds
                     let add = atomicLoad(&sigmaK[origin]);
                     let old = atomicAdd(&sigmaK[x], add);
                     if (old + add < old) { atomicOr(&counters[27], 1u); }   // the u32 wrap, reported

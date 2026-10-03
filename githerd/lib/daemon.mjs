@@ -85,6 +85,7 @@ import {
     otherHolder,
     readLedger,
     readLiveness,
+    recordLines,
     recordStart,
     releaseLock,
     saveState,
@@ -443,12 +444,18 @@ export async function startDaemon({
         return write;
     };
 
+    /** @type {Record<string, Map<string, string>>} the recorded collections as last put in the ledger */
+    const recorded = {};
+
     /**
-     * Saves the state unless fenced or read-only.
+     * Saves the state unless fenced or read-only, after appending a record line to the ledger for
+     * every record that changed since the last save, so the state can be rebuilt from the ledger
+     * when both state files are lost. The first save of a process records every record once.
      * @returns {Promise<void>} resolves once saved
      */
     async function save() {
         if (!mayWrite()) return;
+        for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state);
         if (client) {
             const file = join(stateDir, "etags.json");
@@ -1464,6 +1471,10 @@ export async function startDaemon({
     if (loaded.source === "empty") {
         const summary = `state.json unreadable; githerd started empty (files kept as ${kept || "nothing"})`;
         raise({ key: "state-reset", kind: "blocked", summary, detail: loaded.errors.join("\n") });
+        page({ type: "state-reset", at: startedAt, summary });
+    } else if (loaded.source === "ledger") {
+        const summary = `state.json and its backup unreadable; githerd rebuilt jobs, claims and sessions from the ledger (files kept as ${kept || "nothing"})`;
+        raise({ key: "state-from-ledger", kind: "blocked", summary, detail: loaded.errors.join("\n") });
         page({ type: "state-reset", at: startedAt, summary });
     } else if (loaded.source === "bak") {
         raise({

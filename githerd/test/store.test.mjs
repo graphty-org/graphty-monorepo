@@ -25,6 +25,7 @@ import {
     loadState,
     readLedger,
     readLiveness,
+    recordLines,
     recordStart,
     releaseLock,
     replayLedger,
@@ -238,8 +239,38 @@ describe("ledger replay", () => {
         writeFileSync(join(dir, "state.json"), "{");
         await appendLedger(dir, record("jobs", "j1", { state: "waiting" }), { now });
         const r = await loadState(dir, { now });
-        expect(r).toMatchObject({ source: "ledger", state: { jobs: { j1: { state: "waiting" } } }, recovery: null });
+        // Partial (no incidents, proposals or rate data), so new runs are held as after an empty start.
+        expect(r).toMatchObject({
+            source: "ledger",
+            state: { jobs: { j1: { state: "waiting" } } },
+            recovery: { emptyStart: true, holdRunsUntil: new Date(NOW.getTime() + RUN_HOLD_MS).toISOString() },
+        });
         expect(r.kept).toEqual([join(dir, "state.json.corrupt-2026-10-02T15-00-00.000Z")]);
+    });
+
+    it("gets its record lines from recordLines: changed and removed ids, lists whole", async () => {
+        const last = {};
+        const state = { schema: 1, jobs: { j1: { state: "queued" } }, orders: [{ issues: [3] }], other: { x: 1 } };
+        for (const line of recordLines(state, last)) await appendLedger(dir, line, { now });
+        expect(recordLines(state, last)).toEqual([]);
+        state.jobs.j1.state = "working";
+        state.jobs.j2 = { state: "queued" };
+        state.claims = { "pr:7": { holder: "s1" } };
+        for (const line of recordLines(state, last)) await appendLedger(dir, line, { now });
+        delete state.jobs.j2;
+        state.orders.push({ issues: [4] });
+        const lines = recordLines(state, last);
+        expect(lines).toEqual([
+            { kind: "record", collection: "jobs", id: "j2", record: null },
+            { kind: "record", collection: "orders", id: "*", record: [{ issues: [3] }, { issues: [4] }] },
+        ]);
+        for (const line of lines) await appendLedger(dir, line, { now });
+        expect(await replayLedger(dir)).toEqual({
+            schema: STATE_SCHEMA,
+            jobs: { j1: { state: "working" } },
+            claims: { "pr:7": { holder: "s1" } },
+            orders: [{ issues: [3] }, { issues: [4] }],
+        });
     });
 
     it("finds nothing in a ledger without record lines", async () => {

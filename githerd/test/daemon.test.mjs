@@ -828,6 +828,26 @@ describe("unreadable state", () => {
         ]);
     });
 
+    it("rebuilds from the ledger's record lines when both files are lost, escalates and holds runs", async () => {
+        const stateDir = join(dir, ".githerd");
+        const first = await start();
+        const beat = { method: "POST", body: JSON.stringify({ session: "wt-2", cwd: "/x", branch: "feat/y" }) };
+        expect((await fetch(`${first.url}/heartbeat`, beat)).status).toBe(200);
+        await first.shutdown();
+        writeFileSync(join(stateDir, "state.json"), "{");
+        writeFileSync(join(stateDir, "state.json.bak"), "{");
+
+        clock = new Date("2026-10-02T12:05:00Z");
+        const daemon = await start();
+        expect(daemon.state.sessions["wt-2"]).toMatchObject({ cwd: "/x", branch: "feat/y" });
+        expect(daemon.state.recovery).toMatchObject({ emptyStart: true, at: clock.toISOString() });
+        expect(daemon.state.escalations["state-from-ledger"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        await daemon.flushNotifications();
+        expect(pages().filter((p) => p.message.includes("rebuilt"))).toEqual([
+            { status: "error", message: expect.stringContaining("from the ledger") },
+        ]);
+    });
+
     it("escalates without paging when it starts from the backup", async () => {
         const stateDir = join(dir, ".githerd");
         mkdirSync(stateDir);

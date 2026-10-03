@@ -102,7 +102,7 @@ async function readStateFile(file) {
  * @property {string[]} kept where each unreadable file was moved (`<name>.corrupt-<time>`), so the
  *   next save cannot overwrite it
  * @property {{emptyStart: true, at: string, holdRunsUntil: string} | null} recovery set on an
- *   empty-state start after a failure: open incidents and pending proposals are unknown, a red
+ *   empty-state or ledger-rebuilt start after a failure: open incidents and pending proposals are unknown, a red
  *   master gets a "githerd restarted" page instead of an incident page, proposals wait for a fresh
  *   veto query and a new grace period, and new runs wait until `holdRunsUntil`
  */
@@ -179,24 +179,18 @@ export async function loadState(dir, { now = () => new Date(), migrations = MIGR
         }
         return { state, source, readOnly: false, errors, kept: await keep(), recovery: null };
     }
+    const at = now();
+    // Partial either way: a rebuilt state has no incidents, proposals or rate data.
+    const recovery = {
+        emptyStart: /** @type {const} */ (true),
+        at: at.toISOString(),
+        holdRunsUntil: new Date(at.getTime() + RUN_HOLD_MS).toISOString(),
+    };
     const rebuilt = await replayLedger(dir);
-    if (rebuilt)
-        return { state: rebuilt, source: "ledger", readOnly: false, errors, kept: await keep(), recovery: null };
+    if (rebuilt) return { state: rebuilt, source: "ledger", readOnly: false, errors, kept: await keep(), recovery };
     const state = { schema: STATE_SCHEMA };
     if (missing === 2) return { state, source: "new", readOnly: false, errors, kept: [], recovery: null };
-    const at = now();
-    return {
-        state,
-        source: "empty",
-        readOnly: false,
-        errors,
-        kept: await keep(),
-        recovery: {
-            emptyStart: true,
-            at: at.toISOString(),
-            holdRunsUntil: new Date(at.getTime() + RUN_HOLD_MS).toISOString(),
-        },
-    };
+    return { state, source: "empty", readOnly: false, errors, kept: await keep(), recovery };
 }
 
 /**
@@ -346,10 +340,43 @@ export async function readLedger(dir, { since } = {}) {
     return entries.filter((e) => typeof e.ts === "string" && e.ts >= from);
 }
 
+/** The record id of a collection recorded whole (a list). */
+export const WHOLE = "*";
+
+/** The collections every save records in the ledger, so state can be rebuilt from it (9.1). */
+export const RECORDED = ["jobs", "claims", "sessions", "orders", "policies", "vetoes", "settings"];
+
+/**
+ * The record lines for what changed in the recorded collections since `last`, which it updates:
+ * one per changed or removed id, or one for a whole list that changed.
+ * @param {Record<string, any>} state the state about to be saved
+ * @param {Record<string, Map<string, string>>} last each collection's records as last recorded,
+ *   serialized; updated in place
+ * @returns {{kind: "record", collection: string, id: string, record: unknown}[]} the lines
+ */
+export function recordLines(state, last) {
+    const lines = [];
+    for (const collection of RECORDED) {
+        const value = state[collection];
+        /** @type {[string, unknown][]} */
+        const entries = Array.isArray(value) ? [[WHOLE, value]] : Object.entries(value ?? {});
+        const now = new Map(entries.map(([id, rec]) => [id, JSON.stringify(rec)]));
+        const before = last[collection] ?? new Map();
+        for (const [id, text] of now) {
+            if (before.get(id) !== text) lines.push({ kind: "record", collection, id, record: JSON.parse(text) });
+        }
+        for (const id of before.keys()) {
+            if (!now.has(id)) lines.push({ kind: "record", collection, id, record: null });
+        }
+        last[collection] = now;
+    }
+    return /** @type {any} */ (lines);
+}
+
 /**
  * Rebuilds state from the ledger's record lines, every month of them. A line
  * `{kind: "record", collection, id, record}` is the whole record after a change; `record: null`
- * removes it. Whoever changes a job, claim, session, order, policy, veto or setting appends one, so
+ * removes it. A collection kept as a list (orders, policies) is recorded whole under the id `*`. Whoever changes a job, claim, session, order, policy, veto or setting appends one, so
  * the last line per (collection, id) is the record as it was last saved.
  * @param {string} dir the state directory
  * @returns {Promise<{schema: number} & Record<string, any> | null>} the state, or null when the
@@ -362,6 +389,10 @@ export async function replayLedger(dir) {
     for (const e of await readLedger(dir, { since: new Date(0) })) {
         if (e.kind !== "record" || typeof e.collection !== "string" || typeof e.id !== "string") continue;
         found = true;
+        if (e.id === WHOLE) {
+            state[e.collection] = e.record;
+            continue;
+        }
         const records = (state[e.collection] ??= {});
         if (e.record === null) delete records[e.id];
         else records[e.id] = e.record;

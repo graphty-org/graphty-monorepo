@@ -39,8 +39,8 @@ describe("runs.painting", () => {
         const painting = session.runs.painting("deg");
 
         assert.strictEqual(painting?.state, "decided");
-        assert.deepStrictEqual(outcomes(painting?.suggestions), ["painted", "painted"]);
-        const layerIds = painting?.suggestions.flatMap((each) => (each.outcome === "painted" ? each.layerIds : []));
+        assert.deepStrictEqual(outcomes(painting?.suggestions), ["added", "added"]);
+        const layerIds = painting?.suggestions.flatMap((each) => (each.outcome === "added" ? each.layerIds : []));
         assert.deepStrictEqual(layerIds, [...session.runs.bindings("deg")]);
         session.dispose();
     });
@@ -75,18 +75,18 @@ describe("runs.painting", () => {
         await session.runs.start("degree", {}, { as: "deg" });
         const [only] = session.runs.painting("deg")?.suggestions ?? [];
 
-        assert.strictEqual(only.outcome, "painted");
-        assert.strictEqual(only.outcome === "painted" ? only.beneathLayerId : undefined, mine.id);
+        assert.strictEqual(only.outcome, "added");
+        assert.strictEqual(only.outcome === "added" ? only.placedBeneathLayerId : undefined, mine.id);
         session.dispose();
     });
 
-    it("leaves beneathLayerId out when nothing hand-written is above", async () => {
+    it("leaves placedBeneathLayerId out when nothing hand-written is above", async () => {
         const session = await fixtureSession();
 
         await session.runs.start("degree", {}, { as: "deg" });
         const [only] = session.runs.painting("deg")?.suggestions ?? [];
 
-        assert.isFalse(only.outcome === "painted" && "beneathLayerId" in only);
+        assert.isFalse(only.outcome === "added" && "placedBeneathLayerId" in only);
         session.dispose();
     });
 
@@ -101,7 +101,7 @@ describe("runs.painting", () => {
 
         assert.strictEqual(session.runs.painting("deg")?.state, "decided");
         assert.strictEqual(merged.outcome === "merged" ? merged.intoRunId : merged.outcome, "pr");
-        assert.deepStrictEqual(outcomes(session.runs.painting("pr")?.suggestions), ["painted"]);
+        assert.deepStrictEqual(outcomes(session.runs.painting("pr")?.suggestions), ["added"]);
         session.dispose();
     });
 
@@ -153,6 +153,19 @@ describe("runs.painting", () => {
         session.dispose();
     });
 
+    it("is decided by the time run:changed reports the run's end", async () => {
+        const session = await fixtureSession();
+        const states: (string | undefined)[] = [];
+        session.on("run:changed", (change) => {
+            if (change.phase === "end") {states.push(session.runs.painting(change.run.id)?.state);}
+        });
+
+        await session.runs.start("degree", {}, { as: "deg" });
+
+        assert.deepStrictEqual(states, ["decided"]);
+        session.dispose();
+    });
+
     it("is undefined for a run the session does not hold", async () => {
         const session = await fixtureSession();
 
@@ -196,7 +209,7 @@ describe("the run-painting guide's example", () => {
     it("logs the channels a run painted", async () => {
         const session = await fixtureSession();
 
-        assert.deepStrictEqual(await runGuideExample(session), [["painted", ["node.color"]]]);
+        assert.deepStrictEqual(await runGuideExample(session), [["added", ["node.color"]]]);
         session.dispose();
     });
 

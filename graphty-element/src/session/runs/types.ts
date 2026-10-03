@@ -669,7 +669,7 @@ export interface RunRemoval {
 export type SuggestionOutcome =
     | {
           /** The suggestion was added to the style stack. */
-          readonly outcome: "painted";
+          readonly outcome: "added";
           readonly suggestion: StyleSuggestion;
           /** The layers it added: one for an encoding, one per half for a highlight. */
           readonly layerIds: readonly LayerId[];
@@ -677,7 +677,7 @@ export type SuggestionOutcome =
            * Set when it was placed directly beneath a hand-written layer that drives one of its
            * channels on some elements, so that layer still shows there.
            */
-          readonly beneathLayerId?: LayerId;
+          readonly placedBeneathLayerId?: LayerId;
       }
     | {
           /** Not added: a hand-written layer already drives this channel on every element. */
@@ -716,9 +716,9 @@ export interface RunPainting {
      * - `"opted-out"`: started with `style: false`.
      * - `"not-succeeded"`: it failed or was cancelled.
      * - `"no-styles"`: this session has no style stack.
-     * - `"restored"`: the run was recorded without a decision, so none is known.
+     * - `"unknown"`: the run was recorded without a decision, so none is known.
      */
-    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "restored";
+    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "unknown";
     /** One entry per suggestion; empty unless `state` is `"decided"`. */
     readonly suggestions: readonly SuggestionOutcome[];
 }
@@ -788,7 +788,7 @@ export interface RunsApi {
      * suggestion the run made.
      *
      * Readable as soon as `await run` returns. A re-run keeps the first decision, because a
-     * re-run does not repaint. `"painted"` means the layer was added, not that it is visible:
+     * re-run does not repaint. `"added"` means the layers went on the stack, not that they show:
      * a layer added later may cover it, which `styles.legend()` shows.
      * @param id - The run id.
      * @returns The decision, or undefined when this session holds no run with that id.

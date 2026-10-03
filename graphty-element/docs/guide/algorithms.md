@@ -190,13 +190,13 @@ await graph.runAlgorithm("graphty", "max-flow", {
 A run hands back its own result. Nothing has to be found by walking the graph:
 
 ```typescript
-const run = await element.run("degree");
+const result = await element.run("degree");
 
 // One element
-console.log(run.result.node("node1")?.value);
+console.log(result.node("node1")?.value);
 
 // The shape of the whole thing, computed once
-const summary = run.result.summary();
+const summary = result.summary();
 console.log(summary.max, summary.min, summary.top[0].id);
 ```
 

@@ -318,7 +318,7 @@ const NO_HELD: HeldCaptures = new Map();
 const PENDING: RunPainting = bare("pending");
 
 /** A run recorded without a decision. */
-const RESTORED: RunPainting = bare("restored");
+const UNKNOWN: RunPainting = bare("unknown");
 
 /**
  * The layers a style command added, read off what it resolved with: one layer for an encoding,
@@ -343,16 +343,18 @@ function addedLayers(outcome: unknown): LayerId[] {
  * @param stack - The stack after it, bottom first.
  * @returns The outcome.
  */
-function paintedOutcome(suggestion: StyleSuggestion, outcome: unknown, stack: readonly Layer[]): SuggestionOutcome {
+function addedOutcome(suggestion: StyleSuggestion, outcome: unknown, stack: readonly Layer[]): SuggestionOutcome {
     const layerIds = Object.freeze(addedLayers(outcome));
     const top = Math.max(...layerIds.map((id) => stack.findIndex((layer) => layer.id === id)));
     const above = top < 0 ? undefined : stack[top + 1];
 
     return Object.freeze({
-        outcome: "painted",
+        outcome: "added",
         suggestion,
         layerIds,
-        ...(above !== undefined && authoredDriving(above, suggestion.channels) ? { beneathLayerId: above.id } : {}),
+        ...(above !== undefined && authoredDriving(above, suggestion.channels)
+            ? { placedBeneathLayerId: above.id }
+            : {}),
     });
 }
 
@@ -893,7 +895,7 @@ class Runs implements SessionRunsApi {
             return this.released.get(id) ?? entry.painting;
         }
 
-        return entry.painting ?? (this.options.styling === undefined ? bare("no-styles") : RESTORED);
+        return entry.painting ?? (this.options.styling === undefined ? bare("no-styles") : UNKNOWN);
     }
 
     /**
@@ -1488,7 +1490,7 @@ class Runs implements SessionRunsApi {
             try {
                 const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
 
-                return paintedOutcome(
+                return addedOutcome(
                     suggestion,
                     outcome,
                     draft.styles.map((each) => each.layer),
@@ -1909,7 +1911,7 @@ class Runs implements SessionRunsApi {
             try {
                 const outcome = await via(suggestionCommand(suggestion, true));
                 record(
-                    paintedOutcome(
+                    addedOutcome(
                         suggestion,
                         outcome,
                         this.dispatcher.state.styles.map((each) => each.layer),

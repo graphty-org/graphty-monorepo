@@ -24,6 +24,7 @@ const dfsOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Source Node",
+            essential: true,
             description: "Starting node for DFS traversal (uses first node if not set)",
         },
     },

@@ -33,6 +33,7 @@ const minCutOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Source Node",
+            essential: true,
             description: "Source node for s-t cut (uses global min cut if not set)",
         },
     },
@@ -40,6 +41,7 @@ const minCutOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Sink Node",
+            essential: true,
             description: "Sink node for s-t cut (uses global min cut if not set)",
         },
     },

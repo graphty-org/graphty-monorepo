@@ -22,6 +22,7 @@ const girvanNewmanOptionsSchema = defineOptions({
         schema: z.number().int().min(0).max(100).default(0),
         meta: {
             label: "Max Communities",
+            essential: true,
             description: "Stop when this many communities reached (0 = find optimal)",
         },
     },

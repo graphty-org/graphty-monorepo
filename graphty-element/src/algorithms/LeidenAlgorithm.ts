@@ -22,6 +22,7 @@ const leidenOptionsSchema = defineOptions({
         schema: z.number().min(0.1).max(5.0).default(1.0),
         meta: {
             label: "Resolution",
+            essential: true,
             description: "Controls community granularity",
             step: 0.1,
         },

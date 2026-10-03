@@ -291,6 +291,10 @@ function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUi
         descriptor.advanced = meta.advanced;
     }
 
+    if (meta.essential !== undefined) {
+        descriptor.essential = meta.essential;
+    }
+
     if (classified.unsupportedReason !== undefined) {
         descriptor.unsupportedReason = classified.unsupportedReason;
     }
@@ -328,6 +332,10 @@ function unknownDescriptor(name: string, meta: Partial<OptionUiMeta>, reason: st
 
     if (meta.advanced !== undefined) {
         descriptor.advanced = meta.advanced;
+    }
+
+    if (meta.essential !== undefined) {
+        descriptor.essential = meta.essential;
     }
 
     return descriptor;

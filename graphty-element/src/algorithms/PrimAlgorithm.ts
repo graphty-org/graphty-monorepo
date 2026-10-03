@@ -35,6 +35,7 @@ const primOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Start Node",
+            essential: true,
             description: "Starting node for MST growth (uses first node if not set)",
         },
     },

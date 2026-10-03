@@ -21,6 +21,7 @@ const katzCentralityOptionsSchema = defineOptions({
         schema: z.number().min(0.01).max(0.5).default(0.1),
         meta: {
             label: "Alpha (Attenuation)",
+            essential: true,
             description: "Attenuation factor - must be less than 1/λmax",
             step: 0.01,
         },

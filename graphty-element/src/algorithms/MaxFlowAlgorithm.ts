@@ -33,6 +33,7 @@ const maxFlowOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Source Node",
+            essential: true,
             description: "Source node for flow network (uses first node if not set)",
         },
     },
@@ -40,6 +41,7 @@ const maxFlowOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Sink Node",
+            essential: true,
             description: "Sink node for flow network (uses last node if not set)",
         },
     },

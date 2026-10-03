@@ -90,7 +90,9 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(weight.type, "string");
             assert.isNull(weight.default);
-            assert.isTrue(weight.advanced);
+            // The weight is one of PageRank's key options, so it is essential and not advanced.
+            assert.isTrue(weight.essential);
+            assert.isUndefined(weight.advanced);
         });
 
         it("emits no Zod object anywhere in the result", () => {

@@ -25,6 +25,7 @@ const dijkstraOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Source Node",
+            essential: true,
             description: "Starting node for shortest path (uses first node if not set)",
         },
     },
@@ -32,6 +33,7 @@ const dijkstraOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Target Node",
+            essential: true,
             description: "Destination node for shortest path (uses last node if not set)",
         },
     },

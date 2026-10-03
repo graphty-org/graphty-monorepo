@@ -23,6 +23,7 @@ const louvainOptionsSchema = defineOptions({
         schema: z.number().min(0.1).max(5.0).default(1.0),
         meta: {
             label: "Resolution",
+            essential: true,
             description: "Higher = more communities, lower = fewer larger communities",
             step: 0.1,
         },

@@ -24,6 +24,8 @@ interface OptionMeta {
     description: string;
     /** Hide in basic UI mode (show only in advanced settings) */
     advanced?: boolean;
+    /** One of the few options a compact form shows by default; never with `advanced` */
+    essential?: boolean;
     /** Group related options together in UI */
     group?: string;
     /** Suggested step increment for numeric sliders */

@@ -24,6 +24,7 @@ const pageRankOptionsSchema = defineOptions({
         schema: z.number().min(0).max(1).default(0.85),
         meta: {
             label: "Damping Factor",
+            essential: true,
             description: "Probability of following a link (0.85 is standard for web graphs)",
             step: 0.05,
         },
@@ -48,8 +49,8 @@ const pageRankOptionsSchema = defineOptions({
         schema: z.string().nullable().default(null),
         meta: {
             label: "Weight Attribute",
+            essential: true,
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
     },
     useDelta: {

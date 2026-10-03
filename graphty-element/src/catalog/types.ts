@@ -385,6 +385,11 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     attributeType?: AttributeType;
     group?: string;
     advanced?: boolean;
+    /**
+     * One of the few options a compact form shows by default, such as PageRank's damping and
+     * weight. Never set together with `advanced`. Absent means false.
+     */
+    essential?: boolean;
     internal?: boolean;
     description?: string;
     /**

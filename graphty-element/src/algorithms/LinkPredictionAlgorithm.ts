@@ -27,6 +27,7 @@ const linkPredictionOptionsSchema = defineOptions({
         schema: z.enum(["adamic-adar", "common-neighbors"]).default("adamic-adar"),
         meta: {
             label: "Method",
+            essential: true,
             description:
                 "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
         },
@@ -35,6 +36,7 @@ const linkPredictionOptionsSchema = defineOptions({
         schema: z.number().int().min(1).max(1000).default(10),
         meta: {
             label: "Pairs",
+            essential: true,
             description: "How many of the best-scoring pairs to keep.",
         },
     },

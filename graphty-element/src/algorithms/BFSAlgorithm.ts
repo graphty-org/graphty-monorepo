@@ -25,6 +25,7 @@ const bfsOptionsSchema = defineOptions({
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Source Node",
+            essential: true,
             description: "Starting node for BFS traversal (uses first node if not set)",
         },
     },

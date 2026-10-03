@@ -10,7 +10,8 @@ import {
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
-import _ from "lodash";
+import cloneDeep from "lodash/cloneDeep.js";
+import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
@@ -541,7 +542,7 @@ export class Node {
         // colour and the same content by construction, so the key is adopted and nothing is
         // touched.
         const sameGeometry =
-            meshKey === this.meshKey || (_.isEqual(o, this.drawnStyle) && _.isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
 
         if (sameGeometry && !this.mesh.isDisposed()) {
             this.meshKey = meshKey;
@@ -1208,7 +1209,7 @@ export class Node {
         const wanted = o.label?.enabled === true ? o.label : undefined;
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
-        if (!rebuild && text === this.drawnLabelText && _.isEqual(wanted, this.drawnLabelStyle)) {
+        if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
             return;
         }
 
@@ -1220,7 +1221,7 @@ export class Node {
         // `StylePainter.nodePaint` builds fresh on every call, and a comparison against a
         // reference somebody else can still write to is a comparison that silently starts
         // passing. Paid only when the label actually changes.
-        this.drawnLabelStyle = wanted === undefined ? undefined : _.cloneDeep(wanted);
+        this.drawnLabelStyle = wanted === undefined ? undefined : cloneDeep(wanted);
     }
 
     /**
@@ -1239,14 +1240,14 @@ export class Node {
     private syncTooltip(o: NodeStyleConfig): void {
         const wanted = o.tooltip?.enabled === true ? o.tooltip : undefined;
 
-        if (_.isEqual(wanted, this.wantedTooltip)) {
+        if (isEqual(wanted, this.wantedTooltip)) {
             return;
         }
 
         // CLONED for the reason `drawnLabelStyle` is cloned: the block belongs to a paint the
         // painter rebuilds on every call, and holding the reference makes the comparison above
         // start passing whenever somebody else writes through it.
-        this.wantedTooltip = wanted === undefined ? undefined : _.cloneDeep(wanted);
+        this.wantedTooltip = wanted === undefined ? undefined : cloneDeep(wanted);
 
         if (this.tooltip) {
             this.hideTooltip();

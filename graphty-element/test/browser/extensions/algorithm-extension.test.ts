@@ -2086,6 +2086,18 @@ describe("the snapshot accessor a plugin algorithm reads through", () => {
         assert.deepStrictEqual(result?.summary().caveats.weight, { attribute: "strength", meaning: "strength" });
     });
 
+    it("carries its sentence, aliases and essential option into the catalogue, as a built-in does", () => {
+        const listed = graph
+            .getSession()
+            .catalog.algorithms()
+            .find((entry) => entry.key === "tie-strength");
+
+        assert.deepStrictEqual(listed?.aliases, ["tie weight", "bond"]);
+        assert.match(listed?.sentence?.value ?? "", /^An edge scores high/);
+        assert.isTrue(listed?.options[0].essential);
+        assert.strictEqual(graph.getSession().catalog.categoryLabel(listed?.category ?? ""), "Describes structure");
+    });
+
     it("reads a partition option and an earlier run's per-edge result as columns", async () => {
         const session = graph.getSession();
         await session.runs.start("tie-strength", {}, { as: "ties" });

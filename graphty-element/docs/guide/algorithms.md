@@ -386,6 +386,39 @@ await element.session.styles.encode({ run: degree, channel: "node.size" });
 Layers stack, so the two do not fight: one decides colour, the other decides size, and
 `session.styles.legend()` describes both.
 
+## Building an algorithm menu
+
+Every catalog entry carries the words a menu, a search box and a legend need, so your page
+keeps no list of its own:
+
+- `aliases`: lowercase words a search should match besides the names ("brokers" finds Betweenness, "groups" finds the community methods)
+- `sentence`: one plain sentence per result field, keyed by the field name, worded to fit any dataset
+- `options[].essential`: the few options a short form shows; the rest can wait behind a "More" control
+- `catalog.categoryLabel(category)`: a plain heading per category, such as "Ranks nodes" or "Finds groups"
+
+```typescript
+const { catalog } = element.session;
+const search = "brokers";
+
+// Group the matching algorithms under plain headings
+const menu = new Map<string, string[]>();
+for (const algorithm of catalog.algorithms()) {
+    const words = [algorithm.plainName, algorithm.technicalName, ...(algorithm.aliases ?? [])];
+    if (!words.some((word) => word.toLowerCase().includes(search))) continue;
+    const heading = catalog.categoryLabel(algorithm.category);
+    menu.set(heading, [...(menu.get(heading) ?? []), algorithm.technicalName]);
+}
+console.log(menu); // Map { "Ranks nodes" => ["Betweenness centrality"] }
+
+// A short form for PageRank, and the sentence a legend shows beside its colors
+const pagerank = catalog.algorithms().find((algorithm) => algorithm.key === "pagerank");
+console.log(pagerank?.options.filter((option) => option.essential).map((option) => option.name)); // ["dampingFactor", "weight"]
+console.log(pagerank?.sentence?.value); // "A node scores high when well-connected nodes link to it."
+```
+
+`sentence` and `aliases` are on every built-in; an algorithm you register may leave them out. A
+category the element does not know comes back from `categoryLabel` as written.
+
 ## Custom Algorithms
 
 Create your own algorithms. See [Custom Algorithms](./extending/custom-algorithms) for details.

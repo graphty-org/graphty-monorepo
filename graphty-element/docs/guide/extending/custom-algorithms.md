@@ -298,6 +298,9 @@ const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
     // Ten descriptors for one measured number, each carrying a published path string a plugin
     // should never have to learn or retype.
     fields: edgeMetricFields({ plainName: "Share of strength", technicalName: "tie share" }),
+    // Optional: the legend's sentence for a field, and the words a search box should match.
+    sentence: { value: "An edge scores high when it carries much of its weaker end's strength." },
+    aliases: ["tie weight", "bond"],
     // The one thing a reader can configure, declared ONCE: which edge attribute is the strength.
     options: [
         {
@@ -305,6 +308,7 @@ const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
             plainName: "Strength",
             type: "attribute",
             default: "strength",
+            essential: true,
             description: "The edge attribute saying how strong each recorded interaction is.",
         },
     ],

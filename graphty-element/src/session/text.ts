@@ -4,7 +4,7 @@
  */
 
 /** Where a match fell, best first: the whole value, the start of a word, or anywhere. */
-export type TextMatch = "whole" | "word-start" | "anywhere";
+type TextMatch = "whole" | "word-start" | "anywhere";
 
 /** Combining marks, which `normalizeText` drops after decomposing. */
 const MARKS = /\p{M}/gu;
@@ -23,7 +23,7 @@ const WORD = /[\p{L}\p{N}]/u;
  * @returns The normalized text.
  */
 export function normalizeText(text: string): string {
-    return text.normalize("NFKD").replace(MARKS, "").toLowerCase().replace(SPACES, " ").trim();
+    return text.normalize("NFKD").replaceAll(MARKS, "").toLowerCase().replaceAll(SPACES, " ").trim();
 }
 
 /**

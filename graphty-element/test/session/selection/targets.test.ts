@@ -196,7 +196,7 @@ describe("a pasted list of ids", () => {
         // a counter, and the resolver has to try both spaces rather than assuming one.
         const delta = selection.applyNow({ ids: ["a", "0", "42", "nobody"] });
 
-        assert.deepStrictEqual([...selection.nodes], ["a", 42], "\"42\" found the node loaded under the number 42");
+        assert.deepStrictEqual([...selection.nodes], ["a", 42], '"42" found the node loaded under the number 42');
         assert.deepStrictEqual([...selection.edges], ["0"]);
         assert.deepStrictEqual(delta.unmatched === undefined ? [] : [...delta.unmatched], ["nobody"]);
         harness.session.dispose();
@@ -223,7 +223,7 @@ describe("a pasted list of ids", () => {
 
         const delta = selection.applyNow({ ids });
 
-        assert.deepStrictEqual([...selection.nodes], [1, 2], "the number 1, not the string \"1\"");
+        assert.deepStrictEqual([...selection.nodes], [1, 2], 'the number 1, not the string "1"');
         assert.deepStrictEqual(delta.unmatched === undefined ? [] : [...delta.unmatched], []);
 
         selection.applyNow({ ids: [7] });
@@ -236,7 +236,10 @@ describe("a pasted list of ids", () => {
         const selection = selectionOf(harness);
         const target = { ids: ["a", { id: "b" }] } as unknown as SelectionTarget;
 
-        assert.strictEqual(codeOf(() => selection.applyNow(target)), "E_OPTION_RANGE");
+        assert.strictEqual(
+            codeOf(() => selection.applyNow(target)),
+            "E_OPTION_RANGE",
+        );
         harness.session.dispose();
     });
 
@@ -287,7 +290,9 @@ describe("a predicate and a text search", () => {
         const find = (text: string, mode: SelectionTextMode): readonly SelectionSearchHit[] => {
             modes.push(mode);
 
-            return text === "edge" ? [{ id: edgeBetween(harness, "a", "b"), kind: "edge" }] : [{ id: "a", kind: "node" }];
+            return text === "edge"
+                ? [{ id: edgeBetween(harness, "a", "b"), kind: "edge" }]
+                : [{ id: "a", kind: "node" }];
         };
         const selection = selectionOf(harness, { find });
 
@@ -304,8 +309,14 @@ describe("a predicate and a text search", () => {
         const harness = line();
         const selection = selectionOf(harness);
 
-        assert.strictEqual(codeOf(() => selection.applyNow({ where: "anything" })), "E_UNSUPPORTED");
-        assert.strictEqual(codeOf(() => selection.applyNow({ text: "a" })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => selection.applyNow({ where: "anything" })),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(
+            codeOf(() => selection.applyNow({ text: "a" })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -319,7 +330,11 @@ describe("a scope", () => {
         selection.applyNow({ scope: { nodes: ["a", "b", "c"] } });
 
         assert.deepStrictEqual([...selection.nodes], ["a", "b", "c"]);
-        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "a scope's edges come with it");
+        assert.deepStrictEqual(
+            [...selection.edges],
+            [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+            "a scope's edges come with it",
+        );
         harness.session.dispose();
     });
 
@@ -327,7 +342,10 @@ describe("a scope", () => {
         const harness = line();
         const selection = selectionOf(harness);
 
-        assert.strictEqual(codeOf(() => selection.applyNow({ scope: "graph" })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => selection.applyNow({ scope: "graph" })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -395,7 +413,10 @@ describe("a neighbourhood", () => {
         const selection = selectionOf(harness);
         const tooFar = { neighborsOf: ["a"], depth: 4 } as unknown as SelectionTarget;
 
-        assert.strictEqual(codeOf(() => selection.applyNow(tooFar)), "E_OPTION_RANGE");
+        assert.strictEqual(
+            codeOf(() => selection.applyNow(tooFar)),
+            "E_OPTION_RANGE",
+        );
         harness.session.dispose();
     });
 });
@@ -416,7 +437,15 @@ describe("a finished run's ranking", () => {
         const tied = createRunResult({
             runId: "tied",
             shape: "node-metric",
-            fields: [field({ name: "value", plainName: "Connections", technicalName: "degree", kind: "node", type: "number" })],
+            fields: [
+                field({
+                    name: "value",
+                    plainName: "Connections",
+                    technicalName: "degree",
+                    kind: "node",
+                    type: "number",
+                }),
+            ],
             measured: { nodes: 4, edges: 0 },
             nodes: [
                 { id: "a", values: { value: 1 } },
@@ -427,7 +456,9 @@ describe("a finished run's ranking", () => {
             caveats: CAVEATS,
             durationMs: 1,
         });
-        const results = createResultsApi(registryOf([{ id: "tied", label: "Tied", shape: "node-metric", result: tied }]));
+        const results = createResultsApi(
+            registryOf([{ id: "tied", label: "Tied", shape: "node-metric", result: tied }]),
+        );
         const selection = selectionOf(harness, { results });
 
         selection.applyNow({ top: { run: "tied", field: "value", n: 2 } });
@@ -531,7 +562,11 @@ describe("the two targets that are relative to the selection", () => {
         selection.applyNow({ edgesBetween: true }, "add");
 
         assert.deepStrictEqual([...selection.nodes], ["a", "b", "c"]);
-        assert.deepStrictEqual([...selection.edges], [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "c:d leaves the selection, so it is not between");
+        assert.deepStrictEqual(
+            [...selection.edges],
+            [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+            "c:d leaves the selection, so it is not between",
+        );
         harness.session.dispose();
     });
 

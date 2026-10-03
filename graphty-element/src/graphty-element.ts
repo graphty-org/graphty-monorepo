@@ -101,7 +101,7 @@ export class Graphty extends LitElement {
     #unwatchHistory: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
-    #progressAt = new Map<string, number>();
+    readonly #progressAt = new Map<string, number>();
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -277,7 +277,9 @@ export class Graphty extends LitElement {
             this.#progressAt.set(key, now);
         }
 
-        this.dispatchEvent(new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }));
+        this.dispatchEvent(
+            new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }),
+        );
     }
 
     /**

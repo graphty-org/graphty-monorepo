@@ -530,11 +530,7 @@ export class SessionData implements SessionDataApi {
      * @param options - the scope, the order and the node
      * @returns the rows, or null for every row in graph order
      */
-    private orderOf(
-        snapshot: GraphSnapshot,
-        target: "node" | "edge",
-        options: EdgePageOptions,
-    ): Uint32Array | null {
+    private orderOf(snapshot: GraphSnapshot, target: "node" | "edge", options: EdgePageOptions): Uint32Array | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         if (scope === undefined && touching === undefined && options.sort === undefined) {

@@ -82,7 +82,7 @@ describe("an attribute's path reads back as the column it names", () => {
     // A spreadsheet header is not an identifier. Every name below must reach the same column
     // through attributes().path and quotePath(), and a name shaped like an expression must not
     // read some other column.
-    const NAMES = ["shared chapters", "a.b", "min-cut", "w || data.secret", "say \"hi\""];
+    const NAMES = ["shared chapters", "a.b", "min-cut", "w || data.secret", 'say "hi"'];
 
     for (const name of NAMES) {
         it(`selects by the column ${JSON.stringify(name)}`, async () => {

@@ -37,6 +37,7 @@ type Layer =
     | "algorithms"
     | "layouts"
     | "accelerator"
+    | "managed"
     | "entries"
     | "barrel";
 
@@ -88,7 +89,8 @@ const VALUE_TARGETS: Readonly<Record<Layer, readonly Layer[]>> = {
         "algorithms",
         "layouts",
     ],
-    entries: ["base", "types", "device", "context", "entries"],
+    managed: ["base", "types", "context", "primitives", "accelerator", "managed"],
+    entries: ["base", "types", "device", "context", "managed", "entries"],
     barrel: [
         "base",
         "types",
@@ -149,6 +151,9 @@ function layerOf(file: string): Layer {
     }
     if (path === "accelerator.ts") {
         return "accelerator";
+    }
+    if (path === "managed.ts") {
+        return "managed";
     }
     if (path === "index.ts") {
         return "barrel";

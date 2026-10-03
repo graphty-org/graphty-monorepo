@@ -119,6 +119,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  *   device/acquire.test.ts       an `it.fails` case leaves an uncaptured validation error for the setup's hook
  *   device/context.test.ts       three broken bind groups (sink-ctx, slot-ctx, hook) and a device.destroy() mid-life
  *   device/error-scope.test.ts   broken bind groups inside validation scopes; an out-of-memory scope left on a device
+ *   device/managed.test.ts       device.destroy() on a managed accelerator's device, to see a new one acquired
  *   device/lost.test.ts          broken bind groups on raw devices, then device.destroy() under a pending read and
  *                                mid-batch
  *   kernel/batch.test.ts         a wrong-usage buffer reaches the pending-error slot
@@ -129,6 +130,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  */
 const DEVICE_ERROR_TESTS: readonly string[] = [
     "test/device/acquire.test.ts",
+    "test/device/managed.test.ts",
     "test/device/context.test.ts",
     "test/device/error-scope.test.ts",
     "test/device/lost.test.ts",

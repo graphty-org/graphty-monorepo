@@ -397,9 +397,11 @@ them its result keeps the size the forces settle at, which its `scaling` option 
 - **center** (numbers): the centre; missing components are 0; default the origin
 - **seed** (number): seed of a layout that draws random numbers, for reproducible layouts
 
-- **Nodes are indices.** Options that name nodes (`root`, `start`, `top`, `subsets`, `nlist`) take node indices,
-  a node mask or the name of a node column of the snapshot, never node ids. Use `s.ids.indexOf(id)` to find one;
-  for an id that is not in the graph it returns `INVALID_INDEX` (0xffffffff), not -1.
+- **Nodes are indices or ids.** `root` and `start` take a node index or `{ id }` (for example
+  `radial(s, { root: { id: "hub" } })`). `nlist`, `subsets` and `top` take node sets: an array of indices,
+  `{ mask }` or `{ ids }` (for example `shell(s, { nlist: [{ ids: ["hub"] }, { ids: ["a", "b"] }] })`), or the name
+  of a node column. `top` also still reads a bare `Uint32Array` as a node mask. An id that is not in the graph
+  throws.
 - **Start positions** (`pos`) are a `Float32Array` of `dim` values per node in index order. For the force layouts
   and `arf` each `NaN` component is drawn from `seed` and the finite components of the same row are kept;
   `kamadaKawai` reads `NaN` as 0.

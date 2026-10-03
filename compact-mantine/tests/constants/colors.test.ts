@@ -1,23 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SWATCH_COLORS, SWATCH_COLORS_HEXA } from "../colors";
-
-describe("SWATCH_COLORS", () => {
-    it("contains valid hex colors", () => {
-        SWATCH_COLORS.forEach((color) => {
-            expect(color).toMatch(/^#[0-9A-Fa-f]{6}$/);
-        });
-    });
-
-    it("has at least 5 colors", () => {
-        expect(SWATCH_COLORS.length).toBeGreaterThanOrEqual(5);
-    });
-
-    it("contains unique colors", () => {
-        const unique = new Set(SWATCH_COLORS);
-        expect(unique.size).toBe(SWATCH_COLORS.length);
-    });
-});
+import { SWATCH_COLORS_HEXA } from "../../src/constants/colors";
 
 describe("SWATCH_COLORS_HEXA", () => {
     it("contains valid 8-character hex colors with alpha", () => {

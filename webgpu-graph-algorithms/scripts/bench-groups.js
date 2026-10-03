@@ -55,7 +55,8 @@ const PACKAGE_PREFIX = "webgpu-graph-algorithms/";
  * (every group) rather than silent. When a benchmark starts to reach one, delete it from here.
  * - src/browser/index.ts, src/index.ts, src/accelerator.ts: entry points the Node benchmarks never import.
  * - the algorithms no group measures: bellman-ford, closeness, spectral (and its power-iteration), the layout
- *   calibration, and the kernels only they compile (bf-relax, closeness-level, closeness-rowsum).
+ *   calibration, the kernels only they compile (bf-relax, closeness-level, closeness-rowsum), and indirect-finalize,
+ *   which no benchmarked route dispatches.
  */
 export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/node/index.ts",
@@ -76,6 +77,7 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/wgsl/bf-relax.wgsl.ts",
     "src/wgsl/closeness-level.wgsl.ts",
     "src/wgsl/closeness-rowsum.wgsl.ts",
+    "src/wgsl/indirect-finalize.wgsl.ts",
 ]);
 
 /**

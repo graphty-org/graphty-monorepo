@@ -77,6 +77,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
+import { sampleOf } from "./data/source-bytes";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -1838,6 +1839,9 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -1848,6 +1852,8 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -1858,7 +1864,7 @@ export class Graph implements GraphContext {
 
         if (!format) {
             // Read first 2KB for format detection
-            const sample = await file.slice(0, 2048).text();
+            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
             this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
@@ -1869,8 +1875,9 @@ export class Graph implements GraphContext {
             format = detected;
         }
 
-        // Read full file content
-        const content = await file.text();
+        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+        // declaration), and a binary format such as a zip would not survive a text read.
+        const content = new Uint8Array(await file.arrayBuffer());
 
         // Load using appropriate DataSource
         const { replace: _replace, ...sourceOptions } = options ?? {};
@@ -1901,6 +1908,8 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -1922,13 +1931,15 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
-        let fetchedContent: string | undefined;
+        let fetchedContent: Uint8Array | undefined;
 
         if (!format) {
             // First try extension-based detection (no fetch needed)
@@ -1943,10 +1954,11 @@ export class Graph implements GraphContext {
                     throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
                 }
 
-                fetchedContent = await response.text();
+                // Bytes, decoded by the importer: see loadFromFile.
+                fetchedContent = new Uint8Array(await response.arrayBuffer());
                 this.dataManager.throwIfSuperseded(load.generation, url);
 
-                const sample = fetchedContent.slice(0, 2048);
+                const sample = sampleOf(fetchedContent);
                 const detectedFromContent = detectFormat(url, sample);
 
                 if (!detectedFromContent) {
@@ -1968,6 +1980,8 @@ export class Graph implements GraphContext {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...(edgeSource === null ? {} : { edgeSource }),
             ...(edgeTarget === null ? {} : { edgeTarget }),
+            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
+            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch
@@ -4850,6 +4864,7 @@ export class Graph implements GraphContext {
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
+     * @param signal - Cancels the animation: the distance stays where it is and is never written again
      */
     private async animateCameraDistance(
         orbitController: {
@@ -4861,6 +4876,7 @@ export class Graph implements GraphContext {
         frameCount: number,
         fps: number,
         easing?: string,
+        signal?: AbortSignal,
     ): Promise<void> {
         // The same floor the immediate path applies, so an animation never ends below it.
         const targetDistance = orbitController.clampDistance(requestedDistance);
@@ -4891,9 +4907,15 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
+
+                // Cancelled: stopping raises this callback too, and the final value is not ours to write.
+                if (signal?.aborted === true) {
+                    resolve();
+                    return;
+                }
 
                 // Ensure final value
                 orbitController.cameraDistance = targetDistance;
@@ -4901,6 +4923,18 @@ export class Graph implements GraphContext {
 
                 resolve();
             });
+
+            // Without this a cancelled animation kept writing the distance every frame and, at the
+            // end of its own duration, snapped the camera to ITS target over the one that replaced it.
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                    animatable.stop();
+                    resolve();
+                },
+                { once: true },
+            );
         });
     }
 
@@ -5037,6 +5071,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         } else if (targetState.position && targetState.target) {
             // Calculate distance from position to target
@@ -5050,6 +5085,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         }
 
@@ -5072,6 +5108,12 @@ export class Graph implements GraphContext {
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
                             await distanceAnimation;
+                        }
+
+                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
+                        if (signal?.aborted === true) {
+                            safeSettle();
+                            return;
                         }
 
                         // Ensure final state is applied exactly

@@ -1,0 +1,8 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1},{"@id":2},{"@id":3}]},
+{"edges":[{"@id":4,"s":1,"t":2},{"@id":5,"s":2,"t":3}]},
+{"cySubNetworks":[{"@id":9,"nodes":"all","edges":"all"}]},
+{"nodeAttributes":[{"po":1,"n":"scoped","v":"local","s":9},{"po":1,"n":"scoped","v":"shared"},{"po":2,"n":"scoped","v":"shared only"}]},
+{"status":[{"error":"","success":true}]}
+]

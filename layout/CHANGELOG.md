@@ -1,3 +1,34 @@
+## 2.0.9 (2026-10-03)
+
+### 🩹 Fixes
+
+- **layout:** seed non-finite start rows in the CPU ForceAtlas2 simulation ([#724](https://github.com/graphty-org/graphty-monorepo/issues/724))
+- **layout:** stop one locked node from collapsing a seeded layout onto it ([#720](https://github.com/graphty-org/graphty-monorepo/issues/720))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.8 (2026-10-03)
+
+### 🩹 Fixes
+
+- **layout:** ship the MIT license text with the package ([838b4ba9](https://github.com/graphty-org/graphty-monorepo/commit/838b4ba9))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.7 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.7
+
 ## 2.0.6 (2026-10-02)
 
 ### 🧱 Updated Dependencies

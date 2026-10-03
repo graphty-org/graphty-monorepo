@@ -1,0 +1,12 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+relationship: part_of X:2 {cardinality="2", gci_relation="part_of", gci_filler="T:1"} ! two
+
+[Term]
+id: X:2
+
+[Typedef]
+id: part_of

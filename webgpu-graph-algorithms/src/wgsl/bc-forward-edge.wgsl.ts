@@ -5,7 +5,7 @@
  * and source `s`, when `depth[s][u]` is the level the edge is relaxed toward `x` with EXACTLY the claim and the count
  * of `bc-forward` (the pre-check, `atomicMin`, the winner appends `s * n + x` to the same claim log, every arc on a
  * shortest path adds `sigma[s][u]`, a u32 wrap raises word 27); `UNDIRECTED` relaxes the other direction too, the
- * edge list holding each undirected edge once. So the two forward bodies are interchangeable level by level and the
+ * edge list holding each undirected edge once. Under `SCALED` the count is skipped, as in `bc-forward`. So the two forward bodies are interchangeable level by level and the
  * backward pass cannot tell which ran. A workgroup does nothing when the level is empty (the done boundary). The
  * winners of a strip are packed into the log with one global `atomicAdd` per strip; every barrier is in uniform
  * control flow (the loop bounds are uniforms and the workgroup id). Body only; the sabotage rows of
@@ -22,7 +22,7 @@ fn claim(x: u32, next: u32) -> bool {
 }
 
 fn count_paths(origin: u32, x: u32, next: u32) {
-    if (atomicLoad(&depthK[x]) == next) {                            // every arc on a shortest path adds
+    if (!SCALED && atomicLoad(&depthK[x]) == next) {                 // every arc on a shortest path adds
         let add = atomicLoad(&sigmaK[origin]);
         let old = atomicAdd(&sigmaK[x], add);
         if (old + add < old) { atomicOr(&counters[27], 1u); }        // the u32 wrap, reported

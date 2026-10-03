@@ -83,3 +83,14 @@ lockfile changes. The stale alerts are dismissed as "inaccurate" with a comment 
 lockfile now resolves. If new alerts keep arriving frozen the same way, the repository's
 dependency graph setting needs the owner; a CI dependency-submission step is the other route and
 was deliberately not added.
+
+## 2026-10-03: braces GHSA-vfj7-8cjw-p6xm, ignored (no patched version exists)
+
+`pnpm audit --audit-level=high` began failing every pull request's Build job on 2026-10-03 with
+GHSA-vfj7-8cjw-p6xm: braces through 3.0.3 can exhaust the call stack on deeply nested brace
+patterns. The advisory lists no patched version (3.0.3 is the latest braces), so no override can
+fix it. Its one path here is `@nx/react > http-proxy-middleware > micromatch > braces`, a
+development-server dependency that only expands glob patterns written in this repository's own
+configuration; nothing passes it a pattern from outside. It is listed in the root package.json's
+`pnpm.auditConfig.ignoreGhsas`. Remove that entry when braces publishes a fix, and add an override
+floor here instead.

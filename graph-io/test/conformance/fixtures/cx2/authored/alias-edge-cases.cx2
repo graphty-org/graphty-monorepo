@@ -1,0 +1,7 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"networkAttributes":{"title":{"d":"string","a":"t","v":"untitled"}},"nodes":{"n":{"d":"string","a":"n"},"full":{"d":"string","a":"f"},"other":{"d":"string","a":"n"},"clash":{"d":"string","a":"full"}}}]},
+{"networkAttributes":[{"title":"Aliases"}]},
+{"nodes":[{"id":1,"v":{"n":"one","full":"by full name"}},{"id":2,"v":{"f":"by alias","full":"both"}}]},
+{"status":[{"error":"","success":true}]}
+]

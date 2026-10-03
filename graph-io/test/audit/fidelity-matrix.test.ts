@@ -29,6 +29,9 @@ import { describe, expect, it } from "vitest";
 import { countUnrepresentableIds } from "../../src/common/export.js";
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cxImporter } from "../../src/formats/cx/importer.js";
+import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
+import { cx2Importer } from "../../src/formats/cx2/importer.js";
 import { dotExporter } from "../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../src/formats/dot/importer.js";
 import { gexfExporter } from "../../src/formats/gexf/exporter.js";
@@ -41,6 +44,7 @@ import { jsonExporter } from "../../src/formats/json/exporter.js";
 import { jsonImporter } from "../../src/formats/json/importer.js";
 import { neo4jExporter } from "../../src/formats/neo4j/exporter.js";
 import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
+import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import {
@@ -61,11 +65,17 @@ type AnyExportOptions = Record<string, unknown> & CommonExportOptions;
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 interface Pair {
-    readonly exporter: GraphExporter<AnyExportOptions>;
+    /** Null for a format graph-io only reads. */
+    readonly exporter: GraphExporter<AnyExportOptions> | null;
     readonly importer: GraphImporter<AnyImportOptions>;
 }
 
 const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
+    cx: { exporter: null, importer: cxImporter as GraphImporter<AnyImportOptions> },
+    cx2: {
+        exporter: cx2Exporter as GraphExporter<AnyExportOptions>,
+        importer: cx2Importer as GraphImporter<AnyImportOptions>,
+    },
     csv: {
         exporter: csvExporter as GraphExporter<AnyExportOptions>,
         importer: csvImporter as GraphImporter<AnyImportOptions>,
@@ -98,7 +108,24 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         exporter: pajekExporter as GraphExporter<AnyExportOptions>,
         importer: pajekImporter as GraphImporter<AnyImportOptions>,
     },
+    obo: { exporter: null, importer: oboImporter as GraphImporter<AnyImportOptions> },
 };
+
+/** The formats graph-io writes: the targets of the matrix. */
+const TARGETS: readonly CorpusFormat[] = CORPUS_FORMATS.filter((format) => PAIRS[format].exporter !== null);
+
+/**
+ * The exporter of a format graph-io writes.
+ * @param format - a member of TARGETS
+ * @returns the exporter
+ */
+function exporterOf(format: CorpusFormat): GraphExporter<AnyExportOptions> {
+    const { exporter } = PAIRS[format];
+    if (exporter === null) {
+        throw new Error(`${format} has no exporter`);
+    }
+    return exporter;
+}
 
 /** Formats without mixed direction: the export of an expanded snapshot needs a policy. */
 const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["dot", "gml", "json", "neo4j"]);
@@ -421,6 +448,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_GRAPHML_HIERARCHY_REORDERED", { global: ["ids", "topology", "nodes.*:*", "edges.*:*"] }],
     // direction and pairs
     ["W_NEO4J_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
+    ["W_CX2_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CSV_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_MIXED_DIRECTION", { global: DIRECTION }],
@@ -434,10 +462,12 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_EDGE_IDS_GENERATED", { global: ["edges.id:extra", "edges.key:extra", "edges.Id:extra"] }],
     ["W_EDGE_IDS_DROPPED", { column: MISSING_CLASS }],
     ["W_GRAPHML_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
+    ["W_GEXF_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
     // whole tables
     ["W_GRAPH_ATTRIBUTES_DROPPED", { global: ["graph.*:missing"] }],
     ["W_CSV_NODE_TABLE", { global: ["nodes.*:missing"] }],
     ["W_NONFINITE_AS_NULL", { global: ["nodes.*:value", "edges.*:value", "graph.*:value", "weights"] }],
+    ["W_CX2_NONFINITE_AS_NULL", { global: ["nodes.*:value", "edges.*:value", "graph.*:value", "weights"] }],
     // roles and names
     ["W_ROLE_DROPPED", { column: ROLE_CLASS }],
     ["W_CSV_ROLE_NAME", { column: ROLE_CLASS }],
@@ -493,6 +523,7 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_PAJEK_POSITION_STRIDE", { column: MISSING_CLASS }],
     ["W_LIST_UNSUPPORTED", { column: MISSING_CLASS }],
     ["W_JSON_UNSUPPORTED", { column: MISSING_CLASS }],
+    ["W_CX2_JSON_AS_STRING", { column: DTYPE_CLASS }],
     ["W_COMPONENTS_FLATTENED", { column: MISSING_CLASS }],
     ["W_GEXF_KIND_DROPPED", { column: MISSING_CLASS }],
     ["W_TEMPORAL_TABLE_SHAPE", { column: MISSING_CLASS }],
@@ -578,7 +609,8 @@ function explains(note: LossNote, kind: DiffKind): boolean {
 
 /** The name a rename note says the column reads back under (`... reads back as "<name>"`), or null. */
 function readsBackAs(note: LossNote): string | null {
-    const m = /reads back as "([^"]+)"/.exec(note.message);
+    // a renamed key (GML's x_context for @context) reads back under the name it is written as
+    const m = /reads back as "([^"]+)"/.exec(note.message) ?? /is written as "([^"]+)"/.exec(note.message);
     return m === null ? null : m[1];
 }
 
@@ -611,7 +643,7 @@ async function trip(
     exportOptions: AnyExportOptions,
     importOptions: AnyImportOptions,
 ): Promise<Trip> {
-    const { exporter } = PAIRS[target];
+    const exporter = exporterOf(target);
     const notes = exporter.check(snapshot, exportOptions);
     let text: string;
     try {
@@ -754,12 +786,13 @@ function sameFormatExportOptions(input: Input, snapshot: GraphSnapshot): AnyExpo
 }
 
 describe("fidelity matrix: same-format round trips over every corpus file", () => {
-    for (const input of INPUTS) {
+    for (const input of INPUTS.filter((i) => TARGETS.includes(i.format))) {
         const { format } = input;
         it(`${input.label} -> ${format} -> ${format}: equal snapshot, meta and extension tables`, async () => {
             const { snapshot, report } = await original(input);
             expect(report.errorCount, `import of ${input.label} has errors`).toBe(0);
-            const { exporter, importer } = PAIRS[format];
+            const { importer } = PAIRS[format];
+            const exporter = exporterOf(format);
 
             const exportOptions = sameFormatExportOptions(input, snapshot);
             const notes = exporter.check(snapshot, exportOptions);
@@ -815,7 +848,8 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
 
         it(`${input.label} -> ${format} -> ${format}: graph meta survives`, async () => {
             const { snapshot } = await original(input);
-            const { exporter, importer } = PAIRS[format];
+            const { importer } = PAIRS[format];
+            const exporter = exporterOf(format);
             const exportOptions = sameFormatExportOptions(input, snapshot);
             const text = await exporter.exportToString(snapshot, exportOptions);
             const builder = new GraphBuilder({ directed: snapshot.directed, weightDtype: "f64" });
@@ -835,7 +869,7 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
 
 describe("fidelity matrix: every ordered pair of formats", () => {
     for (const input of INPUTS) {
-        for (const target of CORPUS_FORMATS) {
+        for (const target of TARGETS) {
             if (target === input.format) {
                 continue;
             }

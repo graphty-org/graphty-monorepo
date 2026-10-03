@@ -70,4 +70,5 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
         );
     });
 }
-daemon.done.then(({ reason }) => process.exit(reason === "fenced" ? 1 : 0));
+const { reason } = await daemon.done;
+process.exit(reason === "fenced" ? 1 : 0);

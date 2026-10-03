@@ -601,8 +601,10 @@ export interface DraftTable {
 }
 
 /** One column of a draft table, described as `data.attributes()` describes it after a load. */
-export interface DraftColumn
-    extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+export interface DraftColumn extends Pick<
+    AttributeDescriptor,
+    "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"
+> {
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
 }

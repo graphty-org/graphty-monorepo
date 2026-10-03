@@ -239,7 +239,12 @@ for this milestone", gives the reason for each.
   story outlines and scrolls to its tile. A text filter, a go-to box (a number, or part of a story
   id), and a per-component "Accept N undecided" (no question, since Undo N takes it back;
   `/api/accept-all` with `component`, which answers with the files it accepted, so the page
-  marks those tiles in place without reloading the project or moving the grid) complete it. Escape returns to the grid from a story wherever the focus is.
+  marks those tiles in place without reloading the project or moving the grid) complete it.
+  Every bulk Accept takes only what the grid shows: under a filter (Removed, New) or Find story,
+  the bar's button reads "Accept 131 removed" or "Accept 12 matching", asks naming the count and
+  the filter, and a component's Accept N counts only its shown items. The page sends those files
+  as `files`; the server accepts each one exactly as Accept all would, so what Finish signs is
+  unchanged. Escape returns to the grid from a story wherever the focus is.
 - **No decision is silently reversed.** A reject always needs a reason. A, R and E do nothing on a
   decided item; U or Undo clears it first. The API refuses a different decision on a decided
   item with 409 and accepts the same one again (opening an item Accept all decided re-sends it).

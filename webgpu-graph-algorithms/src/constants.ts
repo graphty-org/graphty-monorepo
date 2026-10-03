@@ -43,7 +43,9 @@ export const UNIFORM_SLOT_BYTES = 256;
  * unbiasedness item) the same day by its re-scope to the whole-field ratio, and the far field's accuracy on those
  * fixtures is the follow-up -- because "auto" is the default every consumer sees and the exact tier is the accurate
  * one; the rule's answer on the dev box (1024) is recorded, not shipped, until that work closes and the value is
- * re-fixed. A
+ * re-fixed. Re-measured on 2026-10-02 after the grid tier's hub-cell centroid became a direct dispatch (issue #732):
+ * the rule still answers 1024 (exact 0.26 against grid 0.18 ms per iteration at 4,096 nodes), because the indirect
+ * dispatch's cost was Dawn's validation pass, which the profiler's per-pass times never included. A
  * consumer whose GPU differs (integrated, Apple, T4) passes its own value through
  * createAccelerator(ctx, { layout: { exactMaxNodes } }); calibrateLayout(ctx) measures it.
  */

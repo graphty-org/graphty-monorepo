@@ -20,6 +20,7 @@ const VALUE_EXPORTS = [
     "fromBytes",
     "fromCsr",
     "fromEdgeArrays",
+    "fromElements",
     "fromRecords",
     "fromWire",
     "gatherArray",
@@ -40,6 +41,9 @@ const VALUE_EXPORTS = [
     "remapArray",
     "remapColumn",
     "renumberPartition",
+    "resolveNode",
+    "resolveNodeMask",
+    "resolveNodeSet",
     "scatterArray",
     "withComponents",
 ];

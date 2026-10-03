@@ -72,6 +72,7 @@ export default defineConfig({
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
+                        { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },
                         { text: "Undo & History", link: "/guide/undo" },
                         { text: "Project Files", link: "/guide/project-file" },
                         { text: "Camera", link: "/guide/camera" },

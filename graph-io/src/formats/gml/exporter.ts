@@ -831,17 +831,6 @@ function countMangled(snapshot: GraphSnapshot): number {
 // ============================================================ writing
 
 /**
- * The GML text of a real: the shortest text of the dtype with a decimal point guaranteed
- * (`2.0`, `1.0e-7`), the NetworkX spellings `+INF` / `-INF` / `NAN` for the non-finite values.
- * @param value - the value
- * @param dtype - the dtype the value came from (f32 uses the fround-shortest text)
- * @returns the text
- */
-export function gmlRealText(value: number, dtype: "f32" | "f64" | "i32" | "u32" | "u8" = "f64"): string {
-    return formatGmlReal(value, dtype);
-}
-
-/**
  * The GML text of a number by the dtype and origin of its column: an integer text for the integer
  * dtypes and for an f64 column that came from GML `int` values, a real text otherwise.
  * @param value - the value
@@ -855,12 +844,12 @@ function numberText(value: number, meta: ColumnMeta): string {
         case "u8":
             return formatInteger(value);
         case "f32":
-            return gmlRealText(value, "f32");
+            return formatGmlReal(value, "f32");
         default:
             if (meta.origin?.type === "int" && Number.isInteger(value)) {
                 return formatInteger(value);
             }
-            return gmlRealText(value, "f64");
+            return formatGmlReal(value, "f64");
     }
 }
 
@@ -873,7 +862,7 @@ function numberText(value: number, meta: ColumnMeta): string {
 function jsonScalarText(value: number | string | boolean): string {
     switch (typeof value) {
         case "number":
-            return Number.isInteger(value) ? formatInteger(value) : gmlRealText(value, "f64");
+            return Number.isInteger(value) ? formatInteger(value) : formatGmlReal(value, "f64");
         case "boolean":
             return value ? "1" : "0";
         default:
@@ -897,13 +886,13 @@ function itemText(item: unknown, itemDtype: string, meta: ColumnMeta): string {
                 case "u8":
                     return formatInteger(item);
                 case "f32":
-                    return gmlRealText(item, "f32");
+                    return formatGmlReal(item, "f32");
                 case "json":
                     return jsonScalarText(item);
                 default:
                     return meta.origin?.type === "int" && Number.isInteger(item)
                         ? formatInteger(item)
-                        : gmlRealText(item, "f64");
+                        : formatGmlReal(item, "f64");
             }
         case "boolean":
             return item ? "1" : "0";
@@ -1234,7 +1223,7 @@ function originalIdText(id: NodeId): string {
     if (typeof id === "string") {
         return quoteGmlString(id);
     }
-    return Number.isSafeInteger(id) ? formatInteger(id) : gmlRealText(id, "f64");
+    return Number.isSafeInteger(id) ? formatInteger(id) : formatGmlReal(id, "f64");
 }
 
 /**
@@ -1308,7 +1297,7 @@ function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
             const text =
                 integerWeights && Number.isInteger(weight)
                     ? formatInteger(weight)
-                    : gmlRealText(weight, context.weights.dtype);
+                    : formatGmlReal(weight, context.weights.dtype);
             w.line("    ", plan.weightKey, text);
         }
         for (const { column, key } of context.edgeColumns) {

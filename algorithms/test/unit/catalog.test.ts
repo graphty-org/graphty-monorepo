@@ -119,8 +119,17 @@ const WEIGHT_RULES: Readonly<Record<WeightUse, readonly [boolean, boolean, boole
 
 const entries = Object.entries(ALGORITHMS) as [string, AlgorithmEntry][];
 
-// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape.
-const NOT_ALGORITHMS = new Set(["accelerated", "walkPredArcs", "walkPredEdges", "bipartiteFlowNetwork", "arcSourceIn"]);
+// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape: helpers, and the id-keyed views of a result.
+const NOT_ALGORITHMS = new Set([
+    "accelerated",
+    "walkPredArcs",
+    "walkPredEdges",
+    "bipartiteFlowNetwork",
+    "arcSourceIn",
+    "groupsById",
+    "pathIds",
+    "scoresById",
+]);
 
 describe("ALGORITHMS", () => {
     it("lists every algorithm the package exports, under its export name", () => {

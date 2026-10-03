@@ -97,11 +97,12 @@ function fixtures(): readonly { readonly name: string; readonly s: GraphSnapshot
 }
 
 describe("betweenness batch planner (design 8.4, 10.1)", () => {
-    it("k = min(binding / 4n, 0.25 x maxBufferSize / 16n, 64, remaining), at least 1; a faked maxBufferSize shrinks it", () => {
+    it("k = min(binding / 4n, 0.25 x maxBufferSize / 16n, 256, remaining), at least 1; a faked maxBufferSize shrinks it", () => {
         const dawn = { maxStorageBufferBindingSize: 128 * 2 ** 20, maxBufferSize: 256 * 2 ** 20 };
         expect(planBatchSize(100_000, 256, dawn)).toBe(41); // the budget: floor(64 MiB / 1.6 MB); the binding allows 335
         expect(planBatchSize(34, 34, dawn)).toBe(34);
-        expect(planBatchSize(34, 1000, dawn)).toBe(64);
+        expect(planBatchSize(34, 1000, dawn)).toBe(256);
+        expect(planBatchSize(4000, 4000, dawn)).toBe(256); // 1k to 4k nodes run 256 sources per batch, not 64
         expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 64 * 16 * 1000 * 4 })).toBe(64);
         expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 8 * 16 * 1000 * 4 })).toBe(8);
         expect(planBatchSize(1000, 1000, { ...dawn, maxBufferSize: 1 })).toBe(1);

@@ -1,4 +1,6 @@
-import { cloneDeep, defaultsDeep, get } from "lodash";
+import cloneDeep from "lodash/cloneDeep.js";
+import defaultsDeep from "lodash/defaultsDeep.js";
+import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import type { LabelBadge } from "../catalog/label-style";

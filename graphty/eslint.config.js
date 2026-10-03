@@ -11,6 +11,7 @@ import storybookPlugin from "eslint-plugin-storybook";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
@@ -104,7 +105,11 @@ export default tseslint.config(
                     allowConstantExport: true,
                 },
             ],
-            "@typescript-eslint/no-restricted-imports": ["error", { patterns: RESTRICTED_IMPORT_PATTERNS }],
+            // compact-mantine's replacements for stock Mantine components: see the list's own file.
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { patterns: RESTRICTED_IMPORT_PATTERNS, paths: MANTINE_REPLACEMENTS },
+            ],
         },
     },
 

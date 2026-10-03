@@ -12,7 +12,7 @@
  * nothing here accepts one.
  */
 
-import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { PANEL_INK } from "@graphty/compact-mantine";
 import { Box } from "@mantine/core";
 import React from "react";
 
@@ -23,9 +23,11 @@ import React from "react";
 export const COMING_LABEL = "Coming";
 
 /**
- * The pill's box: 16 tall (spec 03 section 1.5; VOCAB section 3 "pill (compact)").
+ * The pill's box: 16 tall (spec 03 section 1.5; VOCAB section 3 "pill (compact)"), the height
+ * of Figma's status badge. It was `PANEL_GRID.GLYPH_SLOT` while that slot was 16; the slot is
+ * now Figma's 24px icon box, so the pill keeps its own number.
  */
-export const COMING_TAG_HEIGHT = PANEL_GRID.GLYPH_SLOT;
+export const COMING_TAG_HEIGHT = 16;
 
 /** The pill's corner, half its height, so it is fully round. */
 export const COMING_TAG_RADIUS = COMING_TAG_HEIGHT / 2;

@@ -41,7 +41,6 @@ describe("Package Structure", () => {
             "shell",
             "spectral",
             "spiral",
-            "rescaleLayout",
         ];
 
         for (const exportName of expectedExports) {
@@ -70,11 +69,9 @@ describe("Package Structure", () => {
         }
     });
 
-    it("keeps the indexed namespace as an alias of the top-level layouts", async () => {
+    it("no longer exports the indexed namespace", async () => {
         const layout = await import("../dist/layout.js");
-        for (const name of ["kamadaKawai", "forceAtlas2", "fruchtermanReingold", "arf"]) {
-            assert.equal(layout.indexed[name], layout[name], `indexed.${name} is ${name}`);
-        }
+        assert.equal("indexed" in layout, false);
     });
 
     it("no longer exports the positional layouts or the graph generators", async () => {

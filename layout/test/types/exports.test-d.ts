@@ -38,26 +38,8 @@ expectTypeOf(layout.shell).toEqualTypeOf<Layout<ShellLayoutOptions>>();
 expectTypeOf(layout.spectral).toEqualTypeOf<Layout<CommonLayoutOptions>>();
 expectTypeOf(layout.spiral).toEqualTypeOf<Layout<SpiralLayoutOptions>>();
 
-// The deprecated `indexed` namespace holds exactly the same fifteen layouts: a layout added or removed must be
-// pinned here too.
-type Promoted =
-    | "arf"
-    | "bfs"
-    | "bipartite"
-    | "circular"
-    | "forceAtlas2"
-    | "fruchtermanReingold"
-    | "grid"
-    | "kamadaKawai"
-    | "multipartite"
-    | "planar"
-    | "radial"
-    | "random"
-    | "shell"
-    | "spectral"
-    | "spiral";
-expectTypeOf<keyof typeof layout.indexed>().toEqualTypeOf<Promoted>();
-expectTypeOf<Pick<typeof layout.indexed, Promoted>>().toEqualTypeOf<Pick<typeof layout, Promoted>>();
+// The 1.x `indexed` namespace, deprecated in 2.0.0, is gone: every layout is a top-level export.
+expectTypeOf<typeof layout>().not.toHaveProperty("indexed");
 
 // The positional layouts and the graph generators of layout 1.x are gone.
 type Removed =

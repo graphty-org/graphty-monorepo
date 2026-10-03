@@ -39,8 +39,9 @@ import type {
     BoundingBoxWH,
     Collection,
     Core,
-    EventHandler,
+    LayoutHandler,
     LayoutPositionOptions,
+    Layouts as CytoscapeLayouts,
     NodeCollection,
     NodeSingular,
     Position,
@@ -66,8 +67,8 @@ export interface GraphtyLayoutOptions {
     readonly boundingBox?: BoundingBox12 | BoundingBoxWH;
     readonly spacingFactor?: number;
     readonly transform?: (node: NodeSingular, position: Position) => Position;
-    readonly ready?: EventHandler;
-    readonly stop?: EventHandler;
+    readonly ready?: LayoutHandler;
+    readonly stop?: LayoutHandler;
     /** 2 (default) or 3; a 3D result is projected onto x-y. */
     readonly dim?: 2 | 3;
     /** Seed of the layouts that draw random numbers; random when absent. */
@@ -99,6 +100,25 @@ export interface GraphtyLayoutOptions {
     readonly [option: string]: unknown;
 }
 
+/** A "graphty-*" layout's options as `layout()`, `makeLayout()` and `createLayout()` take them. */
+type NamedGraphtyLayoutOptions = GraphtyLayoutOptions & { readonly name: `graphty-${string}` };
+
+// Cytoscape types layout() over a closed union whose catch-all, BaseLayoutOptions, rejects every option it does not
+// list, so `cy.layout({ name: "graphty-circular", boundingBox })` written inline would not compile. These overloads
+// take a "graphty-*" layout's own options; any other layout name still resolves to Cytoscape's signature.
+declare module "cytoscape" {
+    interface CoreLayout {
+        layout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        makeLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        createLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+    }
+    interface CollectionLayout {
+        layout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        makeLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+        createLayout(options: NamedGraphtyLayoutOptions): CytoscapeLayouts;
+    }
+}
+
 /** The registry hands the constructor the options plus `cy`. */
 interface ConstructorOptions extends GraphtyLayoutOptions {
     readonly cy: Core;
@@ -113,7 +133,7 @@ interface LayoutThis {
     /** Simulations: which implementation ran and why, set before layoutready. */
     backend?: Backend;
     emit(event: string | { type: string; layout: LayoutThis }, params?: unknown[]): LayoutThis;
-    one(events: string, handler: EventHandler): LayoutThis;
+    one(events: string, handler: LayoutHandler): LayoutThis;
 }
 
 /** A static layout over the snapshot, given the options with element selections already turned into indices. */

@@ -36,6 +36,84 @@ cy.elements().graphtyDijkstra({ root: "#a", weight: "w" }).pathTo("#c"); // node
 cy.graphtyLouvain(); // the core method runs over cy.elements(): an array of node collections
 ```
 
+## Installing and loading
+
+```sh
+npm install cytoscape @graphty/cytoscape-extensions @graphty/algorithms @graphty/layout @graphty/graph-format
+```
+
+Cytoscape.js 3.31.0 or later is required: 3.31.0 is the first release that ships its own TypeScript
+typings, which this package's typings extend. CI runs the whole test suite against 3.31.0 and
+against the newest 3.x on npm.
+
+### ES modules
+
+The package is ES modules only, as is every graphty package it loads. A bundler (Vite, webpack,
+esbuild, Rollup) or Node's `import` loads it as in the example above, and the WebGPU code, the
+generators, the datasets and the file formats each land in a chunk of their own that is fetched
+only when first used.
+
+There is no CommonJS build: it would still have to load the graphty packages as ES modules. On
+Node 20.19 or later (22.12 or later on the 22 line), CommonJS code loads the package with a plain
+`require`:
+
+```js
+const cytoscape = require("cytoscape");
+cytoscape.use(require("@graphty/cytoscape-extensions").default);
+```
+
+On an older Node, use `await import("@graphty/cytoscape-extensions")`.
+
+### Script tag
+
+For a page with no build step, `dist/cytoscape-extensions.bundle.js` is one classic script holding
+the extension and everything it needs, including WebGPU detection: on a browser with WebGPU the
+asynchronous methods and the simulations use the GPU exactly as they do in a bundled application.
+Loaded after Cytoscape, it registers itself onto the global `cytoscape`, so there is no `use()`
+call. It also sets the global `graphtyCytoscape`, for a page that loads Cytoscape afterwards and
+calls `cytoscape.use(graphtyCytoscape)` itself.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@graphty/cytoscape-extensions/dist/cytoscape-extensions.bundle.js"></script>
+<script>
+    const cy = cytoscape({
+        container: document.getElementById("cy"),
+        elements: [
+            /* ... */
+        ],
+    });
+    cy.layout({ name: "graphty-forceatlas2" }).run();
+</script>
+```
+
+Because nothing in it can be loaded later, it carries every generator, every bundled dataset and
+every file format: about 2.3 MB, 0.7 MB compressed. A bundled application pays only for what it
+calls.
+
+### TypeScript
+
+The typings come with the package. Importing it adds every `graphty...` method to Cytoscape's
+`Collection` and `Core` types by module augmentation, and `GraphtyLayoutOptions` types the options
+of the `graphty-*` layouts:
+
+```ts
+import cytoscape from "cytoscape";
+import graphtyCytoscape, { type GraphtyLayoutOptions } from "@graphty/cytoscape-extensions";
+
+cytoscape.use(graphtyCytoscape);
+const cy = cytoscape({ headless: true });
+const options: GraphtyLayoutOptions = { name: "graphty-forceatlas2", maxIter: 200, gpu: "off" };
+cy.layout(options).run();
+const r = await cy.elements().graphtyPageRankAsync(); // r.backend.ran is "gpu" or "cpu"
+```
+
+CI compiles a consumer like this one with `strict` on and `skipLibCheck` off, against both
+Cytoscape versions above. Cytoscape's own typings reference `HTMLElement` and `MouseEvent`, so
+include the `DOM` lib even in a Node project. Use `"moduleResolution": "bundler"`: under `node16`
+or `nodenext`, @graphty/layout's typings do not yet resolve (its declaration files import
+relative paths without a file extension), which with `skipLibCheck` off is a compile error.
+
 ## Layouts
 
 | Name                           | Kind       | Options of its own                                                                                                                                 |

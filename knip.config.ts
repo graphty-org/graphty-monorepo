@@ -76,7 +76,11 @@ const config: KnipConfig = {
                 "src/samples.ts!",
                 "src/gpu-platform-browser.ts!",
                 "src/gpu-platform-node.ts!",
+                // the script-tag build's entry (vite.bundle.config.ts)
+                "bundle.ts!",
                 "test/**/*.test.ts",
+                // compiled by test/consumer-types.test.ts as a consumer would compile it
+                "test/consumer/consumer.ts",
             ],
             project: ["src/**/*.ts!", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],

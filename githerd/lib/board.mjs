@@ -342,7 +342,7 @@ const KINDS = new Set(["incident", "pr", "issue", "triage", "review", "title", "
  */
 const EXITS = {
     queued: ["starting"],
-    blocked: ["queued"],
+    blocked: ["queued", "faulted"],
     starting: ["working", "blocked", "queued", "faulted"],
     working: ["waiting", "parked", "verifying", "queued", "failed", "faulted"],
     waiting: ["working", "done", "faulted"],
@@ -578,6 +578,17 @@ export function tick(job, now, pauses = {}) {
     job.deadline = job.pausedBy.length ? null : new Date(now.getTime() + clock.budgetMs - clock.usedMs).toISOString();
     if (clock.usedMs < clock.budgetMs) return null;
     return fire(job, now);
+}
+
+/**
+ * Restarts every deadline clock at `now`, so the time the daemon was down is not counted: githerd's
+ * view was unknown then, and every deadline pauses while it is (design 5.3). Called once at start,
+ * after the state is loaded.
+ * @param {any} state the daemon state
+ * @param {Date} now the current time
+ */
+export function resumeClocks(state, now) {
+    for (const job of Object.values(state.jobs ?? {})) if (job.clock) job.clock.at = now.toISOString();
 }
 
 /**

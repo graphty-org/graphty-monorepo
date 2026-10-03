@@ -12,6 +12,7 @@ import {
     move,
     newJob,
     pausesFor,
+    resumeClocks,
     startPhase,
     STATES,
     TERMINAL,
@@ -68,6 +69,7 @@ describe("move: every state has a tested exit", () => {
         [[], "cancelled"],
         [["starting", "blocked"], "queued"],
         [["starting", "blocked"], "cancelled"],
+        [["starting", "blocked"], "faulted"],
         [["starting"], "working"],
         [["starting"], "blocked"],
         [["starting"], "queued"],
@@ -320,6 +322,28 @@ describe("budgets", () => {
         expect(death(job, {}, at(200))).toEqual({ action: "faulted", job: job.id });
         expect(job).toMatchObject({ state: "faulted", attempts: [] });
         expect(job.deaths[1].capture).toBe("pane");
+    });
+
+    it("deaths while blocked: the third faults it, as in every state that keeps a session", () => {
+        const job = jobIn(["starting", "blocked"]);
+        job.holder = { session: "w1" };
+        death(job, {}, at(1));
+        death(job, {}, at(2));
+        expect(death(job, {}, at(3))).toEqual({ action: "faulted", job: job.id });
+        expect(job).toMatchObject({ state: "faulted", deaths: [{}, {}, {}] });
+    });
+
+    it("a daemon restart does not count the time it was down against a deadline", () => {
+        const job = jobIn(["starting", "working"]);
+        expect(job.deadline).toBe(at(240).toISOString());
+        expect(tick(job, at(200))).toBeNull();
+        // The daemon was down from minute 200 to minute 500: its view was unknown.
+        const state = { jobs: { [job.id]: job, other: { id: "other", clock: null } } };
+        resumeClocks(state, at(500));
+        expect(tick(job, at(500))).toBeNull();
+        expect(job).toMatchObject({ state: "working", attempts: [] });
+        expect(job.deadline).toBe(at(540).toISOString());
+        expect(tick(job, at(540))).toMatchObject({ action: "requeue" });
     });
 
     it("a second death after 30 minutes resumes", () => {

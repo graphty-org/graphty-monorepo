@@ -346,6 +346,7 @@ export async function startDaemon({
     const loaded = await loadState(stateDir, { now });
     const state = loaded.state;
     for (const err of loaded.errors) say("error", `state: ${err}`);
+    board.resumeClocks(state, now());
     // Kept for the run dispatcher, which holds new runs until `holdRunsUntil`.
     if (loaded.recovery) state.recovery = loaded.recovery;
     state.master ??= { lanes: {} };

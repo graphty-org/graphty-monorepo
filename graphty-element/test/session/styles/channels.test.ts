@@ -493,3 +493,26 @@ describe("toColorValue", () => {
         assert.isNull(toColorValue(undefined));
     });
 });
+
+describe("the arrow-end channels", () => {
+    // The head's and the tail's six channels come from one builder; the only intended difference
+    // between the two ends is the name and the tail's "none" type default.
+    it("describes the tail exactly as the head, end name and type default aside", () => {
+        for (const suffix of ["", "Size", "Color", "Opacity", "Text", "TextStyle"]) {
+            const { caveat: headCaveat, ...head } =
+                CHANNEL_DESCRIPTORS[`edge.arrowHead${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
+            const { caveat: tailCaveat, ...tail } =
+                CHANNEL_DESCRIPTORS[`edge.arrowTail${suffix}` as keyof typeof CHANNEL_DESCRIPTORS];
+            assert.strictEqual(tailCaveat, headCaveat, suffix);
+            const asHead = JSON.parse(
+                JSON.stringify(tail).replaceAll("Tail", "Head").replaceAll("tail", "head"),
+            ) as typeof head;
+            if (suffix === "") {
+                assert.strictEqual(tail.default, "none");
+                assert.deepStrictEqual({ ...asHead, default: head.default }, head);
+            } else {
+                assert.deepStrictEqual(asHead, head, suffix);
+            }
+        }
+    });
+});

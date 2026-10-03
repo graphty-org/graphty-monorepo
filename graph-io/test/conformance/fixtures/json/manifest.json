@@ -4768,6 +4768,7 @@
     },
     {
       "file": "cytoscape/desktop-export.cyjs",
+      "sniffAs": "json",
       "origin": "authored from the Cytoscape manual's .cyjs description (tmp/format-conformance/cyjs.txt)",
       "license": "MIT (authored)",
       "version": "Cytoscape 3.10 .cyjs shape",
@@ -4818,6 +4819,7 @@
     },
     {
       "file": "cytoscape/flat-array.json",
+      "sniffAs": "json",
       "origin": "authored from the Cytoscape.js elements documentation (https://js.cytoscape.org/)",
       "license": "MIT (authored)",
       "version": "cytoscape.js 3.x docs",
@@ -21945,6 +21947,829 @@
         ]
       },
       "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
+    },
+    {
+      "file": "obographs/goslim_generic.json",
+      "origin": "https://purl.obolibrary.org/obo/go/subsets/goslim_generic.json",
+      "license": "CC-BY-4.0 (GO citation policy)",
+      "version": "go/releases/2026-07-26, retrieved 2026-10-02",
+      "exercises": "the OBO Graphs twin of goslim_generic.obo: IRI ids compacted, 71 PROPERTY nodes kept as metadata, logicalDefinitionAxioms and propertyChainAxioms in meta.extra.obographs (design 4.6)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 140,
+        "edges": 64,
+        "directed": true,
+        "nodeIds": [
+          "GO:0000228",
+          "GO:0000278",
+          "GO:0000910",
+          "GO:0001618"
+        ],
+        "labels": [
+          "nuclear chromosome",
+          "mitotic cell cycle",
+          "cytokinesis"
+        ],
+        "edgeChecks": [
+          {
+            "source": "GO:0000228",
+            "target": "GO:0005694"
+          },
+          {
+            "source": "GO:0000228",
+            "target": "GO:0005634"
+          },
+          {
+            "source": "GO:0000278",
+            "target": "GO:0140014"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "GO:0000228",
+            "target": "GO:0005694",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "GO:0000228",
+            "target": "GO:0005634",
+            "column": "relation",
+            "value": "part_of"
+          },
+          {
+            "source": "GO:0000278",
+            "target": "GO:0140014",
+            "column": "relation",
+            "value": "has_part"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/ro.json",
+      "origin": "https://purl.obolibrary.org/obo/ro.json",
+      "license": "CC0-1.0 (in-file license)",
+      "version": "retrieved 2026-10-02",
+      "exercises": "domainRangeAxioms with allValuesFromEdges, INDIVIDUAL nodes, hundreds of PROPERTY nodes",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 220,
+        "edges": 87,
+        "directed": true,
+        "nodeIds": [
+          "BFO:0000002",
+          "BFO:0000003",
+          "BFO:0000004",
+          "BFO:0000006"
+        ],
+        "labels": [
+          "continuant",
+          "occurrent",
+          "independent continuant"
+        ],
+        "edgeChecks": [
+          {
+            "source": "BFO:0000004",
+            "target": "BFO:0000002"
+          },
+          {
+            "source": "BFO:0000006",
+            "target": "BFO:0000141"
+          },
+          {
+            "source": "BFO:0000015",
+            "target": "BFO:0000003"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "BFO:0000004",
+            "target": "BFO:0000002",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "BFO:0000006",
+            "target": "BFO:0000141",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "BFO:0000015",
+            "target": "BFO:0000003",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/abox.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/abox.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "individuals: INDIVIDUAL nodes and their type edges (instance_of)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          "http://purl.obolibrary.org/obo/T/Female",
+          "http://purl.obolibrary.org/obo/T/Male",
+          "http://purl.obolibrary.org/obo/T/Person",
+          "http://purl.obolibrary.org/obo/T/b"
+        ],
+        "edgeChecks": [
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Female",
+            "target": "http://purl.obolibrary.org/obo/T/Person"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Male",
+            "target": "http://purl.obolibrary.org/obo/T/Person"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/f1",
+            "target": "http://purl.obolibrary.org/obo/T/Male"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Female",
+            "target": "http://purl.obolibrary.org/obo/T/Person",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Male",
+            "target": "http://purl.obolibrary.org/obo/T/Person",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/f1",
+            "target": "http://purl.obolibrary.org/obo/T/Male",
+            "column": "relation",
+            "value": "instance_of"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/basic.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/basic.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "the basic example",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "UBERON:0002101",
+          "UBERON:0002102",
+          "UBERON:0002398",
+          "UBERON:0002470"
+        ],
+        "labels": [
+          "limb",
+          "forelimb",
+          "manus"
+        ],
+        "edgeChecks": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102",
+            "column": "relation",
+            "value": "part_of"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/equivNodeSetTest.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/equivNodeSetTest.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "equivalentNodesSets, edge meta, five endpoints missing from nodes (placeholders)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ],
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "DOID:0001816",
+          "DOID:267",
+          "DOID:4508",
+          "NCIT:C121671",
+          "DOID:1115"
+        ],
+        "labels": [
+          "angiosarcoma",
+          "Angiosarcoma of Soft Tissue",
+          "Angiosarcoma"
+        ],
+        "edgeChecks": [
+          {
+            "source": "DOID:0001816",
+            "target": "DOID:1115"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C3088"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C9306"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "DOID:0001816",
+            "target": "DOID:1115",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C3088",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C9306",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/logicalDefinitionTest.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/logicalDefinitionTest.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "logicalDefinitionAxioms",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "UBERON:0002101",
+          "UBERON:0002102",
+          "UBERON:0002398",
+          "UBERON:0002470"
+        ],
+        "labels": [
+          "limb",
+          "forelimb",
+          "manus"
+        ],
+        "edgeChecks": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102",
+            "column": "relation",
+            "value": "part_of"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/nucleus.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/nucleus.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "nodes without a type (subset and annotation-property IRIs) and nodes without lbl",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 32,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "GO:0005575",
+          "GO:0005622",
+          "GO:0005623",
+          "GO:0005634"
+        ],
+        "labels": [
+          "cellular_component",
+          "intracellular",
+          "cell"
+        ],
+        "edgeChecks": [
+          {
+            "source": "GO:0005622",
+            "target": "GO:0044464"
+          },
+          {
+            "source": "GO:0005623",
+            "target": "GO:0005575"
+          },
+          {
+            "source": "GO:0005634",
+            "target": "GO:0043231"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "GO:0005622",
+            "target": "GO:0044464",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "GO:0005623",
+            "target": "GO:0005575",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "GO:0005634",
+            "target": "GO:0043231",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json",
+      "oracleDisagrees": "fastobo.load_graph reads the untyped nodes as Typedefs (11 Terms); the schema makes type optional and says nothing of untyped nodes being properties, so they are nodes (design 4.6: every node is a node)"
+    },
+    {
+      "file": "obographs/obsoletion_example.json",
+      "origin": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/obsoletion_example.json",
+      "license": "BSD-3-Clause (obographs pom.xml licenses)",
+      "version": "459a44e",
+      "exercises": "a deprecated node with term replaced by (IAO_0100001)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "X:1",
+          "X:2",
+          "Y:1",
+          "Y:2"
+        ],
+        "labels": [
+          "x1",
+          "obsolete x2",
+          "y1"
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/pronto/abox.json",
+      "origin": "https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/abox.json",
+      "license": "MIT (pronto repository); obographs example content BSD-3-Clause",
+      "version": "8465a59",
+      "exercises": "the pre-0.3.1 shape: undeclared individuals (placeholders)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ],
+        "outcome": "pass",
+        "nodes": 9,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          "http://purl.obolibrary.org/obo/T/f1",
+          "http://purl.obolibrary.org/obo/T/Male",
+          "http://purl.obolibrary.org/obo/T/m1",
+          "http://purl.obolibrary.org/obo/T/Female",
+          "http://purl.obolibrary.org/obo/T/Person"
+        ],
+        "edgeChecks": [
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Female",
+            "target": "http://purl.obolibrary.org/obo/T/Person"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Male",
+            "target": "http://purl.obolibrary.org/obo/T/Person"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/f1",
+            "target": "http://purl.obolibrary.org/obo/T/Male"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Female",
+            "target": "http://purl.obolibrary.org/obo/T/Person",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/Male",
+            "target": "http://purl.obolibrary.org/obo/T/Person",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "http://purl.obolibrary.org/obo/T/f1",
+            "target": "http://purl.obolibrary.org/obo/T/Male",
+            "column": "relation",
+            "value": "instance_of"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/pronto/basic.json",
+      "origin": "https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/basic.json",
+      "license": "MIT (pronto repository); obographs example content BSD-3-Clause",
+      "version": "8465a59",
+      "exercises": "the pre-0.3.1 shape of the basic example",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 4,
+        "directed": true,
+        "nodeIds": [
+          "UBERON:0002101",
+          "UBERON:0002102",
+          "UBERON:0002398",
+          "UBERON:0002470"
+        ],
+        "labels": [
+          "limb",
+          "forelimb",
+          "manus"
+        ],
+        "edgeChecks": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "UBERON:0002102",
+            "target": "UBERON:0002101",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002470",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "UBERON:0002398",
+            "target": "UBERON:0002102",
+            "column": "relation",
+            "value": "part_of"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/pronto/equivNodeSetTest.json",
+      "origin": "https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/equivNodeSetTest.json",
+      "license": "MIT (pronto repository); obographs example content BSD-3-Clause",
+      "version": "8465a59",
+      "exercises": "the pre-0.3.1 shape, dangling endpoints",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ],
+        "outcome": "pass",
+        "nodes": 11,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          "DOID:0001816",
+          "DOID:267",
+          "DOID:4508",
+          "NCIT:C121671",
+          "DOID:1115"
+        ],
+        "labels": [
+          "angiosarcoma",
+          "Angiosarcoma of Soft Tissue",
+          "Angiosarcoma"
+        ],
+        "edgeChecks": [
+          {
+            "source": "DOID:0001816",
+            "target": "DOID:1115"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C3088"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C9306"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "DOID:0001816",
+            "target": "DOID:1115",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C3088",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "NCIT:C121671",
+            "target": "NCIT:C9306",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/pronto/nucleus.json",
+      "origin": "https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/nucleus.json",
+      "license": "MIT (pronto repository); obographs example content BSD-3-Clause",
+      "version": "8465a59",
+      "exercises": "the pre-0.3.1 shape: first node a PROPERTY without lbl",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 13,
+        "edges": 13,
+        "directed": true,
+        "nodeIds": [
+          "GO:0005575",
+          "GO:0005622",
+          "GO:0005623",
+          "GO:0005634"
+        ],
+        "labels": [
+          "cellular_component",
+          "intracellular",
+          "cell"
+        ],
+        "edgeChecks": [
+          {
+            "source": "GO:0005622",
+            "target": "GO:0044464"
+          },
+          {
+            "source": "GO:0005623",
+            "target": "GO:0005575"
+          },
+          {
+            "source": "GO:0005634",
+            "target": "GO:0043231"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "GO:0005622",
+            "target": "GO:0044464",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "GO:0005623",
+            "target": "GO:0005575",
+            "column": "relation",
+            "value": "is_a"
+          },
+          {
+            "source": "GO:0005634",
+            "target": "GO:0043231",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/pronto/obsoletion_example.json",
+      "origin": "https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/obsoletion_example.json",
+      "license": "MIT (pronto repository); obographs example content BSD-3-Clause",
+      "version": "8465a59",
+      "exercises": "the pre-0.3.1 shape, an obsolete term",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "X:1",
+          "X:2",
+          "Y:1",
+          "Y:2"
+        ],
+        "labels": [
+          "x1",
+          "obsolete x2",
+          "y1"
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/authored/subj_key.json",
+      "origin": "generated by test/conformance/tools/make_obo_fixtures.py",
+      "license": "MIT (authored)",
+      "version": "authored 2026-10-02",
+      "exercises": "the README's outdated subj edge key, read as sub with W_JSON_OBOGRAPHS_SUBJ (design 1.6)",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_JSON_OBOGRAPHS_SUBJ"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "X:1",
+          "X:2"
+        ],
+        "labels": [
+          "one",
+          "two"
+        ],
+        "edgeChecks": [
+          {
+            "source": "X:2",
+            "target": "X:1"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "X:2",
+            "target": "X:1",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/authored/two_graphs.json",
+      "origin": "generated by test/conformance/tools/make_obo_fixtures.py",
+      "license": "MIT (authored)",
+      "version": "authored 2026-10-02",
+      "exercises": "two graphs: import() reads the first with W_MULTIPLE_GRAPHS, importAll() both, listGraphs() names them",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_MULTIPLE_GRAPHS"
+        ],
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          "A:1"
+        ],
+        "labels": [
+          "a"
+        ],
+        "graphs": 2,
+        "graphNames": [
+          "http://purl.obolibrary.org/obo/a.owl",
+          "http://purl.obolibrary.org/obo/b.owl"
+        ]
+      },
+      "sniffAs": "json"
+    },
+    {
+      "file": "obographs/authored/dangling_endpoint.json",
+      "origin": "generated by test/conformance/tools/make_obo_fixtures.py",
+      "license": "MIT (authored)",
+      "version": "authored 2026-10-02",
+      "exercises": "an edge endpoint missing from nodes: a placeholder node, W_DANGLING_REFERENCE",
+      "oracle": "python-json-obographs",
+      "expected": {
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ],
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          "X:1",
+          "UBERON:0000001"
+        ],
+        "labels": [
+          "one"
+        ],
+        "edgeChecks": [
+          {
+            "source": "X:1",
+            "target": "UBERON:0000001"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": "X:1",
+            "target": "UBERON:0000001",
+            "column": "relation",
+            "value": "is_a"
+          }
+        ]
+      },
+      "sniffAs": "json"
     }
   ]
 }

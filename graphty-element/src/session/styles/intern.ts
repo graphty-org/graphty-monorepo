@@ -147,12 +147,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
 });
 
 /**
- * Every channel that keys a source mesh, for one kind of element, in the channel table's order.
+ * Every channel that keys a source mesh, for one kind of element, in `channelsFor`'s order.
  *
  * The order is fixed and shared by every element of that kind, which is what lets the interner
  * compare two styles as two flat sequences of numbers rather than as two objects.
  * @param target - Nodes or edges.
- * @returns The channels, in table order.
+ * @returns The channels, in `channelsFor`'s order.
  */
 function meshChannels(target: "node" | "edge"): readonly Channel[] {
     return Object.freeze(
@@ -182,7 +182,7 @@ export function channelRole(channel: Channel): StyleRole {
  *
  * A repaint pushes exactly these, in exactly this order, for every element it interns.
  * @param target - Nodes or edges.
- * @returns The channels, in the channel table's order. The same frozen array every call.
+ * @returns The channels, in `channelsFor`'s order. The same frozen array every call.
  */
 export function meshChannelsFor(target: "node" | "edge"): readonly Channel[] {
     return MESH_CHANNELS[target];

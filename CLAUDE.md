@@ -123,7 +123,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: gexf, graphml, gml, dot, pajek, csv, json, neo4j) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 
 - The Web Component library is **graphty-element** (not "graphty")
@@ -277,6 +277,8 @@ The `tools/` directory contains build scripts:
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
+| `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
 ### Secret Scan and Secret Files
@@ -293,6 +295,37 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
 when a merge or pull changed the lockfile. Either way, run `pnpm install`.
+
+### SonarQube
+
+The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
+SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
+fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
+already has never blocks, even on a touched line. It runs in the background while the tests run.
+The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
+come from the environment or `.env`; never print the token or put it on a command line. Design and
+the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
+
+When the step fails:
+
+- **A finding on your changed lines: fix it.** That is the default, every time. Rerun the step
+  with `node tools/sonar-gate.mjs` (about a minute) after committing the fix.
+- **A false positive: `// NOSONAR(<rule>): <reason>`** on that line (the rule key, such as
+  `S2245`, and a reason of 10 or more characters; a bare `NOSONAR` or one naming a vulnerability
+  rule fails the push). A rule that is wrong for a whole file goes in
+  `sonar.issue.ignore.multicriteria` in `sonar-project.properties`, with a comment giving the
+  reason. Say in your reply which suppressions you added and why.
+- **Never bypass without saying so.** A `Sonar-Bypass: <reason>` trailer on the HEAD commit is for
+  a server defect or an emergency the owner agreed to, never for a finding nobody wants to fix; it
+  does not cover vulnerabilities or hotspots. `git push --no-verify` skips the whole gate (the build,
+  the tests, the LFS upload). If you use either, say so in your reply, with the reason.
+- **"SonarQube step cannot run"** (no token, a rejected token, no Java, a missing
+  project): a setup problem. Report it to the owner with the message; do not work around it.
+- **"SonarQube did NOT check this push"**: the server was unreachable. The push went through; the
+  next push from the owner's network checks the whole branch. Mention it in your reply.
+
+Existing issues (the backlog) are burned down in separate small pull requests, one rule or one
+package at a time, never as part of feature work.
 
 ### Starting Servers
 
@@ -394,9 +427,10 @@ All packages: 80% lines/functions/statements, 75% branches
 | `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
 | `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
 | `release.yml` | After CI (master) | Semantic release with Nx |
-| `deploy-pages.yml` | After CI | Deploy docs to GitHub Pages |
+| `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green |
+| `gpu.yml` | Push to master, dispatch, labelled same-repo PRs (no nightly; the weekly full paired run is `gpu-weekly-paired.yml`) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4 by default); never a job of CI, but `release.yml` waits for it and requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
+| `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows); `release.yml` waits for it and requires it green when it ran |
 
 ### Dead Links
@@ -434,6 +468,20 @@ type setting), so decide a package's next major before the first breaking commit
 version plan in a temporary release group for exactly this reason; the group is gone, and every
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
+
+To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
+reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
+"2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other
+package still releases, and the graphty.app deploy, which runs only from `release.yml`, still
+happens. **Never disable `release.yml`** to stop one package: that stops every package and the
+deploy. The release job runs `tools/release-hold.mjs apply`, which leaves the held projects out of
+nx.json's `release.projects` in its checkout, so a held package is neither versioned from its own
+commits nor patch-bumped as a dependent of a released one (`--projects` alone does not stop that:
+with `updateDependents: "auto"` nx adds a filtered-out dependent back). A held package keeps its
+last tag, so when it leaves the list the next release bumps it from every commit since that tag.
+CI rejects an unknown project name, a missing reason or date, and a list that holds everything
+(`pnpm run check:release-hold`). To preview a hold, run `node tools/release-hold.mjs apply`, then
+`pnpm exec nx release --dry-run --skip-publish`, then `git restore nx.json`.
 
 Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
 a commit is listed under a package's "Breaking Changes" only when its scope names that package (or
@@ -683,6 +731,25 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.
+- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
+  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
+  only when its items take each file from master's contents to the pull request's. Agents never
+  edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
+  `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
+  register a passkey; never merge a pull request past a failing gate; and never call the page's
+  passkey, register, Finish or finish-prepare routes. Only the owner registers keys and approves.
+- CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
+  request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
+  exercised by the pull request after it; test it with the package's own tests.
+- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
+  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+  `parameters.chromatic` instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
+  above it.
+- A gate line about a missing or invalid approval is fixed only by the owner reviewing again
+  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
+  record.
+- Never create a passkey or a virtual authenticator against a real review server; Chromium's
+  virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
@@ -692,8 +759,11 @@ that starts the same server from the owner's own shell, which is how the owner s
   threshold does not, which is why it is forbidden.
 - The guide to setting it up and to the page (URL, keys, decisions, Finish, seeding) is
   `visual-review/README.md`, published as https://graphty.app/docs/visual-review/.
-- A merge conflict under `visual-baselines/`: take master's side for every file there and let CI
-  recapture; the owner reviews again what still differs.
+- A merge conflict under `visual-baselines/` only, or a capture older than master's baselines
+  ("merge master first"): run `node visual-review/trusted/cli.mjs update <pr>` (or press Update
+  from master on the review page). It merges master, takes master's side for every conflicting
+  file there in one signed commit, pushes, and CI recaptures; the owner reviews again what still
+  differs. It refuses, changing nothing, on a conflict anywhere else: merge that by hand.
 - After an accept commit lands on a pull request branch, update that branch from master by merge,
   never by rebase, so the accept commit and its record stay as the owner made them.
 

@@ -14,11 +14,12 @@ import "../data/index";
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
-import type { AttributeDescriptor, EdgeId } from "../catalog/types";
+import type { AttributeDescriptor, EdgeId, ScopeInput } from "../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ImportReport } from "../data/report";
+import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeAttributes } from "./attributes";
 import {
@@ -32,17 +33,21 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceDescriptor,
     DataSourceInput,
+    EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     GraphStatistics,
     ImportOptions,
     NodeRecord,
     NodeRecordInput,
+    RecordPage,
+    RecordPageOptions,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -62,6 +67,123 @@ interface DataWrites {
     importer(): (command: DataImportCommand) => Promise<unknown>;
     /** The `graph` slice now. */
     slice(): GraphSlice;
+}
+
+/** What a page of records reads beside the snapshot. */
+interface PageSources {
+    /** The session's input tick: it moves whenever anything a page could show moves. */
+    revision(): number;
+    /**
+     * A scope's members now.
+     * @param spec - the scope
+     * @returns its members
+     */
+    resolve(spec: ScopeInput): ResolvedScope;
+}
+
+/** How many records a page holds when the caller does not say. */
+const DEFAULT_PAGE_LIMIT = 100;
+
+/** Natural order for text: "2" before "10". */
+const NATURAL = new Intl.Collator("en", { numeric: true });
+
+/**
+ * Where a value sorts among values of other kinds: numbers, then text, then booleans, then the rest.
+ * @param value - a present value
+ * @returns its rank
+ */
+function kindRank(value: unknown): number {
+    switch (typeof value) {
+        case "number":
+        case "bigint":
+            return 0;
+        case "string":
+            return 1;
+        case "boolean":
+            return 2;
+        default:
+            return 3;
+    }
+}
+
+/**
+ * Compare two present sort values, ascending.
+ * @param a - one value
+ * @param b - the other
+ * @returns negative, zero or positive
+ */
+function compareSortValues(a: unknown, b: unknown): number {
+    const rank = kindRank(a) - kindRank(b);
+    if (rank !== 0) {
+        return rank;
+    }
+
+    if (rank === 0 && kindRank(a) === 0) {
+        // `<` compares a number with a bigint exactly, where `-` would throw.
+        const x = a as number | bigint;
+        const y = b as number | bigint;
+        return Number(x > y) - Number(x < y);
+    }
+
+    if (typeof a === "string" && typeof b === "string") {
+        return NATURAL.compare(a, b);
+    }
+
+    if (typeof a === "boolean" && typeof b === "boolean") {
+        return Number(a) - Number(b);
+    }
+
+    return NATURAL.compare(textOf(a), textOf(b));
+}
+
+/**
+ * A value of no simpler kind as text to sort by.
+ * @param value - an object, an array, or anything else
+ * @returns its JSON, or its string form when JSON cannot write it (a bigint inside it)
+ */
+function textOf(value: unknown): string {
+    try {
+        return JSON.stringify(value) ?? String(value);
+    } catch {
+        return String(value);
+    }
+}
+
+/**
+ * Whether a sort value counts as absent: it sorts last in either direction.
+ * @param value - the value
+ * @returns true for undefined, null and NaN
+ */
+function isAbsent(value: unknown): boolean {
+    return value === undefined || value === null || Number.isNaN(value);
+}
+
+/**
+ * Check a page's window.
+ * @param options - what the caller asked for
+ * @param verb - the verb, for the message
+ * @returns the offset and the limit
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for a negative or fractional value.
+ */
+function pageWindow(options: RecordPageOptions, verb: string): { offset: number; limit: number } {
+    const offset = options.offset ?? 0;
+    const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
+    for (const [name, value] of [
+        ["offset", offset],
+        ["limit", limit],
+    ] as const) {
+        const whole = Number.isInteger(value) || (name === "limit" && value === Infinity);
+        if (!whole || value < 0) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `data.${verb}() takes a ${name} that is a whole number of zero or more, not ${String(value)}`,
+                source: "data",
+                details: { option: name, value, min: 0 },
+            });
+        }
+    }
+
+    return { offset, limit };
 }
 
 /** Everything derived from one snapshot, computed on demand and thrown away with it. */
@@ -93,7 +215,11 @@ export class SessionData implements SessionDataApi {
     private readonly records: SessionRecordSource | null;
     private readonly readConfig: () => SessionDataConfig;
     private readonly writes: DataWrites;
+    private readonly pages: PageSources;
     private derived: Derived | null = null;
+    /** Row orders computed for pages, by what they were asked with, at {@link orderRevision}. */
+    private readonly orders = new Map<string, Uint32Array>();
+    private orderRevision = -1;
     private disposed = false;
 
     /**
@@ -104,18 +230,21 @@ export class SessionData implements SessionDataApi {
      * @param readConfig - reads the data configuration, live: the element replaces that object
      *     when a style template is applied, so it is read on demand rather than captured
      * @param writes - the dispatcher to write through, and the slice beside the rows
+     * @param pages - the revision and the scope resolver a page reads
      */
     constructor(
         store: SessionGraphStore,
         records: SessionRecordSource | null,
         readConfig: () => SessionDataConfig,
         writes: DataWrites,
+        pages: PageSources,
     ) {
         this.graphStore = store;
         this.store = readonlyStore(store);
         this.records = records;
         this.readConfig = readConfig;
         this.writes = writes;
+        this.pages = pages;
     }
 
     /**
@@ -257,12 +386,38 @@ export class SessionData implements SessionDataApi {
             return undefined;
         }
 
+        return this.nodeAt(index, id);
+    }
+
+    /**
+     * The node record at one row.
+     * @param index - the row
+     * @param id - the node's id
+     * @returns the record, deep-frozen
+     */
+    private nodeAt(index: number, id: NodeId): NodeRecord {
         // The id is written AFTER the attribute bag so that a record carrying its own "id" key --
         // which every record imported through the element's default id path does -- cannot
         // disagree with the id the node is actually stored under.
         // Deep-frozen: a nested value is the graph's own, and writing it would change state
         // no command recorded.
         return frozenRecord({ ...this.records?.nodeAttributes(index, id), id });
+    }
+
+    /**
+     * The edge record at one row.
+     * @param snapshot - the snapshot the row is in
+     * @param index - the row
+     * @param id - the edge's id
+     * @returns the record, deep-frozen
+     */
+    private edgeAt(snapshot: GraphSnapshot, index: number, id: EdgeId): EdgeRecord {
+        return frozenRecord({
+            ...this.records?.edgeAttributes(index),
+            id,
+            source: snapshot.ids.idOf(snapshot.edgeSource(index)),
+            target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
+        });
     }
 
     /**
@@ -281,12 +436,7 @@ export class SessionData implements SessionDataApi {
             return undefined;
         }
 
-        return frozenRecord({
-            ...this.records?.edgeAttributes(index),
-            id,
-            source: snapshot.ids.idOf(snapshot.edgeSource(index)),
-            target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
-        });
+        return this.edgeAt(snapshot, index, id);
     }
 
     /**
@@ -296,10 +446,9 @@ export class SessionData implements SessionDataApi {
      */
     nodes(): readonly NodeRecord[] {
         const snapshot = this.current();
-        return Array.from({ length: snapshot.nodeCount }, (_unused, index) => {
-            const id = snapshot.ids.idOf(index);
-            return frozenRecord({ ...this.records?.nodeAttributes(index, id), id });
-        });
+        return Array.from({ length: snapshot.nodeCount }, (_unused, index) =>
+            this.nodeAt(index, snapshot.ids.idOf(index)),
+        );
     }
 
     /**
@@ -311,13 +460,206 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
         return Array.from({ length: snapshot.edgeCount }, (_unused, index) =>
-            frozenRecord({
-                ...this.records?.edgeAttributes(index),
-                id: space.idOf(index),
-                source: snapshot.ids.idOf(snapshot.edgeSource(index)),
-                target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
-            }),
+            this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * One page of node records.
+     * @param options - the window, the scope and the order
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    nodePage(options: RecordPageOptions = {}): RecordPage<NodeRecord> {
+        const snapshot = this.current();
+        return this.page(snapshot, "node", options, "nodePage", (index) =>
+            this.nodeAt(index, snapshot.ids.idOf(index)),
+        );
+    }
+
+    /**
+     * One page of edge records.
+     * @param options - the window, the scope, the order and the node
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    edgePage(options: EdgePageOptions = {}): RecordPage<EdgeRecord> {
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        return this.page(snapshot, "edge", options, "edgePage", (index) =>
+            this.edgeAt(snapshot, index, space.idOf(index)),
+        );
+    }
+
+    /**
+     * A page: the ordered rows, then the records for the window only.
+     * @param snapshot - the current snapshot, already frozen
+     * @param target - nodes or edges
+     * @param options - what the caller asked for
+     * @param verb - the verb, for an error
+     * @param recordAt - builds the record at one row
+     * @returns the page
+     */
+    private page<TRecord>(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        options: EdgePageOptions,
+        verb: string,
+        recordAt: (index: number) => TRecord,
+    ): RecordPage<TRecord> {
+        const { offset, limit } = pageWindow(options, verb);
+        // Read after the snapshot: a freeze moves the tick, so reading it first would name a
+        // revision the page was not read at.
+        const revision = this.pages.revision();
+        const rows = this.orderOf(snapshot, target, revision, options);
+        const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const total = rows === null ? rowCount : rows.length;
+        const records: TRecord[] = [];
+        for (let position = offset; position < Math.min(total, offset + limit); position++) {
+            records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
+        }
+
+        return Object.freeze({ records: Object.freeze(records), offset, total, revision: String(revision) });
+    }
+
+    /**
+     * The rows a page's list holds, in order, computed once per revision and request.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param revision - the revision now
+     * @param options - the scope, the order and the node
+     * @returns the rows, or null for every row in graph order
+     */
+    private orderOf(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        revision: number,
+        options: EdgePageOptions,
+    ): Uint32Array | null {
+        const scope = options.scope === "graph" ? undefined : options.scope;
+        const touching = target === "edge" ? options.touching : undefined;
+        if (scope === undefined && touching === undefined && options.sort === undefined) {
+            return null;
+        }
+
+        if (revision !== this.orderRevision) {
+            this.orders.clear();
+            this.orderRevision = revision;
+        }
+
+        // JSON keeps 1 and "1" apart, which the ids need.
+        const key = JSON.stringify([target, scope, options.sort, touching]);
+        let rows = this.orders.get(key);
+        if (rows === undefined) {
+            rows = this.computeOrder(snapshot, target, scope, touching, options.sort);
+            this.orders.set(key, rows);
+        }
+
+        return rows;
+    }
+
+    /**
+     * Filter the rows by scope and node, then sort them, keeping graph order among equals.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param scope - the scope, or undefined for the whole graph
+     * @param touching - for edges, the node one end must be
+     * @param sort - the order, or undefined for graph order
+     * @returns the rows
+     */
+    private computeOrder(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        scope: ScopeInput | undefined,
+        touching: NodeId | undefined,
+        sort: RecordPageOptions["sort"],
+    ): Uint32Array {
+        const space = edgeSpaceOf(snapshot);
+        const members = scope === undefined ? null : this.pages.resolve(scope);
+        const count = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const end = touching === undefined ? INVALID_INDEX : snapshot.ids.indexOf(touching);
+        const rows: number[] = [];
+        // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
+        // host pages the edges of many nodes per revision.
+        for (let index = 0; index < count; index++) {
+            if (
+                touching !== undefined &&
+                (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
+            ) {
+                continue;
+            }
+
+            if (members !== null) {
+                const inScope =
+                    target === "node"
+                        ? members.nodes.has(snapshot.ids.idOf(index))
+                        : members.edges.has(space.idOf(index));
+                if (!inScope) {
+                    continue;
+                }
+            }
+
+            rows.push(index);
+        }
+
+        if (sort !== undefined) {
+            const values = rows.map((index) =>
+                this.sortValue(snapshot, target, index, sort.key, (edge) => space.idOf(edge)),
+            );
+            const direction = sort.descending === true ? -1 : 1;
+            const positions = rows.map((_row, position) => position);
+            positions.sort((x, y) => {
+                const a = values[x];
+                const b = values[y];
+                const absentA = isAbsent(a);
+                const absentB = isAbsent(b);
+                if (absentA !== absentB) {
+                    return absentA ? 1 : -1;
+                }
+
+                if (absentA) {
+                    return x - y;
+                }
+
+                return direction * compareSortValues(a, b) || x - y;
+            });
+            return Uint32Array.from(positions, (position) => rows[position] ?? 0);
+        }
+
+        return Uint32Array.from(rows);
+    }
+
+    /**
+     * The value one row sorts by: what its record would hold at the key, without building it.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param index - the row
+     * @param key - the record key
+     * @param nameEdge - names an edge row
+     * @returns the value
+     */
+    private sortValue(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        index: number,
+        key: string,
+        nameEdge: (index: number) => EdgeId,
+    ): unknown {
+        if (target === "node") {
+            const id = snapshot.ids.idOf(index);
+            return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];
+        }
+
+        switch (key) {
+            case "id":
+                return nameEdge(index);
+            case "source":
+                return snapshot.ids.idOf(snapshot.edgeSource(index));
+            case "target":
+                return snapshot.ids.idOf(snapshot.edgeTarget(index));
+            default:
+                return this.records?.edgeAttributes(index)?.[key];
+        }
     }
 
     /**
@@ -387,6 +729,7 @@ export class SessionData implements SessionDataApi {
     dispose(): void {
         this.disposed = true;
         this.derived = null;
+        this.orders.clear();
     }
 
     /**
@@ -614,18 +957,15 @@ function consumerSnapshot(resident: GraphSnapshot): GraphSnapshot {
     return copy;
 }
 
-/** How many leading characters of a file a format is detected from. */
-const DETECTION_SAMPLE = 2048;
-
 /**
  * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
- * size and a way to read its text.
+ * size and a way to read its bytes.
  * @param value - The `file` option.
  * @returns The file, or null when the option holds none.
  */
 function fileOf(
     value: unknown,
-): { name: string; size: number; slice(start: number, end: number): { text(): Promise<string> } } | null {
+): { name: string; size: number; slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> } } | null {
     if (typeof value !== "object" || value === null) {
         return null;
     }
@@ -634,16 +974,6 @@ function fileOf(
     return typeof file.name === "string" && typeof file.size === "number" && typeof file.slice === "function"
         ? (value as ReturnType<typeof fileOf>)
         : null;
-}
-
-/**
- * The last part of a URL's path, which is what its extension and its name are read from.
- * @param url - The URL.
- * @returns The part, or "" when the path ends in a slash.
- */
-function urlTail(url: string): string {
-    const path = url.split(/[?#]/)[0] ?? "";
-    return path.split("/").pop() ?? "";
 }
 
 /**
@@ -675,7 +1005,7 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: byName, config, ...described };
     }
 
-    const detect = (sample: string | undefined, fetched?: string): ImportSource => {
+    const detect = (sample: string | undefined, fetched?: Uint8Array): ImportSource => {
         const detected = sample === undefined ? null : detectFormat({ filename, sample });
         if (detected === null) {
             throw undetectedFormat(name ?? url ?? "the data", 'session.data.import({ type: "graphml", config })');
@@ -684,51 +1014,23 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
         return { type: detected, config: fetched === undefined ? config : { ...config, data: fetched }, ...described };
     };
 
-    if (typeof config.data === "string") {
-        return detect(config.data.slice(0, DETECTION_SAMPLE));
+    if (isSourceData(config.data)) {
+        return detect(sampleOf(toSourceInput(config.data)));
     }
 
     if (file !== null) {
+        // Twice the sample, so a UTF-16 file still yields DETECTION_SAMPLE characters.
         return file
-            .slice(0, DETECTION_SAMPLE)
-            .text()
-            .then((sample) => detect(sample));
+            .slice(0, DETECTION_SAMPLE * 2)
+            .arrayBuffer()
+            .then((bytes) => detect(sampleOf(new Uint8Array(bytes))));
     }
 
     if (url !== undefined) {
-        return fetchText(url).then((text) => detect(text.slice(0, DETECTION_SAMPLE), text));
+        // Read once, as bytes, and handed on: the reader does not fetch it again, and the importer
+        // decodes it.
+        return fetchBytes(url).then((bytes) => detect(sampleOf(bytes), bytes));
     }
 
     return detect(undefined);
-}
-
-/**
- * Read a URL's text, once.
- * @param url - The URL.
- * @returns The text.
- * @throws A `GraphtyError` with `E_FETCH_FAILED` when it cannot be read.
- */
-async function fetchText(url: string): Promise<string> {
-    let response: Response;
-    try {
-        response = await fetch(url);
-    } catch (error) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}".`,
-            source: "data",
-            cause: error,
-        });
-    }
-
-    if (!response.ok) {
-        throw new GraphtyError({
-            code: "E_FETCH_FAILED",
-            message: `Could not fetch "${url}": ${String(response.status)} ${response.statusText}`,
-            source: "data",
-            details: { url, status: response.status },
-        });
-    }
-
-    return response.text();
 }

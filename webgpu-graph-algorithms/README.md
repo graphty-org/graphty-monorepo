@@ -1,13 +1,14 @@
 # @graphty/webgpu-graph-algorithms
 
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node
-(Dawn, through the `webgpu` npm package) and browsers (Chromium). One code base, three entry points:
+(Dawn, through the `webgpu` npm package) and browsers (Chromium). One code base, four entry points:
 
-| Entry                                      | Import        | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@graphty/webgpu-graph-algorithms`         | the core      | the layouts (`createForceAtlas2`, `createFruchtermanReingold`, `createSpringElectrical`, `seedPositions`), the algorithms (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `degree`), `createAccelerator`, `calibrateLayout`, `verifyDevice`, `GpuContext`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `FR_DEFAULTS`, `SE_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
-| `@graphty/webgpu-graph-algorithms/node`    | Node only     | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `@graphty/webgpu-graph-algorithms/browser` | browsers only | `probeBrowserWebGpu`, `requestGpuContext`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Entry                                      | Import            | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@graphty/webgpu-graph-algorithms`         | the core          | the layouts (`createForceAtlas2`, `createFruchtermanReingold`, `createSpringElectrical`, `seedPositions`), the algorithms (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `degree`), `createAccelerator`, `calibrateLayout`, `verifyDevice`, `GpuContext`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `FR_DEFAULTS`, `SE_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
+| `@graphty/webgpu-graph-algorithms/node`    | Node only         | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `@graphty/webgpu-graph-algorithms/browser` | browsers only     | `probeBrowserWebGpu`, `requestGpuContext`, `acquireAccelerator`                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `@graphty/webgpu-graph-algorithms/acquire` | Node and browsers | `acquireAccelerator`: the managed accelerator. The `browser` export condition resolves it to the browser build and `node` to the Node build, so one import line serves both and the two builds never meet in one bundle                                                                                                                                                                                                                                                                                                      |
 
 **Status: three force layouts and six algorithms, on the exact and the grid repulsion tiers.**
 ForceAtlas2, Fruchterman-Reingold and ngraph's spring-electrical preset run from Node (`run()`) and from a
@@ -322,6 +323,55 @@ than `3 * nodeCount`, a non-positive `scale`
 or a non-finite `center` component is `E_INVALID_ARGUMENT`; the function returns nothing.
 
 ## Acquisition
+
+### One call: `acquireAccelerator`
+
+Most applications want "a working GPU accelerator, or the reason there is none". `acquireAccelerator` is that
+call, the same in Node and in a browser:
+
+```ts
+import { accelerated } from "@graphty/algorithms";
+import { acquireAccelerator } from "@graphty/webgpu-graph-algorithms/acquire";
+
+const gpu = acquireAccelerator(); // nothing is probed until the first current()
+
+const result = await gpu.current();
+if (!result.ok) {
+    console.warn(`running on the CPU: ${result.reason}`, result.fix ?? "");
+}
+// the GPU when there is one, the CPU otherwise
+const ranks = await accelerated(result.ok ? result.accelerator : null).pageRank(snapshot);
+
+gpu.dispose(); // when you are done: releases the device
+```
+
+The first `current()` probes for an adapter, opens a context, runs the device self-check (below) and builds the
+accelerator. Later calls return the same accelerator. After the device is lost, or after you dispose the
+accelerator, the next `current()` acquires a new device; a run that was in flight when the device was lost still
+fails with `E_DEVICE_LOST`, because finishing it somewhere else would hide the failure.
+
+`result.ok === false` is a decision made before any work runs, so running a CPU implementation then is detection,
+not a fallback. `result.code` says why:
+
+| Code                 | Meaning                                                                      | `result.fix`                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `E_NO_WEBGPU`        | no WebGPU in this runtime; in Node, the optional `webgpu` package is missing | Node: the install command; a browser page that is not a secure context: serve it over https or from localhost |
+| `E_NO_ADAPTER`       | WebGPU exists but no adapter answered                                        | null                                                                                                          |
+| `E_SOFTWARE_ONLY`    | the adapter is a software renderer (llvmpipe, SwiftShader, WARP)             | pass `acceptSoftware: true`                                                                                   |
+| `E_DEVICE_INCORRECT` | the device got a known prefix sum wrong; `result.check` says where           | null                                                                                                          |
+
+Options: `acceptSoftware` (default `false`: a software adapter is usually slower than the CPU), `powerPreference`
+(default `"high-performance"`), `accelerator` (passed to `createAccelerator`: layout tuning, betweenness
+defaults), `warnUnreleasedSnapshots`, and in Node `adapter` (a substring of the Dawn adapter name, such as
+`"4070"`; ignored in a browser). A decline is remembered for the life of the handle; create a new handle to ask
+again. Any other failure (a device request that failed) rejects `current()`, and the next call tries again.
+
+`@graphty/webgpu-graph-algorithms/acquire` has no build of its own: the `browser` export condition (and the
+default) resolves it to the `./browser` build, `node` to the `./node` build. The `./browser` and `./node`
+subpaths export the same `acquireAccelerator` for code that is only ever one or the other.
+
+The lower-level calls below are what it is made of, for when you need a context without an accelerator, your own
+device, or control over limits and features.
 
 ### Node
 
@@ -701,7 +751,7 @@ never relaxed silently.
 
 <!-- targets-table:nvidia-lovelace-driver580 -->
 
-Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 10 session(s) of `benchmarks/results/nvidia-lovelace-driver580.json`, Chromium rows across the 3 of `benchmarks/results/nvidia-lovelace-driver0.json`.
+Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 11 session(s) of `benchmarks/results/nvidia-lovelace-driver580.json`, Chromium rows across the 3 of `benchmarks/results/nvidia-lovelace-driver0.json`.
 
 | Id   | What                                                                                                                                                                   | Target     | Measured   | Status   |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------- | -------- |

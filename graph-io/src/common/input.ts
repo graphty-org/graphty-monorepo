@@ -263,6 +263,22 @@ function startsWithUtf8(bytes: Uint8Array): boolean {
 }
 
 /**
+ * A zip entry name as text (APPNOTE 4.4.17): UTF-8 when the bytes are valid UTF-8, whether or not
+ * the entry sets the language-encoding flag (bit 11), else windows-1252 (WHATWG has no CP437, and
+ * session entry names are ASCII in practice). Never throws: a name is a matching key, never a path,
+ * so an undecodable one still has to name its entry.
+ * @param bytes - the name bytes from the central directory or a local header
+ * @returns the name
+ */
+export function decodeEntryName(bytes: Uint8Array): string {
+    try {
+        return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch {
+        return new TextDecoder("windows-1252").decode(bytes);
+    }
+}
+
+/**
  * Join byte chunks.
  * @param chunks - the chunks
  * @returns one array holding them in order
@@ -511,6 +527,46 @@ async function* streamChunks(
         }
         reader.releaseLock();
     }
+}
+
+/**
+ * Read the whole input as bytes, for a binary format (a zip): nothing is decoded. The signal is
+ * checked before every chunk and progress reported after it; a stream is cancelled when the read
+ * stops early.
+ * @param input - the input
+ * @param options - cancellation and progress (the encoding is ignored)
+ * @returns the bytes, or null when the input is text (a string, or a chunk that is a string),
+ * which a binary format cannot read
+ */
+export async function readBytes(input: ImportInput, options: ReadOptions = {}): Promise<Uint8Array | null> {
+    const signal = options.signal ?? null;
+    throwIfAborted(signal);
+    if (typeof input === "string") {
+        return null;
+    }
+    if (input instanceof Uint8Array) {
+        options.onProgress?.(input.byteLength, input.byteLength);
+        return input;
+    }
+    const parts: Uint8Array[] = [];
+    let done = 0;
+    for await (const chunk of isReadableStream(input) ? streamChunks(input, signal) : input) {
+        throwIfAborted(signal);
+        if (typeof chunk === "string") {
+            return null;
+        }
+        if (!(chunk instanceof Uint8Array)) {
+            throw new GraphFormatError("E_UNSUPPORTED", "an input chunk must be a string or a Uint8Array", {
+                reason: "chunk type",
+                found: typeof chunk,
+            });
+        }
+        parts.push(chunk);
+        done += chunk.byteLength;
+        options.onProgress?.(done);
+    }
+    options.onProgress?.(done, done);
+    return parts.length === 0 ? new Uint8Array(0) : concatBytes(parts);
 }
 
 /**

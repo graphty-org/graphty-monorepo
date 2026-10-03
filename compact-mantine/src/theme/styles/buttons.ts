@@ -64,14 +64,15 @@ export const compactActionIconScale: CompactSizeScale = {
  * ground and an accent glyph -- and the tint alone is not a state boundary.
  * Composited over the panel ground this library paints
  * (`PANEL_INK.PANEL`, `var(--mantine-color-body)`) Mantine's light ground measures
- * 1.21:1 in the dark scheme (rgba(34,139,230,0.15) over #1f2428) and 1.12:1 in the
- * light one (rgba(34,139,230,0.1) over #ffffff), where WCAG 2.2 (1.4.11) asks 3:1
+ * 1.36:1 in the dark scheme (rgba(116,192,252,0.15) over #1f2428) and 1.14:1 in the
+ * light one (rgba(25,113,194,0.1) over #ffffff), where WCAG 2.2 (1.4.11) asks 3:1
  * of the visual boundary that distinguishes a control's state. A one-pixel accent
  * border is that boundary: drawn in the variant's OWN ink, `--ai-color`, it measures
- * 7.97:1 against the ground and 6.57:1 against the tint it encloses in the dark
- * scheme, and 3.56:1 / 3.17:1 in the light one -- past 3:1 on both of its sides, in
- * both schemes. The filled accent was the other candidate and fails the inner side
- * at 2.59:1.
+ * 14.09:1 against the ground and 10.35:1 against the tint it encloses in the dark
+ * scheme, and 5.02:1 / 4.39:1 in the light one -- past 3:1 on both of its sides, in
+ * both schemes. (These are for the theme's default primary shades, blue-5 dark and
+ * blue-8 light.) The ink is kept over the filled accent because it is the
+ * variant's own glyph colour, so the border and the glyph always agree.
  *
  * It belongs here rather than at a call site. graphty's shell wrote this boundary
  * itself as an inset box-shadow on two of its header rows (`activeRingStyle`,

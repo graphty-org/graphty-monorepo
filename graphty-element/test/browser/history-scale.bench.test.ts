@@ -34,13 +34,14 @@
  *   undoing the removal of 1,000 nodes                    110 to 240 ms
  *   undoing a drag, at rest                                40 to 60 ms
  *   undoing a replacing import                          1,400 to 2,300 ms
+ *   a replacing import, tearing the graph down          1,200 to 2,400 ms
  *   restoreTo(null) over those steps                      210 to 260 ms
  *
- * NOT A BUDGET HERE, REPORTED: tearing the whole graph down -- a replacing import, a clear, or
- * undoing the load -- takes about 20 s at this size, because every node's mesh dispose searches
- * and splices the scene's mesh list. That is the renderer's cost of removing a node, which a
- * forward clear pays as well; the replacing import below prints it. Tracked by
- * https://github.com/graphty-org/graphty-monorepo/issues/543, which turns this into a budget.
+ * Tearing the whole graph down -- a replacing import, a clear, or undoing the load -- used to take
+ * about 20 s at this size, because every node's dispose searched and spliced the scene's mesh
+ * list, its action manager list and its pointer observer list (issue #543). The data manager now
+ * drops what it is about to dispose from each list in one pass first, so the teardown costs about
+ * what the load does, and the replacing import below holds it to the same budget as its undo.
  */
 
 import { Vector3 } from "@babylonjs/core";
@@ -129,8 +130,8 @@ describe("undo on a real graph at the largest graph it draws", () => {
         session.history.clear();
     }, TIMEOUT_MS);
 
-    // Disposing a graph this size tears down every node's render objects, which takes as long as
-    // the replacing import below reports (issue #543), well past the default hook timeout.
+    // Disposing a graph this size tears down every node's render objects, which takes about as
+    // long as the load did, past the default hook timeout.
     afterAll(() => {
         graph.dispose();
         container.remove();
@@ -195,12 +196,15 @@ describe("undo on a real graph at the largest graph it draws", () => {
                 );
                 await idle();
             });
-            report("a replacing import, tearing the graph down (not a budget)", replacing);
+            report("a replacing import, tearing the graph down", replacing);
             const ms = await time(() => session.undo());
             report("undoing a replacing import", ms);
             assert.strictEqual(session.snapshot().nodeCount, NODES - 1000);
             // Only the parse is saved; every render object is built again.
             assert.isBelow(ms, 1.5 * loadMs);
+            // The teardown, checked after the undo so a missed budget does not leave the graph empty
+            // for the tests below.
+            assert.isBelow(replacing, 1.5 * loadMs, "tearing the graph down costs about what loading it did");
             await idle();
         },
         TIMEOUT_MS,

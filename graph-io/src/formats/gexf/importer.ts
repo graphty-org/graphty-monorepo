@@ -51,6 +51,7 @@ import {
 } from "../../common/attributes.js";
 import {
     COUNT_HINT_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     ID_MERGED_CODE,
@@ -122,8 +123,6 @@ export const ATTRIBUTES_CLASS_CODE = "E_GEXF_ATTRIBUTES_CLASS";
 export const ATTRIBUTE_ID_CODE = "E_GEXF_ATTRIBUTE_ID";
 /** Issue code: a graph header value (`defaultedgetype`, `mode`, `timeformat`, ...) outside its set. */
 export const HEADER_VALUE_CODE = "W_GEXF_HEADER_VALUE";
-/** Issue code: a second `<attribute>` with the same id in the same class (the first is kept). */
-export const DUPLICATE_ATTRIBUTE_CODE = "W_GEXF_DUPLICATE_ATTRIBUTE";
 /** Issue code: an `<attribute>` without a type (read as string). */
 export const ATTRIBUTE_TYPE_CODE = "W_GEXF_ATTRIBUTE_TYPE";
 /** Issue code: an `<attvalue>` naming an attribute the document never declares (once per id). */

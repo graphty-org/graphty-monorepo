@@ -216,6 +216,12 @@ const CLEAR_DATA = calls([], [CLEAR]);
 /** A small graph document the JSON data source reads, for the load doors. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/**
+ * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
+ * to decode.
+ */
+const TINY_JSON_BYTES = new TextEncoder().encode(TINY_JSON);
+
 /** The same document as a URL. */
 const TINY_JSON_URL = `data:application/json,${encodeURIComponent(TINY_JSON)}`;
 
@@ -228,7 +234,7 @@ const ADD_FROM_SOURCE = calls(
 /** Loading from a URL: the text fetched, and the id path the element reads. */
 const LOAD_FROM_URL = calls(
     [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, nodeIdPath: "id" } })],
+    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
 );
 
 /**
@@ -240,15 +246,20 @@ const LOAD_FROM_URL_ELEMENT = calls(
     [
         imports("merge", {
             type: "json",
-            config: { data: TINY_JSON, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
+            config: { data: TINY_JSON_BYTES, nodeIdPath: "key", edgeSource: "src", edgeTarget: "dst" },
         }),
     ],
 );
 
-/** Loading from a file: its text, its name and its size. */
+/** Loading from a file: its bytes, its name and its size. */
 const LOAD_FROM_FILE = calls(
     () => [new File([TINY_JSON], "door.json", { type: "application/json" })],
-    [imports("merge", { type: "json", config: { data: TINY_JSON, filename: "door.json", size: TINY_JSON.length } })],
+    [
+        imports("merge", {
+            type: "json",
+            config: { data: TINY_JSON_BYTES, filename: "door.json", size: TINY_JSON.length },
+        }),
+    ],
 );
 
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
@@ -326,6 +337,41 @@ async function withTemplateDegree(target: object): Promise<() => Promise<unknown
     return () => config.set({ runAlgorithmsOnLoad: false, data: { algorithms: [] } });
 }
 
+/** The note the notes doors write. */
+const DOOR_NOTE_INPUT = { text: "door note", targets: [{ node: "d1" }] };
+
+/** The notes member the merge door opens. */
+const DOOR_NOTES_DOCUMENT = {
+    kind: "graphty-notes",
+    version: 1,
+    notes: [{ id: "note_door", time: "2026-10-01T09:00:00.000Z", targets: [{ node: "d1" }], text: "door note" }],
+};
+
+/** The id of the note a notes door edits: minted, so known only once `around` has added it. */
+const DOOR_NOTE = { id: "" };
+
+/**
+ * A notes door that acts on a note, added before the spy is attached.
+ * @param args - The arguments, read once the note exists.
+ * @param expect - The commands the call must dispatch; their `id` reads the note's.
+ * @returns The door.
+ */
+function withDoorNote(args: () => readonly unknown[], expect: readonly unknown[]): Door {
+    return {
+        kind: "dispatches",
+        op: (expect[0] as { op: string }).op,
+        call: {
+            kind: "call",
+            args,
+            around: (target) => {
+                DOOR_NOTE.id = (target as { add(input: unknown): string }).add(DOOR_NOTE_INPUT);
+                return Promise.resolve(() => Promise.resolve());
+            },
+        },
+        expect,
+    };
+}
+
 /** The rows of `GraphSession`, shared with the element's wider form of it. */
 const SESSION: Readonly<Record<string, Door>> = {
     data: READ,
@@ -333,6 +379,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     results: READ,
     scope: READ,
     sets: READ,
+    notes: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -472,12 +519,12 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. The run id is derived from the result it answers
- * -- the algorithm and its scope -- so it is the same on every such graph.
+ * run's suggested colour, in the call's one step. An unnamed degree run is named after its
+ * algorithm, so the id is "degree" on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
     op: "style.encode",
-    spec: { run: "degree_1yqoid512q50di", field: "value", channel: "node.color" },
+    spec: { run: "degree", field: "value", channel: "node.color" },
 };
 
 /** Every root, and the door of every public member. */
@@ -582,6 +629,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
@@ -844,6 +892,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resetCamera: CAMERA,
             zoomStep: CAMERA,
             zoomToSelection: CAMERA,
+            zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(
@@ -1120,6 +1169,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onRest: RENDER,
             restoring: RENDER,
             replacing: RENDER,
+            graphWritesWaiting: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,
@@ -1281,6 +1331,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onDragEnd: GESTURE,
             setPositionDirect: GESTURE,
             getNode: READ,
+            sceneObservers: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1305,6 +1356,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Deep-frozen records, read a window at a time.
+            nodePage: READ,
+            edgePage: READ,
             lastImport: READ,
             source: READ,
             attributes: READ,
@@ -1496,6 +1550,47 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "NotesApi",
+        file: "src/session/notes/types.ts",
+        half: "session",
+        doors: {
+            list: READ,
+            get: READ,
+            status: READ,
+            authors: READ,
+            counts: READ,
+            toDocument: READ,
+            mergeDocument: calls(
+                [DOOR_NOTES_DOCUMENT, { name: "door.graphty.json" }],
+                [{ op: "note.merge", document: DOOR_NOTES_DOCUMENT, options: { name: "door.graphty.json" } }],
+            ),
+            add: calls([DOOR_NOTE_INPUT], [{ op: "note.add", note: DOOR_NOTE_INPUT }]),
+            update: withDoorNote(
+                () => [DOOR_NOTE.id, { text: "door edited" }],
+                [
+                    {
+                        op: "note.update",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                        patch: { text: "door edited" },
+                    },
+                ],
+            ),
+            remove: withDoorNote(
+                () => [DOOR_NOTE.id],
+                [
+                    {
+                        op: "note.remove",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                    },
+                ],
+            ),
+        },
+    },
+    {
         name: "SessionViews",
         file: "src/session/types.ts",
         half: "session",
@@ -1552,6 +1647,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: READ,
             selectionStyle: READ,
             layoutBehavior: READ,
+            author: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

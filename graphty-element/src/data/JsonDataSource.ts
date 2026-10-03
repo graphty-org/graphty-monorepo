@@ -5,10 +5,12 @@ import * as z4 from "zod/v4/core";
 
 // import {JSONParser} from "@streamparser/json";
 import type { AdHocData } from "../config/common";
+import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
-import { aggregateErrors, importRecords } from "./graph-io-import";
+import { aggregateErrors, columnsMapping, importRecords, importWhole, toRecords } from "./graph-io-import";
+import type { SourceInput } from "./source-bytes";
 
 const JsonNodeConfig = z
     .strictObject({
@@ -25,11 +27,19 @@ const JsonEdgeConfig = z
     .prefault({});
 
 export const JsonDataSourceConfig = z.object({
-    data: z.string().optional(),
+    data: z
+        .union([
+            z.string(),
+            z.custom<Uint8Array | ArrayBuffer>((value) => value instanceof Uint8Array || value instanceof ArrayBuffer),
+        ])
+        .optional(),
     file: z.instanceof(File).optional(),
     url: z.string().optional(),
     chunkSize: z.number().optional(),
     errorLimit: z.number().optional(),
+    // Kept unchecked here so that DataSource.graphChoice checks them, as it does for every reader.
+    graphIndex: z.unknown().optional(),
+    graphName: z.unknown().optional(),
     nodeIdPath: z.string().optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
@@ -100,6 +110,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
  */
 export class JsonDataSource extends DataSource {
     static type = "json";
+    /**
+     * The graphs of a JGF or OBO Graphs `graphs` array; any other document holds one graph.
+     * @param input - the document's text or bytes
+     * @returns one listing per graph
+     */
+    static listGraphs = (input: SourceInput): ReturnType<NonNullable<typeof jsonImporter.listGraphs>> =>
+        (jsonImporter.listGraphs as NonNullable<typeof jsonImporter.listGraphs>)(input);
     opts: JsonDataSourceConfigType;
 
     /**
@@ -126,17 +143,21 @@ export class JsonDataSource extends DataSource {
         // JsonDataSource has special handling for 'data' field:
         // If data starts with http/https/data:, treat it as URL
         // Otherwise treat it as inline JSON
+        const { data } = this.opts;
         const isUrl =
-            (this.opts.data?.startsWith("http://") ?? false) ||
-            (this.opts.data?.startsWith("https://") ?? false) ||
-            (this.opts.data?.startsWith("data:") ?? false);
+            typeof data === "string" &&
+            (data.startsWith("http://") || data.startsWith("https://") || data.startsWith("data:"));
 
         return {
-            data: isUrl ? undefined : this.opts.data,
+            data: isUrl ? undefined : data,
             file: this.opts.file,
-            url: isUrl ? this.opts.data : this.opts.url,
+            url: isUrl ? data : this.opts.url,
             chunkSize: this.opts.chunkSize,
             errorLimit: this.opts.errorLimit,
+            ...({ graphIndex: this.opts.graphIndex, graphName: this.opts.graphName } as Pick<
+                BaseDataSourceConfig,
+                "graphIndex" | "graphName"
+            >),
         };
     }
 
@@ -177,6 +198,15 @@ export class JsonDataSource extends DataSource {
             yield* this.chunkData([], []);
             return;
         }
+
+        // A `graphs` array (JGF, OBO Graphs) is read by graph-io, which picks the graph the caller
+        // chose; the default paths find nothing at the root of such a document.
+        if (isObject(data) && Array.isArray(data.graphs) && this.usesDefaultPaths()) {
+            yield* this.readGraphsArray(jsonString, data.graphs);
+            return;
+        }
+
+        this.refuseOtherGraph();
 
         // Declared before the first chunk is yielded, so the direction reaches the builder while it
         // still holds no edges.
@@ -235,6 +265,84 @@ export class JsonDataSource extends DataSource {
                 : rowsOf(imported.edges).map((row) => rawEdges[row]);
 
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
+    }
+
+    /**
+     * Whether the caller left every path at its default, so the document's own shape decides.
+     * @returns true when no node, edge, id or endpoint path is configured
+     */
+    private usesDefaultPaths(): boolean {
+        const { node, edge, nodeIdPath, edgeSrcIdPath, edgeDstIdPath } = this.opts;
+        return (
+            node.path === "nodes" &&
+            edge.path === "edges" &&
+            nodeIdPath === undefined &&
+            edgeSrcIdPath === undefined &&
+            edgeDstIdPath === undefined
+        );
+    }
+
+    /**
+     * Read the chosen graph of a `graphs` array through graph-io's JSON importer, which knows the
+     * JGF and OBO Graphs shapes; every column becomes a key of the record.
+     * @param text - the document
+     * @param graphs - its `graphs` array
+     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     */
+    private async *readGraphsArray(
+        text: string,
+        graphs: readonly unknown[],
+    ): AsyncGenerator<DataSourceChunk, void, unknown> {
+        const choice = this.graphChoice();
+        const imported = await importWhole(
+            jsonImporter,
+            text,
+            { ...choice, ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }) },
+            this.errorAggregator,
+            { firstDeclarationWins: true },
+        );
+        const { snapshot } = imported;
+        const nameOf = (graph: unknown): unknown =>
+            isObject(graph) ? (graph.id ?? graph.label ?? graph.lbl) : undefined;
+        const chosen =
+            graphs[
+                choice.graphIndex ??
+                    Math.max(
+                        0,
+                        graphs.findIndex((g) => nameOf(g) === choice.graphName),
+                    )
+            ];
+        if ("obographs" in snapshot.meta.extra) {
+            this.declareDirection(true, "an OBO Graphs document, whose edges point from sub to obj");
+        } else if (isObject(chosen) && typeof chosen.directed === "boolean") {
+            this.declareDirection(chosen.directed, `"directed": ${String(chosen.directed)}`);
+        }
+
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        yield* this.chunkData(nodes, edges);
+    }
+
+    /**
+     * Refuse a choice of any graph but the first of a document that holds one.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for `graphName`, or a `graphIndex` above 0.
+     */
+    private refuseOtherGraph(): void {
+        const { graphIndex, graphName } = this.graphChoice();
+        if (graphName === undefined && (graphIndex ?? 0) === 0) {
+            return;
+        }
+
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "this JSON document holds one graph, so there is no other graph to choose",
+            source: "config",
+            details: {
+                kind: "format",
+                id: this.type,
+                option: graphName === undefined ? "graphIndex" : "graphName",
+                value: graphName ?? graphIndex,
+            },
+        });
     }
 
     /**

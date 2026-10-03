@@ -73,7 +73,9 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
  * "fa2"`; `"fr"` is [0, 1)), otherwise uniform inside the [min, max] box of the finite components per axis,
  * converted to layout units (an axis with no finite value falls back to the range box); the value is written as
  * `v * scale + center[axis]`, which for scale 1 / center 0 is bit-identical to the port's `u * 2 - 1` (resp. `u`);
- * in 2D the third component of a seeded row is written as center[2]. Finite components are never changed and a
+ * in 2D the third component of a seeded row is written as center[2]. An axis whose finite box has zero width (one
+ * finite row, or every finite row sharing that coordinate) is padded to the range box's width centered on it, so
+ * the drawn rows never all land on one point or one line. Finite components are never changed and a
  * fully finite row is never touched. No random number is drawn when nothing needs seeding.
  * PLAN DECISION 12 (P3-T1): the box is taken over every finite COMPONENT (the port's rule), not over the fully
  * finite ROWS only; the two differ only when a partially finite row's finite axis lies outside the fully finite
@@ -149,6 +151,13 @@ export function seedPositions(
             if (Number.isFinite(lo[axis]) && Number.isFinite(hi[axis])) {
                 boxLo[axis] = (lo[axis] - c[axis]) / scale;
                 boxHi[axis] = (hi[axis] - c[axis]) / scale;
+                if (boxLo[axis] === boxHi[axis]) {
+                    // a zero-width axis (one finite row, or every finite row on one line) would stack every drawn
+                    // row on that coordinate: pad it to the range box's width, centered on it
+                    const half = (rangeHi - rangeLo) / 2;
+                    boxLo[axis] -= half;
+                    boxHi[axis] += half;
+                }
             }
         }
     }

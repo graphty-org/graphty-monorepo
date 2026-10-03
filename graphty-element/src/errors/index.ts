@@ -8,7 +8,7 @@
  * @module errors
  */
 
-export type { AccelerationErrorCode, GraphtyErrorCode } from "./codes";
+export type { AccelerationErrorCode, GraphtyErrorCode, GraphtyWarningCode } from "./codes";
 export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, isGraphtyErrorCode } from "./codes";
 export type { GraphtyErrorInit, GraphtyErrorJson, GraphtyErrorSource, GraphtyErrorTarget } from "./GraphtyError";
 export { GraphtyError, isGraphtyError } from "./GraphtyError";

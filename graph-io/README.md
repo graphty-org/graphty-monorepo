@@ -7,8 +7,9 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data are read
-only) and Neo4j (`neo4j-admin import` CSV).
+JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data and OBO
+Graphs are read only), Neo4j (`neo4j-admin import` CSV), CX2 (the NDEx / Cytoscape exchange format;
+its version 1, CX, is read only) and OBO, the ontology format of the Gene Ontology (read only).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -121,6 +122,14 @@ On a caller's builder the builder-policy options (`addMissingNodes`, `duplicateE
 `weightDtype`) are read from the sink; an explicit request the sink does not honour is reported once
 as a `W_SINK_OPTION` warning. `importGraph()` seeds its own builder from them.
 
+Every attribute is stored as a column with one slot per node (or edge), so a file whose nodes each
+carry a differently named attribute would need nodes x attributes memory: a few hundred kilobytes
+could take gigabytes. `importGraph()` and `importAllGraphs()` therefore stop with an `ImportError`
+(code `E_TOO_MANY_EMPTY_CELLS`) once the columns would hold more than `maxEmptyCells` slots without
+a value (default 2^24, 16,777,216; `Infinity` turns the check off). A file where most elements have
+most attributes is never stopped, however large. An importer used directly on a caller's builder
+does not apply the limit.
+
 ### Common export options
 
 `sanitizeIds: "error" | "mangle"` (default `"error"`: an exporter never silently renames a node;
@@ -145,6 +154,10 @@ reports every column or feature outside it):
 | CSV     | `@graphty/graph-io/csv`     | `.csv` `.tsv` `.edges` `.edgelist` | yes         | yes         | optional    | any           | bool i32 f64 string dict               | no    | no   | no       | no        | none           | no          | no        | no  |
 | JSON    | `@graphty/graph-io/json`    | `.json`                            | per dialect | yes         | per dialect | any           | f64 i32 bool string (no declarations)  | no    | yes  | no       | Cytoscape | none           | per dialect | Cytoscape | no  |
 | Neo4j   | `@graphty/graph-io/neo4j`   | `.csv` `.tsv`                      | no          | yes         | none        | any           | f32 f64 i32 bool string                | yes   | no   | no       | no        | none           | no          | no        | no  |
+| OBO     | `@graphty/graph-io/obo`     | `.obo`                             | read only   | -           | -           | -             | -                                      | -     | -    | -        | -         | -              | -           | -         | -   |
+| CX2     | `@graphty/graph-io/cx2`     | `.cx2`                             | no          | yes         | required    | integer       | f64 i32 bool string                    | yes   | no   | yes      | no        | none           | yes         | yes       | no  |
+| XGMML   | `@graphty/graph-io/xgmml`   | `.xgmml` `.xml`                    | yes         | yes         | optional    | any           | f64 i32 bool string (long as Long)     | yes   | no   | no       | yes       | none           | yes         | yes       | no  |
+| Session | `@graphty/graph-io/cys`     | `.cys`                             | read only   | read only   | read only   | read only     | read only                              | -     | -    | -        | -         | -              | -           | -         | -   |
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,
@@ -259,7 +272,31 @@ losses and format rules, in addition to the table:
   and `edgesPath` point at node and edge arrays nested anywhere in the document as dotted key paths
   (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`) for the node-link, d3, vis and
   graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
-  nothing is an `E_MISSING_SECTION` issue, not an abort.
+  nothing is an `E_MISSING_SECTION` issue, not an abort. OBO Graphs (`dialect: "obographs"`, the
+  JSON the Gene Ontology and the OBO Foundry publish: `graphs[]` of `sub` / `pred` / `obj` edges) is
+  read only, into the same columns as the OBO importer: IRIs become the ids the `.obo` file writes
+  (`GO:0008150`; `oboIds: "iri"` keeps them), a relation is named by its shorthand (`part_of`),
+  PROPERTY nodes and the axiom arrays go to `meta.extra.obographs` (`typedefs: "nodes"` makes the
+  properties nodes), and an edge endpoint missing from `nodes` becomes a placeholder node
+  (`W_DANGLING_REFERENCE`). For a JGF or OBO Graphs `graphs` array, `graphIndex` / `graphName` (a
+  graph's `id`, else its label) choose the graph and `listGraphs()` lists them. A document longer
+  than one JavaScript string (about 512 MB, such as ncbitaxon.json) fails with `E_TOO_LARGE`.
+- **OBO** (read only): OBO 1.0, 1.2 and 1.4 read as their union, streamed line by line. `[Term]`
+  and `[Instance]` frames are nodes; `is_a`, `relationship` and `instance_of` clauses are directed
+  edges, child to parent, with the relation in a `relation` column (role `kind`) and a trailing
+  `{...}` qualifier block in `qualifiers`. `[Typedef]` frames go to `meta.extra.obo.typedefs`
+  (`typedefs: "nodes"` makes them nodes with their `is_a` edges); the header goes to
+  `meta.extra.obo.header`. Every other tag fills the column of its name (`name` with the label
+  role, `namespace`, `def` and `def.xrefs`, `synonym` as `{ text, scope, type, xrefs }` records,
+  `xref`, `alt_id`, `subset`, `is_obsolete`, `property_value`, `intersection_of`, ...); an unknown
+  tag is kept in `obo.unrecognized`, qualifiers with no other home in `obo.qualifiers` (those of
+  one xref of a `def` or `synonym` list under `def.xrefs` / `synonym.xrefs`), a frame of
+  an unknown type in `meta.extra.obo.unknownFrames`. Frames that share an id are merged (lists
+  take the union, a single value keeps the first). A target no frame declares becomes a placeholder node (`graphty.placeholder`; `addMissingNodes: false` drops
+  the edge instead). Obsolete terms are kept (`obsolete: "drop"` leaves them and their edges out).
+  Imports and the treat-xrefs macros are kept but not applied (`W_OBO_HEADER_NOT_APPLIED`). The
+  `\W` escape is a space, as the OBO guides define it. There is no OBO exporter: write GraphML or
+  the graph-format container instead.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
   THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored
@@ -270,6 +307,73 @@ losses and format rules, in addition to the table:
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position
   or visual column as a plain property.
+- **XGMML**: one reader for the 1.0 draft, the Cytoscape 2.x and 3.x exports and the Cytoscape 3
+  session network files. Direction follows the DTD (root `directed`, default 0), then `cy:directed`
+  per edge; ids stay strings (`"1"` and `"01"` are two nodes); atts are typed by `cy:type`, then
+  `type` (the XGMML `integer` is `i32`, widening to `f64` with `W_WIDENED` because pre-3.3
+  Cytoscape wrote Longs that way, while a value beyond i32 under `cy:type="Integer"` or in a
+  session's `java.lang.Integer` column is `E_BAD_VALUE`; Long `f64` or a string under
+  `long: "string"`, lists of their element type, record lists, lists of lists and RDF as `json`);
+  groups become `parent` / `parents`, other node-nested graphs the `cytoscape.nestedNetwork`
+  pointer; `graphics` x and y are the position, stored y-up (Cytoscape writes screen coordinates;
+  the exporter flips y back), z the separate `z` column (`zAs: "position"` makes it a coordinate),
+  every other graphics value a `json` column `graphics`. Cytoscape's `\n` / `\t` escapes, label
+  aliases (`a (pp) b`) and the two writer bugs Cytoscape repairs (`repairBareAmpersands`,
+  `pairSurrogateReferences`, both off by default) are options. A session network document lists
+  its registered networks through `listGraphs()`; `graphIndex` / `graphName` choose one. Dangling
+  endpoints are `E_UNKNOWN_NODE` unless `addMissingNodes: true`. The exporter writes the Cytoscape
+  3 dialect (`type` plus `cy:type` on every att): f32, u8, u32 and dict are written as wider
+  Cytoscape types, json as text, and graphty's visual roles are not translated into graphics.
+- **Cytoscape sessions (`.cys`)**: read only (Cytoscape opens the XGMML graph-io writes). A
+  session is a zip of every network of a Cytoscape desktop, read with no dependency (the central
+  directory, zip64, data descriptors, stored and deflate entries inflated through
+  `DecompressionStream`; encryption and other methods are refused by name). One snapshot per
+  registered network: `import()` reads the first (`graphIndex` / `graphName` choose another,
+  `listGraphs()` lists them with their counts), `importAll()` every one. 3.x: the network file's
+  topology, the network's CyCSV tables as columns (shared columns joined in by `cytables.xml`,
+  HIDDEN and app tables as hidden columns under their namespace), positions from its first view
+  (y-up; further views as `position@2`, ...) and the view's per-element values as the `graphics`
+  column; 2.x: one XGMML per network, with `cysession.xml`'s selection and hidden state as
+  `cytoscape.selected` / `cytoscape.hidden`. Expanded groups become `parent` / `parents`, a
+  collapsed group's members are listed in `meta.extra.cytoscape.groups`, nested-network pointers
+  name their network in `cytoscape.nestedNetwork`. Styles are not applied (`W_STYLES_NOT_IMPORTED`,
+  issue #706); apps, properties and images are skipped with `W_CYS_ENTRY_SKIPPED`. Text input is
+  refused (`E_CYS_NOT_ZIP`: pass the bytes). `maxUncompressedBytes` (default 2 GiB) and a 1000:1
+  ratio limit stop zip bombs (`E_TOO_LARGE`).
+
+- **CX2**: the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web, read element by
+  element so a document longer than one JavaScript string still loads. Every edge is directed;
+  node ids are integers (an id beyond 2^53 keeps its digits as a string id, `W_PRECISION`; `"5"` and
+  `5.0` read as 5, `W_ID_TEXT_TYPE`). Declared attributes become typed columns under their full
+  names (the alias in `origin.id`, the default in `meta.default`); an undeclared attribute is typed
+  from its values (`W_CX2_UNDECLARED_ATTRIBUTE`), a value of the wrong type is `E_BAD_VALUE` and its
+  cell is unset. `name` is the label; `x` / `y` are the position, stored y-up (y negated, as for every
+  Cytoscape-family format) and negated back on export; `z` is a stacking order in the `z` column
+  (`zAs: "position"` puts it in the position). Per-element visual values (`nodeBypasses`,
+  `edgeBypasses`) are one column per visual property (origin namespace `cx2.bypass`); style rules
+  (`visualProperties`, `visualEditorProperties`) and opaque aspects are kept verbatim in
+  `meta.extra.cx2.opaque` and written back, but not applied (`W_STYLES_NOT_IMPORTED`). A missing
+  `status` is `E_CX2_NO_STATUS`, `success: false` is fatal (`E_STATUS_FAILED`), an edge to an unknown
+  node is `E_UNKNOWN_NODE` (`addMissingNodes: true` creates it, as Cytoscape does). The exporter
+  refuses non-integer node ids unless `sanitizeIds: "mangle"`, which keeps the original in a
+  `graphty:originalId` attribute the importer turns back into the id; NaN and the infinities are
+  written as null (`W_CX2_NONFINITE_AS_NULL`), nested values as JSON text (`W_CX2_JSON_AS_STRING`).
+
+- **CX** (version 1, `@graphty/graph-io/cx`, `.cx`; read only -- CX2 is what NDEx and Cytoscape
+  write today): aspect fragments in any order, read element by element. Ids follow the CX2 rule;
+  `n` is the `name` label, `r` is `represents`, `i` is `interaction`; attributes are typed by their
+  `d` with Cytoscape's value rule (`""` and `"null"` are unset, `"NaN"` is NaN in a double), several
+  types for one name widen (`W_WIDENED`). A collection (several `cySubNetworks`) is one graph per
+  subnetwork: `listGraphs()` lists them, `import()` reads the one `graphIndex` / `graphName` picks
+  (the first by default, `W_MULTIPLE_GRAPHS`), `importAll()` reads them all; a subnetwork's own
+  values (`s`) beat the shared ones, and nodes or edges no subnetwork holds are not read
+  (`W_CX_ROOT_ONLY`). Positions come from the subnetwork's view (y negated to y-up,
+  other views as `position@2`, ...); `cyGroups` give `parent` or `parents` (a group whose id is
+  not a node gets one, `W_CX_GROUP_NODE_ADDED`); per-element `cyVisualProperties` of that view are
+  one column per property (origin namespace `cx.bypass`) and style rules are kept in `meta.extra.cx`
+  (`W_STYLES_NOT_IMPORTED`); citations and supports become the extension tables `cx:citations` /
+  `cx:supports`. Old aspect names (`visualProperties`, `subNetworks`, ...) are read with
+  `W_CX_OLD_ASPECT_NAME`; a CX2 document is refused naming the CX2 importer (`E_CX_NOT_CX`).
 
 ## Format detection
 

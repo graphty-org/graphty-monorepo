@@ -36,7 +36,7 @@ jobs:
     # nothing, and a release never goes backwards.
     gate:
         name: Find the newest commit green on every lane
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
         permissions:
             actions: read
@@ -77,14 +77,17 @@ jobs:
                   }
                   ci_runs=$(runs ci.yml); gpu_runs=$(runs gpu.yml); hosts_runs=$(runs hosts.yml)
                   newest() { awk -v s="$2" '$1 == s { print $2, $3, $4; exit }' <<< "$1"; }
-                  # The release reuses the CI run's per-package builds (the downloads in the job below), which CI
-                  # keeps for one day.
+                  # The release reuses the CI run's per-package builds (the downloads in the job below), and the
+                  # deploy reuses its Storybooks, docs and example pages; CI keeps all of them for one day.
                   artifacts_ok() {
                       local live
                       live=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/artifacts?per_page=100" --jq '
                           [.artifacts[] | select(.expired | not) | .name] as $live
                           | ["graph-format", "graph-io", "webgpu-graph-algorithms", "graph-samples", "algorithms",
-                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine"]
+                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine",
+                             "storybook-element", "storybook-app", "storybook-compact-mantine",
+                             "storybook-algorithms", "storybook-layout", "docs", "ghpages-algorithms",
+                             "ghpages-layout"]
                           | map("build-" + .) - $live | length')
                       [ "$live" = 0 ]
                   }
@@ -105,7 +108,7 @@ jobs:
 
     release:
         name: Release
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: gate
         if: ${{ needs.gate.outputs.release == 'true' }}
         permissions:
@@ -256,6 +259,14 @@ jobs:
                   run-id: ${{ needs.gate.outputs.ci_run_id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout,
+            # so the version and publish steps below neither version nor publish it -- not even as a dependent
+            # of a package that is released -- while every other package and the graphty.app deploy go ahead.
+            # nx commits only the manifests and changelogs it wrote, never this nx.json edit. To stop one
+            # package, add it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning").
+            - name: Leave out the packages release-hold.json holds
+              run: node tools/release-hold.mjs apply
+
             - name: Configure Git
               run: |
                   git config user.name "github-actions[bot]"
@@ -405,13 +416,29 @@ jobs:
                   for spec in $absent; do echo "::error::${spec} is versioned on master but not on npm; run this workflow again to publish it"; done
                   exit 1
 
+    # graphty.app (the app, the docs, the Storybooks and the hosted data: one Pages site) goes live only after
+    # a successful build and release, built from the released commit's CI artifacts. deploy-pages.yml skips a
+    # commit that is live already, which is what a re-found commit with nothing to version looks like.
+    deploy:
+        name: Deploy graphty.app
+        needs: [gate, release]
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
+            actions: read
+        uses: ./.github/workflows/deploy-pages.yml
+        with:
+            run-id: ${{ needs.gate.outputs.ci_run_id }}
+            sha: ${{ needs.gate.outputs.sha }}
+
     # The release commit carries [skip ci] (nx.json, release.git.commitMessage) so that pushing it cannot start
     # CI, the paid GPU lane, Hosts, the Pages deploy, and through CI's completion a second release. That also means
     # no push workflow ever looks at it, so this job is the one check the released tree gets: the version bumps,
     # the changelogs and the lockfile as nx release left them must still install, build and lint.
     verify-release-commit:
         name: Verify the release commit
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: release
         permissions:
             contents: read

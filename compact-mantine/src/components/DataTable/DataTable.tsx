@@ -19,7 +19,7 @@ import {
     useTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useCollator, useLocale, useNumberFormatter } from "../../i18n";
@@ -27,7 +27,7 @@ import { UiGlyph } from "../../icons";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
 import { useDataTableLabels } from "./labels";
-import { clampGridPosition, type GridPosition, HEADER_ROW, nextGridPosition, samePosition } from "./navigation";
+import { clamp, clampGridPosition, type GridPosition, HEADER_ROW, nextGridPosition, samePosition } from "./navigation";
 import { applySelectionGesture, selectAll, type SelectionModifiers, type SelectionResult } from "./selection";
 import type { DataTableColumn, DataTableHandle, DataTableProps, DataTableSort } from "./types";
 import { cellText, compareValues, type ValueFormat } from "./values";
@@ -125,17 +125,6 @@ function ariaSortOf(sorted: false | "asc" | "desc"): "ascending" | "descending" 
 }
 
 /**
- * Keeps a number inside a range.
- * @param value - The number to keep in range
- * @param min - The lowest allowed value
- * @param max - The highest allowed value
- * @returns The number, brought into range
- */
-function clampNumber(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
-}
-
-/**
  * A compact, virtualized data table.
  * @param props - Component props
  * @param ref - A handle for the few things a table can be asked to do from outside
@@ -147,6 +136,9 @@ function DataTableInner<TRow extends object>(
 ): React.JSX.Element {
     const {
         data,
+        rowCount: windowRowCount,
+        rowOffset = 0,
+        onRangeChange,
         columns,
         getRowId,
         label,
@@ -285,7 +277,8 @@ function DataTableInner<TRow extends object>(
                 // accented word after every unaccented one. This one reads the
                 // value through the column's own accessor and compares it with
                 // the collator for the active locale.
-                sortFn: (rowA, rowB) => compareValues(column.value(rowA.original), column.value(rowB.original), collator),
+                sortFn: (rowA, rowB) =>
+                    compareValues(column.value(rowA.original), column.value(rowB.original), collator),
             })),
         [columns, collator],
     );
@@ -325,11 +318,19 @@ function DataTableInner<TRow extends object>(
     // the resulting state arriving.
     const sortEventRef = useRef<React.SyntheticEvent | undefined>(undefined);
 
+    // A windowed table holds only some of the rows, so their order and their
+    // search are the caller's: sorting or filtering a window would reorder the
+    // rows on show and nothing else.
+    const windowed = windowRowCount !== undefined;
+    const offset = windowed ? rowOffset : 0;
+
     const table = useTable<DataTableFeatures, TRow>({
         features: dataTableFeatures,
         data: rowsData,
         columns: columnDefs,
         getRowId,
+        manualSorting: windowed,
+        manualFiltering: windowed,
         enableRowSelection: selectionMode !== "none",
         enableMultiRowSelection: selectionMode === "multiple",
         // Every column is a candidate for the search; which of them the search
@@ -377,7 +378,7 @@ function DataTableInner<TRow extends object>(
 
     const { rows } = table.getRowModel();
     const visibleColumns = table.getVisibleLeafColumns();
-    const rowCount = rows.length;
+    const rowCount = windowRowCount ?? rows.length;
     const columnCount = visibleColumns.length;
 
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
@@ -389,9 +390,18 @@ function DataTableInner<TRow extends object>(
         count: rowCount,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => rowHeight,
-        getItemKey: (index) => rowIds[index] ?? index,
+        getItemKey: (index) => rowIds[index - offset] ?? index,
         overscan,
     });
+
+    const virtualItems = virtualizer.getVirtualItems();
+    const rangeStart = virtualItems[0]?.index ?? 0;
+    const rangeEnd = (virtualItems.at(-1)?.index ?? -1) + 1;
+    useEffect(() => {
+        onRangeChange?.(rangeStart, rangeEnd);
+        // Reported when the range moves, not when a caller hands over a new
+        // callback on every render.
+    }, [rangeStart, rangeEnd]);
 
     // Roving tabindex, as the ARIA Authoring Practices ask of a grid: exactly
     // one cell is in the tab order at a time, Tab moves into and out of the
@@ -473,7 +483,7 @@ function DataTableInner<TRow extends object>(
         commitSelection(
             applySelectionGesture({
                 ids: rowIds,
-                index,
+                index: index - offset,
                 selected: selection,
                 anchor: anchorRef.current,
                 modifiers,
@@ -490,7 +500,7 @@ function DataTableInner<TRow extends object>(
      * @param meta - Whether it came from a pointer or from the keyboard
      */
     const activateRow = (index: number, event: ActivationEvent, meta: ActivationMeta): void => {
-        const row = rows[index];
+        const row = rows[index - offset];
         if (row === undefined) {
             return;
         }
@@ -558,13 +568,9 @@ function DataTableInner<TRow extends object>(
             return;
         }
 
-        const next = nextGridPosition(
-            position,
-            event.key,
-            { rowCount, columnCount, pageSize: pageSize() },
-            direction,
-            { jumpToEnd },
-        );
+        const next = nextGridPosition(position, event.key, { rowCount, columnCount, pageSize: pageSize() }, direction, {
+            jumpToEnd,
+        });
 
         if (next === undefined) {
             return;
@@ -599,7 +605,7 @@ function DataTableInner<TRow extends object>(
                 }
 
                 ids.splice(from, 1);
-                ids.splice(clampNumber(toIndex, 0, ids.length), 0, id);
+                ids.splice(clamp(toIndex, 0, ids.length), 0, id);
                 table.setColumnOrder(ids);
             },
             clearSelection: (): void => {
@@ -646,7 +652,8 @@ function DataTableInner<TRow extends object>(
     };
 
     const isSelectable = selectionMode !== "none";
-    const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(data.length));
+    const allRows = windowRowCount ?? data.length;
+    const shownText = labels.rowsShown(numberFormatter.format(rowCount), numberFormatter.format(allRows));
 
     /**
      * What to draw in place of the rows when there are none.
@@ -657,7 +664,7 @@ function DataTableInner<TRow extends object>(
             return empty;
         }
 
-        return data.length === 0 ? labels.noRows : labels.noMatchingRows;
+        return allRows === 0 ? labels.noRows : labels.noMatchingRows;
     };
 
     return (
@@ -685,7 +692,6 @@ function DataTableInner<TRow extends object>(
                 <Box style={{ display: "flex", alignItems: "center", gap: PANEL_GRID.GUTTER }}>
                     <TextInput
                         data-testid="data-table-search"
-                        size="xs"
                         type="search"
                         // The box's own value is not its name, so a name has to
                         // come from somewhere: there is no visible label beside
@@ -735,7 +741,9 @@ function DataTableInner<TRow extends object>(
                 out loud rather than only drawn. */}
             <VisuallyHidden role="status" aria-live="polite" dir="auto" data-testid="data-table-status">
                 {shownText}
-                {isSelectable && selection.length > 0 ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}` : ""}
+                {isSelectable && selection.length > 0
+                    ? ` ${labels.rowsSelected(numberFormatter.format(selection.length))}`
+                    : ""}
             </VisuallyHidden>
 
             <Box
@@ -932,8 +940,7 @@ function DataTableInner<TRow extends object>(
                                                     display: "flex",
                                                     alignItems: "center",
                                                     gap: PANEL_GRID.GUTTER / 2,
-                                                    justifyContent:
-                                                        config?.align === "end" ? "flex-end" : "flex-start",
+                                                    justifyContent: config?.align === "end" ? "flex-end" : "flex-start",
                                                     flex: "1 1 auto",
                                                     minWidth: 0,
                                                     height: "100%",
@@ -963,8 +970,8 @@ function DataTableInner<TRow extends object>(
                             height: virtualizer.getTotalSize(),
                         }}
                     >
-                        {virtualizer.getVirtualItems().map((item) => {
-                            const row = rows[item.index];
+                        {virtualItems.map((item) => {
+                            const row = rows[item.index - offset];
                             if (row === undefined) {
                                 return null;
                             }
@@ -1000,8 +1007,7 @@ function DataTableInner<TRow extends object>(
                                 >
                                     {visibleColumns.map((column, index) => {
                                         const config = columnById.get(column.id);
-                                        const isFocused =
-                                            position.row === item.index && position.column === index;
+                                        const isFocused = position.row === item.index && position.column === index;
                                         const value = config?.value(row.original);
                                         const text = cellText(value, format);
                                         // A value the table writes itself is

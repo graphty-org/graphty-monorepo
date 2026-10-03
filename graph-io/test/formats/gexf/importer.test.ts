@@ -1,7 +1,7 @@
 import { type Column, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { XML_SYNTAX_CODE } from "../../../src/common/codes.js";
+import { DUPLICATE_ATTRIBUTE_CODE, XML_SYNTAX_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -10,7 +10,6 @@ import {
     ATTRIBUTE_TYPE_CODE,
     ATTRIBUTES_CLASS_CODE,
     ATTVALUE_SHAPE_CODE,
-    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_NODE_CODE,
     EDGE_TYPE_CODE,
     gexfImporter,

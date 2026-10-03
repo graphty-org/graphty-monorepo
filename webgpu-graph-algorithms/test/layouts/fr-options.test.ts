@@ -331,7 +331,6 @@ describe("createFruchtermanReingold (spec 3.3, 7.20)", () => {
                 "cellHist",
                 "cellStart",
                 "hubList",
-                "hubArgs",
                 "pyramid",
             ]);
             expect(gridModel.specs(merged, true).map((spec) => spec.id)).toHaveLength(6);

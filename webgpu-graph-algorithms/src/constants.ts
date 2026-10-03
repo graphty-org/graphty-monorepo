@@ -43,7 +43,9 @@ export const UNIFORM_SLOT_BYTES = 256;
  * unbiasedness item) the same day by its re-scope to the whole-field ratio, and the far field's accuracy on those
  * fixtures is the follow-up -- because "auto" is the default every consumer sees and the exact tier is the accurate
  * one; the rule's answer on the dev box (1024) is recorded, not shipped, until that work closes and the value is
- * re-fixed. A
+ * re-fixed. Re-measured on 2026-10-02 after the grid tier's hub-cell centroid became a direct dispatch (issue #732):
+ * the rule still answers 1024 (exact 0.26 against grid 0.18 ms per iteration at 4,096 nodes), because the indirect
+ * dispatch's cost was Dawn's validation pass, which the profiler's per-pass times never included. A
  * consumer whose GPU differs (integrated, Apple, T4) passes its own value through
  * createAccelerator(ctx, { layout: { exactMaxNodes } }); calibrateLayout(ctx) measures it.
  */
@@ -261,10 +263,29 @@ export const SSSP_DELTA_FACTOR = 32;
 export const F32_INF_BITS = 0x7f800000;
 /** Design 8.4 "k planned from maxBufferSize and a 25% budget": the share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
 export const BC_BATCH_BUDGET_FRACTION = 0.25;
-/** Design 10.1's betweenness column: the most sources one betweenness batch runs together. */
-export const BC_MAX_BATCH = 64;
+/**
+ * The most sources one betweenness batch runs together. 256 rather than design 10.1's 64 (issue #733): a batch's
+ * cost is dominated by its per-level submits and readbacks, not by its width, so a quarter of the batches runs an
+ * exact call on random graphs of 1k / 2k / 4k nodes (4 edges per node, RTX 4070 SUPER) 2.8x / 2.5x / 1.8x faster
+ * with the frontier forward form and 1.9x / 1.6x / 1.5x with the per-batch choice, with bit-identical vertex and
+ * edge scores (the gathers add every source's dependency in source order whatever the batching). The memory budget
+ * still decides k above about 16k nodes at default limits, so large graphs are unchanged. Forward levels per submit
+ * stay at `MAX_LEVELS_PER_SUBMIT`: the parameter ring is sized for it.
+ */
+export const BC_MAX_BATCH = 256;
 /** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
 export const BC_EDGE_PARALLEL_GAMMA = 2;
+/**
+ * Betweenness path counts that wrapped u32 are recounted as f32, rescaled per depth by a power of two (`bc-count`):
+ * when the largest count at one depth has a binary exponent above this cap, the next depth's counts are scaled down so
+ * that largest count lands at 2^cap. A count then never exceeds 2^cap x 2 x (in-degree), below f32's 2^128 for any
+ * in-degree a binding can hold (2^25), and the counts at one depth may span 2^(cap + 126) before the smallest leaves
+ * f32's normal range, which is when the overflow flag rises (measured: a corner of a 235 x 235 grid, not of a 230 x 230
+ * one). Powers of two scale without rounding, so the scores do not depend on the cap.
+ */
+export const BC_SIGMA_EXPONENT_CAP = 100;
+/** The most workgroups one `bc-count` dispatch launches (it grid-strides over the level): sized for the largest level, a dispatch of n x k lanes costs every level a mostly idle launch, which doubled a 100 x 100 grid's run on an RTX 4070 SUPER; 256 measured 1.3 s against 2.0 s there. */
+export const BC_COUNT_MAX_GROUPS = 256;
 /** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
 export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;
 /**
@@ -295,9 +316,14 @@ export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
  * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
  * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
  * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
- * Declared ahead of the minimum-spanning-tree driver, which reads it when it lands.
+ * `src/algorithms/mst.ts` reads it.
  */
 export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
+/**
+ * The sign bit of an f32 bit pattern; interpolated into the prelude as `F32_SIGN_BIT` for `order_key`, the
+ * order-preserving u32 key of an f32 that Boruvka's `atomicMin` over edge weights runs on (P11 PD-6).
+ */
+export const F32_SIGN_BIT = 0x80000000;
 /** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
 export const GROUP_ROW_THREAD_MAX = 32;
 /** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */

@@ -8,7 +8,7 @@
  * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
  * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
  * `closenessCentrality`, each taking the seam's own option type), `allPairsShortestPath` (design 8.7), P11's
- * `triangleCount` and `labelPropagation`, and nothing else: the CPU-side dispatchers
+ * `triangleCount` and `labelPropagation`, Boruvka's `minimumSpanningTree`, and nothing else: the CPU-side dispatchers
  * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
  * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
  * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
@@ -24,6 +24,7 @@ import { breadthFirstSearch } from "./algorithms/bfs.js";
 import { closenessCentrality } from "./algorithms/closeness.js";
 import { connectedComponents } from "./algorithms/components.js";
 import { labelPropagation } from "./algorithms/label-propagation.js";
+import { minimumSpanningTree } from "./algorithms/mst.js";
 import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { sssp } from "./algorithms/sssp.js";
@@ -40,6 +41,7 @@ import {
     type ClosenessAcceleratorOptions,
     type GpuAccelerator,
     type HitsOptionsLike,
+    type MstOptions,
     type SsspOptions,
 } from "./types/accelerator.js";
 import {
@@ -68,7 +70,7 @@ import {
     type FruchtermanReingoldOptions,
     type SpringElectricalOptions,
 } from "./types/options.js";
-import { type GpuTriangleResult } from "./types/structure.js";
+import { type GpuMstResult, type GpuTriangleResult } from "./types/structure.js";
 import { type GpuBellmanFordResult, type GpuBfsResult, type GpuSsspResult } from "./types/traversal.js";
 
 /** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
@@ -173,6 +175,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
     const frozen = freezeOptions(options);
     return {
         kind: "webgpu",
+        harmonicCloseness: true,
         ctx,
         options: frozen,
         /**
@@ -355,10 +358,11 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             );
         },
         /**
-         * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`
-         * per source when `weighted`. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
+         * Closeness centrality on the device (spec 8.4): the all-pairs sweep with a row sum on small and
+         * weighted graphs, the bit-parallel multi-source search otherwise, one `sssp` per source for a weighted graph
+         * above the all-pairs ceiling. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
          * @param gs - the snapshot
-         * @param o - `weighted`, and a sampled run's `sources` (undirected snapshots only)
+         * @param o - `weighted`, `harmonic` (exact runs), and a sampled run's `sources` (undirected snapshots only)
          * @returns the f32 scores with `precision: "f32"` (spec 9.7) and `sourcesUsed`
          */
         async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {
@@ -411,6 +415,24 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
                 });
             }
             return await labelPropagation(ctx, gs, { maxIterations: o?.maxIterations, weighted: o?.weighted });
+        },
+        /**
+         * Boruvka's minimum spanning forest (design 8.5; P11-T4): the forest of the total edge order (weight, then
+         * edge index), which is the one `kruskalMST` accepts. The seam's per-arc `weights` override is refused when
+         * defined: the forest runs over the snapshot's own edge weights.
+         * @param gs - the snapshot
+         * @param o - the seam's `MstOptions`; `weights` refused when defined
+         * @returns the forest's logical edge indices and its f64 total weight
+         */
+        async minimumSpanningTree(gs: GraphSnapshot, o?: MstOptions): Promise<GpuMstResult> {
+            ctx.assertReady();
+            if (o?.weights !== undefined) {
+                throw new WebGpuGraphError("E_UNSUPPORTED", "minimumSpanningTree: weights is not supported", {
+                    option: "weights",
+                    hint: "the spanning forest runs over the snapshot's own edge weights",
+                });
+            }
+            return await minimumSpanningTree(ctx, gs);
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

@@ -22,7 +22,8 @@
 
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 
-import { FA2_DEFAULTS } from "./constants";
+import { FA2_COINCIDENT_SQ, FA2_DEFAULTS, FA2_DISTANCE_FLOOR } from "./constants";
+import { kickDir } from "./forceatlas2";
 import { seedPositions } from "./seed";
 import type { FruchtermanReingoldOptions, LayoutSimulation } from "./types";
 
@@ -417,14 +418,26 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 const dx = ux - pos[3 * v];
                 const dy = uy - pos[3 * v + 1];
                 const dz = uz - pos[3 * v + 2];
-                // Distance (line 103): an exact 0 becomes 0.1, otherwise unclamped
-                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz) || FR_ZERO_DISTANCE;
-                // Force (line 106)
-                const force = (k * k) / distance;
-                // Add force to displacement (lines 109-113)
-                const fx = (dx / distance) * force;
-                const fy = (dy / distance) * force;
-                const fz = (dz / distance) * force;
+                const d2 = dx * dx + dy * dy + dz * dz;
+                let fx: number;
+                let fy: number;
+                let fz: number;
+                if (d2 < FA2_COINCIDENT_SQ) {
+                    // coincident: the GPU's antisymmetric unit kick at the law's magnitude for d = 0.01, so two
+                    // nodes on one point separate (the legacy loop's delta / d is the zero vector there)
+                    const kick = kickDir(u, v, this.dim);
+                    const magnitude = (k * k) / FA2_DISTANCE_FLOOR;
+                    fx = kick[0] * magnitude;
+                    fy = kick[1] * magnitude;
+                    fz = kick[2] * magnitude;
+                } else {
+                    // Distance (line 103), unclamped; Force (line 106); add force to displacement (lines 109-113)
+                    const distance = Math.sqrt(d2);
+                    const force = (k * k) / distance;
+                    fx = (dx / distance) * force;
+                    fy = (dy / distance) * force;
+                    fz = (dz / distance) * force;
+                }
                 disp[3 * u] += fx;
                 disp[3 * u + 1] += fy;
                 disp[3 * u + 2] += fz;

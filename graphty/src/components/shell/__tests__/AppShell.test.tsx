@@ -19,6 +19,7 @@ import {
     type AccelerationStatus,
     createGraphSession,
     type DataSourceInput,
+    type FieldBand,
     type GraphSession,
     type GraphStatistics,
     type Histogram,
@@ -490,7 +491,7 @@ interface StubNode {
     data: Record<string, unknown>;
 }
 
-/** One edge as the stand-in holds it, which is how `GraphtyHandle.getData` reads it too. */
+/** One edge as the stand-in holds it, which is how `session.data.edgePage` reads it too. */
 interface StubEdge {
     /** The element-assigned edge id. */
     id: string;
@@ -792,6 +793,8 @@ function fixtureResult(input: {
     readonly count: number;
     /** The graph-level fields, for a run that publishes any. */
     readonly graph?: Readonly<Record<string, unknown>>;
+    /** The band each graph-level field is in. Canned: where the bands lie is graphty-element's call. */
+    readonly bands?: Readonly<Record<string, FieldBand>>;
     /** The groups, largest first, for a run that partitions. */
     readonly groups?: readonly { readonly group: number; readonly size: number }[];
     /**
@@ -851,6 +854,7 @@ function fixtureResult(input: {
         histogram: () => fixtureHistogram(ascending),
         top: () => ({ entries: [], leftOut: null, reason: input.topReason ?? null }),
         graph: input.graph ?? {},
+        band: (field: string) => input.bands?.[field],
     } as unknown as RunResult;
 }
 
@@ -998,7 +1002,7 @@ function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
  * Stands a graph on the mounted host that answers the whole novice path.
  *
  * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in the
- * two Maps `GraphtyHandle.getData` reads, and it PUBLISHES A RESULT per run -- a ranking, a
+ * two Maps `session.data` pages read, and it PUBLISHES A RESULT per run -- a ranking, a
  * summary and a distribution for each of the three node metrics, and a group per node with a
  * modularity beside it for the grouping run. What these boards test is that the shell starts
  * the right passes, in the right order, and turns what comes back into the right sentence.
@@ -1090,6 +1094,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
                 values: communityAssignment(),
                 count: nodes.size,
                 graph: { modularity: STUB_MODULARITY },
+                bands: { modularity: { id: "clear", plainName: "Clearly separated", description: "", above: 0.3 } },
                 groups: STUB_GROUP_SIZES.map((size, group) => ({ group, size })),
             });
         }
@@ -1763,6 +1768,34 @@ describe("AppShell", () => {
                one-button model; 5.2 line 448's promise that the drawer never covers either
                sidebar is kept by INSETTING the drawer instead. */
             expect(screen.getByTestId("activity-panel")).toBeInTheDocument();
+        });
+    });
+
+    describe("the data table drawer", () => {
+        it("reads a page of records around the rows on screen, never the whole graph", async () => {
+            const nodeCount = 20_000;
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            const graph = installNovicePathGraph(container, { synthetic: { nodeCount, edgeCount: 100 } });
+            const { data } = graph.styles.session;
+            const pages = vi.spyOn(data, "nodePage");
+            const everyNode = vi.spyOn(data, "nodes");
+
+            await loadCatSample(container);
+            fireEvent.keyDown(window, { key: "T", shiftKey: true });
+
+            const grid = await screen.findByRole("grid", { name: "Data table" });
+
+            await waitFor(() => {
+                expect(grid).toHaveAttribute("aria-rowcount", String(nodeCount + 1));
+            });
+            expect(within(grid).getAllByTestId("data-table-row").length).toBeLessThan(100);
+            expect(everyNode).not.toHaveBeenCalled();
+            expect(pages).toHaveBeenCalled();
+            for (const [options] of pages.mock.calls) {
+                expect(options?.limit ?? 100).toBeLessThanOrEqual(200);
+            }
         });
     });
 
@@ -2490,7 +2523,9 @@ describe("AppShell", () => {
                itself and hand over a `value >= cut` expression. */
             expect(added[0].selector).toMatchObject({ match: "top", n: 5 });
             expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
-            expect(added[0].encode).toHaveProperty("node.label");
+            /* It switches labels on and leaves the words to graphty-element, which draws each
+               node's id. */
+            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true } });
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
             for (const layer of added) {
@@ -4672,12 +4707,14 @@ describe("AppShell", () => {
 
             const [busiest] = [...counts.entries()].sort((one, two) => two[1].size - one[1].size);
 
-            reportSelection(container, busiest[0]);
+            /* The element reports a selected node by the id it holds, so a numeric-id graph
+               reports a number, and the node's edges are looked up by exactly that id. */
+            reportSelection(container, numericIds ? Number(busiest[0]) : busiest[0]);
 
             return { neighborCount: busiest[1].size };
         }
 
-        it("reads the node's REAL link count from the source/target spelling getData writes", async () => {
+        it("reads the node's REAL link count from the source/target spelling the element writes", async () => {
             const { neighborCount } = await selectBusiestNode(false);
 
             expect(neighborCount).toBeGreaterThan(0);
@@ -4709,6 +4746,87 @@ describe("AppShell", () => {
     /* -------------------------------------------------------------------------- */
     /* Pinning a node to the canvas                                                */
     /* -------------------------------------------------------------------------- */
+
+    /* Issue #188: notes typed in the inspector went nowhere. They are graphty-element's
+       `session.notes`; the shell reads them from there and writes them back, and the element's
+       history makes the delete undoable. */
+    describe("notes from the element's session", () => {
+        async function loadCat() {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            const stub = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+
+            return { container, session: stub.styles.session };
+        }
+
+        it("writes a typed note to the selected node and lists it in the inspector", async () => {
+            const { container, session } = await loadCat();
+            const nodeId = CAT_SOCIAL_NETWORK.nodes[0].id;
+
+            reportSelection(container, nodeId);
+
+            const input = await screen.findByTestId("node-note-input");
+
+            fireEvent.change(input, { target: { value: "Seen at the vet" } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(session.notes.list({ target: { node: nodeId } }).map((note) => note.text)).toEqual([
+                "Seen at the vet",
+            ]);
+            expect(await screen.findByRole("button", { name: "Delete note: Seen at the vet" })).toBeInTheDocument();
+        });
+
+        it("deletes a note through the element, and the element's undo brings it back", async () => {
+            const { container, session } = await loadCat();
+            const nodeId = CAT_SOCIAL_NETWORK.nodes[0].id;
+
+            act(() => {
+                session.notes.add({ text: "Check the owner", targets: [{ node: nodeId }] });
+            });
+            reportSelection(container, nodeId);
+
+            fireEvent.click(await screen.findByRole("button", { name: "Delete note: Check the owner" }));
+
+            expect(session.notes.list()).toHaveLength(0);
+            await waitFor(() => {
+                expect(screen.queryByRole("button", { name: "Delete note: Check the owner" })).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByRole("button", { name: "Delete note: Check the owner" })).toBeInTheDocument();
+        });
+
+        it("focuses the node's note input on N", async () => {
+            const { container } = await loadCat();
+
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+            await screen.findByTestId("node-note-input");
+
+            fireEvent.keyDown(window, { key: "n" });
+
+            await waitFor(() => {
+                expect(screen.getByTestId("node-note-input")).toHaveFocus();
+            });
+        });
+
+        it("counts the notes about the whole graph as its case notes", async () => {
+            const { session } = await loadCat();
+
+            expect(screen.getByRole("button", { name: "Add a case note" })).toBeInTheDocument();
+
+            act(() => {
+                session.notes.add({ text: "Graph-wide", targets: [{ graph: true }] });
+                session.notes.add({ text: "About a node", targets: [{ node: CAT_SOCIAL_NETWORK.nodes[0].id }] });
+            });
+
+            expect(await screen.findByRole("button", { name: "1 case note" })).toBeInTheDocument();
+        });
+    });
 
     describe("the node inspector's Pin verb", () => {
         /**

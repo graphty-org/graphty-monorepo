@@ -456,6 +456,8 @@ What this settles:
   One keyed on the edge count, or on edges per node, could, and it would route both inside the
   ceiling on dense graphs. Until then they reach the device only above 100,000 nodes, or through
   `acceleration.minNodes` or `acceleration="required"`.
+  Superseded for the triangle count on 2026-10-01: it is now floored on edges times edges per
+  node; label propagation keeps its node floor. See "Edge-aware floors (2026-10-01)" below.
 - **Katz on a released snapshot throws.** The cold arm found it: after `release(s)`, the
   device's `katzCentrality` fails with `E_RELEASED` where every other algorithm uploads the graph
   again. Issue #623. The Katz rows below have no cold column.
@@ -653,6 +655,192 @@ The full measurements:
 | closeness, 100 sources         | 10,000 / 100,000    |   44.0 |   12.5 |        12.5 | 3.35x / 3.67x / 3.52x                   |
 | closeness, 100 sources         | 20,000 / 100,000    |   69.7 |   13.8 |        14.1 | 4.81x / 4.09x / 5.05x                   |
 | closeness, 100 sources         | 50,000 / 100,000    |  178.4 |   14.8 |        15.1 | 8.50x / 6.83x / 12.05x                  |
+
+### Measured: the minimum spanning tree (2026-09-30)
+
+Issue #646 built Boruvka's minimum spanning forest in webgpu-graph-algorithms
+(`src/algorithms/mst.ts`) and routed graphty-element's `kruskal` to it. Its row above was modelled;
+these numbers are measured.
+
+**What the device computes.** Each round, every edge whose two ends lie in different components
+offers itself to both. Each component keeps its cheapest edge under a total order: the weight
+first, then the edge index. Each component then joins the one its edge reaches, and pointer jumping
+relabels every node with its new root. Four rounds go into each submit, with one readback of how
+many edges they added; a round that adds none ends the run. Because the order is total, the forest
+is unique. It is exactly the forest `kruskalMST` accepts, since Kruskal's sort also breaks ties by
+edge index. So the two paths return the same edge set on every graph, ties included.
+
+**Method.** The same as the 2026-09-30 floors above: headless Chromium on the RTX 4070 SUPER (the
+NVIDIA adapter, required), both arms through `@graphty/algorithms`' dispatcher (`accelerated(null)`,
+Kruskal's indexed port, against `accelerated(createAccelerator(ctx))`), seeded undirected random
+graphs at ten edges a node, capped at 100,000 edges up to 50,000 nodes, arms interleaved with the
+order flipped every round, medians of 15 rounds (9 above 20,000 nodes, 5 where a CPU pass took over
+a second). Two shapes: weights drawn from 1 to 100, and no weights at all. Three sweeps. The machine
+was shared with other sessions' builds and test runs: the one-minute load average read 25 before
+the first sweep and 118 between the second and the third. The second sweep's CPU medians are
+inflated by that load (5x to 15x speedups where the other two read 1.2x to 3x), so it is printed but
+not used for a floor. The script and logs are in `tmp/boruvka/` of the branch's worktree
+(`zz-mst-floors.test.ts`, `sweep1.log` to `sweep3.log`, `table.py`).
+
+| shape      | nodes / edges       |  CPU ms | GPU ms | GPU cold ms | resident speedup, sweeps 1 / 2 / 3 | cold, sweep 1 |
+| ---------- | ------------------- | ------: | -----: | ----------: | ---------------------------------- | ------------- |
+| weighted   | 500 / 5,000         |    1.20 |   5.30 |        5.30 | 0.23x / 0.48x / 0.15x              | 0.23x         |
+| weighted   | 1,000 / 10,000      |    2.50 |   5.60 |        5.50 | 0.45x / 0.16x / 0.42x              | 0.45x         |
+| weighted   | 2,000 / 20,000      |    5.80 |   5.60 |        5.70 | 1.04x / 0.99x / 0.44x              | 1.02x         |
+| weighted   | 3,000 / 30,000      |    5.60 |   5.50 |        5.30 | 1.02x / 6.55x / 0.72x              | 1.06x         |
+| weighted   | 5,000 / 50,000      |    9.30 |   5.60 |        5.40 | 1.66x / 15.63x / 1.20x             | 1.72x         |
+| weighted   | 7,000 / 70,000      |   12.60 |   6.20 |        6.20 | 2.03x / 12.85x / 2.15x             | 2.03x         |
+| weighted   | 10,000 / 100,000    |   17.80 |   6.00 |        6.80 | 2.97x / 12.56x / 2.85x             | 2.62x         |
+| weighted   | 15,000 / 100,000    |   19.20 |   5.90 |        6.00 | 3.25x / 17.58x / 3.72x             | 3.20x         |
+| weighted   | 20,000 / 100,000    |   19.90 |   6.10 |        6.30 | 3.26x / 14.44x / 3.96x             | 3.16x         |
+| weighted   | 30,000 / 100,000    |   17.00 |   5.70 |        6.00 | 2.98x / 16.66x / 2.77x             | 2.83x         |
+| weighted   | 50,000 / 100,000    |   17.70 |   6.60 |        6.10 | 2.68x / 8.74x / 2.35x              | 2.90x         |
+| weighted   | 20,000 / 200,000    |   34.50 |   6.30 |       13.00 | 5.48x / 18.93x / 4.63x             | 2.65x         |
+| weighted   | 50,000 / 500,000    |   90.10 |   8.20 |       26.60 | 10.99x / 76.09x / 10.24x           | 3.39x         |
+| weighted   | 100,000 / 1,000,000 |  188.20 |  10.00 |       42.50 | 18.82x / 38.39x / 16.41x           | 4.43x         |
+| weighted   | 200,000 / 2,000,000 |  419.80 |  15.10 |       92.30 | 27.80x / 119.75x / 25.76x          | 4.55x         |
+| weighted   | 500,000 / 5,000,000 | 1139.90 |  37.80 |      223.60 | 30.16x / 32.46x / 30.30x           | 5.10x         |
+| unweighted | 500 / 5,000         |    0.20 |   4.90 |        5.00 | 0.04x / 0.04x / 0.04x              | 0.04x         |
+| unweighted | 1,000 / 10,000      |    0.40 |   5.00 |        5.00 | 0.08x / 0.06x / 0.06x              | 0.08x         |
+| unweighted | 2,000 / 20,000      |    0.70 |   5.00 |        5.00 | 0.14x / 0.13x / 0.09x              | 0.14x         |
+| unweighted | 3,000 / 30,000      |    1.30 |   5.00 |        5.30 | 0.26x / 0.18x / 0.17x              | 0.25x         |
+| unweighted | 5,000 / 50,000      |    2.10 |   4.90 |        5.00 | 0.43x / 0.29x / 0.30x              | 0.42x         |
+| unweighted | 7,000 / 70,000      |    1.90 |   4.90 |        5.00 | 0.39x / 0.29x / 0.35x              | 0.38x         |
+| unweighted | 10,000 / 100,000    |    2.80 |   5.40 |        5.70 | 0.52x / 0.60x / 0.35x              | 0.49x         |
+| unweighted | 15,000 / 100,000    |    4.90 |   5.30 |        5.70 | 0.92x / 0.56x / 0.37x              | 0.86x         |
+| unweighted | 20,000 / 100,000    |    3.50 |   5.40 |        5.60 | 0.65x / 0.53x / 0.74x              | 0.63x         |
+| unweighted | 30,000 / 100,000    |    5.90 |   5.90 |        6.20 | 1.00x / 0.43x / 0.77x              | 0.95x         |
+| unweighted | 50,000 / 100,000    |    5.30 |   5.60 |        5.90 | 0.95x / 0.71x / 0.45x              | 0.90x         |
+| unweighted | 20,000 / 200,000    |    8.70 |   5.50 |        6.00 | 1.58x / 1.38x / 0.72x              | 1.45x         |
+| unweighted | 50,000 / 500,000    |   14.60 |   5.90 |       12.00 | 2.47x / 2.15x / 1.77x              | 1.22x         |
+| unweighted | 100,000 / 1,000,000 |   29.00 |   7.10 |       22.60 | 4.08x / 3.64x / 3.70x              | 1.28x         |
+| unweighted | 200,000 / 2,000,000 |   69.00 |  10.70 |       58.30 | 6.45x / 5.49x / 5.51x              | 1.18x         |
+| unweighted | 500,000 / 5,000,000 |  242.80 |  27.20 |      174.50 | 8.93x / 8.74x / 6.65x              | 1.39x         |
+
+**What it settles.**
+
+- **Weighted graphs earn the device from 5,000 nodes.** 0.44x to 1.04x at 2,000, 0.72x to 1.06x at
+  3,000, and a win in every sweep from 5,000 (1.2x to 1.7x), 3x at 10,000, 16x to 19x at 100,000 nodes
+  with a million edges and 30x at 500,000. The device call is flat at about 5.5 ms up to 50,000 nodes:
+  two readbacks (the rounds and the forest) and the first-run device check. The floor is 5,000.
+- **Unweighted graphs do not, inside what the element holds.** With every weight equal, Kruskal's
+  sort has nothing to do and the CPU port is five to ten times faster than on the weighted graph,
+  while the device costs the same. It never beats the CPU inside 50,000 nodes and 100,000 edges
+  (1.00x at best). It wins from 100,000 nodes with a million edges (3.6x to 4.1x). So graphty-element
+  keeps a second floor of 100,000 for a graph whose edges all weigh the same, which is what a graph
+  with no `weight` attribute is.
+- **The crossover moved down from the model's 6,000 (11,000 on the minima).** The model charged
+  eight synchronisations of 2 ms; four rounds per submit leaves two.
+- **The cold call** (the upload inside the number) still wins from 5,000 nodes on weighted graphs,
+  and 4.4x at 100,000.
+
+Node on Dawn, the same card, `kruskalMST` against the resident device call, weights 1 to 100, ten
+edges a node (medians, interleaved): 0.65x at 500 nodes, 1.8x at 1,000, 7.7x at 5,000, 14x at
+10,000, 23x at 100,000 and 9.1x at 1,000,000 (2,273 ms against 251 ms). Unweighted: 0.82x at 2,000,
+1.1x at 3,000, 3.1x at 10,000, 8.0x at 100,000, 3.7x at 1,000,000. The `mst` benchmark group
+(`benchmarks/structure.bench.ts`, wall end to end including the upload, weights 1 to 10) recorded
+1.48 ms at 10,000 nodes and 100,000 edges, 17.8 ms at 100,000 / 1,000,000 and 199.5 ms at
+1,000,000 / 10,000,000 (`benchmarks/results/nvidia-lovelace-driver580.json`, session of
+2026-10-01T05:15Z, webgpu 0.4.0 on driver 580.173.02).
+
+### Edge-aware floors (2026-10-01)
+
+The 2026-09-30 floors left the triangle count (which the clustering coefficient runs on) and
+label propagation at 100,000 nodes, above the element's 50,000-node ceiling, because both won on
+dense graphs and lost on sparse ones and a node count cannot tell the two apart. This section
+measures whether a floor that also reads the edge count can. Issue #678.
+
+**Method.** The same as the 2026-09-30 sweep: headless Chromium on the RTX 4070 SUPER through
+ANGLE's Vulkan backend (the NVIDIA adapter required, so SwiftShader could not stand in), both arms
+through `@graphty/algorithms`' dispatcher with the element's options -- `accelerated(null)` for the
+CPU port, `accelerated(createAccelerator(ctx))` for the device -- arms interleaved with the order
+flipped every round, one discarded pass of each first, medians of 15 rounds (9 above 20,000
+nodes). "Device" is the call with the graph resident; the cold call, which releases it first, read
+within noise of it at every size here. The graphs stay inside what the element holds (at most
+50,000 nodes and 100,000 edges): seeded uniform random graphs of 2, 3, 5, 10 and 20 edges a node at
+500 to 50,000 nodes, 40 and 100 edges a node on 500 to 2,500 nodes, boundary shapes of 12, 15, 25,
+30, 40 and 60 edges a node placed near the floor, and two R-MAT graphs (edge factors 4 and 8,
+self-loops and repeats dropped) for skewed degrees. Seven sweeps of the triangle count, three of
+label propagation and connected components. One-minute load averages on 32 threads were 10.6 to
+29.1 around five of the sweeps; the fourth and fifth started at 28.4 and 28.9 and ended at 38.6
+and 34.1, other sessions' pre-push gates having started meanwhile. The floor below does not depend
+on those two: every loss it rests on also appears in a sweep that stayed under 30. The script,
+logs and table generator are in `tmp/edge-aware-floors/` of the main checkout
+(`zz-edge-floors.test.ts`, `sweep1.log` to `sweep7.log`, `analyze.py`).
+
+**Triangle count: floored on edges times edges per node, 1,080,000.** The device call costs 6 to
+15 ms almost whatever the graph inside the ceiling. The CPU port's cost grows with the edges and
+with the neighbors each node intersects, so the measure that separates the two is edges times
+edges per node (edges squared over nodes). The edge count alone does not: two edges a node at
+100,000 edges is a toss-up (0.92x to 1.30x) while twenty a node wins at 60,000. A wedge count
+from the degrees does not either: the R-MAT graphs win with fewer wedges than uniform graphs that
+lose. Every graph at or above 1,080,000 won in every sweep (1.11x to 9.3x). Around 1,000,000 the
+graphs won in most sweeps and lost in some (0.93x at 1,008,000, 0.96x at 1,000,000, 0.98x at
+1,012,500), so the floor is 1,080,000: as for the node floors, the smallest measured value at and
+above which every graph won, since nothing between it and those losses was measured. Because it
+routes runs inside the ceiling, the first run on a freshly loaded graph (the cold call, which pays
+the upload) matters too, and it holds there as well: 1.06x to 10.7x at and above the floor. That
+routes a 100,000-edge graph of up to 9,259 nodes, a 40,000-edge graph of up to 1,481, and the
+complete graph from 164 nodes. Skewed
+graphs win below it (R-MAT 1.5x to 2x at 220,000 to 374,000); the floor leaves them on the CPU
+port, a few milliseconds not saved rather than a slower run. Only the edge and node counts are
+read, so the degree distribution is not needed. Rows from 170,000 up, ratios per sweep:
+
+| shape                |  nodes |   edges | edges x edges per node | CPU port, ms | device, ms | device speedup, each sweep                     |
+| -------------------- | -----: | ------: | ---------------------: | ------------ | ---------- | ---------------------------------------------- |
+| R-MAT, edge factor 8 |  4,096 |  26,770 |                174,959 | 4.7-6.8      | 6.3-8.9    | 0.91 / 0.79 / 0.88 / 0.76 / 0.85 / 0.74 / 0.75 |
+| 5 a node             |  7,000 |  35,000 |                175,000 | 2.7-4.2      | 6.5-8.9    | 0.42 / 0.40 / 0.46 / 0.42 / 0.43 / 0.51 / 0.45 |
+| 3 a node             | 20,000 |  60,000 |                180,000 | 3.9-5.6      | 6.4-8.2    | 0.61 / 0.64 / 0.58 / 0.68 / 0.57 / 0.55 / 0.73 |
+| 2 a node             | 50,000 | 100,000 |                200,000 | 7.1-18.6     | 7.3-14.3   | 0.97 / 0.92 / 1.18 / 0.94 / 1.30 / 1.07 / 1.24 |
+| 10 a node            |  2,000 |  20,000 |                200,000 | 2.1-2.7      | 6.0-9.6    | 0.35 / 0.39 / 0.34 / 0.28 / 0.33 / 0.32 / 0.32 |
+| 20 a node            |    500 |  10,000 |                200,000 | 1.6-2.7      | 5.5-8.7    | 0.29 / 0.29 / 0.30 / 0.26 / 0.30 / 0.31 / 0.30 |
+| R-MAT, edge factor 4 | 16,384 |  59,979 |                219,573 | 10.5-18.2    | 6.7-11.4   | 1.57 / 1.19 / 1.64 / 1.60 / 1.48 / 1.43 / 1.60 |
+| 5 a node             | 10,000 |  50,000 |                250,000 | 3.8-6.2      | 6.7-10.6   | 0.56 / 0.57 / 0.69 / 0.48 / 0.53 / 0.60 / 0.62 |
+| 3 a node             | 30,000 |  90,000 |                270,000 | 6.0-9.3      | 7.2-9.9    | 0.83 / 1.05 / 1.05 / 0.94 / 0.94 / 0.82 / 0.83 |
+| 10 a node            |  3,000 |  30,000 |                300,000 | 2.9-4.4      | 5.9-8.6    | 0.49 / 0.61 / 0.51 / 0.51 / 0.46 / 0.50 / 0.53 |
+| R-MAT, edge factor 8 |  8,192 |  55,353 |                374,018 | 12.2-20.1    | 7.2-10.7   | 1.75 / 1.51 / 1.96 / 1.74 / 1.86 / 1.88 / 1.76 |
+| 5 a node             | 15,000 |  75,000 |                375,000 | 5.8-8.3      | 7.5-10.6   | 0.83 / 0.77 / 0.78 / 0.74 / 0.77 / 0.84 / 0.95 |
+| 20 a node            |  1,000 |  20,000 |                400,000 | 3.2-5.6      | 5.8-8.4    | 0.55 / 0.61 / 0.55 / 0.51 / 0.51 / 0.70 / 0.53 |
+| 5 a node             | 20,000 | 100,000 |                500,000 | 7.1-11.8     | 7.0-10.5   | 1.01 / 0.96 / 0.92 / 1.05 / 1.00 / 1.16 / 1.26 |
+| 10 a node            |  5,000 |  50,000 |                500,000 | 5.5-9.6      | 6.7-15.7   | 0.82 / 0.70 / 0.73 / 0.61 / 0.67 / 0.76 / 0.80 |
+| 10 a node            |  7,000 |  70,000 |                700,000 | 6.7-9.8      | 6.5-12.1   | 1.03 / 0.98 / 1.06 / 0.81 / 0.88 / 1.07 / 1.09 |
+| 20 a node            |  2,000 |  40,000 |                800,000 | 6.0-11.0     | 6.3-10.2   | 0.95 / 1.01 / 1.06 / 0.98 / 0.92 / 1.08 / 1.04 |
+| 40 a node            |    500 |  20,000 |                800,000 | 6.3-10.8     | 6.4-9.8    | 1.17 / 0.86 / 1.21 / 0.96 / 0.81 / 1.12        |
+| 30 a node            |  1,100 |  33,000 |                990,000 | 7.8-10.5     | 6.6-13.1   | 0.80 / 0.99 / 0.83 / 1.18                      |
+| 10 a node            | 10,000 | 100,000 |              1,000,000 | 9.7-16.5     | 7.5-13.3   | 1.29 / 1.07 / 1.44 / 1.05 / 1.31 / 1.20 / 1.39 |
+| 25 a node            |  1,600 |  40,000 |              1,000,000 | 9.5-10.8     | 7.1-10.5   | 1.11 / 1.05 / 0.96 / 1.34                      |
+| 12 a node            |  7,000 |  84,000 |              1,008,000 | 11.7-16.7    | 7.8-13.5   | 1.27 / 1.00 / 0.93 / 1.50                      |
+| 15 a node            |  4,500 |  67,500 |              1,012,500 | 9.0-20.8     | 7.6-15.7   | 1.32 / 1.10 / 0.98 / 1.18                      |
+| 30 a node            |  1,200 |  36,000 |              1,080,000 | 10.2-15.8    | 7.9-11.3   | 1.40 / 1.47 / 1.24 / 1.29                      |
+| 60 a node            |    300 |  18,000 |              1,080,000 | 11.0-12.2    | 7.0-10.4   | 1.36 / 1.22 / 1.11 / 1.57                      |
+| 40 a node            |    700 |  28,000 |              1,120,000 | 9.1-16.1     | 6.8-10.8   | 1.77 / 1.63 / 1.31 / 1.34                      |
+| 20 a node            |  3,000 |  60,000 |              1,200,000 | 9.4-15.3     | 6.6-10.7   | 1.42 / 1.13 / 1.70 / 1.24 / 1.26 / 1.35 / 1.40 |
+| 40 a node            |  1,000 |  40,000 |              1,600,000 | 14.5-20.3    | 7.5-9.4    | 1.93 / 1.70 / 2.28 / 1.75 / 1.65 / 2.13        |
+| 20 a node            |  5,000 | 100,000 |              2,000,000 | 16.8-22.0    | 6.8-11.7   | 2.47 / 1.88 / 2.22 / 2.16 / 1.80 / 2.15 / 2.14 |
+| 40 a node            |  1,500 |  60,000 |              2,400,000 | 17.2-25.1    | 7.2-11.5   | 2.31 / 2.77 / 2.68 / 2.41 / 2.03 / 2.39        |
+| 40 a node            |  2,000 |  80,000 |              3,200,000 | 22.9-39.4    | 8.3-11.6   | 2.68 / 3.46 / 3.40 / 3.28 / 3.86 / 2.76        |
+| 40 a node            |  2,500 | 100,000 |              4,000,000 | 31.3-38.4    | 7.9-12.5   | 2.90 / 4.20 / 4.09 / 2.80 / 3.07 / 4.19        |
+| 100 a node           |    500 |  50,000 |              5,000,000 | 41.0-59.8    | 7.3-11.6   | 4.41 / 7.67 / 5.45 / 4.69 / 4.53 / 5.62        |
+| 100 a node           |    700 |  70,000 |              7,000,000 | 55.4-88.2    | 7.5-12.6   | 5.96 / 8.51 / 8.40 / 6.08 / 5.61 / 8.49        |
+| 100 a node           |  1,000 | 100,000 |             10,000,000 | 77.3-110.4   | 8.3-15.9   | 7.18 / 8.48 / 8.90 / 7.25 / 6.87 / 9.31        |
+
+**Label propagation: no edge floor holds; it keeps 100,000 nodes.** Its cost is arcs times passes,
+and the passes, which nothing knows before the run, decide it. At the 100,000-edge limit the device
+won in every sweep on 5 and 10 edges a node (1.43x to 4.13x) and on 40 (1.14x to 1.47x), and lost
+in at least one sweep on 2 (0.87x to 1.06x) and 20 (0.94x to 1.93x). Below the limit, 40 edges a
+node lost at 80,000 edges (0.93x), and a very dense graph settles in a few passes, so the CPU is
+fast there: 100 edges a node lost at 50,000 edges (0.54x) and 70,000 (0.77x to 0.94x). No value of
+the edge count, of edges times edges per node or of a wedge count has every measured graph above
+it winning, short of the single 100,000-edge, 1,000-node row at 10,000,000. A floor that held would
+be a band of densities at the edge limit, fitted to a few rows, so label propagation keeps its node
+floor.
+
+**Connected components: no change.** The device lost on every graph inside the ceiling, at every
+density (0.79x at best, 30,000 nodes, 90,000 edges); its 100,000-node floor stands.
+
+**Kruskal (minimum spanning tree) was not part of this sweep.** Its floors (5,000 nodes on
+weighted graphs, 100,000 on unweighted ones) are measured in "Measured: the minimum spanning
+tree (2026-09-30)" above.
 
 ### Louvain measured: it loses inside the element's ceiling (2026-09-30)
 
@@ -897,25 +1085,25 @@ the floor the CPU is faster, and in most rows the call is short enough not to ma
 the table above, each figure is given from the loaded medians of the first CPU run and then,
 "minimum of N", from the minimum over both CPU passes; the minimum is the figure to ship on.
 
-| algorithm                                 | route above (Chromium, 4070), loaded median                                                                                                                       | route above, minimum of N                                                      | (T4), loaded median | (T4), minimum of N | 3x point (Chromium, 4070), loaded median | 3x point, minimum of N | state                                                                                                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------- | ------------------ | ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| PageRank, converged                       | 19k                                                                                                                                                               | 29k                                                                            | 40k                 | 50k                | 95k                                      | 100k                   | built                                                                                                                                    |
-| PageRank, fixed iterations / personalized | 12k                                                                                                                                                               | 13k                                                                            | 19k                 | 21k                | 35k                                      | 38k                    | built                                                                                                                                    |
-| eigenvector, Katz                         | 6k                                                                                                                                                                | 6.6k                                                                           | 10k                 | 10k                | 18k                                      | 19k                    | built; against a port                                                                                                                    |
-| HITS                                      | 3.6k                                                                                                                                                              | 4.0k                                                                           | 6k                  | 6.6k               | 10k                                      | 11k                    | built; against a port                                                                                                                    |
-| connected components                      | 72k                                                                                                                                                               | 132k                                                                           | 138k                | 229k               | 302k                                     | 437k                   | built; 23k in Node on the medians, 52k on the minima                                                                                     |
-| betweenness, sampled                      | 1.5k (2.3k pessimistic)                                                                                                                                           | 1.6k (2.8k pessimistic)                                                        | 3.0k                | 3.5k               | 4.2k (33k pessimistic)                   | 5.0k (83k pessimistic) | built (PR #552); MEASURED route above 1k, 3x from just above 2k (see "Sampled betweenness, measured"); the element does not route it yet |
-| closeness, sampled                        | ~100                                                                                                                                                              | ~5.8k                                                                          | ~300                | 11k                | ~1k                                      | 16k                    | unbuilt at scale; needs a `sources` option; sample by default                                                                            |
-| closeness, exact, every source            | ~100-250, and NOT above ~30k                                                                                                                                      | ~1.0k-2.8k, and NOT above ~30k                                                 | ~320-400            | 4.6k-5.0k          | --                                       | --                     | on the frontier branch                                                                                                                   |
-| all-pairs shortest paths                  | every n <= 5,792 at the 128 MiB default binding (23,170 with a 2 GiB binding)                                                                                     | unchanged                                                                      | same                | same               | ~130                                     | unchanged              | unbuilt; refuse above the bound                                                                                                          |
-| triangle count, clustering coefficient    | 3.0k                                                                                                                                                              | 6.6k                                                                           | 4.8k                | 15k                | 6.0k                                     | 21k                    | built; MEASURED crossover 7k, 3x point 20k-50k (2026-09-27, load 4.3-6.4)                                                                |
-| minimum spanning tree                     | 6.0k (4.6k with 4 rounds per submit)                                                                                                                              | 11k (7.2k with 4 rounds per submit)                                            | 11k                 | 21k                | 19k (11k batched)                        | 38k (22k batched)      | unbuilt; buildable on master today                                                                                                       |
-| label propagation                         | 2.3k at 8 passes per readback (12k at 1)                                                                                                                          | 2.5k at 8 passes per readback (13k at 1)                                       | 4.0k                | 4.2k               | 6.9k-10k                                 | 7.6k-12k               | built; MEASURED crossover 4k-5k, 3x point 10k-20k (2026-09-27, load 4.3-6.4)                                                             |
-| Bellman-Ford, negative weights            | 2.1k                                                                                                                                                              | 3.3k                                                                           | 3.8k                | 6.3k               | 5.0k                                     | 8.3k                   | unbuilt; needs a round cap                                                                                                               |
-| BFS, single source                        | 151k (316k against the low-load CPU row), and only when levels <= arcs / 14,000 (0.2 ms per level against 14 ns per CPU arc: 1,430 levels at 20M arcs, 140 at 2M) | 191k (316k against the low-load CPU row, which is unchanged), same levels rule | 400k                | 501k               | ~900k                                    | ~955k                  | on the frontier branch                                                                                                                   |
-| SSSP, near-far                            | 69k (182k low-load)                                                                                                                                               | 79k (182k low-load, unchanged)                                                 | 190k                | 229k               | 275k                                     | 347k                   | on the frontier branch                                                                                                                   |
-| k-core                                    | 132k against a port (8k against the shipped code)                                                                                                                 | 209k against a port (9.1k against the shipped code)                            | 380k                | 501k               | 575k                                     | 724k                   | unbuilt; port first                                                                                                                      |
-| Louvain                                   | 33k against a port on the optimistic model; no floor exists on the bound                                                                                          | 38k against a port on the optimistic model; no floor exists on the bound       | 72k                 | 79k                | 120k                                     | 132k                   | not built: loses inside the ceiling (2026-09-30)                                                                                         |
+| algorithm                                 | route above (Chromium, 4070), loaded median                                                                                                                       | route above, minimum of N                                                      | (T4), loaded median | (T4), minimum of N | 3x point (Chromium, 4070), loaded median | 3x point, minimum of N | state                                                                                                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------- | ------------------ | ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PageRank, converged                       | 19k                                                                                                                                                               | 29k                                                                            | 40k                 | 50k                | 95k                                      | 100k                   | built                                                                                                                                                            |
+| PageRank, fixed iterations / personalized | 12k                                                                                                                                                               | 13k                                                                            | 19k                 | 21k                | 35k                                      | 38k                    | built                                                                                                                                                            |
+| eigenvector, Katz                         | 6k                                                                                                                                                                | 6.6k                                                                           | 10k                 | 10k                | 18k                                      | 19k                    | built; against a port                                                                                                                                            |
+| HITS                                      | 3.6k                                                                                                                                                              | 4.0k                                                                           | 6k                  | 6.6k               | 10k                                      | 11k                    | built; against a port                                                                                                                                            |
+| connected components                      | 72k                                                                                                                                                               | 132k                                                                           | 138k                | 229k               | 302k                                     | 437k                   | built; 23k in Node on the medians, 52k on the minima                                                                                                             |
+| betweenness, sampled                      | 1.5k (2.3k pessimistic)                                                                                                                                           | 1.6k (2.8k pessimistic)                                                        | 3.0k                | 3.5k               | 4.2k (33k pessimistic)                   | 5.0k (83k pessimistic) | built (PR #552); MEASURED route above 1k, 3x from just above 2k (see "Sampled betweenness, measured"); the element does not route it yet                         |
+| closeness, sampled                        | ~100                                                                                                                                                              | ~5.8k                                                                          | ~300                | 11k                | ~1k                                      | 16k                    | unbuilt at scale; needs a `sources` option; sample by default                                                                                                    |
+| closeness, exact, every source            | ~100-250, and NOT above ~30k                                                                                                                                      | ~1.0k-2.8k, and NOT above ~30k                                                 | ~320-400            | 4.6k-5.0k          | --                                       | --                     | on the frontier branch                                                                                                                                           |
+| all-pairs shortest paths                  | every n <= 5,792 at the 128 MiB default binding (23,170 with a 2 GiB binding)                                                                                     | unchanged                                                                      | same                | same               | ~130                                     | unchanged              | unbuilt; refuse above the bound                                                                                                                                  |
+| triangle count, clustering coefficient    | 3.0k                                                                                                                                                              | 6.6k                                                                           | 4.8k                | 15k                | 6.0k                                     | 21k                    | built; MEASURED crossover 7k, 3x point 20k-50k (2026-09-27, load 4.3-6.4)                                                                                        |
+| minimum spanning tree                     | 6.0k (4.6k with 4 rounds per submit)                                                                                                                              | 11k (7.2k with 4 rounds per submit)                                            | 11k                 | 21k                | 19k (11k batched)                        | 38k (22k batched)      | built (issue #646); MEASURED crossover 2k-5k in Chromium on weighted graphs, floor 5,000; unweighted floored at 100k (see "Measured: the minimum spanning tree") |
+| label propagation                         | 2.3k at 8 passes per readback (12k at 1)                                                                                                                          | 2.5k at 8 passes per readback (13k at 1)                                       | 4.0k                | 4.2k               | 6.9k-10k                                 | 7.6k-12k               | built; MEASURED crossover 4k-5k, 3x point 10k-20k (2026-09-27, load 4.3-6.4)                                                                                     |
+| Bellman-Ford, negative weights            | 2.1k                                                                                                                                                              | 3.3k                                                                           | 3.8k                | 6.3k               | 5.0k                                     | 8.3k                   | unbuilt; needs a round cap                                                                                                                                       |
+| BFS, single source                        | 151k (316k against the low-load CPU row), and only when levels <= arcs / 14,000 (0.2 ms per level against 14 ns per CPU arc: 1,430 levels at 20M arcs, 140 at 2M) | 191k (316k against the low-load CPU row, which is unchanged), same levels rule | 400k                | 501k               | ~900k                                    | ~955k                  | on the frontier branch                                                                                                                                           |
+| SSSP, near-far                            | 69k (182k low-load)                                                                                                                                               | 79k (182k low-load, unchanged)                                                 | 190k                | 229k               | 275k                                     | 347k                   | on the frontier branch                                                                                                                                           |
+| k-core                                    | 132k against a port (8k against the shipped code)                                                                                                                 | 209k against a port (9.1k against the shipped code)                            | 380k                | 501k               | 575k                                     | 724k                   | unbuilt; port first                                                                                                                                              |
+| Louvain                                   | 33k against a port on the optimistic model; no floor exists on the bound                                                                                          | 38k against a port on the optimistic model; no floor exists on the bound       | 72k                 | 79k                | 120k                                     | 132k                   | not built: loses inside the ceiling (2026-09-30)                                                                                                                 |
 
 The BFS floor has two parts because the per-level cost is what kills it: a level costs 0.2 ms on
 the device however small the frontier is, and a road network or a grid has thousands of levels.

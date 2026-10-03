@@ -11,12 +11,13 @@ import {
     FormatRegistry,
     importAllGraphs,
     importGraph,
+    listGraphs,
     registry,
     sniff,
     UNKNOWN_FORMAT_CODE,
 } from "../src/registry.js";
 import { GRAPH_FORMATS, SNIFF_HEAD_BYTES } from "../src/sniff.js";
-import { type GraphImporter, ImportError, type ImportInput } from "../src/types.js";
+import { type GraphImporter, type GraphListing, ImportError, type ImportInput } from "../src/types.js";
 import {
     byteChunks,
     byteStream,
@@ -43,16 +44,22 @@ function edges(s: GraphSnapshot): string[] {
     );
 }
 
+/** The built-in formats graph-io reads but does not write. */
+const READ_ONLY_FORMATS: ReadonlySet<string> = new Set(["cx", "obo", "cys"]);
+
 describe("FormatRegistry", () => {
-    it("holds the eight built-in formats in GRAPH_FORMATS order, importers and exporters alike", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read, all but the read-only ones are written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        expect(registry.exporters().map((e) => e.format)).toEqual([...GRAPH_FORMATS]);
+        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
-            expect(registry.hasExporter(format)).toBe(true);
+            expect(registry.hasExporter(format)).toBe(!READ_ONLY_FORMATS.has(format));
             expect(registry.importer(format).format).toBe(format);
+        }
+        for (const format of written) {
             expect(registry.exporter(format).format).toBe(format);
         }
         expect(createRegistry()).not.toBe(registry);
@@ -60,7 +67,11 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        for (const fn of [(): unknown => registry.importer("nope"), (): unknown => registry.exporter("nope")]) {
+        const written = GRAPH_FORMATS.filter((format) => !READ_ONLY_FORMATS.has(format));
+        for (const [fn, supported] of [
+            [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
+            [(): unknown => registry.exporter("nope"), written],
+        ] as const) {
             let caught: unknown;
             try {
                 fn();
@@ -70,7 +81,7 @@ describe("FormatRegistry", () => {
             expect(caught).toBeInstanceOf(GraphFormatError);
             expect(caught).toMatchObject({
                 code: "E_UNSUPPORTED",
-                details: { option: "format", found: "nope", supported: [...GRAPH_FORMATS] },
+                details: { option: "format", found: "nope", supported: [...supported] },
             });
         }
         expect(registry.hasImporter("nope")).toBe(false);
@@ -309,6 +320,74 @@ describe("importAllGraphs", () => {
         expect(all[0].sniff?.format).toBe("csv");
         expect(all[0].snapshot.edgeCount).toBe(1);
         await expect(importAllGraphs(utf8("digraph { a -> }"), { format: "dot" })).rejects.toBeInstanceOf(ImportError);
+    });
+});
+
+describe("listGraphs", () => {
+    const LISTING: readonly GraphListing[] = [
+        { index: 0, name: "first", nodes: 2, edges: 1 },
+        { index: 1, name: null, nodes: null, edges: null },
+    ];
+
+    /**
+     * A registry holding one importer that lists the graphs of what it reads, recording its calls.
+     * @returns the registry and the recorded input text and options
+     */
+    function listingRegistry(): { custom: FormatRegistry; calls: { text: string; options: unknown }[] } {
+        const calls: { text: string; options: unknown }[] = [];
+        const lister: GraphImporter = {
+            format: "multi",
+            extensions: [".multi"],
+            mimeTypes: [],
+            sniff: (head) => (new TextDecoder().decode(head).startsWith("MULTI") ? 1 : 0),
+            import: () => Promise.reject(new Error("not called")),
+            async listGraphs(input, options) {
+                let text = "";
+                for await (const chunk of input as AsyncIterable<string | Uint8Array>) {
+                    text += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+                }
+                calls.push({ text, options });
+                return LISTING;
+            },
+        };
+        return { custom: new FormatRegistry().registerImporter(lister).registerImporter(csvImporter), calls };
+    }
+
+    it("sniffs the input and asks its importer for the listing, with the importer's options only", async () => {
+        const { custom, calls } = listingRegistry();
+        const text = `MULTI ${"x".repeat(SNIFF_HEAD_BYTES * 2)}`;
+        expect(await custom.listGraphs(byteChunks(new TextEncoder().encode(text), 100), { zAs: "column" })).toBe(
+            LISTING,
+        );
+        expect(calls).toEqual([{ text, options: { zAs: "column" } }]);
+        expect(await custom.listGraphs(byteStream(new TextEncoder().encode(text), 100), { format: "multi" })).toBe(
+            LISTING,
+        );
+        expect(calls[1].options).toEqual({});
+    });
+
+    it("answers null for a format whose importer does not list its graphs, and closes the input", async () => {
+        const { custom } = listingRegistry();
+        let cancelled = false;
+        const bytes = new TextEncoder().encode(`source,target\n${"a,b\n".repeat(SNIFF_HEAD_BYTES)}`);
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller): void {
+                controller.enqueue(bytes.subarray(0, SNIFF_HEAD_BYTES * 2));
+            },
+            cancel(): void {
+                cancelled = true;
+            },
+        });
+        expect(await custom.listGraphs(stream, { filename: "x.csv" })).toBeNull();
+        expect(cancelled).toBe(true);
+        expect(await listGraphs("source,target\na,b\n", { format: "csv" })).toBeNull();
+    });
+
+    it("fails like importGraph when no importer recognises the input", async () => {
+        const { custom } = listingRegistry();
+        await expect(custom.listGraphs("???")).rejects.toMatchObject({
+            report: { issues: [{ code: UNKNOWN_FORMAT_CODE }] },
+        });
     });
 });
 

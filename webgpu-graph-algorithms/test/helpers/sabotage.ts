@@ -17,7 +17,7 @@
  * sssp-pred rows measured by test/sabotage/bfs.test.ts, P8-T7 the three bfs-fused rows and the seventh
  * frontier-finalize row (the inverted fused threshold), measured by test/sabotage/bfs.test.ts too, P8-T9 the four
  * sssp-relax rows and three f32-mode sssp-pred rows measured by test/sabotage/sssp.test.ts, P8-T10 the three bf-relax
- * rows measured by test/sabotage/bellman-ford.test.ts, P8-T11 the three closeness-sweep and three closeness-reduce rows
+ * rows measured by test/sabotage/bellman-ford.test.ts, the closeness-level and closeness-rowsum rows
  * measured by test/sabotage/closeness.test.ts ("P8" is listed by P8-T15, when the last P8 kernel has its rows). SABOTAGE_P3_ADDENDUM carries the rows P3 adds on the P1
  * kernels (measured by the P3 checks of test/sabotage/fa2.test.ts only); SABOTAGE_P5 carries the rows of the FR and
  * spring-electrical BRANCHES P5 adds to K1 / K2 / K3 / K5 (PD-8; measured by test/sabotage/fr.test.ts and se.test.ts
@@ -67,6 +67,7 @@ const COO_TEST = "test/primitives/coo-to-csr.test.ts";
 const GROUP_TEST = "test/primitives/group-by-key.test.ts";
 const TRIANGLES_TEST = "test/algorithms/triangles.test.ts";
 const LPA_TEST = "test/algorithms/label-propagation.test.ts";
+const MST_TEST = "test/algorithms/mst.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1339,8 +1340,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     "bf-relax": Object.freeze([
         {
             // the compare-exchange result is ignored: a lane whose exchange failed gives up as if it had changed
-            // something; the next round repairs the lost update, so dist never misses -- the witness is the retry
-            // bound, which the real kernel's losing lanes exhaust under maxRetries 1 and this mutant never reaches
+            // something; on the descending fan the one round before the decision round loses every candidate but
+            // one per SIMD group, so the decision round's repair reads as a negative cycle (flag and dist miss)
             name: "exchange-result-ignored",
             find: "if (r.exchanged) { atomicStore(&flags[0], 1u); break; }",
             replace: "{ atomicStore(&flags[0], 1u); break; }",
@@ -1364,84 +1365,120 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BF_TEST,
         },
     ]),
-    "closeness-sweep": Object.freeze([
+    "closeness-level": Object.freeze([
         {
-            // a claim is counted without its atomicOr result: every lane whose SIMD group loaded the visited word
-            // together counts the vertex (the funnel's middle layer reaches one vertex from four lanes of every
-            // subgroup at once; newCount, reached and sum then overshoot)
-            name: "already-visited-recounted",
-            find: "let fresh = mask & ~old;",
-            replace: "let fresh = mask;",
+            // a push claim is counted without its atomicOr result: every frontier entry that reaches one vertex in
+            // the same level counts it (the funnel's middle layer reaches its last vertex from 200 entries at once)
+            name: "push-claim-recounted",
+            find: "let fresh = mask & ~atomicOr(&bits[x * W + j], mask);",
+            replace: "let fresh = mask; atomicOr(&bits[x * W + j], mask);",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // the won bits never reach the next region: the level-1 list is compacted from the flags but every
-            // frontier mask is 0, so nothing at distance 2 or beyond is ever claimed
-            name: "next-bits-not-set",
-            find: "atomicOr(&bits[nextBase + x], fresh);",
-            replace: "atomicOr(&bits[nextBase + x], 0u);",
+            // a pull keeps the bits the node had already seen, so every level recounts them
+            name: "pull-keeps-seen-bits",
+            find: "let fresh = acc[j] & ~vis[j];",
+            replace: "let fresh = acc[j];",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // every fresh bit is tallied to source 0: the other sources' counts stay 0 and source 0's overshoot
+            // the bits a push wins never reach the next frontier: nothing beyond distance 1 is claimed by a push
+            name: "push-next-not-set",
+            find: "if (atomicOr(&bits[nextBase + x * W + j], fresh) == 0u) {",
+            replace: "if (atomicOr(&bits[nextBase + x * W + j], 0u) == 0u) {",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the bits a pull wins never reach the next frontier
+            name: "pull-next-not-set",
+            find: "atomicStore(&bits[nextBase + i * W + j], fresh);",
+            replace: "atomicStore(&bits[nextBase + i * W + j], 0u);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the pull stops after the first in-arc instead of when every source has reached the node
+            name: "early-exit-too-soon",
+            find: "if (missing == 0u) { break; }",
+            replace: "if (true) { break; }",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // every claim is tallied to the first lane of its word: the other sources' sums stay 0
             name: "source-word-not-bit",
-            find: "let s = firstTrailingBit(b);",
-            replace: "let s = 0u;",
+            find: "atomicAdd(&tally[32u * j + firstTrailingBit(b)], 1u);",
+            replace: "atomicAdd(&tally[32u * j], 1u);",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // a sampled run's per-node sum counts the sources that reached x instead of adding their distances
-            // (every sampled score is the reciprocal of a count, not of a distance sum)
+            // a sampled run's per-node sum counts the sources that reached a node instead of adding their distances
             name: "per-node-distance-dropped",
-            find: "atomicAdd(&perSource[128u + x], countOneBits(fresh) * dist);",
-            replace: "atomicAdd(&perSource[128u + x], countOneBits(fresh));",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-    ]),
-    "closeness-reduce": Object.freeze([
-        {
-            // the claims of a level are summed at the level instead of the distance (one short everywhere)
-            name: "distance-is-the-level",
-            find: "let d = level + 1u;",
-            replace: "let d = level;",
+            find: "atomicAdd(&bits[4u * P.base + node], countOneBits(fresh) * dist);",
+            replace: "atomicAdd(&bits[4u * P.base + node], countOneBits(fresh));",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // reached never accumulates (stays 0 for every source)
-            name: "reached-not-accumulated",
-            find: "atomicLoad(&perSource[32u + s]) + c",
-            replace: "atomicLoad(&perSource[32u + s])",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-        {
-            // the carry of the 64-bit add is dropped: caught by the hand-seeded role-0 dispatch alone (no runnable
-            // fixture's per-source sum crosses 2^32), whose BigInt sum reads 4295028736n instead of 8589996032n
-            name: "carry-dropped",
-            find: "select(0u, 1u, lo < before)",
-            replace: "0u",
-            minFactor: 10,
-            test: CLOSENESS_TEST,
-        },
-        {
-            // role 2 ignores the source list and seeds the batch's first nodes, as the exact run's role 1 does
+            // the seed ignores a sampled run's source list and seeds the batch's first nodes
             name: "sampled-list-ignored",
-            find: "if (P.role == 2u) {",
+            find: "if (P.sourcesAt != 0u) {",
             replace: "if (false) {",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
         {
-            // the visited seed stores instead of ORing, so a source listed twice in one batch loses its first bit
-            // and that copy re-claims its own node at distance 2
+            // the visited seed stores instead of ORing, so a source listed twice in one word loses the first copy's
+            // bit and that copy re-claims its own node at distance 2
             name: "duplicate-seed-overwritten",
-            find: "bits[v] = bits[v] | bit;",
-            replace: "bits[v] = bit;",
+            find: "atomicOr(&bits[w], bit);",
+            replace: "atomicStore(&bits[w], bit);",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+    ]),
+    "closeness-rowsum": Object.freeze([
+        {
+            // an unreachable entry is summed (+Infinity converted to an integer or added as a float)
+            name: "unreachable-counted",
+            find: "if (c == row || bitcast<u32>(d) == F32_INF_BITS) { continue; }",
+            replace: "if (c == row) { continue; }",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the tree drops the upper half of every step: only lane 0's own columns are summed
+            name: "tree-drops-half",
+            find: "let b = partial[lid.x + s];",
+            replace: "let b = 0u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // a hop count adds one per reached node instead of its distance
+            name: "hops-counted-as-one",
+            find: "whole = whole + u32(d);",
+            replace: "whole = whole + 1u;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // a weighted row adds one per reached node instead of its distance
+            name: "weights-counted-as-one",
+            find: "real = real + d;",
+            replace: "real = real + 1.0;",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the harmonic row adds the distance instead of its reciprocal
+            name: "harmonic-not-reciprocal",
+            find: "real = real + 1.0 / d;",
+            replace: "real = real + d;",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
@@ -1459,13 +1496,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // a source starts with no shortest path: every count is 0 and every ratio NaN
             name: "seed-sigma-zero",
-            find: "sigmaK[t] = 1u;",
+            find: "sigmaK[t] = select(1u, bitcast<u32>(1.0), SCALED);",
             replace: "sigmaK[t] = 0u;",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
         {
-            // the overflow flag is raised at the seed: the layered(4, 16) control reports an overflow it does not have
+            // the overflow flag is raised at the seed: the wideAndNarrow(100) control reports an overflow it does not have
             name: "overflow-seeded-raised",
             find: "atomicStore(&counters[27], 0u);",
             replace: "atomicStore(&counters[27], 1u);",
@@ -1485,13 +1522,13 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // only the claiming arc counts its paths: sigma counts claims, wrong wherever two shortest paths meet
             name: "count-only-the-winner",
-            find: "if (atomicLoad(&depthK[x]) == next) {",
-            replace: "if (won) {",
+            find: "if (!SCALED && atomicLoad(&depthK[x]) == next) {",
+            replace: "if (!SCALED && won) {",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
         {
-            // the wrap test is dropped: layered(4, 18) no longer reports its overflow
+            // the wrap test is dropped: layered(4, 70) is never rerun with rescaled counts and keeps wrapped ones
             name: "wrap-test-dropped",
             find: "if (old + add < old) { atomicOr(&counters[27], 1u); }",
             replace: "",
@@ -1527,8 +1564,17 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // the path-count ratio inverted
             name: "sigma-ratio-inverted",
-            find: "(sw / f32(sigmaK[v]))",
-            replace: "(f32(sigmaK[v]) / sw)",
+            find: "ldexp(sw / sigma_of(sigmaK[v]), -shift)",
+            replace: "ldexp(sigma_of(sigmaK[v]) / sw, -shift)",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the depth scale step is not undone: every ratio across a rescaled depth is 2^shift too large
+            // (layered(4, 70); invisible below 2^BC_SIGMA_EXPONENT_CAP paths)
+            name: "scale-step-ignored",
+            find: "ldexp(sw / sigma_of(sigmaK[v]), -shift)",
+            replace: "(sw / sigma_of(sigmaK[v]))",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1571,8 +1617,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // each source overwrites the arc's sum: only the batch's last contributing source survives
             name: "overwrites-not-accumulates",
-            find: "acc = acc + (f32(sigmaK[base + w])",
-            replace: "acc = (f32(sigmaK[base + w])",
+            find: "acc = acc + ratio",
+            replace: "acc = ratio",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1607,6 +1653,50 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "tag-ignored",
             find: "let base = s * P.n;",
             replace: "let base = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+    ]),
+    "bc-count": Object.freeze([
+        {
+            // the depth test one level off: the in-neighbours at the vertex's own depth are summed instead of its
+            // predecessors (dropping the test is no mutant: the only other reached in-neighbours share the depth and
+            // still hold the fill's 0)
+            name: "depth-test-off-by-one",
+            find: "if (depthK[v] == level) {",
+            replace: "if (depthK[v] == level + 1u) {",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the tag is ignored: every source sums source 0's slice (right at k = 1, wrong at k = 2)
+            name: "tag-ignored",
+            find: "let base = t - x;",
+            replace: "let base = 0u;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the counts are never rescaled: layered(4, 70)'s 4^68 paths overflow f32 to Infinity
+            name: "rescale-dropped",
+            find: "let sigma = ldexp(acc, -shift);",
+            replace: "let sigma = acc;",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the range check is dropped: wideAndNarrow(130) no longer reports the counts it cannot hold
+            name: "range-check-dropped",
+            find: "if (exponent == 0u || exponent == 0xffu) { atomicOr(&counters[27], 1u); }",
+            replace: "",
+            minFactor: 10,
+            test: BETWEENNESS_TEST,
+        },
+        {
+            // the depth maximum is never recorded: no depth is ever rescaled
+            name: "level-max-dropped",
+            find: "atomicMax(&levelMax[level + 1u], bits);",
+            replace: "",
             minFactor: 10,
             test: BETWEENNESS_TEST,
         },
@@ -1908,6 +1998,66 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let cur = labelsOut[v];",
             minFactor: 10,
             test: LPA_TEST,
+        },
+    ]),
+    "mst-best": Object.freeze([
+        {
+            // the raw bit pattern instead of the order-preserving key: every negative weight sorts above the positives
+            name: "raw-bit-pattern",
+            find: "let k = order_key(w);",
+            replace: "let k = bitcast<u32>(w);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the tie-break tail dropped for one endpoint: its component takes its lowest-indexed edge, whatever it weighs
+            name: "tie-break-dropped",
+            find: "if (k == atomicLoad(&bestKey[cu])) { atomicMin(&bestEdge[cu], e); }",
+            replace: "atomicMin(&bestEdge[cu], e);",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the different-component guard removed: a self-loop or an edge inside a component competes to be its best
+            name: "component-guard-removed",
+            find: "if (cu == cv) { return; }",
+            replace: "if (cu == cv && cu == U32_MAX) { return; }",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // a plain read of the atomic minimum: mixed atomic and plain access, which no runtime compiles
+            name: "tie-pass-plain-read",
+            find: "k == atomicLoad(&bestKey[cv])",
+            replace: "k == bestKey[cv]",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+    ]),
+    "mst-link": Object.freeze([
+        {
+            // the two-cycle never broken: both roots hook onto each other and both record the edge
+            name: "two-cycle-unbroken",
+            find: "let keep = bestEdge[other] == e && c <= other;",
+            replace: "let keep = other == c;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the lower root of a two-cycle records the edge as well: every mutual merge lands in the forest twice
+            name: "lower-records-too",
+            find: "if (!keep) { treeEdge[c] = e;",
+            replace: "if (other != c) { treeEdge[c] = e;",
+            minFactor: 10,
+            test: MST_TEST,
+        },
+        {
+            // the recorded edges never counted: the run stops after one submit, before a deep path has merged
+            name: "edges-uncounted",
+            find: "atomicAdd(&added, 1u);",
+            replace: "atomicAdd(&added, 0u);",
+            minFactor: 10,
+            test: MST_TEST,
         },
     ]),
 });
@@ -2436,7 +2586,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6), + "P11" (the seven kernels of the graph build, triangle counting, the group-by-key and label propagation: 24 rows, measured by test/sabotage/structure.test.ts and test/sabotage/community.test.ts; Boruvka's mst-best and mst-link: 7 rows, measured by test/sabotage/mst.test.ts); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
     "P1",
     "P2",

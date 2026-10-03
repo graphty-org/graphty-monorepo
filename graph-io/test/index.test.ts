@@ -22,6 +22,7 @@ const VALUE_EXPORTS = [
     "headBytes",
     "importAllGraphs",
     "importGraph",
+    "listGraphs",
     "normalizeMimeType",
     "rankFormats",
     "registry",
@@ -34,6 +35,13 @@ const VALUE_EXPORTS = [
     "CSV_LOSS",
     "csvExporter",
     "csvImporter",
+    "CX_ISSUE",
+    "cxImporter",
+    "CX2_CAPABILITIES",
+    "CX2_ISSUE",
+    "CX2_LOSS",
+    "cx2Exporter",
+    "cx2Importer",
     "DOT_LOSS",
     "DOT_ISSUE",
     "dotExporter",
@@ -67,10 +75,18 @@ const VALUE_EXPORTS = [
     "TYPE_COLUMN",
     "neo4jExporter",
     "neo4jImporter",
+    "OBO_ISSUE",
+    "oboImporter",
     "PAJEK_ISSUE",
     "PAJEK_LOSS",
     "pajekExporter",
     "pajekImporter",
+    "XGMML_ISSUE",
+    "XGMML_LOSS",
+    "xgmmlExporter",
+    "xgmmlImporter",
+    "CYS_ISSUE",
+    "cysImporter",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",
@@ -100,12 +116,14 @@ const VALUE_EXPORTS = [
     "INVALID_UTF8_CODE",
     "LineReader",
     "inputLength",
+    "decodeEntryName",
     "isImportInput",
     "readText",
     "textChunks",
     "throwIfAborted",
     "DEFAULT_ERROR_LIMIT",
     "SINK_OPTION_CODE",
+    "chooseGraph",
     "reportSinkOptions",
     "resolveExportOptions",
     "resolveImportOptions",
@@ -122,15 +140,24 @@ const VALUE_EXPORTS = [
     "joinText",
     "toReadableStream",
     // the shared issue and loss codes (src/common/codes.ts)
+    "AMBIGUOUS_GRAPH_NAME_CODE",
+    "ASPECT_ORDER_CODE",
+    "BAD_ASPECT_BLOCK_CODE",
+    "BAD_VALUE_CODE",
     "COLUMN_RENAMED_CODE",
     "COLUMN_RENAMED_LOSS_CODE",
     "COUNT_HINT_CODE",
+    "COUNT_MISMATCH_CODE",
+    "DANGLING_REFERENCE_CODE",
+    "DUPLICATE_ATTRIBUTE_CODE",
     "DUPLICATE_EDGE_ID_CODE",
     "DUPLICATE_KEY_CODE",
     "DUPLICATE_NODE_CODE",
     "EMPTY_COLUMN_DROPPED_CODE",
     "EMPTY_INPUT_CODE",
     "ENCODING_FALLBACK_CODE",
+    "EQUATION_AS_TEXT_CODE",
+    "GRAPH_NOT_FOUND_CODE",
     "HYPEREDGE_CODE",
     "ID_TEXT_COLLISION_CODE",
     "ID_TEXT_TYPE_CODE",
@@ -144,21 +171,27 @@ const VALUE_EXPORTS = [
     "NO_GRAPH_CODE",
     "OPTIONS_GAINED_CODE",
     "OPTION_IGNORED_CODE",
+    "PARENT_CYCLE_CODE",
     "PARENTS_DROPPED_CODE",
     "ROLE_ASSUMED_CODE",
     "ROLE_DROPPED_CODE",
     "ROLE_TAKEN_CODE",
+    "STATUS_FAILED_CODE",
+    "STATUS_WARNING_CODE",
     "STORAGE_CLASS_CODE",
     "STRAY_TEXT_CODE",
+    "STYLES_NOT_IMPORTED_CODE",
     "SYNTAX_CODE",
     "TEMPORAL_DROPPED_CODE",
     "TEMPORAL_TEXT_DROPPED_CODE",
     "TEXT_INFERRED_CODE",
+    "TOO_LARGE_CODE",
     "UNKNOWN_ATTR_TYPE_CODE",
     "UNKNOWN_ELEMENT_CODE",
     "UNKNOWN_ENCODING_CODE",
     "UNKNOWN_PARENT_CODE",
     "WEIGHT_KEY_CLASH_CODE",
+    "WIDENED_CODE",
     "WIDENING_UNSUPPORTED_CODE",
     "XML_ILLEGAL_CHAR_CODE",
     "XML_SYNTAX_CODE",
@@ -192,6 +225,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     it("re-exports each format's importer and exporter under its format name", () => {
         const pairs: [string, graphIo.GraphImporter, graphIo.GraphExporter][] = [
             ["csv", graphIo.csvImporter, graphIo.csvExporter],
+            ["cx2", graphIo.cx2Importer, graphIo.cx2Exporter],
             ["dot", graphIo.dotImporter, graphIo.dotExporter],
             ["gexf", graphIo.gexfImporter, graphIo.gexfExporter],
             ["gml", graphIo.gmlImporter, graphIo.gmlExporter],
@@ -199,6 +233,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["json", graphIo.jsonImporter, graphIo.jsonExporter],
             ["neo4j", graphIo.neo4jImporter, graphIo.neo4jExporter],
             ["pajek", graphIo.pajekImporter, graphIo.pajekExporter],
+            ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -208,7 +243,19 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set(pairs.map(([format]) => format)));
+        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
+        for (const [format, importer] of [
+            ["obo", graphIo.oboImporter],
+            ["cx", graphIo.cxImporter],
+            ["cys", graphIo.cysImporter],
+        ] as const) {
+            expect(importer.format).toBe(format);
+            expect(graphIo.registry.importer(format)).toBe(importer);
+            expect(graphIo.registry.hasExporter(format)).toBe(false);
+        }
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
+            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
+        );
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -216,6 +263,9 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             LOSS: graphIo.LOSS,
             CSV_ISSUE: graphIo.CSV_ISSUE,
             CSV_LOSS: graphIo.CSV_LOSS,
+            CX_ISSUE: graphIo.CX_ISSUE,
+            CX2_ISSUE: graphIo.CX2_ISSUE,
+            CX2_LOSS: graphIo.CX2_LOSS,
             DOT_ISSUE: graphIo.DOT_ISSUE,
             DOT_LOSS: graphIo.DOT_LOSS,
             GEXF_ISSUE: graphIo.GEXF_ISSUE,
@@ -228,8 +278,12 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             JSON_LOSS: graphIo.JSON_LOSS,
             NEO4J_ISSUE: graphIo.NEO4J_ISSUE,
             NEO4J_LOSS: graphIo.NEO4J_LOSS,
+            OBO_ISSUE: graphIo.OBO_ISSUE,
             PAJEK_ISSUE: graphIo.PAJEK_ISSUE,
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
+            XGMML_ISSUE: graphIo.XGMML_ISSUE,
+            CYS_ISSUE: graphIo.CYS_ISSUE,
+            XGMML_LOSS: graphIo.XGMML_LOSS,
         };
         for (const [name, table] of Object.entries(tables)) {
             expect(Object.isFrozen(table), name).toBe(true);

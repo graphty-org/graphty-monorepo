@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (50 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (52 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -206,11 +206,12 @@ plugin author who expected otherwise would be misled.
 ```bash
 # Development
 npm run dev              # Start Vite dev server (HOST/PORT from the monorepo root .env)
-npm run storybook        # Start Storybook (HOST/PORT from graphty-element/.env)
+npm run storybook        # Start Storybook (PORT, HOST and HTTPS_* from the environment; use servherd)
 npm run dev:xr           # Start XR demo server
 
 # Testing
-npm test                 # Run all test shards + visual tests
+npm test                 # Run the Vitest shards (publishes no Chromatic build)
+npm run chromatic        # Publish a Chromatic build (costs snapshots; only when asked)
 npm run test:default     # Run default (unit) tests
 npm run test:browser     # Run browser tests (Playwright)
 npm run test:storybook   # Run Storybook component tests
@@ -309,7 +310,8 @@ k-core and Louvain route through `@graphty/algorithms`' `accelerated()` and labe
 `caveats.precision` with the arithmetic that produced it. Only the members listed in
 `src/acceleration/narrow.ts` are ever offered to the device, each above its measured floor in
 `ACCELERATION_MIN_NODES_BY_CAPABILITY` and, for a search from sources, in
-`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
+`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY`, and for a graph whose edges all weigh the same, in
+`ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
 measured); k-core and Louvain are not offered, so they always take the CPU port and
 `acceleration="required"` does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
@@ -445,7 +447,12 @@ rather than inferred because every agent involved in it complied with every inst
 - Storybook auto-reloads on changes (no manual rebuild needed)
 - Check `servherd_list` for a running Storybook before starting a new instance
 - All story data URLs must be fully qualified (non-local) for Chromatic compatibility
-- Visual regression via Chromatic
+- Visual regression via Chromatic, captured at the viewport pinned in `.storybook/preview.ts`
+- Only the owner accepts Chromatic changes. No agent, script or project setting accepts a
+  snapshot, on a pull request or on master; an agent explains a diff and waits. See
+  `design/decisions/2026-09-27-only-the-owner-accepts-chromatic-changes.md`
+- Label text is drawn in a pinned test font registered as "Verdana" (`test/helpers/pin-label-font.ts`),
+  so a label snapshot does not depend on which fonts the machine has installed
 
 ## Edge Styling System
 

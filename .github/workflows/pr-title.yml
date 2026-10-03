@@ -17,9 +17,6 @@ permissions:
 jobs:
     lint-pr:
         name: Lint PR Title
-        # Pinned, like every job in ci.yml: `ubuntu-latest` moved to 24.04 under this project once
-        # already, and GitHub has announced it becomes Ubuntu 26 on 2026-10-19. Pinning changes
-        # nothing today and makes the next move a commit somebody reviews.
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4

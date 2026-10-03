@@ -98,6 +98,7 @@ export class Graphty extends LitElement {
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchNotes: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
@@ -400,6 +401,16 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        // A note written from a panel, a console or an undo: plain values, as the other mirrors.
+        this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-note-change", {
+                    detail: { id, change, fields, cause },
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -515,6 +526,8 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchNotes?.();
+        this.#unwatchNotes = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -2232,6 +2245,27 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
+     * node the camera does not move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - One node id, or several.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await element.zoomToNodes(["n1", "n2"], { animate: true });
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: (string | number) | readonly (string | number)[],
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.zoomToNodes(nodeIds, options);
+    }
+
+    /**
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now
@@ -2492,6 +2526,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2507,6 +2544,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2523,6 +2562,9 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2540,6 +2582,8 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
@@ -2552,7 +2596,9 @@ export class Graphty extends LitElement {
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
-     *     admin-import file
+     *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
+     *     `graphty.notes.text` columns (notes are left out by default, and reported as
+     *     `W_GRAPHTY_NOTES`)
      * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
      * @since 3.0.0
      * @example

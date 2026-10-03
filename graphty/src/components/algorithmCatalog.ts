@@ -21,6 +21,8 @@ import {
     type OptionDescriptor,
 } from "@graphty/graphty-element/catalog";
 
+import { titleCase } from "../utils/text";
+
 /**
  * An algorithm category, as the catalogue spells it: "centrality", "community", "path", "flow",
  * "structure" or whatever a later catalogue adds.
@@ -167,19 +169,6 @@ export function getAlgorithmsByCategory(category: AlgorithmCategory): AlgorithmI
  */
 export function getAlgorithm(type: string): AlgorithmInfo | undefined {
     return ALGORITHM_CATALOG.find((algorithm) => algorithm.type === type);
-}
-
-/**
- * Turn a slug into a heading, so a category the catalogue gains gets a readable label without
- * anyone adding a row to a table.
- * @param slug - A lower-case, hyphen-separated name.
- * @returns The name with each word capitalised.
- */
-function titleCase(slug: string): string {
-    return slug
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
 }
 
 /**

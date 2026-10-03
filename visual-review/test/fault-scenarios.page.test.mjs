@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { chromium } from "playwright";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { withRetries } from "../trusted/lib/github.mjs";
 import { startApp, world } from "./faults.mjs";
@@ -20,6 +20,13 @@ const CM_ITEMS = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.
 const BUTTON = "button--primary.dark.png";
 const BUTTON_BASELINE = join(FIXTURE, "compact-mantine/baselines", BUTTON);
 const BUTTON_BASELINE_HASH = CM_ITEMS.find((i) => i.file === BUTTON).baseline;
+
+// Each scenario starts a server on a new repository, opens a Chromium tab and walks the page to
+// the screen it tests: about 0.5 to 1 s unloaded and 1.5 s on a CI runner before the scenario's
+// own steps, some of which wait on purpose (3.5 s for a late render, 60 items for the image
+// cache). Measured on one CPU shared with a busy loop, the scenarios take 3 to 6 s; Vitest's
+// default 5 s is sized for unit tests.
+vi.setConfig({ testTimeout: 20000 });
 
 let browser;
 let s;
@@ -62,8 +69,8 @@ async function tab(hash = "") {
             for (const d of document.querySelectorAll("dialog.ask[open]:not([data-seen])")) {
                 d.dataset.seen = "";
                 globalThis
-                    .asked(d.firstChild.textContent)
-                    .then((yes) => d.querySelectorAll("button")[yes ? 1 : 0].click());
+                    .asked(d.querySelector(".ask-text").innerText)
+                    .then((yes) => d.querySelectorAll(".actions button")[yes ? 1 : 0].click());
             }
         }).observe(document, { childList: true, subtree: true, attributes: true });
     });
@@ -97,13 +104,16 @@ async function review(n = 0, p = page) {
     await p.locator(".component").first().waitFor();
 }
 
-// The grid's order: 1 menu--open (failed), 2 button--primary.dark (changed), 3 slider--sizes
+// Item numbers: 1 menu--open (failed), 2 button--primary.dark (changed), 3 slider--sizes
 // (changed), 4 badge--default.light (new), 5 tooltip--hover (unstable), 6 card--legacy (removed).
 async function openStory(number, p = page) {
-    await p.locator("#goto").fill(String(number));
-    await p.locator("#goto").press("Enter");
-    await expect.poll(() => p.locator("#position").textContent()).toMatch(new RegExp(`^${number} of `));
+    await p.locator("#find").fill(String(number));
+    await p.locator("#find").press("Enter");
+    await expect.poll(() => p.locator(".itemline .number").textContent()).toBe(`#${number}`);
 }
+
+// The item's images have been on screen long enough for a decision to count.
+const ready = (p = page) => p.locator("#stage[data-ready]").waitFor();
 
 const decisions = async (project = "compact-mantine", id = "123") =>
     (await s.api("GET", `/api/pr/${id}/${project}`)).body.decisions;
@@ -133,16 +143,21 @@ describe("review page: stale caches", () => {
         await open(r, w);
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
         const fetched = [];
-        page.on("request", (req) => req.url().includes(`/capture/${BUTTON}`) && fetched.push(req.url()));
-        // Another tab (or the iPad) loads the list: the server moves to run 1001.
+        page.on(
+            "request",
+            (req) =>
+                req.url().includes(`/api/img/`) && req.url().includes(`/capture/${BUTTON}`) && fetched.push(req.url()),
+        );
+        // Another tab (or the iPad) refreshes the list: the server moves to run 1001.
         runWithoutButtonChange(w, r.head);
+        await s.api("GET", "/api/prs");
         await page.locator("#home").click();
         await page.locator(".card").first().waitFor();
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
         expect(fetched.length).toBeGreaterThan(0);
     });
 
@@ -156,14 +171,14 @@ describe("review page: stale caches", () => {
         await review(0);
         await openStory(2);
         await page.keyboard.press("s");
-        await expect.poll(boxCount).toMatch(/^box 1 of/);
+        await expect.poll(boxCount).toMatch(/^1 of/);
         await page.locator("#home").click();
         await page.locator(".card").first().waitFor();
         // #124's first Review: its compact-mantine.
         await review(2);
         await openStory(2);
         await expect.poll(boxCount).not.toBe("");
-        expect(await boxCount()).toBe("no changed box at this threshold");
+        expect(await boxCount()).toBe("No changed area at this threshold");
     });
 
     // A failed image load is dropped from the cache, so the next visit retries it.
@@ -181,12 +196,12 @@ describe("review page: stale caches", () => {
         });
         await review();
         await openStory(2);
-        // The failure reads as text, and Accept waits for both images.
-        await expect.poll(() => page.locator("#stage p.error").textContent()).toMatch(/\S/);
-        expect(await page.locator("button.accept").isDisabled()).toBe(true);
+        // The failure reads as text with a Retry, and Accept waits for both images.
+        await expect.poll(() => page.locator("#stage p.error").textContent()).toMatch(/\S.*Retry$/);
+        expect(await page.locator("#accept").getAttribute("class")).toContain("loading");
         await page.keyboard.press("j");
         await page.keyboard.press("k");
-        await expect.poll(() => page.locator('#stage img[alt^="capture of"]').count(), { timeout: 3000 }).toBe(1);
+        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count(), { timeout: 3000 }).toBe(1);
     });
 
     // Only the most recently used images and diffs are kept; older object URLs are revoked.
@@ -230,12 +245,25 @@ describe("review page: stale caches", () => {
         await page.goto(`${s.origin}/#token=${TOKEN}`);
         await review();
         await openStory(1);
+        // Each step waits for the page to show item n with its box count, checked every frame:
+        // expect.poll's 50 ms interval alone would make the 59 steps take about 3 s.
         for (let n = 2; n <= items.length; n++) {
             await page.keyboard.press("j");
-            await expect.poll(() => page.locator("#position").textContent()).toMatch(new RegExp(`^${n} of `));
-            await expect.poll(boxCount).toMatch(/^box/);
+            await page.waitForFunction((n) => {
+                const { document } = globalThis;
+                return (
+                    document.getElementById("position").textContent.startsWith(`${n} of `) &&
+                    /^\d+ of/.test(document.getElementById("box-count").textContent)
+                );
+            }, n);
         }
-        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(items.length);
+        // At most the 50 images kept, plus the grid's thumbnails (one per tile it loaded).
+        const thumbs = await page.evaluate(
+            () =>
+                globalThis.performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/thumb/"))
+                    .length,
+        );
+        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(50 + thumbs);
     });
 });
 
@@ -247,8 +275,9 @@ describe("review page: decisions", () => {
         await review();
         await openStory(2);
         // Accept waits for both images.
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
-        const box = await page.locator("button.accept").boundingBox();
+        await page.locator('#stage img[alt^="new image of"]').waitFor();
+        await ready();
+        const box = await page.locator("#accept").boundingBox();
         const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
         await page.mouse.click(x, y);
         await sleep(150);
@@ -263,7 +292,7 @@ describe("review page: decisions", () => {
         await open(r, world(r));
         await review();
         await openStory(2);
-        await page.locator('#stage img[alt^="capture of"]').waitFor();
+        await ready();
         await page.keyboard.down("a");
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
         // The key is still held: the browser repeats it.
@@ -284,9 +313,8 @@ describe("review page: decisions", () => {
         await review(0, other);
         await other.getByRole("button", { name: /^All/ }).click();
         await other.locator(`.decision[data-file="${BUTTON}"]`).waitFor();
-        const undoAll = page.locator(".toolbar .undo-all");
-        await undoAll.click();
-        await undoAll.click();
+        await page.locator("details.menu > summary").click();
+        await page.getByRole("button", { name: "Undo all decisions..." }).click();
         await expect.poll(async () => Object.keys(await decisions()).length).toBe(0);
         await other.locator(`.tile[data-file="${BUTTON}"]`).click();
         await other.locator("#position").waitFor();
@@ -294,21 +322,24 @@ describe("review page: decisions", () => {
         expect(await decisions()).toEqual({});
     });
 
-    // Moving to another item forgets an abandoned Exclude: Enter rejects.
+    // Moving to another item forgets an abandoned Exclude, and Enter alone decides nothing.
     it("Enter in the reason box can run an earlier, abandoned Exclude", async () => {
         const r = makeRepo();
         await open(r, world(r));
         await review();
         await openStory(2);
+        await ready();
         await page.keyboard.press("e");
-        await expect.poll(() => page.locator("#status").textContent()).toContain("needs a reason");
+        await expect
+            .poll(() => page.locator("#status").textContent())
+            .toBe("Type the reason, then press Enter to exclude.");
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
-        await page.locator("#reason").fill("too tall");
-        await page.locator("#reason").press("Enter");
-        await expect.poll(async () => (await decisions())["slider--sizes.png"]?.decision ?? null).not.toBeNull();
+        await page.locator("#note").fill("too tall");
+        await page.locator("#note").press("Enter");
+        await sleep(300);
         expect(dialogs.filter((d) => d.startsWith("Exclude"))).toEqual([]);
-        expect((await decisions())["slider--sizes.png"].decision).toBe("reject");
+        expect(await decisions()).toEqual({});
     });
 
     // The confirm says how many of the items are removals.
@@ -338,44 +369,71 @@ describe("review page: rendering and routing", () => {
         });
         await review();
         await openStory(2);
-        await expect.poll(boxCount).toBe("no changed box at this threshold");
+        await expect.poll(boxCount).toBe("No changed area at this threshold");
         await page.keyboard.press("j");
         await page.keyboard.press("k");
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^2 of /);
         // Item 3's two images arrive one after the other, a second each.
         await sleep(3500);
-        expect(await boxCount()).toBe("no changed box at this threshold");
+        expect(await boxCount()).toBe("No changed area at this threshold");
     });
 
     // A superseded route stops after its wait, and no route pushes a history entry.
     it("Fast Back/Forward presses race on the shared `routing` flag and can leave the address and the screen out of step", async () => {
         const r = makeRepo();
         const w = world(r);
-        let slow = false;
-        const gh = async (args, input) => {
-            if (slow && args[1]?.includes("/pulls?")) {
-                await sleep(700);
-            }
-            return w.gh(args, input);
-        };
-        await open(r, w, { gh });
+        await open(r, w);
         await review();
         await openStory(2);
         const before = await page.evaluate(() => globalThis.history.length);
-        slow = true;
-        // Back twice, without waiting for the first to land: story -> grid -> targets.
+        // The targets screen waits on the page's own read of the target list (the server answers it
+        // from its cache, never asking GitHub), so that read is the one slowed. A decision from
+        // another tab lands during the wait, so the answer differs from the list the page holds and
+        // a route that went on would redraw the targets. Counted asked and answered, to know when
+        // the superseded route has had its answer.
+        let asked = 0;
+        let answered = 0;
+        await page.route("**/api/prs?*", async (route) => {
+            asked++;
+            await sleep(700);
+            const decided = await s.api("POST", "/api/decide", {
+                id: "123",
+                project: "compact-mantine",
+                file: BUTTON,
+                decision: "reject",
+                reason: "from another tab",
+            });
+            expect(decided.status).toBe(200);
+            await route.continue().catch(() => {});
+            answered++;
+        });
+        // Back twice and Forward once, without waiting for any to land: story -> grid -> targets,
+        // whose route waits, -> grid again before that wait ends.
         await page.evaluate(() => {
             globalThis.history.back();
             setTimeout(() => globalThis.history.back(), 50);
+            setTimeout(() => globalThis.history.forward(), 150);
         });
-        await sleep(3500);
+        // The grid is shown and the targets route has its answer; a superseded route that went on
+        // would now draw the targets or push an entry, within a moment of its answer. The wait is
+        // counted from the answer, not from the presses, so a slow machine waits longer instead of
+        // running out of the test's time.
+        await expect
+            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0, {
+                timeout: 8000,
+            })
+            .toBe(true);
+        await sleep(500);
         const after = await page.evaluate(() => ({
             length: globalThis.history.length,
             hash: globalThis.location.hash,
         }));
         expect(after.length).toBe(before);
-        expect(new URLSearchParams(after.hash.slice(1)).has("target")).toBe(false);
-        expect(await page.locator(".component").count()).toBe(0);
+        const address = new URLSearchParams(after.hash.slice(1));
+        expect(address.get("target")).toBe("123");
+        expect(address.has("item")).toBe(false);
+        expect(await page.locator(".component").count()).toBeGreaterThan(0);
+        expect(await page.locator(".card[data-target]").count()).toBe(0);
     });
 
     // The targets screen, with the project's problem, instead of an empty page.

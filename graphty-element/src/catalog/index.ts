@@ -37,7 +37,9 @@ export type {
     EdgeId,
     EdgeLinePattern,
     Encoding,
+    FieldBand,
     FieldDescriptor,
+    FieldInterpretation,
     FormatDescriptor,
     FormatId,
     FunctionDescriptor,
@@ -72,6 +74,7 @@ export type {
     Selector,
     StaticStyle,
     StyleDocument,
+    SuggestedName,
     ThemeDescriptor,
 } from "./types";
 export {

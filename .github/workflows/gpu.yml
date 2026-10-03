@@ -3,7 +3,10 @@
 # job waits for this workflow's run on the released commit and refuses to publish unless it succeeded (owner
 # decision, 2026-09-18). The lane runs on every master push, and on a pull request of this repository labelled
 # `gpu`; there is NO nightly cron (owner decision, 2026-09-19 -- the gate already runs it on everything that
-# reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner).
+# reaches master, so a nightly only re-ran a commit the lane had already judged, on a paid runner). A pull request's
+# paired benchmark runs only the groups its change can move (scripts/bench-groups.js); every group is compared once a
+# week instead, master's tip against the latest release, by gpu-weekly-paired.yml -- a workflow of its own so that
+# its result never becomes the run release.yml's gate reads for a commit.
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner
 # is terminated at that mark -- "free plan runners are limited to 30 minutes", the message that killed run
 # 35664428780 with the benchmarks 77 seconds in and run 35666281226 on master -- and by 2026-09-21 the package's own
@@ -83,7 +86,14 @@ jobs:
                 NVIDIA_VISIBLE_DEVICES: all
                 NVIDIA_DRIVER_CAPABILITIES: all
                 DEBIAN_FRONTEND: noninteractive
-        timeout-minutes: 110 # 10 more than master for the 24.04 container pull and the bootstrap apt; the steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663), and the paired benchmark may take its own 40; 75 could not hold both, so that run was cancelled after every test had passed. Each step that can hang keeps its own, tighter limit
+        # The steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663). The
+        # paired benchmark runs 40 minutes at most when it selects a subset of the groups, 75 when a change selects all
+        # of them: one full pass of every group is about 7.7 minutes on the T4 and the paired run makes eight (4 ABBA
+        # rounds x 2 builds), about 65 minutes with the base build -- run 36882775800 (PR #663) hit the old 40-minute
+        # step limit after about 5 of the 8 passes. 47 + 75 = 122, plus setup and the artifact upload: 130. Each step
+        # that can hang keeps its own, tighter limit.
+        # The container adds the image pull and the bootstrap apt: 10 more, 140.
+        timeout-minutes: 140
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
@@ -195,29 +205,79 @@ jobs:
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
               run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
-            - run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json
+            # Issue #703: the 10k layout-fr rows swung x1.0 to x3.6 between T4 runs on unchanged code, in the
+            # profiler's GPU time as well as the wall time, so the card itself ran the kernels slower. NVIDIA's power
+            # governor holds the SM clock low under the sparse one-step dispatches of a small rung (finding G3-F1),
+            # how low differs from one machine.dev instance to the next, and the untimed warm-up burst of the layout
+            # groups is the same sparse pattern, so it cannot lift it. The SM clock is therefore locked for the
+            # benchmarks at the card's maximum -- the clock the baseline's good runs ran at, so the baseline and the
+            # gating targets of benchmarks/results/targets.json stay comparable -- with persistence mode on so the lock
+            # survives the moments no process holds the device. nvidia-smi logs the clock, P-state and power draw
+            # every 200 ms while the benchmarks run; the step after them reduces the log to each group's min and
+            # median (gpu-clocks.json), which bench-compare.js quotes beside a regression. A refused lock is a
+            # warning, not a failure: the clock record then shows what the governor did.
+            - name: Lock the SM clock at the card's maximum and start the clock log
+              id: clocks
+              run: |
+                  max=$(nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits | head -1 | tr -d ' ')
+                  sudo nvidia-smi -pm 1 || true
+                  if sudo nvidia-smi -lgc "$max,$max"; then
+                      echo "SM clock locked at $max MHz"
+                  else
+                      echo "::warning::nvidia-smi -lgc $max,$max was refused: the benchmarks run at the power governor's clock (issue #703)"
+                  fi
+                  nohup nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.max.sm,pstate,power.draw --format=csv -lms 200 > gpu-clocks.csv 2>&1 &
+                  echo $! > gpu-clocks.pid
+            - name: Benchmarks (tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; every line stamped with the local time nvidia-smi's log carries)
+              run: pnpm run bench 2>&1 | while IFS= read -r line; do printf '%s %s\n' "$(date '+%Y/%m/%d %H:%M:%S.%3N')" "$line"; done | tee bench.log # pipefail carries the bench's exit code through the loop and tee
+            - name: Stop the clock log and summarize the SM clock of every benchmark group
+              if: ${{ !cancelled() && steps.clocks.outcome == 'success' }}
+              run: |
+                  kill "$(cat gpu-clocks.pid)" || true
+                  [ -f bench.log ] || { echo "no bench.log: the benchmarks did not run"; exit 0; }
+                  node scripts/gpu-report.js --clocks gpu-clocks.csv bench.log > gpu-clocks.json && cat gpu-clocks.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             # The paired check (issue #276): the base commit and this pull request alternated on the same card, so
             # clock and thermal drift cancel and the threshold can be tight (scripts/bench-ab.js). Pull requests
-            # only, and only when they change webgpu-graph-algorithms/src. The checkout is the merge commit at
-            # depth 1; deepening it to 2 brings in its first parent, the base branch tip the merge was made on.
-            - name: Paired benchmark against the base commit (pull requests that change src)
+            # only, and only the benchmark groups the change can move: scripts/bench-groups.js maps every group to
+            # the src files its benchmark reaches through imports and selects the groups that reach a changed file.
+            # A change to a file every group depends on (device setup, the WGSL prelude, shared constants), or to a
+            # file no benchmark reaches, selects all of them; a change outside src selects none and skips the step.
+            # The checkout is the merge commit at depth 1; deepening it to 2 brings in its first parent, the base
+            # branch tip the merge was made on.
+            - name: Choose the paired benchmark's groups from the files the pull request changed
+              id: select
               if: github.event_name == 'pull_request'
-              timeout-minutes: 40
               run: |
                   git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
                   base=$(git rev-parse HEAD^1)
-                  if git diff --quiet "$base" HEAD -- src; then
+                  groups=$(git diff --name-only "$base" HEAD | node scripts/bench-groups.js --base "$base")
+                  if [ -z "$groups" ]; then
                       echo "no change under webgpu-graph-algorithms/src since $base: paired benchmark skipped"
-                  else
-                      pnpm run bench:ab --base "$base"
                   fi
+                  # a subset fits the step's original 40 minutes; every group needs about 65 (see the job's timeout)
+                  if [ "$groups" = all ]; then timeout=75; else timeout=40; fi
+                  { echo "base=$base"; echo "groups=$groups"; echo "timeout=$timeout"; } >> "$GITHUB_OUTPUT"
+            - name: Paired benchmark against the base commit (the groups chosen above)
+              if: github.event_name == 'pull_request' && steps.select.outputs.groups != ''
+              timeout-minutes: ${{ steps.select.outputs.timeout && fromJSON(steps.select.outputs.timeout) || 40 }}
+              env: { BASE: "${{ steps.select.outputs.base }}", BENCH_GROUPS: "${{ steps.select.outputs.groups }}" }
+              run: |
+                  echo "groups: $BENCH_GROUPS (base $BASE)"
+                  if [ "$BENCH_GROUPS" = all ]; then
+                      pnpm run bench:ab --base "$BASE" # no group names: each build runs its own, so a group new in this change still runs
+                  else
+                      pnpm run bench:ab --base "$BASE" $BENCH_GROUPS # word splitting intended: one argument per group
+                  fi
+            - name: Release the SM clock lock
+              if: ${{ always() && steps.clocks.outcome != 'skipped' }}
+              run: sudo nvidia-smi -rgc || true
             - uses: actions/upload-artifact@v4
               if: ${{ !cancelled() }}
               with:
                   {
                       name: "gpu-results-${{ github.run_id }}",
-                      path: "webgpu-graph-algorithms/gpu-report.json\nwebgpu-graph-algorithms/benchmarks/out/",
+                      path: "webgpu-graph-algorithms/gpu-report.json\nwebgpu-graph-algorithms/gpu-clocks.csv\nwebgpu-graph-algorithms/gpu-clocks.json\nwebgpu-graph-algorithms/bench.log\nwebgpu-graph-algorithms/benchmarks/out/",
                       retention-days: 90,
                       overwrite: true,
                   }

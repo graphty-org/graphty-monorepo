@@ -18,7 +18,8 @@ your login.
 - [The GitHub Actions workflows](#the-github-actions-workflows)
 - [Your first review: seeding baselines](#your-first-review-seeding-baselines)
 - [Opening the review page](#opening-the-review-page), [the screens](#the-screens), [keys](#keys),
-  [decisions](#what-each-decision-does), [Finish](#finish)
+  [decisions](#what-each-decision-does), [Finish](#finish), [the passkey](#approving-with-a-passkey)
+- [Updating from the default branch](#updating-from-the-default-branch)
 - [Seeding one story at a time](#seeding-one-story-at-a-time)
 - [Iterating on a story before a pull request exists](#iterating-on-a-story-before-a-pull-request-exists)
 - [Story parameters](#story-parameters)
@@ -166,7 +167,9 @@ to its own config is gated too.
   difference; `continue-on-error` keeps even a crash of the tool from failing the run.
 - **Visual gate** (pull requests only) downloads every capture of the run and runs
   `visual-review gate` at the version `init` pinned, with `npx`, so a pull request's own
-  dependencies cannot change it. Make it a required check.
+  dependencies cannot change it. It passes `--pr` with the pull request's number, which the
+  passkey check needs (see [Approving with a passkey](#approving-with-a-passkey)). Make it a
+  required check.
 
 The review page finds captures by the workflow's file name (the config's `workflow`), the jobs by
 their names, `visual (<project>)`, and the artifacts by `visual-<project>-<attempt>`. If you would
@@ -192,8 +195,7 @@ the capture:
 
 1. Find that run's id: `gh run list --workflow visual-review.yml --branch main --limit 1`.
 2. Start the page with `--master-run <run id>` ([Opening the review page](#opening-the-review-page))
-   and open "master (seed)" (the page calls the default branch's target "master", whatever its
-   name). Every story is `new` there.
+   and open `<branch> seed` (for example "main seed"). Every story is `new` there.
 3. Accept what looks right, reject what does not (with a reason), leave the rest, and press
    Finish. You get a pull request `visual/seed-<date>` holding the accepted baselines, and one
    issue listing the rejects.
@@ -223,19 +225,23 @@ token is kept in the work directory, so the URL stays valid across restarts; del
 ### Links to a screen
 
 The address always names the screen you are on, after the token: the targets list; a pull
-request (or master) and project with the grid's filter and text; or one story with its view,
-zoom, changed box, blink and Spotlight flash, for example
-`#token=...&target=123&project=web&filter=undecided&item=button--primary.dark.png&view=flash&zoom=2&box=on&blink=off&flash=off`.
+request (or the default branch's seed) and project with the grid's filter and Find text; or one
+story with its pass, view, zoom, outline, blink and Spotlight flash, for example
+`#token=...&target=123&project=web&filter=undecided&item=button--primary.dark.png&pass=undecided&view=flash&zoom=2&box=on&blink=off&flash=off`.
 A link's `box`, `blink` and `flash` apply to the page it opens; the choice this browser remembers
-for B, L and F in Spotlight is left as it was.
+for B, L and F in Spotlight is left as it was. Flash, Blink and Spotlight flash open stopped from
+a link; the first press of F, L or the button starts them.
 Opening that address, in another tab or on another device, opens the same screen. **Copy link**
 at the top right copies it. The link carries your session token, so it works on your iPad the way
 the printed URL does; keep it to yourself as you would that URL. All of it sits after `#`, which a
 browser never sends to any server or in a Referer, so the page never hands the token to another
-site. Back and Forward move between the targets list, a grid and a story; moving between stories
-or views of one grid updates the address in place.
+site. Back and Forward move between the targets list, a grid and a story, at once: they read the
+server's cached list and never wait on GitHub. Moving between stories or views of one grid
+updates the address in place. A reload of a story reopens the same pass at the same place (the
+pass is kept in the tab's session storage; a link opened in a new tab rebuilds it from its
+filter).
 
-A link to something that is gone opens the nearest screen that still exists, and the status line
+A link to something that is gone opens the nearest screen that still exists, and the status row
 says why: a story not in the newest CI run opens its grid, and a pull request no longer listed
 (closed, or no CI run) opens the targets list.
 
@@ -246,76 +252,159 @@ starts the same server from your own shell.
 
 ## The screens
 
+Every screen has the same frame. The header holds **Visual review** (the targets list), the
+**Target** and **Project** menus (on the grid and story screens: jump to any pull request or
+project, each with its count of undecided items), **Finish** with the number of decisions it
+would publish ("Finish #201 (12)"; at 0 it is unavailable and says "Nothing new to finish",
+shortened to "Nothing new" on an iPad; whether a passkey must approve it is said in Finish's
+sheet), **Keys** and **Copy link**. Finish never shrinks: on a narrow window the
+menus give up their width first. Under the header is the screen's own bar, then the status row: the one
+place the page writes messages, one line tall on a wide screen and two on an iPad, so a message
+never moves anything; a longer one shows **More**, which opens the row to its full length.
+Errors are shown there in red. **Keys** (or `?`) lists every key, the last
+20 messages in full, and a switch that turns the single-letter keys off.
+
+No wait is silent: anything that takes longer than a third of a second says what it is waiting
+for, with a count or the time spent, and a failed one offers Retry. A wait that keeps you from
+working (the first list after the server starts, opening a project, a project whose captures are
+still downloading, Finish) is a box in the middle of the screen, over the page: what it waits for,
+its progress ("1 of 2 artifacts, 41 MB of 120 MB"), the time spent, GitHub's network retries
+("GitHub did not answer (Could not resolve host: api.github.com). Trying again in 4 s, try 2 of
+4."), and **Cancel** where there is something to go back to. A wait that fails becomes the error
+in the same box, with **Retry**. Work in the background (checking GitHub for new CI runs,
+downloading captures nobody has opened yet) is said in the status row and never blocks.
+
 1. **Targets.** Each open pull request with a run of the capturing workflow, and the default
-   branch (shown as "master (seed)") when started with `--master-run`. Per project: how many items need a decision, how many you decided, and badges:
+   branch (shown as `<branch> seed`, for example "master seed") when started with
+   `--master-run`. The list is the server's, shown at once with "Updated 40 s ago" and
+   **Refresh**; it is checked again with GitHub when you press Refresh or when it is over a minute
+   old, and the server checks every two minutes on its own, downloading the captures of every CI
+   run that finished, so they are there before you open them. The status row shows a check's step
+   ("Checking GitHub for new CI runs", then "Finding CI runs: 3 of 5, 12 s"). The server keeps the
+   list on disk, so after a restart it shows at once and is checked behind; only the very first
+   start waits for GitHub, in the box. Above the cards, one line says whether Finish is approved with your passkey ("Finish is
+   approved with your passkey (iPad passkey, 2026-10-01), and the CI gate refuses accepts
+   without it."), or that accepts are not yet protected ("No passkey registered: accepts are not
+   yet protected. ..."), with **Register passkey**, or **Register another device** once one is
+   registered ([the passkey](#approving-with-a-passkey)); a problem reading
+   `visual-review/passkeys.json` is named there too. Each card says which commit and CI run it captured, any warning the server
+   has (with Retry), how many decisions are not yet finished, how many an earlier Finish already
+   put on the branch ("Finished: 266 decisions already on the branch, waiting for the next CI
+   run, which no longer shows them."), and a table per project: **Project**,
+   **Results** (count per status), **Decided** ("12 of 40") and **Review**. Projects with nothing
+   to review are one line ("3 projects unchanged: ..."). Badges:
     - **merge master first**: the default branch has newer baselines for this project than the
-      pull request. Merge the default branch into the pull request's branch (by merge, never
-      rebase) and wait for CI.
-    - **capture failed**: the `visual` job produced no results. Re-run that job in GitHub Actions.
-    - **CI still running**, **waiting for CI**, **downloading the captures**: there is nothing
-      to review yet; reload the page in a moment.
+      pull request. **Update from master** beside it merges the default branch into the pull
+      request's branch for you ([Updating from the default branch](#updating-from-the-default-branch)).
+    - **Downloading...**: the captures are still downloading from GitHub. The card says how many
+      artifacts and bytes have landed and for how long ("Downloading: 2 of 5 artifacts, 41 MB of
+      120 MB, 14 s"), and each row fills in by itself as its own download lands. Pressing it
+      opens the project as soon as it lands: its download goes ahead of the others, and the box
+      shows its progress.
+    - **capture failed**, **CI still running**, **waiting for CI**: there is nothing to review
+      yet. **Job log** opens the capturing job; **Retry** checks GitHub again.
     - **artifact expired**: GitHub deleted the capture after 30 days and it was never
       downloaded here. Re-run the `visual` job.
     - **incomplete: N of M stories**: the capture stopped part way. Re-run the job.
-    - **not seeded from master**: this project is not reviewed on the default branch
-      (`"seedFromDefaultBranch": false` in the config); its first baselines are accepted on a pull
-      request.
-2. **Grid.** It opens on **Needs a decision** (the undecided items, counted on the button); **All**
-   and one button per status show the rest, and **Accepted**, **Rejected** and **Excluded** show
-   what you decided, each counted, as Chromatic's review does. A line above the grid splits what is shown into
-   errors and images to compare, so the counts always add up. At the top, **Errors** lists every failed capture with its reason and,
-   under "console and stack", the story's console output and the thrown error's stack (a play
-   function's failed `expect` included). An error is never accepted: fix the story, re-run the
-   `visual` job for a one-off timeout, or exclude it with a reason. Below it the items are grouped
-   by component (the story id before `--`), components with a changed item first, then new,
-   unstable and removed ones; each story's modes (light, dark) sit side by side under its name.
-   Every tile is numbered, and the number is the story screen's "N of M". A component's
-   **Accept N undecided** accepts that component's undecided items without opening them, after
-   asking. Under every decided tile (and every decided error) its decision is spelled out:
-   "Accepted", "Accepted (not opened)" for one Accept all took, or "Rejected" or "Excluded" with
-   the reason. Its **Undo** clears it without opening the story. A component's **Undo N
-   decisions**, and **Undo all decisions** beside Accept all for the whole project, clear many at
-   once: the first press turns the button into "Confirm: undo N decisions", a second press undoes,
-   and Escape or any other change to the grid cancels. Every Undo here is the same request as the
-   story screen's U. A reject an earlier Finish already posted says "Posted by Finish: stays" and
-   has no Undo on the grid; the bulk Undo buttons leave it too. **Filter by story id** narrows the grid; **Go to** opens item N, or the first item
-   whose id contains the text. Coming back from a story, its tile is outlined and scrolled into
-   view.
-3. **Story.** One item, on one screen: the controls on top, then two panes of the same size side
-   by side, the baseline on the left and the new capture on the right, filling the rest of the
-   window. Images open at **Fit to screen**: both whole images fit their panes, across and down,
-   at one scale (never above real size), so two captures of the same size line up pixel for pixel
-   and nothing scrolls. With no baseline (a new story, or "no baseline yet") the left pane stays
-   as an empty frame labelled "No baseline", so the new image sits exactly where it would beside
-   one; a removed or failed story leaves the right pane empty the same way. **Real size (1x)** is
-   one CSS pixel of the page for each CSS pixel the story was drawn at (a capture holds two image
-   pixels per CSS pixel). **2x**, **4x** and **8x** enlarge it; from 4x pixels are drawn as hard
-   squares. Zoomed, the images grow past their panes, which scroll: scrolling one scrolls the
-   other to the same place, and **Fit to screen** returns to the whole image. (On an iPad,
-   pinching zooms the whole page; use the zoom buttons to zoom the images.) **Next changed box**
-   (N) scrolls both panes until the next region of changed pixels is in view and outlines it;
-   "box i of k" counts them. **Box** (B) turns that outline on and off; the page remembers the
-   choice in this browser. The views, each shown in the right pane at the same scale and place:
-   **Side by side**; **Flash**, which shows baseline and new one after the other in the same
-   place, about 1.5 times a second (the images themselves, not an overlay), keeping the zoom and
-   scroll it was opened at; **Highlight**, the changed pixels in solid red laid over both images
-   themselves, in both panes, where **Blink** (L) flashes the red pixels on and off at Flash's
-   pace (remembered in this browser); and **Spotlight**, the new image dimmed everywhere except around the changed pixels
-   (each grown by 10 image pixels), which finds a one-pixel change, where **Spotlight flash** (F
-   in Spotlight) shows the spotlighted baseline and the spotlighted new image one after the other
-   at Flash's pace, the pane's label saying which (remembered in this browser). Flash, Highlight and
-   Spotlight need two images; on a new or removed story they are off and the page says why
-   ("New story, no baseline", "Only one image: this story was removed"). Badges here:
-   **size changed** (in image pixels), **flaky** (the two captures differed, then matched), and
-   **re-review** (an accept you made was replaced by the default branch's newer baseline).
+    - **Reject only here: accept on a pull request**: this project is not reviewed on the default
+      branch (`"seedFromDefaultBranch": false` in the config); its first baselines are accepted on
+      a pull request.
+2. **Grid.** When the default branch has newer baselines for the project than the capture was
+   compared with, the grid starts with "master has 3 newer compact-mantine baselines since this
+   capture; this review is out of date", the changed files under **Changed on master**, and
+   **Update from master and recapture**. A bar that stays at the top: "18 of 170 decided"; **Review 152 undecided**, the main
+   way in, which opens the first undecided item and walks every undecided item; **Needs a
+   decision** and **All**, each counted, and **More filters** (each status, and what you
+   **Accepted**, **Rejected** and **Excluded**, each counted); **Find story**; **Accept all
+   undecided (N)**; and **More**, with **Undo all decisions...** and **Copy link to this grid**.
+   Failed captures come first as one line, "6 failed captures: only Exclude applies"; opened (the
+   page remembers), it lists each with its reason and, under "console and stack", the story's
+   console output and the thrown error's stack (a play function's failed `expect` included). An
+   error is never accepted: fix the story, re-run the `visual` job for a one-off timeout, or
+   exclude it with a reason. Below it the items are grouped by component (the story id before
+   `--`), in the order failed, changed, moved, new, unstable, removed, no baseline yet; each
+   story's modes (light, dark) sit side by side under its name. Every item has a number that
+   stays the same however the grid is filtered or decided (its place under All), and the story
+   screen shows it too. Tiles show small copies the server makes once, loaded as they come near
+   the screen; one that fails reads "Failed -- tap to retry". A component's **Accept N** accepts
+   its undecided items without opening them, and **Undo N** clears its decisions; both ask first,
+   naming the count. Under every decided tile its decision is spelled out: "Accepted",
+   "Accepted (not opened)" for one Accept all took, or "Rejected" or "Excluded" with the reason,
+   with an **Undo** that clears it without opening the story. A reject an earlier Finish already
+   posted says "Posted by an earlier Finish: it stays.", and an accept or exclusion it pushed says
+   "Finished: it is on the branch, and the next CI run no longer shows it."; neither has an Undo. Many Undos at once show
+   their progress, with Stop. **Find story** narrows the grid as you type; Enter opens the first
+   match, or the item with that number. Coming back from a story, its tile is outlined and
+   scrolled into view.
+3. **Story.** One item, on one screen that never scrolls (only the panes do). From the top:
+    - **The decision bar**: **Grid** (Escape), **Prev** (K), "12 of 230 -- 18 left" (in this
+      pass), **Next** (J), **Accept** (A), **Reject** (R), **Exclude** (E), **Undo** (U) and the
+      **Note** box ("Needed to Reject or Exclude"; a note typed before Accept is published with
+      it). Below 1280 px it is two rows, the decisions, then the movement and the note; on an
+      iPad held upright and below 900 px (Split View, a zoomed page) three, the note on a row of
+      its own, and the bar never runs past the window's edge. While the images load, Accept shows a
+      small spinner at its left edge; its label and key stay whole. Every button is always there, in the same place on every item, at every zoom; one
+      that does not apply is shown unavailable, the line under it says why, and pressing it says
+      why in the status row. Each button shows its key.
+    - **The item line**: the item's number, name, status and badges (**moved from ...**, its
+      decision, **size changed**, **flaky**, **re-review** when an accept you made was replaced by
+      the default branch's newer baseline), then one explanation: what changed ("880 pixels
+      changed, in a 40 x 40 area at (160, 80). Threshold 0.063."), what a decision will do
+      ("Removed from the Storybook: Accept deletes its baseline."), or why one does not apply.
+      Tap it to read all of a long line.
+    - **The view bar**: **Side by side**, **Flash** (F), **Highlight** (H), **Spotlight** (S);
+      **Blink** (L) while Highlight is on and **Spotlight flash** (F) while Spotlight is on;
+      **Outline** (B); **Next change** (N) with "1 of 3"; the zoom, **Fit**, **1x**, **2x**,
+      **4x**, **8x** (Z cycles it); and **Details** (the threshold, the anti-aliasing setting, the
+      capture's scale, and any console output). Below 1280 pixels wide (an iPad either way up) it
+      is always two rows, the views on the first, so the zoom is always on screen and the panes
+      start at the same height on every item and in every view.
+    - **The two panes**, the baseline on the left and the new capture on the right, filling the
+      rest of the window. Both are drawn at once with "Loading baseline..." and "Loading new
+      image..." in them, so nothing moves when the images arrive; Accept shows a spinner until
+      they have. The next two items load in the background. A load that fails says so in its pane,
+      with Retry.
 
-    **Next** and **Previous** (J and K) walk one pass: the items the grid showed when you opened
-    the story, in the grid's order, frozen until you go back to the grid. Accepting, rejecting or
-    excluding an item never drops it from the pass: the decision moves on to the next item, and
-    **Previous** comes back to the one just decided, showing its decision and an **Undo** (or U).
-    Going back to the grid shows what its filter now selects: under **Needs a decision** the items
-    you decided have left it, and the count has gone down; **Accepted**, **Rejected** and
-    **Excluded** show them with their decisions.
+    Images open at **Fit**: both whole images fit their panes, across and down, at one scale
+    (never above real size), so two captures of the same size line up pixel for pixel and nothing
+    scrolls. With no baseline (a new story, or "no baseline yet") the left pane stays as an empty
+    frame labeled "No baseline", so the new image sits exactly where it would beside one; a
+    removed story leaves the right pane empty the same way, and a failed one shows its log there.
+    **1x** is one CSS pixel of the page for each CSS pixel the story was drawn at (a capture holds
+    two image pixels per CSS pixel). **2x**, **4x** and **8x** enlarge it; from 4x pixels are
+    drawn as hard squares. Zoomed, the images grow past their panes, which scroll: scrolling one
+    scrolls the other to the same place, and **Fit** returns to the whole image. (On an iPad,
+    pinching zooms the whole page; use the zoom buttons to zoom the images. Held upright, each
+    pane is small: **2x** or Spotlight shows a fine change large.) **Next change** scrolls both
+    panes until the next region of changed pixels is in view and outlines it; **Outline** turns
+    that purple outline on and off, remembered in this browser. The views, each shown in the right
+    pane at the same scale and place: **Side by side**; **Flash**, which shows baseline and new one
+    after the other in the same place, about 1.5 times a second (the images themselves, not an
+    overlay), keeping the zoom and scroll it was opened at; **Highlight**, the changed pixels in
+    solid red laid over both images themselves, in both panes, where **Blink** flashes the red
+    pixels on and off at Flash's pace (remembered in this browser); and **Spotlight**, the new
+    image dimmed everywhere except around the changed pixels (each grown by 10 image pixels),
+    which finds a one-pixel change, where **Spotlight flash** shows the spotlighted baseline and
+    the spotlighted new image one after the other at Flash's pace, the pane's label saying which
+    (remembered in this browser). Flash, Highlight and Spotlight need two images; on a new or
+    removed story pressing them says so.
+
+    **Next** and **Prev** (J and K) walk one pass: the items the grid showed when you opened
+    the story (or every undecided item, from **Review N undecided**), in the grid's order, frozen
+    until you go back to the grid. Deciding an item never drops it from the pass: the decision
+    moves on to the next item, and **Prev** comes back to the one just decided, showing its
+    decision pressed and its **Undo**. Going back to the grid shows what its filter now selects.
+
+    **The end of a pass.** Next on the last item, or deciding it, does not wrap to the first: it
+    shows what is next in place of the panes. "End of graphty-element: 164 of 170 decided, 6
+    undecided." **Next project: layout (42 undecided)** comes first (focused, so Enter takes it)
+    and opens that project's first undecided item, with no wait for GitHub. **Review the 6
+    undecided** walks the ones left here, and comes first when no other project has any; when
+    every one left can only be excluded (unstable or failed) it says so: "Review the 6 undecided
+    (Exclude only)". Then **Back to the grid** and **Finish #201 (12)**. A project still downloading is listed under them ("layout: downloading
+    (2 of 5 projects done)"). When every project of the target is decided it says so, offers
+    **Finish** first, and **Next: #202 (340 undecided)**, the next pull request with something to
+    review. K comes back to the last item.
 
 Statuses: `changed` (differs from its baseline), `moved` (a renamed story that looks exactly as
 its old id's baseline; see [renames](#reorganizing-stories-renames)), `new` (no baseline, and on a pull request the
@@ -331,36 +420,55 @@ Seed them from the default branch (below), or accept them on the pull request.
 
 ## Keys
 
-| Key          | Action                                                                         |
-| ------------ | ------------------------------------------------------------------------------ |
-| J / K        | Next / previous item of this pass (decided items stay in it)                   |
-| A            | Accept an undecided item, once both its images are shown                       |
-| R            | Reject an undecided item (asks for a reason, then Enter)                       |
-| E            | Exclude an undecided item (asks for a reason, then Enter, then a confirmation) |
-| U            | Undo the item's decision (on the grid: each tile's Undo button)                |
-| F            | Flash between baseline and new; F again returns to side by side                |
-| F            | In Spotlight: flash the spotlighted baseline and new, or stop flashing         |
-| H            | Highlight changed pixels; H again returns to side by side                      |
-| S            | Spotlight the changes; S again returns to side by side                         |
-| Z            | Next zoom: fit to screen, real size, 2x, 4x, 8x, then fit again                |
-| N            | Next changed box                                                               |
-| B            | Outline the changed box, or stop outlining it                                  |
-| L            | In Highlight: blink the red changed pixels, or hold them on                    |
-| Space (hold) | Flash while held                                                               |
-| Shift+A      | Accept every undecided item of this project without opening it (asks first)    |
-| Escape       | Back to the grid from a story, wherever the focus is (the reason box included) |
-| Escape       | On the grid: cancel an Undo N decisions or Undo all decisions pressed once     |
+Keys work on the screen named, never while a question, Finish's sheet or the key list is open,
+and never in a text box except where listed. **Keys** (or `?`) shows this list, and can turn the
+single-letter keys off. The list opens with focus on itself, so a key pressed as it opens changes
+nothing. Turning the letters off says so in the status row, and so does every letter typed while
+they are off (the switch is remembered in this browser). On a touch screen every control is at
+least 44 px tall.
 
-No key reverses a decision. A, R and E do nothing on an item that is already decided, and say
-so; to change a decision, press U (or the Undo button) first. The same key twice never undoes.
-A held A, R, E or U decides once, and a double click on a decision button decides only the item
-it was clicked on, never the next one.
+| Key              | Action                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------- |
+| J / K            | Next / previous item of this pass; J on the last item shows what is next                      |
+| A                | Accept, once the images are shown                                                             |
+| (type), Esc, A   | Accept with a note: type it in the note box, leave the box, accept                            |
+| R                | Reject; with an empty note box, type the reason, then Enter                                   |
+| E                | Exclude; with an empty note box, type the reason, then Enter, then confirm                    |
+| U                | Undo the item's decision; you stay on the item                                                |
+| Enter (note box) | Send the Reject or Exclude waiting for its reason; otherwise just leave the box               |
+| F                | Flash between baseline and new; F again returns to side by side                               |
+| F                | In Spotlight: flash the spotlighted baseline and new, or stop flashing                        |
+| Space (hold)     | Flash while held                                                                              |
+| H                | Highlight changed pixels; H again returns to side by side                                     |
+| L                | In Highlight: blink the red changed pixels, or hold them on                                   |
+| S                | Spotlight the changes; S again returns to side by side                                        |
+| B                | Outline the changed area, or stop outlining it                                                |
+| N                | Next change                                                                                   |
+| Z                | Next zoom: Fit, 1x, 2x, 4x, 8x, then Fit again                                                |
+| Shift+A          | Grid: accept every undecided item of this project without opening it (asks first)             |
+| /                | Grid: Find story                                                                              |
+| Enter (end card) | Take the first offer: the next project, the undecided items left here, or Finish              |
+| ?                | Show or hide the key list                                                                     |
+| Escape           | Story: back to the grid; in the note box, first leaves the box (its text stays with the item) |
+
+No key reverses a decision. A, R and E on an item that is already decided say "Already accepted.
+Undo it to change it."; press U (or Undo) first. A held A, R, E or U decides once, and an A, R or
+E that comes within a quarter second of an item's images appearing is ignored and says so, so the
+second tap of a double tap never decides the next item unseen. While a decision is being saved
+the page says "Saving the last decision..." and waits for it before moving on; a save that fails
+leaves the item undecided, with its note.
+
+Text typed in the note box belongs to the item on screen: it stays with that item while you move
+away and back, and it is cleared when that item's decision is saved. Undo puts a decision's note
+back in the box, so undoing to fix a typo does not lose it. After any decision, focus
+leaves the note box, so the next A accepts instead of typing an "a".
 
 ## What each decision does
 
 - **Accept**: the new screenshot becomes the baseline (or, for `removed`, the baseline is
-  deleted). Allowed on `changed`, `moved`, `new` and `removed`. For a renamed story the baseline
-  is written under the new id and the old id's baseline is deleted, in the same commit.
+  deleted). Allowed on `changed`, `moved`, `new`, `no baseline yet` and `removed`. For a renamed
+  story the baseline is written under the new id and the old id's baseline is deleted, in the
+  same commit. A note typed with it is optional; Finish publishes it.
 - **Reject**: the difference is a regression. It always needs a reason, which is posted to the pull
   request as a comment with a machine-readable block an agent can read. The pull request stays
   blocked until its code changes so the capture matches the baseline again.
@@ -370,56 +478,206 @@ it was clicked on, never the next one.
   decision for `unstable` and `failed` items; for a one-off `failed` item (a timeout on a busy
   runner), re-run the `visual` job instead, since the newest attempt replaces the old results.
 - **Undo** (U, or a tile's Undo on the grid) clears a decision before Finish; it is the only way
-  to change one. The grid also undoes a whole component or project, after a second press.
-  Decisions are kept across server restarts. A decision applies only to the image it was taken
-  on: when a new run or a re-run attempt captures that item differently, it is undecided again
-  (the old decision stays saved, and comes back if the image does).
-- After Finish, accepts and exclusions are cleared; rejects stay, marked as already posted, and
-  still show as rejected on the next CI run while the capture is unchanged. Finish does not post
-  them twice. They live in the work directory's `state/` (the config's `workDir`), not in the
+  to change one. The grid also undoes a whole component (**Undo N**) or project (**More > Undo
+  all decisions...**), after asking. Decisions are kept across server restarts. A decision
+  applies only to the image it was taken on: when a new run or a re-run attempt captures that
+  item differently, it is undecided again (the old decision stays saved, and comes back if the
+  image does).
+- After Finish, what it published stays shown, marked as published, and Finish does not publish
+  it twice. Accepts and exclusions read "Finished" and count as decided until a new CI run
+  replaces the capture (the accepted items are then `unchanged`, the excluded ones not captured);
+  rejects still show as rejected on the next CI run while the capture is unchanged. They live in the work directory's `state/` (the config's `workDir`), not in the
   repository.
 
 ## Finish
 
-Finish applies every decision on one target at once:
+Finish applies every decision on one target, across all its projects, at once:
 
 - **A pull request:** one commit holding the accepted PNGs, the exclusion files and one review
   record in `<baselines>/reviews/`, pushed to the pull request's branch, plus one comment
-  holding every reject. CI then recaptures, and the accepted items read `unchanged`.
+  holding every reject and every accept note (the machine-readable block holds the rejects
+  only). CI then recaptures, and the accepted items read `unchanged`.
+- **Your passkey first, once one is known** (see [Approving with a passkey](#approving-with-a-passkey)):
+  the Finish sheet says "Your passkey confirms this Finish (Face ID or a security key)." and its
+  final button reads **Sign and finish #201**. Pressing it opens the Face ID (or Touch ID)
+  prompt at once; your device signs the record, and Finish commits exactly that record, as
+  version 2 with the approval in it. The comment names the committed record and its commit. A
+  rejects-only Finish commits nothing, so the comment's machine-readable block carries the
+  approved record itself. Cancelling the prompt changes nothing: the sheet comes back saying
+  "Passkey cancelled: nothing was changed." with its final button focused, so Enter tries again.
+- **Before a passkey is registered, accepts are not yet protected.** Finish commits them with an
+  unapproved (version 1) record, and both the targets screen ("No passkey registered: accepts
+  are not yet protected.") and the Finish sheet ("Not yet protected: ...") say so. Rejects never
+  wait for a passkey to be registered.
+- **Approvals from before the passkey.** Once a key is on the default branch, the gate counts
+  those version 1 records for nothing, but the images they accepted are already on the branch, so
+  the page finds nothing to decide. Finish still offers them: its button counts the files those
+  records accepted that no signed record covers, and the sheet says `Sign again N files approved
+before passkeys, and remove N unsigned review records from <branch>`. Your passkey signs a
+  version 2 record taking each of those files from the default branch's contents to the branch's,
+  and the same commit removes the pull request's own unsigned records, which the gate refuses
+  while they are there. Only files an unsigned record of this pull request accepted are signed
+  this way (images, settings files, removals and renames alike); a change nobody reviewed still
+  needs a decision.
 - **One commit status**, "Visual review", posted once when Finish completes (never per
   decision), on the commit Finish pushed, or on the captured commit when it pushed none. It
-  fails when anything was rejected, is pending while items are left undecided, and succeeds
-  otherwise; its description counts the accepts, rejects, exclusions and undecided items. It is
-  information for the pull request page, not a required check: the merge gate is the "Visual
-  gate" job. If posting it fails, the page says so; what was pushed and posted stays.
+  fails when anything was rejected, is pending while items are left undecided or a project did
+  not load, and succeeds otherwise; its description counts the accepts, rejects, exclusions and
+  undecided items. It is information for the pull request page, not a required check: the merge
+  gate is the "Visual gate" job. If posting it fails, the page says so; what was pushed and
+  posted stays, and the next Finish on that pull request posts a new status.
 - **The default branch (seeding):** a branch `visual/seed-<date>` with the same commit and a pull
-  request from it, and one issue holding every reject (labelled with the config's `issueLabels`)
-  with the same machine-readable block, for a person or an agent to fix the stories. Rejects alone, with nothing accepted, open only the issue.
+  request from it, whose description lists the accept notes, and one issue holding every reject
+  (labeled with the config's `issueLabels`) with the same machine-readable block, for a person
+  or an agent to fix the stories. Rejects alone, with nothing accepted, open only the issue.
+
+Pressing Finish opens a sheet that states exactly what will happen, from the server's own
+counts: what will be committed and where ("Commit 214 accepts and 1 exclusion to feature."),
+what will be posted ("Post 3 rejects and 2 accept notes as a comment on #201."), the status it
+will set ("Then set the commit status 'Visual review' to failure (3 rejected)."), how many were
+accepted without being opened, what is left undecided or was not loaded, every note it will
+publish, and the key that will sign. If any decision changes after the sheet opened (in another
+tab, say), Finish refuses, and the sheet comes back with the new summary. Once a passkey is
+known, the final button reads **Sign and finish #201**, and pressing it asks for your passkey
+(Face ID, Touch ID or a security key) before anything runs; the approval covers the rejects too,
+so their reasons are yours. Cancelling it says "Passkey cancelled: nothing was changed." and the
+sheet comes back with its final button focused, so Enter tries again. Before a passkey is
+registered the sheet says accepts are not yet protected, and a Finish with only rejects never
+waits for one.
 
 Finish runs on the server, not in the page. A seed of several hundred images takes minutes,
 most of it uploading the images to Git LFS, which is longer than a browser (Safari on an iPad in
-particular) keeps one request open. So pressing Finish only starts it, and the page then shows
-each step as it happens: checking, writing the files, committing, uploading images to LFS (with a
-count of the images uploaded so far), pushing, opening the pull request or posting the rejects,
-and posting the status. When it ends, the page shows what was pushed and posted, or the error.
-Closing or reloading the page does not stop it: reopen the page and it shows the running Finish
-instead of a Finish button, and after it ends the result stays above the targets until the
-server restarts. Only one Finish runs at a time, and decisions on that target are refused until
-it ends.
+particular) keeps one request open. So pressing Finish only starts it, and the targets screen
+then lists its steps, each marked done, in progress or waiting, with the count of images
+uploaded and the time spent: confirming with your passkey, checking, writing the files,
+committing, uploading images to LFS,
+pushing, opening the pull request, posting the comment (or opening the issue), and posting the
+status. When it ends, the page shows what was pushed and posted, with links, or the error, and
+offers **Next: #202 (340 undecided)** and **Back to #201**. Closing or reloading the page does
+not stop it: reopen the page and it shows the running Finish instead of a Finish button. Only
+one Finish runs at a time, and decisions on that target are refused until it ends.
 
 The commit is signed by whatever git configuration the server process sees: yours when you
 started it, someone else's when they (or an agent working for you) started it. The top of the
-targets screen and Finish's confirmation name the key that will sign, where git found it and the
+targets screen and Finish's sheet name the key that will sign, where git found it and the
 committer, and print the exact command that starts the same server from your own shell. If
-Finish fails, your decisions are kept and the page shows git's or GitHub's message:
+Finish fails, your decisions not yet published are kept and the page shows git's or GitHub's
+message:
 
 - **capture is stale, wait for CI**: someone pushed to the branch after the capture. Wait for the
   new CI run, then decide again what still differs.
-- **merge master first**: see the badge above.
+- **merge master first**: the capture is older than the default branch's baselines. The message
+  names the fix, and the result offers **Update from master**
+  ([Updating from the default branch](#updating-from-the-default-branch)).
 - **failed to write commit object** or a signing error: unlock or plug in the signing key, then
   Finish again.
-- **the accepts were pushed ..., but the reject comment failed**: the accepts are done and cleared;
-  press Finish again to post the rejects.
+- **the accepts were pushed ..., but the comment with the rejects failed**: the accepts are done
+  and finished; press Finish again to post the rejects. Accept notes that were in that comment are
+  not posted again: the message names each one, so you can post them by hand. On a seed it reads
+  "the accepts were pushed as ... and opened the seed pull request, but the issue with the
+  rejects failed"; the accept notes are already in that pull request's description.
+- **The comment with the accept notes was not posted**: the accepts are done; the message names
+  the notes, which are not kept.
+
+## Approving with a passkey
+
+A passkey (Face ID or Touch ID, kept in iCloud Keychain or another passkey manager) proves that
+an accept came from your own device, for exactly the record Finish commits. Once your passkey is
+in `visual-review/passkeys.json` on the default branch, the gate refuses every review record a
+pull request adds unless it carries such an approval. Until then the gate enforces nothing.
+
+### Registering the passkey
+
+Do this once, yourself, never through an agent.
+
+1. Start the page from your own shell on the host the passkey is for, over HTTPS, for example
+   `https://dev.example.com:9443`. The passkey belongs to that host name (its "rpId"), so serve
+   the page from the same host every time; the port may change.
+2. On the targets screen press **Register passkey**, then **Create the passkey**, and confirm on
+   your device. The key is named by the kind of device that made it and the day ("iPad passkey,
+   2026-10-01", or "security key, 2026-10-01"), so every device shows which key is which.
+3. The server opens a pull request adding the key to `visual-review/passkeys.json`, and the page
+   names the new key's credential id and that pull request. Check that the pull request names the
+   same id, then merge it. From that merge on, approvals are enforced.
+
+The first key is trusted because you merged it: the server cannot check that a passkey was made
+on a real device (Apple's passkeys give no attestation), so a key added by anything else that
+can reach the page would look the same. Merge a key's pull request only right after you pressed
+Register yourself and only when the ids match. Until the first key is merged, the server that
+registered it already asks for it at Finish. Once the default branch holds a key, the server
+trusts only the default branch's keys, never one registered since.
+
+Until it merges, the targets screen reads "Passkey waiting for #650 to merge: Finish asks for it
+already, but the CI gate checks approvals only once it is merged." Afterwards it reads "Finish is
+approved with your passkey (`<name>`), and the CI gate refuses accepts without it." and offers
+**Register another device**. Before any passkey is registered it reads "No passkey registered:
+accepts are not yet protected.", and Finish commits accepts unapproved, as before passkeys.
+
+### Finishing with Face ID
+
+Finish asks for your passkey as soon as the server knows of a key. The record is built on the
+server first, its SHA-256 is the challenge your device signs, and Finish refuses to commit a
+record that differs from the one you approved ("the record changed after you approved it; press
+Finish again"). Immediately before committing, Finish checks the approval with the gate's own
+code. On a Mac, Touch ID or your login password takes Face ID's place.
+
+### What the gate checks
+
+For each review record a pull request adds, with `node:crypto` alone:
+
+- it is version 2, names this pull request (or none, for a seed), and is not a copy of a record
+  already on the base branch;
+- its approval is by a key in `visual-review/passkeys.json` as the base branch has it, over the
+  SHA-256 of exactly this record, made on an HTTPS page whose host is exactly the key's host,
+  with user verification (Face ID, Touch ID or the device's passcode).
+
+A record that fails counts for nothing. Then every changed baseline PNG, every added or changed
+settings file and any change to `visual-review/passkeys.json` must be accounted for: the records'
+items, oldest first, must take the file from its contents on the base branch to its contents in
+the pull request. A record approved for other contents (an old seed, or a decision you replaced
+later in the same pull request) therefore moves nothing. Records already on the base branch are
+never checked again, so baselines accepted before the passkey are kept as they are.
+
+### Replacing the passkey
+
+An iCloud Keychain passkey is on every device signed in to your Apple account, so a lost device
+loses nothing. Once the default branch holds a key, the gate fails any pull request that changes
+`visual-review/passkeys.json`, so no pull request can swap in another key. To add or replace one
+anyway (another passkey manager, another host, a lost Apple account), register it on the page;
+the pull request it opens says the gate fails it. Check the credential id, and merge it as an
+administrator past the failing check. Removing every key is refused the same way.
+
+`visual-review/passkeys.json` sits at that path in every repository that uses this tool. It
+holds public keys only: `{ "version": 1, "keys": [{ "id", "publicKey", "rpId", "label",
+"registeredAt" }] }`, with the public key as base64url SubjectPublicKeyInfo (P-256).
+
+## Updating from the default branch
+
+A capture compares a pull request's stories with the baselines on its own branch. When the
+default branch accepts newer baselines for the same project afterwards (another pull request's
+Finish merged), the capture is out of date, and Finish refuses it: committing decisions made
+against old baselines could overwrite the newer ones. A pull request whose branch and the default
+branch changed the same baseline PNGs cannot merge at all. Both are fixed the same way, from the
+page or a terminal:
+
+- **On the page:** **Update from master** on the targets screen (beside "merge master first"), at
+  the top of the project's grid, or in a Finish that refused. It asks first, then runs on the
+  server like Finish, with its steps in the box.
+- **In a terminal:** `npx visual-review update <pull request number>`.
+
+Either way it fetches the default branch and the pull request's branch, merges the default
+branch into the branch with a merge commit (never a rebase, so an accept commit stays as it was
+made), and for every conflicting file under the baselines directory takes the default branch's
+side. The commit names those files, and is signed as your git configuration signs. It pushes to
+the branch, and CI captures again. A conflict anywhere else refuses: it lists the files, and
+nothing is committed or pushed; merge that by hand.
+
+It accepts nothing and writes no review record. The default branch's baselines are already
+approved, and a file that ends up as it is on the default branch is no change for the gate, which
+compares the pull request with its base. Whatever the pull request's capture still shows
+differently from them comes back as `changed`, for you to review. Your decisions carry over: one
+whose story's capture and baseline are both unchanged in the new capture applies again, and only
+the stories that now differ come back undecided.
 
 ## Seeding: one story at a time
 
@@ -428,7 +686,7 @@ Seeding is per story:
 
 1. The review workflow captures every story on every push to the default branch. Start the
    server with `--master-run <run id>` (that workflow's newest run on the default branch) and open
-   "master (seed)". Every story without a baseline is `new` there.
+   `<branch> seed` (for example "main seed"). Every story without a baseline is `new` there.
 2. **Accept** the stories that look right. **Reject** the ones that do not, with a reason saying
    what is wrong. **Leave the rest** undecided; they simply stay without a baseline. Exclude only
    stories that are unstable. Press Finish: the accepts become the seed pull request, and the
@@ -437,7 +695,7 @@ Seeding is per story:
 
 To seed from an older, known-good commit instead of the newest, capture it with the default
 branch's tool: `gh workflow run visual-seed.yml --ref <default branch> -f ref=<sha>`, then start
-the server with `--master-run <that run's id>`. It is listed as "master (seed)"; its results.json
+the server with `--master-run <that run's id>`. It is listed as `<branch> seed` (for example "main seed"); its results.json
 names the captured commit, so Finish's seed branch starts from that commit.
 
 A story with no baseline on the default branch is in the "no baseline yet" state. On every pull
@@ -509,8 +767,8 @@ the pull request.
   commits, and pushes to the pull request's branch. CI then runs again on that branch.
 - **Nothing restarts from scratch.** Every push captures again and compares with the baselines
   the branch holds now, so after an accept the accepted items read `unchanged` and only what is
-  still undecided shows. Decisions you made but did not Finish are kept for every image whose
-  hash did not change.
+  still undecided shows. Decisions you made but did not Finish are kept for every item whose
+  capture and baseline both have the same hash as when you decided it.
 
 ## Story parameters
 
@@ -520,14 +778,16 @@ written for Chromatic work unchanged:
 | Parameter                       | Effect                                                                                                                     |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `disableSnapshot: true`         | The story is not captured (a baseline it still has is reported `removed`)                                                  |
-| `diffThreshold`                 | pixelmatch's per-pixel colour threshold, 0 to 1 (default 0.063)                                                            |
+| `diffThreshold`                 | pixelmatch's per-pixel color threshold, 0 to 1 (default 0.063); the gate fails a story above 0.8                           |
 | `diffIncludeAntiAliasing: true` | Count anti-aliased pixels as changes                                                                                       |
 | `delay`                         | Milliseconds to wait after the render before the screenshot                                                                |
 | `modes`                         | `{ "<name>": { <Storybook globals> } }`: one capture per mode, named `<story id>.<name>.png`; `disable: true` drops a mode |
 
 Inside a story, `isChromatic()` from `chromatic/isChromatic` is true during capture (the URL carries
 `chromatic=true`). A settings file `<baselines>/<project>/<story id>.json` overrides the story's
-parameters; the page's Exclude writes one with `disableSnapshot: true` and your reason.
+parameters; the page's Exclude writes one with `disableSnapshot: true` and your reason. A
+pull request that adds or changes a settings file needs a review record for it, like a baseline,
+so set the other keys in the story's parameters, where code review sees them.
 
 ## Reorganizing stories: renames
 
@@ -577,26 +837,57 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - A story with no baseline always blocks. `new` and `no baseline yet` only tell the reviewer
   whether the pull request changed it, measured against the default branch's newest complete
   capture, which may be a few merges older than the pull request's base.
-- Every baseline PNG, and every settings file that excludes a story, that the pull request adds,
-  changes or deletes must be named with its new hash in a review record the pull request adds
-  under `<baselines>/reviews/`. A baseline PNG is a Git LFS pointer in git, and the gate reads the
-  image's hash from the pointer, so it never downloads an image. Existing records may not be
-  edited or deleted. This stops the shortcut of copying captured PNGs, or an exclusion, straight
-  into the baselines directory.
-- **It does not prove a person reviewed anything.** A record is a plain JSON file: anyone who can
-  push to the branch can write one that names copied PNGs, and the gate cannot tell it from one
-  Finish wrote. Records are marked `"unproven": true` for that reason. What the gate shows is that
-  the captures match the pull request's baselines and that each baseline change carries a record.
+- Every baseline PNG the pull request adds, changes or deletes, and every settings file it adds
+  or changes, must be taken from its contents on the base branch to its new contents by the
+  review records the pull request adds under `<baselines>/reviews/` (each item names a path, its
+  `from` hash and its `to` hash). A baseline PNG is a Git LFS pointer in git, and the gate reads
+  the image's hash from the pointer, so it never downloads an image. Existing records may not be
+  edited or deleted. This stops the shortcut of copying captured PNGs, or a settings file that
+  excludes a story or loosens its comparison, straight into the baselines directory. Deleting a
+  settings file and editing `renames.json` need no record: the captures they cause are reviewed.
+- A story compared at a `diffThreshold` above 0.8 fails the gate (at 1 nothing ever reads as
+  changed), and so does a pull request that moves the baselines directory in its config.
+- **Before a passkey is registered, it does not prove a person reviewed anything.** A record is a
+  plain JSON file: anyone who can push to the branch can write one that names copied PNGs, and
+  the gate cannot tell it from one Finish wrote. Such records are marked `"unproven": true`.
+- **Once `visual-review/passkeys.json` on the base branch holds a key**, every record the pull
+  request adds must be version 2, name this pull request (or none, for a seed), and carry a
+  passkey approval over exactly that record by one of the base branch's keys, made on an HTTPS
+  page on the key's host, with user verification (Face ID, Touch ID or a PIN). A record that
+  fails, an old-format record, or one copied from another pull request counts for nothing, so
+  the baselines it names are reported as unreviewed. Keys are read only from the base branch,
+  never from the pull request, and a pull request that would leave no key fails.
+- **It does not prove you looked at every image.** It proves your device approved the record,
+  which lists every accepted and rejected image by hash. A page altered on your machine could ask
+  you to approve something other than what it shows; read the counts in Finish's question.
+- **An approved seed that was never merged can be applied by another pull request.** A seed's
+  record names no pull request. Copying one already on the base branch fails, and so does one
+  whose `from` hashes are no longer the base branch's; but a seed you approved and then abandoned
+  without merging still matches, and would apply exactly the images you approved for it. Delete a
+  seed branch you do not want, and close its pull request.
 - **Only the repository owner should approve.** The page runs on a development machine, where
   anything running as you (an AI coding agent included) has your GitHub login and signing key and
-  could press Accept or call the page's API. Nothing technical prevents that today; tell your
-  agents not to, and keep the review to yourself.
+  could press Accept or call the page's API. Before a passkey is registered nothing technical
+  prevents that; afterwards an agent can still decide, but cannot produce the approval Face ID
+  gives. Tell your agents not to register passkeys or use the page.
 - The projects the gate checks are every project in the base branch's config and in the pull
   request's config, seeded or not, plus every project with baselines on the base branch. So
   removing a project from the config does not remove it from the gate.
-- The gate is part of a workflow file, which a pull request can edit, and a pull request can
-  loosen a story's own `diffThreshold` or `delay`, or a settings file's non-excluding keys,
-  without a review item. Read changes to those in code review.
+- In this repository's CI, the gate and the capture run as the base branch has them, never the
+  pull request's copy, so a pull request cannot loosen the code that judges it; a change to
+  either is first exercised by the pull request after it. The `npx` gate of the workflow `init`
+  writes runs a pinned published version, to the same end.
+- **The workflow file itself can be edited by the pull request**, which could drop the gate
+  step. Closing that needs a check the pull request cannot edit (a ruleset-required workflow).
+  The gate prints a warning when a pull request changes `visual-review/passkeys.json`, the tool's
+  trusted code or capture, or the workflow that runs it; read those changes in code review.
+- A pull request can still loosen a story's own `diffThreshold` (up to 0.8) or `delay` in the
+  story's source, and a story's code runs in the capture browser, so it could draw anything.
+  Read story changes in code review.
+- **Every page on the passkey's host can ask for it.** The rpId is a host name, and every server
+  on that host (another dev server, a Storybook on another port) can call the passkey prompt with
+  a challenge of its choosing; the prompt names only the host. Approve only from the review page,
+  right after pressing Finish. A host that serves nothing but the review page closes this.
 
 ## Troubleshooting
 
@@ -635,17 +926,48 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - **Finish says "capture is stale, wait for CI".** Someone pushed to the branch after the capture.
   Wait for the new run, then decide again what still differs.
 - **"merge master first".** The default branch has newer baselines for that project than the
-  pull request. Merge the default branch into the branch (by merge, never by rebase, so an accept
-  commit stays as it was made) and wait for CI.
+  pull request. Press **Update from master**, or run `visual-review update <pr>`, and wait for CI
+  ([Updating from the default branch](#updating-from-the-default-branch)).
 - **Finish fails with "failed to write commit object"** or another signing error: unlock or plug
   in your signing key, then press Finish again. Your decisions are kept.
-- **"the accepts were pushed ..., but the reject comment failed".** The accepts are done; press
-  Finish again to post the rejects.
+- **"the accepts were pushed ..., but the comment with the rejects failed".** The accepts are
+  done; press Finish again to post the rejects. Accept notes it held are named in the message and
+  not posted again.
+- **"Passkey failed (This is an invalid domain.)"** or similar: the page is served from an IP
+  address or plain http. Serve it over https from a host name.
+- **"the record changed after you approved it; press Finish again".** The decisions, the capture
+  or the default branch changed between your Face ID and the commit. Press Finish again and
+  approve the new record. **"the approval is stale"** means the same, from another tab or after
+  ten minutes.
+- **"no passkey is registered for `<host>`".** Passkeys belong to the host name the page is served
+  from. Serve the page from the host your passkey is for, or register one for this host.
+- **"Not approved (the passkey prompt was cancelled or refused): nothing was changed".** Press
+  Finish again.
+- **The gate says "changed with no review record taking it from its base branch contents to
+  these".** Either nothing approved the change, or the default branch changed the same file
+  after your Finish, so the record starts from contents the base no longer has. Merge the default
+  branch into the pull request, let CI capture again, and review the file again.
+- **The gate says a record is "a copy of a record already on the base branch".** An approval
+  counts once. Remove the copied record and its files, and review the change on this pull
+  request.
+- **The gate says a story is compared at a diffThreshold above 0.8.** Lower it in the story's
+  parameters or its settings file.
+- **The gate fails a change to `visual-review/passkeys.json`.** See [Replacing the
+  passkey](#replacing-the-passkey).
+- **The gate says "approval is from a key not in passkeys.json on the base branch".** The record
+  was approved with a key that the base branch does not hold yet: merge the pull request that
+  registers it first, then review again.
+- **The gate says a record has no passkey approval** on a pull request Finished before your
+  passkey was registered. Revert its accept commit (which takes the record and the baselines out
+  of the diff), let CI capture again, and review it again with Face ID. Never edit a record by
+  hand: the gate only accepts what your device approved.
 - **Opening the seed issue fails.** Every label in `issueLabels` must exist in the repository.
 - **The pnpm setup step fails in CI.** `pnpm/action-setup` reads the pnpm version from the
   `packageManager` field of your root `package.json`; add one.
-- **A merge conflict under the baselines directory.** Take the default branch's side for every
-  file there and let CI capture again; review what still differs.
+- **A merge conflict under the baselines directory.** Run `visual-review update <pr>` (or press
+  **Update from master**): it takes the default branch's side for every conflicting file there,
+  pushes, and CI captures again; review what still differs. It refuses, changing nothing, when
+  anything outside the baselines directory conflicts too.
 - **Captures differ from what you see locally.** Only CI's captures are compared: fonts and the
   graphics stack differ from machine to machine. Look locally with `capture --stories` and
   `serve --results`, but let CI's capture become the baseline.

@@ -25,7 +25,20 @@ import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect
 import { type GraphImporter } from "./types.js";
 
 /** The format names of the eight built-in importers and exporters. */
-export type GraphFormatName = "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j";
+export type GraphFormatName =
+    | "gexf"
+    | "graphml"
+    | "gml"
+    | "dot"
+    | "pajek"
+    | "csv"
+    | "json"
+    | "neo4j"
+    | "xgmml"
+    | "cx2"
+    | "cx"
+    | "obo"
+    | "cys";
 
 /**
  * The built-in format names in the default registry's order, which is also the tie-break order of
@@ -41,6 +54,11 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "dot",
     "pajek",
     "neo4j",
+    "xgmml",
+    "cx2",
+    "cx",
+    "obo",
+    "cys",
 ]);
 
 /** How many bytes of the input the sniffers look at; the registry reads no more than this before deciding. */
@@ -195,7 +213,15 @@ export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDiale
 }
 
 /** Where a key was seen while scanning a truncated head. */
-type KeyPath = "" | "graph" | "options" | "nodes[0]" | "edges[0]" | "links[0]";
+type KeyPath =
+    | ""
+    | "graph"
+    | "options"
+    | "nodes[0]"
+    | "edges[0]"
+    | "links[0]"
+    | "graphs[0].nodes[]"
+    | "graphs[0].edges[]";
 
 /**
  * A partial document rebuilt from the keys a truncated head reveals: every key gets a placeholder
@@ -223,9 +249,20 @@ function skeletonOf(text: string): unknown {
             case "options":
                 root[key] = objectOf(keys.get(key));
                 break;
-            case "graphs":
-                root[key] = [];
+            case "graphs": {
+                // the keys of any node or edge of the first graph: OBO Graphs or JGF (design 1.6)
+                const nodes = keys.get("graphs[0].nodes[]");
+                const edges = keys.get("graphs[0].edges[]");
+                const graph: Record<string, unknown> = {};
+                if (nodes !== undefined) {
+                    graph.nodes = [objectOf(nodes)];
+                }
+                if (edges !== undefined) {
+                    graph.edges = [objectOf(edges)];
+                }
+                root[key] = nodes === undefined && edges === undefined ? [] : [graph];
                 break;
+            }
             case "nodes":
             case "edges":
             case "links": {
@@ -262,7 +299,8 @@ function objectOf(names: ReadonlySet<string> | undefined): Record<string, unknow
  * scanner tracks a container stack (the key each object sits under, the index of each array
  * element) and records a key when it is at one of the watched paths; a head cut inside a string
  * or a number simply ends the scan. For a top-level array the first element's keys are recorded
- * under `nodes[0]`.
+ * under `nodes[0]`; the keys of every node and edge of `graphs[0]` under `graphs[0].nodes[]` and
+ * `graphs[0].edges[]`.
  * @param text - the head, starting with `{` or `[`
  * @returns key sets by path
  */
@@ -284,6 +322,15 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
         }
         if (depth === 2 && kinds[0] === "object" && kinds[1] === "object") {
             return labels[1] === "graph" || labels[1] === "options" ? labels[1] : null;
+        }
+        if (
+            depth === 5 &&
+            kinds.join() === "object,array,object,array,object" &&
+            labels[1] === "graphs" &&
+            labels[2] === "0" &&
+            (labels[3] === "nodes" || labels[3] === "edges")
+        ) {
+            return labels[3] === "nodes" ? "graphs[0].nodes[]" : "graphs[0].edges[]";
         }
         if (depth === 3 && kinds[0] === "object" && kinds[1] === "array" && kinds[2] === "object") {
             const section = labels[1];

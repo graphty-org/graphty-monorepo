@@ -8,7 +8,7 @@
  * `changed` after it IS `hasNegativeCycle`; the last batch is clamped so the reported round count never exceeds
  * `n - 1`. `dist` holds f32 bit patterns and the claim is a BOUNDED compare-exchange (PD-12: `MAX_RETRIES`, because
  * with a negative distance the bit-pattern order reverses and `atomicMin` is wrong, and WGSL lets the exchange fail
- * spuriously): a lane that exhausts the bound raises `retryExhausted`, which the driver treats as changed and runs
+ * spuriously; only those spurious failures count, never a loss to another lane's improvement, issue #470): a lane that exhausts the bound raises `retryExhausted`, which the driver treats as changed and runs
  * on -- the lost update is retried by the next round, which examines every edge anyway -- and tallies for the tests;
  * raised in the decision round it is E_VALIDATION, never a guess.
  *
@@ -74,7 +74,7 @@ const ALGORITHM = "bellmanFord";
 /** Design 8.4: the changed flag is read every 8 rounds (one `mapAsync` per batch). */
 const ROUNDS_PER_BATCH = 8;
 
-/** PD-12: the compare-exchange retry bound per lane (contention is per vertex, not global); `components.ts`'s `MAX_STEPS` idiom. */
+/** PD-12: the bound on one lane's SPURIOUS compare-exchange failures (a loss to another lane is not counted, issue #470). */
 const MAX_RETRIES = 16;
 
 /**
@@ -89,7 +89,7 @@ const RING_SLOTS = MAX_LEVELS_PER_SUBMIT + 16;
  * @internal
  */
 export interface BellmanFordTuning {
-    /** The compare-exchange retry bound per lane (default `MAX_RETRIES`); 1 makes every failed exchange exhaust it. */
+    /** The compare-exchange retry bound per lane (default `MAX_RETRIES`), on spurious failures only; 1 makes the first one exhaust it. */
     readonly maxRetries?: number | undefined;
     /** Rounds recorded per batch (default `ROUNDS_PER_BATCH`), each batch one readback of the flags. */
     readonly roundsPerBatch?: number | undefined;

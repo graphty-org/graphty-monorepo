@@ -1,19 +1,34 @@
-import { defineRegistration, stubCommands } from "../commands/registry";
+import { defineRegistration } from "../commands/registry";
+import { chooseAndOpenFile } from "./open";
 
 /**
- * The Start screen package's commands. Stubs until that package builds them: each holds its id, label
- * and keys, and nothing draws it.
+ * The Start screen package's commands: Open project or file... and New from data..., the two ways
+ * in on the start screen, also on the File list.
  */
 export const registration = defineRegistration({
     owner: "start",
-    commands: stubCommands([
+    commands: [
         {
             id: "file.open",
             label: "Open project or file...",
             group: "Project",
             keys: ["Mod+O"],
             description: "A data, recipe or style file is added to this project; a project file opens in its place.",
+            run: chooseAndOpenFile,
         },
-        { id: "data.new", label: "New from data...", group: "Data" },
-    ]),
+        {
+            id: "data.new",
+            label: "New from data...",
+            group: "Data",
+            run: ({ workspace }) => {
+                workspace.set((state) => ({
+                    project: { name: "Untitled", id: (state.project?.id ?? 0) + 1 },
+                    page: "data-page",
+                    place: "graph",
+                    inspected: null,
+                    dialog: null,
+                }));
+            },
+        },
+    ],
 });

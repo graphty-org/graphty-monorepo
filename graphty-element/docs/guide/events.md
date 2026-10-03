@@ -223,6 +223,22 @@ element.addEventListener("graphty-progress-change", (e) => {
 On the session the same report is `progress:changed`, which a session with no view publishes
 too. See [Columns, Runs and Progress](./vocabulary#progress).
 
+### graphty-label-change
+
+How many node labels the element draws, and why the rest are not, changed. The detail is
+`{ labeled, nodeHidden, hiddenByOverlap }` (the exported type `NodeLabelCounts`), the same as
+`element.nodeLabelCounts`. It fires once
+the view has stopped changing, never during a camera gesture or while a layout is moving nodes.
+
+```javascript
+element.addEventListener("graphty-label-change", (e) => {
+    const { labeled, hiddenByOverlap } = e.detail;
+    status.textContent = `${labeled} labels, ${hiddenByOverlap} hidden`;
+});
+```
+
+See [Labels](./labels).
+
 ### graphty-history-change
 
 The undo history changed: a step was recorded, merged, undone or redone, or pending work started

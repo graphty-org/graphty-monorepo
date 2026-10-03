@@ -799,6 +799,27 @@ breaking changes into as few majors as possible.
   the breaking changes it groups, and names any known breaking change it deliberately leaves for
   a later major, with the reason.
 
+### Public API review
+
+graphty-element's public API is committed as a report: `graphty-element/api/<entry>.api.md`, one
+per typed entry point in its package.json `"exports"` (`index` for `.`), written by
+@microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
+change as a diff of those files, and two CI checks hold it until the owner has read that diff:
+
+- **"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when
+  the built API differs from the committed report: "public API changed: run npm run api:report and
+  get the owner's approval". Build, then run `npm run api:report` in graphty-element and commit the
+  report with the change.
+- **"Public API approval"** (a job needed by `All Checks Pass`) fails a pull request that changes a
+  committed `*/api/*.api.md` until it carries the `api-approved` label. It reads the labels when it
+  runs, and CI re-runs when a label is added or removed.
+
+**Only the owner applies `api-approved`.** Agents never apply or remove it, the same as Accept in
+the visual review. An agent whose pull request changes the report says so in the pull request
+description (which entry points, what was added, changed or removed, and whether it is breaking)
+and asks the owner to review it. The label is a convention, not a lock: agents and the owner share
+one GitHub account, so nothing but this rule stops an agent from adding it.
+
 ### Module System
 
 - ES modules are the default format

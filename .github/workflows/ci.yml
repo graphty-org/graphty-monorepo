@@ -194,6 +194,9 @@ jobs:
             - name: Build Storybook (layout)
               run: pnpm exec nx run layout:build-storybook
 
+            - name: Build Storybook (cytoscape-extensions)
+              run: pnpm exec nx run cytoscape-extensions:build-storybook
+
             # Build unified documentation on every run, so a pull request that breaks the docs
             # (a dead link included: VitePress fails the build on one) fails here rather than on
             # master. The docs and both gh-pages builds are uploaded on every run because the
@@ -331,6 +334,13 @@ jobs:
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (cytoscape-extensions)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
@@ -927,6 +937,8 @@ jobs:
                       artifact: build-storybook-algorithms
                     - project: graphty
                       artifact: build-storybook-app
+                    - project: cytoscape-extensions
+                      artifact: build-storybook-cytoscape-extensions
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's. The objects

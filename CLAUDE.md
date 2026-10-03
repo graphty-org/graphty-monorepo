@@ -359,7 +359,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 **cytoscape-extensions:**
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
-- Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance, every layout and algorithm family on a seeded graph-samples network (100 to 50,000 nodes), backend auto, CPU or GPU, with the backend that ran, why, and the time on screen. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
+- Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance. The Demo stories run any layout, algorithm, generator, bundled dataset or file format on a seeded graph-samples network (100 to 50,000 nodes), backend auto, CPU or GPU, with the backend that ran, why, and the time on screen. The Gallery stories run every one of them at once on small seeded graphs, one tile each; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
+- Visual review captures every story (project `cytoscape-extensions`; it waits on each story root's `whenDone()` and fails a story whose console says "graphty demo failed"). Captures hide run times. The capture browser has no WebGPU (visual-review removes `navigator.gpu`), so in CI every story runs the CPU path and shows "this runtime has no WebGPU" as the reason, and the GPU-only spring-electrical tile shows that it did not run and why. The GPU path is covered by the package's GPU tests, not by images
 
 **webgpu-graph-algorithms:**
 - `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
@@ -645,7 +646,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### Visual review
 
 CI screenshots every story of every package with a Storybook (compact-mantine, graphty-element,
-layout, algorithms and the graphty app); the owner compares them with
+layout, algorithms, the graphty app and cytoscape-extensions); the owner compares them with
 the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
 machine. The tool is the publishable package `@graphty/visual-review` (`visual-review/`, design in
 `design/visual-testing/design.md`); this repository is one consumer of it, configured by

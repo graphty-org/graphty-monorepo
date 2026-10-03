@@ -164,12 +164,13 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
     const sources: number[] = [];
     const targets: number[] = [];
     const scores: number[] = [];
-    // Each unordered pair is scored once as (u, v), u < v; without `directed` the reverse pair is
-    // listed too with the same score. Existence is tested on the arc u -> v only.
-    const mirror = o.directed !== true;
+    // Each pair is listed once. The score is symmetric unless `directed` is set on a directed snapshot, so then
+    // every ordered pair (u, v) is scored, and otherwise every unordered pair once, as (u, v) with u < v. Existence
+    // is tested on the arc u -> v.
+    const ordered = o.directed === true && s.directed;
     for (let u = 0; u < s.nodeCount; u++) {
-        for (let v = u + 1; v < s.nodeCount; v++) {
-            if (o.includeExisting !== true && s.hasArc(u, v)) {
+        for (let v = ordered ? 0 : u + 1; v < s.nodeCount; v++) {
+            if (v === u || (o.includeExisting !== true && s.hasArc(u, v))) {
                 continue;
             }
             const x = score(u, v);
@@ -177,11 +178,6 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
                 sources.push(u);
                 targets.push(v);
                 scores.push(x);
-                if (mirror) {
-                    sources.push(v);
-                    targets.push(u);
-                    scores.push(x);
-                }
             }
         }
     }
@@ -253,7 +249,9 @@ function rankingMetrics(edges: F64, nonEdges: F64): LinkPredictionMetrics {
 }
 
 /**
- * Common-neighbour scores of every pair not already joined, ranked.
+ * Common-neighbour scores of every pair not already joined, ranked. Each pair is listed once: an unordered pair as
+ * (u, v) with u < v, or under `directed: true` on a directed snapshot every ordered pair, since there the score of
+ * (u, v) and (v, u) differ.
  * @param s - The snapshot
  * @param o - Options
  * @returns The pairs with a positive score, highest first
@@ -320,7 +318,8 @@ export function adamicAdarScore(s: GraphSnapshot, u: number, v: number, o: Commo
 }
 
 /**
- * Adamic-Adar scores of every pair not already joined, ranked.
+ * Adamic-Adar scores of every pair not already joined, ranked, each pair once as in
+ * {@link commonNeighborsPrediction}.
  * @param s - The snapshot
  * @param o - Options
  * @returns The pairs with a positive score, highest first

@@ -3,6 +3,7 @@ import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from 
 import { PathWalkError } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
+import type { WeightedOptions } from "./weights.js";
 
 /**
  * Single-source shortest paths, index-based (graph-format design 14.2 Port 2, line 3860).
@@ -30,7 +31,7 @@ export interface SsspResult {
 }
 
 /** Options of the index-based SSSP. @public */
-export interface SsspOptions {
+export interface SsspOptions extends WeightedOptions {
     /** Stop relaxing beyond this distance. */
     readonly cutoff?: number | undefined;
     /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
@@ -123,7 +124,7 @@ export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, ta
  */
 export function dijkstra(g: AdjacencyView, source: number, options: SsspOptions = {}): SsspResult {
     const { nodeCount, rowPtr, colIdx } = g;
-    const weights: NumericVector | null = options.weights ?? g.weights;
+    const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? g.weights);
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);

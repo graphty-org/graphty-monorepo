@@ -15,6 +15,7 @@
 import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
 import { type CommonNeighborsOptions, sortedRowMerge } from "./common-neighbors.js";
+import { refuseWeights } from "./weights.js";
 
 /** Options of the link prediction functions. @public */
 export interface LinkPredictionOptions extends CommonNeighborsOptions {
@@ -122,6 +123,7 @@ function adamicAdarWeightOf(s: GraphSnapshot, directed: boolean): (z: number) =>
  * @returns The score of (u, v); 0 when either is absent
  */
 function scorer(s: GraphSnapshot, o: CommonNeighborsOptions, weight?: (z: number) => number): PairScore {
+    refuseWeights("link prediction", o);
     const bwd = o.directed === true ? s.reverse() : s;
     const n = s.nodeCount;
     return (u, v) => (u < n && v < n ? sortedRowMerge(s, bwd, u, v, weight) : 0);

@@ -120,7 +120,8 @@ describe("indexed.eigenvectorCentrality", () => {
             const s = checksummedSnapshot(graph);
             for (const mode of modes) {
                 for (const normalized of [true, false]) {
-                    const options = { mode, normalized, maxIterations: 2000 };
+                    // the legacy function ignored weights
+                    const options = { mode, normalized, maxIterations: 2000, weighted: false };
                     let legacy: Record<string, number> | ConvergenceError;
                     try {
                         legacy = legacyResult() as CentralityResult;

@@ -85,12 +85,13 @@ describe("accelerated(acc)", () => {
         const sssp: SsspResultLike = { dist: Float32Array.of(9, 9, 0), predArc: Uint32Array.of(1, 1, 1) };
         const mst: MstResultLike = { edges: Uint32Array.of(0), totalWeight: 42 };
         const personalization = Float64Array.of(1, 0, 0);
-        // PageRank members receive only the options they take, with `weighted` resolved to the port's default.
+        // PageRank members receive only the options they take, with `weighted` resolved as the port resolves it:
+        // the fixture has a weight column (every weight 1), so it is read.
         const pageRankSent = {
             dampingFactor: undefined,
             maxIterations: undefined,
             tolerance: undefined,
-            weighted: false,
+            weighted: true,
         };
 
         interface Row {
@@ -680,12 +681,17 @@ describe("accelerated(acc)", () => {
             expect(await dispatcher.edgeBetweennessCentrality(s, { k: 2 })).toBe(edgeScores);
             expect(await dispatcher.edgeBetweennessCentrality(s)).toBe(edgeScores);
             expect(calls).toEqual([
-                ["betweennessCentrality", s, { normalized: true, sources: [0, 3] }],
+                // weighted: false, since only a call that counts hops is handed over
+                ["betweennessCentrality", s, { normalized: true, sources: [0, 3], weighted: false }],
                 // an exact call names every node, so an accelerator's own sampling default cannot apply
-                ["betweennessCentrality", s, { normalized: undefined, sources: [0, 1, 2, 3, 4, 5] }],
+                ["betweennessCentrality", s, { normalized: undefined, sources: [0, 1, 2, 3, 4, 5], weighted: false }],
                 // k is drawn here, as indexed.edgeBetweennessCentrality draws it
-                ["edgeBetweennessCentrality", s, { normalized: undefined, sources: [2, 1] }],
-                ["edgeBetweennessCentrality", s, { normalized: undefined, sources: [0, 1, 2, 3, 4, 5] }],
+                ["edgeBetweennessCentrality", s, { normalized: undefined, sources: [2, 1], weighted: false }],
+                [
+                    "edgeBetweennessCentrality",
+                    s,
+                    { normalized: undefined, sources: [0, 1, 2, 3, 4, 5], weighted: false },
+                ],
             ]);
         });
 
@@ -693,11 +699,12 @@ describe("accelerated(acc)", () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
+            // the snapshot has a weight column (every weight 1), so the default reads it
             expect(await dispatcher.closenessCentrality(s)).toBe(closeness);
-            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { weighted: false })).toBe(closeness);
             expect(calls).toEqual([
-                ["closenessCentrality", s, { weighted: false }],
                 ["closenessCentrality", s, { weighted: true }],
+                ["closenessCentrality", s, { weighted: false }],
             ]);
         });
 
@@ -705,8 +712,8 @@ describe("accelerated(acc)", () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
-            expect(await dispatcher.closenessCentrality(s, { sources: [0, 3, 3] })).toBe(closeness);
-            expect(await dispatcher.closenessCentrality(s, { k: 2, weighted: true })).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { sources: [0, 3, 3], weighted: false })).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { k: 2 })).toBe(closeness);
             expect(calls).toEqual([
                 ["closenessCentrality", s, { weighted: false, sources: [0, 3, 3] }],
                 // k is drawn here, the same draw indexed.closenessCentrality and betweenness make
@@ -885,7 +892,7 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
         expect(calls).toEqual(["pageRank", "personalizedPageRank"]);
     });
 
-    it("hands PageRank the port's default of weighted: false, so a weighted snapshot gives one answer", async () => {
+    it("hands PageRank weighted: true on a weighted snapshot unless the call says weighted: false", async () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b", 10);
         g.addEdge("a", "c", 1);
@@ -902,9 +909,9 @@ describe("accelerated(acc) routing for PageRank and eigenvector centrality", () 
         const p = Float64Array.of(1, 0, 0);
         await dispatcher.pageRank(s);
         await dispatcher.personalizedPageRank(s, p);
-        await dispatcher.pageRank(s, { weighted: true, dampingFactor: 0.5 });
-        await dispatcher.personalizedPageRank(s, p, { weighted: true });
-        expect(sent).toEqual([false, false, true, true]);
+        await dispatcher.pageRank(s, { weighted: false, dampingFactor: 0.5 });
+        await dispatcher.personalizedPageRank(s, p, { weighted: false });
+        expect(sent).toEqual([true, true, false, false]);
     });
 
     it("runs personalized PageRank on the CPU for an all-zero vector or a dangling node", async () => {
@@ -1280,23 +1287,23 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         }
     }
 
-    it("hands Katz the coefficients unweighted and min-max rescales the answer like the port", async () => {
+    it("hands Katz the coefficients and the weights the port reads, and min-max rescales the answer like the port", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);
         const options = { alpha: 0.05, beta: 2, maxIterations: 200, tolerance: 1e-9 };
         const r = await accelerated(deviceLike(calls)).katzCentrality(s, options);
-        expect(calls).toEqual([["katzCentrality", { ...options, weighted: false }]]);
+        expect(calls).toEqual([["katzCentrality", { ...options, weighted: true }]]);
         expectClose(r.scores, indexed.katzCentrality(s, options).scores);
         expect(Math.min(...r.scores)).toBe(0);
         expect(Math.max(...r.scores)).toBe(1);
     });
 
-    it("hands Katz weighted: true through when the caller asks for it", async () => {
+    it("hands Katz weighted: false through when the caller asks for it", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);
-        const r = await accelerated(deviceLike(calls)).katzCentrality(s, { weighted: true, alpha: 0.05 });
-        expect(calls[0][1]).toMatchObject({ weighted: true });
-        expectClose(r.scores, indexed.katzCentrality(s, { weighted: true, alpha: 0.05 }).scores);
+        const r = await accelerated(deviceLike(calls)).katzCentrality(s, { weighted: false, alpha: 0.05 });
+        expect(calls[0][1]).toMatchObject({ weighted: false });
+        expectClose(r.scores, indexed.katzCentrality(s, { weighted: false, alpha: 0.05 }).scores);
     });
 
     it("keeps Katz on the port for raw sums, alpha 0 and a graph whose in-degrees are all equal", async () => {
@@ -1320,11 +1327,11 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         b.addEdge("c", "a", 3);
         const s = b.freeze();
         const dispatcher = accelerated(deviceLike(calls));
-        await dispatcher.katzCentrality(s); // unweighted: every in-degree is 1
+        await dispatcher.katzCentrality(s, { weighted: false }); // unweighted: every in-degree is 1
         expect(calls).toEqual([]);
-        const r = await dispatcher.katzCentrality(s, { weighted: true });
+        const r = await dispatcher.katzCentrality(s);
         expect(calls).toHaveLength(1);
-        expectClose(r.scores, indexed.katzCentrality(s, { weighted: true }).scores);
+        expectClose(r.scores, indexed.katzCentrality(s).scores);
     });
 
     it("keeps Katz on the port when its series may diverge: alpha times the spectral-radius bound reaches 1", async () => {
@@ -1358,11 +1365,11 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         expect(calls).toHaveLength(1);
     });
 
-    it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {
+    it("hands HITS the iteration options and the weights the port reads, and rescales both vectors to unit length like the port", async () => {
         const calls: unknown[][] = [];
         const s = uneven(true);
         const r = await accelerated(deviceLike(calls)).hits(s, { maxIterations: 300, tolerance: 1e-10 });
-        expect(calls).toEqual([["hits", { maxIterations: 300, tolerance: 1e-10, weighted: false }]]);
+        expect(calls).toEqual([["hits", { maxIterations: 300, tolerance: 1e-10, weighted: true }]]);
         const port = indexed.hits(s, { maxIterations: 300, tolerance: 1e-10 });
         expectClose(r.hubs, port.hubs);
         expectClose(r.authorities, port.authorities);

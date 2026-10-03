@@ -1,6 +1,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
 
 import { ConvergenceError, withCode } from "../errors.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based eigenvector centrality, matching the legacy `eigenvectorCentrality`. @public */
 export interface EigenvectorOptions {
@@ -17,6 +18,11 @@ export interface EigenvectorOptions {
     readonly mode?: "in" | "out" | "total" | undefined;
     /** Starting value per node index; default 1 for every node. */
     readonly startVector?: F32 | F64 | undefined;
+    /**
+     * Weight each feeding arc by its weight when the snapshot has weights; default true. Weighted, parallel arcs
+     * between one pair add their weights; unweighted, a pair counts once however many arcs join it.
+     */
+    readonly weighted?: boolean | undefined;
 }
 
 /** Result of the index-based eigenvector centrality. @public */
@@ -32,13 +38,16 @@ export interface EigenvectorResult {
 interface Relation {
     readonly rowPtr: Uint32Array;
     readonly colIdx: Uint32Array;
+    /** The summed weight of each entry, or null when unweighted. */
+    readonly weights: F64 | null;
 }
 
 /**
  * Eigenvector centrality by power iteration on `(A + I)`, as networkx does: the identity shift
  * leaves the eigenvectors alone and makes the largest eigenvalue the only one of largest magnitude,
- * so a bipartite or periodic graph converges instead of oscillating. Each node's neighbours are
- * counted once however many parallel edges join them, as in the legacy neighbour sets. When the
+ * so a bipartite or periodic graph converges instead of oscillating. `A` holds the arc weights when
+ * the snapshot has them (the weights of parallel arcs added), and otherwise a 1 for each neighbour
+ * however many parallel edges join them, as in the legacy neighbour sets. When the
  * relation has no cycle (no arcs, or a directed acyclic graph) its matrix is nilpotent and every
  * score is exactly 0.
  * @param s - The snapshot
@@ -62,7 +71,7 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
     if (n === 0) {
         return { scores: x, iterations: 0, converged: true };
     }
-    const rel = feeders(s, o.mode ?? "in");
+    const rel = feeders(s, o.mode ?? "in", readsWeights(s, o.weighted));
     if (isAcyclic(rel, n)) {
         return { scores: x, iterations: 0, converged: true };
     }
@@ -80,8 +89,9 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         for (let v = 0; v < n; v++) {
             let sum = x[v];
             const end = rel.rowPtr[v + 1];
+            const w = rel.weights;
             for (let a = rel.rowPtr[v]; a < end; a++) {
-                sum += x[rel.colIdx[a]];
+                sum += w === null ? x[rel.colIdx[a]] : w[a] * x[rel.colIdx[a]];
             }
             next[v] = sum;
         }
@@ -123,21 +133,26 @@ export function minMaxRescale(x: F64): void {
 }
 
 /**
- * The feeding relation as a CSR with each neighbour once per row. Snapshot rows are sorted, so a
- * parallel arc is the previous entry repeated, and the `"total"` row is a merge of two sorted rows.
+ * The feeding relation as a CSR with each neighbour once per row, and with `weighted` the summed weight of the arcs
+ * that join the pair. Snapshot rows are sorted, so a parallel arc is the previous entry repeated, and the `"total"`
+ * row is a merge of two sorted rows.
  * @param s - The snapshot
  * @param mode - Which arcs feed a node on a directed snapshot
- * @returns Row pointers and neighbour indices
+ * @param weighted - Whether to sum the arc weights
+ * @returns Row pointers, neighbour indices and weights
  */
-function feeders(s: GraphSnapshot, mode: "in" | "out" | "total"): Relation {
+function feeders(s: GraphSnapshot, mode: "in" | "out" | "total", weighted: boolean): Relation {
     const n = s.nodeCount;
     const a = !s.directed || mode === "out" ? s : s.reverse();
     // The second source of a "total" row; an empty row everywhere otherwise.
     const total = s.directed && mode === "total";
     const bRowPtr = total ? s.rowPtr : new Uint32Array(n + 1);
     const bColIdx = total ? s.colIdx : new Uint32Array(0);
+    const aW = weighted ? a.weights : null;
+    const bW = weighted && total ? s.weights : null;
     const rowPtr = new Uint32Array(n + 1);
     const colIdx = new Uint32Array(a.colIdx.length + bColIdx.length);
+    const weights = weighted ? new Float64Array(colIdx.length) : null;
     let k = 0;
     for (let v = 0; v < n; v++) {
         let i = a.rowPtr[v];
@@ -146,14 +161,27 @@ function feeders(s: GraphSnapshot, mode: "in" | "out" | "total"): Relation {
         const jEnd = bRowPtr[v + 1];
         const rowStart = k;
         while (i < iEnd || j < jEnd) {
-            const u = j >= jEnd || (i < iEnd && a.colIdx[i] <= bColIdx[j]) ? a.colIdx[i++] : bColIdx[j++];
+            const fromA = j >= jEnd || (i < iEnd && a.colIdx[i] <= bColIdx[j]);
+            const u = fromA ? a.colIdx[i] : bColIdx[j];
+            const w = fromA ? (aW?.[i] ?? 1) : (bW?.[j] ?? 1);
+            if (fromA) {
+                i++;
+            } else {
+                j++;
+            }
             if (k === rowStart || colIdx[k - 1] !== u) {
                 colIdx[k++] = u;
+            } else if (weights !== null) {
+                weights[k - 1] += w;
+                continue;
+            }
+            if (weights !== null) {
+                weights[k - 1] = w;
             }
         }
         rowPtr[v + 1] = k;
     }
-    return { rowPtr, colIdx: colIdx.subarray(0, k) };
+    return { rowPtr, colIdx: colIdx.subarray(0, k), weights: weights?.subarray(0, k) ?? null };
 }
 
 /**

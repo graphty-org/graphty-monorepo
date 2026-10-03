@@ -10,6 +10,7 @@ import {
 
 import { withCode } from "../errors.js";
 import { isBipartite } from "./bipartite.js";
+import { refuseWeights } from "./weights.js";
 
 /** Options of {@link maximumBipartiteMatching} and {@link greedyBipartiteMatching}. @public */
 export interface BipartiteMatchingOptions {
@@ -137,6 +138,7 @@ export function maximumBipartiteMatching(
     s: GraphSnapshot,
     options: BipartiteMatchingOptions = {},
 ): BipartiteMatchingResult {
+    refuseWeights("maximumBipartiteMatching", options);
     // ponytail: Kuhn is O(V E) like the legacy function; Hopcroft-Karp (O(sqrt(V) E)) if a caller
     // needs large graphs with long augmenting paths -- it would break the 2.x tie rule.
     const { left, right, views } = resolveSides(s, options);
@@ -233,6 +235,7 @@ export function greedyBipartiteMatching(
     s: GraphSnapshot,
     options: BipartiteMatchingOptions = {},
 ): BipartiteMatchingResult {
+    refuseWeights("greedyBipartiteMatching", options);
     const { left, right, views } = resolveSides(s, options);
     const { nodeCount } = s;
     const matching = new Uint32Array(nodeCount).fill(INVALID_INDEX);

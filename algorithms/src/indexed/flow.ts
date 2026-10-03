@@ -14,9 +14,10 @@ import {
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of {@link maxFlow} and {@link minSTCut}. @public */
-export interface MaxFlowOptions {
+export interface MaxFlowOptions extends WeightedOptions {
     /**
      * How augmenting paths are found: `"edmonds-karp"` (breadth-first, shortest paths first,
      * O(V E^2)) or `"ford-fulkerson"` (depth-first, O(E f)). Default `"edmonds-karp"` for
@@ -92,15 +93,24 @@ export interface MinCutResult extends LabelResult {
 }
 
 /**
- * The capacity of every logical edge: the override's value at the edge's declared arc, else the
- * snapshot's per-edge weight, else 1.
+ * The capacity of every logical edge: 1 under `weighted: false`, else the override's value at the edge's declared
+ * arc, else the snapshot's per-edge weight, else 1.
  * @param s - The snapshot
- * @param weights - The optional per-arc override
+ * @param options - The caller's `weights` override and `weighted` option
+ * @param options.weights - The optional per-arc override
+ * @param options.weighted - False for capacity 1 everywhere
  * @returns One capacity per logical edge
  */
-export function edgeCapacities(s: GraphSnapshot, weights: NumericVector | undefined): Float64Array {
+export function edgeCapacities(
+    s: GraphSnapshot,
+    options: { readonly weights?: NumericVector | undefined; readonly weighted?: boolean | undefined },
+): Float64Array {
     const el = s.edgeList();
     const out = new Float64Array(s.edgeCount);
+    if (options.weighted === false) {
+        return out.fill(1);
+    }
+    const { weights } = options;
     for (let e = 0; e < s.edgeCount; e++) {
         out[e] = weights !== undefined ? weights[el.arc[e]] : (el.weights?.[e] ?? 1);
     }
@@ -260,7 +270,7 @@ export function maxFlow(s: GraphSnapshot, source: number, sink: number, options:
     if (source === sink) {
         throw withCode(new RangeError(`source and sink are the same node (${source})`), "E_BAD_OPTION");
     }
-    const capacity = edgeCapacities(s, options.weights);
+    const capacity = edgeCapacities(s, options);
     const r = buildResidual(s, capacity);
     const { colIdx, twin } = r;
     // Flow pushed per real group, accumulated as the legacy flow Map accumulates it: a push along

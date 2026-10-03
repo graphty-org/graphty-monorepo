@@ -9,12 +9,13 @@ import {
 import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Which graph Laplacian the embedding comes from. @public */
 export type LaplacianType = "unnormalized" | "normalized" | "randomWalk";
 
 /** Options of the index-based spectral clustering. @public */
-export interface SpectralOptions {
+export interface SpectralOptions extends WeightedOptions {
     /** Number of clusters, a positive integer. */
     readonly k: number;
     /** `D - A`, `I - D^-1/2 A D^-1/2` (rows of the embedding scaled to unit length) or `I - D^-1 A`; default normalized. */
@@ -460,7 +461,7 @@ export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): 
             "E_BAD_OPTION",
         );
     }
-    const weights = options.weights ?? s.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     if (weights !== null && weights.length !== s.arcCount) {
         throw withCode(
             new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),

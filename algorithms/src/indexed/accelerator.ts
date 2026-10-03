@@ -38,6 +38,7 @@ import type { KargerOptions, StoerWagnerOptions } from "./min-cut.js";
 import type { MstOptions, PrimOptions, PrimResult } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
 import { clusteringFrom, simpleUndirectedRows, type TriangleCountResult } from "./triangles.js";
+import { readsWeights } from "./weights.js";
 
 // ============================================================ result shapes (design 9.2 lines 2909-2922)
 // Scores may be f32 (an accelerator) or f64 (the CPU ports), so every score field is NumericVector.
@@ -211,6 +212,11 @@ export interface BetweennessAcceleratorOptions {
     readonly endpoints?: boolean | undefined;
     readonly sources?: readonly number[] | undefined;
     readonly k?: number | undefined;
+    /**
+     * False to count hops on a weighted snapshot. The dispatcher always sends `false`: it hands the accelerator
+     * only the calls whose paths are counted in hops.
+     */
+    readonly weighted?: boolean | undefined;
 }
 
 /**
@@ -242,10 +248,13 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * `resolution` is wider than the `HitsOptionsLike` the accelerator side declares, and narrowing that
  * member belongs to the pull request that lands a GPU Louvain.
  *
+ * Every method follows the one weight rule: a snapshot's weights are read unless the call says
+ * `weighted: false`, and the accelerator is always handed `weighted` resolved, true or false, so it
+ * answers the question the CPU port would.
+ *
  * `katzCentrality` and `hits` hand the accelerator only what it reads -- `{ alpha, beta,
- * maxIterations, tolerance, weighted }` and `{ maxIterations, tolerance, weighted }` -- with
- * `weighted` resolved to the port's default (false), since an accelerator may default it the
- * other way, and give its result the port's scale: an accelerator may end its iterate on any
+ * maxIterations, tolerance, weighted }` and `{ maxIterations, tolerance, weighted }` -- and give
+ * its result the port's scale: an accelerator may end its iterate on any
  * positive scale (webgpu-graph-algorithms divides Katz by its L2 norm and HITS by its sum), so
  * Katz is min-max rescaled to [0, 1] as the port rescales its own, and each HITS vector is
  * rescaled to unit length, or to a largest entry of 1 under `normalized: false`, as the port does.
@@ -267,10 +276,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `pageRank` and `personalizedPageRank` run the CPU port when `initialRanks` or
  * `convergenceNorm: "max"` is set: the accelerator members take neither. The accelerator is
- * handed `{ dampingFactor, maxIterations, tolerance, weighted }` with `weighted` resolved to the
- * port's default (false), since an accelerator may default it the other way. Its stopping rule
- * may differ from the port's (webgpu-graph-algorithms stops at an L1 change below
- * `tolerance * n`, as networkx does), so the two paths can stop at different iterations.
+ * handed `{ dampingFactor, maxIterations, tolerance, weighted }`. Both paths stop at the first
+ * iteration whose L1 change is below `tolerance * n`, as networkx does.
  * `personalizedPageRank` also runs the CPU port when the personalization is all zero (the port
  * then answers plain PageRank, as the legacy function does for no personal nodes) or when a node
  * is dangling: the port spreads dangling mass as legacy does, `d * dangling / n` scaled by the
@@ -278,12 +285,12 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * does. The two agree when no node is dangling.
  *
  * `eigenvectorCentrality` goes to the accelerator only for the question its kernel answers the
- * same way: an undirected snapshot with no parallel edges and no bipartite component, unweighted,
- * from the uniform start. The kernel iterates on `A` where the port iterates on `A + I`, and walks
+ * same way: an undirected snapshot with no parallel edges, no bipartite component and no negative
+ * weight it would read, from the uniform start. The kernel iterates on `A` where the port iterates on `A + I`, and walks
  * every parallel arc where the port counts a neighbour once; on a bipartite component the
  * iteration on `A` oscillates forever. A directed snapshot always runs the port, since a
  * periodic strongly connected component oscillates the same way and is not cheap to rule out.
- * The accelerator is called with `{ maxIterations, tolerance, weighted: false }` and its
+ * The accelerator is called with `{ maxIterations, tolerance, weighted }` and its
  * unit-length vector is rescaled to [0, 1] exactly as the port rescales its own unless
  * `normalized: false`. A result with `converged: false` raises `ConvergenceError`, as the port
  * does. The iteration counts of the two paths differ.
@@ -304,12 +311,12 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * The three path centralities route the same way. `betweennessCentrality` and
  * `edgeBetweennessCentrality` go to the accelerator unless the snapshot is a multigraph (the port
- * counts a pair's parallel edges as one path, the WebGPU kernel as several), `endpoints` is set, or an
- * `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
+ * counts a pair's parallel edges as one path, the WebGPU kernel as several), the call measures paths
+ * by weight (a weighted snapshot whose weights are not all 1, without `weighted: false`), `endpoints`
+ * is set, or an `alive` edge mask is given. The accelerator is always handed the sources the port would run -- the
  * caller's, the port's `k` draw, or every node -- so it never substitutes a draw or a sampling default of
  * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
- * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
- * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
+ * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`.
  * A sampled closeness (`sources` or `k`) goes too, handed the sources the port would run -- the caller's
  * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
  * the sources, which the accelerator's searches from the sources give only when distance is symmetric.
@@ -326,8 +333,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * planted structure. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
  *
- * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override, which the
- * accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
+ * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override or
+ * `weighted: false`, which the accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
  * order (weight, then edge index), so the edge SET is the same; the order of `edges` and the summation order of
  * `totalWeight` may differ (webgpu-graph-algorithms' Boruvka lists the edges round by round).
  *
@@ -428,7 +435,22 @@ function explicitSources(
     return {
         normalized: options?.normalized,
         sources: resolveSources(s.nodeCount, options?.sources, options?.k),
+        weighted: false,
     };
+}
+
+/**
+ * Whether a betweenness call measures paths by weight, which the accelerator's breadth-first kernel cannot: the
+ * snapshot has weights that are not all 1 and the call does not say `weighted: false`.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns True when the call must run the CPU port
+ */
+function betweennessByWeight(
+    s: GraphSnapshot,
+    options: BetweennessOptions | EdgeBetweennessOptions | undefined,
+): boolean {
+    return readsWeights(s, options?.weighted) && !s.flags.allWeightsOne;
 }
 
 /**
@@ -457,7 +479,7 @@ function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions
  * @returns The options for the accelerator
  */
 function closenessSources(s: GraphSnapshot, options: ClosenessOptions | undefined): ClosenessAcceleratorOptions {
-    const weighted = options?.weighted === true;
+    const weighted = readsWeights(s, options?.weighted);
     if (options?.sources === undefined && options?.k === undefined) {
         return { weighted };
     }
@@ -496,16 +518,17 @@ function pageRankNeedsCpu(options: PageRankOptions | undefined): boolean {
 
 /**
  * The PageRank options an accelerator is handed: only the members it takes, with `weighted`
- * resolved to the port's default.
+ * resolved as the port resolves it.
+ * @param s - The snapshot
  * @param options - The caller's port options
  * @returns The accelerator's options
  */
-function pageRankOptionsLike(options: PageRankOptions | undefined): PageRankOptionsLike {
+function pageRankOptionsLike(s: GraphSnapshot, options: PageRankOptions | undefined): PageRankOptionsLike {
     return {
         dampingFactor: options?.dampingFactor,
         maxIterations: options?.maxIterations,
         tolerance: options?.tolerance,
-        weighted: options?.weighted === true,
+        weighted: readsWeights(s, options?.weighted),
     };
 }
 
@@ -523,7 +546,7 @@ function personalizedNeedsCpu(
     personalization: F32 | F64,
     options: PageRankOptions | undefined,
 ): boolean {
-    const outW = options?.weighted === true && s.weights !== null ? s.weightedOutDegree() : s.outDegree();
+    const outW = readsWeights(s, options?.weighted) ? s.weightedOutDegree() : s.outDegree();
     return pageRankNeedsCpu(options) || !personalization.some((mass) => mass > 0) || outW.some((w) => w === 0);
 }
 
@@ -535,7 +558,13 @@ function personalizedNeedsCpu(
  * @returns True when the call may go to the accelerator
  */
 function acceleratorAnswersEigenvector(s: GraphSnapshot, options: EigenvectorOptions | undefined): boolean {
-    return options?.startVector === undefined && !s.directed && !s.flags.multigraph && !hasBipartiteComponent(s);
+    return (
+        options?.startVector === undefined &&
+        !s.directed &&
+        !s.flags.multigraph &&
+        (!readsWeights(s, options?.weighted) || s.flags.nonNegativeWeights) &&
+        !hasBipartiteComponent(s)
+    );
 }
 
 /**
@@ -615,7 +644,7 @@ function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefin
         return false;
     }
     const rev = s.reverse();
-    const weights = options?.weighted === true ? rev.weights : null;
+    const weights = readsWeights(rev, options?.weighted) ? rev.weights : null;
     const totals = new Float64Array(s.nodeCount);
     let first: number | undefined;
     let uneven = false;
@@ -755,11 +784,11 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
         accelerator: acc ?? null,
         pageRank: (s, options) =>
             acc?.pageRank !== undefined && !pageRankNeedsCpu(options)
-                ? acc.pageRank(s, pageRankOptionsLike(options))
+                ? acc.pageRank(s, pageRankOptionsLike(s, options))
                 : Promise.resolve(indexed.pageRank(s, options)),
         personalizedPageRank: (s, personalization, options) =>
             acc?.personalizedPageRank !== undefined && !personalizedNeedsCpu(s, personalization, options)
-                ? acc.personalizedPageRank(s, personalization, pageRankOptionsLike(options))
+                ? acc.personalizedPageRank(s, personalization, pageRankOptionsLike(s, options))
                 : Promise.resolve(indexed.personalizedPageRank(s, personalization, options)),
         eigenvectorCentrality: (s, options) =>
             acc?.eigenvectorCentrality !== undefined && acceleratorAnswersEigenvector(s, options)
@@ -767,7 +796,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                       .eigenvectorCentrality(s, {
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
-                          weighted: false,
+                          weighted: readsWeights(s, options?.weighted),
                       })
                       .then((like) => finishEigenvector(like, options))
                 : // The executor turns the port's ConvergenceError into a rejection, as on the accelerator path.
@@ -799,7 +828,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+            acc?.minimumSpanningTree !== undefined && options?.weights === undefined && options?.weighted !== false
                 ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
@@ -814,7 +843,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                           beta: options?.beta,
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
-                          weighted: options?.weighted === true,
+                          weighted: readsWeights(s, options?.weighted),
                       })
                       .then(finishKatz)
                 : Promise.resolve(indexed.katzCentrality(s, options)),
@@ -824,7 +853,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                       .hits(s, {
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
-                          weighted: options?.weighted === true,
+                          weighted: readsWeights(s, options?.weighted),
                       })
                       .then((like) => finishHits(like, options))
                 : Promise.resolve(indexed.hits(s, options)),
@@ -835,13 +864,19 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.allPairsShortestPath(s).then(({ dist, n }) => ({ dist, n, hasNegativeCycle: false }))
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
-            acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
+            acc?.betweennessCentrality !== undefined &&
+            !s.flags.multigraph &&
+            !betweennessByWeight(s, options) &&
+            options?.endpoints !== true
                 ? acc
                       .betweennessCentrality(s, explicitSources(s, options))
                       .then((r) => checkPathCounts(r, "betweennessCentrality"))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
-            acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
+            acc?.edgeBetweennessCentrality !== undefined &&
+            !s.flags.multigraph &&
+            !betweennessByWeight(s, options) &&
+            options?.alive === undefined
                 ? acc
                       .edgeBetweennessCentrality(s, explicitSources(s, options))
                       .then((r) => checkPathCounts(r, "edgeBetweennessCentrality"))

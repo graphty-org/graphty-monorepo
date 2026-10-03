@@ -3,6 +3,7 @@ import type { GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 import { withCode } from "../errors.js";
 import { resolveSources, type ScoresResult } from "./betweenness.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
+import { readsWeights } from "./weights.js";
 
 /** Options of the index-based closeness centrality, matching the legacy `closenessCentrality`. @public */
 export interface ClosenessOptions {
@@ -19,12 +20,10 @@ export interface ClosenessOptions {
      */
     readonly cutoff?: number | undefined;
     /**
-     * Measure distance by edge weight (Dijkstra) rather than by hops, as the legacy
-     * `weightedClosenessCentrality` does. Default false: weights are ignored, as the legacy
-     * `closenessCentrality` ignores them.
+     * Measure distance by edge weight (Dijkstra) when the snapshot has weights; default true. `false` counts hops.
      */
     readonly weighted?: boolean | undefined;
-    /** Per-arc weight override, arcCount long, read when `weighted`; a facade passes the exact f64 weights. */
+    /** Per-arc weight override, arcCount long, read unless `weighted: false`; pass exact f64 weights here. */
     readonly weights?: NumericVector | undefined;
     /**
      * Sampled closeness: the source node indices to run from. Duplicates run twice. Each node's score is then
@@ -186,7 +185,7 @@ function exactScore(search: Search, o: ClosenessOptions, n: number, v: number): 
  * @returns The adjacency
  */
 function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adjacency {
-    const weighted = o.weighted === true;
+    const weighted = o.weights !== undefined ? o.weighted !== false : readsWeights(s, o.weighted);
     if (!reverse || !s.directed) {
         return { rowPtr: s.rowPtr, colIdx: s.colIdx, weights: weighted ? (o.weights ?? s.weights) : null };
     }
@@ -200,10 +199,9 @@ function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adj
 }
 
 /**
- * Closeness centrality of every node: `1 / sum(distance to each reached node)` by default, the legacy
- * `closenessCentrality` (hops) and `weightedClosenessCentrality` (`weighted: true`) numbers. The weighted
- * route reads the snapshot's f32 arc weights, so it matches legacy to f32 rounding; pass the f64 weights as
- * `weights` for the exact legacy sums. As in legacy, a node's distance is final once it is searched from, so a
+ * Closeness centrality of every node: `1 / sum(distance to each reached node)` by default, with distance by edge
+ * weight when the snapshot has weights and by hops otherwise or under `weighted: false`. The weighted route reads
+ * the snapshot's f32 arc weights; pass f64 weights as `weights` for exact sums. As in legacy, a node's distance is final once it is searched from, so a
  * negative weight gives the legacy (not the true shortest) distance and never loops. An unreached node adds
  * nothing, and a node that reaches nothing scores 0.
  *

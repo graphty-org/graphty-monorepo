@@ -1,9 +1,10 @@
 import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based modularity. @public */
-export interface ModularityOptions {
+export interface ModularityOptions extends WeightedOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
@@ -36,7 +37,7 @@ export interface ModularityOptions {
  */
 export function modularity(s: AdjacencyView, labels: U32, options: ModularityOptions = {}): number {
     const resolution = options.resolution ?? 1;
-    const weights = options.weights ?? s.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     if (labels.length !== s.nodeCount) {
         throw withCode(
             new RangeError(`labels has ${labels.length} entries; the snapshot has ${s.nodeCount} nodes`),

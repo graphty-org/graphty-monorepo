@@ -3,9 +3,10 @@ import { type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from 
 import { withCode } from "../errors.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based MST. @public */
-export interface MstOptions {
+export interface MstOptions extends WeightedOptions {
     /** Per-arc weight override, arcCount long; gathered back to per-edge through `edgeToArc`. */
     readonly weights?: NumericVector | undefined;
 }
@@ -33,7 +34,9 @@ export function kruskalMST(s: GraphSnapshot, o: MstOptions = {}): MstResult {
     const el = s.edgeList();
     const m = s.edgeCount;
     const keys = new Float64Array(m);
-    if (o.weights !== undefined) {
+    if (o.weighted === false) {
+        // every key 1: the forest of the edge order
+    } else if (o.weights !== undefined) {
         // The override is per ARC; edgeList().arc holds the arc of each edge's declared orientation.
         for (let e = 0; e < m; e++) {
             keys[e] = o.weights[el.arc[e]];
@@ -97,7 +100,7 @@ export function primMST(s: GraphSnapshot, o: PrimOptions = {}): PrimResult {
         throw withCode(new Error("Prim's algorithm requires an undirected graph"), "E_NEEDS_UNDIRECTED");
     }
     const { nodeCount: n, rowPtr, colIdx } = s;
-    const weights: NumericVector | null = o.weights ?? s.weights;
+    const weights: NumericVector | null = o.weighted === false ? null : (o.weights ?? s.weights);
     const key = new Float64Array(n).fill(Infinity);
     const predArc = new Uint32Array(n).fill(INVALID_INDEX);
     const inTree = new Uint8Array(n);

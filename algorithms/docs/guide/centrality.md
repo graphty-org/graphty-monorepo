@@ -128,9 +128,9 @@ console.log(scores[graph.ids.requireIndex("center")]); // 0.25: 1 / (1 + 1 + 1 +
 console.log(scores[graph.ids.requireIndex("a")].toFixed(3)); // 0.143: 1 / (1 + 2 + 2 + 2)
 ```
 
-Closeness is 1 over the sum of the distances to the other nodes. Pass `normalized: true` to scale it by the fraction of
-other nodes reached, `harmonic: true` for harmonic closeness, which handles disconnected graphs, and `weighted: true` to read edge
-weights as distances. `nodeClosenessCentrality(graph, node)` scores one node.
+Closeness is 1 over the sum of the distances to the other nodes, with edge weights read as distances when the graph
+has them (`weighted: false` counts hops). Pass `normalized: true` to scale it by the fraction of other nodes reached,
+and `harmonic: true` for harmonic closeness, which handles disconnected graphs. `nodeClosenessCentrality(graph, node)` scores one node.
 
 On a big graph, sample: `k` draws that many sources (the same ones every time) and `sources` names them. Each node is
 then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. To estimate the exact

@@ -15,7 +15,6 @@ import {
     type AlgorithmEntry,
     type AlgorithmInputKind,
     ALGORITHMS,
-    type WeightUse,
 } from "../../src/index.js";
 
 // A 4 x 5 grid (bipartite, so the matchings accept it). The weights change every weighted answer: the edges
@@ -110,12 +109,24 @@ function at(result: unknown, path: string): unknown {
 // test/unit/indexed/grsbm.test.ts shows it on the karate club.
 const WEIGHTS_SHOWN_ELSEWHERE = new Set(["grsbm"]);
 
-const WEIGHT_RULES: Readonly<Record<WeightUse, readonly [boolean, boolean, boolean]>> = {
-    never: [true, true, true],
-    always: [false, false, false],
-    "by-default": [false, false, true],
-    "on-request": [true, true, false],
-};
+// The "never" algorithms that take no options object, so there is no `weighted` for them to refuse.
+const NO_OPTIONS = new Set([
+    "degrees",
+    "connectedComponents",
+    "weaklyConnectedComponents",
+    "kCoreDecomposition",
+    "triangleCount",
+    "hasCycle",
+]);
+
+function codeOf(fn: () => unknown): unknown {
+    try {
+        fn();
+    } catch (e) {
+        return (e as { code?: unknown }).code;
+    }
+    return undefined;
+}
 
 const entries = Object.entries(ALGORITHMS) as [string, AlgorithmEntry][];
 
@@ -195,11 +206,17 @@ describe("ALGORITHMS", () => {
                 expect(fingerprint(run(entry, weighted, extra))).toBe(fingerprint(run(entry, weighted, extra)));
                 return fingerprint(run(entry, weighted, extra)) === fingerprint(run(entry, plain, extra));
             };
-            // Whether the weighted and the unweighted graph give the same answer: with the default options, and
-            // with the `weighted` flag set the other way from the rule's default.
-            const [plainSame, flag, flaggedSame] = WEIGHT_RULES[entry.weights];
-            expect(same()).toBe(plainSame || WEIGHTS_SHOWN_ELSEWHERE.has(entry.name));
-            expect(same({ weighted: flag })).toBe(flaggedSame);
+            // One rule for every algorithm: weights are read when the graph has them and `weighted: false` turns
+            // them off; an algorithm that cannot use them refuses `weighted: true`.
+            if (entry.weights === "by-default") {
+                expect(same()).toBe(WEIGHTS_SHOWN_ELSEWHERE.has(entry.name));
+                expect(same({ weighted: false })).toBe(true);
+            } else {
+                expect(same()).toBe(true);
+                if (!NO_OPTIONS.has(entry.name)) {
+                    expect(codeOf(() => run(entry, weighted, { weighted: true }))).toBe("E_BAD_OPTION");
+                }
+            }
         });
 
         it(`returns ${entry.result} with per-element arrays [${entry.values.join(", ")}]`, () => {

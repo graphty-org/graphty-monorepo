@@ -8,6 +8,7 @@ import {
 
 import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
+import { refuseWeights } from "./weights.js";
 
 /** Result of the index-based BFS (graph-format design 14.2 Port 1). @public */
 export interface BfsResult {
@@ -166,6 +167,7 @@ export function checkArcOrder(g: AdjacencyView, arcOrder: U32 | undefined): U32 
  * @public
  */
 export function breadthFirstSearch(g: AdjacencyView, start: number, options: BfsOptions = {}): BfsResult {
+    refuseWeights("breadthFirstSearch", options);
     checkStart(g, start);
     const { nodeCount, rowPtr, colIdx } = g;
     const arcOrder = checkArcOrder(g, options.arcOrder);
@@ -268,6 +270,7 @@ export function directionOptimizedBfs(
     source: number,
     options: DirectionOptimizedBfsOptions = {},
 ): BfsResult {
+    refuseWeights("directionOptimizedBfs", options);
     checkStart(s, source);
     const { nodeCount, rowPtr, colIdx } = s;
     const alpha = options.alpha ?? 15;

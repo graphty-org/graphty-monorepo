@@ -2,6 +2,7 @@ import { type F64, type GraphSnapshot, renumberPartition, type U32 } from "@grap
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
+import { refuseWeights } from "./weights.js";
 
 /** Options of the index-based TeraHAC, matching the legacy `teraHAC`. @public */
 export interface TeraHacOptions {
@@ -104,6 +105,7 @@ function pairwiseDistances(s: GraphSnapshot, useGraphDistance: boolean): Float64
  * @returns The flat clustering and the dendrogram
  */
 export function teraHAC(s: GraphSnapshot, options: TeraHacOptions = {}): TeraHacResult {
+    refuseWeights("teraHAC", options);
     const { linkage = "average", numClusters, distanceThreshold, useGraphDistance = true } = options;
     if (numClusters !== undefined && (numClusters < 1 || !Number.isInteger(numClusters))) {
         throw withCode(new Error("numClusters must be a positive integer"), "E_BAD_OPTION");

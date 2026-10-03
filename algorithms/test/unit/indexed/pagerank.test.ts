@@ -79,7 +79,7 @@ describe("indexed.pageRank", () => {
         s.validate({ checksum: true });
     });
 
-    it("weighted: true splits one node's contribution 3:1 across arcs of weight 3 and 1", () => {
+    it("reads the weights by default and splits one node's contribution 3:1 across arcs of weight 3 and 1", () => {
         // u = 0 pushes into x = 1 over weight 3 and into y = 2 over weight 1; x and y are dangling
         // and u has no in-arcs, so after one iteration u's score is exactly the shared base term
         // and (x - u) : (y - u) is the weight ratio.
@@ -89,9 +89,9 @@ describe("indexed.pageRank", () => {
                 ["u", "y", 1],
             ]),
         );
-        const r = pageRank(s, { weighted: true, maxIterations: 1 });
+        const r = pageRank(s, { maxIterations: 1 });
         expect((r.scores[1] - r.scores[0]) / (r.scores[2] - r.scores[0])).toBeCloseTo(3, 12);
-        const unweighted = pageRank(s, { maxIterations: 1 });
+        const unweighted = pageRank(s, { weighted: false, maxIterations: 1 });
         expect(unweighted.scores[1]).toBeCloseTo(unweighted.scores[2], 12);
         s.validate({ checksum: true });
     });
@@ -174,7 +174,11 @@ describe("indexed.pageRank against legacy, with the legacy stopping rule", () =>
             const s = checksummedSnapshot(graph);
             for (const options of [{}, { dampingFactor: 0.6, tolerance: 1e-9 }, { maxIterations: 3 }]) {
                 // legacy: the same options
-                expectSameRanks(s, pageRank(s, { ...options, ...LEGACY_RULE }), legacyResult() as PageRankResult);
+                expectSameRanks(
+                    s,
+                    pageRank(s, { weighted: false, ...options, ...LEGACY_RULE }),
+                    legacyResult() as PageRankResult,
+                );
             }
             // legacy: { weight: "weight" }
             expectSameRanks(s, pageRank(s, { weighted: true, ...LEGACY_RULE }), legacyResult() as PageRankResult);
@@ -182,11 +186,15 @@ describe("indexed.pageRank against legacy, with the legacy stopping rule", () =>
         });
     }
 
-    it("the default L1 rule stops no earlier than the legacy rule", () => {
+    it("the default L1 rule stops no later than the legacy rule", () => {
+        // The summed change is at most n times the largest one, so it is below n * tolerance whenever the largest
+        // is below tolerance.
         const { graph } = directedFixtures()[2];
         const s = checksummedSnapshot(graph);
         // legacy: no other options
-        expect(pageRank(s).iterations).toBeGreaterThanOrEqual((legacyResult() as PageRankResult).iterations);
+        expect(pageRank(s, { weighted: false }).iterations).toBeLessThanOrEqual(
+            (legacyResult() as PageRankResult).iterations,
+        );
     });
 });
 
@@ -196,7 +204,7 @@ describe("indexed.pageRank on an undirected snapshot", () => {
             const s = checksummedSnapshot(graph);
             // legacy: on bothArcs(graph), the directed graph with both arcs of every edge; then with
             // { weight: "weight" }
-            expectSameRanks(s, pageRank(s, LEGACY_RULE), legacyResult() as PageRankResult);
+            expectSameRanks(s, pageRank(s, { weighted: false, ...LEGACY_RULE }), legacyResult() as PageRankResult);
             expectSameRanks(s, pageRank(s, { weighted: true, ...LEGACY_RULE }), legacyResult() as PageRankResult);
             s.validate({ checksum: true });
         });
@@ -209,7 +217,7 @@ describe("indexed.pageRank on an undirected snapshot", () => {
         b.addEdge("b", "c");
         const s = b.freeze();
         // legacy: on the directed graph a->a, a->b, b->a, b->c, c->b (the self-loop one arc)
-        expectSameRanks(s, pageRank(s, LEGACY_RULE), legacyResult() as PageRankResult);
+        expectSameRanks(s, pageRank(s, { weighted: false, ...LEGACY_RULE }), legacyResult() as PageRankResult);
     });
 });
 
@@ -270,7 +278,7 @@ describe("indexed.personalizedPageRank", () => {
             for (const options of [{}, { dampingFactor: 0.5 }, { maxIterations: 4 }]) {
                 expectSameRanks(
                     s,
-                    personalizedPageRank(s, personalization, { ...options, ...LEGACY_RULE }),
+                    personalizedPageRank(s, personalization, { weighted: false, ...options, ...LEGACY_RULE }),
                     legacyResult() as PageRankResult,
                 );
             }

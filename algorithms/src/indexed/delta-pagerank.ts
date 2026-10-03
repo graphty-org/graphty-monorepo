@@ -47,7 +47,7 @@ export interface DeltaPageRankComputeOptions {
     readonly maxIterations?: number | undefined;
     /** A delta below this is dropped rather than propagated; default tolerance / 10. */
     readonly deltaThreshold?: number | undefined;
-    /** Split a node's delta by arc weight instead of evenly; default false. */
+    /** Split a node's delta by arc weight when the graph has weights; default true. `false` splits it evenly. */
     readonly weighted?: boolean | undefined;
     /**
      * Teleport distribution per node index, nodeCount long; normalised to sum 1.
@@ -313,7 +313,7 @@ export class DeltaPageRank {
             return new Float64Array(0);
         }
         const personal = nodeVector(o.personalization, n, "personalization");
-        const weights = o.weighted === true ? this.weights : null;
+        const weights = o.weighted === false ? null : this.weights;
         const randomJump = (1 - d) / n;
         let activeCount = this.active.reduce((sum, x) => sum + x, 0);
         for (let it = 0; (activeCount > 0 || (it === 0 && startRound)) && it < maxIter; it++) {
@@ -476,7 +476,7 @@ export class PriorityDeltaPageRank {
         const threshold = o.deltaThreshold ?? tol / 10;
         const { s, order, scores, deltas, heap } = this;
         const n = s.nodeCount;
-        const weights = o.weighted === true ? this.weights : null;
+        const weights = o.weighted === false ? null : this.weights;
         let iteration = 0;
         let processed = 0;
         while (!heap.isEmpty() && iteration < maxIter) {

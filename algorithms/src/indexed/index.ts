@@ -117,3 +117,4 @@ export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js
 export { syncClustering, type SyncClusteringOptions, type SyncClusteringResult } from "./sync.js";
 export { teraHAC, type TeraHacOptions, type TeraHacResult } from "./terahac.js";
 export { triangleCount, type TriangleCountResult } from "./triangles.js";
+export type { WeightedOptions } from "./weights.js";

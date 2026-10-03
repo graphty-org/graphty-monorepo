@@ -10,9 +10,10 @@ import {
 import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the point-to-point searches. @public */
-export interface PathOptions {
+export interface PathOptions extends WeightedOptions {
     /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
     readonly weights?: NumericVector | undefined;
 }
@@ -62,7 +63,7 @@ export function bidirectionalDijkstra(
         return { distance: 0, path: Uint32Array.of(source), edges: new Uint32Array(0) };
     }
     const n = s.nodeCount;
-    const weights: NumericVector | null = options.weights ?? s.weights;
+    const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? s.weights);
     // Checked up front, not per relaxed arc: the search stops early, so a per-arc check would miss
     // a negative edge beyond the meeting point that legacy (which runs both searches out) refuses.
     if (weights?.some((w) => w < 0) === true) {
@@ -184,7 +185,7 @@ export function astar(
             "E_BAD_NODE",
         );
     }
-    const weights: NumericVector | null = options.weights ?? g.weights;
+    const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? g.weights);
     const gScore = new Float64Array(n).fill(Infinity);
     const fScore = new Float64Array(n).fill(Infinity);
     const predArc = new Uint32Array(n).fill(INVALID_INDEX);

@@ -3,6 +3,7 @@ import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-form
 import { withCode } from "../errors.js";
 import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget, treePaths } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
+import { refuseWeights } from "./weights.js";
 
 /** Result of the index-based DFS. @public */
 export interface DfsResult {
@@ -140,6 +141,7 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
  * @public
  */
 export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOptions = {}): DfsResult {
+    refuseWeights("depthFirstSearch", options);
     checkStart(g, start);
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const target = checkTarget(g, options.target);
@@ -203,6 +205,7 @@ export function hasCycle(g: AdjacencyView): boolean {
  * @public
  */
 export function topologicalSort(g: AdjacencyView, options: ArcOrderOption = {}): U32 | null {
+    refuseWeights("topologicalSort", options);
     if (!g.directed) {
         throw withCode(new Error("Topological sort requires a directed graph"), "E_NEEDS_DIRECTED");
     }

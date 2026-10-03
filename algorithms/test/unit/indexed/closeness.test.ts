@@ -48,12 +48,13 @@ describe("indexed.closenessCentrality", () => {
         expect(r.converged).toBe(true);
     });
 
-    it("ignores weights unless weighted, and then reads the arc weights", () => {
+    it("reads the arc weights unless weighted: false", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b", 4);
         b.addEdge("b", "c", 1);
         const s = b.freeze();
-        expect(closenessCentrality(s).scores[0]).toBe(1 / 3);
+        expect(closenessCentrality(s, { weighted: false }).scores[0]).toBe(1 / 3);
+        expect(closenessCentrality(s).scores[0]).toBe(1 / 9);
         expect(closenessCentrality(s, { weighted: true }).scores[0]).toBe(1 / 9);
         // a node that reaches nothing scores 0
         expect(closenessCentrality(s, { weighted: true }).scores[2]).toBe(0);
@@ -182,7 +183,12 @@ describe("indexed.closenessCentrality", () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
-                expectMatches(s, closenessCentrality(s, options).scores, legacyResult() as Record<string, number>);
+                // the legacy closenessCentrality counted hops
+                expectMatches(
+                    s,
+                    closenessCentrality(s, { ...options, weighted: false }).scores,
+                    legacyResult() as Record<string, number>,
+                );
             }
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1.5, harmonic: true }]) {
                 expectMatches(
@@ -235,7 +241,7 @@ describe("indexed.nodeClosenessCentrality", () => {
                 expect(nodeClosenessCentrality(s, v, options)).toBe(all[v]);
             }
         }
-        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyResult() as number);
+        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"), { weighted: false })).toBe(legacyResult() as number);
         s.validate({ checksum: true });
     });
 
@@ -274,11 +280,11 @@ describe("indexed.closenessCentrality, sampled", () => {
             const every = Array.from({ length: n }, (_, i) => i);
             // hop sums are integers, so any order adds them exactly; harmonic and weighted sums are floating-point
             const hops: [object, boolean][] = [
-                [{}, true],
-                [{ normalized: true }, true],
-                [{ cutoff: 2 }, true],
-                [{ harmonic: true }, false],
-                [{ harmonic: true, normalized: true }, false],
+                [{ weighted: false }, true],
+                [{ weighted: false, normalized: true }, true],
+                [{ weighted: false, cutoff: 2 }, true],
+                [{ weighted: false, harmonic: true }, false],
+                [{ weighted: false, harmonic: true, normalized: true }, false],
             ];
             const weighted: [object, boolean][] = [
                 [{ weighted: true }, false],

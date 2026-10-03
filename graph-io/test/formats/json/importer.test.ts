@@ -803,7 +803,7 @@ describe("jgf", () => {
         expect(second.s.ids.toArray()).toEqual(["B", "C"]);
         expect(second.s.edgeCount).toBe(1);
         const beyond = await expectImportError(json(multi), { graphIndex: 5 });
-        expect(beyond.report.issues.at(-1)?.code).toBe(JSON_ISSUE.SHAPE);
+        expect(beyond.report.issues.at(-1)?.code).toBe(JSON_ISSUE.GRAPH_NOT_FOUND);
         await expectImportError('{"graphs":[]}');
         await expectImportError('{"graphs":[3]}');
         await expectImportError('{"graph":{"nodes":"x"}}');

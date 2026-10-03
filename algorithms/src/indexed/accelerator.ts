@@ -13,7 +13,7 @@
 
 import type { AdjacencyView, F32, F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
-import { ConvergenceError } from "../errors.js";
+import { ConvergenceError, PathCountOverflowError } from "../errors.js";
 import { APSP_DEFAULT_MAX_NODES, type ApspOptions } from "./all-pairs.js";
 import type { BellmanFordResult } from "./bellman-ford.js";
 import { type BetweennessOptions, type EdgeBetweennessOptions, resolveSources } from "./betweenness.js";
@@ -85,6 +85,14 @@ export interface BellmanFordResultLike extends SsspResultLike {
 export interface EdgeScoresResultLike {
     readonly scores: NumericVector;
 }
+/**
+ * What an accelerator's betweenness reports beside its scores: `sigmaOverflow` true means some
+ * shortest-path count overflowed its counters, so the scores are wrong. The dispatcher turns it
+ * into a `PathCountOverflowError` rather than return them. @public
+ */
+export interface PathCountReport {
+    readonly sigmaOverflow?: boolean | undefined;
+}
 /** An all-pairs distance matrix, row-major, n by n. @public */
 export interface ApspResultLike {
     readonly dist: NumericVector;
@@ -140,11 +148,14 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
-    betweennessCentrality?(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<ScoresResultLike>;
+    betweennessCentrality?(
+        s: GraphSnapshot,
+        options?: BetweennessAcceleratorOptions,
+    ): Promise<ScoresResultLike & PathCountReport>;
     edgeBetweennessCentrality?(
         s: GraphSnapshot,
         options?: BetweennessAcceleratorOptions,
-    ): Promise<EdgeScoresResultLike>;
+    ): Promise<EdgeScoresResultLike & PathCountReport>;
     allPairsShortestPath?(s: GraphSnapshot, options?: SsspOptions): Promise<ApspResultLike>;
     kCoreDecomposition?(s: GraphSnapshot): Promise<CorenessResultLike>;
     triangleCount?(s: GraphSnapshot): Promise<{ readonly perNode: U32; readonly total: number }>;
@@ -386,6 +397,21 @@ function onCpu<T>(run: () => T): Promise<T> {
     return new Promise((resolve) => {
         resolve(run());
     });
+}
+
+/**
+ * An accelerator's betweenness result, refused when it reports overflowed path counts: those scores
+ * are wrong, and returning them would pass them off as the answer.
+ * @param result - the accelerator's result
+ * @param algorithm - the dispatcher method, for the error
+ * @returns the result unchanged
+ * @throws PathCountOverflowError when `sigmaOverflow` is true
+ */
+function checkPathCounts<R extends PathCountReport>(result: R, algorithm: string): R {
+    if (result.sigmaOverflow === true) {
+        throw new PathCountOverflowError(algorithm);
+    }
+    return result;
 }
 
 /**
@@ -810,11 +836,15 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 : Promise.resolve(indexed.allPairsShortestPath(s, options)),
         betweennessCentrality: (s, options) =>
             acc?.betweennessCentrality !== undefined && !s.flags.multigraph && options?.endpoints !== true
-                ? acc.betweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .betweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "betweennessCentrality"))
                 : Promise.resolve(indexed.betweennessCentrality(s, options)),
         edgeBetweennessCentrality: (s, options) =>
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
-                ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
+                ? acc
+                      .edgeBetweennessCentrality(s, explicitSources(s, options))
+                      .then((r) => checkPathCounts(r, "edgeBetweennessCentrality"))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
         closenessCentrality: (s, options) =>
             acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)

@@ -35,24 +35,35 @@ keeps and loses; tasks below name the module they rework.
 Each spike: the question, the experiment, the pass condition, the fallback if it fails, and the
 tasks that wait for it. Results of the spikes run so far, with commands and output, are in
 `evidence/platform-facts.md` sections 7 and 8; two more ran in section 7 that have no row: the tmux driving
-probe (7.3) and the MCP call-length probe (7.4). Spikes that write to GitHub use a docs-only pull request with no version
-plan, after the reference worktree's release dry-run shows no bump, and record the cost.
+probe (7.3) and the MCP call-length probe (7.4). Spikes that write to GitHub run in a private scratch repository under the owner's
+account, named for the spike and the date, never on graphty-org; the token cannot delete
+repositories, so the owner deletes it afterwards. Group A's is
+apowers313/githerd-spike-2026-10-03 (`evidence/platform-facts.md` section 9).
 
 ### Group A: GitHub (run before milestone 3)
 
 | Spike | Question and experiment | Pass | Fallback | Blocks |
 |---|---|---|---|---|
 | S1 | Dropped 2026-10-03: githerd never merges (Mergify does, design 4.6), and a commit status belongs to one sha, so a moved head simply has no `githerd/merge`. Replaced by coordination task C1's verification | - | - | - |
-| S2 | (2026-10-03 [PF 7.5]: not run, no throwaway repository can be deleted with the token's scopes; documentation says 422 on a mismatch) Does `PUT /pulls/{n}/update-branch` with `expected_head_sha` work while the repository's `allow_update_branch` is false [R1]? Call it on a test pull request | Branch updated; a stale `expected_head_sha` is refused | Always use the local merge path through the push queue | 3.4 |
-| S3 | Does `PATCH /pulls/{n}` with `base=master` retarget a stacked pull request and trigger CI? Stack a test pull request on another, merge the base, retarget | Base changes; CI runs on the child | Delete the merged base branch through the API so GitHub retargets | 3.4 |
+| S2 | Does `PUT /pulls/{n}/update-branch` with `expected_head_sha` work while the repository's `allow_update_branch` is false [R1]? Call it on a test pull request | Branch updated; a stale `expected_head_sha` is refused | Always use the local merge path through the push queue | 3.4 |
+| | **Ran 2026-10-03 [PF 9.1]: passes. With `allow_update_branch` false the call answers 202 and GitHub makes a signed merge commit that starts CI; a stale `expected_head_sha` gets 422. No design change** | | | |
+| S3 | Does `PATCH /pulls/{n}` with `base=master` retarget a stacked pull request and trigger CI? Stack a test pull request on another, merge the base, retarget | Base changes; CI runs on the child | None: deleting the merged base branch through the API closes the child (see the result) | 3.4 |
+| | **Ran 2026-10-03 [PF 9.2]: the base changes, CI does not run (a base change is the `edited` action, which no workflow listens to), and the child keeps checks from its old base. Mergify's update of a behind pull request runs CI on the new base, and a retargeted child is always behind. The old fallback, deleting the base branch, CLOSED the child and is struck. Design 3.3, 3.10 and 4.6 changed** | | | |
 | S4 | Does a conditional GET at zero remaining return 304 or 403? Observe when another session drains the budget, or with a throwaway token | Recorded either way | If 403: the reserve of 300 calls is kept for polls too | 1.2 |
+| | **Ran 2026-10-03 [PF 9.3] on the unauthenticated bucket (draining the owner's would blind every session): 403, so the fallback applies. With the owner's token a 304 costs nothing. Design 3.2, 4.2 and 4.11 changed** | | | |
 | S5 | Does `GET /advisories` honor `If-None-Match`? Does `sort=updated` show the braces advisory of 10-02 with its update time? | 304 on the second request; the advisory present | Activity-triggered check at most every 15 minutes | 1.4 |
+| | **Ran 2026-10-03 [PF 9.4]: passes; 304 on the second request, the braces advisory 15th on page 1 with `updated_at` 2026-10-02T22:36:34Z. The fallback is dropped; design 3.2 and 4.2 changed** | | | |
 | S6 | Do check runs carry `annotations_count`, and do annotations carry the balance text, runner loss, deprecation warnings and the release gate's `::notice::` text? Read annotations of recorded release skips and GPU failures | Counts present; texts found where expected | Read the job log only; the classifier loses the annotation-only cases (recorded as residual risk) | 1.4, 3.3 |
+| | **Ran 2026-10-03 [PF 9.5]: counts present; annotations carry deprecations, the release `::notice::`, step timeouts and "lost communication". But the balance text is only in a step name and a runner shutdown only in the log, and both runner-loss jobs conclude `failure`. The classifier reads step names, annotations and the log; design 3.1, 3.2, 4.2 and 4.4 and the catalog changed** | | | |
 | S7 | Does a GPU job rejected for balance fail fast and cost nothing? Where does the text appear? Read the recorded balance failures' timings and the machine.dev billing page | Fails within minutes, no charge | No backoff re-dispatch; the item ends only on the owner's answer or a later green run | 3.3 |
-| S8 | Does `gh run rerun <run> --job <id>` on an old run re-test that run's commit, and how are attempts numbered? Re-run one job of an old green CI run | Same head sha; `run_attempt` incremented | Dispatch the workflow on the old commit (`workflow_dispatch` where the workflow allows it) | 3.3 |
+| | **Ran 2026-10-03 [PF 9.6]: passes. Rejected about 5 s after the job is created; four rejections on 10-03 over three hours left the balance at $-0.8250, so none was charged (the billing page was not read). Backoff re-dispatch is on; design 3.2 and 10.3 changed** | | | |
+| S8 | Does `gh run rerun --job <job id>` on an old run re-test that run's commit, and how are attempts numbered? Re-run one job of an old green CI run | Same head sha; `run_attempt` incremented | Dispatch the workflow on the old commit (`workflow_dispatch` where the workflow allows it) | 3.3 |
+| | **Ran 2026-10-03 [PF 9.7] in the scratch repository: passes; same run id and head sha after master moved, `run_attempt` 2, a new job id. `gh` refuses a run id together with `--job`, so the command was `gh run rerun <run> --job <id>` and is corrected here and in design 4.5** | | | |
 | S9 | Do queued jobs on the rented label expose `created_at` and a null `started_at` while queued? What is the worst pickup time recorded? Read the jobs list during a GPU run and the recorded month | Fields present; a pickup bound computed | A fixed 20-minute bound | 1.3 |
+| | **Ran 2026-10-03 [PF 9.8]: fields present, but `started_at` is NOT null while queued (it equals `created_at`), so queued means status `queued` and no `runner_name`. Worst pickup on the rented label over 227 jobs since 09-18: 926 s (median 65 s), the seed for its bound. Design 3.10 and 4.3 changed** | | | |
 | S10 | Dropped 2026-10-03: the owner decided no separate GitHub App for now (design 12.3, decision 2) | - | - | - |
 | S11 | Does the current token return `github-authentication-token-expiration`? Read one response's headers | Recorded either way | Absent: nothing to watch until the token type changes | 1.2 |
+| | **Ran 2026-10-03 [PF 9.9]: absent (an OAuth token with scopes gist, read:org, repo, workflow). The header check stays as a guard; design 3.2 and 4.11 note it** | | | |
 
 ### Group B: Claude Code (run before milestone 5, on a private tmux socket, with the configured model)
 
@@ -203,7 +214,7 @@ real occurrence of each situation it acts on, with would-dos matching what shoul
 
 Spikes in group A gate milestone 3; group B gates milestone 5; group C gates milestones 2 and 4.
 Milestone 1 starts at once: its tasks stub the answers of S4, S5, S6, S9 and S11 and are finished
-when those spikes report (S25, S27 and S31 reported on 2026-10-03). Milestone 6 needs 5. Milestone 8 needs everything before
+when those spikes report (all of them, and S25, S27 and S31, reported on 2026-10-03). Milestone 6 needs 5. Milestone 8 needs everything before
 it, and each of its steps needs only the groups before it.
 
 ---

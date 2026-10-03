@@ -289,8 +289,9 @@ was first detected by anything whose job was to detect it.
 ### Rented GPU runner out of balance
 - Seen: twice on 10-02 (balance $-2.08 at 04:04, $-2.80 at 23:43); a day of runs including
   63-minute paired benchmarks spent it.
-- Signal: job log text "Insufficient balance to run job. Current balance: $..." names the cause
-  exactly. log fetch. `[verified]`. A warning before zero would need the provider's balance, and no
+- Signal: the job's second step is NAMED "Machine: Insufficient balance to run job. Current
+  balance: $..." and names the cause exactly; the job has no log and no annotation (platform-facts
+  9.5). jobs list, no log fetch. `[verified]`. A warning before zero would need the provider's balance, and no
   balance API is known: `[NO RELIABLE SIGNAL]` for the early warning. A spend estimate from GPU job
   minutes is possible but its rate is not known.
 - Do: tell the owner once, immediately, as a payment action; never give it to an agent as a code

@@ -649,7 +649,7 @@ test. Nothing was created. From GitHub's REST and GraphQL documentation:
 `PUT /pulls/{n}/update-branch` with `expected_head_sha` answers 422 on a mismatch and 202 when it
 starts the update; GraphQL `mergePullRequest` and `updatePullRequestBranch` take `expectedHeadOid`.
 Verdict: unverified. Design: githerd no longer merges (Mergify does), so the merge half no longer
-matters; the update half stays spike S2 and runs on the first real update in dry-run review.
+matters; the update half stays spike S2. S2 ran later the same day in a scratch repository: section 9.1.
 
 ### 7.6 The usage-limit screen: not testable here
 
@@ -900,3 +900,270 @@ dry-run does not apply `release-hold.json` (empty today); `release.yml` does, wi
 `node tools/release-hold.mjs apply` first, as the repository's documented preview does, and reads
 the per-project "New version" lines; the merge it makes for a pull request's dry-run is a local,
 signed, never-pushed commit.
+
+---
+
+## 9. GitHub spikes run on 2026-10-03 (group A of the plan)
+
+Run from `tmp/githerd/spikes-a/` in the githerd worktree with the owner's `gh` token. The scripts
+are copied to `spikes-2026-10-03/` beside this file with the spike's name as prefix. Against
+graphty-org/graphty-monorepo only read calls were made. Everything that writes (pull requests,
+merges, updates, retargets, re-runs, a dispatch) ran in a private scratch repository created for
+the purpose, **apowers313/githerd-spike-2026-10-03**. The token has no `delete_repo` scope, so that
+repository is still there for the owner to delete. It holds two workflows: `ci.yml`, a one-step job
+on `ubuntu-latest` with the same `pull_request` types as the real `ci.yml` (`opened, synchronize,
+reopened, labeled`), and `queued.yml`, a dispatch-only job on a label no runner serves. GitHub's
+error text is transcribed to ASCII (its 422 message has a curly apostrophe).
+
+### 9.1 S2: `update-branch` works while `allow_update_branch` is false, and refuses a stale head
+
+`s2-s3-setup.sh` opened pull request 1 (a -> master), moved master one commit, then `s2-run.sh`:
+
+```
+allow_update_branch=false
+head=8d4d66c0f1e1e2ebd106c3fcec73131b85410198 mergeable_state=unknown
+-- stale expected_head_sha:
+HTTP/2.0 422 Unprocessable Entity
+{"message":"expected head sha didn't match current head ref.", ...}
+-- correct expected_head_sha:
+HTTP/2.0 202 Accepted
+{"message":"Updating pull request branch.", ...}
+new head=875540ac7df02fb5b40835047f9711d42ba0e5d0
+parents=8d4d66c0,24f8298a message=Merge branch 'master' into a verified=true committer=GitHub
+-- old head as expected_head_sha after the update:
+HTTP/2.0 422 Unprocessable Entity
+-- runs for the new head:
+pull_request completed 875540ac
+```
+
+Verdict: passes. The repository setting only hides the button; the API updates regardless. The
+update is a merge commit made and signed by GitHub (`verified=true`), and it starts CI like any
+push (`synchronize`). Design: no change to 4.6; the citation becomes this section.
+
+### 9.2 S3: `PATCH base=master` retargets but starts no CI; deleting the base branch closes the child
+
+`s3-run.sh` merged pull request 1, retargeted its stacked child 2 with `PATCH /pulls/2 base=master`;
+then merged pull request 3 and deleted its branch `d` with `DELETE /git/refs/heads/d`, the plan's
+fallback, with child 4 still based on `d`:
+
+```
+== (1) merge PR 1, then PATCH PR 2 base=master
+    PATCH -> base=master
+    PR 2 state=open base=master head=2a61800d mergeable_state=clean
+    runs on B head after retarget:
+    run 37151277555 pull_request completed/success created=2026-10-03T20:21:58Z   (the old run only)
+    event base_ref_changed 2026-10-03T20:22:56Z
+== (2) merge PR 3, then delete branch d
+HTTP/2.0 204 No Content
+    PR 4 state=closed base=d head=a0351de4 mergeable_state=dirty
+    event base_ref_deleted 2026-10-03T20:23:51Z
+    event closed 2026-10-03T20:23:52Z
+```
+
+`s3-followup.sh`: an `update-branch` on the retargeted child 2 starts CI; and with
+`delete_branch_on_merge=true` (switched on in the scratch repository only), merging base 5 makes
+GitHub retarget child 6 itself, again without a run:
+
+```
+== (3) update-branch on PR 2
+    PR 2 state=open base=master head=f8100567 mergeable_state=clean
+    run 37151453613 pull_request completed/success created=2026-10-03T20:25:00Z
+== (4) delete_branch_on_merge=true, stack f on e, merge e
+    PR 6 state=open base=master head=fbf17149 mergeable_state=clean
+    run 37151492407 pull_request completed/success created=2026-10-03T20:25:37Z   (the old run only)
+    event automatic_base_change_succeeded 2026-10-03T20:25:59Z
+```
+
+Verdict: the retarget passes, "CI runs on the child" fails. A base change is the `edited` action,
+which neither `ci.yml` nor `gpu.yml` listens to, so the child keeps green checks computed against
+its old base and shows `clean`. The fallback is harmful: deleting a base branch through the API
+closes every pull request based on it, and a closed pull request whose base is gone cannot be
+reopened. Design: 4.6 and the stacked rows of 3.3 and 3.10 changed. The retarget stays `PATCH`; CI on
+the new base comes from an update, which Mergify makes anyway (its `update_method: merge` updates
+a pull request that is behind master before checking it, and a retargeted child is always behind,
+because master gained its base's merge commit); githerd never deletes a base branch.
+
+### 9.3 S4: a conditional request at zero remaining is refused with 403
+
+Draining the owner's 5000-call budget would have blinded every other session for up to an hour,
+so `s4-run.sh` used the unauthenticated per-address bucket (60 an hour), which follows the same
+rule for the primary limit:
+
+```
+first:
+HTTP/2 200
+etag: W/"7fcaa61b..."
+x-ratelimit-remaining: 57
+conditional with budget left:
+HTTP/2 304  x-ratelimit-remaining: 56
+drained after 56 calls
+conditional at zero:
+HTTP/2 403  x-ratelimit-remaining: 0
+unconditional at zero:
+HTTP/2 403  x-ratelimit-remaining: 0
+```
+
+With the owner's token a 304 costs nothing (`s5-304-budget.sh`: three 304s in a row, each
+`X-Ratelimit-Used: 17`), as 1.5 found; without a token it does (57 -> 56).
+
+Verdict: 403, not 304. At zero githerd is blind until `X-RateLimit-Reset`, polls included.
+Design: the plan's fallback applies; the reserve of the last 300 calls covers polls as well as
+holds (3.2, 4.2, 4.11).
+
+### 9.4 S5: the advisory feed honors `If-None-Match`, and sorting by update time works
+
+`s5-run.sh`:
+
+```
+etag: W/"d709802797de4984d98e2a92e75dba16ebfb60d3f1151d20c5fd9f57781a2917"
+second, If-None-Match:
+HTTP/2.0 304 Not Modified
+X-Ratelimit-Remaining: 4947
+braces advisory:
+GHSA-vfj7-8cjw-p6xm published=2026-09-18T18:31:41Z updated=2026-10-02T22:36:34Z withdrawn=null
+index in page 1: 15 of 100
+```
+
+Verdict: passes. The braces advisory that failed the audit on 10-02 is on the first page of
+`ecosystem=npm&sort=updated&direction=desc`, with an update time 14 days after its publication,
+which is the change that matters. Design: the advisory feed is a free poll every 60 seconds; the
+"on activity at most every 15 minutes" fallback is dropped (3.2, 4.2).
+
+### 9.5 S6: annotation counts are present; each failure text lives in one place only
+
+`s6-release.sh` on two release runs, and `s6-s7-jobs.sh` (jobs, steps, check-run output, annotations
+and the job log of one run attempt) on GPU failures:
+
+```
+== run 37143642729: Release success 29575c6c
+  check 111263052432 count=1 success Find the newest commit green on every lane
+     [warning]  :: Node.js 20 is deprecated. The following actions target Node.js 20 but are being
+                   forced to run on Node.js 24: actions/checkout@v4. ...
+== run 37105678020: Release success e7b90a20
+  check 111154911145 count=2 success Find the newest commit green on every lane
+     [warning]  :: Node.js 20 is deprecated. ...
+     [notice]  :: nothing on master since the last release
+  check 111155353568 count=0 skipped Release
+
+== run 35739513047 attempt 1   (09-22, "runner lost")
+  job 106785288715 completed/failure Test (NVIDIA T4)  steps=0
+    annotations_count=1
+      [failure] The self-hosted runner lost communication with the server. Verify the machine is
+                running and has a healthy network connection. ...
+    log bytes=215   (BlobNotFound: no log exists)
+== run 35748654167 attempt 1   (09-22, runner shut down)
+  job 106816696681 completed/failure Test (NVIDIA T4)  steps=22
+      [failure] The operation was canceled.
+      log: ##[error]The runner has received a shutdown signal. This can happen when the runner
+           service is stopped, or a manually started runner is canceled.
+== run 36956012085 attempt 1   (step timeout)
+      [failure] The action 'Paired benchmark against the base commit (pull requests that change
+                src)' has timed out after 40 minutes.
+== run 36962785245 attempt 1   (10-02 04:04, balance)
+  job 110700310760 completed/failure Test (NVIDIA T4)  steps=2
+    annotations_count=0 title=null summary=
+    log bytes=215   (BlobNotFound)
+    step 1 "Machine: Insufficient balance to run job. Current balance: $-2.0800. Minimum required: $0.05." failure
+```
+
+Verdict: counts are present on every check run, and annotations carry the deprecation warnings,
+the release gate's `::notice::` lines, step timeouts and "runner lost communication". But each
+failure has its text in exactly one place: runner lost is in an annotation only (zero steps, no
+log); a runner shutdown is in the log only (its annotation just says "The operation was
+canceled."); the balance rejection is in a step NAME only (no annotation, no log; the job log
+endpoint answers with a storage `BlobNotFound` document, not an error status, for both). All of
+these jobs concluded `failure`, not `cancelled`. Design: the classifier reads step names, then
+annotations, then the log (4.2, 4.4); runner loss is matched by text, not by a `cancelled`
+conclusion; the evidence catalog's "log text" for the balance case was wrong and is corrected.
+
+### 9.6 S7: a balance-rejected job fails in seconds and the balance does not move
+
+`s7-attempts.sh` listed every GPU run attempt from 10-01 20:00 to 10-03 12:00; `s6-s7-jobs.sh`
+read the rejected ones:
+
+```
+36962785245 attempt=1 failure started=2026-10-02T04:02:24Z updated=2026-10-02T04:04:18Z master 2e5a1268
+36962785245 attempt=2 success started=2026-10-02T04:13:14Z updated=2026-10-02T05:01:12Z master 2e5a1268
+37078532134 attempt=1 failure started=2026-10-02T23:38:29Z updated=2026-10-02T23:40:38Z master d15a9da9
+37078532134 attempt=2 success started=2026-10-02T23:49:24Z updated=2026-10-03T00:38:25Z master d15a9da9
+
+job created -> started -> completed, and the step text:
+  10-02 04:04:12 -> 04:04:17 -> 04:04:17  Current balance: $-2.0800
+  10-02 23:40:32 -> 23:40:37 -> 23:40:37  Current balance: $-2.7950
+  10-03 08:06:02 -> 08:06:06 -> 08:06:06  Current balance: $-0.8250
+  10-03 10:22:33 -> 10:22:38 -> 10:22:38  Current balance: $-0.8250
+  10-03 10:51:27 -> 10:51:32 -> 10:51:32  Current balance: $-0.8250
+  10-03 11:06:24 -> 11:06:29 -> 11:06:29  Current balance: $-0.8250
+```
+
+Verdict: passes. The provider refuses the job about 5 seconds after GitHub creates it, before
+anything runs, and four rejections over three hours on 10-03 left the reported balance at exactly
+$-0.8250, so a rejection is not charged. The machine.dev billing page was not read (githerd has no
+login there); the unchanged balance is the evidence. Four rejections on 10-03 also show the
+balance ran out a third time, unannounced. Design: the backoff re-dispatch for paid capacity is
+switched on (3.2, 10.3).
+
+### 9.7 S8: re-running one job of an old run re-tests that run's commit; the plan's command was wrong
+
+In the scratch repository, after master had moved four commits past `e7d4a6ab`:
+
+```
+$ gh run rerun 37151263806 -R apowers313/githerd-spike-2026-10-03 --job 111285474909
+specify only one of `<run-id>` or `--job`
+$ gh run rerun -R apowers313/githerd-spike-2026-10-03 --job 111285474909      (s8-run.sh)
+exit=0
+after: run 37151263806 head=e7d4a6ab attempt=2 completed/success run_started=2026-10-03T20:27:45Z
+  attempt2 job 111286519690 success head=e7d4a6ab run_attempt=2
+  job log: sha=e7d4a6ab64ab1bce4320e501e05523291d671552 ref=refs/heads/master attempt=2
+check runs on e7d4a6ab: default filter lists 111286519690 only; filter=all lists both attempts
+```
+
+Verdict: passes with the corrected form. The re-run keeps the run id and head sha, increments
+`run_attempt`, gets a new job id, and checks out the old commit even though master moved. `gh`
+refuses a run id together with `--job`; the job id alone names the run (REST: `POST
+/actions/jobs/{job_id}/rerun`). GitHub documents that a run older than 30 days cannot be re-run
+(not tested). Design: 4.5 carries the corrected command.
+
+### 9.8 S9: a queued job's `started_at` is NOT null; worst pickup on the rented label is 926 s
+
+`s9-queued.sh` dispatched the scratch repository's job on a label no runner serves:
+
+```
+run 37151679473 status=queued created=2026-10-03T20:28:47Z run_started=2026-10-03T20:28:47Z
+job 111286693597 status=queued created_at=2026-10-03T20:28:48Z started_at=2026-10-03T20:28:48Z runner=null
+60 s later:
+job 111286693597 status=queued created_at=2026-10-03T20:28:48Z started_at=2026-10-03T20:28:48Z
+after cancel: completed/cancelled
+job status=completed/cancelled started_at=2026-10-03T20:28:48Z completed_at=2026-10-03T20:30:20Z steps=0
+```
+
+`s9-pickup.sh` and `s9-by-label.py` over every GPU job attempt since 09-03 (254 jobs; one call of
+the walk failed on a network error, so a few may be missing), where `started_at` minus
+`created_at` is the real pickup time once a runner took the job:
+
+```
+machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand n 227 first 2026-09-18 median 65 s max 926 s
+   top3 (886 s, 09-20 14:13, failure) (922 s, 09-21 23:35, failure) (926 s, 09-21 23:35, failure)
+ubuntu-latest n 22 median 2 s max 3 s
+gpu-linux-t4 n 5 median 0 s (none was ever picked up)
+p50 64 s, p90 74 s, p95 76 s over all
+```
+
+Verdict: fields present, but the pass condition's "null `started_at` while queued" is wrong:
+GitHub fills `started_at` with `created_at` until a runner takes the job, so "queued" is
+`status == "queued"` with `runner_name == null`, and queue age is now minus `created_at`. The
+worst pickup recorded on the rented label is 926 s (about 15.5 minutes), which seeds that label's
+bound; a cancelled queued job ends with zero steps and conclusion `cancelled`. (A run superseded
+by `concurrency` is cancelled before any job exists: three such runs on 10-03 have zero jobs.)
+Design: the queue-age signal in 3.10 and 4.3 changed.
+
+### 9.9 S11: the token sends no expiration header
+
+```
+$ gh api -i /repos/graphty-org/graphty-monorepo | grep -i 'token-expiration\|^x-oauth-scopes'
+X-Oauth-Scopes: gist, read:org, repo, workflow
+```
+
+The advisory request in 9.4 has no such header either. Verdict: absent. `gh` holds an OAuth token,
+which does not expire on a date. Design: nothing to watch until the token type changes; the header
+check stays as a cheap guard (3.2, 4.11).

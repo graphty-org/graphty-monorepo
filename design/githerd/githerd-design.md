@@ -185,11 +185,11 @@ adversarial review added (section 3.10). Columns:
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| Master red from merged code on a lane pull requests also run | Newest run per gating workflow on master, free poll; a sighting as defined in 1.4; failed jobs, steps and (when `annotations_count` > 0) annotations, 1 to 2 calls [PF 1.5], [S6] | Classifier first. Code-red: merge hold (`githerd/merge` failure) on the pull requests that lane can affect at the first sighting; incident procedure (daemon re-run on the red head, parent re-test, then revert or fix forward) | D; W `incident` | The failing workflow's newest master run is green at a commit containing the recorded fix |
+| Master red from merged code on a lane pull requests also run | Newest run per gating workflow on master, free poll; a sighting as defined in 1.4; failed jobs, steps and (when `annotations_count` > 0) annotations, 1 to 2 calls [PF 1.5], [PF 9.5] | Classifier first. Code-red: merge hold (`githerd/merge` failure) on the pull requests that lane can affect at the first sighting; incident procedure (daemon re-run on the red head, parent re-test, then revert or fix forward) | D; W `incident` | The failing workflow's newest master run is green at a commit containing the recorded fix |
 | Master red on a lane only master runs | Same, for GPU and Hosts [R8], [R9] | Same. The merge hold covers only pull requests the lane can affect: for GPU, those `scripts/bench-groups.js` maps to at least one group, or that touch the lane's own scripts [R8]; for Hosts, those touching its trigger paths [R9]. The release waits regardless | D; W `incident` | That lane's newest master run is green at a commit containing the fix |
 | Several causes stacked on one red master | The set of failing keys changes while master is red [INC1 1] | Each new key is its own incident with its own worker; red-since is the first red run of the stretch | D; W `incident` per key | Every gating workflow's newest master run is green |
 | Intermittent failure on master | The daemon's own re-run of the failing job on the red head passes (section 4.5); or a run with `run_attempt` above 1 whose earlier attempt failed [INC1 7] | The daemon files or finds one issue labelled `intermittent` with the key and log excerpt (critical on a second occurrence on another commit). The incident ends as "intermittent"; the issue is queued for a root-cause fix. A re-run is never recorded as a fix | D; W `issue` | Issue closed by a merged root-cause fix and the key has no first-attempt failure in the next 20 master runs (reopened otherwise) |
-| Release blocked because a gating lane is red | Release gate notice or run naming a lane [R7]; annotations [S6] | Folded into that lane's incident | D | The lane's incident is done and npm shows the versions |
+| Release blocked because a gating lane is red | Release gate notice or run naming a lane [R7]; annotations [PF 9.5] | Folded into that lane's incident | D | The lane's incident is done and npm shows the versions |
 | Release push race: version commit rejected | Release log "non-fast-forward" or "rejected"; after each release run, tags (`git ls-remote`, local) against npm (npm GET per package) [INC1 2] | Prevention: pull requests that change release inputs are not merged while the release job (not the gate job) is running. A tag without a published version, or a version without its commit, is a release incident | D; W `incident` | npm shows the tagged versions and master has the version commit |
 | Release published the wrong contents | After each release, a new major on npm not tied to an approved group [INC1 2] | Prevention: Mergify never queues a `!` title, and `githerd/merge` line 3 fails a breaking commit under a plain title. Detection: owner item at once, because a published version cannot be unpublished | D; O | Every published version is one the rules allowed |
 | Unintended version bump | Decision line 7: the daemon's release dry-run on the reference worktree merged with the pull request [S31] | `githerd/merge` failure with the unexpected bumps; a `pr` job fixes the config | D; W `pr` | Dry-run shows only allowed bumps |
@@ -199,25 +199,25 @@ adversarial review added (section 3.10). Columns:
 | Release starved by a steady stream of merges | Hours since the green commit above 6 while merges continue and every gating lane is progressing (section 4.7) | `githerd/merge` fails "starvation hold" on every pull request until the slowest lane completes on master's head. Never applied while a lane is not progressing (outage, balance), because waiting would not help | D | A green commit newer than the limit, or a release |
 | Master looks green but has not run against today's world | Never inferred from master; the advisory feed and the shared-failure classes catch it (3.2, 3.3) [OD 7] | Master is shown as "green as of <commit>" | D | See those rows |
 | Red spreads into pull requests through update-from-master | Prevention | Held pull requests leave Mergify's queue, so Mergify does not update them onto a red master; githerd's own updates use the CI-green commit (section 4.6) | D | No held pull request is updated onto a red commit |
-| Gating lane gets cancelled, never finishes | Newest run of a gating lane is `cancelled`, or its log or annotations say the runner was lost [S6] | Classifier: on a rented label, runner loss is "possible balance" until the next start proves otherwise (3.2). Otherwise one re-dispatch on master's head; a second loss on the same head is an incident | D | The lane completes on master's head |
+| Gating lane gets cancelled, never finishes | Newest run of a gating lane is `cancelled`, or its job says the runner was lost: "lost communication" is only in an annotation (the job has no steps and no log), "received a shutdown signal" only in the log, and both jobs conclude `failure`, not `cancelled` [PF 9.5] | Classifier: on a rented label, runner loss is "possible balance" until the next start proves otherwise (3.2). Otherwise one re-dispatch on master's head; a second loss on the same head is an incident | D | The lane completes on master's head |
 
 ### 3.2 External drift
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| Security advisory fails the dependency audit | The advisory feed sorted by update time: a free poll if it honors ETags [S5], otherwise on activity at most every 15 minutes. Names matched against master's lockfile; a match runs the audit exactly as `ci.yml`'s `Security audit` step does (`pnpm audit --audit-level=high --json`, honoring `ignoreGhsas`) in the reference worktree [R5]. A matched advisory that passes locally stays on a recheck list until a CI audit has run after its update time | A failure is a shared incident before any pull request fails; per-PR audit failures on pull requests that do not touch dependencies are master-side (classifier) and create no `pr` job. The worker upgrades, overrides, or records an ignore with a reason and a dated review (allowed by the review rubric) | D; W `incident` | The audit passes on master's lockfile and on one canary pull request updated and green; the other pull requests are updated only when each comes up to merge |
+| Security advisory fails the dependency audit | The advisory feed sorted by update time, a free poll (it answers `If-None-Match` with 304, and the braces advisory of 10-02 is on its first page with its update time) [PF 9.4]. Names matched against master's lockfile; a match runs the audit exactly as `ci.yml`'s `Security audit` step does (`pnpm audit --audit-level=high --json`, honoring `ignoreGhsas`) in the reference worktree [R5]. A matched advisory that passes locally stays on a recheck list until a CI audit has run after its update time | A failure is a shared incident before any pull request fails; per-PR audit failures on pull requests that do not touch dependencies are master-side (classifier) and create no `pr` job. The worker upgrades, overrides, or records an ignore with a reason and a dated review (allowed by the review rubric) | D; W `incident` | The audit passes on master's lockfile and on one canary pull request updated and green; the other pull requests are updated only when each comes up to merge |
 | Audit exception expires or a patch appears | The advisory feed shows an update to a GHSA listed in `ignoreGhsas` [R5] | A job to remove the ignore and upgrade | D; W `issue` | The ignore is gone and the audit passes |
 | Dependabot alerts disagree with reality | Not read | Dependabot alerts never create work [CAT] | - | n/a |
-| Runner image moves under the project | On every red gating key: a diff of the `Set up job` runner-image block and the tool-version lines (node, pnpm, Chrome, Mesa, driver) between the last green and the first red run of that job, 2 log fetches; deprecation annotations on completed master runs [S6] | A non-empty diff makes the incident "environment drift": no revert, the worker starts from the diff. An issue is filed only when a version the gate records changes, not when the image string changes | D; W `incident` | The lane is green on the new image |
-| Rented GPU runner out of balance | Balance text in the job log, steps or annotations; runner loss on the rented label counts as possible balance [INC1 2], [S6], [S7] | Classifier class "paid capacity": no incident, no worker. One owner item. The GPU lane is parked for merges (merges continue; release waits, enforced by `release.yml` itself [R7]). The daemon re-dispatches the GPU lane on master's head at 30 minutes, 2 hours, then every 6 hours while the item is open, once [S7] shows a balance-rejected job fails fast and costs nothing | D; O | The lane completes on master's head (a silent top-up ends the item by itself) |
+| Runner image moves under the project | On every red gating key: a diff of the `Set up job` runner-image block and the tool-version lines (node, pnpm, Chrome, Mesa, driver) between the last green and the first red run of that job, 2 log fetches; deprecation annotations on completed master runs [PF 9.5] | A non-empty diff makes the incident "environment drift": no revert, the worker starts from the diff. An issue is filed only when a version the gate records changes, not when the image string changes | D; W `incident` | The lane is green on the new image |
+| Rented GPU runner out of balance | Balance text in a step name ("Machine: Insufficient balance to run job. Current balance: ..."); the rejected job has no annotation and no log. Runner loss on the rented label counts as possible balance [INC1 2], [PF 9.5], [PF 9.6] | Classifier class "paid capacity": no incident, no worker. One owner item. The GPU lane is parked for merges (merges continue; release waits, enforced by `release.yml` itself [R7]). The daemon re-dispatches the GPU lane on master's head at 30 minutes, 2 hours, then every 6 hours while the item is open: a balance-rejected job fails about 5 seconds after it is created and is not charged [PF 9.6] | D; O | The lane completes on master's head (a silent top-up ends the item by itself) |
 | Rented runner plan limits | Log or annotation "limited to 30 minutes" or "Concurrent runner limit reached" [INC2 4] | Same class; owner item for the plan; an `infrastructure` issue if the workflow must be restructured | D; O | The job completes within the plan |
 | Job or step time budget overrun | Step durations from the jobs API for completed runs of workflows with timeouts, 1 call [INC2 4] | One issue per workflow and step, while there is still margin | D; W `issue` | Worst recent duration under 80 percent of its limit |
 | Benchmark noise on rented hardware | A red `bench-compare.js` row [R8] inside an incident | Incident procedure: the parent re-test separates noise from regression. Review rubric: a floor change backed by 10 or more recorded samples of that row on the same runner class is calibration, not loosening; anything else is an owner item, and the daemon's re-run unblocks master meanwhile | D; W `incident` | The row passes, or the floor matches its measured noise band |
 | Paid service overage | None readable [CAT 9]; the owner says so | `githerd policy park-gate <service>` or `githerd_record`; that gate's failures stop being incidents | O to say it; D | The owner ends the policy |
 | External service outage fails a check | Failed step's log names a remote host with a 5xx, ETIMEDOUT or ECONNRESET [INC2 5] | Classifier class "outside": the daemon re-runs the failed job once after 15 minutes; a 403 or 429 caused by our own burst becomes an `infrastructure` issue. Never a fix job | D | Passes on re-run, or the issue exists |
 | DNS or network stall on this machine | githerd's calls fail with resolve or connect errors and a second host (registry.npmjs.org) also fails | "Unknown since <time>": no decision, no write, no new incident; every deadline and attempt clock paused | D | A full reconcile succeeds |
-| Credential or account state blocks everything | One credential-pattern table, applied first by the classifier to every failure text (PR and master steps, release runs, worker-start probes, push results, worker findings): 401, "Bad credentials", 403 with "auth" or "permission", "Permission denied (publickey)", OIDC 403, npm E401, gpg or ssh signing errors; `gh` login change on `GET /user`; StopFailure `authentication_failed` or `billing_error` [S15]; the token-expiration header [S11] | One owner item per credential; no attempts charged; only what needs that credential stops. A changed `gh` login freezes all dispatch and writes. A signing probe runs before every worker start [S28] | D; O | The next call that needed it succeeds |
-| Shared GitHub rate budget runs low | `X-RateLimit-Remaining` on every response, never `GET /rate_limit` [PF 1.5] | Under 1500 only master runs and the pull request list are polled; under 500 the daemon posts no new `success` and keeps the last 300 calls for its own holds | D | Remaining above 1500 |
+| Credential or account state blocks everything | One credential-pattern table, applied first by the classifier to every failure text (PR and master steps, release runs, worker-start probes, push results, worker findings): 401, "Bad credentials", 403 with "auth" or "permission", "Permission denied (publickey)", OIDC 403, npm E401, gpg or ssh signing errors; `gh` login change on `GET /user`; StopFailure `authentication_failed` or `billing_error` [S15]; the token-expiration header, absent on the owner's OAuth token today [PF 9.9] | One owner item per credential; no attempts charged; only what needs that credential stops. A changed `gh` login freezes all dispatch and writes. A signing probe runs before every worker start [S28] | D; O | The next call that needed it succeeds |
+| Shared GitHub rate budget runs low | `X-RateLimit-Remaining` on every response, never `GET /rate_limit` [PF 1.5] | Under 1500 only master runs and the pull request list are polled; under 500 the daemon posts no new `success` and keeps the last 300 calls for its own holds and polls, because at zero even a conditional request is refused with 403 [PF 9.3] | D | Remaining above 1500 |
 | Claude Code update changes the platform under githerd | `claude --version` before each worker start differs from the last verified version | Platform self-test before any start; failure stops starts, banner, one page; resume used only if the self-test verified it | D | Self-test passes |
 | Repository settings change under githerd | Rulesets and repository settings read with ETag when master moves [R1], [R2] | A required check that has not reported on any pull request head in 24 hours is an incident; a change to `delete_branch_on_merge`, the merge methods or the required checks is a banner and re-checked assumptions | D | Every required check reports |
 
@@ -238,7 +238,7 @@ adversarial review added (section 3.10). Columns:
 | Owner rejects visual changes | An owner comment on the pull request carrying the review tool's machine-readable reject block [R14], [S29] | A `pr` job that resumes the session that made the pull request, with the rejects | D; W `pr` | New captures approved |
 | Visual gate passes when it should not | On each master move, a local read of master's `visual-baselines/` and story lists: every package with a Storybook has baselines [INC2 8] | A master incident with merge hold on every pull request | D; W `incident` | Every package's stories have approved baselines |
 | Review tool or review server unusable | Before any link is sent: servherd status, the health route, the served version against master, and the certificate's `notAfter` [PF 1.2] | `servherd restart` by the daemon; still broken, an incident for the tool; certificate under 14 days with no renewal, an owner item | D; W `incident` | The link works on current code |
-| Stacked pull request | `base.ref != "master"` | Never queued by Mergify (its rule needs `base=master`); stray native auto-merge disarmed. The daemon models the chain (section 4.6): when a base's head changes, children are updated in order; when a base merges, the daemon retargets each child to master itself, because `delete_branch_on_merge` is false and GitHub will not [R1], [S3] | D | Merged into master with its own checks |
+| Stacked pull request | `base.ref != "master"` | Never queued by Mergify (its rule needs `base=master`); stray native auto-merge disarmed. The daemon models the chain (section 4.6): when a base's head changes, children are updated in order; when a base merges, the daemon retargets each child to master itself, because `delete_branch_on_merge` is false and GitHub will not [R1], [PF 9.2]. The retarget starts no CI; Mergify's own update does (4.6) | D | Merged into master with its own checks |
 | Pull request already merged through another | Every commit reachable from master (1 compare call) | Comment naming the merging pull request; close after 3 days unless the owner objects | D | Closed with a pointer |
 | Breaking pull request held for a grouped major | `!` in the title (Mergify's rule); a breaking commit under a title without `!` fails `githerd/merge` line 3 | Mergify never queues it. githerd groups them per package on the board, with one owner item per group: cut the major now (the owner merges it by hand) or wait | Mergify; D; O; W `major` | One major per group is on npm |
 | Breaking change nobody marked | No mechanical signal [CAT 9]; review job | `breaking-unmarked` holds it; a `pr` job marks it | W `review`, `pr` | No minor release changes an export |
@@ -380,15 +380,15 @@ adversarial review added (section 3.10). Columns:
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
 | A flaky benchmark turns master's GPU lane red after an innocent merge | Classifier, then the incident procedure | Daemon re-run of the failing job on the red head and parent re-test on the last green commit before any revert; a red-head pass is "intermittent" (issue filed by the daemon); merge hold only for pull requests the lane can affect | D | As 3.1 |
-| GPU provider outage: the job sits queued | Queue age per gating job (`started_at` minus `created_at`) above the worst pickup time seen on that label [S9] | "Lane not progressing": one owner item (provider or account), release waits, merges continue, no re-dispatch while no runner picks up | D; O | The lane starts |
+| GPU provider outage: the job sits queued | Queue age per gating job (status `queued` and no `runner_name`; now minus `created_at`, because GitHub fills `started_at` with `created_at` while a job waits) above the worst pickup time seen on that label, 926 s on the rented label from 09-18 to 10-03 [PF 9.8] | "Lane not progressing": one owner item (provider or account), release waits, merges continue, no re-dispatch while no runner picks up | D; O | The lane starts |
 | GitHub Actions degraded (API fine, runs not starting) | Two or more heads pushed in 15 minutes with no check suite, or githubstatus.com reports Actions degraded [S27] | One "Actions degraded" state: CI-wait deadlines paused, not-started and slow-check rules and doorbells suppressed, lane re-dispatch held | D | A run starts on a recent head |
-| A scheduled GitHub deprecation brownout | Annotations on completed master runs (`annotations_count` > 0) [S6]; step text "automatically failed because it uses a deprecated version" | One `infrastructure` issue per deprecation with its date; a failure in the brownout window is environment drift (no revert, no intermittent issue) | D; W `issue` | The workflow no longer uses the deprecated item |
+| A scheduled GitHub deprecation brownout | Annotations on completed master runs (`annotations_count` > 0) [PF 9.5]; step text "automatically failed because it uses a deprecated version" | One `infrastructure` issue per deprecation with its date; a failure in the brownout window is environment drift (no revert, no intermittent issue) | D; W `issue` | The workflow no longer uses the deprecated item |
 | A non-gating master workflow fails (`deploy-pages.yml`, `coverage.yml`) | The same free runs poll returns every workflow [R4] | Low-priority incident, no merge hold | D; W `incident` | Its newest master run is green |
-| Release stuck green because CI artifacts expired | Release gate notice "no longer holds" its builds, read from annotations after each release run [R6], [R7], [S6] | The daemon re-runs CI on that commit, which recreates the artifacts and triggers the release on completion; no worker | D | npm shows the versions |
+| Release stuck green because CI artifacts expired | Release gate notice "no longer holds" its builds, read from annotations after each release run [R6], [R7], [PF 9.5] | The daemon re-runs CI on that commit, which recreates the artifacts and triggers the release on completion; no worker | D | npm shows the versions |
 | Release pending is real, not a quiet day | The daemon's `nx release --dry-run` on the green commit says whether anything would publish [S31] | Only a commit that would publish and is not on npm 2 hours after its lanes went green opens a release incident | D; W `incident` | npm shows the versions |
 | Registry or toolchain outage (npm 5xx, corepack or pnpm key rotation) | Install, audit or gate error text and exit code | Platform fault: worker starts pause with a banner, no attempts charged; retried on the next master move or after 15 minutes; a tool error in the audit is "unknown", never an advisory | D | Install succeeds |
 | Signing key missing or expired | Signing probe before each worker start [S28]; gpg errors in worker findings | Credential class: one owner item, starts stop, nothing charged | D; O | The probe passes |
-| Stacked pull request whose base was merged | The base pull request merged, child's base is the old branch [R1] | Daemon retargets the child (`PATCH` base to master) [S3], because neither GitHub nor Mergify does; Mergify then queues it like any other | D | Child based on master |
+| Stacked pull request whose base was merged | The base pull request merged, child's base is the old branch [R1] | Daemon retargets the child (`PATCH` base to master) [PF 9.2], because neither GitHub nor Mergify does; Mergify then queues it like any other and updates it, which runs CI on the new base. Never by deleting the base branch: that closes the child | D | Child based on master |
 | A worker's target pull request changes under it (owner merges, closes or pushes; the review tool updates it) | Head or state change on a held target | Unpushed commits salvaged to `githerd/<job>-salvage` and listed; a foreign head change is news ("branch moved by <who>: merge it before pushing"); attempts counted per job | D | Job continues or is cancelled with a pointer |
 | Malicious comment from a stranger on the owner's issue | The repository is public [R1] | Workers read GitHub text only through `githerd_read`; the guard refuses comment-reading `gh` forms; pull requests touching workflows, hooks, the gate, `.npmrc`, `.claude/` or adding a dependency get a security review before merge | D; W `review` | n/a |
 | A worker writes to GitHub as the owner and it looks like owner input | Workers share the owner's login | The guard refuses comments on items with open owner items, githerd labels, reopen; the guard's local log of worker writes lets the daemon attribute matching events to the worker | D | n/a |
@@ -447,8 +447,8 @@ How work flows:
 | `GET /repos/{r}/issues/comments?since=<high water - 10 min>` | every 60 s, `If-None-Match` | same |
 | Comments of each issue or pull request with an open owner item | every 60 s, `If-None-Match` | usually 304 |
 | `GET /user` | every reconcile, `If-None-Match` | free when unchanged |
-| `GET /advisories?ecosystem=npm&sort=updated` | every 60 s if it honors ETags [S5], else on activity at most every 15 min | 0 when idle |
-| Jobs and steps of a failed, cancelled or re-attempted run; `annotations_count` from its check runs; annotations only when the count is above 0 [S6] | once per such run | 1 to 3 calls |
+| `GET /advisories?ecosystem=npm&sort=updated` | every 60 s, `If-None-Match` [PF 9.4] | 304 free |
+| Jobs and steps (step names carry the balance text) of a failed, cancelled or re-attempted run; `annotations_count` from its check runs; annotations only when the count is above 0 [PF 9.5] | once per such run | 1 to 3 calls |
 | Job log | only when a failed step needs its text (classifier) | 1 call |
 | Two `Set up job` logs (last green and first red) | once per new red key | 2 calls |
 | Jobs list of an in-progress gating run (queue age) | while a gating job is queued past its pickup bound | 1 call per bound |
@@ -458,8 +458,9 @@ How work flows:
 | githubstatus.com components | only while a platform-wide symptom is suspected [S27] | not GitHub budget |
 
 ETags persist in `etags.json`, so a restart costs 304s, not a full re-read. Every response's
-`X-RateLimit-Remaining` is read; `GET /rate_limit` is never trusted [PF 1.5]. Whether a conditional
-request at zero remaining returns 304 or 403 is [S4].
+`X-RateLimit-Remaining` is read; `GET /rate_limit` is never trusted [PF 1.5]. At zero remaining a
+conditional request is refused with 403 like any other, so githerd is blind until
+`X-RateLimit-Reset`; the reserve in 3.2 covers polls as well as holds [PF 9.3].
 
 ### 4.3 Facts the daemon computes
 
@@ -472,8 +473,9 @@ request at zero remaining returns 304 or 403 is [S4].
   `node tools/release-hold.mjs apply`, as `release.yml` does, because nx itself ignores
   `release-hold.json`, and puts `nx.json` back afterwards; the answer is its per-project "New version <v> written to manifest" lines,
   none meaning nothing would publish (about 7 s on a warm machine).
-- **Queue age**: per queued gating job, now minus `created_at`, against the worst pickup time ever
-  seen on that runner label [S9].
+- **Queue age**: per queued gating job (status `queued`, no `runner_name`; `started_at` is not null
+  while queued), now minus `created_at`, against the worst pickup time ever seen on that runner
+  label, seeded with 926 s for the rented label [PF 9.8].
 - **Pull request facts**: author, base, draft, head, `mergeable`, files, commits (breaking marks),
   required check state, visual gate state, review record, stack chain (from `base.ref`), related
   pull requests (claim relations plus diff-file intersection).
@@ -491,7 +493,7 @@ list, the annotations, the exit code, the runner label and the pull request's fi
 | Order | Class | Matches | What follows |
 |---|---|---|---|
 | 1 | **Credential** | 401; "Bad credentials"; 403 with "auth" or "permission"; "Permission denied (publickey)"; OIDC 403; npm E401; gpg or ssh-keygen signing errors; StopFailure `authentication_failed` | One owner item per credential; no attempts charged; stop only what needs it |
-| 2 | **Paid capacity** | "Insufficient balance"; "limited to 30 minutes"; "Concurrent runner limit reached"; runner loss ("received a shutdown signal", "lost communication", cancelled with no steps) on a rented label; StopFailure `billing_error` | One owner item; that lane parked for merges; the release waits; backoff re-dispatch (3.2) |
+| 2 | **Paid capacity** | "Insufficient balance"; "limited to 30 minutes"; "Concurrent runner limit reached"; runner loss ("received a shutdown signal" in the log, "lost communication" in an annotation, a failed job with no steps) on a rented label; StopFailure `billing_error` | One owner item; that lane parked for merges; the release waits; backoff re-dispatch (3.2) |
 | 3 | **Outside or platform** | Third-party 5xx, ETIMEDOUT, ECONNRESET naming a remote host; registry or corepack errors; "Actions degraded"; queued past the pickup bound | One daemon re-run after 15 minutes, or a pause with a banner; never a fix job; no attempts charged |
 | 4 | **Environment drift** | The `Set up job` and tool-version diff between the last green and first red run is non-empty; "automatically failed because it uses a deprecated version" | Incident with the diff attached; never a revert; never an intermittent issue |
 | 5 | **Inherited** | The same key is red on master | Wait on the master incident |
@@ -500,7 +502,10 @@ list, the annotations, the exit code, the runner label and the pull request's fi
 | 8 | **Own** | Anything else | A `pr` job |
 
 The patterns live in one table in code, with a fixture per pattern taken from the recorded logs
-(`incidents/logs*` in the evidence set, and [S6], [S7] for the ones not seen yet).
+(`incidents/logs*` in the evidence set, and the jobs read in [PF 9.5] and [PF 9.6]). The classifier
+reads each failed job's step names first, then its annotations, then its log, because each of
+those texts appears in only one of the three; a job with no log answers the log endpoint with a
+storage `BlobNotFound` document, which is "no log", not an error.
 
 ### 4.5 The master incident procedure
 
@@ -513,9 +518,10 @@ apply on master; anything not in classes 1 to 4 is code):
    key as environment drift.
 3. On the second sighting the incident record exists and is urgent. An `incident` worker starts
    in the urgent slot at once. In parallel, needing no Claude, the daemon:
-   - re-runs the failing job on the red head, once per (head, key) [S8];
-   - re-runs the same job of the last green commit's run (`gh run rerun <run> --job <id>`), which
-     tests the old commit in today's world [S8].
+   - re-runs the failing job on the red head, once per (head, key) [PF 9.7];
+   - re-runs the same job of the last green commit's run (`gh run rerun --job <job id>`; `gh`
+     refuses a run id together with `--job`), which tests the old commit in today's world: the run
+     keeps its head sha and its `run_attempt` goes up by one [PF 9.7].
 4. Outcomes:
 
 | Red head re-run | Parent re-run | Merges between green and red | Meaning | The daemon does |
@@ -633,7 +639,8 @@ githerd/merge".
 **Updates** githerd still makes, each with the expected head, in order of preference:
 
 - baseline-only conflict: `visual-review update <pr>` [R13];
-- master's tip is the CI-green commit: `PUT /pulls/{n}/update-branch` with `expected_head_sha` [S2];
+- master's tip is the CI-green commit: `PUT /pulls/{n}/update-branch` with `expected_head_sha`, which works while
+  `allow_update_branch` is false and answers 422 on a stale head [PF 9.1];
 - otherwise: the daemon merges the CI-green commit into the pull request in a daemon worktree and
   pushes through the push queue, gate included.
 
@@ -644,9 +651,14 @@ when it reaches the front of its queue, so githerd never updates one just to mer
 **Stacks.** Mergify queues only pull requests based on master, so a stacked child is never queued
 until its base merged and it was retargeted, and nothing retargets it for us. The daemon builds each
 chain from `base.ref`. A base whose head changed queues an update of each child in order. A merged
-base makes the daemon retarget each child with `PATCH /pulls/{n}` `base=master` [S3], because
+base makes the daemon retarget each child with `PATCH /pulls/{n}` `base=master` [PF 9.2], because
 `delete_branch_on_merge` is false and GitHub will not [R1]; from then on Mergify treats the child
-like any other pull request. A stacked job blocks until its base pull request is merged (a GitHub
+like any other pull request. A retarget starts no CI (it is the `edited` action, which no workflow
+listens to), so the child keeps green checks computed against its old base. That is safe only
+because Mergify updates a pull request that is behind master before it checks it, and a retargeted
+child is always behind (master gained its base's merge commit), so the update runs CI on the new
+base. githerd never deletes a base branch to make GitHub retarget: deleting it through the API
+closes every pull request based on it [PF 9.2]. A stacked job blocks until its base pull request is merged (a GitHub
 fact, not the base job's state). Children are left off the owner's review list until their base's
 gate is green.
 
@@ -654,7 +666,7 @@ gate is green.
 
 After every release run and on every start: tags on master (`git ls-remote`, local), npm versions
 (npm GETs), and master's version commits. A tag without a version, or a version without its
-commit, is a release incident. After each release run its gate notices are read [S6]; "no longer
+commit, is a release incident. After each release run its gate notices are read [PF 9.5]; "no longer
 holds" its builds makes the daemon re-run CI on that commit [R6], [R7]. Release pending (4.3) opens
 a release incident only for a commit that would publish.
 
@@ -730,9 +742,9 @@ shown ("Stop gate unreachable: N stops allowed unchecked").
 ### 4.11 githerd's GitHub identity
 
 The daemon uses the owner's `gh` token (owner's decision 2 in 12.3: no separate GitHub App for
-now), with the tiers in 3.2, and keeps its last 300 calls for its own holds. Its statuses show as
-the owner. `gh`'s login stays the definition of "the owner" and is checked every reconcile. The token-expiration header is read on every response; an item is raised 7 days ahead
-[S11].
+now), with the tiers in 3.2, and keeps its last 300 calls for its own holds and polls (at zero even a 304 poll is refused [PF 9.3]). Its statuses show as
+the owner. `gh`'s login stays the definition of "the owner" and is checked every reconcile. The token-expiration header is read on every response; an item is raised 7 days ahead.
+The owner's token is an OAuth token and sends no such header today [PF 9.9].
 
 ---
 
@@ -1328,7 +1340,7 @@ rulesets, and never acts on input from an account other than the `gh` login.
 | The guard is a tokenizer, not a shell | Text built at run time can hide a command | The ruleset, the daemon-only merge and push paths catch what matters |
 | Workers hold the owner's credentials | They are his sessions | Guard, server-side gates, owner-only input through `githerd_read` |
 | Claude judgments are wrong (overlap, duplicates, review) | No mechanical signal | Second confirmations, grace periods with veto, required checks, master lanes |
-| A paid lane costs money on every parent re-test and re-dispatch | The parent re-test is the only way to separate noise from regression | Once per incident; balance re-dispatch only after [S7] shows rejected jobs cost nothing |
+| A paid lane costs money on every parent re-test and re-dispatch | The parent re-test is the only way to separate noise from regression | Once per incident; balance re-dispatch is free, a rejected job is not charged [PF 9.6] |
 | The weekly usage limit is not readable until verified | On-screen text only | Worker-hours cap; global pause on the limit itself |
 | Typing into a window | tmux keys go to whatever is on screen | Positive match of the prompt box, text verified before Enter |
 | Resume across Claude Code versions | Internal format | Used only when verified on the running version |
@@ -1495,9 +1507,9 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | "Reopens after two green sightings" could never happen on a frozen tree | No global closed tree; holds end when the lane is green at a commit containing the fix, and a sighting is defined (1.4, 4.5) |
 | A whole-repository freeze for a master-only lane | Holds scoped by the lane's own selection logic and paths (4.6 line 3) |
 | A balance stop mid-run reads as a lost runner and costs a wasted dispatch | Runner loss on a rented label is "possible balance" (4.4) |
-| Balance text may be only in annotations | Classifier reads log, steps and annotations (4.2, [S6]) |
+| Balance text may be only in annotations | It is only in a step name; the classifier reads step names, annotations and the log (4.2, 4.4, [PF 9.5]) |
 | Balance kept every merge waiting on the owner's payment | Paid capacity parks the lane for merges; the release waits (4.4) |
-| A silent top-up never ends the item | Backoff re-dispatch ends it [S7] |
+| A silent top-up never ends the item | Backoff re-dispatch ends it [PF 9.6] |
 | A labelled pull request failing on balance became a code job | Classifier runs before "own" on pull requests too (4.4) |
 | Usage stop did not freeze the job clocks | Global pause freezes deadlines, recycling and attempts (8.3) |
 | A doorbell could select a paid option in the limit menu | Positive prompt match; no typing into the limit screen (7.5) |
@@ -1530,7 +1542,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Finding | Resolution |
 |---|---|
 | A rejects-only Finish leaves no record | The reject block in the owner's comment is the signal [R14], with a fixture [S29] |
-| Stack children go stale; GitHub never retargets them | Chain model; daemon updates and retargets [R1], [S3] (4.6) |
+| Stack children go stale; GitHub never retargets them | Chain model; daemon updates and retargets [R1], [PF 9.2] (4.6) |
 | A stacked job started once its base job was terminal | Blocks until the base pull request is merged (4.6) |
 | A pr job stalls forever when the owner has the branch checked out | Detached worktrees and explicit refspec pushes (7.1, 4.8) |
 | Baseline-only conflicts paged the owner although the tool can fix them | The daemon runs `visual-review update` [R13] |

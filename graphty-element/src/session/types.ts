@@ -102,8 +102,10 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge). Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"), and a record
-     * without the key comes last in either direction.
+     * edge), or a run's result field, `results.<run>.<field>`, such as `results.pagerank.value`.
+     * Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"),
+     * and a record without the key -- a node a run did not score, or a run that has not finished --
+     * comes last in either direction.
      */
     readonly key: string;
     /** Largest first. Default false. */
@@ -124,6 +126,13 @@ export interface RecordPageOptions {
      * Records that sort equal keep that order too.
      */
     readonly sort?: RecordSort;
+    /**
+     * Run result fields to carry on each record, as `results.<run>.<field>` paths. Each record
+     * holds the value under the path itself (`record["results.pagerank.value"]`), and none at all
+     * where the run gave that record no value. A rerun's values show in the next page read: the
+     * revision moves when a run's result does.
+     */
+    readonly columns?: readonly string[];
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -425,7 +434,7 @@ export interface SessionDataApi {
      * @param options - the window, the scope and the order; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more, or a column is not a `results.<run>.<field>` path.
      */
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     /**
@@ -434,7 +443,7 @@ export interface SessionDataApi {
      * @param options - the window, the scope, the order and the node; every field optional
      * @returns the page, with the total and the revision it was read at
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
-     *     number of zero or more.
+     *     number of zero or more, or a column is not a `results.<run>.<field>` path.
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**

@@ -78,6 +78,49 @@ interface PageSources {
      * @returns its members
      */
     resolve(spec: ScopeInput): ResolvedScope;
+    /**
+     * One run result field's value at a row: what a `results.<run>.<field>` path reads there.
+     * @param target - nodes or edges
+     * @param index - the row
+     * @param path - the result path
+     * @returns the value, or undefined where the run gave the row none
+     */
+    result(target: "node" | "edge", index: number, path: string): unknown;
+}
+
+/** What a result path starts with. */
+const RESULT_PREFIX = "results.";
+
+/**
+ * Whether a key names a run's result field: exactly `results.<run>.<field>`.
+ * @param key - a sort key or a column
+ * @returns true for a result path
+ */
+function isResultPath(key: string): boolean {
+    const parts = key.split(".");
+    return key.startsWith(RESULT_PREFIX) && parts.length === 3 && parts.every((part) => part !== "");
+}
+
+/**
+ * Check a page's columns.
+ * @param columns - what the caller asked for
+ * @param verb - the verb, for the message
+ * @returns the columns, or an empty list
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for a column that is not a result path.
+ */
+function pageColumns(columns: readonly string[] | undefined, verb: string): readonly string[] {
+    for (const column of columns ?? []) {
+        if (typeof column !== "string" || !isResultPath(column)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `data.${verb}() takes columns that are run result paths, such as "results.pagerank.value", not ${JSON.stringify(column)}`,
+                source: "data",
+                details: { option: "columns", value: column },
+            });
+        }
+    }
+
+    return columns ?? [];
 }
 
 /** How many records a page holds when the caller does not say. */
@@ -507,6 +550,7 @@ export class SessionData implements SessionDataApi {
         recordAt: (index: number) => TRecord,
     ): RecordPage<TRecord> {
         const { offset, limit } = pageWindow(options, verb);
+        const columns = pageColumns(options.columns, verb);
         // Read after the snapshot: a freeze moves the tick, so reading it first would name a
         // revision the page was not read at.
         const revision = this.pages.revision();
@@ -515,7 +559,22 @@ export class SessionData implements SessionDataApi {
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
         for (let position = offset; position < Math.min(total, offset + limit); position++) {
-            records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
+            const index = rows === null ? position : (rows[position] ?? position);
+            const record = recordAt(index);
+            if (columns.length === 0) {
+                records.push(record);
+                continue;
+            }
+
+            const values: Record<string, unknown> = {};
+            for (const column of columns) {
+                const value = this.pages.result(target, index, column);
+                if (value !== undefined) {
+                    values[column] = value;
+                }
+            }
+
+            records.push(frozenRecord({ ...record, ...values }));
         }
 
         return Object.freeze({ records: Object.freeze(records), offset, total, revision: String(revision) });
@@ -644,6 +703,10 @@ export class SessionData implements SessionDataApi {
         key: string,
         nameEdge: (index: number) => EdgeId,
     ): unknown {
+        if (isResultPath(key)) {
+            return this.pages.result(target, index, key);
+        }
+
         if (target === "node") {
             const id = snapshot.ids.idOf(index);
             return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];

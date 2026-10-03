@@ -1837,6 +1837,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             revision: () => inputs.tick.value,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
+            // Read through a call: the selector source is built below, once the runs exist.
+            result: (target, index, path) =>
+                target === "node" ? elements.nodeValue(index, path) : elements.edgeValue(index, path),
         },
     );
     // A session that holds a store of its own kind writes it through its own ingest; the element

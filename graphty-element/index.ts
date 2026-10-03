@@ -46,6 +46,7 @@ import "./src/graphty-element";
 // =============================================================================
 export { Edge } from "./src/Edge";
 export { Graph } from "./src/Graph";
+export type { GraphtyElementEventMap } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
@@ -134,6 +135,19 @@ export type {
     NoteTargetStatus,
     Problem,
 } from "./src/session/notes/types";
+
+// The project file: the whole session as one graphty document, as `element.session.project`
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";

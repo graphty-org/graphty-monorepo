@@ -47,6 +47,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
+import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { ResultsApi } from "./results";
 import type {
     Caveats,
@@ -650,6 +651,8 @@ export interface ProjectConfig {
      * blank. A claim, never a verified identity.
      */
     readonly author?: string;
+    /** The project's name, which a project file carries. Absent when none is set, never blank. */
+    readonly name?: string;
 }
 
 /**
@@ -669,6 +672,8 @@ export interface ProjectConfigPatch {
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
+    /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
+    readonly name?: string | null;
 }
 
 /**
@@ -772,6 +777,11 @@ export interface SessionEventMap {
      * with no view publishes too. See {@link ProgressChange}.
      */
     "progress:changed": ProgressChange;
+    /**
+     * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
+     * changed. Mirrored on the element as `graphty-project-status`.
+     */
+    "project:status": ProjectStatus;
 }
 
 /**
@@ -1304,6 +1314,8 @@ export interface GraphSession {
     readonly canRedo: boolean;
     /** The steps, the cursor, the pending work and the budget. */
     readonly history: SessionHistory;
+    /** Saving the whole session to one project file and opening one again. */
+    readonly project: ProjectApi;
     /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records

@@ -268,6 +268,22 @@ export type {
 } from "./src/session/notes/types";
 
 // ---------------------------------------------------------------------------------------------
+// The project file: the whole session saved to one file and opened again, as `session.project`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 

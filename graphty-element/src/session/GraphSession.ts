@@ -78,10 +78,12 @@ import {
 } from "./project/Dispatcher";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
+import { bindResultPath } from "./results/types";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -309,6 +311,8 @@ interface SessionParts {
     readonly watchers: Watchers;
     /** The one path every change to project state takes; the styles API already writes through it. */
     readonly dispatcher: Dispatcher;
+    /** Saved results waiting for the runs a project open starts; the executor answers from it. */
+    readonly canned: CannedOutcomes;
 }
 
 /**
@@ -394,6 +398,7 @@ class Session implements ElementSession {
     readonly views: SessionViews;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
+    readonly project: ProjectApi;
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
@@ -490,6 +495,12 @@ class Session implements ElementSession {
             return advice === undefined ? undefined : { id: advice.layout.id, engine: advice.layout.engine };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.project = projectOf(this, this.dispatcher, parts.canned, {
+            announce: (change) => {
+                publish(this.watchers, "project:status", change);
+            },
+            isDerived: (id) => this.sessionRuns.isDerivedId(id),
+        });
     }
 
     /**
@@ -1101,6 +1112,9 @@ function configOf(
         get author() {
             return read().author;
         },
+        get name() {
+            return read().name;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.
@@ -1459,7 +1473,8 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
     for (const run of runs.list()) {
         for (const field of run.fields) {
             if (field.kind === target) {
-                paths.push(field.path);
+                // A field declared by its algorithm names the run as "$" until bound to this one.
+                paths.push(bindResultPath(field.path, run.id));
             }
         }
     }
@@ -1515,7 +1530,7 @@ function fieldWordsOf(
 
         for (const run of runs.list()) {
             for (const field of run.fields) {
-                if (field.path === path && field.kind === target) {
+                if (bindResultPath(field.path, run.id) === path && field.kind === target) {
                     return { plainName: field.plainName, technicalName: field.technicalName };
                 }
             }
@@ -2090,6 +2105,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return spec;
     };
+    const canned: CannedOutcomes = new Map();
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -2110,7 +2126,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
         },
         setName: (id: SetId) => sets.get(id)?.name,
-        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
+        execute: sharingIndexes(
+            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
+            snapshot,
+            () => dispatcher.state.graph.token,
+        ),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
@@ -2499,6 +2519,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         planning,
         watchers,
         dispatcher,
+        canned,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

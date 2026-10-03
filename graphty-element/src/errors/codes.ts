@@ -159,6 +159,12 @@ export type GraphtyErrorCode =
      */
     | "E_UNSUPPORTED_VERSION"
     /**
+     * Opening a project would replace a session holding changes that were never saved
+     * (`session.project.dirty`). Nothing in the session changed. The caller saves first, or opens
+     * again with `{ discard: true }` once the reader agreed to lose them.
+     */
+    | "E_UNSAVED_CHANGES"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -367,7 +373,13 @@ export type GraphtyWarningCode =
     /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
     | "W_UNKNOWN_MEMBER"
     /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
-    | "W_FUTURE_TIME";
+    | "W_FUTURE_TIME"
+    /** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+    | "W_UNKNOWN_KIND"
+    /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+    | "W_DATA_DIFFERS"
+    /** A run was still computing when the project was saved, so the file does not hold it. */
+    | "W_RUN_PENDING";
 
 /**
  * Every code, as a lookup table.
@@ -399,6 +411,7 @@ const CODE_TABLE = {
     E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
+    E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

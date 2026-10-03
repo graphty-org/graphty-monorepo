@@ -74,6 +74,7 @@ export default defineConfig({
                         { text: "Events", link: "/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/guide/vocabulary" },
                         { text: "Undo & History", link: "/guide/undo" },
+                        { text: "Project Files", link: "/guide/project-file" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },

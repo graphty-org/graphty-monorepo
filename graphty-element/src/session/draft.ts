@@ -700,39 +700,80 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
  */
 function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMapping): TableMappingRead {
     const rowsAre = choice.rowsAre ?? base.rowsAre;
-    const kind: "node" | "edge" = rowsAre === "nodes" ? "node" : "edge";
-    const columns = held.order.map((name) => ({ kind, name }));
     const out: Record<string, unknown> = { ...base, rowsAre };
     for (const [role, value] of Object.entries(choice)) {
-        if (value === undefined) {
-            continue;
+        if (value !== undefined && role !== "rowsAre") {
+            out[role] = checkedRole(held, rowsAre, role, value);
         }
-
-        if (!ROLES[rowsAre].has(role)) {
-            throw badCommand(`A table of ${rowsAre} has no ${JSON.stringify(role)} role.`, {
-                table: held.table.id,
-                role,
-                roles: [...ROLES[rowsAre]],
-            });
-        }
-
-        if (role === "rowsAre") {
-            continue;
-        }
-
-        const column = typeof value === "object" && value !== null ? (value as { column?: unknown }).column : value;
-        if (column !== null && typeof column !== "string") {
-            throw badCommand(`The ${role} role takes a column name or null.`, { table: held.table.id, role });
-        }
-
-        if (column !== null) {
-            resolveColumn(columns, { kind, name: column });
-        }
-
-        out[role] = (role === "source" || role === "target") && typeof column === "string" ? { column } : value;
     }
 
     return Object.freeze(out) as unknown as TableMappingRead;
+}
+
+/**
+ * One role of a reader's choice, checked against the table: its read form.
+ * @param held - The table.
+ * @param rowsAre - What its rows become.
+ * @param role - The role.
+ * @param value - The column the reader named, `{ column }`, or null.
+ * @returns The role's read form.
+ * @throws `E_BAD_COMMAND` for a role its rows cannot have, `E_UNKNOWN_ATTRIBUTE` for a column it lacks.
+ */
+function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, value: unknown): unknown {
+    if (!ROLES[rowsAre].has(role)) {
+        throw badCommand(`A table of ${rowsAre} has no ${JSON.stringify(role)} role.`, {
+            table: held.table.id,
+            role,
+            roles: [...ROLES[rowsAre]],
+        });
+    }
+
+    const column = typeof value === "object" && value !== null ? (value as { column?: unknown }).column : value;
+    if (column === null) {
+        return value;
+    }
+
+    if (typeof column !== "string") {
+        throw badCommand(`The ${role} role takes a column name or null.`, { table: held.table.id, role });
+    }
+
+    const kind: "node" | "edge" = rowsAre === "nodes" ? "node" : "edge";
+    resolveColumn(
+        held.order.map((name) => ({ kind, name })),
+        { kind, name: column },
+    );
+    return role === "source" || role === "target" ? { column } : value;
+}
+
+/**
+ * The `data.knownFields` one table's choice writes.
+ * @param nodes - Whether its rows are nodes.
+ * @param choice - The reader's choice for it.
+ * @returns The fields.
+ */
+function tableFields(nodes: boolean, choice: TableMapping): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    if (choice.time !== undefined) {
+        out[nodes ? "nodeTimePath" : "edgeTimePath"] = choice.time;
+    }
+
+    if (nodes) {
+        if (choice.label !== undefined) {
+            out.nodeLabelPath = choice.label;
+        }
+
+        return out;
+    }
+
+    if (choice.weight !== undefined) {
+        out.edgeWeightPath = choice.weight;
+    }
+
+    if (choice.edgeId !== undefined) {
+        out.edgeIdPath = choice.edgeId === null ? null : keyExpression(choice.edgeId);
+    }
+
+    return out;
 }
 
 /**
@@ -744,7 +785,11 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
  * @param read - The rows.
  * @returns The fields to write.
  */
-function knownFieldsOf(mapping: LoadMappingRead, given: LoadMapping | undefined, read: ReadSource): Plan["knownFields"] {
+function knownFieldsOf(
+    mapping: LoadMappingRead,
+    given: LoadMapping | undefined,
+    read: ReadSource,
+): Plan["knownFields"] {
     if (given === undefined) {
         return {};
     }
@@ -753,22 +798,7 @@ function knownFieldsOf(mapping: LoadMappingRead, given: LoadMapping | undefined,
         "tables" in given ? given.tables : { [read.tables[0].table.id]: given };
     const out: Record<string, string | null> = {};
     for (const [id, choice] of Object.entries(tables)) {
-        const nodes = mapping.tables[id].rowsAre === "nodes";
-        if (nodes && choice.label !== undefined) {
-            out.nodeLabelPath = choice.label;
-        }
-
-        if (choice.time !== undefined) {
-            out[nodes ? "nodeTimePath" : "edgeTimePath"] = choice.time;
-        }
-
-        if (!nodes && choice.weight !== undefined) {
-            out.edgeWeightPath = choice.weight;
-        }
-
-        if (!nodes && choice.edgeId !== undefined) {
-            out.edgeIdPath = choice.edgeId === null ? null : keyExpression(choice.edgeId);
-        }
+        Object.assign(out, tableFields(mapping.tables[id].rowsAre === "nodes", choice));
     }
 
     return out;

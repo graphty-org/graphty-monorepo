@@ -145,49 +145,21 @@ interface CsvRows {
  * @returns the header's fields and the start line of every record after it
  */
 function csvRecordLines(text: string, given?: string): { header: string[]; lines: number[] } {
-    const firstLine = text.split(/\r\n|\n|\r/, 1)[0] ?? "";
-    // The delimiter graph-io would pick from the header: the most frequent of the four outside quotes.
-    const unquoted = firstLine.replaceAll(/"[^"]*"/g, "");
-    const delimiter =
-        given ??
-        [",", "\t", ";", "|"].reduce((best, each) =>
-        unquoted.split(each).length > unquoted.split(best).length ? each : best,
-    );
+    const delimiter = given ?? guessDelimiter(text.split(/\r\n|\n|\r/, 1)[0] ?? "");
     const header: string[] = [];
     const lines: number[] = [];
     let line = 1;
     let field = "";
-    let quoted = false;
     let recordStart = true;
     let inHeader = true;
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        if (quoted) {
-            if (char === '"' && text[i + 1] === '"') {
-                field += '"';
-                i++;
-            } else if (char === '"') {
-                quoted = false;
-            } else {
-                field += char;
-                line += char === "\n" || (char === "\r" && text[i + 1] !== "\n") ? 1 : 0;
-            }
-
-            continue;
-        }
-
-        if (char === "\n" || char === "\r") {
-            if (char === "\r" && text[i + 1] === "\n") {
-                i++;
-            }
-
+    for (const [token] of text.matchAll(CSV_TOKEN)) {
+        if (/^(?:\r\n|\n|\r)$/.test(token)) {
             if (inHeader) {
                 header.push(field);
                 inHeader = false;
             }
 
             line++;
-            field = "";
             recordStart = true;
             continue;
         }
@@ -197,13 +169,12 @@ function csvRecordLines(text: string, given?: string): { header: string[]; lines
         }
 
         recordStart = false;
-        if (char === '"') {
-            quoted = true;
-        } else if (char === delimiter && inHeader) {
-            header.push(field);
-            field = "";
-        } else {
-            field += char;
+        if (token.startsWith('"')) {
+            line += token.match(/\r\n|\n|\r/g)?.length ?? 0;
+        }
+
+        if (inHeader) {
+            field = headerToken(token, delimiter, header, field);
         }
     }
 
@@ -212,6 +183,46 @@ function csvRecordLines(text: string, given?: string): { header: string[]; lines
     }
 
     return { header: header.map((name) => name.trim()), lines };
+}
+
+/** A quoted cell (its closing quote optional at the end of the text), a line break, or other text. */
+const CSV_TOKEN = /"(?:[^"]|"")*"?|\r\n|\n|\r|[^"\r\n]+/g;
+
+/**
+ * The delimiter graph-io would pick from the header: the most frequent of the four outside quotes.
+ * @param firstLine - the header line
+ * @returns the delimiter
+ */
+function guessDelimiter(firstLine: string): string {
+    const unquoted = firstLine.replaceAll(/"[^"]*"/g, "");
+    return [",", "\t", ";", "|"].reduce(
+        (best, each) => (unquoted.split(each).length > unquoted.split(best).length ? each : best),
+        ",",
+    );
+}
+
+/**
+ * Add one token of the header line to its fields.
+ * @param token - a quoted cell or a run of other text
+ * @param delimiter - the column separator
+ * @param header - the fields finished so far, appended to
+ * @param field - the field in progress
+ * @returns the field in progress after the token
+ */
+function headerToken(token: string, delimiter: string, header: string[], field: string): string {
+    if (token.startsWith('"')) {
+        const body = token.length > 1 && token.endsWith('"') ? token.slice(1, -1) : token.slice(1);
+        return field + body.replaceAll('""', '"');
+    }
+
+    const [first, ...rest] = token.split(delimiter);
+    let current = field + first;
+    for (const part of rest) {
+        header.push(current);
+        current = part;
+    }
+
+    return current;
 }
 
 /**

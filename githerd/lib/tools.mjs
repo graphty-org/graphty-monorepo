@@ -302,6 +302,60 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
 }
 
 /**
+ * Formats a count and its list as ` (n): a; b`, or ` (0)` when the list is empty.
+ * @param {string[]} items the entries
+ * @returns {string} the counted list
+ */
+function countedList(items) {
+    const list = items.length ? `: ${items.join("; ")}` : "";
+    return ` (${items.length})${list}`;
+}
+
+/**
+ * Renders the red-master lines of status.
+ * @param {any} inc the open incident, if any
+ * @param {string} since the " since hh:mm UTC" text
+ * @returns {string[]} the lines
+ */
+function redLines(inc, since) {
+    const lanes = (inc?.lanes ?? []).map((l) => {
+        const jobs = (l.failingJobs ?? []).join(", ");
+        return ` ${l.lane} run ${l.runId} failed at ${short(l.sha)} (${jobs}).`;
+    });
+    const id = inc ? ` (${inc.id})` : "";
+    const second = [];
+    if (inc?.suspects.length) {
+        const list = inc.suspects.map((s) => (s.pr ? `#${s.pr} ` : "") + short(s.sha)).join(", ");
+        second.push(`${inc.suspects.length === 1 ? "Suspect" : "Suspects"}: ${list}.`);
+    }
+    if (inc?.fixRun) second.push(`Fix run ${inc.fixRun} in progress.`);
+    second.push("Hold pushes and merges.");
+    return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];
+}
+
+/**
+ * Renders the verification line of the master part of status.
+ * @param {any} m the master data
+ * @param {Date} now the current time
+ * @returns {string[]} the sentences
+ */
+function verifiedSentences(m, now) {
+    const out = [];
+    if (m.greenSha) out.push(`Verified green: ${short(m.greenSha)}.`);
+    if (m.pending && m.newerInFlight > 0) {
+        const plural = m.newerInFlight === 1 ? "" : "s";
+        out.push(`CI in flight on ${m.newerInFlight} newer commit${plural}.`);
+    } else if (m.pending) {
+        out.push("Newer commits not yet verified.");
+    }
+    if (m.lastRelease) {
+        const age = span(now.getTime() - Date.parse(m.lastRelease.at));
+        out.push(`Last release ${short(m.lastRelease.sha)}, ${age} ago.`);
+    }
+    return out;
+}
+
+/**
  * Renders the master part of status.
  * @param {any} m the master data
  * @param {Date} now the current time
@@ -310,44 +364,14 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
 function masterLines(m, now) {
     const since = m.since ? ` since ${hhmm(m.since)} UTC` : "";
     const lines = [];
-    if (m.verdict === "red") {
-        const inc = m.incident;
-        const lanes = (inc?.lanes ?? []).map(
-            (l) => ` ${l.lane} run ${l.runId} failed at ${short(l.sha)} (${(l.failingJobs ?? []).join(", ")}).`,
-        );
-        lines.push(`MASTER: RED${since}${inc ? ` (${inc.id})` : ""}.${lanes.join("")}`);
-        const second = [];
-        if (inc?.suspects.length) {
-            const list = inc.suspects.map((s) => `${s.pr ? `#${s.pr} ` : ""}${short(s.sha)}`).join(", ");
-            second.push(`${inc.suspects.length === 1 ? "Suspect" : "Suspects"}: ${list}.`);
-        }
-        if (inc?.fixRun) second.push(`Fix run ${inc.fixRun} in progress.`);
-        second.push("Hold pushes and merges.");
-        lines.push(`  ${second.join(" ")}`);
-    } else if (m.verdict === "green") {
-        lines.push(`MASTER: green${since}.`);
-    } else {
-        lines.push("MASTER: unknown (no complete poll yet).");
-    }
-    const third = [];
-    if (m.greenSha) third.push(`Verified green: ${short(m.greenSha)}.`);
-    if (m.pending) {
-        third.push(
-            m.newerInFlight > 0
-                ? `CI in flight on ${m.newerInFlight} newer commit${m.newerInFlight === 1 ? "" : "s"}.`
-                : "Newer commits not yet verified.",
-        );
-    }
-    if (m.lastRelease) {
-        third.push(
-            `Last release ${short(m.lastRelease.sha)}, ${span(now.getTime() - Date.parse(m.lastRelease.at))} ago.`,
-        );
-    }
+    if (m.verdict === "red") lines.push(...redLines(m.incident, since));
+    else if (m.verdict === "green") lines.push(`MASTER: green${since}.`);
+    else lines.push("MASTER: unknown (no complete poll yet).");
+    const third = verifiedSentences(m, now);
     if (third.length) lines.push(`  ${third.join(" ")}`);
     if (m.githubDownSince) {
-        lines.push(
-            `GITHUB: unreachable since ${hhmm(m.githubDownSince)} UTC${m.githubError ? ` (${m.githubError})` : ""}`,
-        );
+        const why = m.githubError ? ` (${m.githubError})` : "";
+        lines.push(`GITHUB: unreachable since ${hhmm(m.githubDownSince)} UTC${why}`);
     }
     return lines;
 }
@@ -364,6 +388,99 @@ function prLine(p) {
 }
 
 /**
+ * Renders the PR part of status.
+ * @param {any[]} prs the PR data
+ * @returns {string[]} the lines
+ */
+function prLines(prs) {
+    const lines = [`PRS (${prs.length}):`];
+    for (const p of prs) {
+        lines.push(prLine(p));
+        if (!p.required) continue;
+        const req = Object.entries(p.required).map(([k, v]) => `${k}: ${v}`);
+        lines.push(`    required: ${req.length ? req.join(", ") : "none reported"}`);
+        if (p.failingChecks?.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
+        if (p.failingCheckCount) lines.push(`    failing: ${p.failingCheckCount} (names hidden: another author)`);
+    }
+    return lines;
+}
+
+/**
+ * Renders the queue part of status.
+ * @param {{items: any[], ownerWaiting: any[]}} queue the queue data
+ * @returns {string[]} the lines
+ */
+function queueLines({ items, ownerWaiting }) {
+    const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
+    for (const i of items) {
+        const notes = [...(i.waiting ? [i.waiting] : []), ...(i.takenBy ? [`taken by ${i.takenBy}`] : [])];
+        const noted = notes.length ? ` [${notes.join("; ")}]` : "";
+        lines.push(`  ${i.target} -- ${i.reason}${noted}`);
+    }
+    if (ownerWaiting.length) {
+        const list = ownerWaiting.map(
+            (i) => `${i.target.replace("pr:", "#")} ${i.reason.replace("waiting on owner: ", "")}`,
+        );
+        lines.push(`PRS WAITING ON OWNER (${ownerWaiting.length}): ${list.join("; ")}`);
+    }
+    return lines;
+}
+
+/**
+ * Renders the claims and sessions part of status.
+ * @param {any[]} claims the claims
+ * @param {any[]} sessions the sessions
+ * @returns {string[]} the lines
+ */
+function claimLines(claims, sessions) {
+    const held = claims.map((c) => `${c.target} -> ${c.holderName ?? c.holder} (until ${hhmm(c.expiresAt)})`);
+    const named = sessions.map((s) => {
+        const bits = [s.branch ?? "no branch", ...(s.doing ? [`"${s.doing}"`] : [])];
+        return `${s.name} (${bits.join(", ")})`;
+    });
+    return [
+        `CLAIMS: ${held.length ? held.join("; ") : "none"}`,
+        `SESSIONS: ${named.length ? named.join(", ") : "none"}`,
+    ];
+}
+
+/**
+ * Renders one proposal of status.
+ * @param {any} p the proposal
+ * @returns {string} the entry
+ */
+function proposalEntry(p) {
+    const revert = p.kind === "revert";
+    const what = `${revert ? "revert" : "close"} ${p.target.replace(/^(issue|pr):/, "#")}`;
+    let whenText = "grace starts when the owner is shown it";
+    if (p.status === "dry-run") whenText = "dry-run, nothing will happen";
+    else if (p.graceUntil) whenText = `${revert ? "reverts" : "closes"} ${dayTime(p.graceUntil)} unless vetoed`;
+    return `${what} (${p.reason}) -- ${whenText}`;
+}
+
+/**
+ * Renders the runs part of status.
+ * @param {any} r the runs data
+ * @returns {string} the line
+ */
+function runsLine(r) {
+    const running = r.running.map((x) => `${x.id} (${[x.kind, x.target].filter(Boolean).join(" ")})`);
+    const live = running.length ? `; running: ${running.join(", ")}` : "";
+    return `RUNS TODAY: ${r.today} ($${r.spendUsd.toFixed(2)} of $${r.budgetUsd})${live}`;
+}
+
+/**
+ * Renders the trust part of status.
+ * @param {any} t the trust data
+ * @returns {string} the line
+ */
+function trustLine(t) {
+    const why = t.error ? ` (${t.error})` : "";
+    const who = t.login ? `acting only on ${t.login}'s issues and PRs` : `login unresolved, no runs start${why}`;
+    return `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from runs`;
+}
+
+/**
  * Renders status data as text.
  * @param {Record<string, any>} data from statusData
  * @param {Date} now the current time
@@ -375,81 +492,21 @@ function statusText(data, now) {
     const next = g.nextPollAt ? `, next in ${span(Date.parse(g.nextPollAt) - now.getTime())}` : "";
     const lines = [`githerd ${g.version} (${g.mode}) -- ${polled}${next}`];
     if (data.master) lines.push(...masterLines(data.master, now));
-    if (data.prs) {
-        lines.push(`PRS (${data.prs.length}):`);
-        for (const p of data.prs) {
-            lines.push(prLine(p));
-            if (p.required) {
-                const req = Object.entries(p.required).map(([k, v]) => `${k}: ${v}`);
-                lines.push(`    required: ${req.length ? req.join(", ") : "none reported"}`);
-                if (p.failingChecks?.length) lines.push(`    failing: ${p.failingChecks.join(", ")}`);
-                if (p.failingCheckCount)
-                    lines.push(`    failing: ${p.failingCheckCount} (names hidden: another author)`);
-            }
-        }
-    }
-    if (data.queue) {
-        const { items, ownerWaiting } = data.queue;
-        lines.push(`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`);
-        for (const i of items) {
-            const notes = [...(i.waiting ? [i.waiting] : []), ...(i.takenBy ? [`taken by ${i.takenBy}`] : [])];
-            lines.push(`  ${i.target} -- ${i.reason}${notes.length ? ` [${notes.join("; ")}]` : ""}`);
-        }
-        if (ownerWaiting.length) {
-            const list = ownerWaiting.map(
-                (i) => `${i.target.replace("pr:", "#")} ${i.reason.replace("waiting on owner: ", "")}`,
-            );
-            lines.push(`PRS WAITING ON OWNER (${ownerWaiting.length}): ${list.join("; ")}`);
-        }
-    }
-    if (data.claims) {
-        const claims = data.claims.map(
-            (c) => `${c.target} -> ${c.holderName ?? c.holder} (until ${hhmm(c.expiresAt)})`,
-        );
-        lines.push(`CLAIMS: ${claims.length ? claims.join("; ") : "none"}`);
-        const sessions = data.sessions.map((s) => {
-            const bits = [s.branch ?? "no branch", ...(s.doing ? [`"${s.doing}"`] : [])];
-            return `${s.name} (${bits.join(", ")})`;
-        });
-        lines.push(`SESSIONS: ${sessions.length ? sessions.join(", ") : "none"}`);
-    }
+    if (data.prs) lines.push(...prLines(data.prs));
+    if (data.queue) lines.push(...queueLines(data.queue));
+    if (data.claims) lines.push(...claimLines(data.claims, data.sessions));
     if (data.owner) {
         const items = data.owner.map((e) => (OWNER_KINDS.has(e.kind) ? e.summary : `${e.kind}: ${e.summary}`));
-        lines.push(`WAITING ON OWNER (${items.length})${items.length ? `: ${items.join("; ")}` : ""}`);
+        lines.push(`WAITING ON OWNER${countedList(items)}`);
     }
-    if (data.proposals) {
-        const items = data.proposals.map((p) => {
-            const what = `${p.kind === "revert" ? "revert" : "close"} ${p.target.replace(/^(issue|pr):/, "#")}`;
-            const when =
-                p.status === "dry-run"
-                    ? "dry-run, nothing will happen"
-                    : p.graceUntil
-                      ? `${p.kind === "revert" ? "reverts" : "closes"} ${dayTime(p.graceUntil)} unless vetoed`
-                      : "grace starts when the owner is shown it";
-            return `${what} (${p.reason}) -- ${when}`;
-        });
-        lines.push(`PROPOSALS (${items.length})${items.length ? `: ${items.join("; ")}` : ""}`);
-    }
-    if (data.runs) {
-        const r = data.runs;
-        const running = r.running.map((x) => `${x.id} (${[x.kind, x.target].filter(Boolean).join(" ")})`);
-        lines.push(
-            `RUNS TODAY: ${r.today} ($${r.spendUsd.toFixed(2)} of $${r.budgetUsd})${running.length ? `; running: ${running.join(", ")}` : ""}`,
-        );
-    }
+    if (data.proposals) lines.push(`PROPOSALS${countedList(data.proposals.map(proposalEntry))}`);
+    if (data.runs) lines.push(runsLine(data.runs));
     if (data.issues) {
         const i = data.issues;
-        lines.push(`ISSUES: ${i.open} open${i.since ? `, polled since ${i.since}` : ""}`);
+        const since = i.since ? `, polled since ${i.since}` : "";
+        lines.push(`ISSUES: ${i.open} open${since}`);
     }
-    if (data.trust) {
-        const t = data.trust;
-        const who = t.login
-            ? `acting only on ${t.login}'s issues and PRs`
-            : `login unresolved, no runs start${t.error ? ` (${t.error})` : ""}`;
-        lines.push(
-            `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from runs`,
-        );
-    }
+    if (data.trust) lines.push(trustLine(data.trust));
     return lines.join("\n");
 }
 

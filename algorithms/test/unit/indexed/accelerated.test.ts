@@ -21,6 +21,11 @@ import { Graph } from "../../helpers/legacy-graph.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
+/** A result's data properties, so two results compare by value and not by their accessor closures. */
+function data(result: object): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(result).filter(([, v]) => typeof v !== "function"));
+}
+
 function pathGraph(): Graph {
     const g = new Graph({ directed: true });
     g.addEdge("a", "b");
@@ -1070,15 +1075,15 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
         it("depthFirstSearch equals the port", async () => {
             const got = await d.depthFirstSearch(directed, 0, { order: "post" });
             const want = indexed.depthFirstSearch(directed, 0, { order: "post" });
-            expect(got).toEqual(want);
+            expect(data(got)).toEqual(data(want));
             expect(got.visitedCount).toBeGreaterThan(1);
         });
 
         it("depthFirstSearch walks any adjacency view, not only a snapshot", async () => {
             const view = directed.reverse();
             const got = await d.depthFirstSearch(view, 0);
-            expect(got).toEqual(indexed.depthFirstSearch(view, 0));
-            expect(got).not.toEqual(indexed.depthFirstSearch(directed, 0));
+            expect(data(got)).toEqual(data(indexed.depthFirstSearch(view, 0)));
+            expect(data(got)).not.toEqual(data(indexed.depthFirstSearch(directed, 0)));
         });
 
         it("degrees equals the port on both kinds of graph", async () => {
@@ -1139,16 +1144,18 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
                 Float64Array.from({ length: directed.edgeCount }, (_, i) => 0.1 * (i + 1)),
             );
             const flow = await d.maxFlow(directed, 0, 5, { weights });
-            expect(flow).toEqual(indexed.maxFlow(directed, 0, 5, { weights }));
+            expect(data(flow)).toEqual(data(indexed.maxFlow(directed, 0, 5, { weights })));
             const cut = await d.minSTCut(directed, 0, 5, { weights });
-            expect(cut).toEqual(indexed.minSTCut(directed, 0, 5, { weights }));
+            expect(data(cut)).toEqual(data(indexed.minSTCut(directed, 0, 5, { weights })));
             expect(cut.cutValue).toBeCloseTo(flow.maxFlow, 9);
         });
 
         it("stoerWagner and kargerMinCut equal the port", async () => {
-            expect(await d.stoerWagner(undirected)).toEqual(indexed.stoerWagner(undirected));
+            expect(data(await d.stoerWagner(undirected))).toEqual(data(indexed.stoerWagner(undirected)));
             const karger = { iterations: 20, randomSeed: 5 };
-            expect(await d.kargerMinCut(undirected, karger)).toEqual(indexed.kargerMinCut(undirected, karger));
+            expect(data(await d.kargerMinCut(undirected, karger))).toEqual(
+                data(indexed.kargerMinCut(undirected, karger)),
+            );
         });
 
         it("commonNeighborsPrediction and adamicAdarPrediction equal the port", async () => {

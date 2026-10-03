@@ -536,7 +536,7 @@ apply on master; anything not in classes 1 to 4 is code):
 | passes | (any) | (any) | Intermittent | Files or updates the `intermittent` issue; the incident ends "intermittent" with that issue as its pointer; merges resume |
 | fails | fails | (any) | The world changed under unchanged code | Incident fixes forward; no revert; the worker is told |
 | fails | passes | exactly one | That merge broke it | Opens a revert pull request (GraphQL `revertPullRequest`) as the incident's fix, and a re-land job for the reverted change |
-| fails | passes | more than one | One of these broke it | Incident fixes forward with the suspect list |
+| fails | passes | none, or more than one | One of these broke it (with none, only commits that merged no pull request, such as release commits, lie between green and red, so a revert has nothing safe to name) | Incident fixes forward with the suspect list |
 
 5. **Done**: the failing workflow's newest master run is green at a commit containing the
    recorded fix (the revert's or fix pull request's merge commit). An intermittent incident is done

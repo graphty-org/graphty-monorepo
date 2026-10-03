@@ -20,6 +20,17 @@
  * @property {string[]} assign leading `NAME=value` assignments, including those given to `env`
  */
 
+/**
+ * The parser's position in one command list.
+ * @typedef {object} ListState
+ * @property {number} i the index of the next character
+ * @property {string | null} word the word being read, or null between words
+ * @property {"arg" | "target" | "herestring"} next what the word being read becomes
+ * @property {{delim: string, strip: boolean, into: string[]}[]} heredocs here-documents opened on this line
+ * @property {SimpleCommand} cur the command being read
+ * @property {number} cmdStart the first output command of the current `&`-able list
+ */
+
 /** Characters that end an unquoted word. */
 const META = new Set([" ", "\t", "\n", ";", "&", "|", "<", ">", "(", ")"]);
 
@@ -84,113 +95,184 @@ class Parser {
      * @returns {number} the index after the list (after the `)` when `inParen`)
      */
     list(start, inParen) {
-        const s = this.s;
-        let i = start;
-        /** @type {string | null} */
-        let word = null;
-        /** What the next finished word is: an argument, a redirection target, or a here-string. */
-        let next = "arg";
-        /** @type {{delim: string, strip: boolean, into: string[]}[]} */
-        let heredocs = [];
-        let cur = newCommand();
-        let cmdStart = this.out.length;
-
-        const endWord = () => {
-            if (word === null) return;
-            if (next === "arg") cur.argv.push(word);
-            else if (next === "herestring") cur.input.push(word);
-            next = "arg";
-            word = null;
-        };
-        const endCommand = (background = false) => {
-            endWord();
-            if (cur.argv.length > 0) this.out.push(cur);
-            if (background) for (let k = cmdStart; k < this.out.length; k++) this.out[k].background = true;
-            cur = newCommand();
-            cmdStart = this.out.length;
-        };
-
-        while (i < s.length) {
-            const c = s[i];
-            if (word === null && c === "#") {
-                while (i < s.length && s[i] !== "\n") i++;
-            } else if (c === " " || c === "\t") {
-                endWord();
-                i++;
-            } else if (c === "\\") {
-                if (s[i + 1] !== "\n") word = (word ?? "") + (s[i + 1] ?? "");
-                i += 2;
-            } else if (c === "'") {
-                const close = s.indexOf("'", i + 1);
-                if (close === -1) throw new Error("unterminated single quote");
-                word = (word ?? "") + s.slice(i + 1, close);
-                i = close + 1;
-            } else if (c === '"') {
-                const [text, after] = this.doubleQuoted(i + 1);
-                word = (word ?? "") + text;
-                i = after;
-            } else if (c === "`") {
-                const [source, after] = this.backtick(i);
-                word = (word ?? "") + source;
-                i = after;
-            } else if (c === "$" && s[i + 1] === "(") {
-                const after = this.list(i + 2, true);
-                word = (word ?? "") + s.slice(i, after);
-                i = after;
-            } else if ((c === "<" || c === ">") && s[i + 1] === "(") {
-                endWord();
-                i = this.list(i + 2, true);
-            } else if (c === "<" && s.startsWith("<<<", i)) {
-                endWord();
-                next = "herestring";
-                i += 3;
-            } else if (c === "<" && s[i + 1] === "<") {
-                endWord();
-                i += 2;
-                const strip = s[i] === "-";
-                if (strip) i++;
-                while (s[i] === " " || s[i] === "\t") i++;
-                const [delim, after] = this.delimiter(i);
-                heredocs.push({ delim, strip, into: cur.input });
-                i = after;
-            } else if (c === "<" || c === ">") {
-                if (word !== null && /^\d+$/.test(word)) word = null;
-                endWord();
-                i++;
-                if (s[i] === ">" || s[i] === "&" || s[i] === "|") i++;
-                next = "target";
-            } else if (c === "&" && s[i + 1] === ">") {
-                endWord();
-                i += s[i + 2] === ">" ? 3 : 2;
-                next = "target";
-            } else if (c === "&" && s[i + 1] === "&") {
-                endCommand();
-                i += 2;
-            } else if (c === "&") {
-                endCommand(true);
-                i++;
-            } else if (c === "|" || c === ";") {
-                endCommand();
-                i += s[i + 1] === c || (c === "|" && s[i + 1] === "&") ? 2 : 1;
-            } else if (c === "\n") {
-                endCommand();
-                i = this.heredocBodies(i + 1, heredocs);
-                heredocs = [];
-            } else if (c === "(") {
-                endWord();
-                i = this.list(i + 1, true);
-            } else if (c === ")") {
-                if (!inParen) throw new Error("unbalanced )");
-                endCommand();
-                return i + 1;
-            } else {
-                word = (word ?? "") + c;
-                i++;
-            }
+        /** @type {ListState} */
+        const st = { i: start, word: null, next: "arg", heredocs: [], cur: newCommand(), cmdStart: this.out.length };
+        while (st.i < this.s.length) {
+            if (this.step(st, inParen)) return st.i;
         }
         if (inParen) throw new Error("unterminated ( or $(");
-        endCommand();
-        return i;
+        this.endCommand(st);
+        return st.i;
+    }
+
+    /**
+     * Finishes the word being read, if any.
+     * @param {ListState} st the list being parsed
+     */
+    endWord(st) {
+        if (st.word === null) return;
+        if (st.next === "arg") st.cur.argv.push(st.word);
+        else if (st.next === "herestring") st.cur.input.push(st.word);
+        st.next = "arg";
+        st.word = null;
+    }
+
+    /**
+     * Finishes the command being read; `&` marks it and the commands of its list as background.
+     * @param {ListState} st the list being parsed
+     * @param {boolean} [background] true after `&`
+     */
+    endCommand(st, background = false) {
+        this.endWord(st);
+        if (st.cur.argv.length > 0) this.out.push(st.cur);
+        if (background) for (let k = st.cmdStart; k < this.out.length; k++) this.out[k].background = true;
+        st.cur = newCommand();
+        st.cmdStart = this.out.length;
+    }
+
+    /**
+     * Consumes one token's worth of text.
+     * @param {ListState} st the list being parsed
+     * @param {boolean} inParen true inside `(...)` or `$(...)`
+     * @returns {boolean} true when a `)` closed the list
+     */
+    step(st, inParen) {
+        const s = this.s;
+        const c = s[st.i];
+        if (st.word === null && c === "#") {
+            while (st.i < s.length && s[st.i] !== "\n") st.i++;
+            return false;
+        }
+        if (c === " " || c === "\t") {
+            this.endWord(st);
+            st.i++;
+            return false;
+        }
+        if (this.wordPart(st) || this.redirection(st)) return false;
+        return this.operator(st, inParen);
+    }
+
+    /**
+     * Reads a quoted or escaped piece of a word, or a substitution inside one.
+     * @param {ListState} st the list being parsed
+     * @returns {boolean} true when it consumed something
+     */
+    wordPart(st) {
+        const s = this.s;
+        const c = s[st.i];
+        let text;
+        if (c === "\\" && s[st.i + 1] === "\n") {
+            // A line continuation: no word starts here.
+            st.i += 2;
+            return true;
+        } else if (c === "\\") {
+            text = s[st.i + 1] ?? "";
+            st.i += 2;
+        } else if (c === "'") {
+            const close = s.indexOf("'", st.i + 1);
+            if (close === -1) throw new Error("unterminated single quote");
+            text = s.slice(st.i + 1, close);
+            st.i = close + 1;
+        } else if (c === '"') {
+            [text, st.i] = this.doubleQuoted(st.i + 1);
+        } else if (c === "`") {
+            [text, st.i] = this.backtick(st.i);
+        } else if (c === "$" && s[st.i + 1] === "(") {
+            const after = this.list(st.i + 2, true);
+            text = s.slice(st.i, after);
+            st.i = after;
+        } else {
+            return false;
+        }
+        st.word = (st.word ?? "") + text;
+        return true;
+    }
+
+    /**
+     * Reads a redirection, a here-document or here-string, or a process substitution.
+     * @param {ListState} st the list being parsed
+     * @returns {boolean} true when it consumed something
+     */
+    redirection(st) {
+        const s = this.s;
+        const c = s[st.i];
+        const d = s[st.i + 1];
+        if (c === "&" && d === ">") {
+            this.endWord(st);
+            st.i += s[st.i + 2] === ">" ? 3 : 2;
+            st.next = "target";
+            return true;
+        }
+        if (c !== "<" && c !== ">") return false;
+        if (d === "(") {
+            this.endWord(st);
+            st.i = this.list(st.i + 2, true);
+        } else if (c === "<" && d === "<") {
+            this.endWord(st);
+            if (s[st.i + 2] === "<") {
+                st.next = "herestring";
+                st.i += 3;
+            } else {
+                this.heredoc(st);
+            }
+        } else {
+            if (st.word !== null && /^\d+$/.test(st.word)) st.word = null;
+            this.endWord(st);
+            st.i++;
+            if (s[st.i] === ">" || s[st.i] === "&" || s[st.i] === "|") st.i++;
+            st.next = "target";
+        }
+        return true;
+    }
+
+    /**
+     * Opens a here-document at `<<`; its body is read after the line ends.
+     * @param {ListState} st the list being parsed, at the `<<`
+     */
+    heredoc(st) {
+        const s = this.s;
+        st.i += 2;
+        const strip = s[st.i] === "-";
+        if (strip) st.i++;
+        while (s[st.i] === " " || s[st.i] === "\t") st.i++;
+        const [delim, after] = this.delimiter(st.i);
+        st.heredocs.push({ delim, strip, into: st.cur.input });
+        st.i = after;
+    }
+
+    /**
+     * Reads a control operator, a newline, a parenthesis, or one plain character of a word.
+     * @param {ListState} st the list being parsed
+     * @param {boolean} inParen true inside `(...)` or `$(...)`
+     * @returns {boolean} true when a `)` closed the list
+     */
+    operator(st, inParen) {
+        const s = this.s;
+        const c = s[st.i];
+        const d = s[st.i + 1];
+        if (c === "&") {
+            this.endCommand(st, d !== "&");
+            st.i += d === "&" ? 2 : 1;
+        } else if (c === "|" || c === ";") {
+            this.endCommand(st);
+            st.i += d === c || (c === "|" && d === "&") ? 2 : 1;
+        } else if (c === "\n") {
+            this.endCommand(st);
+            st.i = this.heredocBodies(st.i + 1, st.heredocs);
+            st.heredocs = [];
+        } else if (c === "(") {
+            this.endWord(st);
+            st.i = this.list(st.i + 1, true);
+        } else if (c === ")") {
+            if (!inParen) throw new Error("unbalanced )");
+            this.endCommand(st);
+            st.i++;
+            return true;
+        } else {
+            st.word = (st.word ?? "") + c;
+            st.i++;
+        }
+        return false;
     }
 
     /**
@@ -305,6 +387,60 @@ function newCommand() {
 }
 
 /**
+ * Drops leading reserved words and assignments, recording the assignments.
+ * @param {string[]} argv the words
+ * @param {string[]} assign collects the assignments
+ * @returns {string[]} the words from the command name on
+ */
+function stripLeading(argv, assign) {
+    let k = 0;
+    while (k < argv.length && (RESERVED.has(argv[k]) || ASSIGNMENT.test(argv[k]))) {
+        if (ASSIGNMENT.test(argv[k])) assign.push(argv[k]);
+        k++;
+    }
+    return argv.slice(k);
+}
+
+/** `env` options that take the next word as their value. */
+const ENV_WITH_VALUE = new Set(["-u", "-C", "--unset", "--chdir"]);
+
+/**
+ * Reads `env`'s options and assignments.
+ * @param {string[]} rest env's arguments
+ * @param {string[]} assign collects the assignments
+ * @returns {{split?: string, k: number}} the command line `-S` gives, or how many words precede
+ *   the command
+ */
+function envOptions(rest, assign) {
+    let k = 0;
+    while (k < rest.length) {
+        const a = rest[k];
+        if (a === "--") return { k: k + 1 };
+        if (a === "-S" || a === "--split-string") return { split: rest.slice(k + 1).join(" "), k };
+        if (a.startsWith("--split-string=")) {
+            return { split: [a.slice("--split-string=".length), ...rest.slice(k + 1)].join(" "), k };
+        }
+        if (ENV_WITH_VALUE.has(a)) k += 2;
+        else if (a.startsWith("-") || ASSIGNMENT.test(a)) {
+            if (!a.startsWith("-")) assign.push(a);
+            k++;
+        } else break;
+    }
+    return { k };
+}
+
+/**
+ * The script a shell runs with `-c`.
+ * @param {string[]} rest the shell's arguments
+ * @returns {string | null | undefined} the script; undefined when `-c` has none, null without `-c`
+ */
+function shellScript(rest) {
+    const flag = rest.findIndex((a) => /^-[a-zA-Z]+$/.test(a) && a.includes("c"));
+    if (flag === -1) return null;
+    return rest.slice(flag + 1).find((a) => !a.startsWith("-"));
+}
+
+/**
  * Removes assignments, reserved words and wrapper commands, so the command that really runs is
  * first. `sh -c`, `eval` and `env -S` strings are parsed again.
  * @param {SimpleCommand} cmd a command from the parser
@@ -314,53 +450,32 @@ function newCommand() {
 function unwrap(cmd, depth) {
     let argv = cmd.argv;
     const assign = [...cmd.assign];
+    /**
+     * Parses a nested command line, carrying this command's flags into it.
+     * @param {string} text a nested command line
+     * @returns {SimpleCommand[]} its commands
+     */
+    const nested = (text) =>
+        parse(text, depth + 1).map((c) => ({
+            ...c,
+            background: c.background || cmd.background,
+            assign: [...assign, ...c.assign],
+        }));
     for (;;) {
-        while (argv.length > 0 && (RESERVED.has(argv[0]) || ASSIGNMENT.test(argv[0]))) {
-            if (ASSIGNMENT.test(argv[0])) assign.push(argv[0]);
-            argv = argv.slice(1);
-        }
+        argv = stripLeading(argv, assign);
         if (argv.length === 0) return [];
         const name = baseName(argv[0]);
         const rest = argv.slice(1);
-        /**
-         * Parses a nested command line, carrying this command's flags into it.
-         * @param {string} text a nested command line
-         * @returns {SimpleCommand[]} its commands
-         */
-        const nested = (text) =>
-            parse(text, depth + 1).map((c) => ({
-                ...c,
-                background: c.background || cmd.background,
-                assign: [...assign, ...c.assign],
-            }));
-
         if (name === "eval") return nested(rest.join(" "));
         if (SHELLS.has(name)) {
-            const flag = rest.findIndex((a) => /^-[a-zA-Z]+$/.test(a) && a.includes("c"));
-            if (flag === -1) break;
-            const script = rest.slice(flag + 1).find((a) => !a.startsWith("-"));
+            const script = shellScript(rest);
+            if (script === null) break;
             return script === undefined ? [] : nested(script);
         }
         if (name === "env") {
-            let k = 0;
-            while (k < rest.length) {
-                const a = rest[k];
-                if (a === "--") {
-                    k++;
-                    break;
-                }
-                if (a === "-S" || a === "--split-string") return nested(rest.slice(k + 1).join(" "));
-                if (a.startsWith("--split-string=")) {
-                    return nested([a.slice("--split-string=".length), ...rest.slice(k + 1)].join(" "));
-                }
-                if (a === "-u" || a === "-C" || a === "--unset" || a === "--chdir") k += 2;
-                else if (a.startsWith("-")) k++;
-                else if (ASSIGNMENT.test(a)) {
-                    assign.push(a);
-                    k++;
-                } else break;
-            }
-            argv = rest.slice(k);
+            const env = envOptions(rest, assign);
+            if (env.split !== undefined) return nested(env.split);
+            argv = rest.slice(env.k);
             continue;
         }
         const skip = WRAPPERS[name];

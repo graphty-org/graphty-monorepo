@@ -17,7 +17,11 @@ Each fact has a short id (R1, R2, ...) that the design cites.
   method `merge` only, zero approvals required; required status checks `All Checks Pass` and
   `Lint PR Title` with `strict_required_status_checks_policy: false` (a branch need not be up to
   date with master to merge). (`gh api repos/.../rules/branches/master`)
-- **R3** Mergify pull request #777 ("merge ready pull requests with Mergify") is open, not merged.
+- **R3** Mergify pull request #777 ("merge ready pull requests with Mergify") merged at
+  2026-10-03T15:59:59Z (`gh pr view 777 --json state,mergedAt`). `.mergify.yml` on master queues
+  every non-draft pull request into master with no conflict, no `hold` label and no `!` in its
+  title, updates it from master by merge, and merges it (merge commit) once `All Checks Pass` and
+  `Lint PR Title` succeed, one pull request at a time (`max_parallel_checks: 1`, `batch_size: 1`).
 
 ## Workflows on master
 

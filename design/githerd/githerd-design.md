@@ -1,7 +1,7 @@
 # githerd: design
 
 githerd keeps the graphty-org/graphty-monorepo pipeline moving. It notices a red master and gets
-it fixed, keeps releases flowing, merges pull requests that pass the quality bar, keeps the issue
+it fixed, keeps releases flowing, tells Mergify which pull requests are safe to merge, keeps the issue
 backlog triaged and current, and hands every piece of work that needs judgment to an interactive
 Claude Code session the owner can attach to, watch, steer and stop.
 
@@ -35,7 +35,8 @@ releases." githerd has five jobs:
 1. notice a red master, and anything else that blocks every pull request, within minutes, and get
    it fixed;
 2. unblock releases;
-3. shepherd pull requests to merge, and merge them itself when they pass the bar;
+3. shepherd pull requests to merge, and tell Mergify, which does the merging, when each is safe to
+   merge (section 4.6);
 4. triage, refresh and re-triage the issue backlog, and fix issues in priority order;
 5. keep the Claude sessions doing that work fed, unblocked, out of each other's way, and visible.
 
@@ -72,10 +73,11 @@ Every mechanism below follows these. A mechanism that breaks one is a defect in 
    owner already knows about (usage limit, GitHub unknown, machine load, steering), and only then.
 5. **Unknown is a state.** A failed, stale or backwards read gives "unknown since <time>", never
    "green", and nothing acts on unknown data.
-6. **Only the daemon does the irreversible steps on GitHub**: merges, reverts, re-runs, closes,
-   statuses, retargets. Workers edit code, commit, open pull requests and ask for pushes.
-7. **Hard rules are enforced by code**: master's ruleset, the daemon's merge decision, the worker
-   guard and deny rules. Prompts explain the rules; they are never the only control [PA 2.14].
+6. **Only the daemon does the irreversible steps on GitHub** that githerd does at all: reverts,
+   re-runs, closes, statuses, retargets. Merging is Mergify's; githerd never merges. Workers edit
+   code, commit, open pull requests and ask for pushes.
+7. **Hard rules are enforced by code**: master's ruleset, Mergify's conditions with
+   `githerd/merge`, the worker guard and deny rules. Prompts explain the rules; they are never the only control [PA 2.14].
 8. **Fail loudly, never loop.** A broken part is a banner on every surface and one page, and
    githerd stays up to say why [OD 7].
 9. **Owner input never gates the pipeline.** Only owner-only steps wait for the owner, and only
@@ -100,8 +102,9 @@ Every mechanism below follows these. A mechanism that breaks one is a defect in 
 - **Sighting**: one poll answer about a workflow run whose (run id, run attempt) is at least the
   highest seen for that workflow and branch, and whose `updated_at` is newer than the last one
   seen. Older answers are discarded; two backwards answers were seen on 10-02 [INC2 2].
-- **Merge hold**: the daemon will not merge the pull requests a code-red gating lane can affect
-  (section 4.6). There is no global "closed tree" written to every pull request.
+- **Merge hold**: `githerd/merge` is `failure` on the pull requests a code-red gating lane can
+  affect, so Mergify does not queue them (section 4.6). Pull requests the lane cannot affect keep
+  merging.
 - **Owner item**: something only the owner can do (section 5.6).
 - **Doorbell**: one fixed line githerd types into an idle worker's prompt (section 7.5).
 - **Reference worktree**: a worktree the daemon owns, at the green commit, installed and built,
@@ -122,16 +125,16 @@ the worker guard's unit tests; "self-test" the platform self-test (section 11.4)
 | "the idea was for githerd to dish out work to agents through the MCP, having githerd run on its own makes it impossible to interact, monitor, and control" [OD 2] | Workers are ordinary interactive `claude` sessions in tmux, named after their job; their job, waits, questions and completion go through MCP tools (sections 6, 7). `githerd attach` shows them all; typing into one steers it | self-test |
 | "there's no guarantee that I will respond. come up with a better mechanism that only relies on claude" [OD 2] | The daemon starts workers itself; urgent work gets a reserved slot at once; owner items park only the job that needs the owner (sections 7.1, 8.1) | replay |
 | "how do you ensure that the agents keep pulling work from githerd?" [OD 2] | The daemon fills free slots; the Stop gate blocks an unfinished stop; declared waits are watched by the daemon, which rings the session when they end (sections 7.3 to 7.5) | self-test, replay |
-| "I just want the skill to poll, including polling master ... it should run forever after I start it" [OD 2] | 60-second conditional polls; restart by servherd, by every live session's MCP server and by supervisord; fatal mode instead of exit (sections 4.2, 9.6) | replay |
+| "I just want the skill to poll, including polling master ... it should run forever after I start it" [OD 2] | 60-second conditional polls; restart by servherd, by every live session's MCP server and by `githerd ensure`; fatal mode instead of exit (sections 4.2, 9.6) | replay |
 | "MCPs start automatically when I start claude, that might be a better mechanism" [OD 2] | The MCP server starts the daemon when it is not running (section 9.6) | self-test |
 | "just use claude to determine if there is potential overlap or potential conflict, don't try to do it programmatically" [OD 3] | Overlap, grouping, duplicates, obsolescence and "does this pull request address the issue" are judged by workers; code validates and enforces (sections 5, 8.2) | schema tests |
 | "the problem with conflicts happening is then you can't group things together" [OD 3] | A worker judges overlap before its first edit; a push without a claim is refused (section 8.2) | guard test |
 | "PRs should be the oldest PR first; github issues need some consideration of fixing bugs / highest priority / age" [OD 4] | Queue order (section 5.4) | queue tests |
 | "no thanks, I don't want to make all those decisions ... Opus 5.5 seems to be doing great with large tasks" [OD 4] | No "split this?" question exists; a worker splits work itself (`githerd_done` outcome `split`) | schema tests |
-| "don't wait for me to merge ... merge what you think is ready, as long as it is passing our quality bar" [OD 5] | The daemon merges every pull request whose merge decision holds (section 4.6) | replay |
-| "as a policy breaking PRs shouldn't auto-merge" and "hold the major version bumps and group them together" [OD 5] | A breaking pull request is merged only as the single pull request of an owner-approved major group (section 4.6, line 4) | replay |
-| "why would we want to merge something that we know has errors?" [OD 5] | No merge while a code-red gating lane can affect the pull request; related pull requests are tested together before the second merges (section 4.6) | replay |
-| Never auto-merge a stacked pull request (memory) [OD 5] | The daemon merges only pull requests based on master, and disarms any auto-merge it finds (section 4.6) | replay |
+| "don't wait for me to merge ... merge what you think is ready, as long as it is passing our quality bar" [OD 5] | Mergify merges every ready pull request (the owner's choice, 10-03); githerd posts `githerd/merge` and Mergify requires it (section 4.6) | replay |
+| "as a policy breaking PRs shouldn't auto-merge" and "hold the major version bumps and group them together" [OD 5] | Mergify never queues a `!` title; `githerd/merge` fails a breaking commit under a title without `!` (section 4.6, line 3); the owner merges a major group by hand | replay |
+| "why would we want to merge something that we know has errors?" [OD 5] | `githerd/merge` is `failure` while a code-red gating lane can affect the pull request; Mergify tests each pull request on current master before merging it (section 4.6) | replay |
+| Never auto-merge a stacked pull request (memory) [OD 5] | Mergify queues only pull requests based on master; githerd disarms any native auto-merge it finds (section 4.6) | replay |
 | "we MUST NOT merge a PR until ALL the stories have been confirmed accurate and approved" [OD 6] | The visual gate stays inside the required `All Checks Pass`; githerd only lists reviews and never approves; a missing baseline on master is a master incident | guard test, replay |
 | "running my own server doesn't protect us from anything anyway" [OD 6] | The daemon keeps the review server up through servherd and checks it before sending a link (catalog row "Review tool or review server unusable") | self-test |
 | "open the issue(s) to fix this in the visual review tool" [OD 6] | A recurring manual step becomes a tool fix, filed as an issue; the daemon uses the tool's own `update` command for baseline-only conflicts [R13] | replay |
@@ -175,27 +178,27 @@ adversarial review added (section 3.10). Columns:
   logins, system changes and permission rules.
 - **Done**: the checkable fact that closes it. Never an agent's word.
 
-"Classifier" means section 4.4; "merge decision" section 4.6; "incident procedure" section 4.5.
+"Classifier" means section 4.4; "merge decision" the `githerd/merge` decision of section 4.6; "incident procedure" section 4.5.
 "Free poll" is a conditional GET that returns 304 and spends no budget [PF 1.5].
 
 ### 3.1 Master and release health
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| Master red from merged code on a lane pull requests also run | Newest run per gating workflow on master, free poll; a sighting as defined in 1.4; failed jobs, steps and (when `annotations_count` > 0) annotations, 1 to 2 calls [PF 1.5], [S6] | Classifier first. Code-red: merge hold on the pull requests that lane can affect at the first sighting; incident procedure (daemon re-run on the red head, parent re-test, then revert or fix forward) | D; W `incident` | The failing workflow's newest master run is green at a commit containing the recorded fix |
+| Master red from merged code on a lane pull requests also run | Newest run per gating workflow on master, free poll; a sighting as defined in 1.4; failed jobs, steps and (when `annotations_count` > 0) annotations, 1 to 2 calls [PF 1.5], [S6] | Classifier first. Code-red: merge hold (`githerd/merge` failure) on the pull requests that lane can affect at the first sighting; incident procedure (daemon re-run on the red head, parent re-test, then revert or fix forward) | D; W `incident` | The failing workflow's newest master run is green at a commit containing the recorded fix |
 | Master red on a lane only master runs | Same, for GPU and Hosts [R8], [R9] | Same. The merge hold covers only pull requests the lane can affect: for GPU, those `scripts/bench-groups.js` maps to at least one group, or that touch the lane's own scripts [R8]; for Hosts, those touching its trigger paths [R9]. The release waits regardless | D; W `incident` | That lane's newest master run is green at a commit containing the fix |
 | Several causes stacked on one red master | The set of failing keys changes while master is red [INC1 1] | Each new key is its own incident with its own worker; red-since is the first red run of the stretch | D; W `incident` per key | Every gating workflow's newest master run is green |
 | Intermittent failure on master | The daemon's own re-run of the failing job on the red head passes (section 4.5); or a run with `run_attempt` above 1 whose earlier attempt failed [INC1 7] | The daemon files or finds one issue labelled `intermittent` with the key and log excerpt (critical on a second occurrence on another commit). The incident ends as "intermittent"; the issue is queued for a root-cause fix. A re-run is never recorded as a fix | D; W `issue` | Issue closed by a merged root-cause fix and the key has no first-attempt failure in the next 20 master runs (reopened otherwise) |
 | Release blocked because a gating lane is red | Release gate notice or run naming a lane [R7]; annotations [S6] | Folded into that lane's incident | D | The lane's incident is done and npm shows the versions |
 | Release push race: version commit rejected | Release log "non-fast-forward" or "rejected"; after each release run, tags (`git ls-remote`, local) against npm (npm GET per package) [INC1 2] | Prevention: pull requests that change release inputs are not merged while the release job (not the gate job) is running. A tag without a published version, or a version without its commit, is a release incident | D; W `incident` | npm shows the tagged versions and master has the version commit |
-| Release published the wrong contents | After each release, a new major on npm not tied to an approved group [INC1 2] | Prevention: merge decision line 4. Detection: owner item at once, because a published version cannot be unpublished | D; O | Every published version is one the rules allowed |
-| Unintended version bump | Merge decision line 8: the daemon's release dry-run on the reference worktree merged with the pull request [S31] | `githerd/merge` pending with the unexpected bumps; a `pr` job fixes the config | D; W `pr` | Dry-run shows only allowed bumps |
-| First publish of a new package | A pull request adds a publishable `package.json` whose name npm answers 404 (1 npm GET) [INC1 2] | `githerd/merge` pending "needs first npm publish of <name>"; one owner item with the two steps | D; O | npm returns the package |
+| Release published the wrong contents | After each release, a new major on npm not tied to an approved group [INC1 2] | Prevention: Mergify never queues a `!` title, and `githerd/merge` line 3 fails a breaking commit under a plain title. Detection: owner item at once, because a published version cannot be unpublished | D; O | Every published version is one the rules allowed |
+| Unintended version bump | Decision line 7: the daemon's release dry-run on the reference worktree merged with the pull request [S31] | `githerd/merge` failure with the unexpected bumps; a `pr` job fixes the config | D; W `pr` | Dry-run shows only allowed bumps |
+| First publish of a new package | A pull request adds a publishable `package.json` whose name npm answers 404 (1 npm GET) [INC1 2] | `githerd/merge` failure "needs first npm publish of <name>"; one owner item with the two steps | D; O | npm returns the package |
 | npm propagation delay read as failure | Publish log "previously staged version" (409) [INC2 12] | npm GET once a minute for up to 10 minutes; never paged | D | npm shows the version; still missing after 10 minutes is a release incident |
 | Release reported failed when it landed | Not needed: release truth is npm against master's tags and version commits, never a run's conclusion [R7] | The board's release line reads npm | D | n/a |
-| Release starved by a steady stream of merges | Hours since the green commit above 6 while merges continue and every gating lane is progressing (section 4.7) | Merges pause until the slowest lane completes on master's head. Never applied while a lane is not progressing (outage, balance), because waiting would not help | D | A green commit newer than the limit, or a release |
+| Release starved by a steady stream of merges | Hours since the green commit above 6 while merges continue and every gating lane is progressing (section 4.7) | `githerd/merge` fails "starvation hold" on every pull request until the slowest lane completes on master's head. Never applied while a lane is not progressing (outage, balance), because waiting would not help | D | A green commit newer than the limit, or a release |
 | Master looks green but has not run against today's world | Never inferred from master; the advisory feed and the shared-failure classes catch it (3.2, 3.3) [OD 7] | Master is shown as "green as of <commit>" | D | See those rows |
-| Red spreads into pull requests through update-from-master | Prevention | Updates use the CI-green commit, never a commit with a red gating lane (section 4.6) | D | No pull request is updated onto a red commit |
+| Red spreads into pull requests through update-from-master | Prevention | Held pull requests leave Mergify's queue, so Mergify does not update them onto a red master; githerd's own updates use the CI-green commit (section 4.6) | D | No held pull request is updated onto a red commit |
 | Gating lane gets cancelled, never finishes | Newest run of a gating lane is `cancelled`, or its log or annotations say the runner was lost [S6] | Classifier: on a rented label, runner loss is "possible balance" until the next start proves otherwise (3.2). Otherwise one re-dispatch on master's head; a second loss on the same head is an incident | D | The lane completes on master's head |
 
 ### 3.2 External drift
@@ -214,7 +217,7 @@ adversarial review added (section 3.10). Columns:
 | External service outage fails a check | Failed step's log names a remote host with a 5xx, ETIMEDOUT or ECONNRESET [INC2 5] | Classifier class "outside": the daemon re-runs the failed job once after 15 minutes; a 403 or 429 caused by our own burst becomes an `infrastructure` issue. Never a fix job | D | Passes on re-run, or the issue exists |
 | DNS or network stall on this machine | githerd's calls fail with resolve or connect errors and a second host (registry.npmjs.org) also fails | "Unknown since <time>": no decision, no write, no new incident; every deadline and attempt clock paused | D | A full reconcile succeeds |
 | Credential or account state blocks everything | One credential-pattern table, applied first by the classifier to every failure text (PR and master steps, release runs, worker-start probes, push results, worker findings): 401, "Bad credentials", 403 with "auth" or "permission", "Permission denied (publickey)", OIDC 403, npm E401, gpg or ssh signing errors; `gh` login change on `GET /user`; StopFailure `authentication_failed` or `billing_error` [S15]; the token-expiration header [S11] | One owner item per credential; no attempts charged; only what needs that credential stops. A changed `gh` login freezes all dispatch and writes. A signing probe runs before every worker start [S28] | D; O | The next call that needed it succeeds |
-| Shared GitHub rate budget runs low | `X-RateLimit-Remaining` on every response, never `GET /rate_limit` [PF 1.5] | With its own GitHub App token (section 4.11) githerd has a separate budget. Without one: under 1500 only master runs and the pull request list are polled; under 500 the daemon also merges nothing and keeps the last 300 calls for its own holds | D | Remaining above 1500 |
+| Shared GitHub rate budget runs low | `X-RateLimit-Remaining` on every response, never `GET /rate_limit` [PF 1.5] | Under 1500 only master runs and the pull request list are polled; under 500 the daemon posts no new `success` and keeps the last 300 calls for its own holds | D | Remaining above 1500 |
 | Claude Code update changes the platform under githerd | `claude --version` before each worker start differs from the last verified version | Platform self-test before any start; failure stops starts, banner, one page; resume used only if the self-test verified it | D | Self-test passes |
 | Repository settings change under githerd | Rulesets and repository settings read with ETag when master moves [R1], [R2] | A required check that has not reported on any pull request head in 24 hours is an incident; a change to `delete_branch_on_merge`, the merge methods or the required checks is a banner and re-checked assumptions | D | Every required check reports |
 
@@ -228,25 +231,25 @@ adversarial review added (section 3.10). Columns:
 | Intermittent failure on a pull request | Key named by an open `intermittent` issue | One daemon re-run per head; workers cannot re-run (guard) | D | Green head |
 | Textual merge conflict | `mergeable == false` on the single pull request GET, re-read when master moves; `null` is no data; two sightings. Conflicts are classified with `git merge-tree` against `origin/master`, the tip GitHub judges against | A `pr` job merges the CI-green commit and resolves. A path in conflict on 3 or more pull requests in 7 days gets an issue to remove the hot spot | D; W `pr` | `mergeable == true` and checks running on the new head |
 | Conflict only in visual baseline images | `merge-tree` against `origin/master` whose conflicting paths are all under `visual-baselines/` | The daemon runs `visual-review update <pr>` [R13], which accepts nothing and approves nothing; if the tool refuses because another file conflicts, a `pr` job | D; W `pr` | Mergeable |
-| Semantic conflict between pull requests | No signal before a merge [CAT 9]. Two facts approximate it: a relation a worker recorded at claim, and an intersection of the files two pull requests' diffs actually change (computed by the daemon at every push and every head change) | Merge decision line 9: after a related pull request merges, the other is updated and must pass CI on the combination before it merges. Master's lanes are the backstop | D | The second pull request is green on a base containing the first |
-| Branch far behind master | `behind_by` from compare, read only when a reason below applies | Updated only when its failing key is fixed on master, when it is next to merge and line 9 needs it, when its stack base moved, or when it is unparked | D | The base contains what it needs |
-| Visual captures out of date | The review record names the master commit it compared against; master's baselines changed since | Not updated speculatively: if the pull request already has a finished review, it is updated only when it is next to merge, so the owner re-reviews once | D | Visual gate green on the head |
+| Semantic conflict between pull requests | No signal before a merge [CAT 9] | Mergify merges master into each pull request and waits for its checks on that head, so the second of two related pull requests is always tested on a base containing the first. Master's lanes are the backstop | Mergify; D | The second pull request is green on a base containing the first |
+| Branch far behind master | `behind_by` from compare, read only when a reason below applies | Mergify updates it when it reaches the front of its queue. githerd updates it only when its failing key is fixed on master, its stack base moved, or it is unparked | D | The base contains what it needs |
+| Visual captures out of date | The review record names the master commit it compared against; master's baselines changed since | Not updated speculatively by githerd: Mergify updates it when it reaches the front of the queue, so the owner re-reviews once | D | Visual gate green on the head |
 | Waiting on the owner's visual review | The visual step of `All Checks Pass` pending with "awaiting approval" [INC2 8] | Listed on the board with direct links, fewest diffs first [OD 6]; paged when the list gains an item and the owner is present (section 11.3), otherwise a daily digest. Stacked children are listed only after their base's gate is green. Never a job | D; O | Approved; gate green |
 | Owner rejects visual changes | An owner comment on the pull request carrying the review tool's machine-readable reject block [R14], [S29] | A `pr` job that resumes the session that made the pull request, with the rejects | D; W `pr` | New captures approved |
 | Visual gate passes when it should not | On each master move, a local read of master's `visual-baselines/` and story lists: every package with a Storybook has baselines [INC2 8] | A master incident with merge hold on every pull request | D; W `incident` | Every package's stories have approved baselines |
 | Review tool or review server unusable | Before any link is sent: servherd status, the health route, the served version against master, and the certificate's `notAfter` [PF 1.2] | `servherd restart` by the daemon; still broken, an incident for the tool; certificate under 14 days with no renewal, an owner item | D; W `incident` | The link works on current code |
-| Stacked pull request | `base.ref != "master"` | Never merged by the daemon; stray auto-merge disarmed. The daemon models the chain (section 4.6): when a base's head changes, children are updated in order; when a base merges, the daemon retargets each child to master itself, because `delete_branch_on_merge` is false and GitHub will not [R1], [S3] | D | Merged into master with its own checks |
+| Stacked pull request | `base.ref != "master"` | Never queued by Mergify (its rule needs `base=master`); stray native auto-merge disarmed. The daemon models the chain (section 4.6): when a base's head changes, children are updated in order; when a base merges, the daemon retargets each child to master itself, because `delete_branch_on_merge` is false and GitHub will not [R1], [S3] | D | Merged into master with its own checks |
 | Pull request already merged through another | Every commit reachable from master (1 compare call) | Comment naming the merging pull request; close after 3 days unless the owner objects | D | Closed with a pointer |
-| Breaking pull request held for a grouped major | The head's commit list: a `!` or `BREAKING CHANGE` footer, or `!` in the title; unreadable counts as breaking | Held; one group per package; one owner item per group: cut the major now or wait | D; O; W `major` | One major per group is on npm |
+| Breaking pull request held for a grouped major | `!` in the title (Mergify's rule); a breaking commit under a title without `!` fails `githerd/merge` line 3 | Mergify never queues it. githerd groups them per package on the board, with one owner item per group: cut the major now (the owner merges it by hand) or wait | Mergify; D; O; W `major` | One major per group is on npm |
 | Breaking change nobody marked | No mechanical signal [CAT 9]; review job | `breaking-unmarked` holds it; a `pr` job marks it | W `review`, `pr` | No minor release changes an export |
 | Two sessions planning majors for the same package | The group comes from open pull requests, not from sessions | A second breaking pull request joins the group | D | One major per package per group |
 | Title or commit message fails commitlint | The daemon runs the repository's commitlint on the title in the reference worktree when a pull request opens or its title changes; commit messages are checked locally by `.husky/commit-msg` [INC2 6] | Lowercase-first-letter fix by the daemon. Otherwise: if the session that made the pull request is open, it is rung with the output; else a `title` job, which needs no worktree. `pr-title.yml` re-runs on `edited` [R10] | D; W `title` | `Lint PR Title` green |
 | Pre-push gate failure or a push misread as success | Pushes are run by the daemon (section 4.8), so the result is known; `githerd_done` compares the reported head with `git ls-remote` | A gate failure is classified like a CI failure, with a local failure key; a key that fails in two jobs or on the green commit is a shared local incident, and does not count as an attempt for a job that did not touch the failing file | D | GitHub's head equals the pushed commit |
 | Push queue backs up | The daemon's own queue and the shared push lock's waiters [S24] | Priority (incident fixes, then finished work, then the rest); sessions waiting to push count as waiting, not working; while the queue is deep, only work that needs no push is dispatched | D | Queue under its limit |
 | Commits pushed but checks never start | No check suite on a head 10 minutes after it appeared, 1 call; unless "Actions degraded" holds (3.10) | A workflow that did not trigger is an incident; conflicts go to the conflict row | D; W `incident` | Checks running |
-| Green but not merging | Required checks green, mergeable, not merged after one reconcile | The board shows the first failing line of the merge decision; the daemon acts on the lines it owns | D | Merged, or the reason is an owner item |
-| Auto-merge on where policy forbids it | `auto_merge` in the pull request list | Disarmed everywhere: the daemon is the only merger | D | No auto-merge armed |
-| Head changed after githerd checked it | Native: the merge call carries the head sha and GitHub refuses a moved head [S1] | Re-evaluated on the next reconcile | D | n/a |
+| Green but not merging | Required checks green, mergeable, `githerd/merge` success, not merged after Mergify's queue ahead of it drained | The board shows the first failing decision line, or Mergify's queue position from its check run; a pull request stuck with `success` at the front of an empty queue for an hour is an incident for the Mergify configuration | D | Merged, or the reason is an owner item |
+| Native auto-merge armed | `auto_merge` in the pull request list | Disarmed everywhere: it would merge on the ruleset's checks alone and bypass `githerd/merge`; Mergify is the merger | D | No native auto-merge armed |
+| Head changed after githerd checked it | Native: a commit status belongs to one sha, so a moved head has no `githerd/merge` until githerd posts on it | Evaluated on the next reconcile; Mergify cannot merge it meanwhile | D | n/a |
 | Pull request waiting on an owner decision or owner-only step | `needs-decision` label, or a job parked through `githerd_ask_owner` | One owner item on that pull request; the pull request is not updated while parked; on the answer, one update from the CI-green commit, then the session resumes | D; O | The answer is recorded and the job resumes |
 | Duplicate pull requests | Claims; two open pull requests referencing the same issue | The older is kept; the newer is commented and closed after 3 days unless the owner objects | D | One pull request per piece of work |
 | Abandoned pull request | A pull request githerd's job made, whose job ended, with no new head and no comment for 48 hours, not merge-ready, with no open owner item and no `needs-decision` label | A `pr` job, oldest first. The owner's own pull requests are listed, never taken | D; W `pr` | Merged, or closed with a reason |
@@ -269,7 +272,7 @@ adversarial review added (section 3.10). Columns:
 | Stale needs-decision and blocked labels | Each full triage pass (after every 100 merges) | Reversible ones decided with a comment and the label removed; real one-way doors become owner items | W `triage` | Every remaining `needs-decision` is an owner item |
 | Issue needing a one-way-door decision | `githerd_ask_owner` kind `one-way-door` | Owner item with options and undo cost; job parked; slot freed | W; D; O | Answer recorded; job resumes |
 | Owner answers on an issue | An owner comment on an issue with an open owner item: each reconcile, a conditional GET of the comments of every such issue (few, 304 free) | Resume the session with the comment. If the worker reports "no answer yet", the job re-parks on the same item with no new page | D | Job working again |
-| Owner edits an issue after work started | The claim stores the issue body hash, labels and state; a change is news | News is written to the job's news file, delivered by the next tool result or the PostToolUse hook [S17]; `githerd_push` refuses while news is unacknowledged; closed by the owner cancels the job (unpushed work salvaged); `blocked`, `needs-decision` or `githerd:skip` parks it. A pull request from an issue job merges only once its job acknowledged the current revision (merge decision line 10) | D; W | The worker acknowledged the current revision |
+| Owner edits an issue after work started | The claim stores the issue body hash, labels and state; a change is news | News is written to the job's news file, delivered by the next tool result or the PostToolUse hook [S17]; `githerd_push` refuses while news is unacknowledged; closed by the owner cancels the job (unpushed work salvaged); `blocked`, `needs-decision` or `githerd:skip` parks it. A pull request from an issue job gets `githerd/merge` success only once its job acknowledged the current revision (decision line 8) | D; W | The worker acknowledged the current revision |
 | Critical issue in nobody's hands | Queue order; lapsed claims | First in the `issue` part of the queue | D | Claimed and progressing |
 | Owner batch order by label | `githerd_record` kind `order`, or `githerd order` [CAT 9] | Issue list fixed when recorded; progress and dropped items on the board | D | Every listed issue closed or labelled `blocked` with a reason |
 | Bulk filing | Many new issues in one poll [INC1 4] | Triage at its bounded rate; unlabelled issues never become `issue` jobs | D; W `triage` | All labelled |
@@ -315,7 +318,7 @@ adversarial review added (section 3.10). Columns:
 
 | Situation | Signal | Action | Actor | Done |
 |---|---|---|---|---|
-| githerd crashed | The `alive` file (written every 10 s) is older than 60 s and the lock's pid is dead or has another start time | Restarted by pm2 once servherd passes `autorestart` [R18], [S26]; by the MCP server of every live session (a local stat once a minute); by supervisord if the owner adds the stanza [R20]. Each restarter takes a restart lock. Uncaught exceptions enter fatal mode instead of exiting | D | `alive` fresh |
+| githerd crashed | The `alive` file (written every 10 s) is older than 60 s and the lock's pid is dead or has another start time | Restarted by pm2 once servherd passes `autorestart` [R18], [S26]; by the MCP server of every live session and the first session's launcher (a local stat once a minute); by `githerd ensure` (no supervisord entry, owner's decision 3 in 12.3). Each restarter takes a restart lock. Uncaught exceptions enter fatal mode instead of exiting | D | `alive` fresh |
 | githerd alive but stuck | `alive` fresh but `progress` names one step for longer than that step's bound | Shown on the board; a reconcile step past its bound is cancelled and logged; long work runs as tracked child processes with their own deadlines | D | Reconciles completing |
 | More than one githerd | The lock (pid, start time); every start path uses one fixed cwd and name [R18] | A second daemon exits; stray servherd entries named githerd with another cwd are removed | D | One daemon |
 | Stale or backwards API answers | (run id, run attempt) and `updated_at` monotonic per workflow and branch; `since` polls overlap by 10 minutes; heads confirmed with `git ls-remote` before a refusal [INC2 2] | Discarded or re-read | D | n/a |
@@ -328,7 +331,7 @@ adversarial review added (section 3.10). Columns:
 | Writes that silently do nothing | Every write read back, and confirmed by the next poll | Mismatch on the board; retried once | D | n/a |
 | Owner notifications broken | The notify command's exit status | "Phone alerts broken" first on every surface | D | A notification succeeds |
 | githerd's own Claude judgment fails | Validation errors; failed triage or review | Retry in the same session; a version-mismatch validation error is not an attempt; failed triage batches are requeued | D | A valid judgment is recorded |
-| githerd spends what the sessions need | Rate headers; worker hours | Own budget with a GitHub App; tiers otherwise; worker-hours cap | D | n/a |
+| githerd spends what the sessions need | Rate headers; worker hours | The owner's `gh` token with tiers and a reserve (no GitHub App, owner's decision 2 in 12.3); worker-hours cap | D | n/a |
 
 ### 3.7 The owner
 
@@ -342,7 +345,7 @@ adversarial review added (section 3.10). Columns:
 | Alert fatigue | githerd's alert log | One page per item when actionable, again only on change; workers cannot page | D | n/a |
 | Owner policy given in one session | `githerd_record` kind `policy`, or `githerd policy` [CAT 9] | Kept in state, ledger and every start line; switches enforced at once | D | Ended by the owner |
 | Work the owner asked for is silently dropped | Invariant check (section 9.5) | Fault at the top of every surface; paged once after 24 hours | D | Nothing lacks a holder, state and deadline |
-| Owner approves in chat but the agent cannot act | Not needed | The daemon merges by rule | D | n/a |
+| Owner approves in chat but the agent cannot act | Not needed | Mergify merges by rule | Mergify | n/a |
 
 ### 3.8 Combinations
 
@@ -358,7 +361,7 @@ adversarial review added (section 3.10). Columns:
 
 | Situation | How it is handled without one |
 |---|---|
-| Semantic conflict | Claim-time relation plus diff-file intersection force a combined test (merge decision line 9); master lanes and the parent re-test are the backstop |
+| Semantic conflict | Mergify tests each pull request on current master before merging it; master lanes and the parent re-test are the backstop |
 | Breaking change nobody marked | Review job on every githerd pull request |
 | Duplicate issue, obsolete issue | Triage judgment, a second confirmation, a grace period counted in owner-present days, veto |
 | Defect found but never filed | `githerd_done` requires the list; the daemon checks each entry |
@@ -370,7 +373,7 @@ adversarial review added (section 3.10). Columns:
 | GPU balance before zero | Not predicted; classified on the first failure and re-dispatched on backoff |
 | Hung tool versus long tool | CPU time, transcript and subagent transcript growth, background output growth, `githerd_expect` |
 | Permission prompt inside a subagent | Pane capture matched against dialog text before any Escape [S20] |
-| githerd down while no session runs | Nothing merges, because only the daemon merges (section 4.6); restart by pm2 or supervisord when set up; every new head shows `githerd/merge` missing |
+| githerd down while no session runs | A head without `githerd/merge` cannot merge, and Mergify's own updates create such heads; a pull request already carrying `success` and up to date can still merge (section 10.3). Restart by pm2, by the next session's MCP server, or `githerd ensure` |
 
 ### 3.10 Situations added by the adversarial review
 
@@ -385,14 +388,14 @@ adversarial review added (section 3.10). Columns:
 | Release pending is real, not a quiet day | The daemon's `nx release --dry-run` on the green commit says whether anything would publish [S31] | Only a commit that would publish and is not on npm 2 hours after its lanes went green opens a release incident | D; W `incident` | npm shows the versions |
 | Registry or toolchain outage (npm 5xx, corepack or pnpm key rotation) | Install, audit or gate error text and exit code | Platform fault: worker starts pause with a banner, no attempts charged; retried on the next master move or after 15 minutes; a tool error in the audit is "unknown", never an advisory | D | Install succeeds |
 | Signing key missing or expired | Signing probe before each worker start [S28]; gpg errors in worker findings | Credential class: one owner item, starts stop, nothing charged | D; O | The probe passes |
-| Stacked pull request whose base was merged | The base pull request merged, child's base is the old branch [R1] | Daemon retargets the child (`PATCH` base to master) [S3] | D | Child based on master |
+| Stacked pull request whose base was merged | The base pull request merged, child's base is the old branch [R1] | Daemon retargets the child (`PATCH` base to master) [S3], because neither GitHub nor Mergify does; Mergify then queues it like any other | D | Child based on master |
 | A worker's target pull request changes under it (owner merges, closes or pushes; the review tool updates it) | Head or state change on a held target | Unpushed commits salvaged to `githerd/<job>-salvage` and listed; a foreign head change is news ("branch moved by <who>: merge it before pushing"); attempts counted per job | D | Job continues or is cancelled with a pointer |
 | Malicious comment from a stranger on the owner's issue | The repository is public [R1] | Workers read GitHub text only through `githerd_read`; the guard refuses comment-reading `gh` forms; pull requests touching workflows, hooks, the gate, `.npmrc`, `.claude/` or adding a dependency get a security review before merge | D; W `review` | n/a |
 | A worker writes to GitHub as the owner and it looks like owner input | Workers share the owner's login | The guard refuses comments on items with open owner items, githerd labels, reopen; the guard's local log of worker writes lets the daemon attribute matching events to the worker | D | n/a |
 | githerd's own clients and daemon run different versions | Protocol version in every request | Daemon serves the previous protocol while any older session lives; validation errors from a mismatch are not attempts | D | All sessions on the current protocol |
 | Two hooks start two daemons from different worktrees | servherd entries named githerd [R18] | One fixed cwd for every start; strays removed | D | One entry |
 | Crash loop on one odd payload | Start counter: 3 starts in 10 minutes | Boot into fatal mode with the last exception; ETags persisted so a restart costs 304s; statuses written only when they differ | D | A fixed version runs |
-| The daemon inherits a stale Claude environment from pm2 | [R19] | Daemon and workers started with `env -i` and an allow-list; the self-test fails if any `CLAUDE_CODE_*` variable leaks in | D | Self-test passes |
+| The daemon inherits a stale Claude environment from pm2 | [R19] | Daemon and workers started with `env -i` and an allow-list; the self-test fails if a Pushover variable, or a `CLAUDE*` variable other than the ones Claude Code sets itself (listed by S18 in the plan), reaches a hook or the Bash tool | D | Self-test passes |
 | A doorbell lands in a dialog (usage menu, plan approval, picker) | Pane capture | Ring only on a positive match of the empty prompt box with no dialog markers; text verified in the box before Enter, else cleared and recorded | D | n/a |
 | A worker fans out subagents or browsers | Subagent transcripts; Chromium count in its process tree | Subagent growth is progress; Workflow tool denied; at most 2 concurrent subagents per worker (guard); browser launches refused at the machine cap | D | n/a |
 | The owner's tmux server is killed | Workers live on their own socket `tmux -L githerd` [PF 2.2] | Unaffected; if the githerd socket dies, working jobs recover one at a time | D | n/a |
@@ -409,13 +412,13 @@ adversarial review added (section 3.10). Columns:
 
 | Part | What it is | Why it exists |
 |---|---|---|
-| **Daemon** | One Node process (standard library only) per machine, started through servherd with a fixed name and cwd. It polls GitHub and npm, classifies failures, keeps the job queue and every record, starts and ends workers in tmux, runs the push queue, merges pull requests, and posts one status, `githerd/merge`, on owner pull request heads. State lives in `~/.githerd/graphty-monorepo/`, outside the repository | Something has to watch when no session is looking, and something has to do the irreversible steps under one set of rules |
+| **Daemon** | One Node process (standard library only) per machine, started through servherd with a fixed name and cwd. It polls GitHub and npm, classifies failures, keeps the job queue and every record, starts and ends workers in tmux, runs the push queue, and posts one status, `githerd/merge`, on every open pull request head into master. It never merges: Mergify does State lives in `~/.githerd/graphty-monorepo/`, outside the repository | Something has to watch when no session is looking, and something has to do the irreversible steps under one set of rules |
 | **MCP server** | A stdio server registered for every session githerd starts and, through the repository's project settings, for owner sessions. Eleven tools (section 6). It forwards calls to the daemon over localhost HTTP, checks the daemon's `alive` file once a minute, and restarts the daemon when it is stale | Work is handed out through it, as the owner asked [OD 2], and every live session becomes a restarter |
 | **Hooks** | One script, `githerd-hook`, run from the daemon-installed copy under `~/.githerd/graphty-monorepo/versions/<sha>/` (never from a worktree): SessionStart, UserPromptSubmit, Stop, StopFailure, Notification, PostToolUse (local file read only) and the PreToolUse guard for workers | Liveness, the Stop gate and hard rules come from the platform, not from the agent's memory [PA 2.14] |
 | **CLI** | `githerd` in any terminal (section 11.2) | The owner controls githerd without a Claude session, and can read its state with the daemon down |
 | **tmux server `githerd`** | A dedicated tmux socket (`tmux -L githerd`) holding one window per worker plus the board window. `githerd attach` attaches to it | Workers survive the owner killing his own tmux server, and the owner sees all of them in one place |
 | **Reference worktree** | `.worktrees/githerd-ref`, detached at the green commit, installed and built, locked (section 4.9) | Local checks that must match CI need a real, installed tree |
-| **GitHub** | The ruleset (pull requests only, merge commits, two required checks) [R2]; `githerd/merge` status; `needs-decision` label; `intermittent` and `infrastructure` issues | Server-side gates catch what local guards miss |
+| **GitHub** | The ruleset (pull requests only, merge commits, two required checks) [R2]; Mergify, which merges (4.6); `githerd/merge` status; `needs-decision` label; `intermittent` and `infrastructure` issues | Server-side gates catch what local guards miss |
 
 How work flows:
 
@@ -430,7 +433,8 @@ How work flows:
 5. While CI runs, the worker calls `githerd_wait` and goes idle. The daemon watches the condition
    and rings the session when it changes (7.4, 7.5).
 6. When the done-condition holds on GitHub, the daemon ends the session and removes the worktree.
-7. The daemon merges every pull request whose merge decision holds (4.6).
+7. The daemon posts `githerd/merge` on every open pull request head; Mergify merges the ones that
+   carry `success` (4.6).
 
 ### 4.2 Polls
 
@@ -500,8 +504,8 @@ The patterns live in one table in code, with a fixture per pattern taken from th
 On the first sighting of a red gating run on master, classified "code" (classes 4 to 8 do not
 apply on master; anything not in classes 1 to 4 is code):
 
-1. **Merge hold** on the pull requests that lane can affect (4.6, line 3). The hold is internal to
-   the merge decision; pull request statuses are not rewritten for it.
+1. **Merge hold** on the pull requests that lane can affect (4.6, line 2): `githerd/merge` turns
+   `failure` on each, so Mergify drops them from its queue.
 2. Fetch steps, annotations and the `Set up job` diff (4.2). A non-empty diff reclassifies the
    key as environment drift.
 3. On the second sighting the incident record exists and is urgent. An `incident` worker starts
@@ -525,61 +529,123 @@ apply on master; anything not in classes 1 to 4 is code):
 Workers cannot re-run or dispatch workflows (guard); they ask with `githerd_rerun`, which the
 daemon grants once per (head, key) and refuses for paid lanes beyond that.
 
-### 4.6 The merge decision and the merge executor
+### 4.6 The merge gate and stacks
 
-**The daemon is the only merger.** Each reconcile it picks the first pull request in queue order
-(incident fixes, then oldest) whose merge decision holds, re-reads master's lanes and the pull
-request's head (1 to 2 calls), and calls `PUT /repos/{r}/pulls/{n}/merge` with `sha` set to that
-head and `merge_method: merge` [S1]. GitHub refuses a moved head and still enforces the ruleset's
-required checks [R2]. One merge per reconcile; the next reconcile sees the new master. Any armed
-auto-merge is disarmed. While githerd is down, nothing merges automatically, so a red master can
-never be merged onto unseen; the owner can always merge by hand, because `githerd/merge` is not in
-the ruleset.
+**Mergify merges; githerd never does.** The owner chose Mergify to merge pull requests
+(`.mergify.yml` on master since pull request #777 merged on 2026-10-03 [R3]). Mergify queues every
+non-draft pull request into master that has no conflict, no `hold` label and no `!` in its title,
+updates it from master by merge, and merges it once `All Checks Pass` and `Lint PR Title` succeed,
+one pull request at a time, checked in place on its own branch. githerd adds only what Mergify
+cannot know: whether a red lane, an owner item, a missing review or a release risk makes this pull
+request unsafe right now. It says so with one commit status, `githerd/merge`, on the head of every
+open pull request into master, and the coordination change below makes Mergify require it.
 
-Mergify pull request #777 [R3] must not merge while the daemon is the executor; the plan closes
-it with a pointer to this section, and the invariant check flags a `.mergify.yml` on master.
+**The status.**
+
+| State | When | What Mergify does with it (after the coordination change) |
+|---|---|---|
+| `success` | Every line of the decision below holds | Queues it (if its other conditions hold) and may merge it |
+| `failure`, description = the first failing line ("held: GPU lane red since 14:02 and this pull request touches a benchmark group") | A line fails | The queue rule stops matching, so the pull request leaves the queue instead of blocking the one-at-a-time queue; when githerd posts `success`, the rule matches again and Mergify queues it again |
+| `pending` "githerd is evaluating" | githerd has seen the head but not finished deciding (at most one reconcile) | Stays queued but cannot merge. Never used for a hold, because a pending pull request at the front of the queue blocks every one behind it |
+| no status | A head githerd has not seen yet: Mergify just merged master into it, or githerd is down | Stays queued but cannot merge until githerd posts |
+
+githerd posts on every new head within one reconcile (the merge commits Mergify's updates create
+included), and otherwise only when the state or the description changes. A red lane therefore
+costs one write per affected open pull request when it turns red and one when it turns green; with
+the usual 10 to 30 open pull requests that is well inside the budget.
 
 **The decision.** Every line must hold:
 
-1. The author is the owner, the base is master, the pull request is open and not a draft.
-2. `All Checks Pass` and `Lint PR Title` are green on the head, and `mergeable` is true.
-3. **No hold applies**: no code-red gating lane that can affect it (all pull requests for CI;
-   for GPU those `scripts/bench-groups.js` maps to a group or that touch the lane's scripts [R8];
-   for Hosts those touching its paths [R9]); not "release job running" if it changes release
-   inputs; no `freeze-merges` policy; no starvation hold.
-4. Not breaking, or the single pull request of an owner-approved major group.
-5. No package it adds is unknown to npm.
-6. No `hold` or `needs-decision` label, and no open owner item on it.
-7. If a githerd job made it: a review passed on its current patch id, computed against the merge
+1. The author is the owner (the `gh` login). Mergify does not look at the author.
+2. **No hold applies**: no code-red gating lane that can affect it (every pull request for CI; for
+   GPU those `scripts/bench-groups.js` maps to a group or that touch the lane's scripts [R8]; for
+   Hosts those touching its paths [R9]), except the pull request recorded as that incident's fix
+   or revert; not "release job running" if it changes release inputs; no `freeze-merges` policy;
+   no starvation hold (4.7).
+3. If any commit on the head is breaking (`!` or a `BREAKING CHANGE` footer; unreadable counts as
+   breaking), the title carries `!` too, so Mergify's title rule holds it. Mergify's rule is the
+   hold; this line only closes the gap of a breaking commit under a non-breaking title.
+4. No package it adds is unknown to npm.
+5. No `needs-decision` label, and no open owner item on it.
+6. If a githerd job made it: a review passed on its current patch id, computed against the merge
    base and excluding `visual-baselines/**`, so neither a merge from master nor the owner's Finish
    commit needs a second review. If it touches `.github/workflows/`, `.husky/`,
    `tools/prepush.sh`, `.npmrc`, `.claude/`, `githerd/` or adds a dependency: a security review
-   passed. If a worker pushed changes under `githerd/` or `.claude/`: pending "needs owner session".
-8. If it changes release inputs: the daemon's release dry-run on the reference worktree merged
+   passed. If a worker pushed changes under `githerd/` or `.claude/`: "needs owner session".
+7. If it changes release inputs: the daemon's release dry-run on the reference worktree merged
    with the head shows no major outside an approved group and no 0.x package going to 1.0.0.
-9. No pull request related to it (claim relation or diff-file intersection) merged after this
-   head's CI run started. If one did, the daemon updates it first.
-10. If it came from an `issue` job: the job acknowledged the issue's current revision.
+8. If it came from an `issue` job: the job acknowledged the issue's current revision.
 
-`githerd/merge` is posted on the head with `success` when lines 1 and 4 to 10 hold, or `pending`
-with the first failing line, and only when that text changes. Holds (line 3) are shown on the
-board and in `githerd status`, not written to every pull request, so a master flap costs no writes.
+Not in the decision, because Mergify already does it: the required checks and `mergeable` (its
+merge conditions and `-conflict`), the `hold` label, the `!` title, queue order, updating from
+master, and the combined test of two related pull requests (Mergify merges master into each pull
+request and waits for its checks on that head, so whatever merged first is in the tested base).
 
-**Updates**, in order of preference, each with the expected head:
+**Native auto-merge** is disarmed wherever githerd finds it: GitHub's own auto-merge merges on the
+ruleset's two checks alone and would bypass `githerd/merge`. Mergify does not use it.
+
+**When githerd is down**, statuses already posted stay. A head Mergify updates while githerd is
+down has no status and waits. A pull request that already carries `success` and is already up to
+date with master can still merge onto a master that turned red meanwhile (section 10.3). The owner
+can always merge by hand, because `githerd/merge` is not in the ruleset.
+
+**Coordination change to `.mergify.yml`** (owned by another session; githerd's plan carries it as
+a coordination task and never edits the file). Add one merge condition and one queue condition:
+
+```yaml
+queue_rules:
+    - name: default
+      batch_size: 1
+      update_method: merge
+      merge_method: merge
+      merge_conditions:
+          - check-success=All Checks Pass
+          - check-success=Lint PR Title
+          - check-success=githerd/merge          # new: githerd says it is safe on this head
+
+pull_request_rules:
+    - name: queue ready, non-breaking pull requests into master
+      conditions:
+          - base=master
+          - -draft
+          - -conflict
+          - label!=hold
+          - "-title~=^[a-z]+(\\([^)]*\\))?!:"
+          - -check-failure=githerd/merge         # new: a held pull request leaves the queue
+      actions:
+          queue:
+              name: default
+```
+
+Why both: `check-success` in the merge conditions makes "no status yet" and `pending` wait instead
+of merging; `-check-failure` in the queue rule (rather than `check-success`) lets a freshly updated
+head with no status stay queued, so Mergify's own update does not dequeue it, while a hold removes
+it from the queue. The change lands only after githerd's `statuses` write group has posted on
+every open pull request for a day (milestone 8), and its pull request description says how to
+undo it: delete the two lines. Verify after it lands, with a docs-only pull request: a `failure`
+removes it from Mergify's queue, a later `success` re-queues it, and a head with no status is not
+merged. Until it lands, the invariant check shows the banner "Mergify does not wait for
+githerd/merge".
+
+**Updates** githerd still makes, each with the expected head, in order of preference:
 
 - baseline-only conflict: `visual-review update <pr>` [R13];
-- master's tip is the CI-green commit: `PUT /pulls/{n}/update-branch` [S2];
+- master's tip is the CI-green commit: `PUT /pulls/{n}/update-branch` with `expected_head_sha` [S2];
 - otherwise: the daemon merges the CI-green commit into the pull request in a daemon worktree and
   pushes through the push queue, gate included.
 
-A pull request is updated only for a reason: line 9; its failing key fixed on master; its stack
-base moved; unparked; or next to merge when its review compared against older baselines.
+Only for a reason Mergify does not cover: its failing key was fixed on master (so CI re-runs on a
+base with the fix), its stack base moved, or it was unparked. Mergify updates a pull request
+when it reaches the front of its queue, so githerd never updates one just to merge it.
 
-**Stacks.** The daemon builds each chain from `base.ref`. A base whose head changed queues an
-update of each child in order. A merged base makes the daemon retarget each child with
-`PATCH /pulls/{n}` `base=master` [S3], because `delete_branch_on_merge` is false and GitHub will
-not [R1]. A stacked job blocks until its base pull request is merged (a GitHub fact, not the base
-job's state). Children are left off the owner's review list until their base's gate is green.
+**Stacks.** Mergify queues only pull requests based on master, so a stacked child is never queued
+until its base merged and it was retargeted, and nothing retargets it for us. The daemon builds each
+chain from `base.ref`. A base whose head changed queues an update of each child in order. A merged
+base makes the daemon retarget each child with `PATCH /pulls/{n}` `base=master` [S3], because
+`delete_branch_on_merge` is false and GitHub will not [R1]; from then on Mergify treats the child
+like any other pull request. A stacked job blocks until its base pull request is merged (a GitHub
+fact, not the base job's state). Children are left off the owner's review list until their base's
+gate is green.
 
 ### 4.7 Release truth and starvation
 
@@ -651,11 +717,9 @@ shown ("Stop gate unreachable: N stops allowed unchecked").
 
 ### 4.11 githerd's GitHub identity
 
-The daemon uses a GitHub App installation token when the owner has created one (section 12): its
-own rate budget, which other sessions cannot drain, and statuses and merges shown as the app
-[S10]. `gh`'s login stays the definition of "the owner" and is checked every reconcile. Without
-the App, the daemon uses `gh`'s token and the tiers in 3.2, and keeps its last 300 calls for its
-own holds. The token-expiration header is read on every response; an item is raised 7 days ahead
+The daemon uses the owner's `gh` token (owner's decision 2 in 12.3: no separate GitHub App for
+now), with the tiers in 3.2, and keeps its last 300 calls for its own holds. Its statuses show as
+the owner. `gh`'s login stays the definition of "the owner" and is checked every reconcile. The token-expiration header is read on every response; an item is raised 7 days ahead
 [S11].
 
 ---
@@ -793,6 +857,12 @@ started before the file's `startedAt` [PF 2.2]. Workers also carry `GITHERD_JOB`
 carries a protocol version (9.8). Arguments are validated against these schemas; a refused call
 has no partial effect and says why. Every result starts with active banners and faults.
 
+Every tool answers within seconds and none blocks. Claude Code moves an MCP call still running
+after 120 s to the background and ends the turn; `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS=0` lets one
+call hold the turn for at least 7 minutes with no progress messages (the MCP spike in the plan), but
+a held turn also queues whatever the owner types, so waits stay declared with `githerd_wait` and
+end with the doorbell.
+
 ```jsonc
 // 1. The board. Any session.
 githerd_status: { section?: "all"|"owner"|"master"|"release"|"prs"|"jobs"|"sessions"|"health",
@@ -897,13 +967,20 @@ Workers are prepared in parallel and started one at a time; only the span from `
             GITHERD_JOB=<id> GITHERD_NONCE=<nonce> \
      claude --model <opus-5.5 or fable> -n githerd-<job> --permission-mode default \
             --settings <jobs/id>/settings.json --mcp-config <jobs/id>/mcp.json \
-            "You are a githerd worker. Call githerd_next for your job."
+            "You are a githerd worker. Call githerd_next for your job. Decide reversible
+             questions yourself and say why; ask the owner only through githerd_ask_owner."
    ```
 
    `env -i` keeps the stale Claude variables and the Pushover keys that servherd's pm2 carries
-   [R19] out of the worker. Whether the Bash tool re-reads `~/.bashrc` and brings the Pushover
-   keys back is [S18]; until it is settled the board shows "worker paging not isolated", and the
-   owner is offered a one-line `GITHERD_JOB` check in his notify script (section 12).
+   [R19] out of the worker. Verified (S18 in the plan): under `env -i`, neither a hook nor the Bash
+   tool sees a Pushover variable (the Bash tool's shell snapshot does not bring `~/.bashrc`'s
+   exports back), so the owner's own Stop and Notification hooks, which still run in a worker,
+   cannot page from it. Claude Code sets about ten `CLAUDE*` variables of its own in every hook and
+   Bash process; the self-test allows exactly those.
+
+   The rule "decide reversible questions yourself" is in the launch prompt, because the launch
+   prompt counts as the user's words: Opus 5.5 obeys a Stop-hook reason that agrees with the user,
+   but refuses one that contradicts an explicit instruction from the user (S13 in the plan).
 5. **Registry** entry within 30 s [PF 2.2]; otherwise the pane is captured and it is a start
    failure. The SessionStart hook links the session and checks the model.
 6. **First call**: `githerd_next` returns the job: target, done-condition in plain words, earlier
@@ -942,9 +1019,14 @@ Every time a worker's turn ends, the Stop hook asks the daemon, which answers fr
 | The last message asks the owner something or has `ACTION NEEDED`, and no `githerd_ask_owner` call was made | Block once: "decide this yourself and record why, or call githerd_ask_owner if it is owner-only" |
 | Anything else | Block once with what GitHub still shows missing, and the four ways forward: continue, `githerd_wait`, `githerd_ask_owner`, `githerd_done` with `failed` |
 
-One block per turn keeps far below the platform's cap of 9 [PF 3.2]. Whether Opus 5.5 obeys a
-block reason (measured on Haiku only [PF 3.1]) is [S13]; if not, the same text goes into the
-doorbell.
+One block per turn keeps far below the platform's cap of 9 [PF 3.2]. Opus 5.5 obeys a block
+reason when nothing the user said contradicts it, and refuses one that contradicts an explicit user
+instruction, saying so in its reply (S13 in the plan). So the gate's reasons only restate rules
+the launch prompt already gave as the user's (7.1), and a steered session, where the owner's words
+may say otherwise, is never blocked. A refusal is visible in `last_assistant_message` at the next
+stop; the gate does not block twice, and the watchdog takes over. A turn the user interrupts with
+Escape ends without any Stop hook call (observed in S13), so an Escape sent by the watchdog is
+always followed by a doorbell, never by an expected Stop.
 
 ### 7.4 Waiting
 
@@ -964,8 +1046,11 @@ only; it stops when the last worker ends).
   window.
 - **Before any key is sent**, the pane is captured and matched against known screens: the empty
   prompt box; the permission dialog ("Do you want to proceed?", numbered options) [PF 2.2]; the plan
-  approval dialog (captured in `platform/exp5-planmode-capture.txt`); the usage-limit screen and
-  pickers [S19], [S30]. Only the empty prompt box with no dialog marker allows typing.
+  approval dialog (captured in `platform/exp5-planmode-capture.txt`); pickers ("Enter to select",
+  registry `waiting` with `input needed`); the usage-limit screen [S19]. Only the empty prompt box
+  with no dialog marker allows typing: a rule line ending in the session's name, then a line that
+  is exactly the prompt character with nothing after it, then a rule line (the tmux spike in the
+  plan). The registry alone is not enough: a half-typed owner message leaves it `idle`.
 - **No progress for 20 minutes while busy**: a dialog takes the permission path (3.5); otherwise
   Escape and a status-request doorbell; 10 minutes later recycle fresh.
 - **Permission prompt**: never answered; the job parks on one owner item (3.5).
@@ -1041,7 +1126,7 @@ shows each limit with the measurement that applied at the last start.
   a cycle.
 - At every push the daemon intersects the pushed diff's files with every other in-flight
   worktree's and every owner session's changed files. A non-empty intersection records the two as
-  related (merge decision line 9) and tells both holders. This is a fact about the diffs, not a
+  related and tells both holders. This is a fact about the diffs, not a
   guess about the work.
 - Every tool call and Stop compares the session's branch and pull request with the claims;
   `githerd_push` and `githerd_done` refuse targets the session does not hold.
@@ -1053,10 +1138,11 @@ shows each limit with the measurement that applied at the last start.
   on the board. After the reset (or, with no time, a probe at 1 h, 3 h, 6 h), one canary worker
   starts, and the rest only after it completes a turn. Nothing is typed into a pane showing the
   limit screen, so its menu is never answered by a doorbell. The daemon's own non-Claude work
-  (re-runs, parent re-tests, merges) continues.
-- **Extra usage**: whether workers may spend paid overage is the owner's money question (section
-  12); the default is no. If the limit screen shows extra usage in use, starts stop and one owner
-  item is raised.
+  (re-runs, parent re-tests, statuses) continues, and so does Mergify.
+- **Extra usage**: never (owner's decision 1 in 12.3). githerd pauses at the limit and resumes at
+  the reset. If the limit screen shows extra usage in use anyway, starts stop and one owner item
+  is raised. The screen's menu offers paid options and an automatic resume, so githerd never types
+  into it (S19 in the plan).
 - **Weekly-limit text**: once [S19] verifies it can be read, above 80 percent routine slots drop to
   2, above 90 percent to 1, above 95 percent urgent only.
 - `overloaded` or a server error: resume after 2 minutes, then 5; a third counts as an attempt.
@@ -1125,7 +1211,8 @@ slow work never looks like death. A restart is allowed only when `alive` is olde
 lock's pid is dead or has another start time, and only by a restarter holding `restart.lock`.
 Restarters: pm2 (once servherd passes `autorestart` [R18], [S26]); every MCP server, which stats
 `alive` once a minute while its session lives (idle waiting workers included); every hook and CLI
-call; supervisord, if the owner adds the stanza [R20]. Every start path uses one fixed cwd,
+call; the launcher of the first Claude session after a container restart; and `githerd ensure`
+from any terminal. There is no supervisord entry (owner's decision 3 in 12.3). Every start path uses one fixed cwd,
 `~/.githerd/graphty-monorepo/current`, and the name `githerd` [R18], and clears inherited `CLAUDE*`
 and Pushover variables [R19]. An uncaught exception enters fatal mode with its stack instead of
 exiting.
@@ -1136,8 +1223,8 @@ At the end of every reconcile: every job, incident, owner item, proposal and ord
 holder (a session, the queue, the owner or a named blocker) and a deadline or a terminal state;
 every `waiting` job's condition is still pending; every `parked` job's item is open; every working
 job's session is alive or being recovered; every open owner pull request has a current
-`githerd/merge`; every order's issues each have a job, a terminal state or a reason; no `.mergify.yml`
-and no armed auto-merge exist; the githerd tmux socket exists while jobs need it. A violation is a
+`githerd/merge`; every order's issues each have a job, a terminal state or a reason; master's
+`.mergify.yml` requires `githerd/merge` (section 4.6) and no native auto-merge is armed; the githerd tmux socket exists while jobs need it. A violation is a
 fault: first on every surface, with `githerd why` pointing at the record; paged once after 24 hours.
 
 ### 9.6 Fatal mode
@@ -1199,11 +1286,11 @@ enforces:
   worker's, not owner input: it never answers an owner item, vetoes a close or moves the queue.
 
 Server-side, whatever the guard misses: the ruleset (pull requests only, required checks, no force
-push, no deletion) [R2]; the daemon as the only merger.
+push, no deletion) [R2]; Mergify as the only merger, gated by `githerd/merge`.
 
 ### 10.2 What only the daemon writes
 
-Through one write function with a mode gate, a ledger line and a read-back: merges, `githerd/merge`
+Through one write function with a mode gate, a ledger line and a read-back: `githerd/merge`
 statuses, auto-merge disarming, updates and retargets, title case fixes, revert pull requests,
 re-runs and re-dispatches, issues it files, owner-item comments and labels, proposal comments,
 closes after grace, and pushes from the push queue. It never approves visual changes, never edits
@@ -1214,7 +1301,8 @@ rulesets, and never acts on input from an account other than the `gh` login.
 | Risk | Why it remains | What limits it |
 |---|---|---|
 | A semantic conflict between unrelated-looking pull requests reaches master | No signal before a merge [CAT 9] | Claim relations and diff-file intersection force combined tests; master lanes; the parent re-test and revert |
-| The container is down | Nothing local survives it; no outside watcher was approved [OD 15] | Nothing merges while githerd is down; pm2 with autorestart and the supervisord stanza bound the gap once the container is up |
+| The container is down | Nothing local survives it; no outside watcher was approved [OD 15] | A head without `githerd/merge` cannot merge; githerd returns with the first Claude session's launcher or `githerd ensure` (no supervisord entry, owner's decision 3 in 12.3) |
+| githerd is down after posting `success` | A commit status cannot expire | A pull request up to date with master and carrying `success` can merge onto a master that turned red meanwhile. Mergify's update gives every pull request that is behind a new head with no status, which waits; the parent re-test and revert repair the rest |
 | The guard is a tokenizer, not a shell | Text built at run time can hide a command | The ruleset, the daemon-only merge and push paths catch what matters |
 | Workers hold the owner's credentials | They are his sessions | Guard, server-side gates, owner-only input through `githerd_read` |
 | Claude judgments are wrong (overlap, duplicates, review) | No mechanical signal | Second confirmations, grace periods with veto, required checks, master lanes |
@@ -1222,7 +1310,6 @@ rulesets, and never acts on input from an account other than the `gh` login.
 | The weekly usage limit is not readable until verified | On-screen text only | Worker-hours cap; global pause on the limit itself |
 | Typing into a window | tmux keys go to whatever is on screen | Positive match of the prompt box, text verified before Enter |
 | Resume across Claude Code versions | Internal format | Used only when verified on the running version |
-| Worker paging isolation | The Bash tool may re-source the profile [S18] | `env -i`; banner until verified; the owner's one-line check |
 | An advisory is matched late because npm's audit data lags GitHub's | Two databases | Recheck list until a CI audit has run after the advisory's update |
 
 ---
@@ -1258,7 +1345,8 @@ rulesets, and never acts on input from an account other than the `gh` login.
 | `githerd veto <item>` | Never close or propose closing it again |
 | `githerd answer <item> <words>` / `answer <item> allow` | Answer an owner item / add the item's allow rule to the overlay |
 | `githerd order ...` / `policy ...` / `policy end <id>` | Record orders and policies |
-| `githerd install` | Print the servherd start command, the optional supervisord stanza, the GitHub App steps and the notify-script line |
+| `githerd install` | Print the servherd start command |
+| `githerd ensure` | Start the daemon if it is not running, with the same `alive` and lock checks the MCP server makes; for after a container restart when no session has opened yet |
 | `githerd selftest` | Run the platform self-test |
 | `githerd mode` | Each write group's mode and its ledger coverage |
 
@@ -1284,8 +1372,8 @@ worker command line (the same `env -i`, `--settings`, `--mcp-config` and a cwd u
 and the configured model, and checks: the registry entry appears; SessionStart reaches the daemon
 with the model and no dialog blocks a fresh worktree; no "Do you want to proceed" appears through
 `githerd_next`, `githerd_claim` and a `gh pr create` for a branch that does not exist (GitHub
-refuses it, so nothing is created); no `CLAUDE_CODE_*` or Pushover
-variable is visible to a hook or the Bash tool; the doorbell starts a turn and UserPromptSubmit sees
+refuses it, so nothing is created); no Pushover variable, and no `CLAUDE*`
+variable beyond the ones Claude Code sets itself (S18), is visible to a hook or the Bash tool; the doorbell starts a turn and UserPromptSubmit sees
 the nonce; a Stop block is obeyed; `githerd_wait` idles and the doorbell wakes; `/exit` removes the
 registry entry; resume works (else resume is marked unverified); the weekly-limit text is readable
 (else display-only). Failure stops starts, is a banner everywhere, and pages once.
@@ -1298,17 +1386,15 @@ registry entry; resume works (else resume is marked unverified); the weekly-limi
 
 1. Start githerd: `servherd start` with the name `githerd` and the fixed cwd (the command is printed
    by `githerd install`). After that it runs forever [OD 2].
-2. Optional, recommended: add the supervisord stanza `githerd install` prints, so githerd comes
-   back after a container restart with no session opened. It needs root, which only the owner has
-   (question 3 below).
-3. Optional, recommended: create and install the GitHub App `githerd install` describes (question
-   2 below).
-4. If the platform check shows a worker's Bash tool can see the Pushover keys [S18]: add the
-   one-line `GITHERD_JOB` check `githerd install` prints to the notify script. githerd never edits
-   `~/.claude`.
+2. After a container restart: nothing, if a Claude session opens (its launcher starts githerd);
+   otherwise `githerd ensure`.
 
-Everything else (the review server, the merge executor, Mergify #777, tmux, worktrees, config
-values) githerd and its workers handle.
+No supervisord entry, no GitHub App and no notify-script change: workers started under `env -i`
+cannot see the Pushover keys, in their hooks or their Bash tool (S18 in the plan).
+
+Everything else (the review server, the `githerd/merge` status, tmux, worktrees, config values)
+githerd and its workers handle. The `.mergify.yml` change of 4.6 is a coordination task with the
+session that owns that file.
 
 ### 12.2 Recurring owner-only steps
 
@@ -1318,13 +1404,15 @@ or `githerd answer <item> allow`); cutting a held major.
 
 ### 12.3 The one-way-door questions
 
-1. **May workers spend paid extra usage beyond the plan when the limit is reached?** Default: no;
-   starts stop at the limit. Money, so it is the owner's.
-2. **Create a GitHub App for githerd?** It gives githerd its own rate budget and makes its merges
-   and statuses show as the app in public history. It is a new credential and a public identity on
-   merge commits. Default without an answer: githerd uses `gh`'s token with reserved budget.
-3. **Add the supervisord stanza?** A system change needing root. Without it, githerd survives
-   crashes (pm2, every session's MCP server) but not a container restart until a session opens.
+All three are decided by the owner (2026-10-03):
+
+1. **May workers spend paid extra usage beyond the plan when the limit is reached?** Decided: no
+   paid extra usage at the usage limit: githerd pauses and resumes at the reset.
+2. **Create a GitHub App for githerd?** Decided: no separate GitHub App for now: use the owner's gh
+   token with a reserved call budget.
+3. **Add the supervisord stanza?** Decided: no supervisord entry for now: after a container
+   restart, githerd comes back when the first Claude session's launcher runs, or by
+   `githerd ensure`.
 
 Everything else in this design is reversible with an edit or a config change, and githerd decides
 it.
@@ -1338,9 +1426,9 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 
 | Module | Keep | Change |
 |---|---|---|
-| `github.mjs` | `gh api -i` client, per-path ETags, rate headers, the single write gate with dry-run and `would-do` lines | persisted ETags; read-back and next-poll confirmation; per-group modes; App token |
+| `github.mjs` | `gh api -i` client, per-path ETags, rate headers, the single write gate with dry-run and `would-do` lines | persisted ETags; read-back and next-poll confirmation; per-group modes |
 | `master.mjs` | lanes with monotonic run ids, the master verdict, suspects between green and red, release state | sighting keyed on (run id, attempt, updated_at); every workflow; green and CI-green commits; queue age |
-| `prs.mjs` | `decideBreaking` from the full commit list, `whyStuck`, `touches` | becomes the merge decision of 4.6; stacks |
+| `prs.mjs` | `decideBreaking` from the full commit list, `whyStuck`, `touches` | becomes the `githerd/merge` decision of 4.6; stacks |
 | `queue.mjs` | deterministic queue with a reason per item, owner-only override labels | order of 5.4; orders; worker-write attribution |
 | `issues.mjs` | `issues?since=` with a high-water mark | 10-minute overlap and dedupe |
 | `store.mjs` | atomic `state.json`, `.bak`, append-only ledger | move to `~/.githerd/`; ledger replay; spool |
@@ -1363,7 +1451,7 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `tools.mjs` | tool plumbing | replaced by the eleven tools |
 | `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed: they exist for headless runs, run tokens and dollar budgets |
 
-New code: the classifier; the incident procedure; the merge executor and stacks; the push queue;
+New code: the classifier; the incident procedure; the `githerd/merge` status and stacks; the push queue;
 the reference worktree; the tmux worker start, Stop gate, doorbell, watchdog and death handling;
 owner items, presence and paging; the self-test; the replay suite.
 
@@ -1391,14 +1479,14 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | A labelled pull request failing on balance became a code job | Classifier runs before "own" on pull requests too (4.4) |
 | Usage stop did not freeze the job clocks | Global pause freezes deadlines, recycling and attempts (8.3) |
 | A doorbell could select a paid option in the limit menu | Positive prompt match; no typing into the limit screen (7.5) |
-| Extra usage could spend money unseen | Owner question 1; starts stop and an item is raised (8.3, 12.3) |
+| Extra usage could spend money unseen | Owner's decision 1: never; githerd pauses and resumes at the reset (8.3, 12.3) |
 | Resume on a Stop from another account | Only a session on the same account lifts the pause (8.3) |
-| Other sessions drain the shared rate budget while auto-merge keeps merging | The daemon is the only merger, so nothing merges while it is blind; App token or reserve (4.6, 4.11) |
+| Other sessions drain the shared rate budget while auto-merge keeps merging | Mergify needs `githerd/merge` on each new head, so heads githerd cannot see do not merge; the reserve keeps githerd's last 300 calls for holds (4.6, 4.11) |
 | Local audit may diverge from CI | Exactly the CI command and ignore list; recheck list (3.2) |
 | Several workers fix one advisory inside unrelated pull requests | Master-side at the first pull request; no `pr` job (4.4) |
-| `strict` is off, so an old green pull request merges and master fails the audit | Merge decision runs on fresh master state; the parent re-test prevents an innocent revert (4.5, 4.6) |
+| `strict` is off, so an old green pull request merges and master fails the audit | Mergify merges master into each pull request and re-runs its checks first; the parent re-test prevents an innocent revert (4.5, 4.6) |
 | The advisory incident never ended because some pull requests are never updated | Done is master plus one canary (5.1) |
-| A mass update of every pull request at once | No mass update; each is updated when it comes up to merge (3.2) |
+| A mass update of every pull request at once | No mass update; Mergify updates one pull request at a time as it reaches the front of its queue (3.2, 4.6) |
 | An audit ignore read as loosening; review dates had no trigger | Rubric allows it; expiry driven by the advisory feed (3.2, 5.1) |
 | Runner image change seen a week late; weekly noise issues | Drift diff on every red key; issues only for gate-recorded versions (3.2) |
 | GPU driver change not seen as drift | Tool-version lines include the driver (4.4) |
@@ -1425,11 +1513,11 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | A pr job stalls forever when the owner has the branch checked out | Detached worktrees and explicit refspec pushes (7.1, 4.8) |
 | Baseline-only conflicts paged the owner although the tool can fix them | The daemon runs `visual-review update` [R13] |
 | Conflicts judged against the wrong commit | `merge-tree` against `origin/master` (3.3) |
-| Untagged semantic conflicts merged under native auto-merge | The daemon merges one at a time on fresh state; diff-file intersection adds relations (4.6, 8.2) |
-| Updates waited for a fully green tip | CI-green commit; local merge path (4.6) |
-| Mergify updates and status interplay untested | Not adopted: the daemon is the merger; #777 is closed (4.6) |
+| Untagged semantic conflicts merged under native auto-merge | Native auto-merge is disarmed; Mergify merges one at a time, each tested on current master (4.6) |
+| Updates waited for a fully green tip | githerd's own updates use the CI-green commit; Mergify's use master's tip only for pull requests no red lane affects (4.6) |
+| Mergify updates and status interplay untested | Mergify is adopted; the coordination change and its verification steps are in 4.6 |
 | `githerd_done` refused a head Mergify or the review tool extended | Ancestor rule (6) |
-| Mergify #777 could merge first and bypass githerd | Closed by the plan; invariant check (4.6, 9.5) |
+| Mergify merges without consulting githerd | The `githerd/merge` conditions of the coordination change; until they land, a banner (4.6, 9.5) |
 | The push lock was a convention, not a component | The push queue plus a flock inside `tools/prepush.sh` [R11], [R12] (4.8) |
 | Queued pushes die at the tool timeout and livelock with recycling | The daemon runs pushes; jobs wait on `push` (4.8) |
 | Urgent fixes queued behind routine pushes | Priority in the push queue (4.8) |
@@ -1443,7 +1531,7 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Any owner comment unparked a job and re-paged | Re-park on the same item, no page (5.3, 6) |
 | Unpushed work lost when a target changed | Salvage branches; foreign heads as news; attempts per job (3.10) |
 | Approval churn from speculative updates | No speculative update after a finished review; approved-once pull requests do not count against the limit (3.3, 8.1) |
-| The executor experiment merged a real pull request | Spike S1 uses a docs-only pull request with no bump (plan) |
+| The executor experiment merged a real pull request | githerd never merges; the spikes write nothing to the real repository (plan) |
 
 ### A.3 Agents
 
@@ -1471,25 +1559,25 @@ Each finding below is resolved in this design, or the reason it is not adopted i
 | Subagent and browser fan-out | Subagent transcripts as progress; Workflow denied; Agent and browser caps (7.2, 10.1) |
 | The owner's tmux server killed every worker | Dedicated socket (4.1) |
 | Wait cycles; an incident fix waiting for a review slot | Cycle refusal and caps; urgent slot for incident reviews (5.3, 5.4) |
-| Paging isolation relied on an unverified path | `env -i`; [S18]; banner; owner's one-line check (7.1, 12.1) |
+| Paging isolation relied on an unverified path | `env -i`, verified: no Pushover variable reaches a worker's hooks or Bash tool [PF 7.2] (7.1) |
 
 ### A.4 githerd itself and the owner
 
 | Finding | Resolution |
 |---|---|
-| servherd never restarts githerd [R18] | servherd change, MCP-server restarters, optional supervisord (9.4). The suggested per-window sleep loop is not adopted: the MCP servers of live sessions already do it without a new timer |
+| servherd never restarts githerd [R18] | servherd change, MCP-server and launcher restarters, `githerd ensure` (9.4). The suggested per-window sleep loop is not adopted: the MCP servers of live sessions already do it without a new timer |
 | A crash loop drained the budget | Start counter; persisted ETags; write-on-difference (9.2) |
 | Slow work looked like death | `alive` and `progress` split (9.4) |
 | Two daemons from two cwds | One fixed cwd (9.4) |
 | pm2's stale environment leaked into workers [R19] | `env -i` (7.1, 9.4) |
 | Container restart not detected by boot id | PID 1 start time [R21]; tmux session recreated; registry check (9.2, 6) |
-| Merges continued during a long outage | The daemon is the only merger (4.6) |
+| Merges continued during a long outage | Each new head needs `githerd/merge`; residual risk in 10.3 (4.6) |
 | Bad config stopped everything after a restart | Last-good file; replay gate; revert pull request (9.7) |
 | Workers could edit their own hooks | Hooks run from `~/.githerd`; deny rules; owner-session line (4.10, 7.2, 4.6) |
 | Workers were never told about a GitHub outage | The Stop gate answer and implicit wait (7.3) |
 | An Actions-only outage fired every rule | "Actions degraded" state (3.10) |
 | Re-runs reuse run ids; `since` replicas lag; stale heads | Keys and overlaps (1.4, 4.2); `git ls-remote` (6) |
-| An owner edit mid-job reached a busy worker too late | News file, PostToolUse hook, push refusal, merge line 10 (3.4) |
+| An owner edit mid-job reached a busy worker too late | News file, PostToolUse hook, push refusal, `githerd/merge` line 8 (3.4) |
 | A stranger's comment reached workers | `githerd_read` and the guard (10.1) |
 | A five-day absence: page floods, stalls, churn, lapses | Presence, digest, Storybook-only review hold, no updates while absent, grace counted in present days, only githerd pull requests taken, worker-hours cap (3.7, 11.3) |
 | Worker writes looked like owner input | Guard refusals and write attribution (10.1) |

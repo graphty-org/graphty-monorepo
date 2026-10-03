@@ -33,15 +33,17 @@ keeps and loses; tasks below name the module they rework.
 ## Part 1. Spikes
 
 Each spike: the question, the experiment, the pass condition, the fallback if it fails, and the
-tasks that wait for it. Spikes that write to GitHub use a docs-only pull request with no version
+tasks that wait for it. Results of the spikes run so far, with commands and output, are in
+`evidence/platform-facts.md` section 7; two more ran there that have no row: the tmux driving
+probe (7.3) and the MCP call-length probe (7.4). Spikes that write to GitHub use a docs-only pull request with no version
 plan, after the reference worktree's release dry-run shows no bump, and record the cost.
 
 ### Group A: GitHub (run before milestone 3)
 
 | Spike | Question and experiment | Pass | Fallback | Blocks |
 |---|---|---|---|---|
-| S1 | Does `PUT /pulls/{n}/merge` with `sha` and `merge_method: merge` refuse a moved head and enforce the ruleset? Merge a docs-only pull request once with a stale `sha` (expect 409), once with checks pending (expect refusal), once correctly | 409 on a stale head; refusal while required checks are not green; merge commit on success | Read the head immediately before merging and merge only when it equals the evaluated head; the ruleset still enforces checks | 3.2 |
-| S2 | Does `PUT /pulls/{n}/update-branch` with `expected_head_sha` work while the repository's `allow_update_branch` is false [R1]? Call it on a test pull request | Branch updated; a stale `expected_head_sha` is refused | Always use the local merge path through the push queue | 3.4 |
+| S1 | Dropped 2026-10-03: githerd never merges (Mergify does, design 4.6), and a commit status belongs to one sha, so a moved head simply has no `githerd/merge`. Replaced by coordination task C1's verification | - | - | - |
+| S2 | (2026-10-03 [PF 7.5]: not run, no throwaway repository can be deleted with the token's scopes; documentation says 422 on a mismatch) Does `PUT /pulls/{n}/update-branch` with `expected_head_sha` work while the repository's `allow_update_branch` is false [R1]? Call it on a test pull request | Branch updated; a stale `expected_head_sha` is refused | Always use the local merge path through the push queue | 3.4 |
 | S3 | Does `PATCH /pulls/{n}` with `base=master` retarget a stacked pull request and trigger CI? Stack a test pull request on another, merge the base, retarget | Base changes; CI runs on the child | Delete the merged base branch through the API so GitHub retargets | 3.4 |
 | S4 | Does a conditional GET at zero remaining return 304 or 403? Observe when another session drains the budget, or with a throwaway token | Recorded either way | If 403: the reserve of 300 calls is kept for polls too | 1.2 |
 | S5 | Does `GET /advisories` honor `If-None-Match`? Does `sort=updated` show the braces advisory of 10-02 with its update time? | 304 on the second request; the advisory present | Activity-triggered check at most every 15 minutes | 1.4 |
@@ -49,7 +51,7 @@ plan, after the reference worktree's release dry-run shows no bump, and record t
 | S7 | Does a GPU job rejected for balance fail fast and cost nothing? Where does the text appear? Read the recorded balance failures' timings and the machine.dev billing page | Fails within minutes, no charge | No backoff re-dispatch; the item ends only on the owner's answer or a later green run | 3.3 |
 | S8 | Does `gh run rerun <run> --job <id>` on an old run re-test that run's commit, and how are attempts numbered? Re-run one job of an old green CI run | Same head sha; `run_attempt` incremented | Dispatch the workflow on the old commit (`workflow_dispatch` where the workflow allows it) | 3.3 |
 | S9 | Do queued jobs on the rented label expose `created_at` and a null `started_at` while queued? What is the worst pickup time recorded? Read the jobs list during a GPU run and the recorded month | Fields present; a pickup bound computed | A fixed 20-minute bound | 1.3 |
-| S10 | Does a GitHub App installation token have its own rate budget and can it post statuses, merge and open revert pull requests on this repository? Only after the owner answers question 2 of design 12.3 | All four work | `gh`'s token with the reserve | 3.1 |
+| S10 | Dropped 2026-10-03: the owner decided no separate GitHub App for now (design 12.3, decision 2) | - | - | - |
 | S11 | Does the current token return `github-authentication-token-expiration`? Read one response's headers | Recorded either way | Absent: nothing to watch until the token type changes | 1.2 |
 
 ### Group B: Claude Code (run before milestone 5, on a private tmux socket, with the configured model)
@@ -58,16 +60,18 @@ plan, after the reference worktree's release dry-run shows no bump, and record t
 |---|---|---|---|---|
 | S12 | Does a generated `--settings` file merge with the owner's user settings so that its deny rules win over his allow-all, `mcp__githerd__*` and `Bash(gh pr create:*)` run without a prompt in `--permission-mode default`, `AskUserQuestion` and `Workflow` are denied, and `enabledPlugins` turns a plugin off? | Every item holds | Ask for the rules in the committed project settings by pull request; deny through the guard instead | 5.3 |
 | S13 | Does Opus 5.5 (and Fable) obey a Stop-hook block reason? (Measured on Haiku only [PF 3.1]) | The reply carries a token from the reason | The same text goes into the doorbell after the stop | 5.6 |
+| | **Ran 2026-10-03 on Opus 5.5 [PF 7.1]: passes when the reason agrees with the user; refused openly when it contradicts an explicit user instruction. Design 7.1 and 7.3 changed. Fable not run** | | | |
 | S14 | Does `claude --resume <id>` in a new tmux window restore the conversation and fire SessionStart with source `resume`? | Both | Fresh sessions with recorded findings | 5.9 |
 | S15 | Does StopFailure fire with `rate_limit`, `overloaded`, `billing_error`, `authentication_failed`? Does UserPromptSubmit fire for tmux-typed text with the text in its input? | Both | Read the transcript's last record for errors; read user records for the nonce | 5.6 |
 | S16 | Does SessionStart with source `compact` fire and does its output reach the model? `/compact` in a probe | Model quotes the re-injected record | Re-inject on the next Stop | 5.6 |
 | S17 | Does a PostToolUse hook's `additionalContext` reach the model? | Model quotes it | News reaches the worker only through tool results and the push refusal | 5.6 |
 | S18 | With `env -i`, can a hook or the Bash tool see the Pushover variables (does the Bash tool re-source `~/.bashrc`)? Probe worker runs `env \| grep -c PUSHOVER` in Bash and in a hook | 0 in both | Banner "worker paging not isolated"; offer the owner the one-line `GITHERD_JOB` check | 5.3 |
-| S19 | What does the usage-limit screen look like (text, menu options, extra-usage state, reset time), how is a session's account identified, and is "used N% of your weekly limit" readable from a pane? Record the first real occurrence; capture with a nearly spent probe if one is available | Markers and fields recorded | Treat any unknown screen as "do not type"; the worker-hours cap stays | 5.7 |
+| | **Ran 2026-10-03 [PF 7.2]: passes, 0 in both; Claude Code sets its own `CLAUDE*` variables, now an allow-list in the self-test** | | | |
+| S19 | (2026-10-03 [PF 7.6]: not testable without spending; binary strings recorded) What does the usage-limit screen look like (text, menu options, extra-usage state, reset time), how is a session's account identified, and is "used N% of your weekly limit" readable from a pane? Record the first real occurrence; capture with a nearly spent probe if one is available | Markers and fields recorded | Treat any unknown screen as "do not type"; the worker-hours cap stays | 5.7 |
 | S20 | Does the registry show a permission prompt raised inside a subagent? | `waiting` with `permission prompt` | Pane matching only | 5.7 |
 | S21 | Does CPU time of the session's process tree separate a long gate run from a hung command? | Grows for the gate, flat for `sleep` | Per-command bounds from the push queue plus `githerd_expect` | 5.7 |
 | S22 | Does `tmux list-clients` show which window an attached client views, on the `-L githerd` socket? | Yes | Ring only when no client is attached | 5.7 |
-| S30 | What do the known dialogs look like in a pane (permission, plan approval, pickers, update notice, MCP authentication banner)? Capture each | A marker list with a test per capture | Any unknown screen blocks typing | 5.7 |
+| S30 | What do the known dialogs look like in a pane (permission, plan approval, pickers, update notice, MCP authentication banner)? Capture each (2026-10-03 [PF 7.1, 7.3]: permission, picker and the idle prompt box captured; the rest remain) | A marker list with a test per capture | Any unknown screen blocks typing | 5.7 |
 | S32 | What does `background_tasks` in the Stop input hold (ids, output paths)? | Output paths present | Use the session's task directory listing | 5.6 |
 | S33 | Does a PreToolUse matcher on the Agent tool receive enough to count concurrent subagents and refuse a third? | Refusal shown to the model | Deny the Agent tool for workers entirely | 5.4 |
 
@@ -78,7 +82,7 @@ plan, after the reference worktree's release dry-run shows no bump, and record t
 | S23 | Does a shared `NX_CACHE_DIRECTORY` work across worktrees (hits on the second worktree, no corruption under two concurrent builds)? | Hits and clean builds | Per-worktree cache; the push bound is raised to the cold-build time | 4.2 |
 | S24 | With `flock` added to `tools/prepush.sh`, are waiters visible in `/proc/locks` and is the lock released when the holder is SIGKILLed? | Both | Count `prepush.sh` processes | 4.1 |
 | S25 | On a container restart, does PID 1's start time change while `boot_id` stays? Observe at the next restart | As expected | Treat any unexplained pid mismatch as a restart | 1.9 |
-| S26 | With servherd passing `autorestart` and `exp_backoff_restart_delay` to pm2, does a killed daemon come back, and does the supervisord stanza bring servherd's process back after pm2 is killed? | Both | The MCP-server restarters only | 2.1 |
+| S26 | With servherd passing `autorestart` and `exp_backoff_restart_delay` to pm2, does a killed daemon come back? (No supervisord entry: the owner's decision 3 in design 12.3) | Yes | The MCP-server, launcher and `githerd ensure` restarters only | 2.1 |
 | S27 | Is githubstatus.com's components JSON readable without auth, and does it name Actions? | Yes | The two-heads symptom alone | 1.4 |
 | S28 | Does `git commit-tree -S` in a scratch repository succeed non-interactively with the owner's gpg-agent from a process started like a worker? | Signed object created in under a second | Probe by a signed commit in the job's worktree on a throwaway branch | 5.2 |
 | S29 | Does a real rejects-only Finish comment match the parser? Is `visual-review update <pr>` safe to run unattended (no prompt, exits non-zero on a non-baseline conflict)? | A fixture from a real comment parses; update behaves | Owner item with the exact command for baseline-only conflicts | 3.4 |
@@ -99,7 +103,7 @@ proves it against the recorded month. Nothing runs against GitHub.
 | 1.2 Polls and sightings (`github.mjs`, `master.mjs`) | Persisted ETags; sighting keyed on (run id, run attempt, `updated_at`); `since` overlap and dedupe; rate tiers and reserve | Replay: backwards answers are no sighting; re-run attempts are seen | Idle replay days cost only 304s |
 | 1.3 Lane facts | Lane verdict for every workflow, red-since, green and CI-green commits, queue age | Replay: the 11.5-hour stretch of 10-01 gives four keys with the true red-since | Facts match the record |
 | 1.4 Classifier | The ordered classes of design 4.4 with one pattern table and a fixture per pattern from the recorded logs; drift diff of `Set up job` | One test per pattern; replay: the 10 Build and 7 Chromatic bursts become shared incidents at the second pull request; audit failures on dependency-free pull requests are master-side at the first | Every recorded failure gets a class a person agrees with (printed list reviewed in the commit) |
-| 1.5 Merge decision and stacks (`prs.mjs`) | Lines 1 to 10 and holds of design 4.6; stack chains; related set from claims and diff intersection; patch id excluding `visual-baselines/**` | Unit tests per line; replay: every merge that landed while a gating lane was red would have been held, and every other held merge is printed for review | The printed list is reviewed |
+| 1.5 `githerd/merge` decision and stacks (`prs.mjs`) | Lines 1 to 8 of design 4.6 and the status each yields (`success`, `failure` with the first failing line, `pending` only while evaluating); stack chains; patch id excluding `visual-baselines/**` | Unit tests per line; replay: every merge that landed while a gating lane was red would have had `failure`, and every other `failure` is printed for review | The printed list is reviewed |
 | 1.6 Release truth | Tags against npm against version commits; release pending with the dry-run answer (stubbed until S31); gate notice reading | Fixtures for each half-state, a 409, an expired-artifact skip | Each case gives the right incident or none |
 | 1.7 Incident procedure | The outcome table of design 4.5 as a pure function of re-run results and suspects | Unit tests per row | The flaky-benchmark scenario reverts nothing |
 | 1.8 Queue and records (`queue.mjs`, `board.mjs`) | Job kinds, states, deadlines with pauses, budgets, queue order, claims with snapshot versions and cycle refusal, the invariant check | Unit tests per transition and per pause; invariant violations produce faults | Every state has a tested exit |
@@ -114,7 +118,7 @@ actually happened.
 | Task | Build | Test | Done when |
 |---|---|---|---|
 | 2.1 servherd restart | In the servherd repository: an `autorestart` option (with `exp_backoff_restart_delay`) on its start command and MCP tool; through its own pull request and tests (needs S26) | servherd's tests; S26's kill test | A killed process returns |
-| 2.2 Install and launcher (`launcher.mjs`) | `githerd install` (servherd command with fixed cwd and `env -i`, the supervisord stanza text, the App steps, the notify-script line); the MCP server's `alive` check and restart lock; the pm2 re-creation workaround removed | Launcher tests with a fake servherd | One daemon after concurrent starts from three cwds |
+| 2.2 Install, launcher and `ensure` (`launcher.mjs`) | `githerd install` (servherd command with fixed cwd and `env -i`); `githerd ensure`; the MCP server's and the session launcher's `alive` check and restart lock; the pm2 re-creation workaround removed | Launcher tests with a fake servherd | One daemon after concurrent starts from three cwds and from `githerd ensure` |
 | 2.3 Two busy days in dry-run | Run the daemon; review the ledger's would-dos against the record: red-master detection, classification, holds, merge decisions, release truth | A written comparison in the pull request description | No would-do a person judges wrong remains unexplained |
 
 ### Milestone 3: the daemon's own actions on GitHub
@@ -123,8 +127,8 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 
 | Task | Build | Test | Done when |
 |---|---|---|---|
-| 3.1 Write function and identity | One write function with mode gate, ledger, read-back and next-poll confirmation; App token support (after S10) | Dry-run makes zero writes; a write that does not stick is retried once and shown | Group `statuses` ready |
-| 3.2 Merge executor | One merge per reconcile with fresh re-reads and the `sha` guard (after S1); auto-merge disarming; close Mergify pull request #777 with a pointer to design 4.6 (a daemon write in group `upkeep`, done once when the group acts) | Fake GitHub tests: moved head, red lane appears between decision and merge, stray auto-merge | Group `merges` ready |
+| 3.1 Write function | One write function with mode gate, ledger, read-back and next-poll confirmation, on the owner's `gh` token with the reserve | Dry-run makes zero writes; a write that does not stick is retried once and shown | Write function ready |
+| 3.2 `githerd/merge` poster | Post the status of 1.5 on every open pull request head into master within one reconcile of a new head (Mergify's update merges included), and otherwise only on a change; native auto-merge disarming; the invariant check that master's `.mergify.yml` requires `githerd/merge` (banner until C1 lands) | Fake GitHub tests: a new head gets a status in one reconcile; a red lane turns every affected pull request to `failure` and back to `success` with one write each; no `pending` outlives one reconcile | Group `statuses` ready |
 | 3.3 Incident actions | Red-head re-run, parent re-test, revert pull request, intermittent issue, backoff re-dispatch for paid capacity, CI re-run for expired artifacts, lane-not-progressing (after S6 to S9) | Replay plus fake GitHub; the paid-lane budget is never exceeded | Group `incidents` ready |
 | 3.4 Updates and stacks | Update paths in order (review tool, update-branch, local merge through the push queue), child updates and retargets (after S2, S3, S29) | Fake repositories with stacks and baseline-only conflicts | Group `upkeep` ready |
 | 3.5 Owner items, paging and presence (`notify.mjs`) | Items on GitHub or the board, batching, change-only repeats, presence, the daily digest, "phone alerts broken" | Unit tests; replay of an absent week sends at most one digest a day | Group `owner-items` ready |
@@ -161,7 +165,7 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 | 6.1 Job texts | One text per kind: target, done-condition in words, findings, rules, review rubric | Snapshot tests | Reviewed for plain language |
 | 6.2 Done verification | Each kind's done-condition against GitHub, the ancestor rule, defects check | Unit tests per kind | `githerd_done` refuses every false claim in the fixtures |
 | 6.3 Owner layer | `githerd_ask_owner`, `githerd_record`, orders and policies, re-park without a page | Unit tests | Items behave as design 5.6 |
-| 6.4 Smoke test with one real worker | One `issue` job on a low-priority issue, end to end, in dry-run for merges | Manual, watched | The job ends `done` with a pull request and no owner page |
+| 6.4 Smoke test with one real worker | One `issue` job on a low-priority issue, end to end, with `githerd/merge` still advisory | Manual, watched | The job ends `done` with a pull request and no owner page |
 
 ### Milestone 7: self-update and configuration safety
 
@@ -173,13 +177,15 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 
 ### Milestone 8: rollout
 
-Write groups: `statuses`, `merges`, `upkeep`, `incidents`, `owner-items`, `proposals`, `workers`.
+Write groups: `statuses`, `upkeep`, `incidents`, `owner-items`, `proposals`, `workers`. There is
+no `merges` group: githerd never merges.
 A group moves to `acting` by a config change on master only after its ledger covered at least one
 real occurrence of each situation it acts on, with would-dos matching what should have happened
 (`githerd mode` shows the coverage).
 
-1. `statuses`.
-2. `merges` (closes Mergify pull request #777 first), watched for one busy day.
+1. `statuses`, posting on every open pull request for one busy day while Mergify still ignores
+   them; the would-be holds are compared with what Mergify merged.
+2. Coordination task C1 lands (Mergify requires `githerd/merge`), and its verification passes.
 3. `incidents` and `upkeep`.
 4. `owner-items`.
 5. `workers` with one slot and the self-test passing; then three.
@@ -191,3 +197,51 @@ Spikes in group A gate milestone 3; group B gates milestone 5; group C gates mil
 Milestone 1 starts at once: its tasks stub the answers of S4, S5, S6, S9, S11, S25, S27 and S31
 and are finished when those spikes report. Milestone 6 needs 5. Milestone 8 needs everything before
 it, and each of its steps needs only the groups before it.
+
+---
+
+## Part 3. Coordination tasks
+
+Changes githerd needs in files another session owns. githerd's sessions never edit these files;
+each task is handed to the owning session with the exact change.
+
+### C1. Mergify requires `githerd/merge`
+
+Owner of the file: the session that owns `.mergify.yml` (Mergify adoption, pull request #777).
+When: after milestone 8 step 1 (githerd has posted `githerd/merge` on every open pull request for
+a busy day). Before that, the change would stall every pull request, because a head with no status
+cannot merge.
+
+The change, against `.mergify.yml` on master as of 2026-10-03 (two added lines, nothing else):
+
+```diff
+       merge_conditions:
+           - check-success=All Checks Pass
+           - check-success=Lint PR Title
++          - check-success=githerd/merge
+
+ pull_request_rules:
+     - name: queue ready, non-breaking pull requests into master
+       conditions:
+           - base=master
+           - -draft
+           - -conflict
+           - label!=hold
+           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
++          - -check-failure=githerd/merge
+       actions:
+```
+
+The header comment of the file gains one line: "githerd posts `githerd/merge` on every head; a
+`failure` is a hold (a red lane or an owner item) and drops the pull request from the queue until
+githerd posts `success`." The pull request description says how to undo it: delete the two lines.
+
+Verification after it lands, with a docs-only pull request and no version plan: the
+`needs-decision` label on it makes githerd post `failure` (decision line 5), which removes it from
+Mergify's queue; removing the label brings `success`, which re-queues it; a head Mergify updated is
+not merged until githerd posts on it.
+Record the three observations in `evidence/repo-facts.md`.
+
+Why `-check-failure` in the queue rule and not `check-success`: Mergify's own update gives the pull
+request a new head with no status; with `check-success` there it would leave the queue on every
+update. Why `check-success` in the merge conditions: "no status yet" and `pending` must not merge.

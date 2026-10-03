@@ -1,7 +1,7 @@
 # Finding
 
 A find box lists what matches as the reader types, and selects only what the reader picks.
-`session.data.find(text)` answers the list: the nodes and edges whose id or values contain the
+`session.data.find(text)` answers the list: the nodes and edges whose values (or node id) contain the
 text, best match first, and one row per matched value with how many elements carry it. It never
 changes the selection or the undo history.
 
@@ -40,8 +40,9 @@ Each entry in `elements` is one node or edge:
 - `label` is what to show. A node's label is its label attribute (the `nodeLabelPath` setting)
   when one is set, else its id. An edge's label names its two ends, `"Valjean -> Javert"` on a
   directed graph and `"Valjean -- Javert"` otherwise.
-- `matched` says where the text was found: `{ path: "id", value }` for the id, or an attribute
-  path such as `{ path: "data.name", value: "Valjean" }`.
+- `matched` says where the text was found: `{ path: "id", value }` for a node's id, or an
+  attribute path such as `{ path: "data.name", value: "Valjean" }`. An edge is found by its
+  attributes only; its id is a counter the element assigned, so it is never matched.
 - `excludedBy: "filter"` is present when the visibility filter or the time window leaves the
   element out, so the list can say "hidden by a filter" instead of selecting something the
   reader cannot see.
@@ -54,8 +55,9 @@ any other value containing the text. Within each tier they keep the order the gr
 
 Each entry in `values` is one attribute value the text matched, such as `group` is `2`:
 `{ kind, path, value, count, where }`. `count` is how many nodes (or edges) carry exactly that
-value, the number `session.scope.count({ where })` gives, and `where` is the rule that selects
-them. Ids and labels are listed as element hits, not as value rows.
+value -- for a node row, the `nodes` that `session.scope.count({ where })` gives -- and `where` is
+the rule that selects them with `session.selection.apply({ where })`. A rule names a path, not a
+kind, so when nodes and edges both carry the attribute it selects both. Ids and labels are listed as element hits, not as value rows.
 
 ## Options
 

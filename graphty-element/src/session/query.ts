@@ -322,7 +322,10 @@ function search(parts: QueryEngineParts, text: string, request: SearchRequest): 
             };
 
             const id = idOf(index);
-            consider("id", id, true);
+            // An edge's id is a counter the element assigned, which no reader typed; a node's is theirs.
+            if (target === "node") {
+                consider("id", id, true);
+            }
             for (const path of paths) {
                 const value = read(index, path);
                 if (typeof value !== "string" && typeof value !== "number") {

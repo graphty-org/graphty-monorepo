@@ -96,6 +96,27 @@ describe("finding without selecting", () => {
         session.dispose();
     });
 
+    it("lists edge value rows whose rule selects exactly the counted edges", async () => {
+        const session = await cast();
+
+        const [row] = session.data.find("family", { kinds: ["value"] }).values;
+
+        assert.deepInclude(row, { kind: "edge", path: "data.kind", value: "family", count: 1 });
+        await session.selection.apply({ where: row.where });
+        assert.lengthOf(session.selection.edges, row.count);
+        assert.lengthOf(session.selection.nodes, 0);
+        session.dispose();
+    });
+
+    it("never matches an edge by the counter id the element assigned it", async () => {
+        const session = await cast();
+
+        const found = session.data.find("1", { kinds: ["edge"] });
+
+        assert.deepEqual(found.elements, [], 'edge ids are "0" and "1", which no reader typed');
+        session.dispose();
+    });
+
     it("says when a filter leaves a hit out", async () => {
         const session = await cast();
         await session.visibility.set({ kind: "member", of: { nodes: ["n2", "n3"] } });

@@ -185,7 +185,10 @@ export type FindHit = (
      * id. An edge: its two ends' labels, `"a -> b"` on a directed graph and `"a -- b"` otherwise.
      */
     readonly label: string;
-    /** Where the text was found: `"id"`, or an attribute path such as `"data.name"`. */
+    /**
+     * Where the text was found: `"id"` for a node's id, or an attribute path such as
+     * `"data.name"`. An edge is found by its attributes, never by its element-assigned id.
+     */
     readonly matched: { readonly path: Path; readonly value: string | number };
     /** Present when the visibility filter or the time window leaves this element out. */
     readonly excludedBy?: "filter";
@@ -199,9 +202,15 @@ export interface FindValue {
     readonly path: Path;
     /** The value. */
     readonly value: string | number;
-    /** How many nodes (or edges) carry exactly this value: what `scope.count({ where })` gives. */
+    /**
+     * How many nodes (or edges) carry exactly this value. For a node row it is the `nodes` that
+     * `scope.count({ where })` gives; for an edge row, the edges `selection.apply({ where })` selects.
+     */
     readonly count: number;
-    /** The rule matching them, ready for `selection.apply({ where })` or `scope.count({ where })`. */
+    /**
+     * The rule matching them, ready for `selection.apply({ where })`. A rule names a path, not a
+     * kind: when nodes and edges both carry `path`, it matches both.
+     */
     readonly where: Query;
 }
 
@@ -505,7 +514,7 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * What a find box lists as the reader types, without selecting anything: the nodes and edges
-     * whose id or attribute values contain the text (ignoring case), best first -- an exact label
+     * whose attribute values (or, for a node, id) contain the text (ignoring case), best first -- an exact label
      * or id, then a label or id that starts with the text, then the rest -- and one row per
      * matched attribute value with how many elements carry it. It never changes the selection or
      * the history; hand a pick to `selection.apply` for that.

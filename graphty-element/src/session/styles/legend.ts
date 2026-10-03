@@ -83,7 +83,7 @@ export interface LegendSwatch {
      *
      * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
      */
-    readonly role?: "other" | (string & {});
+    readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
 }
 
 /**

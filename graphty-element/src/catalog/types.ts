@@ -255,7 +255,7 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
  *
  * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
@@ -265,7 +265,7 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
  *
  * OPEN UNION: values may be added in a minor release.
  */
-export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
 export type MeasurementDeclaration =

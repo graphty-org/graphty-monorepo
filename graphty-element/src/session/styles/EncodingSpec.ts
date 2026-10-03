@@ -160,7 +160,7 @@ export interface ColumnEncodingSpec extends EncodingOptions {
  *
  * OPEN UNION: codes may be added in a minor release.
  */
-export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {});
+export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
 export type EncodingProposal =
@@ -534,6 +534,118 @@ const DISTINCT_LIMIT = 256;
 /** The channels that default to {@link DEFAULT_SIZE_RANGE} for an amount. */
 const SIZE_CHANNELS: ReadonlySet<Channel> = new Set(["node.size", "edge.width"]);
 
+/** A default the column measurement chose: a scale and what goes with it, or a refusal. */
+type DefaultChoice =
+    | { readonly scale: string; readonly extra?: Partial<RuleBinding> }
+    | { readonly refuse: EncodingRefusalCode; readonly params?: Record<string, number> };
+
+/**
+ * The default for a categorical column on a channel that paints groups (a color or a shape).
+ * @param spec - The encoding.
+ * @param column - The column's descriptor.
+ * @param accepts - What the channel carries.
+ * @param scales - The session's scales, which decide the palette.
+ * @returns The choice.
+ */
+function chooseForGroups(
+    spec: ColumnEncodingSpec,
+    column: AttributeDescriptor,
+    accepts: ChannelValueKind,
+    scales: ScaleRegistry,
+): DefaultChoice {
+    if (column.uniqueCount === undefined) {
+        return { refuse: "E_CAP_EXCEEDED", params: { limit: DISTINCT_LIMIT } };
+    }
+
+    if (accepts === "enum") {
+        return { scale: "ordinal", extra: { overflow: spec.overflow ?? "other" } };
+    }
+
+    // As for a run: a palette the caller named keeps the strict refusal unless they named an overflow.
+    const palette = spec.palette ?? columnPaletteFor(scales, "ordinal", column.uniqueCount);
+    return { scale: "ordinal", extra: { palette, ...(spec.palette === undefined ? { overflow: "other" } : {}) } };
+}
+
+/**
+ * The default for an ordinal column on a color or a size: each declared value mapped, in order.
+ * @param spec - The encoding.
+ * @param order - The declared values, lowest first.
+ * @param accepts - What the channel carries.
+ * @returns The choice.
+ */
+function chooseForOrder(
+    spec: ColumnEncodingSpec,
+    order: readonly (string | number)[],
+    accepts: ChannelValueKind,
+): DefaultChoice {
+    const [low, high] = spec.range ?? DEFAULT_SIZE_RANGE;
+    const values =
+        accepts === "color"
+            ? sequentialSamples(order.length)
+            : order.map((_, index) => low + ((high - low) * index) / Math.max(1, order.length - 1));
+    return {
+        scale: "ordinal",
+        extra: { map: Object.fromEntries(order.map((value, index) => [String(value), values[index]])) },
+    };
+}
+
+/**
+ * The default for amounts on a color or a size: a linear ramp.
+ * @param spec - The encoding.
+ * @param descriptor - The channel.
+ * @param scales - The session's scales, which decide the palette.
+ * @returns The choice.
+ */
+function chooseForAmounts(
+    spec: ColumnEncodingSpec,
+    descriptor: ChannelDescriptor,
+    scales: ScaleRegistry,
+): DefaultChoice {
+    if (descriptor.accepts === "color") {
+        return { scale: "linear", extra: { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) } };
+    }
+
+    const range = spec.range ?? (SIZE_CHANNELS.has(descriptor.channel) ? DEFAULT_SIZE_RANGE : undefined);
+    return { scale: "linear", extra: range === undefined ? {} : { range: [range[0], range[1]] } };
+}
+
+/**
+ * The default a column gets on a channel from what it measures, with no scale named.
+ * @param spec - The encoding.
+ * @param column - The column's descriptor, with any declaration already applied.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param descriptor - The channel.
+ * @param scales - The session's scales.
+ * @returns The choice.
+ */
+function chooseDefault(
+    spec: ColumnEncodingSpec,
+    column: AttributeDescriptor,
+    declaration: MeasurementDeclaration | undefined,
+    descriptor: ChannelDescriptor,
+    scales: ScaleRegistry,
+): DefaultChoice {
+    const { accepts } = descriptor;
+    const { measurement } = column;
+    const groups = accepts === "color" || accepts === "enum";
+
+    if (measurement === "categorical" && groups) {
+        return chooseForGroups(spec, column, accepts, scales);
+    }
+
+    const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
+    if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
+        return chooseForOrder(spec, order, accepts);
+    }
+
+    if (measurement === "quantitative" && accepts !== "enum") {
+        return chooseForAmounts(spec, descriptor, scales);
+    }
+
+    // Time has no default yet; groups on a size or amounts on a shape have none at all.
+    return { refuse: "E_UNSUPPORTED" };
+}
+
 /**
  * The binding a column gets on a channel, decided from what the column measures.
  * @param spec - The encoding.
@@ -549,15 +661,6 @@ export function proposeColumnBinding(
     scales: ScaleRegistry,
 ): EncodingProposal {
     const descriptor = requireChannel(spec.channel);
-    const { accepts, channel } = descriptor;
-    const about = { kind: column.kind, name: column.name, channel };
-    const refuse = (
-        code: EncodingRefusalCode,
-        params: Record<string, string | number | null> = {},
-    ): EncodingProposal => ({
-        ok: false,
-        refusal: { code, params: { ...about, ...params } },
-    });
     const bind = (scale: string, extra: Partial<RuleBinding> = {}): EncodingProposal => ({
         ok: true,
         binding: { ...extra, ...buildBinding(spec, column.path, scale, descriptor) },
@@ -568,53 +671,21 @@ export function proposeColumnBinding(
         return bind(spec.scale);
     }
 
-    if (accepts === "text" || accepts === "boolean") {
+    if (descriptor.accepts === "text" || descriptor.accepts === "boolean") {
         return bind("passthrough");
     }
 
+    const choice = chooseDefault(spec, column, declaration, descriptor, scales);
+    if ("scale" in choice) {
+        return bind(choice.scale, choice.extra);
+    }
+
+    const about = { kind: column.kind, name: column.name, channel: descriptor.channel };
     const measurement = column.measurement ?? null;
-    const groups = accepts === "color" || accepts === "enum";
-
-    if (measurement === "time") {
-        return refuse("E_UNSUPPORTED", { measurement });
-    }
-
-    if (measurement === "categorical" && groups) {
-        if (column.uniqueCount === undefined) {
-            return refuse("E_CAP_EXCEEDED", { limit: DISTINCT_LIMIT });
-        }
-
-        if (accepts === "enum") {
-            return bind("ordinal", { overflow: spec.overflow ?? "other" });
-        }
-
-        // As for a run: a palette the caller named keeps the strict refusal unless they named an overflow.
-        const palette = spec.palette ?? columnPaletteFor(scales, "ordinal", column.uniqueCount);
-        return bind("ordinal", { palette, ...(spec.palette === undefined ? { overflow: "other" } : {}) });
-    }
-
-    const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
-    if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
-        const [low, high] = spec.range ?? DEFAULT_SIZE_RANGE;
-        const values =
-            accepts === "color"
-                ? sequentialSamples(order.length)
-                : order.map((_, index) => low + ((high - low) * index) / Math.max(1, order.length - 1));
-        return bind("ordinal", {
-            map: Object.fromEntries(order.map((value, index) => [String(value), values[index]])),
-        });
-    }
-
-    if (measurement === "quantitative" && accepts !== "enum") {
-        if (accepts === "color") {
-            return bind("linear", { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) });
-        }
-
-        const range = spec.range ?? (SIZE_CHANNELS.has(channel) ? DEFAULT_SIZE_RANGE : undefined);
-        return bind("linear", range === undefined ? {} : { range: [range[0], range[1]] });
-    }
-
-    return refuse("E_UNSUPPORTED", { measurement });
+    return {
+        ok: false,
+        refusal: { code: choice.refuse, params: { ...about, ...(choice.params ?? { measurement }) } },
+    };
 }
 
 /**

@@ -52,10 +52,7 @@ function toFieldDescriptor(
         path: resultPath(runId, spec.name),
         ...(published?.unit === undefined ? {} : { unit: published.unit }),
     };
-    descriptor.measurement = fieldMeasurement(
-        { ...descriptor, ...(published ?? {}), name: spec.name, type: spec.type },
-        shape,
-    );
+    descriptor.measurement = fieldMeasurement({ ...descriptor, ...published, name: spec.name, type: spec.type }, shape);
 
     return spec.normalization === undefined ? descriptor : { ...descriptor, normalization: spec.normalization };
 }

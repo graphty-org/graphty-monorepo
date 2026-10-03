@@ -362,24 +362,44 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
     return { node: { columns: nodeColumns, ids: nodeIds }, edge: { columns: edgeColumns, ids: edgeIds }, names, ends };
 }
 
+/** One matched value row before it is cut to {@link VALUE_ROWS}. */
+interface MatchedRow {
+    readonly kind: FindKind;
+    readonly column: IndexedColumn;
+    readonly entry: IndexedValue;
+    readonly members: number[];
+}
+
+/** One kind's best match so far: each element's rank (NO_RANK for none) and the value it came from. */
+interface BestMatch {
+    readonly rank: Uint8Array;
+    readonly from: [IndexedColumn, IndexedValue][];
+}
+
+/** What the typed text asks for, once its prefix is read. */
+interface ParsedFind {
+    /** The normalized text to match. */
+    readonly wanted: string;
+    /** Whether only a whole value counts. */
+    readonly exact: boolean;
+    /** The one column per kind an `<attribute>:` prefix names; absent kinds read every column. */
+    readonly only: ReadonlyMap<FindKind, Path | null>;
+}
+
 /**
- * The find box's search over the index.
- * @param parts - What the engine reads.
+ * Read the typed text's prefix.
  * @param index - The index for this revision.
- * @param text - What was typed.
- * @param request - The window, the kinds and the scope.
- * @returns The hits, the value rows and the total.
+ * @param typed - What was typed, trimmed.
+ * @returns What to match, or which pattern find does not run.
  */
-function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
-    const nothing = { records: [], total: 0, values: [] };
-    const typed = text.trim();
+function parseFind(index: FindIndex, typed: string): ParsedFind | "regex" | "expression" {
     if (typed.startsWith("=")) {
-        return { ...nothing, notSearchable: "expression" };
+        return "expression";
     }
 
     const parsed = searchOf(typed);
     if (parsed.mode === "regex") {
-        return { ...nothing, notSearchable: "regex" };
+        return "regex";
     }
 
     // `<attribute>:` names one column per kind; a prefix neither kind holds is plain text.
@@ -398,61 +418,138 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         }
     }
 
-    const wanted = normalizeText(query);
-    if (wanted === "") {
+    return { wanted: normalizeText(query), exact: parsed.mode === "exact", only };
+}
+
+/**
+ * Match one kind's columns, recording each element's best rank and every value row.
+ * @param index - The index for this revision.
+ * @param kind - The kind to match.
+ * @param find - What to match.
+ * @param request - The scope.
+ * @param rows - Where value rows are added.
+ * @returns Each element's best rank and the value it came from.
+ */
+function matchKind(
+    index: FindIndex,
+    kind: FindKind,
+    find: ParsedFind,
+    request: SearchRequest,
+    rows: MatchedRow[],
+): BestMatch {
+    const { columns, ids } = index[kind];
+    const best: BestMatch = { rank: new Uint8Array(ids.length).fill(NO_RANK), from: [] };
+    if (!request.kinds.has(kind)) {
+        return best;
+    }
+
+    const inScope = scopeOf(request, kind);
+    const searched = find.only.has(kind) ? columns.filter((c) => c.path === find.only.get(kind)) : columns;
+    for (const column of searched) {
+        for (const entry of column.values) {
+            const rank = rankOf(find, column, entry);
+            const members = rank === null ? [] : inScopeOnly(entry.members, ids, inScope);
+            claim(best, members, rank ?? NO_RANK, column, entry);
+            if (!column.names && members.length > 0) {
+                rows.push({ kind, column, entry, members });
+            }
+        }
+    }
+
+    return best;
+}
+
+/**
+ * The scope's members of one kind.
+ * @param request - The request.
+ * @param kind - The kind.
+ * @returns Its members, or undefined for the whole graph.
+ */
+function scopeOf(request: SearchRequest, kind: FindKind): ReadonlySet<NodeId | EdgeId> | undefined {
+    if (request.scope === null) {
+        return undefined;
+    }
+
+    return kind === "node" ? request.scope.nodes : request.scope.edges;
+}
+
+/**
+ * How well one value matches, lower is better.
+ * @param find - What to match.
+ * @param column - The value's column.
+ * @param entry - The value.
+ * @returns The rank, or null for no match.
+ */
+function rankOf(find: ParsedFind, column: IndexedColumn, entry: IndexedValue): number | null {
+    const where = matchText(find.wanted, entry.norm);
+    if (where === null) {
+        return null;
+    }
+
+    if ((entry.wholeOnly || find.exact) && where !== "whole") {
+        return null;
+    }
+
+    const tier = column.names ? 0 : MATCH_ORDER.length;
+    return tier + MATCH_ORDER.indexOf(where);
+}
+
+/**
+ * The members in scope.
+ * @param members - Dense indices.
+ * @param ids - Each element's id.
+ * @param inScope - The scope, or undefined for all.
+ * @returns The members in scope, the same array when there is no scope.
+ */
+function inScopeOnly(
+    members: number[],
+    ids: readonly (NodeId | EdgeId)[],
+    inScope: ReadonlySet<NodeId | EdgeId> | undefined,
+): number[] {
+    return inScope === undefined ? members : members.filter((at) => inScope.has(ids[at]));
+}
+
+/**
+ * Record a rank for each member that has no better one.
+ * @param best - The kind's best matches.
+ * @param members - The members.
+ * @param rank - The rank.
+ * @param column - The column it came from.
+ * @param entry - The value it came from.
+ */
+function claim(best: BestMatch, members: number[], rank: number, column: IndexedColumn, entry: IndexedValue): void {
+    for (const at of members) {
+        if (rank < best.rank[at]) {
+            best.rank[at] = rank;
+            best.from[at] = [column, entry];
+        }
+    }
+}
+
+/**
+ * The find box's search over the index.
+ * @param parts - What the engine reads.
+ * @param index - The index for this revision.
+ * @param text - What was typed.
+ * @param request - The window, the kinds and the scope.
+ * @returns The hits, the value rows and the total.
+ */
+function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
+    const nothing = { records: [], total: 0, values: [] };
+    const find = parseFind(index, text.trim());
+    if (typeof find === "string") {
+        return { ...nothing, notSearchable: find };
+    }
+
+    if (find.wanted === "") {
         return nothing;
     }
 
-    const rows: { kind: FindKind; column: IndexedColumn; entry: IndexedValue; members: number[] }[] = [];
-    // Each element's best rank so far (NO_RANK for none) and the value it came from, per kind.
+    const rows: MatchedRow[] = [];
     const best = {
-        node: {
-            rank: new Uint8Array(index.node.ids.length).fill(NO_RANK),
-            from: [] as [IndexedColumn, IndexedValue][],
-        },
-        edge: {
-            rank: new Uint8Array(index.edge.ids.length).fill(NO_RANK),
-            from: [] as [IndexedColumn, IndexedValue][],
-        },
+        node: matchKind(index, "node", find, request, rows),
+        edge: matchKind(index, "edge", find, request, rows),
     };
-
-    for (const kind of ["node", "edge"] as const) {
-        if (!request.kinds.has(kind)) {
-            continue;
-        }
-
-        const { columns, ids } = index[kind];
-        const { rank: ranks, from } = best[kind];
-        const inScope = request.scope?.[kind === "node" ? "nodes" : "edges"] as
-            | ReadonlySet<NodeId | EdgeId>
-            | undefined;
-        for (const column of columns) {
-            if (only.has(kind) && only.get(kind) !== column.path) {
-                continue;
-            }
-
-            for (const entry of column.values) {
-                const where = matchText(wanted, entry.norm);
-                if (where === null || ((entry.wholeOnly || parsed.mode === "exact") && where !== "whole")) {
-                    continue;
-                }
-
-                const rank = (column.names ? 0 : MATCH_ORDER.length) + MATCH_ORDER.indexOf(where);
-                const members =
-                    inScope === undefined ? entry.members : entry.members.filter((at) => inScope.has(ids[at]));
-                for (const at of members) {
-                    if (rank < ranks[at]) {
-                        ranks[at] = rank;
-                        from[at] = [column, entry];
-                    }
-                }
-
-                if (!column.names && members.length > 0) {
-                    rows.push({ kind, column, entry, members });
-                }
-            }
-        }
-    }
 
     // One sort key per hit: rank first, then graph order, nodes before edges.
     const nodeCount = index.node.ids.length;
@@ -462,12 +559,11 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         ["node", 0],
         ["edge", nodeCount],
     ] as const) {
-        const ranks = best[kind].rank;
-        for (let at = 0; at < ranks.length; at++) {
-            if (ranks[at] !== NO_RANK) {
-                keys.push(ranks[at] * span + offset + at);
+        best[kind].rank.forEach((rank, at) => {
+            if (rank !== NO_RANK) {
+                keys.push(rank * span + offset + at);
             }
-        }
+        });
     }
 
     const sorted = Float64Array.from(keys).sort();
@@ -476,40 +572,65 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
     const records = Array.from(sorted.subarray(request.offset, request.offset + request.limit), (key): FindHit => {
         const order = key % span;
         const kind = order < nodeCount ? "node" : "edge";
-        const at = kind === "node" ? order : order - nodeCount;
-        const [column, entry] = best[kind].from[at];
-        const id = index[kind].ids[at];
-        const base = {
-            match: { path: column.path, value: entry.value },
-            ...(parts.excluded?.(kind, at) === true ? { excludedBy: { kind: "filter" as const } } : {}),
-        };
-        if (kind === "node") {
-            return { kind: "node", id, name: index.names[at], ...base, target: { nodes: [id] } };
-        }
-
-        const [source, target] = index.ends[at];
-        const end = (node: number): FindEnd => ({ id: index.node.ids[node], name: index.names[node] });
-        return {
-            kind: "edge",
-            id: String(id),
-            ends: { source: end(source), target: end(target) },
-            ...base,
-            target: { edges: [String(id)] },
-        };
+        return hitOf(parts, index, best[kind], kind, kind === "node" ? order : order - nodeCount);
     });
 
-    const values = rows.slice(0, VALUE_ROWS).map(({ kind, column, entry, members }): FindValueRow => {
-        // ponytail: a value many elements carry makes a long id list; a where-target limited to
-        // one kind replaces it when the target grammar can say "nodes only".
-        const named = (): SelectionTarget => {
-            const ids = members.map((at) => index[kind].ids[at]);
-            return kind === "node" ? { nodes: ids } : { edges: ids.map(String) };
-        };
-        const target = members === entry.members ? (entry.target ??= named()) : named();
-        return { kind, path: column.path, value: entry.value, count: members.length, target };
-    });
+    return { records, total: sorted.length, values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)) };
+}
 
-    return { records, total: sorted.length, values };
+/**
+ * One hit, read from the index.
+ * @param parts - What the engine reads.
+ * @param index - The index for this revision.
+ * @param best - The kind's best matches.
+ * @param kind - The hit's kind.
+ * @param at - Its dense index.
+ * @returns The hit.
+ */
+function hitOf(parts: QueryEngineParts, index: FindIndex, best: BestMatch, kind: FindKind, at: number): FindHit {
+    const [column, entry] = best.from[at];
+    const id = index[kind].ids[at];
+    const base = {
+        match: { path: column.path, value: entry.value },
+        ...(parts.excluded?.(kind, at) === true ? { excludedBy: { kind: "filter" as const } } : {}),
+    };
+    if (kind === "node") {
+        return { kind: "node", id, name: index.names[at], ...base, target: { nodes: [id] } };
+    }
+
+    const [source, target] = index.ends[at];
+    const end = (node: number): FindEnd => ({ id: index.node.ids[node], name: index.names[node] });
+    return {
+        kind: "edge",
+        id: String(id),
+        ends: { source: end(source), target: end(target) },
+        ...base,
+        target: { edges: [String(id)] },
+    };
+}
+
+/**
+ * One value row, its target naming exactly the members in scope.
+ * @param index - The index for this revision.
+ * @param row - The matched row.
+ * @returns The value row.
+ */
+function valueRowOf(index: FindIndex, row: MatchedRow): FindValueRow {
+    const { kind, column, entry, members } = row;
+    // ponytail: a value many elements carry makes a long id list; a where-target limited to
+    // one kind replaces it when the target grammar can say "nodes only".
+    const named = (): SelectionTarget => {
+        const ids = members.map((at) => index[kind].ids[at]);
+        return kind === "node" ? { nodes: ids } : { edges: ids.map(String) };
+    };
+    // The whole graph's row is cached on the entry; a scoped row is built each time.
+    const whole = members === entry.members;
+    const target = whole ? (entry.target ?? named()) : named();
+    if (whole) {
+        entry.target = target;
+    }
+
+    return { kind, path: column.path, value: entry.value, count: members.length, target };
 }
 
 /**

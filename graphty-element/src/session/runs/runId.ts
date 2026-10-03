@@ -1,19 +1,20 @@
 /**
  * @file Run identity: what makes two calls the same run, and what makes them different ones.
  *
- * A run id is not a slot number. It is either author-assigned through `as:` or derived from the
- * RESULT the run answers -- the algorithm key, whether it is exact or sampled, and the scope it
- * reads with the live keywords frozen. An id minted from an execution counter would mean a saved
- * style layer, recipe or template resolves to a different run depending on the order things
- * happened to execute, and changing that afterwards is a behavioural break in everything already
- * persisted.
+ * A run id is not a slot number. It is either author-assigned through `as:` or the name the
+ * run's algorithm suggests (`./suggestedName`), and an unnamed run is found again by the RESULT it
+ * answers -- the algorithm key, whether it is exact or sampled, and the scope it reads with the
+ * live keywords frozen -- together with that suggested name. An id minted from an execution
+ * counter would mean a saved style layer resolves to a different run depending on the order
+ * things happened to execute; a suggested name is the same whatever ran before it, and only a
+ * second, different computation under the same name is counted on (`_2`, `_3`, ...).
  *
- * The derived id is the RESULT's id ({@link ResultId}): parameters and the seed are not part of
- * it, so tuning a resolution or a damping factor re-runs the same result and every layer bound to
- * it repaints, instead of growing a second result and a second layer. The keywords `"visible"` and
- * `"selection"` are replaced by the definition in force before hashing -- the visibility filter
- * and time window, the selected nodes -- so the same unscoped call under a different filter is a
- * different result, never a re-execution of the first one over a different graph.
+ * Parameters and the seed are not part of the result's identity, so tuning a setting the name
+ * does not carry re-runs the same result and every layer bound to it repaints, instead of growing
+ * a second result and a second layer. The keywords `"visible"` and `"selection"` are replaced by
+ * the definition in force before comparing -- the visibility filter and time window, the selected
+ * nodes -- so the same unscoped call under a different filter is a different result, never a
+ * re-execution of the first one over a different graph.
  *
  * Two rules do the work here:
  *
@@ -30,16 +31,7 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseScope } from "../../catalog/sets/parse";
-import type {
-    AlgorithmKey,
-    EdgeId,
-    NodeId,
-    OptionDescriptor,
-    ResultId,
-    RunId,
-    Scope,
-    SetDefinition,
-} from "../../catalog/types";
+import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, RunId, Scope, SetDefinition } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 
@@ -396,16 +388,6 @@ export interface ResultIdentity {
     readonly sample: number | null;
     /** Whether approximation was refused, or null when the caller did not say. */
     readonly exact: boolean | null;
-}
-
-/**
- * The id a result gets when its author did not name it: derived from what the result IS, never
- * from its parameters, its seed or when it ran.
- * @param identity - What the result is.
- * @returns The id, which always matches the run-id pattern.
- */
-export function deriveResultId(identity: ResultIdentity): ResultId {
-    return `${algorithmSlug(identity.algorithm)}_${stableDigest(canonicalResultIdentity(identity))}`;
 }
 
 /**

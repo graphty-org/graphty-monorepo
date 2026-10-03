@@ -46,9 +46,6 @@ const SETTLE_BUDGET_MS = 15000;
 /** How often to look again while waiting. */
 const POLL_MS = 50;
 
-/** How many frames to let the renderer draw after the model settles, before reading the scene. */
-const RENDER_SETTLE_MS = 350;
-
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
 
@@ -554,8 +551,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     );
 
     // The renderer is a frame behind the style model by design: a pass marks an element dirty and
-    // the render loop hands the new paint over on its next tick.
-    await new Promise((resolve) => setTimeout(resolve, RENDER_SETTLE_MS));
+    // the render loop hands the new paint over on its next tick. So ask the element when the frame
+    // on screen is the finished one, rather than guessing how long that takes. It throws, naming
+    // what was still moving, if the picture has not come to rest by the deadline.
+    await graph.waitForStableFrame({ timeoutMs: Math.max(1, deadline - Date.now()) });
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -1865,7 +1864,9 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
 export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
     scene.graph.selectNode(id);
 
-    await new Promise((resolve) => setTimeout(resolve, RENDER_SETTLE_MS));
+    // The halo is drawn by the render loop after the selection lands, so wait for the element to
+    // say the frame on screen shows it.
+    await scene.graph.waitForStableFrame({ timeoutMs: SETTLE_BUDGET_MS });
 
     const selected = [...scene.session.selection.nodes].map(String);
 

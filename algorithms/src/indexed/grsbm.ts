@@ -1,5 +1,6 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, renumberPartition, type U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -110,7 +111,7 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
     } = options;
     const n = s.nodeCount;
     if (n === 0) {
-        throw new Error("Cannot cluster empty graph");
+        throw withCode(new Error("Cannot cluster empty graph"), "E_EMPTY_GRAPH");
     }
     const random = mulberry32(seed);
     const arcWeights = weighted ? s.weights : null;
@@ -118,8 +119,11 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         for (let a = 0; a < arcWeights.length; a++) {
             const w = arcWeights[a];
             if (!(w >= 0) || w === Infinity) {
-                throw new RangeError(
-                    `arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`,
+                throw withCode(
+                    new RangeError(
+                        `arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`,
+                    ),
+                    "E_BAD_WEIGHT",
                 );
             }
         }

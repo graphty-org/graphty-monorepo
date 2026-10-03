@@ -469,6 +469,20 @@ version plan in a temporary release group for exactly this reason; the group is 
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
 
+To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
+reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
+"2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other
+package still releases, and the graphty.app deploy, which runs only from `release.yml`, still
+happens. **Never disable `release.yml`** to stop one package: that stops every package and the
+deploy. The release job runs `tools/release-hold.mjs apply`, which leaves the held projects out of
+nx.json's `release.projects` in its checkout, so a held package is neither versioned from its own
+commits nor patch-bumped as a dependent of a released one (`--projects` alone does not stop that:
+with `updateDependents: "auto"` nx adds a filtered-out dependent back). A held package keeps its
+last tag, so when it leaves the list the next release bumps it from every commit since that tag.
+CI rejects an unknown project name, a missing reason or date, and a list that holds everything
+(`pnpm run check:release-hold`). To preview a hold, run `node tools/release-hold.mjs apply`, then
+`pnpm exec nx release --dry-run --skip-publish`, then `git restore nx.json`.
+
 Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
 a commit is listed under a package's "Breaking Changes" only when its scope names that package (or
 it has no scope), the same rule nx uses for the version bump. Without it, a `feat(algorithms)!`

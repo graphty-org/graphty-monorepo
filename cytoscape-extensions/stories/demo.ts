@@ -150,9 +150,15 @@ let current: Core | null = null;
  * @param args - the story's args
  * @param title - what is being run, for the status line
  * @param run - the work: returns which backend ran
+ * @param load - puts the graph into the empty core and describes it; default: the network the args pick
  * @returns the story's root element
  */
-export function renderDemo(args: RunArgs, title: string, run: (d: Demo) => Promise<Outcome>): HTMLElement {
+export function renderDemo(
+    args: RunArgs,
+    title: string,
+    run: (d: Demo) => Promise<Outcome>,
+    load?: (cy: Core) => Promise<string>,
+): HTMLElement {
     current?.destroy();
     current = null;
 
@@ -194,20 +200,24 @@ export function renderDemo(args: RunArgs, title: string, run: (d: Demo) => Promi
             current?.destroy();
             setStatus("Generating the network...");
             await new Promise((r) => setTimeout(r, 0)); // let the frame paint first
-            const g = GENERATE[args.network](SIZES[args.size], args.seed);
+            const g = load === undefined ? GENERATE[args.network](SIZES[args.size], args.seed) : undefined;
+            const big = (g?.nodeCount ?? 0) > 5_000;
             const cy = cytoscape({
                 container: canvas,
                 style: STYLE,
                 // ponytail: cheap viewport tricks only; Cytoscape's WebGL renderer is the upgrade for 50k nodes
-                hideEdgesOnViewport: g.nodeCount > 5_000,
-                textureOnViewport: g.nodeCount > 5_000,
-                elements: elementsOf(g),
+                hideEdgesOnViewport: big,
+                textureOnViewport: big,
+                elements: g === undefined ? [] : elementsOf(g),
                 layout: { name: "preset" },
             });
             current = cy;
             // for poking at from the browser console
             (window as unknown as { cy?: Core }).cy = cy;
-            const graph = `${args.network}, ${g.nodeCount.toLocaleString()} nodes, ${g.src.length.toLocaleString()} edges, seed ${args.seed}`;
+            const graph =
+                g === undefined
+                    ? await (load as (cy: Core) => Promise<string>)(cy)
+                    : `${args.network}, ${g.nodeCount.toLocaleString()} nodes, ${g.src.length.toLocaleString()} edges, seed ${args.seed}`;
             setStatus(`${title} on ${graph}: running...`);
             const t0 = performance.now();
             const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });

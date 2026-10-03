@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
-import { PANEL_INK } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../../src/icons";
 
@@ -21,7 +20,7 @@ function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 /**
- * A stand-in for the 14px colour swatch the canonical row puts in its leading
+ * A stand-in for the 14px color swatch the canonical row puts in its leading
  * slot.
  * @returns The swatch node
  */
@@ -30,10 +29,10 @@ function swatch(): React.JSX.Element {
 }
 
 /**
- * The two segments of the canonical row: a colour and its opacity.
+ * The two segments of the canonical row: a color and its opacity.
  * @returns The segments
  */
-function colourAndOpacity(): React.ComponentProps<typeof CompoundRow>["segments"] {
+function colorAndOpacity(): React.ComponentProps<typeof CompoundRow>["segments"] {
     return [
         { value: "4A7EE8", grow: true },
         { value: "100", unit: "%" },
@@ -55,7 +54,7 @@ describe("CompoundRow", () => {
         it("carries the label as the box's title", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: swatch(), value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -63,17 +62,17 @@ describe("CompoundRow", () => {
                 />,
             );
 
-            expect(screen.getByTitle("Node colour and opacity")).toBeInTheDocument();
+            expect(screen.getByTitle("Node color and opacity")).toBeInTheDocument();
         });
 
         it("names the whole box, because the segments are one thing", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
-            expect(screen.getByRole("group", { name: "Node colour and opacity" })).toBeInTheDocument();
+            expect(screen.getByRole("group", { name: "Node color and opacity" })).toBeInTheDocument();
         });
 
         it("renders every segment's value", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const values = screen.getAllByTestId("compound-segment-value");
             expect(values).toHaveLength(2);
@@ -82,11 +81,11 @@ describe("CompoundRow", () => {
         });
 
         it("renders a unit as a dimmed suffix inside the same segment", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const unit = screen.getByTestId("compound-segment-unit");
             expect(unit).toHaveTextContent("%");
-            expect(unit.style.color).toBe(PANEL_INK.CHROME);
+            expect(unit).toHaveClass("cm-compound-unit");
         });
 
         it("renders no unit when the segment has none", () => {
@@ -104,7 +103,7 @@ describe("CompoundRow", () => {
         });
 
         it("puts one hairline between two segments", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(screen.getAllByTestId("compound-row-hairline")).toHaveLength(1);
         });
@@ -112,7 +111,7 @@ describe("CompoundRow", () => {
         it("puts two hairlines between three segments", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour, red green and blue"
+                    label="Node color, red green and blue"
                     segments={[{ value: "74", grow: true }, { value: "126" }, { value: "232" }]}
                 />,
             );
@@ -122,51 +121,52 @@ describe("CompoundRow", () => {
         });
 
         it("draws the divider as a 1px hairline of panel background, not a gutter", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const hairline = screen.getByTestId("compound-row-hairline");
             expect(hairline).toHaveStyle({ width: "1px", height: "24px" });
-            expect(hairline.getAttribute("style")).toContain("var(--mantine-color-body)");
+            // The panel's own ground, --cm-bg, through the cm-compound-seam class.
+            expect(hairline).toHaveClass("cm-compound-seam");
             // A gutter would separate them into two controls and undo the point.
             expect(screen.getByTestId("compound-row-box").style.gap).toBe("");
         });
 
         it("keeps the segments on one surface, at the control height", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const box = screen.getByTestId("compound-row-box");
             expect(box).toHaveStyle({ height: "24px" });
-            expect(box.style.background).toBe(PANEL_INK.SURFACE);
-            expect(box.getAttribute("style")).toContain("overflow: hidden");
+            // --cm-bg-secondary and the 5px radius come from cm-compound.
+            expect(box).toHaveClass("cm-compound");
         });
 
         it("stands on the 32px row pitch", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(screen.getByTestId("compound-row")).toHaveStyle({ height: "32px" });
         });
     });
 
     describe("width", () => {
-        it("spans the body at 224 by default", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+        it("spans the body at 184 by default", () => {
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
-            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "224px" });
+            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "184px" });
         });
 
-        it("narrows to 108 as one of a pair", () => {
+        it("narrows to 88 as one of a pair", () => {
             renderRow(
                 <CompoundRow
-                    label="Label colour and opacity"
+                    label="Label color and opacity"
                     segments={[
                         { value: "D5D7DA", grow: true },
                         { value: "70", unit: "%" },
                     ]}
-                    width={108}
+                    width={88}
                 />,
             );
 
-            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "108px" });
+            expect(screen.getByTestId("compound-row-box")).toHaveStyle({ width: "88px" });
         });
     });
 
@@ -197,10 +197,10 @@ describe("CompoundRow", () => {
             expect(container.querySelector('[data-letter="E"]')).toHaveTextContent("E");
         });
 
-        it("draws a node, such as the colour swatch", () => {
+        it("draws a node, such as the color swatch", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: swatch(), value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -214,7 +214,7 @@ describe("CompoundRow", () => {
         it("draws a slot only for the segments that have a glyph", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: swatch(), value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -226,7 +226,7 @@ describe("CompoundRow", () => {
         });
 
         it("draws no slot at all when no segment has a glyph", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(screen.queryByTestId("compound-segment-slot")).toBeNull();
         });
@@ -234,7 +234,7 @@ describe("CompoundRow", () => {
         it("holds the leading value ink at the 24px inset", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: swatch(), value: "4A7EE8", grow: true },
                         { value: "100", unit: "%" },
@@ -242,14 +242,15 @@ describe("CompoundRow", () => {
                 />,
             );
 
-            // The 16px glyph slot plus 8px of inline padding is the 24px inset
-            // every other row in the panel starts its value at. The padding is
-            // asserted logically because that is how it is written; the physical
-            // `padding` shorthand this used to assert no longer exists.
-            const [leading] = screen.getAllByTestId("compound-segment");
-            expect(leading.style.paddingInline).toBe("8px");
+            // The 24px glyph slot is the 24px inset every other row in the panel
+            // starts its value at, so a segment with a glyph adds no leading
+            // padding (Figma's paint row: hex text at x+24).
+            const [leading, trailing] = screen.getAllByTestId("compound-segment");
+            expect(leading.style.paddingInlineStart).toBe("0");
             expect(leading.getAttribute("style")).toContain("padding-block: 0");
-            expect(screen.getByTestId("compound-segment-slot")).toHaveStyle({ width: "16px" });
+            expect(screen.getByTestId("compound-segment-slot")).toHaveStyle({ width: "24px" });
+            // A later segment without a glyph: 1px seam + 7px = text 8px in.
+            expect(trailing.style.paddingInlineStart).toBe("7px");
         });
     });
 
@@ -257,7 +258,7 @@ describe("CompoundRow", () => {
         it("gives the remaining width to the segment that asks for it", () => {
             renderRow(
                 <CompoundRow
-                    label="Node opacity and colour"
+                    label="Node opacity and color"
                     segments={[
                         { value: "100", unit: "%" },
                         { value: "4A7EE8", grow: true },
@@ -273,7 +274,7 @@ describe("CompoundRow", () => {
         it("grows the leading segment when no segment claims the width", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[{ value: "4A7EE8" }, { value: "100", unit: "%" }]}
                 />,
             );
@@ -286,7 +287,7 @@ describe("CompoundRow", () => {
         it("grows exactly one segment even when several claim the width", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { value: "4A7EE8", grow: true },
                         { value: "100", unit: "%", grow: true },
@@ -305,7 +306,7 @@ describe("CompoundRow", () => {
         it("draws a hex in the monospace face", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { value: "4A7EE8", mono: true, grow: true },
                         { value: "100", unit: "%" },
@@ -321,12 +322,12 @@ describe("CompoundRow", () => {
         });
     });
 
-    // Contract section 2.4, text expansion: an ellipsised value has to stay
+    // Contract section 2.4, text expansion: an ellipsized value has to stay
     // reachable, and a title alone is not enough because it cannot be reached
     // by keyboard or by touch.
     describe("a value that has been shortened", () => {
         it("takes the full text from the value itself when the value is already text", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const [hex] = screen.getAllByTestId("compound-segment-value");
             expect(hex).toHaveAttribute("title", "4A7EE8");
@@ -400,7 +401,7 @@ describe("CompoundRow", () => {
         it("leaves a drawn value with no text of its own out of the tooltip", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { value: swatch(), grow: true },
                         { value: "100", unit: "%" },
@@ -418,25 +419,25 @@ describe("CompoundRow", () => {
     // https://www.w3.org/WAI/ARIA/apg/patterns/button/.
     describe("the read-only form", () => {
         it("is a group named by the label when the name is nowhere on the page", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const box = screen.getByTestId("compound-row-box");
             expect(box).toHaveAttribute("role", "group");
-            expect(box).toHaveAttribute("aria-label", "Node colour and opacity");
+            expect(box).toHaveAttribute("aria-label", "Node color and opacity");
             expect(box).not.toHaveAttribute("aria-labelledby");
         });
 
         it("announces the values as well as the name", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
-            const box = screen.getByRole("group", { name: "Node colour and opacity" });
+            const box = screen.getByRole("group", { name: "Node color and opacity" });
             expect(box).toHaveTextContent("4A7EE8");
             expect(box).toHaveTextContent("100");
         });
 
         it("stays out of the tab order, because it holds no value of its own", async () => {
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             await user.tab();
 
@@ -444,7 +445,7 @@ describe("CompoundRow", () => {
         });
 
         it("is not a button", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(screen.queryByRole("button")).toBeNull();
         });
@@ -452,7 +453,7 @@ describe("CompoundRow", () => {
 
     describe("the interactive form", () => {
         it("is a real button, so the platform supplies the keyboard and the focus ring", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={vi.fn()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={vi.fn()} />);
 
             const box = screen.getByTestId("compound-row-box");
             expect(box.tagName).toBe("BUTTON");
@@ -461,13 +462,13 @@ describe("CompoundRow", () => {
         });
 
         it("takes its accessible name from its content, so the values are announced too", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={vi.fn()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={vi.fn()} />);
 
             const box = screen.getByTestId("compound-row-box");
             // An aria-label here would replace the values with the label, which
             // is the defect this row exists not to have.
             expect(box).not.toHaveAttribute("aria-label");
-            expect(box).toHaveAccessibleName(/Node colour and opacity/);
+            expect(box).toHaveAccessibleName(/Node color and opacity/);
             expect(box).toHaveAccessibleName(/4A7EE8/);
             expect(box).toHaveAccessibleName(/100/);
         });
@@ -475,21 +476,21 @@ describe("CompoundRow", () => {
         it("clears the 24px minimum target size in both widths", () => {
             renderRow(
                 <CompoundRow
-                    label="Label colour and opacity"
-                    segments={colourAndOpacity()}
-                    width={108}
+                    label="Label color and opacity"
+                    segments={colorAndOpacity()}
+                    width={88}
                     onClick={vi.fn()}
                 />,
             );
 
             const box = screen.getByTestId("compound-row-box");
-            expect(box).toHaveStyle({ width: "108px", height: "24px" });
+            expect(box).toHaveStyle({ width: "88px", height: "24px" });
         });
 
         it("hands the pointer event to the caller", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={onClick} />);
 
             await user.click(screen.getByTestId("compound-row-box"));
 
@@ -502,7 +503,7 @@ describe("CompoundRow", () => {
         it("reports the modifier keys, so a caller can extend a selection", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={onClick} />);
 
             await user.keyboard("{Shift>}");
             await user.click(screen.getByTestId("compound-row-box"));
@@ -516,7 +517,7 @@ describe("CompoundRow", () => {
         it("lets the caller work out which value was clicked", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={onClick} />);
 
             const [, opacity] = screen.getAllByTestId("compound-segment-value");
             await user.click(opacity);
@@ -529,7 +530,7 @@ describe("CompoundRow", () => {
         it("activates on Enter", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={onClick} />);
 
             await user.tab();
             expect(screen.getByTestId("compound-row-box")).toHaveFocus();
@@ -541,7 +542,7 @@ describe("CompoundRow", () => {
         it("activates on Space", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={onClick} />);
 
             await user.tab();
             await user.keyboard(" ");
@@ -553,10 +554,10 @@ describe("CompoundRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
-                    segments={colourAndOpacity()}
+                    label="Node color and opacity"
+                    segments={colorAndOpacity()}
                     onClick={vi.fn()}
-                    trailing={<AdvancedButton label="Node colour options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Node color options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -564,7 +565,7 @@ describe("CompoundRow", () => {
             expect(screen.getByTestId("compound-row-box")).toHaveFocus();
 
             await user.tab();
-            expect(screen.getByRole("button", { name: "Node colour options" })).toHaveFocus();
+            expect(screen.getByRole("button", { name: "Node color options" })).toHaveFocus();
         });
 
         it("forwards focus and blur rather than swallowing them", async () => {
@@ -573,12 +574,12 @@ describe("CompoundRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
-                    segments={colourAndOpacity()}
+                    label="Node color and opacity"
+                    segments={colorAndOpacity()}
                     onClick={vi.fn()}
                     onFocus={onFocus}
                     onBlur={onBlur}
-                    trailing={<AdvancedButton label="Node colour options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Node color options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -594,7 +595,7 @@ describe("CompoundRow", () => {
     // background run announces itself when the run finishes.
     describe("busy", () => {
         it("is silent about a row that says nothing about being busy", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const box = screen.getByTestId("compound-row-box");
             expect(box).not.toHaveAttribute("aria-live");
@@ -602,7 +603,7 @@ describe("CompoundRow", () => {
         });
 
         it("becomes a live region as soon as the caller declares the row asynchronous", () => {
-            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colourAndOpacity()} busy={false} />);
+            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colorAndOpacity()} busy={false} />);
 
             // The region has to exist before the values change, or the change
             // is announced by nothing at all.
@@ -613,13 +614,13 @@ describe("CompoundRow", () => {
         });
 
         it("holds the announcement back while the work is still going on", () => {
-            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colourAndOpacity()} busy />);
+            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colorAndOpacity()} busy />);
 
             expect(screen.getByTestId("compound-row-box")).toHaveAttribute("aria-busy", "true");
         });
 
         it("carries the row's name into the announcement", () => {
-            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colourAndOpacity()} busy={false} />);
+            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colorAndOpacity()} busy={false} />);
 
             // The announcement is atomic, so the name has to be inside the
             // region rather than only on it.
@@ -630,12 +631,7 @@ describe("CompoundRow", () => {
 
         it("marks an interactive row busy as well", () => {
             renderRow(
-                <CompoundRow
-                    label="Graph size, nodes and edges"
-                    segments={colourAndOpacity()}
-                    busy
-                    onClick={vi.fn()}
-                />,
+                <CompoundRow label="Graph size, nodes and edges" segments={colorAndOpacity()} busy onClick={vi.fn()} />,
             );
 
             const box = screen.getByTestId("compound-row-box");
@@ -648,7 +644,7 @@ describe("CompoundRow", () => {
         it("draws the slot even when the row has nothing to put there", () => {
             renderRow(
                 <CompoundRow
-                    label="Edge colour and opacity"
+                    label="Edge color and opacity"
                     segments={[
                         { value: "48525C", grow: true },
                         { value: "60", unit: "%" },
@@ -663,11 +659,11 @@ describe("CompoundRow", () => {
         it("gives an icon-only settings button an accessible name equal to its title", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
-                    segments={colourAndOpacity()}
+                    label="Node color and opacity"
+                    segments={colorAndOpacity()}
                     trailing={
                         <AdvancedButton
-                            label="Show node colour on canvas"
+                            label="Show node color on canvas"
                             icon={<UiGlyph name="eye" />}
                             onClick={vi.fn()}
                         />
@@ -675,8 +671,8 @@ describe("CompoundRow", () => {
                 />,
             );
 
-            const advanced = screen.getByRole("button", { name: "Show node colour on canvas" });
-            expect(advanced).toHaveAttribute("title", "Show node colour on canvas");
+            const advanced = screen.getByRole("button", { name: "Show node color on canvas" });
+            expect(advanced).toHaveAttribute("title", "Show node color on canvas");
         });
 
         it("opens the settings on click", async () => {
@@ -684,13 +680,13 @@ describe("CompoundRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
-                    segments={colourAndOpacity()}
-                    trailing={<AdvancedButton label="Node colour options" onClick={onClick} />}
+                    label="Node color and opacity"
+                    segments={colorAndOpacity()}
+                    trailing={<AdvancedButton label="Node color options" onClick={onClick} />}
                 />,
             );
 
-            await user.click(screen.getByRole("button", { name: "Node colour options" }));
+            await user.click(screen.getByRole("button", { name: "Node color options" }));
 
             expect(onClick).toHaveBeenCalledTimes(1);
         });
@@ -700,14 +696,14 @@ describe("CompoundRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
-                    segments={colourAndOpacity()}
-                    trailing={<AdvancedButton label="Node colour options" onClick={onClick} />}
+                    label="Node color and opacity"
+                    segments={colorAndOpacity()}
+                    trailing={<AdvancedButton label="Node color options" onClick={onClick} />}
                 />,
             );
 
             await user.tab();
-            expect(screen.getByRole("button", { name: "Node colour options" })).toHaveFocus();
+            expect(screen.getByRole("button", { name: "Node color options" })).toHaveFocus();
 
             await user.keyboard("{Enter}");
             expect(onClick).toHaveBeenCalledTimes(1);
@@ -716,28 +712,28 @@ describe("CompoundRow", () => {
 
     describe("the showLabels preference", () => {
         it("spends no label column by default", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(screen.queryByTestId("compound-row-label")).toBeNull();
         });
 
-        it("moves the row's one name into the 76px column when labels are on", () => {
+        it("moves the row's one name into the 72px column when labels are on", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <CompoundRow label="Node colour" segments={colourAndOpacity()} />
+                    <CompoundRow label="Node color" segments={colorAndOpacity()} />
                 </PanelLabelsProvider>,
             );
 
             const word = screen.getByTestId("compound-row-label");
-            expect(word).toHaveTextContent("Node colour");
-            expect(word.getAttribute("style")).toContain("76px");
-            expect(word.style.color).toBe(PANEL_INK.CHROME);
+            expect(word).toHaveTextContent("Node color");
+            expect(word.getAttribute("style")).toContain("72px");
+            expect(word).toHaveClass("cm-row-reading");
         });
 
         it("lets the box fill the rest of the band in label mode", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <CompoundRow label="Node colour" segments={colourAndOpacity()} />
+                    <CompoundRow label="Node color" segments={colorAndOpacity()} />
                 </PanelLabelsProvider>,
             );
 
@@ -747,7 +743,7 @@ describe("CompoundRow", () => {
         it("does not label the segments individually", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <CompoundRow label="Node colour" segments={colourAndOpacity()} />
+                    <CompoundRow label="Node color" segments={colorAndOpacity()} />
                 </PanelLabelsProvider>,
             );
 
@@ -757,7 +753,7 @@ describe("CompoundRow", () => {
         it("names the read-only box from the word on the page rather than from a second copy of it", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <CompoundRow label="Node colour" segments={colourAndOpacity()} />
+                    <CompoundRow label="Node color" segments={colorAndOpacity()} />
                 </PanelLabelsProvider>,
             );
 
@@ -769,13 +765,13 @@ describe("CompoundRow", () => {
             expect(box.getAttribute("aria-labelledby")).toBe(word.id);
             expect(word.id).not.toBe("");
             expect(word).not.toHaveAttribute("aria-hidden");
-            expect(box).toHaveAccessibleName("Node colour");
+            expect(box).toHaveAccessibleName("Node color");
         });
 
         it("hides the drawn word from assistive technology when the box carries the name itself", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
-                    <CompoundRow label="Node colour" segments={colourAndOpacity()} onClick={vi.fn()} />
+                    <CompoundRow label="Node color" segments={colorAndOpacity()} onClick={vi.fn()} />
                 </PanelLabelsProvider>,
             );
 
@@ -783,7 +779,7 @@ describe("CompoundRow", () => {
             // name; leaving the column visible to a screen reader would announce
             // it twice.
             expect(screen.getByTestId("compound-row-label")).toHaveAttribute("aria-hidden", "true");
-            expect(screen.getByTestId("compound-row-box")).toHaveAccessibleName(/Node colour/);
+            expect(screen.getByTestId("compound-row-box")).toHaveAccessibleName(/Node color/);
         });
     });
 
@@ -793,7 +789,7 @@ describe("CompoundRow", () => {
         it("pads a segment along the inline axis rather than left and right", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { glyph: swatch(), value: "4A7EE8", grow: true },
                         { value: "100", unit: "%" },
@@ -802,13 +798,13 @@ describe("CompoundRow", () => {
             );
 
             const [leading] = screen.getAllByTestId("compound-segment");
-            expect(leading.style.paddingInline).toBe("8px");
+            expect(leading.style.paddingInlineEnd).toBe("8px");
             expect(leading.style.paddingLeft).toBe("");
             expect(leading.style.paddingRight).toBe("");
         });
 
         it("sets the unit's gap on the inline start rather than the left", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const unit = screen.getByTestId("compound-segment-unit");
             expect(unit.style.marginInlineStart).toBe("2px");
@@ -816,13 +812,13 @@ describe("CompoundRow", () => {
         });
 
         it("aligns the box's text to the inline start rather than to the left", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={vi.fn()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} onClick={vi.fn()} />);
 
             expect(screen.getByTestId("compound-row-box").style.textAlign).toBe("start");
         });
 
         it("isolates each value, so a hex is not rearranged by the paragraph around it", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             const [hex] = screen.getAllByTestId("compound-segment-value");
             expect(hex.style.unicodeBidi).toBe("isolate");
@@ -831,7 +827,7 @@ describe("CompoundRow", () => {
 
     describe("the development warnings", () => {
         it("says nothing about a compound of two with one main value", () => {
-            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} />);
+            renderRow(<CompoundRow label="Node color and opacity" segments={colorAndOpacity()} />);
 
             expect(warn).not.toHaveBeenCalled();
         });
@@ -839,7 +835,7 @@ describe("CompoundRow", () => {
         it("says nothing about a compound of three with one main value", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour, red green and blue"
+                    label="Node color, red green and blue"
                     segments={[{ value: "74", grow: true }, { value: "126" }, { value: "232" }]}
                 />,
             );
@@ -857,7 +853,7 @@ describe("CompoundRow", () => {
         it("warns when a fourth value turns the box into a table", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour, red green blue and alpha"
+                    label="Node color, red green blue and alpha"
                     segments={[{ value: "74", grow: true }, { value: "126" }, { value: "232" }, { value: "255" }]}
                 />,
             );
@@ -869,7 +865,7 @@ describe("CompoundRow", () => {
         it("warns when no segment is the main value", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[{ value: "4A7EE8" }, { value: "100", unit: "%" }]}
                 />,
             );
@@ -883,7 +879,7 @@ describe("CompoundRow", () => {
         it("warns when every segment claims to be the main value", () => {
             renderRow(
                 <CompoundRow
-                    label="Node colour and opacity"
+                    label="Node color and opacity"
                     segments={[
                         { value: "4A7EE8", grow: true },
                         { value: "100", unit: "%", grow: true },
@@ -898,9 +894,9 @@ describe("CompoundRow", () => {
         });
 
         it("names the offending row in the warning", () => {
-            renderRow(<CompoundRow label="Chonky_Boy colour" segments={[{ value: "4A7EE8" }]} />);
+            renderRow(<CompoundRow label="Chonky_Boy color" segments={[{ value: "4A7EE8" }]} />);
 
-            expect(String(warn.mock.calls[0]?.[0])).toContain("Chonky_Boy colour");
+            expect(String(warn.mock.calls[0]?.[0])).toContain("Chonky_Boy color");
         });
 
         it("says nothing a stranger cannot act on", () => {

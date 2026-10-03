@@ -308,6 +308,9 @@ const statsManager = graph.getStatsManager();
 
 `element.session.selection.apply()` takes a target. Two of them search the graph:
 
+To list what text matches as the reader types, without selecting anything, use
+`session.find(text)`; see [Finding](./find). The text target below searches nodes only.
+
 ```typescript
 const { selection } = element.session;
 

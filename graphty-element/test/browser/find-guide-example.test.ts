@@ -6,6 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { FindHit } from "../../index";
 import { createGraphSession } from "../../session";
 
 describe("the finding guide's example", () => {
@@ -64,6 +65,34 @@ describe("the finding guide's example", () => {
         await (list.children[0] as HTMLLIElement).onclick?.(new PointerEvent("click"));
         assert.lengthOf(session.selection.edges, 1, "the click selected the edge");
         assert.strictEqual(framed, 1, "and framed it");
+        session.dispose();
+    });
+
+    it("labels hits with a switch whose default branch skips a kind it does not know", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "n1", name: "Valjean" },
+            { id: "n2", name: "Javert" },
+        ]);
+        await session.data.addEdges([{ source: "n1", target: "n2", kind: "pursues" }]);
+        await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
+
+        // --- the guide's code ---
+        function label(hit: FindHit): string | null {
+            switch (hit.kind) {
+                case "node":
+                    return hit.name;
+                case "edge":
+                    return `${hit.ends.source.name} -> ${hit.ends.target.name}`;
+                default:
+                    return null; // a kind this code does not know yet: leave it out of the list
+            }
+        }
+        // --- end ---
+
+        assert.deepEqual(session.find("jav").records.map(label), ["Javert"]);
+        assert.deepEqual(session.find("purs").records.map(label), ["Valjean -> Javert"]);
+        assert.isNull(label({ kind: "run" } as unknown as FindHit), "an unknown kind is skipped");
         session.dispose();
     });
 });

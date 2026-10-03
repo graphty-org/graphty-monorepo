@@ -185,9 +185,16 @@ export interface FindHitBase {
      * this is the best-ranked one, ties going to the first in `data.attributes()` order.
      */
     readonly match: { readonly path: Path; readonly value: string | number | boolean };
-    /** Present when the element is in the graph but the visibility filter or time window hides it. */
+    /**
+     * Present when the element is in the graph but `session.visibility` hides it (the time window
+     * is part of that filter). Never present under `scope: "visible"`, which leaves hidden
+     * elements out.
+     */
     readonly excludedBy?: { readonly kind: "filter" };
-    /** A selection target naming exactly this element, for `selection.apply`. */
+    /**
+     * A selection target naming exactly this element, for `selection.apply`. Not the edge's end:
+     * that is `ends.target` on an edge hit.
+     */
     readonly target: SelectionTarget;
 }
 
@@ -195,7 +202,7 @@ export interface FindHitBase {
  * One element the text found. `kind` narrows the rest.
  *
  * OPEN UNION: later releases add kinds (runs, layers, notes), so switch on `kind` with a default
- * branch.
+ * branch. The type lists today's kinds, so the default branch sees `never`: skip the hit there.
  */
 export type FindHit =
     | (FindHitBase & {
@@ -242,8 +249,8 @@ export interface FindResult {
     /** At most three matched attribute values, commonest first. */
     readonly values: readonly FindValueRow[];
     /**
-     * Set when the text is a `regex:` or `=` query, which find does not run: it lists nothing and
-     * `selection.apply({ text })` runs it on commit.
+     * Set when the text is a pattern to run on commit, not text to find: a `regex:` or `=`
+     * query. Find does not run it and lists nothing; `selection.apply({ text })` runs it.
      */
     readonly notSearchable?: "regex" | "expression";
 }

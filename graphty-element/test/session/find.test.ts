@@ -149,6 +149,8 @@ describe("finding without selecting", () => {
 
         assert.isUndefined(session.find("javert").records[0].excludedBy);
         assert.deepEqual(session.find("valjean").records[0].excludedBy, { kind: "filter" });
+        assert.strictEqual(session.find("valjean", { scope: "visible" }).total, 0, "the visible scope drops it");
+        assert.isUndefined(session.find("javert", { scope: "visible" }).records[0].excludedBy);
         session.dispose();
     });
 
@@ -190,8 +192,13 @@ describe("finding without selecting", () => {
         assert.deepEqual(session.find("exact:valjean").records.map(row), [["node", "n1", "data.name"]]);
         assert.deepEqual(session.find("id:val").records.map(row), [["node", "val", "id"]]);
         assert.deepEqual(session.find("kind:fam").records.map(row), [["edge", "1", "data.kind"]]);
+        assert.deepEqual(
+            session.find("data.kind:fam").records.map(row),
+            [["edge", "1", "data.kind"]],
+            "the column key as match.path reports it is also a prefix",
+        );
         assert.strictEqual(session.find("regex:^V").notSearchable, "regex");
-        assert.strictEqual(session.find("=group == `2`").notSearchable, "expression");
+        assert.strictEqual(session.find("=data.group == `2`").notSearchable, "expression");
         assert.lengthOf(session.find("regex:(").records, 0, "a half-typed pattern does not throw");
         session.dispose();
     });

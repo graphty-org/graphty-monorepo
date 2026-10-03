@@ -1,3 +1,17 @@
+## 0.6.26 (2026-10-03)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** pad a zero-width seeding box ([#720](https://github.com/graphty-org/graphty-monorepo/issues/720))
+
+### 🧱 Updated Dependencies
+
+- Updated layout to 2.0.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.25 (2026-10-03)
 
 ### 🩹 Fixes

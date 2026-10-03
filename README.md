@@ -120,7 +120,7 @@ Visual regression review for any Storybook, with nothing hosted: GitHub Actions 
 [![npm version](https://img.shields.io/npm/v/@graphty/compact-mantine.svg)](https://www.npmjs.com/package/@graphty/compact-mantine)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/compact-mantine/)
 
-Mantine theme and component library for dense, compact UIs. Provides automatic compact sizing for 43 Mantine components using `defaultProps`, global token overrides for font sizes, spacing, and radii, plus custom components like popouts and gradient editors.
+Mantine theme and component library for dense, compact UIs. Provides automatic compact sizing for the Mantine components it restyles using `defaultProps`, global token overrides for font sizes, spacing, and radii, plus custom components like popouts and gradient editors.
 
 [View package](./compact-mantine)
 

@@ -1,4 +1,4 @@
-// The package's helper functions: gradient stops, hex colour arithmetic, theme
+// The package's helper functions: gradient stops, hex color arithmetic, theme
 // composition and text direction.
 //
 // This barrel is wider than the package entry point. `mergeExtensions*` and the
@@ -18,11 +18,4 @@ export {
     toHexaColor,
 } from "./color-utils";
 export { mergeExtensions, mergeExtensions3, mergeExtensions4 } from "./merge-extensions";
-export {
-    inlineFraction,
-    inlineGradientDirection,
-    inlineX,
-    isRtl,
-    mirrorInline,
-    useDirection,
-} from "./rtl";
+export { inlineFraction, inlineGradientDirection, inlineX, isRtl, mirrorInline, useDirection } from "./rtl";

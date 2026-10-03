@@ -15,7 +15,7 @@ describe("RunLayoutsModal - Edge Cases", () => {
      * @param label - The engine's name, as the catalogue spells it.
      */
     async function selectLayout(label: string): Promise<void> {
-        const dropdown = screen.getByRole("textbox", { name: /layout/i });
+        const dropdown = screen.getByRole("combobox", { name: /layout/i });
         fireEvent.click(dropdown);
         await waitFor(() => {
             expect(screen.getByText(label)).toBeInTheDocument();
@@ -80,7 +80,7 @@ describe("RunLayoutsModal - Edge Cases", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // The layout dropdown should have an aria-label
-            const dropdown = screen.getByRole("textbox", { name: /layout algorithm/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout algorithm/i });
             expect(dropdown).toBeInTheDocument();
         });
 
@@ -98,7 +98,7 @@ describe("RunLayoutsModal - Edge Cases", () => {
 
             // Wait for focus to be set
             await waitFor(() => {
-                const dropdown = screen.getByRole("textbox", { name: /layout/i });
+                const dropdown = screen.getByRole("combobox", { name: /layout/i });
                 expect(dropdown).toHaveFocus();
             });
         });

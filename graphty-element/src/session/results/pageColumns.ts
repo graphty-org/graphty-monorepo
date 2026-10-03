@@ -79,11 +79,20 @@ export function resolveResult(
     if (run === undefined) {
         const available = runs.runIds();
         const shown = String(wanted);
+        // A path such as "results.pagerank.value" type-checks, because a string is a run id; name
+        // the run it points at first, so the mistake is one lookup away from the fix.
+        const pathRun = /^results\.([^.]+)/.exec(shown)?.[1];
+        const pointed = pathRun !== undefined && available.includes(pathRun) ? [pathRun] : [];
+        const hint = pointed.length > 0 ? ` A string names a run, not a path: pass "${pointed[0]}".` : "";
         throw new GraphtyError({
             code: "E_UNKNOWN_RUN",
-            message: `data.${verb}() names a run this session does not hold: "${shown}".`,
+            message: `data.${verb}() names a run this session does not hold: "${shown}".${hint}`,
             source: "data",
-            details: { run: shown, available, candidates: nearestNames(shown, available) },
+            details: {
+                run: shown,
+                available,
+                candidates: [...new Set([...pointed, ...nearestNames(shown, available)])],
+            },
         });
     }
 

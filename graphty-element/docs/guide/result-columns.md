@@ -15,7 +15,7 @@ const page = element.session.data.nodePage({
     sort: { run, descending: true },
     limit: 10,
 });
-const [rank] = page.columns ?? [];
+const [rank] = page.columns;
 
 page.records.forEach((node, i) => {
     console.log(node.id, rank?.values[i]);
@@ -35,8 +35,14 @@ Each entry in `columns` names a run, either on its own or with one of its fields
 | `{ run, field: "groupSize" }` | that field                                                      |
 | `"pagerank"` (a string)       | the run with that id; a string is always a run id, never a path |
 
-`run` can be the handle `element.run()` returns, its awaited result, or its id. `sort` takes the
+`run` can be the handle `element.run()` returns, its awaited result, or its id. The handle carries
+its `id` at once, before the run finishes, so you can name a column on a run that is still
+computing; awaiting the handle gives the run's result, which names the same run. `sort` takes the
 same `{ run, field? }`, plus `descending`.
+
+A path string such as `"results.pagerank.value"` type-checks, because a string is a run id, but it
+is refused with `E_UNKNOWN_RUN`; the error's `details.candidates` puts the run the path points at
+first.
 
 `sort` has two forms, and which one you write decides what is read:
 
@@ -48,17 +54,17 @@ same `{ run, field? }`, plus `descending`.
 The primary field comes from the run's `shape` (`run.shape`, or `shape` on the algorithm's entry
 in `session.catalog.algorithms()`):
 
-| `shape`                      | Primary field |
-| ---------------------------- | ------------- |
-| `node-metric`, `edge-metric` | `value`       |
-| `community`                  | `group`       |
-| `layered-grouping`           | `level`       |
-| `category-table`             | `category`    |
-| `path`                       | `onPath`      |
-| `node-set`, `edge-set`       | `in`          |
-| `pair-list`                  | `pairs`       |
-| `temporal`                   | `series`      |
-| `fact`                       | none          |
+| `shape`                      | Primary field | Built-in algorithms with this shape                           |
+| ---------------------------- | ------------- | ------------------------------------------------------------- |
+| `node-metric`, `edge-metric` | `value`       | degree, PageRank, betweenness and the other centralities      |
+| `community`                  | `group`       | Louvain, Leiden, label propagation, Girvan-Newman, components |
+| `layered-grouping`           | `level`       | BFS                                                           |
+| `category-table`             | `category`    | none                                                          |
+| `path`                       | `onPath`      | Dijkstra, Bellman-Ford                                        |
+| `node-set`, `edge-set`       | `in`          | minimum spanning tree, matching, min cut                      |
+| `pair-list`                  | `pairs`       | link prediction                                               |
+| `temporal`                   | `series`      | none                                                          |
+| `fact`                       | none          | none                                                          |
 
 `pairs` and `series` are not one value per record, so a column of them is refused with
 `E_BAD_COMMAND`, as is a `fact` run with no field named; read those from `results.get(run)`.
@@ -66,7 +72,8 @@ in `session.catalog.algorithms()`):
 ## What comes back
 
 `page.columns` is present only when you asked for `columns`, and holds one entry per column in the
-order you asked:
+order you asked. Its type says so too: a page read with `columns` has `columns` as a plain array,
+so `const [rank] = page.columns` needs no `?? []`.
 
 | Member    | What it holds                                                                  |
 | --------- | ------------------------------------------------------------------------------ |
@@ -77,8 +84,9 @@ order you asked:
 | `pending` | `true` while the run has no result yet; every cell is then `undefined`         |
 | `values`  | one cell per record, aligned with `page.records`                               |
 
-`pending` only matters for a run you have not awaited: a column on a still-running handle comes
-back pending, and an awaited run never is.
+`pending` means the run has never published a result, not that it is busy: a column on a
+still-running handle comes back pending, an awaited run never is, and a run that is re-running
+keeps `pending: false` and its previous values. Whether a run is busy is `run.status`.
 
 A cell is `undefined` where the run has no value for that record (it was outside the run's scope,
 say). The records themselves are unchanged. graphty-element gives you values, not words: a header,
@@ -94,6 +102,22 @@ a number format, or a name for a community is your table's decision.
   then four with `undefined` cells.
 - A grouping field (a community's `group`, a hierarchy's `level`) sorts by group size, largest group
   first when `descending`, not by the group's id.
+
+## Types
+
+Every type on this page comes from the `session` entry point, which loads no Babylon.js, Lit or
+DOM:
+
+```ts
+import type {
+    PageColumn, // one entry of page.columns
+    RecordPage, // what nodePage() and edgePage() return
+    RecordPageOptions, // what they take; EdgePageOptions adds `touching`
+    ResultCell, // one value in a column: number | string | boolean | undefined
+    ResultColumn, // one entry of `columns`
+    ResultSort, // a `sort` by a run's result
+} from "@graphty/graphty-element/session";
+```
 
 ## Keeping a table current
 

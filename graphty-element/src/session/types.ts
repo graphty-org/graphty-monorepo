@@ -198,7 +198,10 @@ export interface RecordPage<TRecord> {
      * whatever its options, so `nodePage({ limit: 0 })` asks cheaply whether anything changed.
      */
     readonly revision: string;
-    /** The result columns, in the order asked for; present exactly when `columns` was given. */
+    /**
+     * The result columns, in the order asked for; present exactly when `columns` was given, and
+     * typed as present then, so a page read with `columns` needs no `?? []`.
+     */
     readonly columns?: readonly PageColumn[];
 }
 
@@ -482,6 +485,9 @@ export interface SessionDataApi {
      *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
      *     for a field that has no value per record of this kind.
      */
+    nodePage(
+        options: RecordPageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<NodeRecord> & { readonly columns: readonly PageColumn[] };
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     /**
      * One page of edge records, without reading the rest: {@link nodePage}, for edges, and
@@ -493,6 +499,9 @@ export interface SessionDataApi {
      *     does not hold; `E_UNKNOWN_ATTRIBUTE` for a field the run does not publish; `E_BAD_COMMAND`
      *     for a field that has no value per record of this kind.
      */
+    edgePage(
+        options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated

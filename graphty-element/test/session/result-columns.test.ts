@@ -1,6 +1,6 @@
-import { assert, describe, it } from "vitest";
+import { assert, describe, expectTypeOf, it } from "vitest";
 
-import { createGraphSession, type GraphSession, isGraphtyError } from "../../session";
+import { createGraphSession, type GraphSession, isGraphtyError, type PageColumn } from "../../session";
 import type { FieldDescriptor } from "../../src/catalog/types";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -128,7 +128,7 @@ describe("result values as page columns", () => {
             sort: { run, descending: true },
             limit: 10,
         });
-        const [rank] = page.columns ?? [];
+        const [rank] = page.columns;
 
         page.records.forEach((node, i) => {
             console.log(node.id, rank?.values[i]);
@@ -342,6 +342,16 @@ describe("result values as page columns", () => {
         session.dispose();
     });
 
+    it("types columns as present exactly when they were asked for", async () => {
+        const session = await scored();
+        expectTypeOf(session.data.nodePage({ columns: ["degree"] }).columns).toEqualTypeOf<readonly PageColumn[]>();
+        expectTypeOf(session.data.edgePage({ columns: [] }).columns).toEqualTypeOf<readonly PageColumn[]>();
+        expectTypeOf(session.data.nodePage({ limit: 1 }).columns).toEqualTypeOf<readonly PageColumn[] | undefined>();
+        assert.isArray(session.data.nodePage({ columns: ["degree"] }).columns);
+        assert.isUndefined(session.data.nodePage({ limit: 1 }).columns);
+        session.dispose();
+    });
+
     it("refuses an unknown run, an unknown field, and a field with no value per record", async () => {
         const session = await scored();
         published.set("louvain", { shape: "community", nodes: [["hub", 0]] });
@@ -351,6 +361,10 @@ describe("result values as page columns", () => {
         assert.strictEqual(unknownRun.code, "E_UNKNOWN_RUN");
         assert.include(unknownRun.details.candidates as string[], "degree");
         assert.strictEqual(refusal(() => session.data.nodePage({ columns: ["data.weight"] })).code, "E_UNKNOWN_RUN");
+
+        const path = refusal(() => session.data.nodePage({ columns: ["results.degree.value"] }));
+        assert.strictEqual(path.code, "E_UNKNOWN_RUN", "a string is a run id, never a path");
+        assert.strictEqual((path.details.candidates as string[])[0], "degree", "the run the path names comes first");
         assert.strictEqual(
             refusal(() => session.data.nodePage({ sort: { run: "nope" } })).code,
             "E_UNKNOWN_RUN",

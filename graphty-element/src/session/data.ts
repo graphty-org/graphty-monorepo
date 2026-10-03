@@ -52,6 +52,7 @@ import type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    ResultColumn,
     RowUpdate,
     SessionAttributes,
     SessionDataApi,
@@ -524,6 +525,22 @@ export class SessionData implements SessionDataApi {
     /**
      * One page of node records.
      * @param options - the window, the scope and the order
+     * @returns the page, with `columns` present
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    nodePage(
+        options: RecordPageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<NodeRecord> & { readonly columns: readonly PageColumn[] };
+    /**
+     * One page of node records.
+     * @param options - the window, the scope and the order
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
+    /**
+     * One page of node records.
+     * @param options - the window, the scope and the order
      * @returns the page
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
      */
@@ -534,6 +551,22 @@ export class SessionData implements SessionDataApi {
         );
     }
 
+    /**
+     * One page of edge records.
+     * @param options - the window, the scope, the order and the node
+     * @returns the page, with `columns` present
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    edgePage(
+        options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
+    ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
+    /**
+     * One page of edge records.
+     * @param options - the window, the scope, the order and the node
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * One page of edge records.
      * @param options - the window, the scope, the order and the node

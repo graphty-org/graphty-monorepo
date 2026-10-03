@@ -38,6 +38,7 @@ import type {
     RunId,
     Scope,
     ScopeInput,
+    SelectionDirection,
     SetId,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
@@ -147,6 +148,40 @@ export interface RecordPage<TRecord> {
      * parse it.
      */
     readonly revision: string;
+}
+
+/** Which neighbors of a node a {@link SessionDataApi.neighbors} page lists, and in what order. */
+export interface NeighborPageOptions {
+    /** The position of the page's first row in the ordered list. Default 0. */
+    readonly offset?: number;
+    /** The most rows the page holds; `Infinity` reads to the end. Default 100. */
+    readonly limit?: number;
+    /**
+     * Which edges to follow on a directed graph: arriving (`in`), leaving (`out`) or both
+     * (`all`). An undirected graph follows every edge whatever this says. Default `"all"`.
+     */
+    readonly direction?: SelectionDirection;
+    /**
+     * The edge attribute whose values add up to a tie, such as `"weight"` or `"shared chapters"`.
+     * An edge whose value there is not a finite number adds nothing. Absent, each edge adds 1, so
+     * the tie is the number of edges between the two nodes.
+     */
+    readonly weight?: string;
+    /**
+     * `"tie"`, strongest first, or `"graph"`, the order the neighbors were added to the graph.
+     * Rows that sort equal keep the graph's order. Default `"tie"`.
+     */
+    readonly sort?: "tie" | "graph";
+}
+
+/** One neighbor of a node, and everything that joins the two. */
+export interface NeighborRow {
+    /** The neighbor's record, deep-frozen. */
+    readonly node: NodeRecord;
+    /** Every edge between the node and this neighbor that the direction follows. */
+    readonly edges: readonly EdgeId[];
+    /** The edges' weights added up, or the number of edges when no weight was named. */
+    readonly tie: number;
 }
 
 /**
@@ -437,6 +472,17 @@ export interface SessionDataApi {
      *     number of zero or more.
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * One page of a node's neighbors, one row per neighbor, with every edge between the two summed
+     * into one tie: what an inspector reads to list "Valjean, 17 shared chapters". A self-loop is
+     * not a neighbor.
+     * @param id - the node; one the graph does not hold has no neighbors
+     * @param options - the direction, the weight, the order and the window; every field optional
+     * @returns the page, with the total and the revision it was read at
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
+     *     number of zero or more.
+     */
+    neighbors(id: NodeId, options?: NeighborPageOptions): RecordPage<NeighborRow>;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.

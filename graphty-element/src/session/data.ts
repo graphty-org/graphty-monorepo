@@ -43,6 +43,8 @@ import type {
     EdgeRecordInput,
     GraphStatistics,
     ImportOptions,
+    NeighborPageOptions,
+    NeighborRow,
     NodeRecord,
     NodeRecordInput,
     RecordPage,
@@ -164,7 +166,10 @@ function isAbsent(value: unknown): boolean {
  * @returns the offset and the limit
  * @throws A `GraphtyError` with `E_OPTION_RANGE` for a negative or fractional value.
  */
-function pageWindow(options: RecordPageOptions, verb: string): { offset: number; limit: number } {
+function pageWindow(
+    options: Pick<RecordPageOptions, "offset" | "limit">,
+    verb: string,
+): { offset: number; limit: number } {
     const offset = options.offset ?? 0;
     const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
     for (const [name, value] of [
@@ -488,6 +493,67 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * One page of a node's neighbors, with parallel edges summed into one tie.
+     * @param id - the node
+     * @param options - the direction, the weight, the order and the window
+     * @returns the page
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window, `E_DISPOSED` once disposed.
+     */
+    neighbors(id: NodeId, options: NeighborPageOptions = {}): RecordPage<NeighborRow> {
+        const snapshot = this.current();
+        const { offset, limit } = pageWindow(options, "neighbors");
+        const revision = this.pages.revision();
+        const space = edgeSpaceOf(snapshot);
+        const node = snapshot.ids.indexOf(id);
+        const direction = snapshot.directed ? (options.direction ?? "all") : "all";
+        const { weight } = options;
+        // Keyed by the neighbor's row, so a Map in insertion order is not the graph's order: the
+        // rows are sorted by that row below.
+        const ties = new Map<number, { edges: EdgeId[]; tie: number }>();
+        // ponytail: scans every edge per call, like `edgePage({ touching })`; read the CSR (and its
+        // reverse) if a host lists the neighbors of many nodes per revision.
+        for (let edge = 0; node !== INVALID_INDEX && edge < snapshot.edgeCount; edge++) {
+            const source = snapshot.edgeSource(edge);
+            const target = snapshot.edgeTarget(edge);
+            let other = -1;
+            if (source === node && direction !== "in") {
+                other = target;
+            } else if (target === node && direction !== "out") {
+                other = source;
+            }
+
+            if (other === -1 || other === node) {
+                continue;
+            }
+
+            const value = weight === undefined ? 1 : this.records?.edgeAttributes(edge)?.[weight];
+            const row = ties.get(other) ?? { edges: [], tie: 0 };
+            row.edges.push(space.idOf(edge));
+            row.tie += typeof value === "number" && Number.isFinite(value) ? value : 0;
+            ties.set(other, row);
+        }
+
+        const order = [...ties.keys()].sort(
+            (a, b) => (options.sort === "graph" ? 0 : (ties.get(b)?.tie ?? 0) - (ties.get(a)?.tie ?? 0)) || a - b,
+        );
+        const records = order.slice(offset, offset + limit).map((other) => {
+            const row = ties.get(other) ?? { edges: [], tie: 0 };
+            return Object.freeze({
+                node: this.nodeAt(other, snapshot.ids.idOf(other)),
+                edges: Object.freeze(row.edges),
+                tie: row.tie,
+            });
+        });
+
+        return Object.freeze({
+            records: Object.freeze(records),
+            offset,
+            total: order.length,
+            revision: String(revision),
+        });
     }
 
     /**

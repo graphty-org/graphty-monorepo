@@ -35,6 +35,8 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    NeighborPageOptions,
+    NeighborRow,
     NodeRecord,
     NodeRecordInput,
     PendingId,

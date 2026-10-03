@@ -35,6 +35,8 @@ import type {
     DeprecatedCatalogMethod,
     EdgeId,
     LayoutId,
+    Path,
+    Query,
     RunId,
     Scope,
     ScopeInput,
@@ -147,6 +149,70 @@ export interface RecordPage<TRecord> {
      * parse it.
      */
     readonly revision: string;
+}
+
+/** What {@link SessionDataApi.find} lists: nodes, edges, matched values. */
+export type FindKind = "node" | "edge" | "value";
+
+/** What {@link SessionDataApi.find} reads beside the text. */
+export interface FindOptions {
+    /** The most element hits, and the most value rows, it returns. Default 20; `Infinity` for all. */
+    readonly limit?: number;
+    /** What to list. Default all three: `["node", "edge", "value"]`. */
+    readonly kinds?: readonly FindKind[];
+}
+
+/**
+ * One node or edge the text found. `kind` says which, and narrows `id`: a node hit is picked with
+ * `selection.apply({ nodes: [hit.id] })`, an edge hit with `{ edges: [hit.id] }`.
+ */
+export type FindHit = (
+    | {
+          /** A node. */
+          readonly kind: "node";
+          /** Its id. */
+          readonly id: NodeId;
+      }
+    | {
+          /** An edge. */
+          readonly kind: "edge";
+          /** Its element-assigned id. */
+          readonly id: EdgeId;
+      }
+) & {
+    /**
+     * What to call it. A node: its label attribute (`data.knownFields.nodeLabelPath`), else its
+     * id. An edge: its two ends' labels, `"a -> b"` on a directed graph and `"a -- b"` otherwise.
+     */
+    readonly label: string;
+    /** Where the text was found: `"id"`, or an attribute path such as `"data.name"`. */
+    readonly matched: { readonly path: Path; readonly value: string | number };
+    /** Present when the visibility filter or the time window leaves this element out. */
+    readonly excludedBy?: "filter";
+};
+
+/** One attribute value the text found, with how many elements carry it. */
+export interface FindValue {
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The attribute path, such as `"data.group"`. */
+    readonly path: Path;
+    /** The value. */
+    readonly value: string | number;
+    /** How many nodes (or edges) carry exactly this value: what `scope.count({ where })` gives. */
+    readonly count: number;
+    /** The rule matching them, ready for `selection.apply({ where })` or `scope.count({ where })`. */
+    readonly where: Query;
+}
+
+/** What a find box lists for one text. */
+export interface FindResult {
+    /** Nodes and edges, best match first, at most `limit`. */
+    readonly elements: readonly FindHit[];
+    /** Matched attribute values, exact matches first, at most `limit`. */
+    readonly values: readonly FindValue[];
+    /** How many nodes and edges matched in all, before the limit. */
+    readonly total: number;
 }
 
 /**
@@ -437,6 +503,19 @@ export interface SessionDataApi {
      *     number of zero or more.
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * What a find box lists as the reader types, without selecting anything: the nodes and edges
+     * whose id or attribute values contain the text (ignoring case), best first -- an exact label
+     * or id, then a label or id that starts with the text, then the rest -- and one row per
+     * matched attribute value with how many elements carry it. It never changes the selection or
+     * the history; hand a pick to `selection.apply` for that.
+     * @param text - What was typed; blank text finds nothing.
+     * @param options - The limit and the kinds to list; every field optional.
+     * @returns The hits, the value rows and the total.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `limit` is not a whole number of zero or
+     *     more.
+     */
+    find(text: string, options?: FindOptions): FindResult;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.

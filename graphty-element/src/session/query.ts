@@ -20,7 +20,14 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type { EdgeId, NodeId, Path, Query } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import type { SelectionMatch, SelectionSearchHit, SelectionTextMode } from "./selection";
-import { columnsFor, compileExpressionPredicate, type SelectorSource, type SelectorTarget } from "./styles/predicate";
+import {
+    columnsFor,
+    compileExpressionPredicate,
+    quotePath,
+    type SelectorSource,
+    type SelectorTarget,
+} from "./styles/predicate";
+import type { FindHit, FindKind, FindResult, FindValue } from "./types";
 
 /** Everything the engine reads. */
 interface QueryEngineParts {
@@ -43,6 +50,37 @@ interface QueryEngineParts {
      * @returns The paths, such as `data.label`.
      */
     readonly searchPaths: () => readonly Path[];
+    /**
+     * The edge attribute paths a find reads, beside the id. Absent, edges are found by id only.
+     * @returns The paths, such as `data.kind`.
+     */
+    readonly edgeSearchPaths?: () => readonly Path[];
+    /**
+     * The path that names a node, such as `data.name`, or null when only the id names one.
+     * @returns The path.
+     */
+    readonly labelPath?: () => Path | null;
+    /**
+     * The node attribute path that carries the id itself, such as `data.id`: a find reads the id
+     * once, as `"id"`, and lists no value row for it.
+     * @returns The path, or null.
+     */
+    readonly idPath?: () => Path | null;
+    /**
+     * Whether the visibility filter or the time window leaves an element out. Absent, none is.
+     * @param target - Which kind of element.
+     * @param index - Its dense index.
+     * @returns True when it is left out.
+     */
+    readonly excluded?: (target: SelectorTarget, index: number) => boolean;
+}
+
+/** What {@link QueryEngine.search} reads beside the text, already checked. */
+export interface SearchRequest {
+    /** The most hits, and the most value rows. */
+    readonly limit: number;
+    /** What to list. */
+    readonly kinds: ReadonlySet<FindKind>;
 }
 
 /** The session's query engine. */
@@ -85,6 +123,14 @@ export interface QueryEngine {
      * @returns The hits, in index order.
      */
     find(text: string, mode: SelectionTextMode): SelectionSearchHit[];
+    /**
+     * What a find box lists: nodes and edges whose id or values contain the text, ranked, and the
+     * matched values with their counts. Reads only; selects nothing.
+     * @param text - What was typed.
+     * @param request - The limit and the kinds.
+     * @returns The hits, the value rows and the total.
+     */
+    search(text: string, request: SearchRequest): FindResult;
 }
 
 /**
@@ -188,6 +234,159 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         unresolvedPathsOf: (where) => unresolvedOf(compile(where, "node").paths),
         pathsOf: (where) => compile(where, "node").paths,
         find,
+        search: (text, request) => search(parts, text, request),
+    };
+}
+
+/** How well a hit matched: lower ranks first. */
+const enum Rank {
+    ExactName = 0,
+    NameStart = 1,
+    Name = 2,
+    ExactValue = 3,
+    Value = 4,
+}
+
+/**
+ * How well one value matched.
+ * @param isName - Whether the value is the element's id or label.
+ * @param exact - Whether it is the text, ignoring case.
+ * @param start - Whether it starts with the text.
+ * @returns The rank.
+ */
+function rankOf(isName: boolean, exact: boolean, start: boolean): Rank {
+    if (!isName) {
+        return exact ? Rank.ExactValue : Rank.Value;
+    }
+
+    if (exact) {
+        return Rank.ExactName;
+    }
+
+    return start ? Rank.NameStart : Rank.Name;
+}
+
+/**
+ * The find box's search: one pass over each kind, ranking every element by its best match.
+ * @param parts - What the engine reads.
+ * @param text - What was typed.
+ * @param request - The limit and the kinds.
+ * @returns The hits, the value rows and the total.
+ */
+function search(parts: QueryEngineParts, text: string, request: SearchRequest): FindResult {
+    const wanted = text.trim().toLowerCase();
+    if (wanted === "") {
+        return { elements: [], values: [], total: 0 };
+    }
+
+    const graph = parts.snapshot();
+    const { elements } = parts;
+    const labelPath = parts.labelPath?.() ?? null;
+    const nameOf = (index: number): string => {
+        const label = labelPath === null ? undefined : elements.nodeValue(index, labelPath);
+        return typeof label === "string" || typeof label === "number"
+            ? String(label)
+            : String(elements.nodeIdOf(index));
+    };
+    const hits: (FindHit & { rank: Rank; order: number })[] = [];
+    // Every matched value, keyed by kind, path and value, counted in the same pass.
+    // Every element carrying a matched value contains the text, so the scan visits all of them.
+    const values = new Map<string, Omit<FindValue, "count"> & { count: number; exact: boolean }>();
+    const listValues = request.kinds.has("value");
+    const arrow = graph.directed ? " -> " : " -- ";
+
+    const scan = (target: SelectorTarget, count: number, paths: readonly Path[], namePath: Path | null): void => {
+        const listElements = request.kinds.has(target);
+        if (!listElements && !listValues) {
+            return;
+        }
+
+        const read = target === "node" ? elements.nodeValue : elements.edgeValue;
+        const idOf = target === "node" ? elements.nodeIdOf : elements.edgeIdOf;
+        for (let index = 0; index < count; index++) {
+            // The best match so far; a null rank means none yet.
+            const best: { rank: Rank | null; path: Path; value: string | number } = { rank: null, path: "", value: "" };
+            const consider = (path: Path, value: string | number, isName: boolean): void => {
+                const candidate = String(value).toLowerCase();
+                const at = candidate.indexOf(wanted);
+                if (at < 0) {
+                    return;
+                }
+
+                const rank = rankOf(isName, candidate.length === wanted.length, at === 0);
+                if (best.rank === null || rank < best.rank) {
+                    best.rank = rank;
+                    best.path = path;
+                    best.value = value;
+                }
+            };
+
+            const id = idOf(index);
+            consider("id", id, true);
+            for (const path of paths) {
+                const value = read(index, path);
+                if (typeof value !== "string" && typeof value !== "number") {
+                    continue;
+                }
+
+                const isName = path === namePath;
+                consider(path, value, isName);
+                if (listValues && !isName && String(value).toLowerCase().includes(wanted)) {
+                    const key = JSON.stringify([target, path, value]);
+                    const row = values.get(key);
+                    if (row !== undefined) {
+                        row.count++;
+                    } else {
+                        values.set(key, {
+                            kind: target,
+                            path,
+                            value,
+                            count: 1,
+                            where: `${quotePath(path)} == \`${JSON.stringify(value).replace(/`/g, "\\`")}\``,
+                            exact: String(value).toLowerCase() === wanted,
+                        });
+                    }
+                }
+            }
+
+            if (best.rank === null || !listElements) {
+                continue;
+            }
+
+            const identity =
+                target === "node"
+                    ? { kind: "node" as const, id, label: nameOf(index) }
+                    : {
+                          kind: "edge" as const,
+                          id: elements.edgeIdOf(index),
+                          label: nameOf(graph.edgeSource(index)) + arrow + nameOf(graph.edgeTarget(index)),
+                      };
+            hits.push({
+                ...identity,
+                matched: { path: best.path, value: best.value },
+                ...(parts.excluded?.(target, index) === true ? { excludedBy: "filter" as const } : {}),
+                rank: best.rank,
+                order: hits.length,
+            });
+        }
+    };
+
+    const idPath = parts.idPath?.() ?? null;
+    scan(
+        "node",
+        graph.nodeCount,
+        parts.searchPaths().filter((path) => path !== idPath),
+        labelPath,
+    );
+    scan("edge", graph.edgeCount, parts.edgeSearchPaths?.() ?? [], null);
+
+    hits.sort((a, b) => a.rank - b.rank || a.order - b.order);
+    const rows = [...values.values()].sort((a, b) => Number(b.exact) - Number(a.exact));
+
+    return {
+        elements: hits.slice(0, request.limit).map(({ rank: _rank, order: _order, ...hit }) => hit),
+        values: rows.slice(0, request.limit).map(({ exact: _exact, ...row }) => row),
+        total: hits.length,
     };
 }
 

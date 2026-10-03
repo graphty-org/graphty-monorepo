@@ -32,6 +32,7 @@ import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { Ingest } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
+import type { SearchRequest } from "./query";
 import type { ResolvedScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -41,6 +42,9 @@ import type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    FindKind,
+    FindOptions,
+    FindResult,
     GraphStatistics,
     ImportOptions,
     NodeRecord,
@@ -78,7 +82,20 @@ interface PageSources {
      * @returns its members
      */
     resolve(spec: ScopeInput): ResolvedScope;
+    /**
+     * The find box's search, over the session's query engine.
+     * @param text - what was typed
+     * @param request - the checked limit and kinds
+     * @returns the hits
+     */
+    search(text: string, request: SearchRequest): FindResult;
 }
+
+/** How many hits a find returns when the caller does not say. */
+const DEFAULT_FIND_LIMIT = 20;
+
+/** What a find lists when the caller does not say. */
+const FIND_KINDS: readonly FindKind[] = ["node", "edge", "value"];
 
 /** How many records a page holds when the caller does not say. */
 const DEFAULT_PAGE_LIMIT = 100;
@@ -488,6 +505,31 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", options, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * What a find box lists, without selecting anything.
+     * @param text - what was typed
+     * @param options - the limit and the kinds
+     * @returns the hits, the value rows and the total
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad limit or kind, `E_DISPOSED` once disposed.
+     */
+    find(text: string, options: FindOptions = {}): FindResult {
+        this.requireLive("find");
+        const { limit } = pageWindow({ limit: options.limit ?? DEFAULT_FIND_LIMIT }, "find");
+        const kinds = options.kinds ?? FIND_KINDS;
+        for (const kind of kinds) {
+            if (!FIND_KINDS.includes(kind)) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `data.find() lists "node", "edge" and "value", not ${JSON.stringify(kind)}`,
+                    source: "data",
+                    details: { option: "kinds", value: kind },
+                });
+            }
+        }
+
+        return this.pages.search(text, { limit, kinds: new Set(kinds) });
     }
 
     /**

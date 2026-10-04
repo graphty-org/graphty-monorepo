@@ -388,7 +388,7 @@ async function carryOut(state, job, window, { decision, screen, now, sleep }, le
     /** @type {Record<string, () => Promise<void> | void>} */
     const handlers = {
         "usage-limit": () => {
-            usageLimit(state, screen, now);
+            usageLimit(state, job, screen, now);
             line("usage-limit-screen", { resets: screen.resets ?? null, extraUsage: Boolean(screen.extraUsage) });
         },
         "steering-ended": () => {
@@ -438,16 +438,19 @@ async function carryOut(state, job, window, { decision, screen, now, sleep }, le
 /**
  * The usage-limit screen (design 8.3): a usage stop, and with extra usage in use one owner item.
  * @param {any} state the daemon state
+ * @param {any} job the job whose screen shows it
  * @param {import("./screen.mjs").Screen} screen the screen
  * @param {Date} now the current time
  */
-function usageLimit(state, screen, now) {
-    if (state.apiStop?.kind !== "usage") {
+function usageLimit(state, job, screen, now) {
+    // A new stop, or the canary of the last one showing the limit again (design 8.3).
+    if (state.apiStop?.kind !== "usage" || state.apiStop.canary === job.id) {
         state.apiStop = {
             kind: "usage",
             error: "usage-limit screen",
             at: now.toISOString(),
             resets: screen.resets ?? null,
+            probes: state.apiStop?.kind === "usage" ? (state.apiStop.probes ?? 0) : 0,
         };
     }
     if (screen.extraUsage) {

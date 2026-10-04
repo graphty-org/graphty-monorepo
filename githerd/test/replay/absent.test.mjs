@@ -159,7 +159,7 @@ describe("an absent week, through the whole daemon", () => {
             env: { GITHERD_CONFIG: config, PATH: process.env.PATH },
             stateDir: join(dir, ".githerd"),
             autoPoll: false,
-            runs: false,
+            workers: false,
             log: () => {},
         });
         try {

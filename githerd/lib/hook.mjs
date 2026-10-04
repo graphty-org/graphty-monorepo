@@ -465,7 +465,9 @@ function stopFailure(state, job, req, now) {
     const entry = { kind: "api-failure", error, job: job?.id ?? null, session };
     const at = now.toISOString();
     if (error === "rate_limit") {
-        state.apiStop = { kind: "usage", error, at, session };
+        // A canary that hit the limit again keeps the count of probes, so the next one waits longer.
+        const probes = state.apiStop?.kind === "usage" ? (state.apiStop.probes ?? 0) : 0;
+        state.apiStop = { kind: "usage", error, at, session, probes };
     } else if (CREDENTIAL.has(error) || /Consumer Terms/.test(text)) {
         state.apiStop = { kind: "credential", error, at, session };
         raiseItem(
@@ -573,6 +575,16 @@ function stop(state, job, req, facts, now) {
     const lifted = [];
     if (state.apiStop?.kind === "credential") {
         lifted.push({ kind: "api-stop-lifted", error: state.apiStop.error, session: req.input.session_id });
+        state.apiStop = null;
+    }
+    // The usage stop's canary completed a turn: the limit has reset (design 8.3).
+    if (state.apiStop?.kind === "usage" && state.apiStop.canary && req.job === state.apiStop.canary) {
+        lifted.push({
+            kind: "api-stop-lifted",
+            error: state.apiStop.error,
+            session: req.input.session_id,
+            canary: req.job,
+        });
         state.apiStop = null;
     }
     if (!job) return { answer: {}, ledger: lifted };

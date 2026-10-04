@@ -267,6 +267,7 @@ const VERIFY_POLLS = 2;
  * @property {any} facts what the queue order reads (`queue.mjs`): since, scope, bug, order, labels,
  *   next, skip, storybook
  * @property {string | null} [cancelledBy] the job or event that superseded it
+ * @property {"worktree" | "registry" | "first-call"} [phase] the start phase while `starting`
  */
 
 /**
@@ -799,7 +800,8 @@ const CLOCKED = new Set(["blocked", "starting", "working", "waiting"]);
  */
 const HOLDER_CHECKS = {
     blocked: (job) => (job.waitingFor?.job ? null : "blocked on nothing named"),
-    starting: (job) => (job.holder?.session ? null : "starting with no session"),
+    // The worktree and registry phases have no session yet; the first call's phase has one.
+    starting: (job) => (job.holder?.session || job.phase !== "first-call" ? null : "starting with no session"),
     verifying: (job) => (job.holder?.session ? null : "verifying with no session"),
     working: (job, facts) =>
         (job.holder?.session && facts.sessionAlive(job.holder.session)) || facts.recovering(job.id)

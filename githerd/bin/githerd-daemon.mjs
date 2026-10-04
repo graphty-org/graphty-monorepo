@@ -46,7 +46,7 @@ const daemon = await startDaemon({
     root,
     port,
     autoPoll: !once,
-    ...(once ? { quiet: true } : { fatalOnUncaught: true }),
+    ...(once ? { quiet: true, workers: false } : { fatalOnUncaught: true }),
     ...(process.env.GITHERD_STATE_DIR ? { stateDir: process.env.GITHERD_STATE_DIR } : {}),
 });
 if (daemon.fenced) process.exit(1);

@@ -397,6 +397,7 @@ export async function protocolCheck({ root, previous, env, startDaemon }) {
         env,
         stateDir,
         autoPoll: false,
+        workers: false,
         quiet: true,
         log: () => {},
     });

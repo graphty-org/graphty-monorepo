@@ -603,6 +603,11 @@ describe("checkInvariants", () => {
         blocked.waitingFor = null;
         const starting = jobIn(["starting"], { target: "4" });
         starting.holder = null;
+        starting.phase = "first-call";
+        // Before the session registered, a starting job has none yet.
+        const preparing = jobIn(["starting"], { target: "5" });
+        preparing.holder = null;
+        preparing.phase = "worktree";
         const dead = jobIn(["starting", "working"], { target: "6" });
         dead.holder = { session: "gone" };
         const settled = jobIn(["starting", "working"], { target: "7" });
@@ -612,7 +617,7 @@ describe("checkInvariants", () => {
         const parked = jobIn(["starting", "working"], { target: "10" });
         move(parked, "parked", T0, { waitingFor: { owner: "item-2" } });
         const state = {
-            ...stateOf(unknown, noDeadline, blocked, starting, dead, settled, undeclared, parked),
+            ...stateOf(unknown, noDeadline, blocked, starting, preparing, dead, settled, undeclared, parked),
             orders: [{ id: "o1", issues: [42] }],
         };
         expect(checkInvariants(state, facts)).toEqual([

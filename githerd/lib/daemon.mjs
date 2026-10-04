@@ -72,8 +72,10 @@ import { createGitHub, GitHubError } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { syncJobs } from "./jobs.mjs";
+import { checkFaults, noteGitHubChanges, settleWaits, tickJobs, waitNews } from "./advance.mjs";
+import { endIdleSessions, fillSlots, isUrgent, realPlatform, refreshGuards, tidyEndedJobs } from "./start.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
-import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, targetCode } from "./launcher.mjs";
+import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
@@ -113,10 +115,11 @@ import { stopGating, updateGate } from "./self-update.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
-import { ring as ringWorker } from "./tmux.mjs";
+import { ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { endRetired, watchPass } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
+import { removeJobWorktree } from "./worktrees.mjs";
 
 /** How often the watchdog looks at the workers (design 7.5). */
 const WATCH_MS = 60_000;
@@ -382,6 +385,10 @@ function voidHolders(state, restarted) {
  * @param {boolean} [options.autoPoll] poll at once and then on the timer; tests call `poll()`
  * @param {(line: string) => void} [options.log] one plain-ASCII line per event; stdout by default
  * @param {boolean} [options.quiet] record pages in the ledger without running the notify command
+ * @param {boolean} [options.workers] false starts no worker session (the one-poll check and the
+ *   self-update's protocol test); true by default
+ * @param {Partial<import("./start.mjs").Platform>} [options.platform] overrides for what a worker
+ *   start touches (tests pass fakes)
  * @param {import("./merge-status.mjs").NpmLookup} [options.npm] whether npm knows a package; the
  *   registry by default
  * @returns {Promise<Daemon>} the running daemon
@@ -399,6 +406,8 @@ export async function startDaemon({
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
     quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
+    workers: workersOn = true,
+    platform: platformOptions = {},
     npm = npmLookup(),
 }) {
     const startedAtDate = now();
@@ -488,6 +497,13 @@ export async function startDaemon({
     // After a container restart every recorded pid and pane is void (design 3.5, 9.2): a worker's
     // session did not die of anything the job did, so no death is counted; the job continues.
     const voided = voidHolders(state, containerRestarted);
+    // A start this process did not finish (its preparation or its window, before the registry
+    // answered) is githerd's own loss, not the job's: the job goes back to the queue.
+    for (const job of Object.values(state.jobs ?? {})) {
+        if (job.state === "starting" && !job.holder?.pane) {
+            board.move(job, "queued", startedAtDate, { reason: "githerd restarted during the start" });
+        }
+    }
 
     let fenced = false;
     /** set once halt releases the lock: work that ends later must not write the state */
@@ -743,8 +759,9 @@ export async function startDaemon({
         doneIo({ root, repo: config.repo, github: github(), branch: state.master.branch ?? "master" });
 
     /**
-     * Raises the owner item of a red master that needs him: githerd restarted on rebuilt state into
-     * a red master. It blocks the release, so it pages even while he is away.
+     * Raises the owner item of a red master that needs him: no worker can take its incident job, or
+     * githerd restarted on rebuilt state into a red master. It blocks the release, so it pages even
+     * while he is away.
      * @param {string} id the incident
      * @param {string} why what makes it his, appended to the incident's lanes
      */
@@ -1200,10 +1217,10 @@ export async function startDaemon({
             .filter(Boolean)
             .sort((/** @type {string} */ a, /** @type {string} */ b) => a.localeCompare(b))[0];
         const restartedSince = recovery && since && since < recovery.at ? since : undefined;
+        // An incident job takes the red master (jobs.mjs); the owner hears of it when no worker
+        // can take it or the job fails. After an empty-state start he hears of it at once.
         if (restartedSince) {
             masterRedItem(incident.id, `githerd restarted, master is red since ${restartedSince.slice(0, 16)} UTC`);
-        } else {
-            masterRedItem(incident.id, "no worker will take it");
         }
     }
 
@@ -1306,6 +1323,9 @@ export async function startDaemon({
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
+        // No owner, no jobs: every job acts only on the owner's issues and pull requests.
+        if (state.trust.login) await jobsFromFacts(branch, t);
+        await workerPass();
         escalationItems();
         await ownerItemsPoll({
             api: gh,
@@ -1341,8 +1361,6 @@ export async function startDaemon({
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
-        // No owner, no jobs: every job acts only on the owner's issues and pull requests.
-        if (state.trust.login) await jobsFromFacts(branch, t);
         return null;
     }
 
@@ -1756,6 +1774,132 @@ export async function startDaemon({
 
     let watching = false;
     let retiring = false;
+    let passing = false;
+    /** @type {Map<string, Promise<void>>} worker starts in flight, by job (start.mjs) */
+    const tasks = new Map();
+    const platform = { ...realPlatform({ env, stateDir }), ...platformOptions };
+    /** @type {string} the open owner items' targets as last written to the guards */
+    let guardItems = "";
+
+    /**
+     * What every worker step reads: the state, the config and the clock, the ledger, and the
+     * `workers` group's mode.
+     * @returns {import("./start.mjs").StartContext} the context
+     */
+    const startContext = () => ({
+        state,
+        config,
+        root,
+        stateDir,
+        env,
+        now,
+        ledger,
+        save,
+        mode: writeMode("workers"),
+        platform,
+        tasks,
+    });
+
+    /**
+     * The worker steps of every reconcile and watchdog pass (design 9.3): every deadline clock
+     * ticks, settled waits ring their workers, the invariant check runs, sessions githerd does not
+     * keep are ended, free slots are filled, and ended jobs' worktrees removed. Skipped while one
+     * runs, in fatal mode, without a config or the owner's login, or when the daemon cannot write.
+     */
+    async function workerPass() {
+        if (passing || stopping || fatal || !config || !state.trust.login || !mayWrite()) return;
+        passing = true;
+        try {
+            const t = now();
+            const pauses = {
+                unknown: Boolean(state.github.downSince),
+                usage: state.apiStop?.kind === "usage",
+                paused: mode() === "paused",
+            };
+            const steps = [...tickJobs(state, t, pauses), ...settleWaits(state, t)];
+            noteGitHubChanges(state, t);
+            for (const s of steps) void ledger(/** @type {any} */ (s.line));
+            for (const s of steps) if (s.ring) await ringJob(state.jobs[s.job]);
+            checkFaults(state, invariantReads(), t);
+            const ctx = startContext();
+            const ended = endIdleSessions(ctx);
+            for (const id of ended) void ledger({ kind: "session-parked", job: id });
+            if (state.retiring?.length) setImmediate(() => void retire());
+            const items = JSON.stringify(
+                Object.values(state.ownerItems ?? {})
+                    .filter((i) => !i.endedAt)
+                    .map((i) => i.target),
+            );
+            if (items !== guardItems) {
+                refreshGuards(state, config, stateDir);
+                guardItems = items;
+            }
+            const filled = workersOn && !state.github.downSince ? await fill(ctx) : [];
+            const removed = await tidyEndedJobs({
+                ...ctx,
+                servers: async () => {
+                    const found = launcherContext({ cwd: root, env, stateDir });
+                    if (found.kind !== "ready") return [];
+                    const data = await servherd(found.ctx, ["list"]);
+                    return (data.servers ?? []).map((/** @type {any} */ x) => ({
+                        name: x.server?.name,
+                        cwd: x.server?.cwd,
+                    }));
+                },
+                stopServer: async (name) => {
+                    const found = launcherContext({ cwd: root, env, stateDir });
+                    if (found.kind === "ready") await servherd(found.ctx, ["stop", name]);
+                },
+                remove: removeJobWorktree,
+            });
+            if (steps.length || ended.length || filled.length || removed.length) await save();
+        } catch (err) {
+            say("error", `workers: ${/** @type {Error} */ (err).message}`);
+            void ledger({ kind: "error", where: "workers", error: /** @type {Error} */ (err).message });
+        } finally {
+            passing = false;
+        }
+    }
+
+    /**
+     * Fills free slots; when no worker may start, the owner hears of a red master no worker will take
+     * (design 4.5: the incident job is the fix, and he is paged only when it cannot start or fails).
+     * @param {import("./start.mjs").StartContext} ctx the context
+     * @returns {Promise<string[]>} the jobs admitted
+     */
+    async function fill(ctx) {
+        const r = await fillSlots(ctx);
+        const open = Object.values(state.incidents).find((i) => i.status === "open");
+        const waits = Object.values(state.jobs ?? {}).some(
+            (j) => j.state === "queued" && isUrgent(j) && j.facts?.incident === open?.id,
+        );
+        // An item already open for this incident (a restart into a red master) is not raised again.
+        const item = open && state.ownerItems?.[`master-red:${open.id}`];
+        if (r.blocked && open && waits && (!item || item.endedAt)) {
+            masterRedItem(open.id, `no worker will take it: ${r.blocked}`);
+        }
+        return r.admitted;
+    }
+
+    /**
+     * What the invariant check reads (design 9.5).
+     * @returns {import("./board.mjs").Reads} the reads
+     */
+    function invariantReads() {
+        const t = now();
+        return {
+            sessionAlive: (session) => {
+                const job = Object.values(state.jobs ?? {}).find((j) => j.holder?.session === session);
+                if (job?.holder?.pid) return running(job.holder.pid, job.holder.startTime);
+                return board.holderAlive(state, session, t, startedAtDate);
+            },
+            recovering: (id) => tasks.has(id) || !state.jobs?.[id]?.holder,
+            waitPending: (job) =>
+                Boolean(job.waitingFor?.push || job.waitingFor?.verify || job.waitingFor?.local) ||
+                waitNews(state, job) === null,
+            itemOpen: (item) => Boolean(state.ownerItems?.[item] && !state.ownerItems[item].endedAt),
+        };
+    }
 
     /**
      * Ends the sessions on `state.retiring`: those of jobs that ended done, failed or back in the
@@ -1804,6 +1948,7 @@ export async function startDaemon({
                 });
             }
             if (pass.ledger.length || pass.dead.length) await save();
+            await workerPass();
         } catch (err) {
             const error = /** @type {Error} */ (err).message;
             say("error", `watchdog: ${error}`);
@@ -2134,7 +2279,11 @@ export async function startDaemon({
         await save();
         for (const line of result.ledger) await ledger(line);
         // The job is done or left this session: end it once the hook has its answer.
-        if (result.end && !spooled) setImmediate(() => void retire());
+        if (result.end && !spooled) {
+            setImmediate(() => {
+                void retire().then(() => workerPass());
+            });
+        }
         return result.answer;
     }
 

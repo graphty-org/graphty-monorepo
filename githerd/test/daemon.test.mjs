@@ -647,6 +647,8 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.map((e) => [e.group, e.op, e.situation, e.key])).toEqual([
+            // the incident job a worker would take, were the workers group acting
+            ["workers", "start a worker for incident-ci-Build-", undefined, undefined],
             ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
             ["incidents", "POST actions/jobs/900/rerun", "parent-retest", "ci / Build / "],
         ]);

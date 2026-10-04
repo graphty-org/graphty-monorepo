@@ -10,11 +10,44 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+    # Which run holds the coverage: master's own CI run when it ran the test shards, otherwise the merge
+    # queue's run that passed the full suite on exactly this tree (ci.yml's plan job skips the shards on
+    # such a push; tools/full-suite-proof.sh finds the run by its full-suite-passed-<tree> artifact).
+    source:
+        name: Find the run with the coverage
+        runs-on: ubuntu-24.04
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        permissions:
+            actions: read
+            contents: read
+        outputs:
+            run-id: ${{ steps.find.outputs.run-id }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - id: find
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ github.event.workflow_run.id }}
+                  SHA: ${{ github.event.workflow_run.head_sha }}
+              run: |
+                  own=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN}/artifacts?per_page=100" \
+                      --jq '[.artifacts[] | select(.name | startswith("coverage-"))] | length')
+                  if [[ "$own" != 0 ]]; then
+                      run="$RUN"
+                  else
+                      run=$(./tools/full-suite-proof.sh "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq .commit.tree.sha)")
+                  fi
+                  [[ -n "$run" ]] || { echo "::warning::no run with coverage for ${SHA}"; exit 0; }
+                  echo "coverage from run ${run}"
+                  echo "run-id=${run}" >> "$GITHUB_OUTPUT"
+
     # Merge blob reports from graphty-element shards
     merge-reports:
         name: Merge Test Reports
+        needs: source
         runs-on: ubuntu-24.04
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        if: ${{ needs.source.outputs.run-id != '' }}
         steps:
             - uses: actions/checkout@v4
 
@@ -37,7 +70,7 @@ jobs:
                   pattern: blob-report-*
                   path: graphty-element/.vitest-reports
                   merge-multiple: true
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ needs.source.outputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Merge test reports
@@ -46,9 +79,8 @@ jobs:
     # Merge and publish coverage to Coveralls
     coverage:
         name: Publish Coverage
-        needs: merge-reports
+        needs: [source, merge-reports]
         runs-on: ubuntu-24.04
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         steps:
             - uses: actions/checkout@v4
 
@@ -70,7 +102,7 @@ jobs:
               with:
                   pattern: coverage-*
                   path: coverage-reports
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ needs.source.outputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: List downloaded artifacts

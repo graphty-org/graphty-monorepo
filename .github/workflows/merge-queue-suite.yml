@@ -1,0 +1,36 @@
+name: Merge queue suite
+
+# Starts ci.yml's full suite on a pull request when Mergify's queue starts checking it (Mergify puts
+# the "checking" label on it, .mergify.yml merge_queue.checking_label). A pull request that is behind
+# its base gets the full suite from Mergify's update push anyway; one that is already up to date gets
+# no push, so this re-runs its newest CI run, which then runs as the full suite and is the only kind
+# of run that publishes "All Checks Pass", the check Mergify needs before it merges.
+# A workflow of its own because a "labeled" trigger on ci.yml would start a CI run for every label
+# change (Mergify's queued and dequeued labels included), each cancelling the real run of that pull
+# request and becoming the run the visual review page opens. tools/merge-queue-suite.sh has the logic.
+on:
+    pull_request:
+        types: [labeled]
+
+jobs:
+    start:
+        name: Start the full suite
+        if: github.event.label.name == 'checking'
+        runs-on: ubuntu-24.04
+        # On the job, not the workflow: a workflow-level group would let a later label event (queued,
+        # hold, ...) replace a pending "checking" run before its condition filtered it out.
+        concurrency:
+            group: merge-queue-suite-${{ github.event.pull_request.number }}
+        permissions:
+            actions: write
+            contents: read
+            pull-requests: read
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Re-run the pull request's CI run as the full suite
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+              run: ./tools/merge-queue-suite.sh "$PR"

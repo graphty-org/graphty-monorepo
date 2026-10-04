@@ -2,12 +2,10 @@
 /**
  * ci-test-matrix.mjs -- the test shards of ci.yml, filtered to the projects a run must test.
  *
- * ci.yml's build job calls this once and hands the result to the test job as its matrix, so a
- * pull request runs only the shards of the packages it affects (the packages it changed plus
- * every package that depends on them) instead of all of them. Why: each pull request run used to
- * be about 30 jobs, and the organisation's plan runs about 60 at once, so two open pull requests
- * queued each other. A push to master and a manual dispatch pass the full project list as the
- * affected list, so they still run every shard.
+ * ci.yml's build job calls this once and hands the result to the test job as its matrix. The
+ * full suite (Mergify's queue, a manual dispatch, an unproven push to master) passes the full
+ * project list as the affected list and runs every shard; a review run and a proven master push
+ * pass an empty list and run none (CLAUDE.md, "Merging").
  *
  * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).

@@ -450,8 +450,9 @@ All packages: 80% lines/functions/statements, 75% branches
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job) |
-| `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls |
+| `ci.yml` | Push/PR, merge queue | On a push to a pull request, the review suite (builds, visual capture, the visual-review gate: "Ready to Queue"); in Mergify's queue and on master, the full suite: build, lint, sharded tests (22 parallel jobs), dead links (the `Links` job), "All Checks Pass". See "Merging" |
+| `merge-queue-suite.yml` | `checking` label | Re-runs a queued, up-to-date pull request's CI run as the full suite (`tools/merge-queue-suite.sh`) |
+| `coverage.yml` | After CI | Merge coverage reports, publish to Coveralls; on a master push that skipped the shards, from the queue run that tested the same tree |
 | `release.yml` | After CI (master) | Semantic release with Nx |
 | `deploy-pages.yml` | Called by `release.yml` after a release | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
@@ -464,8 +465,8 @@ All packages: 80% lines/functions/statements, 75% branches
 Configured by `lychee.toml` and `.lycheeignore` (URL patterns never worth checking, each with its
 reason); run by `tools/check-links.sh`:
 
-- **Every pull request** (ci.yml, job `Links`, needed by `All Checks Pass`, about 20 seconds after
-  the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
+- **Every pull request, in the merge queue, and every master push** (ci.yml, job `Links`, needed
+  by `All Checks Pass`, about 20 seconds after the artifacts download): relative links and `#anchors` in every tracked Markdown, MDX, HTML file
   and package.json; `github.com/graphty-org/graphty-monorepo/(blob|tree)/master/...` links resolved
   against the checkout; every other `github.com/graphty-org` link over the network; and every
   `https://graphty.app` link resolved against the site the next deploy would publish, which the job
@@ -517,7 +518,8 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
+The CI runs 22 parallel test jobs in the full suite (Mergify's queue, a manual dispatch, and a push to
+master whose tree the queue did not already test):
 - `graph-format`
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
@@ -532,10 +534,8 @@ The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
 - `graphty-element-browser-1` through `graphty-element-browser-5`
 - `graphty-element-storybook-1` through `graphty-element-storybook-4`
 
-A pull request runs only the shards (and Chromatic jobs) of the packages nx calls affected; the
-shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
-`sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
-everything.
+A push to a pull request runs none of them (see "Merging"). The shard list lives in
+`tools/ci-test-matrix.mjs`.
 
 ## Architecture & Key Patterns
 
@@ -802,21 +802,40 @@ that starts the same server from the owner's own shell, which is how the owner s
 ### Build System
 
 - Nx caches build outputs in `.nx/cache`
-- Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
 - Release workflow reuses CI artifacts (no rebuild)
 
 ### Merging
 
-Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
-a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to
-date with master and merges it once `All Checks Pass` (which includes the visual-review gate) and
-`Lint PR Title` succeed. Nobody turns on auto-merge by hand.
+Every merge goes through Mergify (`.mergify.yml`), into master and into any other base branch
+(stacked pull requests too). Nobody merges by hand, with the merge button, with `gh pr merge`, or with
+`gh pr merge --auto`.
+
+1. A push to a pull request runs CI's **review suite**: the package and Storybook builds, the
+   `visual (<project>)` capture jobs and the visual-review gate, summarized as the check
+   **"Ready to Queue"**, plus `Lint PR Title`. No test shards run here.
+2. Once both are green, and the pull request is not a draft, has no conflict, no `hold` label and no
+   breaking `!` in its title, Mergify queues it.
+3. When the queue starts checking it, Mergify labels it `checking` and merges its base into it if it
+   is behind. CI then runs the **full suite** on it: every test shard, lint, knip and every check,
+   the docs, Links, and the visual-review gate again, summarized as **"All Checks Pass"** (**"All
+   Checks Pass (stacked)"** when the base is not master). Mergify's
+   update push starts that run; for a pull request already up to date, `merge-queue-suite.yml`
+   re-runs its CI run, which then runs as the full suite.
+4. Mergify merges only when that check is green on the head it merges. Only a full-suite run
+   publishes a check of that name (ci.yml's `plan` job names the summary job), so nothing merges
+   without the full suite on that tree. A full run refuses a head that is also the head of another
+   open pull request: give each pull request a commit of its own.
+5. The push to master skips the test shards when its tree passed the full suite in the queue
+   (`tools/full-suite-proof.sh`); it still builds everything release.yml and deploy-pages.yml use.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.
-- Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
-  request with it on would merge anyway.
+- A full-suite failure dequeues the pull request. Fix it and push, or, for a flake, "Re-run failed
+  jobs" on that run; once it is green, comment `@mergifyio queue` if Mergify has not queued it
+  again on its own. Every flake in the 22 shards now holds up a merge, so fix flaky tests promptly.
+- Never turn on GitHub's own auto-merge (`gh pr merge --auto`) or merge by hand: it skips the full
+  suite, and auto-merge ignores labels, so a held pull request with it on would merge anyway.
 
 ### Breaking changes and major releases
 

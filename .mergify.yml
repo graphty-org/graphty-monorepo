@@ -1,18 +1,26 @@
-# Mergify merges this repository's pull requests (https://docs.mergify.com).
+# Mergify merges this repository's pull requests (https://docs.mergify.com). Nobody merges by hand.
 #
-# A pull request into master is queued for merging when it is ready, so nobody has to switch on
-# auto-merge by hand. Mergify then keeps it up to date with master and merges it once the required
-# checks pass on the updated branch. "All Checks Pass" includes the visual-review gate, so nothing
-# merges with an image the owner has not approved.
+# Two CI suites (ci.yml, plan job; CLAUDE.md, "Merging"):
+# - Every push to a pull request runs the REVIEW suite: the builds the screenshots need, the visual
+#   capture jobs and the visual-review gate. Its summary check is "Ready to Queue".
+# - Once a pull request is green there (and Lint PR Title is), Mergify queues it. When the queue starts
+#   checking it, Mergify labels it "checking" and brings it up to date with its base; CI then runs the
+#   FULL suite on it (every test shard, every check, the gate again). Only the full suite publishes
+#   "All Checks Pass" (base master) or "All Checks Pass (stacked)" (any other base), and Mergify merges
+#   only once that check is green on the head it merges.
+#   A pull request already up to date gets no update push, so merge-queue-suite.yml re-runs its CI
+#   run on the "checking" label, and the re-run is the full suite.
 #
 # Held, never queued:
 # - a breaking change (a "!" before the colon of a conventional-commit title, e.g. "feat(x)!: ...");
 #   breaking changes wait for the grouped major release;
 # - a pull request labeled "hold";
 # - a draft.
-# One check at a time, so Mergify checks each pull request in place on its own branch (see below).
 merge_queue:
+    # One check at a time, so Mergify checks each pull request in place on its own branch (see below).
     max_parallel_checks: 1
+    # On while the queue is checking a pull request; merge-queue-suite.yml and ci.yml's plan job read it.
+    checking_label: checking
 
 # A fix for a red master goes first: label it "priority:critical". It jumps the queue and, since the
 # queue checks one pull request at a time, interrupts the one being checked, which re-queues behind it.
@@ -30,6 +38,13 @@ queue_rules:
       batch_size: 1
       update_method: merge
       merge_method: merge
+      # The ruleset's required checks (All Checks Pass, Lint PR Title) are required to MERGE only, not
+      # to enter the queue: "All Checks Pass" exists only once the queue has run the full suite.
+      # Mergify still checks in place: there are no merge_conditions, and the rulesets page of its docs
+      # names in-place checks as compatible with this mode.
+      branch_protection_injection_mode: merge
+      # The full suite takes about an hour; a check that never reports dequeues after this.
+      checks_timeout: 3 hours
       # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
       # change) takes an already-queued pull request out of the queue.
       queue_conditions:
@@ -38,16 +53,38 @@ queue_rules:
       # No merge_conditions: Mergify checks a pull request in place only when the queue is
       # single-step (merge_conditions empty or equal to queue_conditions). With them it tested a
       # temporary draft pull request instead, whose title fails Lint PR Title and whose number the
-      # visual-review gate does not know. The ruleset's required checks (All Checks Pass, Lint PR
-      # Title) are added to the queue conditions by Mergify on its own.
+      # visual-review gate does not know.
 
-# Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions;
-# the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow
-# Automation product, which this repository does not use.)
+# No ruleset covers a base branch other than master (a stacked pull request into a feature branch),
+# so nothing would be injected there: this rule requires the full suite for those merges. It is
+# active only while the pull request is queued (queue-position is -1 otherwise), so it never stops
+# auto-merge from queueing it. Master relies on the injected ruleset checks above. The check name
+# carries "(stacked)" so that a full run against one base never stands in for another (a check run
+# belongs to a commit, and a pull request's base can change).
+merge_protections:
+    - name: full suite before a merge into a branch other than master
+      if:
+          - base!=master
+          - queue-position>=0
+      success_conditions:
+          - "check-success=@github-actions/All Checks Pass (stacked)"
+
+# Merge Protections' auto-merge puts a pull request into the queue once it matches these conditions,
+# whatever its base branch; the queue's own queue_conditions still gate it. A full-suite check stands in
+# for "Ready to Queue" on a head that only the full suite ran on (Mergify's update push), so such a
+# pull request can re-enter the queue once a flaky failure is re-run green; a FAILED full-suite check
+# keeps it out, so a real failure is not queued and dequeued over and over. (pull_request_rules would
+# need Mergify's Workflow Automation product, which this repository does not use.)
 merge_protections_settings:
     auto_merge_conditions:
-        - base=master
         - -draft
         - -conflict
         - label!=hold
         - "-title~=^[a-z]+(\\([^)]*\\))?!:"
+        - check-success=Lint PR Title
+        - -check-failure=All Checks Pass
+        - -check-failure=All Checks Pass (stacked)
+        - or:
+              - check-success=Ready to Queue
+              - check-success=All Checks Pass
+              - check-success=All Checks Pass (stacked)

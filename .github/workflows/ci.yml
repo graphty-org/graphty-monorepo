@@ -30,12 +30,91 @@ concurrency:
 # Cache is stored in .nx/cache and persisted via actions/cache
 
 jobs:
+    # Which suite this run is, decided first (CLAUDE.md, "Merging"):
+    # - review: a push to a pull request. Only what the owner's screenshot review needs: the builds the
+    #   visual jobs capture, the visual jobs and the gate step. The summary job is "Ready to Queue",
+    #   which Mergify needs (with Lint PR Title) before it queues the pull request.
+    # - full: the pull request is being checked by Mergify's queue (it carries the "checking" label,
+    #   read live, so a re-run by merge-queue-suite.yml sees it), a push to master no queue run has
+    #   proven, or a manual dispatch. Every check and test shard. Only this suite publishes "All Checks
+    #   Pass" (base master) or "All Checks Pass (stacked)" (any other base), the check Mergify needs
+    #   before it merges. The name carries the base so that a run against one base can never stand in
+    #   for another: check runs belong to a commit, not to a pull request, and a base can be changed.
+    #   For the same reason a full run refuses a head that is the head of two open pull requests (the
+    #   gate binds approvals to one pull request number).
+    # - proven: a push to master whose tree passed the full suite already (tools/full-suite-proof.sh):
+    #   everything but the test shards, which ran on exactly this tree in the queue.
+    # A dispatch on any branch but master names its summary job so that it can never satisfy a merge:
+    # the gate step runs on pull requests only.
+    plan:
+        name: Plan
+        runs-on: ubuntu-24.04
+        permissions:
+            actions: read
+            contents: read
+            pull-requests: read
+        outputs:
+            suite: ${{ steps.suite.outputs.suite }}
+            check-name: ${{ steps.suite.outputs.check-name }}
+            tree: ${{ steps.suite.outputs.tree }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Choose the suite
+              id: suite
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EVENT: ${{ github.event_name }}
+                  ACTION: ${{ github.event.action }}
+                  PR: ${{ github.event.pull_request.number }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  BASE: ${{ github.base_ref }}
+              run: |
+                  tree=$(git rev-parse 'HEAD^{tree}')
+                  suite=full
+                  name="All Checks Pass"
+                  if [[ "$EVENT" == pull_request ]]; then
+                      labels=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}" --jq '[.labels[].name] | join(",")')
+                      echo "labels now: ${labels:-none}"
+                      if [[ ",${labels}," != *",checking,"* ]]; then
+                          suite=review
+                          name="Ready to Queue"
+                      else
+                          [[ "$BASE" == master ]] || name="All Checks Pass (stacked)"
+                          open=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq ".[] | select(.head.sha == \"${HEAD_SHA}\") | .number" | wc -l)
+                          if [[ "$open" -ne 1 ]]; then
+                              echo "::error::${HEAD_SHA} is the head of ${open} open pull requests; give this one a commit of its own before it can merge"
+                              exit 1
+                          fi
+                      fi
+                  elif [[ "$GITHUB_REF" != refs/heads/master ]]; then
+                      name="All Checks Pass (manual run, never merges)"
+                  elif [[ "$EVENT" == push ]]; then
+                      # An API failure falls back to the full suite rather than failing master's run.
+                      run=$(./tools/full-suite-proof.sh "$tree" || true)
+                      if [[ -n "$run" ]]; then
+                          suite=proven
+                          echo "::notice::tree ${tree} passed the full suite in run ${run}; the test shards are skipped"
+                      fi
+                  fi
+                  echo "suite: ${suite}, summary check: ${name}, tree: ${tree}"
+                  { echo "suite=${suite}"; echo "check-name=${name}"; echo "tree=${tree}"; } >> "$GITHUB_OUTPUT"
+
+    # Shows the plan's decision as a job name, which tools/merge-queue-suite.sh reads to tell a review run
+    # from a full one (job outputs are not in the API).
+    suite:
+        name: "Suite: ${{ needs.plan.outputs.suite }}"
+        needs: plan
+        runs-on: ubuntu-24.04
+        steps:
+            - run: echo "${{ needs.plan.outputs.suite }}"
+
     # Build job - runs once, shares artifacts with test shards
     build:
         name: Build
+        needs: plan
         runs-on: ubuntu-24.04
-        # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
-        # conditions read these instead of each asking nx again. See the "Plan" step below.
+        # The test job's matrix, decided once here. See the "Plan the test shards" step below.
         outputs:
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
@@ -58,33 +137,23 @@ jobs:
               env:
                   HUSKY: "0"
 
-            # Plan which packages this run tests. A pull request tests only what nx calls affected: the
-            # packages it changed plus every package that depends on them. Each pull request run used to be
-            # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
-            # requests queued each other; a pull request confined to graph-io now runs one test shard, not
-            # twenty-one. A push to master and a manual dispatch pass every project as "affected", so they
-            # run every shard and every Chromatic job exactly as before -- master is still fully tested
-            # before release.yml publishes anything.
-            # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
-            # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
-            # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
-            # change to any of them affects every project, so it runs the full set here too.
-            # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
-            # explicitly for the same reason as "Build affected (PR)" below.
-            - name: Plan affected projects and test shards
+            # The test shards: every one in the full suite, none otherwise (a review run tests nothing, and a
+            # proven master push's tree passed every shard in the queue). The shard list lives in
+            # tools/ci-test-matrix.mjs, which keeps the shards of the projects it is given as affected.
+            - name: Plan the test shards
               id: plan
+              env:
+                  SUITE: ${{ needs.plan.outputs.suite }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-                      affected=$(pnpm exec nx show projects --affected --base=origin/${{ github.base_ref }} --head=HEAD --json)
-                  else
-                      affected="$all"
-                  fi
+                  affected='[]'
+                  [[ "$SUITE" == full ]] && affected="$all"
                   node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # Security audit - run early to catch vulnerabilities before building
             # Only fail on critical and high severity vulnerabilities
             - name: Security audit
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm audit --audit-level=high
 
             - name: Cache Nx
@@ -96,24 +165,11 @@ jobs:
                       nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
                       nx-${{ runner.os }}-build-
 
-            # PR: Build then lint (build first for type dependencies). The base is named explicitly: the checkout
-            # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
-            # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
-            - name: Build affected (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
-
-            # Every test shard downloads every package's dist, so every package must be built even when the
-            # pull request leaves it unaffected: an upload that finds no files creates no artifact, and the
-            # shard's download then fails with "Artifact not found". This step used to name only
-            # graph-format, graph-io and webgpu-graph-algorithms, the packages outside graphty's dependency
-            # closure, which held while a pull request touching one of them also touched the element -- a
-            # pull request confined to webgpu-graph-algorithms left graphty, graphty-element, remote-logger
-            # and compact-mantine unbuilt and failed all twenty shards (run 35668273734). Building every
-            # project is what master already does, and the Nx cache makes it a no-op for whatever the
-            # affected build above produced.
-            - name: Build the rest (PR), so every shard finds its artifact
-              if: github.event_name == 'pull_request'
+            # Every package, on every run: the Storybooks import the built packages, and every test shard
+            # downloads every package's dist (an upload that finds no files creates no artifact, and the
+            # shard's download then fails with "Artifact not found", run 35668273734). graphty's build needs
+            # the Sentry variables for error tracking.
+            - name: Build all
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -123,73 +179,67 @@ jobs:
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-            - name: Lint affected (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx affected -t lint --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
-
-            # Master: Build then lint (build first for type dependencies)
-            # graphty build needs Sentry env vars for error tracking
-            - name: Build all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-              run: pnpm exec nx run-many -t build --parallel=3
-              env:
-                  NODE_OPTIONS: "--max-old-space-size=8192"
-                  VITE_BASE_PATH: /
-                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-            - name: Lint all (master)
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            # Every step from here to the Storybook builds is skipped in a review run: the merge queue's
+            # full suite runs them on the pull request before it merges.
+            - name: Lint all
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm exec nx run-many -t lint --parallel=3
 
-            # Every package is built by now on both paths (PR builds the rest above). knip reads
-            # source; the production pass counts only published entry points. The published-deps
-            # check packs each package and compares what it ships with what it declares, so it
-            # must run after the build. The same three steps run in tools/prepush.sh.
+            # knip reads source; the production pass counts only published entry points. The
+            # published-deps check packs each package and compares what it ships with what it declares,
+            # so it must run after the build. The same three steps run in tools/prepush.sh.
             - name: Knip (dead code detection)
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run lint:knip
 
             - name: Knip (production dependencies)
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run lint:knip:prod
 
             - name: Published dependencies
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:published-deps
 
             # The same three checks run in tools/prepush.sh. The first two read no build output; the
             # bundle size check measures graphty-element's dist/ against graphty-element/size-budgets.json.
             - name: ESLint root config
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run lint:eslint-root
 
             - name: Formatting (changed files)
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' && needs.plan.outputs.suite != 'review'
               run: pnpm run format:check:changed origin/${{ github.base_ref }}
 
             - name: Bundle size (graphty-element)
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:bundle-size
 
             - name: Declared build tools
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:declared-tools
 
             # release-hold.json names only real nx projects, each with a reason and a date, so a typo
             # cannot silently release a package someone meant to hold. The same check runs in tools/prepush.sh.
             - name: Release hold list
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:release-hold
 
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/prepush.sh.
             - name: Element data sources on graph-io
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:data-source-migration
 
             # The import reader of the script that prints the counts in design/graph-format/STATUS.md.
             - name: Migration count script
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:migration-counts
 
             # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
             # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
             # The same check runs in tools/prepush.sh.
             - name: Legacy graph API use
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm run check:legacy-use
 
             - name: Build Storybook (graphty-element)
@@ -207,23 +257,27 @@ jobs:
             - name: Build Storybook (layout)
               run: pnpm exec nx run layout:build-storybook
 
-            # Build unified documentation on every run, so a pull request that breaks the docs
-            # (a dead link included: VitePress fails the build on one) fails here rather than on
-            # master. The docs and both gh-pages builds are uploaded on every run because the
-            # "Links" job checks every link to graphty.app against the site they assemble into.
+            # Build unified documentation in the full suite, so a pull request that breaks the docs
+            # (a dead link included: VitePress fails the build on one) fails in the merge queue rather
+            # than on master. The docs and both gh-pages builds are uploaded because the "Links" job
+            # checks every link to graphty.app against the site they assemble into.
             - name: Build docs
+              if: needs.plan.outputs.suite != 'review'
               run: npm run docs:build
 
             - name: Build algorithms gh-pages
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm exec nx run algorithms:build:gh-pages
 
             - name: Build layout gh-pages
+              if: needs.plan.outputs.suite != 'review'
               run: pnpm exec nx run layout:build:gh-pages
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
             # by name.
             - name: Upload all package builds
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-packages
@@ -241,6 +295,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload graph-format build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-graph-format
@@ -248,6 +303,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload graph-io build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-graph-io
@@ -255,6 +311,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload webgpu-graph-algorithms build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-webgpu-graph-algorithms
@@ -262,6 +319,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload graph-samples build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-graph-samples
@@ -269,6 +327,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-algorithms
@@ -276,6 +335,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-layout
@@ -283,6 +343,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload graphty build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-graphty
@@ -290,6 +351,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload graphty-element build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-graphty-element
@@ -297,6 +359,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload remote-logger build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-remote-logger
@@ -304,6 +367,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload compact-mantine build
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-compact-mantine
@@ -347,6 +411,7 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-docs
@@ -354,6 +419,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-algorithms
@@ -361,19 +427,18 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
+              if: needs.plan.outputs.suite != 'review'
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
                   retention-days: 1
 
-    # Sharded test jobs - run in parallel, collect coverage
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the build job's plan
-    # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
-    # only the affected packages' shards on a pull request. A pull request that affects no package (a docs
-    # or tools change) has no shards, and GitHub fails a job whose matrix is empty instead of skipping it,
-    # so the job is skipped by its condition; "All Checks Pass" counts a skipped job as passing only on a
-    # pull request.
+    # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard in the
+    # full suite, none in a review run or on a proven master push. GitHub fails a job whose matrix is
+    # empty instead of skipping it, so the job is skipped by its condition then; the summary job counts
+    # a skipped job as passing only in those two suites.
     test:
         name: Test (${{ matrix.shard }})
         needs: build
@@ -743,7 +808,8 @@ jobs:
     # (links-weekly.yml), so another site's outage never fails a pull request.
     links:
         name: Links
-        needs: build
+        needs: [plan, build]
+        if: needs.plan.outputs.suite != 'review'
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -818,7 +884,7 @@ jobs:
     # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare
     performance:
         name: Performance Benchmarks
-        needs: test
+        needs: build
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         runs-on: ubuntu-24.04
         steps:
@@ -1042,17 +1108,21 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
-    # so it runs even when a job it needs failed (if: always()) and decides for itself.
-    # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
-    # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
-    # here and must succeed, because when it fails every other job is skipped too, and without it that
-    # would read as a pass. On master and dispatch every job must succeed: nothing is meant to be skipped
-    # there, so a skip means the plan went wrong and must not pass silently.
+    # Summary job - ensures all checks pass before a merge, a release or a deploy. It runs even when a job
+    # it needs failed (if: always()) and decides for itself. Its NAME comes from the plan job: "All Checks
+    # Pass" (the ruleset's required check, which Mergify needs before it merges; "All Checks Pass
+    # (stacked)" on a base other than master) only in the full suite and on master, "Ready to Queue" in
+    # a review run (which Mergify needs before it queues), so a review
+    # run never publishes a check called "All Checks Pass", not even a skipped one.
+    # In a review run and on a proven master push the test job (and in a review run, Links) is not
+    # started and reads "skipped", which passes there; failure and cancelled never do. Plan and build
+    # must succeed, because when one fails every other job is skipped too, and that would read as a pass.
+    # In the full suite every job must succeed: a skip means the plan went wrong.
     all-checks:
-        name: All Checks Pass
+        name: ${{ needs.plan.outputs.check-name || 'All Checks Pass (the plan failed)' }}
         needs:
             [
+                plan,
                 build,
                 test,
                 links,
@@ -1069,17 +1139,17 @@ jobs:
             - name: Check all jobs passed
               env:
                   NEEDS: ${{ toJSON(needs) }}
-                  EVENT: ${{ github.event_name }}
+                  SUITE: ${{ needs.plan.outputs.suite }}
               run: |
                   ok='["success"]'
-                  [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
+                  [[ "$SUITE" == review || "$SUITE" == proven ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   # The visual job never decides here, whatever result job-level continue-on-error makes
                   # it report: on a pull request the gate step below judges its results.json, and on
                   # master a capture crash must not hold release, deploy or coverage.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or ((.key == "plan" or .key == "build") and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
@@ -1134,3 +1204,20 @@ jobs:
                   pr=()
                   if grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then pr=(--pr "$PR"); fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
+
+            # The proof that this tree passed the full suite, for the push to master that merges it (the plan
+            # job skips the test shards there) and for coverage.yml, which then publishes this run's coverage.
+            # Last, so it exists only when every step above passed. tools/full-suite-proof.sh reads it.
+            - name: Record that this tree passed the full suite
+              if: needs.plan.outputs.suite == 'full' && startsWith(needs.plan.outputs.check-name, 'All Checks Pass') && !endsWith(needs.plan.outputs.check-name, 'never merges)')
+              run: echo "${{ github.run_id }}" > "$RUNNER_TEMP/full-suite-passed"
+
+            - name: Upload the record
+              if: needs.plan.outputs.suite == 'full' && startsWith(needs.plan.outputs.check-name, 'All Checks Pass') && !endsWith(needs.plan.outputs.check-name, 'never merges)')
+              uses: actions/upload-artifact@v4
+              with:
+                  name: full-suite-passed-${{ needs.plan.outputs.tree }}
+                  path: ${{ runner.temp }}/full-suite-passed
+                  # As long as the coverage it points coverage.yml at
+                  retention-days: 1
+                  overwrite: true

@@ -433,7 +433,7 @@ element.layout = "ngraph";
 ```typescript
 element.session.styles.list(); // every layer, bottom first
 element.session.styles.legend(); // what a reader needs to interpret the picture
-element.session.styles.explain({ kind: "node", id: "alice" }); // why this node looks like this
+element.session.styles.explain({ node: "alice" }); // why this node looks like this
 ```
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one

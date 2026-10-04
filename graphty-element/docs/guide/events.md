@@ -176,6 +176,9 @@ element.addEventListener("selection-changed", (e) => {
 
 ### Three more the element mirrors on its own account
 
+In TypeScript every `graphty-*` event's `detail` is typed: `addEventListener("graphty-run-change", (e) => e.detail.run)`
+compiles without a cast. The names and their details are listed in `GraphtyElementEventMap`.
+
 Beside the node events, `<graphty-element>` publishes three facts about itself. All three carry
 ids, counts and words -- never a node, an edge or a layer -- for the same reason the node events
 do: a `CustomEvent` detail crosses to listeners that may structure-clone it or post it to a
@@ -259,6 +262,20 @@ On the session the same change is `history:changed`. The session also publishes
 changed it, and `style:changed`, `visibility:changed` and `run:changed` carry a `cause` of
 `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. See
 [Undo and History](./undo#following-changes).
+
+### graphty-project-status
+
+The project's name, or whether it has unsaved changes, changed. The detail is `{ name, dirty }`,
+the same as `session.project.name` and `session.project.dirty`:
+
+```javascript
+element.addEventListener("graphty-project-status", (e) => {
+    const { name, dirty } = e.detail;
+    saveButton.disabled = !dirty;
+});
+```
+
+On the session the same change is `project:status`. See [Project Files](./project-file).
 
 ### graphty-note-change
 

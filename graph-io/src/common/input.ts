@@ -1368,7 +1368,7 @@ export function tooLarge(report: ImportReportBuilder, message: string, line?: nu
 }
 
 /**
- * Read the whole input as one string (the GML / DOT / JSON path, design section 8.4), failing with
+ * Read the whole input as one string (what the GML, DOT and JSON importers do), failing with
  * E_TOO_LARGE (category unsupported) before the join when it is longer than one JavaScript string
  * can hold. A string input is used as it is (one progress call), after the same text checks.
  * @param rawInput - the input

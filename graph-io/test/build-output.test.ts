@@ -140,9 +140,14 @@ describe("Build Output Tests", () => {
         }
         // scripts/entries.js drives both the vite build and the d.ts shims; it must name every subpath
         const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
+        const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
+        expect(typedoc.entryPoints).toContain("./src/index.ts");
+        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + 1);
         expect(entries).toContain('"graph-io": "src/index.ts"');
         for (const dir of FORMAT_DIRS) {
             expect(entries, dir).toContain(`${dir}: "src/formats/${dir}/index.ts"`);
+            // the API reference documents every subpath barrel
+            expect(typedoc.entryPoints, dir).toContain(`./src/formats/${dir}/index.ts`);
         }
         expect(packageJson.sideEffects).toBe(false);
     });

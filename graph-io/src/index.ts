@@ -1,5 +1,5 @@
 /**
- * The public barrel of @graphty/graph-io (design sections 8.2, 12.4 and 13.1): the io contract
+ * The public barrel of @graphty/graph-io: the io contract
  * types and ImportError, the registry with `importGraph()` / `exportGraph()` / `sniff()`, the
  * `children` CSR helper, every built-in importer and exporter (also reachable through the per-format
  * subpath exports `@graphty/graph-io/<format>`), and the shared helpers a third-party importer or
@@ -307,6 +307,7 @@ export {
     tokenizeXml,
     type XmlHandler,
     xmlIllegalTextNotes,
+    type XmlRepairs,
     XmlSyntaxError,
     XmlTokenizer,
 } from "./common/xml.js";

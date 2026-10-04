@@ -1,7 +1,6 @@
 /**
  * What the Cytoscape session importer's modules share: the format facts, the column and metadata
- * names it adds, and its issue code table (design `design/graph-io/cytoscape-and-obo/design.md`
- * sections 1.4 and 3).
+ * names it adds, and its issue code table.
  */
 
 import {

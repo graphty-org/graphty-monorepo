@@ -50,7 +50,7 @@ export function formatF64(value: number): string {
 /**
  * A decimal text with a decimal point or an exponent guaranteed for a finite value (`2.0`,
  * `1e+21`, `1.5e-7`), so an
- * untyped re-import keeps the column f64 rather than i32 (design section 8.5); negative zero is
+ * untyped re-import keeps the column f64 rather than i32; negative zero is
  * written `-0.0` so it reads back as -0; non-finite values are the JS spellings (`Infinity`,
  * `-Infinity`, `NaN`), which the CSV / DOT / Pajek importers read back as text. The one
  * implementation of the "decimal point guaranteed" rule for every text format; GML has its own

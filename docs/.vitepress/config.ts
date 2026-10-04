@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { defineConfig } from "vitepress";
 import { loadEnv } from "vite";
 
@@ -16,6 +16,23 @@ function loadTypedocSidebar(path: string): Array<{ text: string; link: string }>
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");
 const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/typedoc-sidebar.json");
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
+const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
+
+// One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
+// (whose page `npm run docs:reference` creates) appears here without an edit.
+function graphIoFormatPages(): Array<{ text: string; link: string }> {
+    const dir = "./docs/graph-io/guide/formats";
+    if (!existsSync(dir)) {
+        return [];
+    }
+    return readdirSync(dir)
+        .filter((f) => f.endsWith(".md") && f !== "index.md")
+        .sort()
+        .map((f) => ({
+            text: /^# (.+)$/m.exec(readFileSync(`${dir}/${f}`, "utf-8"))?.[1] ?? f.slice(0, -3),
+            link: `/graph-io/guide/formats/${f.slice(0, -3)}`,
+        }));
+}
 
 export default defineConfig({
     vite: {
@@ -52,6 +69,7 @@ export default defineConfig({
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
                     { text: "layout", link: "/layout/api/generated/" },
+                    { text: "graph-io", link: "/graph-io/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
             },
@@ -65,6 +83,7 @@ export default defineConfig({
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
                         { text: "layout", link: "/layout/api/generated/" },
+                        { text: "graph-io", link: "/graph-io/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
@@ -167,6 +186,45 @@ export default defineConfig({
                     text: "Generated TypeDoc",
                     collapsed: true,
                     items: algorithmsTypedoc,
+                },
+            ],
+            "/graph-io/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/graph-io/" },
+                        { text: "Quick start", link: "/graph-io/guide/quick-start" },
+                    ],
+                },
+                {
+                    text: "Using graph-io",
+                    items: [
+                        { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Saving graphs", link: "/graph-io/guide/saving" },
+                        { text: "The import report and errors", link: "/graph-io/guide/report" },
+                        { text: "Format detection", link: "/graph-io/guide/detection" },
+                        { text: "Options reference", link: "/graph-io/guide/options" },
+                    ],
+                },
+                {
+                    text: "Formats",
+                    items: [{ text: "All formats", link: "/graph-io/guide/formats/" }, ...graphIoFormatPages()],
+                },
+                {
+                    text: "Extending",
+                    items: [
+                        { text: "Writing a format plugin", link: "/graph-io/guide/extending/new-format" },
+                        { text: "Extending an existing format", link: "/graph-io/guide/extending/existing-format" },
+                    ],
+                },
+                {
+                    text: "Reference",
+                    items: [{ text: "Issue and loss codes", link: "/graph-io/guide/codes" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: graphIoTypedoc,
                 },
             ],
             // layout has no guide pages yet (there is no layout/docs/): its section is the

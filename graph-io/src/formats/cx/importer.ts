@@ -135,7 +135,7 @@ export interface CxImportOptions extends GraphChoiceOptions {
 }
 
 /**
- * The issue codes the CX importer records (design section 1.2), by name: the codes shared with
+ * The issue codes the CX importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the CX-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -3095,7 +3095,7 @@ async function run(
 }
 
 /**
- * The CX version 1 importer plugin (design section 1.2).
+ * The CX version 1 importer plugin.
  */
 export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     format: CX_FORMAT,

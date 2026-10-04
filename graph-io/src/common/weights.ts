@@ -100,7 +100,7 @@ function invalidWeight(value: unknown, cause: unknown): GraphFormatError {
 // ============================================================ the exporter side
 
 /**
- * The explicit weights of a snapshot for exporters (design sections 3.7 and 8.5): the weight
+ * The explicit weights of a snapshot for exporters: the weight
  * role column when present (its validity says which edges had an explicit weight, its dtype how
  * the value is written), else `edgeList().weights` as f32 for every edge of a weighted snapshot;
  * nothing for an unweighted one. One implementation for every exporter.

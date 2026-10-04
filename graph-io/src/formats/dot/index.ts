@@ -1,5 +1,5 @@
 /**
- * The DOT / Graphviz subpath entry (`@graphty/graph-io/dot`, design section 8.2): the importer and
+ * The DOT / Graphviz subpath entry (`@graphty/graph-io/dot`): the importer and
  * exporter plugins with their option types and issue / loss codes.
  */
 

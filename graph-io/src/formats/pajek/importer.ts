@@ -150,7 +150,7 @@ export const PAJEK_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** A parameter column of `2.0`-style text kept at the value-inferred dtype (the sink cannot widen). */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
-    /** A structural column (label, position, shape, spells, relation) renamed `<name>#<id>` because the name was taken (design section 5.6). */
+    /** A structural column (label, position, shape, spells, relation) renamed `<name>#<id>` because the name was taken. */
     COLUMN_RENAMED: RENAMED_CODE,
     /** A structural column declared without its role because the sink already holds it. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,

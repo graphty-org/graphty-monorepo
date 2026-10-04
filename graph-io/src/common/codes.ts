@@ -1,6 +1,5 @@
 /**
- * The issue and loss codes shared by more than one format (design section 8.6: "a stable code
- * such as E_UNKNOWN_NODE or W_WIDENED"): one constant per condition, aliased by every format's
+ * The issue and loss codes shared by more than one format: one constant per condition, aliased by every format's
  * `<FMT>_ISSUE` / `<FMT>_LOSS` table, so a consumer can switch on a condition without knowing the
  * format and two importers never spell the same condition differently. A condition specific to one
  * format keeps that format's own `E_<FMT>_` / `W_<FMT>_` code next to its importer or exporter.
@@ -57,24 +56,23 @@ export const HYPEREDGE_CODE = "E_HYPEREDGE";
 export const DUPLICATE_KEY_CODE = "E_DUPLICATE_KEY";
 
 /**
- * A column was renamed `<name>#<origin.id>` because the name was taken in the sink's table
- * (design section 5.6).
+ * A column was renamed `<name>#<origin.id>` because the name was taken in the sink's table.
  */
 export const COLUMN_RENAMED_CODE = "W_COLUMN_RENAMED";
 
-/** A column's role was dropped because another column of the table already holds it (design section 5.5). */
+/** A column's role was dropped because another column of the table already holds it. */
 export const ROLE_TAKEN_CODE = "W_ROLE_TAKEN";
 
-/** A long value beyond 2^53 was stored as the nearest f64 (design section 5.1). */
+/** A long value beyond 2^53 was stored as the nearest f64. */
 export const PRECISION_CODE = "W_PRECISION";
 
-/** Two distinct id texts became one number under ids "number" (design section 4.1). */
+/** Two distinct id texts became one number under ids "number". */
 export const ID_MERGED_CODE = "W_ID_MERGED";
 
-/** A builder-policy option the caller asked for that the sink does not honour (design section 8.4). */
+/** A builder-policy option the caller asked for that the sink does not honour. */
 export const SINK_OPTION_CODE = "W_SINK_OPTION";
 
-/** A common option the format has no use for (or cannot honour) was given a non-default value (design section 8.4). */
+/** A common option the format has no use for (or cannot honour) was given a non-default value. */
 export const OPTION_IGNORED_CODE = "W_OPTION_IGNORED";
 
 /** An invalid UTF-8 sequence in the input (fatal). */
@@ -146,7 +144,7 @@ export const DUPLICATE_EDGE_ID_CODE = "E_DUPLICATE_EDGE_ID";
 export const BAD_VALUE_CODE = "E_BAD_VALUE";
 
 /**
- * A column's dtype was widened (design section 5.1) because a later value did not fit: an i32
+ * A column's dtype was widened because a later value did not fit: an i32
  * column meeting a value above 2^31, two declared types for one attribute.
  */
 export const WIDENED_CODE = "W_WIDENED";
@@ -254,7 +252,7 @@ export const ID_TEXT_TYPE_CODE = "W_ID_TEXT_TYPE";
 /** Two node ids share one written text; export() throws E_INVALID_ID. */
 export const ID_TEXT_COLLISION_CODE = "E_ID_TEXT_COLLISION";
 
-/** A `<column>.text` companion (design section 5.1) the format cannot carry. */
+/** A `<column>.text` companion the format cannot carry. */
 export const TEMPORAL_TEXT_DROPPED_CODE = "W_TEMPORAL_TEXT_DROPPED";
 
 /** A plain column named like the importer's weight key reads back as THE weight. */

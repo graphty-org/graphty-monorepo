@@ -1643,7 +1643,7 @@ function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, v
 }
 
 /**
- * The JSON exporter plugin (design section 8.5). `capabilities` is the node-link table (the
+ * The JSON exporter plugin. `capabilities` is the node-link table (the
  * default dialect); check() applies the table of the dialect actually selected.
  */
 export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({

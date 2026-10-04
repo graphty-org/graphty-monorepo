@@ -1,5 +1,5 @@
 /**
- * The io contract types of @graphty/graph-io (design section 12.4, normative): what every importer
+ * The io contract types of @graphty/graph-io: what every importer
  * and exporter implements and what every caller of one programs against. They are declared here
  * rather than in the core because ImportInput and CommonImportOptions reference ReadableStream and
  * AbortSignal, which need the DOM lib (or @types/node >= 18); the core's public types reference only
@@ -18,7 +18,7 @@ import {
 } from "@graphty/graph-format";
 
 /**
- * What an importer reads (design section 8.4): whole text, whole bytes, a byte stream (a browser
+ * What an importer reads: whole text, whole bytes, a byte stream (a browser
  * `File.stream()`, a fetch body) or an async iterable of text or byte chunks. Bytes are decoded
  * strictly in the encoding the `encoding` option, a byte order mark or the file's own declaration
  * names, else as UTF-8 (undeclared bytes that are not UTF-8 are read as windows-1252 with a
@@ -27,14 +27,14 @@ import {
 export type ImportInput = string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>;
 
 /**
- * The options every importer accepts next to its format-specific ones (design section 8.4). The
+ * The options every importer accepts next to its format-specific ones. The
  * builder-policy fields (`addMissingNodes`, `duplicateEdges`, `selfLoops`, `weightDtype`) seed the
  * registry's builder; on a caller's sink they are read back from `sink.options` and every option the
  * sink cannot honour is reported.
  */
 export interface CommonImportOptions {
     /**
-     * Id coercion rule applied before an id reaches the sink (design section 4.1): "canonical" by default for
+     * Id coercion rule applied before an id reaches the sink: "canonical" by default for
      * text-cell formats, "keep" for JSON.
      */
     ids?: IdCoercion | undefined;
@@ -46,19 +46,25 @@ export interface CommonImportOptions {
     duplicateEdges?: DuplicatePolicy | undefined;
     /** The builder's self-loop policy seed; default "keep". */
     selfLoops?: "keep" | "drop" | "error" | undefined;
-    /** What to do with a file whose edges disagree on direction (design section 3.6); default "expand". */
+    /** What to do with a file whose edges disagree on direction; default "expand". */
     onMixedDirection?: "expand" | "directed" | "undirected" | "error" | undefined;
     /** The direction assumed for a file that declares none (GEXF: undirected per spec). */
     defaultDirected?: boolean | undefined;
     /** The attribute that becomes THE weight (per-format default: "weight", GML "value"); null = unweighted. */
     weightFrom?: string | null | undefined;
-    /** Weight staging precision; "f64" for every importer by default so 0.1 and 16777217 survive. */
+    /**
+     * Weight staging precision; "f64" for every importer by default so 0.1 and 16777217 survive.
+     * @default "f64"
+     */
     weightDtype?: "f32" | "f64" | undefined;
-    /** How a declared `long` column is stored: "f64" (default) or "string" (design section 5.1). */
+    /** How a declared `long` column is stored: "f64" (default) or "string". */
     long?: "f64" | "string" | undefined;
     /** Restore ids mangled by sanitizeIds "mangle" from the graphty:originalId attribute (default true). */
     restoreMangledIds?: boolean | undefined;
-    /** GraphML / JGF hyperedges: refuse, skip with a report entry (default), or expand to a star / clique. */
+    /**
+     * GraphML / JGF hyperedges: refuse, skip with a report entry (default), or expand to a star / clique.
+     * @default "skip"
+     */
     hyperedges?: "error" | "skip" | "star" | "clique" | undefined;
     /** Errors tolerated before the importer aborts with E_IMPORT (default 100). */
     errorLimit?: number | undefined;
@@ -106,7 +112,7 @@ export interface GraphListing {
 }
 
 /**
- * An importer plugin (design section 8.4): pushes scalars into the caller's sink in one pass and
+ * An importer plugin: pushes scalars into the caller's sink in one pass and
  * never freezes. `Opts` is its format-specific option set; the default `unknown` lets a caller pass
  * the common options to an importer typed without one.
  */
@@ -159,8 +165,8 @@ export interface GraphImporter<Opts = unknown> {
 }
 
 /**
- * What a format can express without loss (design section 8.5): the fidelity matrix of research
- * note 07 section 9 as a table, and the acceptance test list for check().
+ * What a format can express without loss: the format's fidelity matrix, and the list of things
+ * check() tests a snapshot against.
  */
 export interface ExportCapabilities {
     /** Directed and undirected edges in one file. */
@@ -197,7 +203,7 @@ export interface ExportCapabilities {
     readonly viz: boolean;
 }
 
-/** One thing an exporter cannot represent, reported by check() before anything is written (design section 8.5). */
+/** One thing an exporter cannot represent, reported by check() before anything is written. */
 export interface LossNote {
     /**
      * A stable code. Codes starting with "E_" mean the export refuses to write under these options:
@@ -213,16 +219,19 @@ export interface LossNote {
     readonly count: number | null;
 }
 
-/** The options every exporter accepts next to its format-specific ones (design section 8.5). */
+/** The options every exporter accepts next to its format-specific ones. */
 export interface CommonExportOptions {
     /** "error" (default): never rename a node; "mangle": rewrite ids the format cannot hold and keep the original. */
     sanitizeIds?: "error" | "mangle" | undefined;
-    /** For formats without mixed-direction support: refuse (default) or write every edge one way. */
+    /**
+     * For formats without mixed-direction support: refuse (default) or write every edge one way.
+     * @default "error"
+     */
     onMixedDirection?: "error" | "directed" | "undirected" | undefined;
 }
 
 /**
- * An exporter plugin (design section 8.5): iterates nodes and logical edges (never arcs) in index
+ * An exporter plugin: iterates nodes and logical edges (never arcs) in index
  * order and reads the role columns of section 3.6 / 3.7 to fold expanded pairs and emit explicit
  * weights only.
  */
@@ -263,7 +272,7 @@ export interface GraphExporter<Opts = unknown> {
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
 
-/** The categories of an ImportIssue (design section 8.6). */
+/** The categories of an ImportIssue. */
 export type IssueCategory =
     | "parse-error"
     | "missing-value"
@@ -273,7 +282,7 @@ export type IssueCategory =
     | "coercion"
     | "merged";
 
-/** One problem found while importing (design section 8.6). */
+/** One problem found while importing. */
 export interface ImportIssue {
     /** The category. */
     readonly category: IssueCategory;
@@ -292,7 +301,7 @@ export interface ImportIssue {
     readonly element: string | null;
 }
 
-/** What an import produced besides the sink's contents (design section 8.6). */
+/** What an import produced besides the sink's contents. */
 export interface ImportReport {
     /** The importer's format name. */
     readonly format: string;
@@ -306,7 +315,7 @@ export interface ImportReport {
         readonly skippedNodes: number;
         /** Edges skipped after an error. */
         readonly skippedEdges: number;
-        /** Edges expanded under onMixedDirection "expand" (design section 3.6). */
+        /** Edges expanded under onMixedDirection "expand". */
         readonly expandedMixed: number;
     };
     /** Every issue recorded, in order. */
@@ -324,8 +333,8 @@ export interface ImportReport {
 }
 
 /**
- * The error an importer throws when the error limit is reached or the input cannot be read at all
- * (design section 8.6): a GraphFormatError with code "E_IMPORT" (reserved in the core's union so
+ * The error an importer throws when the error limit is reached or the input cannot be read at all:
+ * a GraphFormatError with code "E_IMPORT" (reserved in the core's union so
  * `err.code === "E_IMPORT"` narrows) carrying the partial report.
  */
 export class ImportError extends GraphFormatError {

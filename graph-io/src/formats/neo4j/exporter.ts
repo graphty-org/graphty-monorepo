@@ -110,7 +110,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * The capabilities of neo4j-admin CSV (research note 07 section 9): declared scalar types and
+ * The capabilities of neo4j-admin CSV: declared scalar types and
  * arrays; a dict column reads back as string (the header has no enumeration type); a position or
  * visual column is written as a plain property (a point for a 2- or 3-component position) and
  * reads back without its role.

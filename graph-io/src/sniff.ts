@@ -4,7 +4,7 @@
  * any combination of a filename (its extension), a MIME type and the first bytes of the content.
  *
  * Every importer declares `extensions`, `mimeTypes` and a `sniff(head)` content confidence in
- * 0..1 (design section 8.4); this module combines them into one ranked answer so that content
+ * 0..1; this module combines them into one ranked answer so that content
  * always beats a hint: a `.csv` whose first line is a neo4j-admin header is Neo4j, a `.xml` is
  * GEXF or GraphML by its root element, a `.txt` holding `graph [` is GML. The confidence of a
  * candidate is

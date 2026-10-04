@@ -1,5 +1,5 @@
 /**
- * The JSON subpath entry (`@graphty/graph-io/json`, design section 8.2): the importer and exporter
+ * The JSON subpath entry (`@graphty/graph-io/json`): the importer and exporter
  * objects, their option types, the dialect names and the issue / loss codes they use.
  */
 

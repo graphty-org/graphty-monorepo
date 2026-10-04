@@ -53,13 +53,13 @@ export interface EdgeLocation {
     readonly element?: string | null | undefined;
 }
 
-/** The name of the bool edge column marking source-directed edges (design section 3.6). */
+/** The name of the bool edge column marking source-directed edges. */
 export const DIRECTED_COLUMN = "graphty.directed";
 
-/** The name of the u32 edge column pairing the halves of an expanded edge (design section 3.6). */
+/** The name of the u32 edge column pairing the halves of an expanded edge. */
 export const PAIR_COLUMN = "graphty.pair";
 
-/** The name of the bool edge column marking GEXF mutual edges (design section 3.6). */
+/** The name of the bool edge column marking GEXF mutual edges. */
 export const MUTUAL_COLUMN = "graphty.mutual";
 
 export { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE };
@@ -69,7 +69,7 @@ const PAIR_DECL: ColumnDecl = { name: PAIR_COLUMN, dtype: "u32", role: "pair", r
 const MUTUAL_DECL: ColumnDecl = { name: MUTUAL_COLUMN, dtype: "bool", role: "mutual" };
 
 /**
- * Pushes edges into a sink while resolving direction per design section 8.4. One instance per
+ * Pushes edges into a sink while resolving each edge's direction. One instance per
  * import call; `setHeader()` before the first `addEdge()`.
  */
 export class DirectionResolver {
@@ -126,7 +126,7 @@ export class DirectionResolver {
     }
 
     /**
-     * Rule 1 of design section 8.4: set the sink's direction from the file's header (or the
+     * Set the sink's direction from the file's header (or the
      * `defaultDirected` option for a file that declares none) before the first edge. Under the
      * "directed" / "undirected" policies the policy's direction is used instead and the difference
      * is reported. A refusal (E_DIRECTED: locked, or a non-empty directed sink for an undirected
@@ -198,7 +198,7 @@ export class DirectionResolver {
     }
 
     /**
-     * Rule 2 of design section 8.4: push one source edge. An edge whose direction equals the
+     * Push one source edge. An edge whose direction equals the
      * sink's is one addEdge; one that differs is expanded, forced or refused per the policy.
      * @param source - the source id
      * @param target - the target id
@@ -407,8 +407,7 @@ function direction(directed: boolean): string {
 // ============================================================ the exporter side
 
 /**
- * The expanded-pair view of a snapshot's logical edges for exporters (design sections 3.6 and
- * 8.5): which edges are the mirror half of an expanded pair (and are folded back into their
+ * The expanded-pair view of a snapshot's logical edges for exporters: which edges are the mirror half of an expanded pair (and are folded back into their
  * primary), which were undirected in the source, and which carry the GEXF mutual mark. One
  * implementation for every exporter; the only per-format choice is whether a mutual pair folds
  * back into one edge (`foldMutual`, for formats with a mutual or undirected slot) or is written as

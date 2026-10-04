@@ -51,7 +51,7 @@ export const META_KEY = "json";
 
 /**
  * The shape information the importer records under `meta.extra.json` so the exporter can write the
- * same file back (design section 8.5). Every field is optional because a snapshot may come from
+ * same file back. Every field is optional because a snapshot may come from
  * another format or from an older record.
  */
 export interface JsonShapeMeta {
@@ -345,7 +345,7 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
 });
 
 /**
- * What one dialect can express (design section 8.5): positions and visual columns are written as
+ * What one dialect can express: positions and visual columns are written as
  * plain attributes (an array for a multi-component column) and read back without their role,
  * except Cytoscape's `position` object; containment only as the Cytoscape `data.parent`; mixed
  * direction only where the dialect carries a per-edge flag (JGF `directed`, graphology

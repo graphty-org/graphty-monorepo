@@ -108,7 +108,7 @@ export interface DotImportOptions {
 }
 
 /**
- * The issue codes the DOT importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the DOT importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the DOT-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -259,7 +259,7 @@ interface Scope {
 }
 
 /**
- * The importer plugin for DOT / Graphviz text (design section 12.4).
+ * The importer plugin for DOT / Graphviz text.
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,

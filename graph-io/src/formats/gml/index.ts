@@ -1,5 +1,5 @@
 /**
- * The `@graphty/graph-io/gml` subpath (design section 8.2): the GML importer and exporter, their
+ * The `@graphty/graph-io/gml` subpath: the GML importer and exporter, their
  * option types, and their issue and loss-note codes grouped in two tables.
  */
 
@@ -58,7 +58,7 @@ export { gmlExporter, type GmlExportOptions } from "./exporter.js";
 export { gmlImporter, type GmlImportOptions } from "./importer.js";
 
 /**
- * The issue codes the GML importer records (design section 8.6), by name: the codes shared with
+ * The issue codes the GML importer records, by name: the codes shared with
  * the other importers (src/common/codes.ts) and the GML-specific ones. A key is the code without
  * its severity and format prefixes.
  */
@@ -132,7 +132,7 @@ export const GML_ISSUE = Object.freeze({
 
 /** The loss-note codes the GML exporter's check() reports beyond the shared LOSS table, by name. */
 export const GML_LOSS = Object.freeze({
-    /** A json column holds numbers; GML records cannot keep int versus real (design section 8.5). */
+    /** A json column holds numbers; GML records cannot keep int versus real. */
     RECORD_NUMBER_TYPE: RECORD_NUMBER_TYPE_CODE,
     /** A json column holds booleans, written 1 / 0. */
     RECORD_BOOLEAN: RECORD_BOOLEAN_CODE,

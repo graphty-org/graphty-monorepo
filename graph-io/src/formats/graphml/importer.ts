@@ -2682,7 +2682,7 @@ async function importGraphml(
     return report.finish();
 }
 
-/** The GraphML importer (design section 8.4). */
+/** The GraphML importer. */
 export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freeze({
     format: FORMAT,
     extensions: EXTENSIONS,

@@ -107,7 +107,7 @@ export interface DeclaredAttribute {
 
 /** Issue code: the declared type is not one the format defines; the column is kept as string. */
 export const UNKNOWN_TYPE_CODE = UNKNOWN_ATTR_TYPE_CODE;
-/** Issue code: the column was renamed `<name>#<id>` because the name was taken (design section 5.6). */
+/** Issue code: the column was renamed `<name>#<id>` because the name was taken. */
 export const RENAMED_CODE = COLUMN_RENAMED_CODE;
 
 export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE };
@@ -282,11 +282,10 @@ export interface ResolvedDeclaration {
 }
 
 /**
- * The io rule of design section 5.6 in one place, so every importer agrees: declare a column on
+ * The column naming rule in one place, so every importer agrees: declare a column on
  * the sink and, when the sink already holds the name with another shape (an earlier import, a
  * caller's column), rename it `<name>#<origin.id>` (a counter when the source has no id) and
- * record W_COLUMN_RENAMED (coercion); when the table already holds the role (design section 5.5:
- * at most one column per role), declare without the role and record W_ROLE_TAKEN (coercion). The
+ * record W_COLUMN_RENAMED (coercion); when the table already holds the role, declare without the role and record W_ROLE_TAKEN (coercion). The
  * same shape under the same name returns the existing handle, as the sink does.
  * @param sink - the sink
  * @param domain - node or edge
@@ -345,7 +344,7 @@ export function declareResolved(
 }
 
 /**
- * Declare the companion text column of a temporal column (design section 5.1). A table holds at
+ * Declare the companion text column of a temporal column. A table holds at
  * most one column per role, so when another companion already carries `timeText` this one is
  * declared without the role (reported once per table); exporters find every companion through
  * `extra.for`.

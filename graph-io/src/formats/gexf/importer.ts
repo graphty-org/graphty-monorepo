@@ -2771,7 +2771,7 @@ function resolveGexfOptions(options: (GexfImportOptions & CommonImportOptions) |
     return viz;
 }
 
-/** The GEXF importer (design section 8.4). */
+/** The GEXF importer. */
 export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
     format: GEXF_FORMAT,
     extensions: Object.freeze([".gexf"]),

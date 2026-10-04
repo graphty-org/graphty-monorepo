@@ -539,7 +539,8 @@ async function recycle(state, job, window, reason, { now, sleep }) {
 export async function endRetired(state, { sleep } = {}) {
     /** @type {any[]} */
     const ledger = [];
-    for (const r of [...(state.retiring ?? [])]) {
+    // The list is replaced, never changed in place, so this loop walks the one it started with.
+    for (const r of state.retiring ?? []) {
         const job = state.jobs?.[r.job];
         const h = r.holder;
         try {

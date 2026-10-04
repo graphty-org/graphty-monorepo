@@ -479,7 +479,8 @@ export async function reapStaleGate(ctx) {
     try {
         if (!readSelfUpdate(ctx.stateDir).gating) return null;
         const left = await reapGating({ root: ctx.root, stateDir: ctx.stateDir, pkgDir: ctx.pkgDir, env: ctx.env });
-        logLine(ctx, left.length ? "error" : "info", `removed an unfinished gate's leftovers${left.length ? `; left: ${left.join("; ")}` : ""}`);
+        const rest = left.length ? `; left: ${left.join("; ")}` : "";
+        logLine(ctx, left.length ? "error" : "info", `removed an unfinished gate's leftovers${rest}`);
         return left;
     } finally {
         releaseLock(ctx, GATE_LOCK);

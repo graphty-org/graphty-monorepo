@@ -509,7 +509,10 @@ const checking = new WeakMap();
  */
 function inProgress(state) {
     let jobs = checking.get(state);
-    if (!jobs) checking.set(state, (jobs = new Set()));
+    if (!jobs) {
+        jobs = new Set();
+        checking.set(state, jobs);
+    }
     return jobs;
 }
 
@@ -669,18 +672,35 @@ export async function pollVerifying(state, ctx) {
         const j = /** @type {any} */ (job);
         const waiting = j.state === "waiting" && j.waitingFor?.verify;
         if (!j.report || (j.state !== "verifying" && !waiting)) continue;
-        const before = j.state;
-        const holder = j.holder;
-        const { answer } = await check(j, j.report, { state, config: ctx.config, io: ctx.io });
-        // A job that moved while GitHub was read (the watchdog, a death) is left to its new state.
-        if (j.state !== before || (waiting && !j.waitingFor?.verify)) continue;
-        const result = waiting ? settleWaiting(j, answer, ctx.now) : board.verifyResult(j, answer, ctx.now);
-        const action = typeof result === "string" ? result : result?.action;
-        if (action === "waiting") j.waitingFor.verify = true;
-        afterSettle(state, j, holder, typeof result === "string" ? null : result, ctx.now);
+        const action = await pollOne(state, j, waiting, ctx);
         if (action) out.push({ job: j.id, action });
     }
     return out;
+}
+
+/**
+ * Checks one unsettled claim again and applies the answer, unless the job moved while GitHub was
+ * read (the watchdog, a death): then it is left to its new state.
+ * @param {any} state the daemon state
+ * @param {any} j the job
+ * @param {boolean} waiting it waits on CI after verification, rather than being `verifying`
+ * @param {{config: any, io: DoneIo, now: Date}} ctx the context
+ * @returns {Promise<string | null | undefined>} the new state, or nothing when unchanged
+ */
+async function pollOne(state, j, waiting, ctx) {
+    const before = j.state;
+    const holder = j.holder;
+    const { answer } = await check(j, j.report, { state, config: ctx.config, io: ctx.io });
+    if (j.state !== before || (waiting && !j.waitingFor?.verify)) return null;
+    if (waiting) {
+        const action = settleWaiting(j, answer, ctx.now);
+        afterSettle(state, j, holder, null, ctx.now);
+        return action;
+    }
+    const result = board.verifyResult(j, answer, ctx.now);
+    if (result?.action === "waiting") j.waitingFor.verify = true;
+    afterSettle(state, j, holder, result, ctx.now);
+    return result?.action;
 }
 
 /**

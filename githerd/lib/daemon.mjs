@@ -2727,7 +2727,7 @@ export async function startDaemon({
         timer = null;
         await runner?.shutdown();
         // A gate in flight is killed, and what it left removed, so none outlives the daemon.
-        if (updating && gatingNow) {
+        if (updating !== null && gatingNow) {
             const { abort, ctx } = gatingNow;
             const left = await stopGating({
                 root: ctx.root,

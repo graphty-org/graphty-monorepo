@@ -8,6 +8,7 @@
         "build": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/dist"],
+            "inputs": ["production", "^production", { "runtime": "git rev-parse HEAD" }],
             "options": {
                 "command": "npm run build",
                 "cwd": "graphty"

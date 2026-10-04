@@ -191,16 +191,61 @@ export interface IngestHost<K extends KnownEdge> {
  * so it reports records read and no total.
  * @param progress - How far the load has got.
  * @param phase - Whether it is still going.
+ * @param end - How it ended, on its last change.
  * @returns The change.
  */
-function loadProgressChange(progress: LoadProgress, phase: ProgressChange["phase"]): ProgressChange {
+function loadProgressChange(
+    progress: LoadProgress,
+    phase: ProgressChange["phase"],
+    end?: Pick<ProgressChange, "outcome" | "error">,
+): ProgressChange {
     return {
         task: "load",
         phase,
         completed: progress.nodeRecords + progress.edgeRecords,
         total: null,
         fraction: null,
+        ...(progress.source === undefined ? {} : { source: progress.source }),
+        ...end,
     };
+}
+
+/**
+ * What a load's progress names as its source: the name it was given or its file's, and its URL.
+ * @param opts - The data source's options.
+ * @param name - The name the import was given.
+ * @returns The source, or undefined when nothing names it.
+ */
+function progressSource(opts: object, name: string | undefined): ProgressChange["source"] {
+    const { url, file, filename } = opts as { url?: unknown; file?: { name?: unknown }; filename?: unknown };
+    const link = typeof url === "string" && !url.startsWith("data:") ? url : undefined;
+    const named = [name, filename, file?.name, link?.split(/[?#]/)[0]?.split("/").pop()].find(
+        (each): each is string => typeof each === "string" && each !== "",
+    );
+    if (named === undefined && link === undefined) {
+        return undefined;
+    }
+
+    return Object.freeze({
+        ...(named === undefined ? {} : { name: named }),
+        ...(link === undefined ? {} : { url: link }),
+    });
+}
+
+/**
+ * How a failed load ended, for its last progress change.
+ * @param error - What it threw.
+ * @param signal - Its cancel signal.
+ * @returns The outcome, and the coded error when it carried one.
+ */
+function failedEnd(error: unknown, signal: AbortSignal | undefined): Pick<ProgressChange, "outcome" | "error"> {
+    if (signal?.aborted === true) {
+        return { outcome: "cancelled" };
+    }
+
+    return isGraphtyError(error)
+        ? { outcome: "failed", error: Object.freeze({ code: error.code, details: error.details ?? {} }) }
+        : { outcome: "failed" };
 }
 
 /**
@@ -241,6 +286,8 @@ interface LoadProgress {
     readonly edgeRecords: number;
     /** Chunks ingested so far. */
     readonly chunks: number;
+    /** What is being read, as progress names it. */
+    readonly source?: ProgressChange["source"];
 }
 
 /**
@@ -404,7 +451,15 @@ export class Ingest<K extends KnownEdge> {
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
-            await this.addDataFromSource(type, config, writer, signal, command.mode !== "merge", command.held);
+            await this.addDataFromSource(
+                type,
+                config,
+                writer,
+                signal,
+                command.mode !== "merge",
+                command.held,
+                command.source.name,
+            );
         } finally {
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";
@@ -990,6 +1045,7 @@ export class Ingest<K extends KnownEdge> {
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
      * @param held - Rows a draft already read, loaded instead of reading the source
+     * @param name - What the import called the data, for its progress
      */
     async addDataFromSource(
         type: string,
@@ -998,6 +1054,7 @@ export class Ingest<K extends KnownEdge> {
         signal?: AbortSignal,
         replacing = false,
         held?: HeldRows,
+        name?: string,
     ): Promise<void> {
         this.logger.info("Loading data source", { type, options: opts });
 
@@ -1009,6 +1066,16 @@ export class Ingest<K extends KnownEdge> {
             nodeRecords: 0,
             edgeRecords: 0,
             chunks: 0,
+            source: progressSource(opts, name),
+        };
+        // Published before anything is read, so a watcher sees the load from its first moment.
+        this.host.progress?.(loadProgressChange(progress, "start"));
+        let ended = false;
+        const end = (outcome: Pick<ProgressChange, "outcome" | "error">): void => {
+            if (!ended) {
+                ended = true;
+                this.host.progress?.(loadProgressChange(progress, "end", outcome));
+            }
         };
 
         // One tally and one endpoint decision for the WHOLE load, however many chunks it arrives
@@ -1139,9 +1206,9 @@ export class Ingest<K extends KnownEdge> {
                 });
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
-                this.host.progress?.(loadProgressChange(progress, "end"));
+                end({ outcome: "succeeded" });
             } catch (error) {
-                this.host.progress?.(loadProgressChange(progress, "end"));
+                end(failedEnd(error, signal));
                 // A cancelled load did not fail: whoever cancelled it says why.
                 if (signal?.aborted === true) {
                     throw error;
@@ -1170,6 +1237,7 @@ export class Ingest<K extends KnownEdge> {
                 );
             }
         } catch (error) {
+            end(failedEnd(error, signal));
             // Same rule one level out: a coded failure is the answer, not something to re-word.
             if (isGraphtyError(error) || signal?.aborted === true) {
                 throw error;

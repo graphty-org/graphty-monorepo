@@ -76,9 +76,10 @@ export interface CodedFact<Code extends string = string> {
  * How far a piece of the element's work has got, published as `progress:changed` on the session
  * and as `graphty-progress-change` on the element.
  *
- * Sent while the work runs (`phase: "progress"`) and once when it stops (`phase: "end"`), whether
- * it succeeded, failed or was cancelled; the call that started the work says which. A session with
- * no view reports progress exactly as one with a view does.
+ * A load is sent once as it begins (`phase: "start"`, before it reads anything), while it runs
+ * (`phase: "progress"`) and once when it stops (`phase: "end"`), with `outcome` saying how it
+ * stopped. A run is sent while it runs and once when it stops; the call that started it says how.
+ * A session with no view reports progress exactly as one with a view does.
  */
 export interface ProgressChange {
     /**
@@ -89,8 +90,12 @@ export interface ProgressChange {
     readonly task: "load" | "run";
     /** The run, when `task` is `"run"`. */
     readonly run?: RunId;
-    /** Whether the work is still going, or has stopped. */
-    readonly phase: "progress" | "end";
+    /**
+     * Whether the work has just begun, is still going, or has stopped.
+     *
+     * OPEN UNION: treat a phase you do not know like `"progress"`.
+     */
+    readonly phase: "start" | "progress" | "end";
     /**
      * How many units are done. For a load, the records read so far (nodes and edges); for a run,
      * whatever unit the algorithm counts in.
@@ -100,4 +105,21 @@ export interface ProgressChange {
     readonly total: number | null;
     /** How far along, from 0 to 1, or null when the total is not known. Never an invented number. */
     readonly fraction: number | null;
+    /**
+     * What is being read, on every change of a load: the name the source was given or its file's
+     * name or URL's last part, and the URL when it was read from one. Absent for a run.
+     */
+    readonly source?: { readonly name?: string; readonly url?: string };
+    /**
+     * How a load stopped, on its `phase: "end"` change only.
+     *
+     * OPEN UNION: later releases may add outcomes.
+     */
+    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    /**
+     * Why a load failed, on its `phase: "end"` change when `outcome` is `"failed"` and the failure
+     * carried a code: the code and the details the rejection carries (for `E_TOO_LARGE`, its
+     * `limit`, `count` and `of`).
+     */
+    readonly error?: { readonly code: string; readonly details: Readonly<Record<string, unknown>> };
 }

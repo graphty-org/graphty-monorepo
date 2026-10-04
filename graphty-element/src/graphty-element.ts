@@ -300,7 +300,8 @@ export class Graphty extends LitElement {
         const key = `${change.task}:${change.run ?? ""}`;
         if (change.phase === "end") {
             this.#progressAt.delete(key);
-        } else {
+        } else if (change.phase !== "start") {
+            // A start is sent once and never held back; only the steps between are.
             const now = Date.now();
             if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
                 return;

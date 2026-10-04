@@ -113,4 +113,24 @@ session.on("progress:changed", (change) => console.log(change.task, change.phase
 also carries `run`, the run's id. Every task sends `phase: "end"` once when it stops, whether it
 succeeded, failed or was cancelled. A load cannot know its size in advance, so `completed` counts
 the node and edge records read so far and `total` and `fraction` are `null`. On the element,
-steps are sent at most every 100 ms per task; the end always arrives.
+steps are sent at most every 100 ms per task; the start and the end always arrive.
+
+A load says more, so a view that did not start it -- a canvas beside a separate file picker --
+can follow it from start to finish:
+
+- `phase: "start"` arrives once as the load begins, before the file or URL is read, with
+  `completed: 0`. Show the loading state from here, not from the first step.
+- `source` is on every load change: `{ name, url }`, the name the load was given or the file's
+  name or the URL's last part, and the URL when it came from one. Either may be absent.
+- `outcome` is on the end: `"succeeded"`, `"failed"` or `"cancelled"`. A failure that carried a
+  code also has `error: { code, details }`, the same code and details the call that started the
+  load rejected with -- for `E_TOO_LARGE`, the `limit`, the `count` and what it counted (`of`).
+
+```ts
+session.on("progress:changed", (change) => {
+    if (change.task !== "load") return;
+    if (change.phase === "start") card.show("reading", change.source?.name);
+    if (change.phase === "end" && change.error?.code === "E_TOO_LARGE") card.show("too-large", change.error.details);
+    else if (change.phase === "end") card.hide();
+});
+```

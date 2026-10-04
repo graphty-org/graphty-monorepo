@@ -124,20 +124,32 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
  * is when any cell is a known column name (source, target, id, label, weight, type...), or when
  * every cell is non-numeric text while the second row has a numeric cell (`u,v` over `1,2`);
  * a first row with a numeric cell is data, and so is one that looks exactly like the rows below it.
+ * A two-column row holding a known name is still data when its second cell is the second row's
+ * first cell and it does not name both endpoints: a header names columns, while an edge list whose
+ * ids happen to be such words (`key,lock` over `lock,door`) chains its ids from row to row.
  * @param first - the first row
  * @param second - the second row, or null when the file has one row
  * @returns true when the first row is a header
  */
 export function looksLikeHeader(first: readonly string[], second: readonly string[] | null): boolean {
     let allText = true;
+    let marker = false;
     for (const cell of first) {
         const text = cell.trim();
         if (HEADER_MARKERS.has(text.toLowerCase())) {
-            return true;
+            marker = true;
         }
         if (text.length === 0 || inferTextDtype(text) !== "string") {
             allText = false;
         }
+    }
+    if (marker) {
+        const names = headerNames(first);
+        if (second === null || (findColumn(names, SOURCE_NAMES) >= 0 && findColumn(names, TARGET_NAMES) >= 0)) {
+            return true;
+        }
+        const chained = first.length === 2 && second.length >= 1 && first[1].trim() === second[0].trim();
+        return !chained || first[1].trim().length === 0;
     }
     if (!allText || second === null) {
         return false;

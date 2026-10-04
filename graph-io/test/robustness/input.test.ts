@@ -233,7 +233,8 @@ describe("robustness: what the decoded text holds", () => {
     it("warns about a U+FEFF inside the text (two files concatenated); the id keeps it", async () => {
         const bom = String.fromCharCode(0xfeff);
         const { snapshot, report } = await csv(`source,target\n${bom}a,b\na,c\n`);
-        expect(codes(report)).toEqual(["W_CONTROL_CHARACTER"]);
+        // U+FEFF is whitespace to String.prototype.trim, so CSV also reports the id as padded
+        expect(codes(report)).toEqual(["W_CONTROL_CHARACTER", "W_CSV_PADDED_ID"]);
         expect(report.issues[0].element).toBe("U+FEFF");
         expect(ids(snapshot)).toEqual([`${bom}a`, "b", "a", "c"]);
     });

@@ -243,8 +243,20 @@ losses and format rules, in addition to the table:
   double quote or a line break cannot be written.
 - **CSV**: header names resolve the endpoints (`source` / `target`, `from` / `to`, Gephi `Source` /
   `Target` / `Type` / `Id` / `Label` / `Weight`); a paired node table comes through the `nodes`
-  option; the delimiter is sniffed. Leading `#` (SNAP) and `%` (KONECT) comment lines are skipped
-  and read for the direction they declare (`# Directed graph`, `% sym` / `% asym`). A quoted empty
+  option; the delimiter is sniffed (a consistency tie goes to the earlier of `,`, tab, `;`, `|`,
+  space), or taken from Excel's `sep=;` first line. A space delimiter reads the whitespace dialect
+  of SNAP / KONECT files: runs of spaces and tabs are one separator, indentation is ignored. Rows of
+  empty unquoted cells (`,,,`) are blank lines. Leading `#` (SNAP) and `%` (KONECT) comment lines are
+  skipped and read for the direction they declare (`# Directed graph`, `% sym` / `% asym`; the first
+  declaration wins, and one that disagrees with an explicit `defaultDirected` or an earlier comment
+  is reported, `W_CSV_COMMENT_DIRECTION`). Input that opens like XML / HTML, JSON, GML, DOT or Pajek
+  is refused (`E_CSV_OTHER_FORMAT`), and NUL bytes in undeclared input fail as binary data
+  (`E_INVALID_UTF8`). A header with one endpoint column fails (`E_CSV_NO_ENDPOINT_COLUMNS`) rather
+  than becoming a node table. Silent guesses are reported once each: a quote inside an unquoted
+  field, a byte order mark inside the text, an unquoted id with surrounding whitespace, two header
+  columns naming one role, a `type` column of direction words outside the Gephi dialect, a header
+  ending in a delimiter (rows without that empty cell are complete), a one-column table another
+  delimiter would split, and a leading `#` line shaped like a record. A quoted empty
   cell is a set empty string, a bare one is unset; text after a closing quote is a fatal
   `E_CSV_QUOTE`. The Gephi dialect keeps per-row direction, the generic dialect drops it
   (`W_CSV_DIRECTION_DROPPED`). Untyped cells follow the 5.1 text grammar per column (`2.0` stays

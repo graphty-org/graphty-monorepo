@@ -11,7 +11,7 @@ the expectation today; the reference points into
 
 | Format | Fixtures | Conform | Known failures | Round trips | Round-trip failures |
 |---|---|---|---|---|---|
-| csv | 83 | 69 | 14 | 67 | 1 |
+| csv | 83 | 71 | 12 | 69 | 1 |
 | cx | 49 | 49 | 0 | 0 | 0 |
 | cx2 | 57 | 57 | 0 | 53 | 1 |
 | cys | 53 | 53 | 0 | 0 | 0 |
@@ -170,10 +170,6 @@ rest of the format's expectations does something else.
 
 - `dialect/unknown-header-text.csv`: issue W_CSV_POSSIBLE_HEADER missing
 
-### Excel sep= line not recognised (sources.md 7.4) (1)
-
-- `dialect/excel-sep-line.csv`: nodes: expected 3, got 5; edges: expected 2, got 3
-
 ### KONECT bip id spaces collide (sources.md 7.4) (1)
 
 - `konect/out.brunson_southern-women_southern-women`: nodes: expected 10, got 5
@@ -185,10 +181,6 @@ rest of the format's expectations does something else.
 ### round trip: a node table without edges exports as an edge list, which drops isolated nodes (declared loss W_CSV_ISOLATED_NODES) (1)
 
 - `gephi/spreadsheet-nodes.csv`: nodeCount: expected 3, got 0 (despite loss notes: W_CSV_ISOLATED_NODES, W_CSV_NODE_TABLE)
-
-### runs of whitespace are not one delimiter (sources.md 7.4) (1)
-
-- `dialect/space-runs.txt`: nodes: expected 4, got 0; edges: expected 3, got 0
 
 ### unquoted id cells are not trimmed (sources.md 7.4) (1)
 
@@ -396,18 +388,18 @@ No known failures.
 
 ### APOC JSON exports are not read (sources.md 9.4) (12)
 
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of a quoted field
+- `apoc-json/all.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
+- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
 
 ### APOC CSV exports are not read (sources.md 9.4) (3)
 

@@ -68,6 +68,12 @@ export interface ReadOptions {
      * check (an XHTML page may embed the format's elements) instead of being E_FOREIGN_FORMAT.
      */
     readonly xml?: boolean | undefined;
+    /**
+     * Whether a NUL byte in undeclared input fails the import as binary data (or BOM-less UTF-16)
+     * even where the bytes are valid UTF-8: for formats whose grammar never reports a NUL itself
+     * (CSV). False by default, so a format's own syntax error names it.
+     */
+    readonly nulIsBinary?: boolean | undefined;
 }
 
 /** How many leading bytes the declaration check sees (an XML prolog, a DOT `charset` near the top). */
@@ -398,6 +404,10 @@ class ByteDecoder {
                 const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
                 this.carry = all.slice(text.length);
             }
+        }
+        if (this.mayFallBack && this.options.nulIsBinary === true && text.includes("\0")) {
+            // a NUL never occurs in a text file: undeclared bytes holding one are binary or BOM-less UTF-16
+            this.binary({ at: this.offset + bytes.indexOf(0), byte: 0 });
         }
         this.offset += bytes.byteLength;
         return text;

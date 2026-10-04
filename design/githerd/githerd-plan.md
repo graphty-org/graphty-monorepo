@@ -309,29 +309,33 @@ When: after milestone 8 step 1 (githerd has posted `githerd/merge` on every open
 a busy day). Before that, the change would stall every pull request, because a head with no status
 cannot merge.
 
-The change, against `.mergify.yml` on master as of 2026-10-03 (two added lines, nothing else):
+The change, against `.mergify.yml` on master as of 2026-10-03 after queueing moved to
+`merge_protections_settings` (three added lines, nothing else; a `failure` is treated exactly as
+the `hold` label is, in both places the file names it):
 
 ```diff
+       queue_conditions:
+           - label!=hold
+           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
++          - -check-failure=githerd/merge
        merge_conditions:
            - check-success=All Checks Pass
            - check-success=Lint PR Title
 +          - check-success=githerd/merge
-
- pull_request_rules:
-     - name: queue ready, non-breaking pull requests into master
-       conditions:
-           - base=master
-           - -draft
-           - -conflict
-           - label!=hold
-           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
-+          - -check-failure=githerd/merge
-       actions:
+ ...
+ merge_protections_settings:
+     auto_merge_conditions:
+         - base=master
+         - -draft
+         - -conflict
+         - label!=hold
+         - "-title~=^[a-z]+(\\([^)]*\\))?!:"
++        - -check-failure=githerd/merge
 ```
 
 The header comment of the file gains one line: "githerd posts `githerd/merge` on every head; a
 `failure` is a hold (a red lane or an owner item) and drops the pull request from the queue until
-githerd posts `success`." The pull request description says how to undo it: delete the two lines.
+githerd posts `success`." The pull request description says how to undo it: delete the three lines.
 
 Verification after it lands, with a docs-only pull request and no version plan: the
 `needs-decision` label on it makes githerd post `failure` (decision line 5), which removes it from

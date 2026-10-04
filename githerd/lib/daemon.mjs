@@ -497,6 +497,8 @@ export async function startDaemon({
     logRecovered(recovered, say);
 
     let fenced = false;
+    /** set once halt releases the lock: a run that ends later must not write the state */
+    let released = false;
     /** @type {Set<Promise<void>>} ledger appends not yet on disk */
     const writes = new Set();
     let stopping = false;
@@ -549,11 +551,12 @@ export async function startDaemon({
     }
 
     /**
-     * Whether this daemon may still write: not stopped by the fence, and not fenced now.
+     * Whether this daemon may still write: not stopped by the fence, not fenced now, and still
+     * holding the lock (not halted).
      * @returns {boolean} true when writing is allowed
      */
     function mayWrite() {
-        if (fenced || loaded.readOnly) return false;
+        if (fenced || released || loaded.readOnly) return false;
         const rec = otherHolder(stateDir, self);
         if (rec) fence(rec);
         return !fenced;
@@ -2267,6 +2270,7 @@ export async function startDaemon({
         clearInterval(aliveTimer);
         process.off("uncaughtException", onUncaught);
         process.off("unhandledRejection", onUncaught);
+        released = true;
         if (!fenced) releaseLock(stateDir, self);
         await Promise.all(writes);
         server.closeAllConnections();

@@ -434,15 +434,15 @@ describe("head facts", () => {
 
 describe("the merge gate's invariants", () => {
     const mergify = readFileSync(new URL("../../.mergify.yml", import.meta.url), "utf8");
-    const withC1 = mergify
+    // The coordination change: the merge condition, and a failure treated as the hold label is, in
+    // the queue conditions and in the auto-merge conditions that end the file.
+    const withC1 = `${mergify
         .replace(
             "- check-success=Lint PR Title",
             "- check-success=Lint PR Title\n          - check-success=githerd/merge",
         )
-        .replace(
-            '"-title~=^[a-z]+(\\\\([^)]*\\\\))?!:"\n      actions:',
-            '"-title~=^[a-z]+(\\\\([^)]*\\\\))?!:"\n          - -check-failure=githerd/merge\n      actions:',
-        );
+        .replace("      merge_conditions:", "          - -check-failure=githerd/merge\n      merge_conditions:")
+        .trimEnd()}\n        - -check-failure=githerd/merge\n`;
 
     it("shows the banner until master's .mergify.yml requires githerd/merge both ways", () => {
         expect(mergifyRequires(mergify)).toBe(false);

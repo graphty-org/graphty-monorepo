@@ -29,7 +29,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { KIND_WORDS, runDate } from "./words";
+import { groupName, KIND_WORDS, runDate } from "./words";
 
 /**
  * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
@@ -318,7 +318,10 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         }
         case "group-row": {
             const group = run?.result?.summary().groups?.find((g) => g.group === resolved.group);
-            return { name: group?.name ?? String(resolved.group), from: run === undefined ? undefined : from(run) };
+            return {
+                name: group === undefined ? String(resolved.group) : groupName(group),
+                from: run === undefined ? undefined : from(run),
+            };
         }
         case "everything-row":
             return { name: "Everything" };

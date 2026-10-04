@@ -7,7 +7,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode } from "./reads";
-import { count, formatNumber, valueText } from "./words";
+import { count, formatNumber, groupName, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -111,7 +111,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
         if (groups === undefined || (typeof group !== "string" && typeof group !== "number")) {
             return [];
         }
-        return [{ run, group, name: groups.find((g) => g.group === group)?.name ?? String(group) }];
+        return [{ run, group, name: groupName(groups.find((g) => g.group === group) ?? { group, size: 0 }) }];
     });
     // The "connections" count is the neighbor list's total, so the two always agree (#784).
     const connections = session.data.neighbors(id, { limit: 0 }).total;

@@ -14,7 +14,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, queuedWords, runDate, runFailureWords } from "./words";
+import { count, formatNumber, groupName, queuedWords, runDate, runFailureWords } from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -305,17 +305,17 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                 <HistogramRow
                     label="Group sizes"
                     bins={groups.map((group) => ({
-                        label: `${group.name ?? String(group.group)}: ${count(group.size, "node")}`,
+                        label: `${groupName(group)}: ${count(group.size, "node")}`,
                         count: group.size,
                     }))}
-                    minLabel={groups.at(0)?.name ?? ""}
-                    maxLabel={groups.at(-1)?.name ?? ""}
+                    minLabel={groups.at(0)?.rank === undefined ? "" : groupName(groups[0])}
+                    maxLabel={groups.at(-1)?.rank === undefined ? "" : groupName(groups[groups.length - 1])}
                 />
                 {groups.length > TOP && <DataRowHeader label={`Largest ${String(TOP)}`} />}
                 {groups.slice(0, TOP).map((group) => (
                     <DataRow
                         key={String(group.group)}
-                        name={group.name ?? String(group.group)}
+                        name={groupName(group)}
                         value={group.size}
                         onClick={() => {
                             store.set({ inspected: { kind: "group-row", id: groupKey(run.id, group.group) } });

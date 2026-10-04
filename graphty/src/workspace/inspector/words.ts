@@ -3,7 +3,13 @@
  * the app's, and lives here.
  */
 
-import type { Channel, GraphStatistics, GraphtyErrorCode, Measurement } from "@graphty/graphty-element/session";
+import type {
+    Channel,
+    GraphStatistics,
+    GraphtyErrorCode,
+    Measurement,
+    SummaryGroup,
+} from "@graphty/graphty-element/session";
 
 import type { InspectedKindId } from "./inspected";
 
@@ -221,4 +227,14 @@ export function queuedWords(position: number | null): string {
     }
     const place = position + 1;
     return `Queued, ${String(place)}${ORDINAL_SUFFIX[ORDINAL.select(place)]}`;
+}
+
+/**
+ * What to call a group: "Group 1" for the largest group of a partition (the element ranks them),
+ * else the group's own value (a category).
+ * @param group - the group.
+ * @returns the name.
+ */
+export function groupName(group: SummaryGroup): string {
+    return group.rank === undefined ? String(group.group) : `Group ${String(group.rank)}`;
 }

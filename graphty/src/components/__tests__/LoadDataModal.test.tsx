@@ -248,7 +248,7 @@ describe("LoadDataModal", () => {
                 }),
             );
 
-            fireEvent.click(screen.getByRole("textbox", { name: "Format" }));
+            fireEvent.click(screen.getByRole("combobox", { name: "Format" }));
 
             const options = (await screen.findAllByRole("option", { hidden: true })).map(
                 (option) => option.textContent,

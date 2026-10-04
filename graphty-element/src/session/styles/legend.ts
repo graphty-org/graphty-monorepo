@@ -65,7 +65,7 @@ export interface LegendSwatch {
     readonly color?: string;
     /** The size or width the encoding paints it. */
     readonly size?: number;
-    /** How many elements carry it, when whoever supplied the encoding can say. */
+    /** How many elements carry it, when whoever supplied the encoding can say. Always set on the `"other"` row. */
     readonly count?: number;
     /**
      * What the encoding paints it when that is neither a colour nor a size -- a node shape, a
@@ -76,6 +76,14 @@ export interface LegendSwatch {
      * communities and not the shapes, which is half a legend.
      */
     readonly paints?: unknown;
+    /**
+     * What the row stands for. `"other"` marks the one bucket the paint folded the smaller groups
+     * into: its `value` lists the values it holds and its `count` how many elements carry them,
+     * and it is always the last row, kept even when the rows above it are capped.
+     *
+     * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
+     */
+    readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
 }
 
 /**
@@ -134,11 +142,11 @@ export interface LegendBlock {
         /** Whether the smallest value lands at the far end of it. */
         readonly reversed: boolean;
     };
-    /** Up to twelve rows. */
+    /** Up to twelve rows, plus the `"other"` row when the paint folded some groups. */
     readonly swatches: readonly LegendSwatch[];
-    /** How many rows did not fit, when some did not. */
+    /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
-        /** The number a consumer prints as "and 14 more". */
+        /** How many rows were left out. */
         readonly hidden: number;
     };
     /**
@@ -429,11 +437,19 @@ function readsGroups(path: Path | null): boolean {
 /**
  * The swatches of an encoding that names categories.
  * @param prepared - The prepared binding.
+ * @param order - The values the binding maps, in the order it maps them: an ordinal column's
+ *   declared order, which the rows follow before the rest.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
-function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
+function categorySwatches(prepared: PreparedBinding, order: readonly string[]): readonly LegendSwatch[] {
     const groups = readsGroups(prepared.path);
-    const swatches: LegendSwatch[] = prepared.categories.map((category, index) => ({
+    const rank = (category: string): number => {
+        const at = order.indexOf(category);
+        return at === -1 ? order.length : at;
+    };
+    // A stable sort, so the categories no order names keep their largest-first order.
+    const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
+    const swatches: LegendSwatch[] = categories.map((category, index) => ({
         label: groups ? groupName(index + 1) : category,
         value: category,
         ...swatchPaint(prepared.paint(category)),
@@ -448,6 +464,8 @@ function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
             label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
             value: lumped,
             ...swatchPaint(folded),
+            count: prepared.counts.other,
+            role: "other",
         });
     }
 
@@ -516,7 +534,9 @@ function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSw
     }
 
     if (prepared.categories.length > 0) {
-        return categorySwatches(prepared);
+        // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
+        // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
+        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}));
     }
 
     if (prepared.domain === null) {
@@ -660,8 +680,12 @@ function buildBlock(
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
-    const swatches = allSwatches(prepared, layer);
-    const hidden = Math.max(0, swatches.length - SWATCH_CAP);
+    const all = allSwatches(prepared, layer);
+    // The "other" row is what the paint folded, so it is kept whatever the cap drops.
+    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
+    const rows = other === undefined ? all : all.slice(0, -1);
+    const hidden = Math.max(0, rows.length - SWATCH_CAP);
+    const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
 
@@ -678,7 +702,7 @@ function buildBlock(
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
-        swatches: Object.freeze(swatches.slice(0, SWATCH_CAP)),
+        swatches: Object.freeze(swatches),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
         departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
     };

@@ -19,7 +19,7 @@ describe("RunLayoutsModal", () => {
 
         it("should display layout dropdown", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
-            expect(screen.getByRole("textbox", { name: /layout/i })).toBeInTheDocument();
+            expect(screen.getByRole("combobox", { name: /layout/i })).toBeInTheDocument();
         });
     });
 
@@ -37,7 +37,7 @@ describe("RunLayoutsModal", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Click to open the dropdown
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
 
             // Wait for dropdown to open and verify all layouts are present
@@ -52,7 +52,7 @@ describe("RunLayoutsModal", () => {
         it("should have D3 Force as the default selected layout", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             expect(dropdown).toHaveValue("D3 Force");
         });
 
@@ -96,7 +96,7 @@ describe("RunLayoutsModal", () => {
                 />,
             );
 
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             expect(dropdown).toHaveValue("Circular");
         });
     });
@@ -140,7 +140,7 @@ describe("RunLayoutsModal", () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
             // Select ForceAtlas2 which has scalingFactor hidden
-            const dropdown = screen.getByRole("textbox", { name: /layout/i });
+            const dropdown = screen.getByRole("combobox", { name: /layout/i });
             fireEvent.click(dropdown);
             await waitFor(() => {
                 expect(screen.getByText("ForceAtlas2")).toBeInTheDocument();

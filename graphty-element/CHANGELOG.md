@@ -1,3 +1,45 @@
+## 3.7.0 (2026-10-03)
+
+### 🚀 Features
+
+- **graphty-element:** shared column, result, fact and progress shapes ([968987ab](https://github.com/graphty-org/graphty-monorepo/commit/968987ab))
+
+### 🔥 Performance
+
+- **graphty-element:** import lodash functions one by one so the main entry drops the whole library ([8c2c2f36](https://github.com/graphty-org/graphty-monorepo/commit/8c2c2f36))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.6.0 (2026-10-03)
+
+### 🚀 Features
+
+- **graphty-element:** export toColorValue and ColorValue from the catalog entry ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+- **graphty-element:** read a JSON graphs array through graph-io and choose one of its graphs ([8e21be28](https://github.com/graphty-org/graphty-monorepo/commit/8e21be28))
+- **graphty-element:** read sources as bytes and choose one graph of a file ([c89186b9](https://github.com/graphty-org/graphty-monorepo/commit/c89186b9))
+- **graphty-element:** algorithms suggest readable names for their results ([#383](https://github.com/graphty-org/graphty-monorepo/issues/383))
+
+### 🩹 Fixes
+
+- **graphty-element:** an interrupted camera animation stops moving the camera ([35d778ef](https://github.com/graphty-org/graphty-monorepo/commit/35d778ef))
+- **graphty-element:** honor DOT charset, UTF-16 files and undecodable bytes ([324ae73f](https://github.com/graphty-org/graphty-monorepo/commit/324ae73f))
+- **graphty-element:** a filter or selection not yet drawn keeps the frame from being stable ([5d1a3a45](https://github.com/graphty-org/graphty-monorepo/commit/5d1a3a45))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.28
+- Updated graph-samples to 0.1.15
+- Updated graph-format to 1.3.0
+- Updated algorithms to 3.3.0
+- Updated graph-io to 0.3.20
+- Updated layout to 2.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.5.6 (2026-10-03)
 
 ### 🧱 Updated Dependencies

@@ -467,8 +467,17 @@ function workUnits(costClass: CostClass, nodes: number, edges: number, iteration
 interface OwnCostModel {
     /** The work term as a person reads it in a basis line, given the iteration bound. */
     readonly term: (iterations: number) => string;
-    /** Seconds over the whole graph, given its sizes, the rates in force and the iteration bound. */
-    readonly seconds: (nodes: number, edges: number, rates: Readonly<CostRates>, iterations: number) => number;
+    /**
+     * Seconds over the whole graph, given its sizes, the rates in force, the iteration bound and the
+     * graph's statistics, for a model whose work depends on the graph's shape and not its size alone.
+     */
+    readonly seconds: (
+        nodes: number,
+        edges: number,
+        rates: Readonly<CostRates>,
+        iterations: number,
+        statistics: GraphStatistics,
+    ) => number;
 }
 
 /**
@@ -532,31 +541,39 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
     /* Multilevel Louvain over the snapshot: local-moving sweeps over the edges, then a fold, until
        nothing moves. It stops on its tolerance long before `maxIterations`, so the bound is not
        charged. Refitted on 2026-09-29, when the element moved it off the Map-based object graph and
-       onto the dispatcher's CPU port, and re-pinned on 2026-10-03.
+       onto the dispatcher's CPU port, and given a structure term on 2026-10-03.
        Where the time goes, counted with an instrumented copy of the port: an arc scan costs a
-       steady 7.5 to 9 ns on random m = 5n at every size, so the cost is the NUMBER of scans. On a
-       graph with no community structure the first two levels only pair nodes up, halving the node
-       count while keeping almost every arc, and the third level -- about n / 5 super-nodes with
-       about 40 neighbours each -- is where the queue runs long: 10 to 22 scans of each original
-       edge there, against 2.6 on each earlier level. That count depends on the particular graph,
-       not on its size (n = 10,000 to 400,000 read 16, 16, 16, 21, 27, 24, 25, 26, 21, 22, 23, 25
-       scans per edge in all), so the cost per element of n + m per unit of log2(n + m) does not
-       trend with n on random m = 5n but scatters between 13.3 and 19.3 ns, the most at 70,000
-       nodes and next at 50,000 (18.7). Graphs with structure settle in far fewer scans: planted
-       partitions 7.1 to 7.8 ns, scale-free 12 to 20 ns (rising with n as its scans miss the
-       cache), random m = 1.2n 10 to 14 ns, random m = 20n 12 to 18 ns.
-       The 22 ns this was pinned at sat only 1.14x over the 50,000-node reading, and that row's
-       measured time spreads by about 10% across CI runners at one probe reading. In the run that
-       read 0.94, under the 0.95 floor, every Louvain row ran 5% to 15% slower while the probe and
-       every other algorithm's rows held within 2%: its scans read memory at random, which the
-       calibration probe does not exercise. Pinned now at 26.7 ns, 1 / (12.5 * the
-       iterative rate): 1.38x over the slowest graph measured, and about 3.4x to 3.75x over planted
-       partitions, the fastest graph held to both bounds. Far more over the grid, path, star and
-       clique-ring shapes, where it settles in a handful of sweeps. */
+       steady 7.5 to 9 ns, so the cost is the NUMBER of scans, and that is set by the graph's
+       community structure rather than its size. On a graph with none, the first two levels only
+       pair nodes up, halving the node count while keeping almost every arc, and the third level --
+       about n / 5 super-nodes with about 40 neighbours each -- runs 10 to 22 scans of each original
+       edge. On a graph with communities the first level gathers whole communities and the levels
+       after it are small. One rate per element of n + m per unit of log2(n + m) cannot cover both:
+       measured on 2026-10-03 it ran from 7.2 ns on planted partitions to 20.6 on random m = 5n and
+       24.5 on scale-free at 200,000 nodes, a 3.4x spread against the 4.2x the accuracy test allows
+       before CI runners' 10% scatter, and a flat 26.7 ns read 4.07 on a planted partition on CI.
+       What tells the two apart is the transitivity in the statistics: the share of two-edge paths
+       closed into triangles, which a community has and a graph without structure does not. The
+       charge is divided by 1 + min(10 T, 1), so it halves at T = 0.1 and no further. Measured at
+       10,000 to 200,000 nodes (ns per element-log, then the transitivity):
+       - no triangles: random m = 1.2n 10.6 to 11.9, m = 5n 14.0 to 20.6, m = 20n 10.7 to 12.2
+         (T 0.003 or less), scale-free 15.3 to 24.5 (T 0.002 or less);
+       - blocks of 50 with k_in / k_out edges per node inside and out: 4 / 1 7.2 to 8.8 (T 0.09),
+         3 / 2 13.1 (T 0.04), 2.5 / 2.5 15.2 (T 0.021), 2 / 3 15.8 (T 0.011), 1 / 4 20.8 (T 0.002);
+         blocks of 10 9.2 (T 0.26), of 500 10.2 (T 0.011);
+       - Watts-Strogatz rings 2.4 to 9.6 (T 0.07 to 0.47), a random geometric graph 6.9 (T 0.59),
+         a ring of 10-cliques 2.6 (T 0.95).
+       The discount stops at 2 because more triangles stop predicting a cheaper run: blocks of 10
+       (T 0.26) cost more than blocks of 50 (T 0.09). Pinned at 30.3 ns, 1 / (11 * the iterative
+       rate), over that divisor: 1.24x to 2.9x over every graph above with T under 0.6, 1.24x over
+       the slowest (scale-free at 200,000 nodes) and 1.5x over the slowest held to both bounds
+       (random m = 5n at 70,000). Far more over grid, path, star and clique-ring shapes, which settle
+       in a handful of sweeps. Statistics with no transitivity are charged as a graph with none. */
     louvain: {
-        term: () => "(n + m) log2(n + m)",
-        seconds: (nodes, edges, rates) =>
-            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (12.5 * rates.iterativeElementsPerSecond),
+        term: () => "(n + m) log2(n + m) / (1 + min(10 T, 1)), T the transitivity",
+        seconds: (nodes, edges, rates, _iterations, statistics) =>
+            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) /
+            (11 * rates.iterativeElementsPerSecond * (1 + Math.min(10 * (statistics.transitivity ?? 0), 1))),
     },
     /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
        (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the
@@ -822,6 +839,7 @@ export function estimateCost(input: CostInput): CostEstimate {
             sampleFactor,
             calibration,
             ownUnits !== undefined,
+            statistics,
         );
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const derivation = input.derivationSeconds ?? 0;
@@ -882,6 +900,7 @@ export function estimateCost(input: CostInput): CostEstimate {
  * @param calibration - This machine's calibration, when it has one.
  * @param ownUnits - Whether `units` came from the plugin's `static costUnits`, which supersedes a
  *   seconds model.
+ * @param statistics - The graph's shape, for an own model that reads more than its size.
  * @returns The seconds and how much they are worth.
  */
 function modelFromRates(
@@ -894,6 +913,7 @@ function modelFromRates(
     sampleFactor: number,
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
+    statistics: GraphStatistics,
 ): ModelledSeconds {
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
@@ -930,7 +950,7 @@ function modelFromRates(
 
     const own = OWN_COST_MODELS[descriptor.key];
     const seconds =
-        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
+        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor;
 
     if (probed) {
         return {

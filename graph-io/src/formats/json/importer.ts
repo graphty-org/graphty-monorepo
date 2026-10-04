@@ -287,6 +287,9 @@ const FORMAT_DEFAULTS: ImportFormatDefaults = { ids: "keep", defaultDirected: fa
 /** Bytes of the head sniff() inspects. */
 const SNIFF_BYTES = 4096;
 
+/** How many dangling endpoints the W_DANGLING_REFERENCE message names. */
+const DANGLING_SHOWN = 5;
+
 /** Elements pushed between two checks of the cancellation signal (the whole document is one chunk). */
 const ABORT_CHECK_INTERVAL = 64;
 
@@ -995,15 +998,70 @@ export class ImportContext {
     pushEdge(source: NodeId, target: NodeId, kind: EdgeKind, weight: number | undefined, element: string): number {
         this.checkAbort();
         const before = this.sink.edgeCount;
-        // endpoints the sink creates (addMissingNodes) count as nodes too
-        let created = this.sink.indexOf(source) === INVALID_INDEX ? 1 : 0;
-        if (source !== target && this.sink.indexOf(target) === INVALID_INDEX) {
-            created++;
-        }
+        // endpoints the sink creates (addMissingNodes) count as nodes too, and are reported
+        const missingSource = this.sink.indexOf(source) === INVALID_INDEX;
+        const missingTarget = source !== target && this.sink.indexOf(target) === INVALID_INDEX;
         const edge = this.direction.addEdge(source, target, kind, weight, { element });
         this.report.counts.edges += this.sink.edgeCount - before;
-        this.report.counts.nodes += created;
+        if (missingSource) {
+            this.dangling(source);
+        }
+        if (missingTarget) {
+            this.dangling(target);
+        }
         return edge;
+    }
+
+    /** Endpoints that named no node and became placeholder nodes, the first few kept for the message. */
+    private readonly danglingIds: NodeId[] = [];
+
+    private danglingCount = 0;
+
+    /** Set when the document has no node section: every node comes from an edge (E_MISSING_SECTION says so). */
+    nodesFromEdges = false;
+
+    /** Dangling endpoints whose id, as the other JSON type, is a node (`"1"` next to the node 1). */
+    private readonly nearMatches: NodeId[] = [];
+
+    /**
+     * Count a placeholder node an edge endpoint created.
+     * @param id - the endpoint
+     */
+    private dangling(id: NodeId): void {
+        this.report.counts.nodes++;
+        this.danglingCount++;
+        if (this.danglingIds.length < DANGLING_SHOWN) {
+            this.danglingIds.push(id);
+        }
+        const other = typeof id === "number" ? String(id) : Number(id);
+        if (
+            this.nearMatches.length < DANGLING_SHOWN &&
+            (typeof other === "string" || String(other) === id) &&
+            this.sink.indexOf(other) !== INVALID_INDEX
+        ) {
+            this.nearMatches.push(id);
+        }
+    }
+
+    /**
+     * Report the edge endpoints that named no node (the shared W_DANGLING_REFERENCE, once with the
+     * count): each became a placeholder node, which is rarely what the file meant.
+     */
+    reportDangling(): void {
+        if (this.danglingCount === 0 || this.nodesFromEdges) {
+            return;
+        }
+        const shown = this.danglingIds.map((id) => JSON.stringify(id)).join(", ");
+        const near =
+            this.nearMatches.length > 0
+                ? `; ${this.nearMatches.map((id) => JSON.stringify(id)).join(", ")} name(s) a node id of another JSON type (a string next to a number), which is a different id`
+                : "";
+        this.report.warning(
+            "validation-error",
+            JSON_ISSUE.DANGLING_REFERENCE,
+            `${this.danglingCount} edge endpoint(s) name no node and became placeholder nodes: ${shown}${this.danglingCount > DANGLING_SHOWN ? ", ..." : ""}${near}`,
+            { element: String(this.danglingIds[0]) },
+        );
     }
 
     /**
@@ -1217,6 +1275,7 @@ export class ImportContext {
     ): EdgeIdColumn | null {
         let numbers = 0;
         let strings = 0;
+        let others = 0;
         for (const edge of edges) {
             if (!isJsonObject(edge)) {
                 continue;
@@ -1226,12 +1285,15 @@ export class ImportContext {
                 numbers++;
             } else if (typeof raw === "string") {
                 strings++;
+            } else if (raw !== undefined && raw !== null) {
+                others++;
             }
         }
-        if (numbers + strings === 0) {
+        if (numbers + strings + others === 0) {
             return null;
         }
-        const dtype = strings === 0 ? "f64" : "string";
+        // ids of no usable type still get a column, so edgeIdValue() reports each instead of dropping it
+        const dtype = strings === 0 && numbers > 0 ? "f64" : "string";
         const columnName = uniqueColumnName(name, "id", (candidate) => this.edges.taken(candidate));
         const handle = this.edges.declare({ name: columnName, dtype, role: "id", nullable: true, unique });
         const stringify = strings > 0 && numbers > 0;
@@ -1585,7 +1647,7 @@ function flagOf(value: unknown, what: string, fallback: boolean, report: ImportR
 
 /**
  * The endpoint key and value of an edge record: the explicit key when given, else the first of the
- * default keys the record has.
+ * default keys the record has (a null value counts as absent).
  * @param record - the edge record
  * @param explicit - the caller's key, or null
  * @param defaults - the default keys
@@ -1597,14 +1659,24 @@ function endpointOf(
     defaults: readonly string[],
 ): { readonly key: string | null; readonly value: unknown } {
     if (explicit !== null) {
-        return { key: hasKey(record, explicit) ? explicit : null, value: record[explicit] };
+        return { key: present(record, explicit) ? explicit : null, value: record[explicit] };
     }
     for (const key of defaults) {
-        if (hasKey(record, key)) {
+        if (present(record, key)) {
             return { key, value: record[key] };
         }
     }
     return { key: null, value: undefined };
+}
+
+/**
+ * Whether a record has a key with a value other than null: a null endpoint is an absent one.
+ * @param record - the record
+ * @param key - the key
+ * @returns true when the key holds a non-null value
+ */
+function present(record: JsonRecord, key: string): boolean {
+    return hasKey(record, key) && record[key] !== null;
 }
 
 /**
@@ -1650,6 +1722,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
             "the document has no nodes array; nodes come from the edges",
             { element: "nodes" },
         );
+        ctx.nodesFromEdges = true;
     }
     if (edges === null) {
         report.error(
@@ -1725,6 +1798,9 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
         ({ indexLinks } = json);
     }
     const positionIds: (NodeId | null)[] | null = indexLinks ? [] : null;
+    if (indexLinks && !positional && json.indexLinks === "auto" && nodeIdKey !== null) {
+        reportAmbiguousIndexLinks(ctx, nodeList, edgeList, nodeIdKey);
+    }
 
     for (let i = 0; i < nodeList.length; i++) {
         const element = `nodes[${i}]`;
@@ -1752,7 +1828,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
         positionIds?.push(pushed);
     }
     throwIfAborted(ctx.options.signal);
-    const endpointKeys = importNodeLinkEdges(ctx, edgeList, edgesKey, positionIds);
+    const endpointKeys = importNodeLinkEdges(ctx, edgeList, edgesKey, positionIds, multigraph);
     ctx.setMeta(
         {
             dialect,
@@ -1780,11 +1856,17 @@ function importNodeLinkEdges(
     edgeList: readonly unknown[],
     edgesKey: string,
     positionIds: readonly (NodeId | null)[] | null,
+    multigraph: boolean | null,
 ): { source: string | null; target: string | null } {
     const { json } = ctx;
     const kind = ctx.uniformKind();
     let sourceKey: string | null = null;
     let targetKey: string | null = null;
+    // multigraph false: the pairs seen, to report parallel links; true: the (pair, key) triples, since
+    // NetworkX reads a repeated (u, v, key) as one edge
+    // ponytail: one string per edge whenever the flag is declared; a hash of the index pair if it shows in profiles
+    const pairs = multigraph === null ? null : new Set<string>();
+    let parallels = 0;
     for (let i = 0; i < edgeList.length; i++) {
         const element = `${edgesKey}[${i}]`;
         const record = edgeList[i];
@@ -1808,6 +1890,23 @@ function importNodeLinkEdges(
                 continue;
             }
             const weight = ctx.weightOf(record);
+            if (pairs !== null) {
+                const pair = pairKey(u, v, kind === "directed");
+                if (multigraph === false) {
+                    parallels += pairs.has(pair) ? 1 : 0;
+                    pairs.add(pair);
+                } else if (hasKey(record, "key")) {
+                    const triple = `${pair} ${JSON.stringify(record.key)}`;
+                    if (pairs.has(triple)) {
+                        throw new GraphFormatError(
+                            JSON_ISSUE.DUPLICATE_EDGE_ID,
+                            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
+                            { id: String(record.key) },
+                        );
+                    }
+                    pairs.add(triple);
+                }
+            }
             const edge = ctx.pushEdge(u, v, kind, weight, element);
             const { weightFrom } = ctx.options;
             for (const key of Object.keys(record)) {
@@ -1819,7 +1918,69 @@ function importNodeLinkEdges(
             ctx.skip(err, "edge", element);
         }
     }
+    if (parallels > 0) {
+        ctx.report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `the document declares multigraph false, but ${parallels} link(s) repeat the endpoints of an earlier one; all are kept`,
+            { element: edgesKey },
+        );
+    }
     return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * The key of an endpoint pair: ordered for a directed edge, unordered for an undirected one.
+ * @param u - the source
+ * @param v - the target
+ * @param directed - whether the order matters
+ * @returns the key
+ */
+function pairKey(u: NodeId, v: NodeId, directed: boolean): string {
+    const a = JSON.stringify(u);
+    const b = JSON.stringify(v);
+    return directed || a <= b ? `${a} ${b}` : `${b} ${a}`;
+}
+
+/**
+ * Warn when indexLinks "auto" read integer endpoints as array positions although some also equal
+ * a node id's text (`"2"`): the file may mean the ids, and the edges are then off by the positions.
+ * @param ctx - the context
+ * @param nodes - the node records
+ * @param edges - the edge records
+ * @param nodeIdKey - the node id key
+ */
+function reportAmbiguousIndexLinks(
+    ctx: ImportContext,
+    nodes: readonly unknown[],
+    edges: readonly unknown[],
+    nodeIdKey: string,
+): void {
+    const ids = new Set<string>();
+    for (const node of nodes) {
+        if (isJsonObject(node) && typeof node[nodeIdKey] === "string") {
+            ids.add(node[nodeIdKey]);
+        }
+    }
+    for (const edge of edges) {
+        if (!isJsonObject(edge)) {
+            continue;
+        }
+        for (const value of [
+            endpointOf(edge, ctx.json.sourceKey, NODE_LINK_SOURCE_KEYS).value,
+            endpointOf(edge, ctx.json.targetKey, NODE_LINK_TARGET_KEYS).value,
+        ]) {
+            if (typeof value === "number" && ids.has(String(value))) {
+                ctx.report.warning(
+                    "coercion",
+                    JSON_ISSUE.INDEX_LINKS,
+                    `integer endpoints are read as array positions, but ${value} is also a node id; pass indexLinks: false to read the endpoints as ids`,
+                    { element: "indexLinks" },
+                );
+                return;
+            }
+        }
+    }
 }
 
 /**
@@ -1845,8 +2006,8 @@ function writeFlat(
 }
 
 /**
- * The d3 index-link heuristic: endpoints are array positions when every endpoint is a
- * non-negative integer and no node id is a number (a numeric id would make the endpoints ids;
+ * The d3 index-link heuristic: endpoints are array positions when every endpoint is a number, at
+ * least one is a non-negative integer, and no node id is a number (a numeric id would make the endpoints ids;
  * research note 07: d3 links reference nodes by array index and are never coerced to ids). An
  * index at or beyond the node count is then E_BAD_INDEX, never a new numeric node.
  * @param nodes - the node records
@@ -1876,10 +2037,14 @@ function looksIndexLinked(
         }
         const s = endpointOf(edge, json.sourceKey, NODE_LINK_SOURCE_KEYS).value;
         const t = endpointOf(edge, json.targetKey, NODE_LINK_TARGET_KEYS).value;
-        if (!isIndexBelow(s, Infinity) || !isIndexBelow(t, Infinity)) {
+        // a fractional or negative number is a bad index (E_BAD_INDEX), never a reason to read every
+        // other endpoint as an id; a missing endpoint is reported on its own
+        if ((s !== undefined && typeof s !== "number") || (t !== undefined && typeof t !== "number")) {
             return false;
         }
-        seen++;
+        if (isIndexBelow(s, Infinity) || isIndexBelow(t, Infinity)) {
+            seen++;
+        }
     }
     return seen > 0;
 }
@@ -2295,8 +2460,8 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("edge", element);
             continue;
         }
-        if (!hasKey(record, "source") || !hasKey(record, "target")) {
-            ctx.missingEndpoint(element, hasKey(record, "source") ? "target" : "source");
+        if (!present(record, "source") || !present(record, "target")) {
+            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
             continue;
         }
         try {
@@ -2492,8 +2657,8 @@ function importJgf(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("edge", element);
             continue;
         }
-        if (!hasKey(record, "source") || !hasKey(record, "target")) {
-            ctx.missingEndpoint(element, hasKey(record, "source") ? "target" : "source");
+        if (!present(record, "source") || !present(record, "target")) {
+            ctx.missingEndpoint(element, present(record, "source") ? "target" : "source");
             continue;
         }
         try {
@@ -2947,8 +3112,8 @@ function importCytoscapeEdges(ctx: ImportContext, edges: readonly unknown[], edg
             continue;
         }
         const { data } = record;
-        if (!hasKey(data, "source") || !hasKey(data, "target")) {
-            ctx.missingEndpoint(element, `data.${hasKey(data, "source") ? "target" : "source"}`);
+        if (!present(data, "source") || !present(data, "target")) {
+            ctx.missingEndpoint(element, `data.${present(data, "source") ? "target" : "source"}`);
             continue;
         }
         try {
@@ -3203,6 +3368,7 @@ function readGraph(
     reportSinkOptions(sink, options, report, dialect === "obographs");
     reportUnusedOptions(options, report, USED_OPTIONS);
     readDialect(ctx, root, dialect);
+    ctx.reportDangling();
     ctx.nodes.reportNullOnly();
     ctx.edges.reportNullOnly();
     throwIfAborted(resolved.signal);

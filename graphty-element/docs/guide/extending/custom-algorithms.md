@@ -217,7 +217,7 @@ counts the passes, so the cost estimate grows with it:
 ```ts
 import { defineAlgorithm } from "@graphty/graphty-element/extend";
 
-// PageRank: on every pass, each node's rank flows to its neighbours, shared out by its degree.
+// PageRank: on every pass, each node's rank flows to its neighbors, shared out by its degree.
 defineAlgorithm({
     id: "acme-rank",
     options: { passes: { type: "integer", default: 30, min: 1, max: 200 } },
@@ -519,7 +519,7 @@ pair `A -> B`, `B -> A` becomes one edge, which keeps the lower row's weight). T
   many as they merged. Without it the weights are the ones the graph was loaded with, whose meaning
   the run does not state.
 
-In a snapshot the neighbours of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
+In a snapshot the neighbors of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
 gives `src`, `dst` and `weights` per edge; `ids.idOf(row)` is a node's id; and `weightedDegree()`,
 `degree()` and the other members of graph-format 1.x's `GraphSnapshot` are there to use. An
 undirected snapshot stores each edge as two arcs, one in each endpoint's row. Take `GraphSnapshot`,

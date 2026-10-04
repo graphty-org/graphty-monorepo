@@ -169,6 +169,9 @@ session.data.nodePage({ scope: "selection" });
 // The edges at one node:
 session.data.edgePage({ touching: "alice", limit: Infinity });
 
+// The nodes joined to one node, one row each, strongest first (see the Neighbors guide):
+session.data.neighbors("alice");
+
 // Read the page again when the graph changes (and, for a "selection" scope, the selection;
 // for result columns, the runs -- run:changed also fires on progress ticks, which the
 // revision check skips). The revision is the session's, so a { limit: 0 } read compares with

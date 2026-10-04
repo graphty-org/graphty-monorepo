@@ -74,6 +74,7 @@ export default defineConfig({
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },
+                        { text: "Neighbors", link: "/guide/neighbors" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Previewing a Load", link: "/guide/load-preview" },
                         { text: "Events", link: "/guide/events" },

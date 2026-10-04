@@ -93,4 +93,66 @@ describe("QuickActions", () => {
         expect(screen.getByRole("combobox")).toHaveValue("");
         expect(screen.getByRole("button", { name: "Visual search" })).toBeInTheDocument();
     });
+
+    describe("the field list options", () => {
+        const FIELDS: QuickAction[] = [
+            { value: "degree", label: "degree" },
+            {
+                value: "community",
+                label: "community",
+                disabled: true,
+                description: "Holds groups, not amounts",
+            },
+            { value: "chapters", label: "shared_chapters_with_valjean" },
+        ];
+
+        it("draws a second line as the option's description, keeping the name its label alone", async () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} />);
+            const option = screen.getByRole("option", { name: "community" });
+            expect(option).toHaveAccessibleDescription("Holds groups, not amounts");
+            // A search keeps the reason, where it would lose a section heading.
+            await userEvent.keyboard("comm");
+            expect(screen.getByRole("option", { name: "community" })).toHaveAccessibleDescription(
+                "Holds groups, not amounts",
+            );
+        });
+
+        it("hides the search field at or below the threshold and puts focus on the list", async () => {
+            const onRun = vi.fn();
+            const onClose = vi.fn();
+            renderShell(<QuickActions actions={FIELDS} onRun={onRun} onClose={onClose} searchThreshold={15} />);
+            expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+            const list = screen.getByRole("listbox");
+            expect(list).toHaveFocus();
+            expect(list).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
+            await userEvent.keyboard("{ArrowDown}");
+            expect(screen.getByRole("option", { name: /shared_chapters/ })).toHaveAttribute("data-highlighted");
+            await userEvent.keyboard("{Enter}");
+            expect(onRun).toHaveBeenCalledWith("chapters");
+            await userEvent.keyboard("{Escape}");
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        it("shows the search field past the threshold", () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} searchThreshold={2} />);
+            expect(screen.getByRole("combobox")).toHaveFocus();
+        });
+
+        it("opens on the first item, and a letter moves to the search field", async () => {
+            const onRun = vi.fn();
+            renderShell(<QuickActions actions={FIELDS} onRun={onRun} initialFocus="first" />);
+            expect(screen.getByRole("listbox")).toHaveFocus();
+            await userEvent.keyboard("s");
+            expect(screen.getByRole("combobox")).toHaveFocus();
+            await userEvent.keyboard("{Enter}");
+            expect(onRun).toHaveBeenCalledTimes(1);
+        });
+
+        it("cuts a name in the middle when asked, with the full name as the tooltip", () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} truncate="middle" />);
+            const option = screen.getByRole("option", { name: "shared_chapters_with_valjean" });
+            expect(option).toHaveAttribute("title", "shared_chapters_with_valjean");
+            expect(option.querySelector(".cm-qa-row-tail")).toHaveTextContent("_valjean");
+        });
+    });
 });

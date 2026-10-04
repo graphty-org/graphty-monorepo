@@ -1977,7 +1977,7 @@ export async function startDaemon({
      * hash).
      */
     async function selfUpdate() {
-        if (env.GITHERD_DEV || !codeHash || updating || fatal || fenced || stopping) return;
+        if (env.GITHERD_DEV || !codeHash || updating !== null || fatal || fenced || stopping) return;
         const found = launcherContext({ cwd: root, env, stateDir });
         if (found.kind !== "ready") return;
         const target = await targetCode(found.ctx);

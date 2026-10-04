@@ -277,10 +277,8 @@ describe("exportGraphToBytes / exportGraphToBlob", () => {
     });
 
     it("throw E_UNSUPPORTED for a format with no exporter", async () => {
-        for (const format of ["cys", "nope"]) {
-            const err = await rejection(exportGraphToBlob(sample(), format));
-            expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
-        }
+        const err = await rejection(exportGraphToBlob(sample(), "nope"));
+        expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
     });
 });
 
@@ -297,7 +295,7 @@ describe("listFormats", () => {
             expect(info.capabilities).toBe(info.canExport ? registry.exporter(info.format).capabilities : null);
         }
         expect(formats.find((f) => f.format === "pajek")?.extensions).toContain(".net");
-        expect(formats.find((f) => f.format === "cys")?.canExport).toBe(false);
+        expect(formats.find((f) => f.format === "cys")?.canExport).toBe(true);
     });
 
     it("takes an export-only format's extensions and MIME types from its exporter", () => {

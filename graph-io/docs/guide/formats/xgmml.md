@@ -76,8 +76,13 @@ The codes this format's import report can hold, also exported as `XGMML_ISSUE` f
 
 | Code                           | Key                    | Severity | Meaning                                                                                             |
 | ------------------------------ | ---------------------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `E_XML_SYNTAX`                 | `XML_SYNTAX`           | error    | Fatal: the input is not well-formed XML.                                                            |
 | `E_EMPTY_INPUT`                | `EMPTY_INPUT`          | error    | Fatal: the input is empty or whitespace only.                                                       |
+| `E_TOO_LARGE`                  | `TOO_LARGE`            | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                    |
+| `W_ENCODING_CONFLICT`          | `ENCODING_CONFLICT`    | warning  | A declared encoding the byte order mark contradicts (the mark wins).                                |
+| `W_CONTROL_CHARACTER`          | `CONTROL_CHARACTER`    | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                   |
+| `E_FOREIGN_FORMAT`             | `FOREIGN_FORMAT`       | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                  |
+| `W_ISSUES_SUPPRESSED`          | `ISSUES_SUPPRESSED`    | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                      |
+| `E_XML_SYNTAX`                 | `XML_SYNTAX`           | error    | Fatal: the input is not well-formed XML.                                                            |
 | `E_INVALID_UTF8`               | `INVALID_UTF8`         | error    | Fatal: the input holds invalid UTF-8.                                                               |
 | `E_INVALID_ENCODING`           | `INVALID_ENCODING`     | error    | Fatal: bytes invalid in the encoding a BOM, a declaration or the option chose.                      |
 | `W_ENCODING_FALLBACK`          | `ENCODING_FALLBACK`    | warning  | Undeclared non-UTF-8 bytes were read as windows-1252.                                               |
@@ -86,6 +91,7 @@ The codes this format's import report can hold, also exported as `XGMML_ISSUE` f
 | `E_XGMML_VIEW_DOCUMENT`        | `VIEW_DOCUMENT`        | error    | Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology.                         |
 | `E_MISSING_ID`                 | `MISSING_ID`           | error    | A node with neither an id nor a label; it is skipped with its subtree.                              |
 | `W_XGMML_ID_FROM_LABEL`        | `ID_FROM_LABEL`        | warning  | A node without an id; its label is used as the id.                                                  |
+| `W_XGMML_ID_AND_HREF`          | `ID_AND_HREF`          | warning  | A node or edge with both an id and an `xlink:href`; it is read as the reference.                    |
 | `E_MISSING_ENDPOINT`           | `MISSING_ENDPOINT`     | error    | An edge without a source or a target that no label alias resolves.                                  |
 | `E_UNKNOWN_NODE`               | `UNKNOWN_NODE`         | error    | An edge endpoint that names no node (addMissingNodes false); the edge is skipped.                   |
 | `W_XGMML_LABEL_ALIAS`          | `LABEL_ALIAS`          | warning  | Endpoints resolved through Cytoscape's `"a (pp) b"` label aliases; interactions filled from labels. |

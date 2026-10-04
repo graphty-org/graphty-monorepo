@@ -172,7 +172,8 @@ reports every column or feature outside it):
 vocabulary columns (`name`, `def`, `synonym`, `xref`, `namespace`, ...) exactly; every other node
 column is written as property values, every edge column as edge qualifiers (OBO) or edge `meta`
 (OBO Graphs), and graph columns as header metadata, each reported by `check()`. An OBO id cannot
-hold whitespace, `!`, `{` or `}` (`sanitizeIds: "mangle"` rewrites it and the importer restores it).
+be empty or hold whitespace, a control character, `!`, `{` or `}` (`sanitizeIds: "mangle"` rewrites
+it and the importer restores it); an OBO Graphs node id cannot be empty.
 
 Every importer reads the whole corpus of research note 07 with the manifest counts and every
 exporter round-trips it (import -> export -> import gives the same ids, topology, orientation,

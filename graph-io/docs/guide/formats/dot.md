@@ -73,8 +73,13 @@ The codes this format's import report can hold, also exported as `DOT_ISSUE` fro
 
 | Code                                | Key                           | Severity | Meaning                                                                                                          |
 | ----------------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`                          | `SYNTAX`                      | error    | A grammar violation; fatal.                                                                                      |
 | `E_EMPTY_INPUT`                     | `EMPTY_INPUT`                 | error    | The input holds no graph at all (empty or only comments); fatal.                                                 |
+| `E_TOO_LARGE`                       | `TOO_LARGE`                   | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                                 |
+| `W_ENCODING_CONFLICT`               | `ENCODING_CONFLICT`           | warning  | A declared encoding the byte order mark contradicts (the mark wins).                                             |
+| `W_CONTROL_CHARACTER`               | `CONTROL_CHARACTER`           | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                                |
+| `E_FOREIGN_FORMAT`                  | `FOREIGN_FORMAT`              | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                               |
+| `W_ISSUES_SUPPRESSED`               | `ISSUES_SUPPRESSED`           | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                   |
+| `E_SYNTAX`                          | `SYNTAX`                      | error    | A grammar violation; fatal.                                                                                      |
 | `E_INVALID_UTF8`                    | `INVALID_UTF8`                | error    | The input holds invalid UTF-8 (fatal).                                                                           |
 | `E_INVALID_ENCODING`                | `INVALID_ENCODING`            | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                         |
 | `W_ENCODING_FALLBACK`               | `ENCODING_FALLBACK`           | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                      |
@@ -87,7 +92,12 @@ The codes this format's import report can hold, also exported as `DOT_ISSUE` fro
 | `W_DOT_NODE_PORT_DROPPED`           | `NODE_PORT_DROPPED`           | warning  | A port on a node statement has no meaning and was dropped.                                                       |
 | `W_DOT_CLUSTER_NODE_MERGED`         | `CLUSTER_NODE_MERGED`         | warning  | A plain node and a cluster share a name and were merged into one container node.                                 |
 | `W_DOT_CLUSTER_CONFLICT`            | `CLUSTER_CONFLICT`            | warning  | A node mentioned in two unrelated clusters keeps the first.                                                      |
-| `W_DOT_BAD_POS`                     | `BAD_POS`                     | warning  | A node `pos` that is not a point; the value was dropped.                                                         |
+| `W_DOT_BAD_POS`                     | `BAD_POS`                     | warning  | A node `pos` that is not a point, or one beyond the f32 range of the position column; the value was dropped.     |
+| `W_DOT_POS_DIMS`                    | `POS_DIMS`                    | warning  | Node `pos` values mix two and three coordinates; the position column records the first's.                        |
+| `W_PRECISION`                       | `PRECISION`                   | warning  | A `pos` coordinate the f32 position column cannot hold exactly (warned once).                                    |
+| `W_DUPLICATE_ATTRIBUTE`             | `DUPLICATE_ATTRIBUTE`         | warning  | The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz.              |
+| `W_DOT_COMPASS_POINT`               | `COMPASS_POINT`               | warning  | The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns.                 |
+| `W_DOT_LATE_CHARSET`                | `LATE_CHARSET`                | warning  | A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it.               |
 | `W_DOT_STRICT_MERGED`               | `STRICT_MERGED`               | warning  | A parallel edge merged into an earlier one under `strict`.                                                       |
 | `W_DOT_KEY_MERGED`                  | `KEY_MERGED`                  | warning  | An edge merged into an earlier one with the same endpoints and `key`.                                            |
 | `W_ROLE_TAKEN`                      | `ROLE_TAKEN`                  | warning  | A role (label, id, position, ...) was already taken in the caller's sink; the column was declared without it.    |

@@ -70,6 +70,12 @@ The codes this format's import report can hold, also exported as `PAJEK_ISSUE` f
 
 | Code                             | Key                      | Severity | Meaning                                                                                                                                              |
 | -------------------------------- | ------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_EMPTY_INPUT`                  | `EMPTY_INPUT`            | error    | The input is empty or holds only whitespace (fatal).                                                                                                 |
+| `E_TOO_LARGE`                    | `TOO_LARGE`              | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                                                                     |
+| `W_ENCODING_CONFLICT`            | `ENCODING_CONFLICT`      | warning  | A byte order mark, the encoding option and the declared encoding disagree.                                                                           |
+| `W_CONTROL_CHARACTER`            | `CONTROL_CHARACTER`      | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                                                                    |
+| `E_FOREIGN_FORMAT`               | `FOREIGN_FORMAT`         | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                                                                   |
+| `W_ISSUES_SUPPRESSED`            | `ISSUES_SUPPRESSED`      | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                                                       |
 | `E_INVALID_UTF8`                 | `INVALID_UTF8`           | error    | The input holds invalid UTF-8 (fatal).                                                                                                               |
 | `E_INVALID_ENCODING`             | `INVALID_ENCODING`       | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                                             |
 | `W_ENCODING_FALLBACK`            | `ENCODING_FALLBACK`      | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                                          |
@@ -104,6 +110,14 @@ The codes this format's import report can hold, also exported as `PAJEK_ISSUE` f
 | `W_PAJEK_ORIGINAL_ID_UNRESTORED` | `ORIGINAL_ID_UNRESTORED` | warning  | A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number.                                               |
 | `W_OPTION_IGNORED`               | `OPTION_IGNORED`         | warning  | A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honoured; long, hyperedges are not).            |
 | `W_SINK_OPTION`                  | `SINK_OPTION`            | warning  | A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION).                                            |
+| `W_PAJEK_QUOTE_IN_TOKEN`         | `QUOTE_IN_TOKEN`         | warning  | A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined.                                           |
+| `W_DUPLICATE_ATTRIBUTE`          | `DUPLICATE_ATTRIBUTE`    | warning  | The same parameter twice on one line; the later value stands.                                                                                        |
+| `W_PAJEK_REFERENCE_RANGE`        | `REFERENCE_RANGE`        | warning  | A character reference beyond U+10FFFF in a label; kept as written.                                                                                   |
+| `W_PAJEK_TWO_MODE_LINE`          | `TWO_MODE_LINE`          | warning  | A line of a two-mode network whose endpoints are both in one mode.                                                                                   |
+| `W_PAJEK_NUMERIC_LABEL`          | `NUMERIC_LABEL`          | warning  | A bare non-integer number read as a vertex label before two coordinates (`1 0.1 0.2 0.3`); it may be an x y z line without a label.                  |
+| `W_PAJEK_RELATION_RENAMED`       | `RELATION_RENAMED`       | warning  | A relation number given a second name by a later `*Arcs :k "name"` header.                                                                           |
+| `W_PAJEK_NEGATIVE_LIST_ENTRY`    | `NEGATIVE_LIST_ENTRY`    | warning  | A negative vertex number in an adjacency list, read as its absolute value.                                                                           |
+| `W_PRECISION`                    | `PRECISION`              | warning  | A coordinate the f32 position column cannot hold exactly (warned once).                                                                              |
 
 ## Loss codes
 

@@ -259,6 +259,10 @@ class Source {
             ].join("\n");
         for (const entry of Object.values(ENTRIES)) {
             for (const [name, sym] of this.exportsOf(entry)) {
+                // a re-export of another package (GraphFormatError) carries that package's comment
+                if (sym.declarations?.[0]?.getSourceFile().fileName.startsWith(`${pkg}src/`) === false) {
+                    continue;
+                }
                 out.set(`${entry}: ${name}`, full(sym));
                 const type =
                     sym.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.Class | ts.SymbolFlags.TypeAlias)

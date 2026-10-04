@@ -79,6 +79,12 @@ The codes this format's import report can hold, also exported as `NEO4J_ISSUE` f
 
 | Code                            | Key                     | Severity | Meaning                                                                                                   |
 | ------------------------------- | ----------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `E_EMPTY_INPUT`                 | `EMPTY_INPUT`           | error    | The input is empty or holds only whitespace (fatal).                                                      |
+| `E_TOO_LARGE`                   | `TOO_LARGE`             | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                          |
+| `W_ENCODING_CONFLICT`           | `ENCODING_CONFLICT`     | warning  | A byte order mark, the encoding option and the declared encoding disagree.                                |
+| `W_CONTROL_CHARACTER`           | `CONTROL_CHARACTER`     | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                         |
+| `E_FOREIGN_FORMAT`              | `FOREIGN_FORMAT`        | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                        |
+| `W_ISSUES_SUPPRESSED`           | `ISSUES_SUPPRESSED`     | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                            |
 | `E_INVALID_UTF8`                | `INVALID_UTF8`          | error    | The input holds invalid UTF-8 (fatal).                                                                    |
 | `E_INVALID_ENCODING`            | `INVALID_ENCODING`      | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                  |
 | `W_ENCODING_FALLBACK`           | `ENCODING_FALLBACK`     | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                               |
@@ -100,6 +106,9 @@ The codes this format's import report can hold, also exported as `NEO4J_ISSUE` f
 | `W_ROLE_TAKEN`                  | `ROLE_TAKEN`            | warning  | A role the caller's sink already holds.                                                                   |
 | `W_OPTION_IGNORED`              | `OPTION_IGNORED`        | warning  | A common option the importer has no use for (nodeIdFrom, defaultDirected, ...).                           |
 | `W_SINK_OPTION`                 | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honour.                                                         |
+| `W_NEO4J_MISSING_TYPE`          | `MISSING_TYPE`          | warning  | A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type.                  |
+| `W_NEO4J_SECTION_KIND`          | `SECTION_KIND`          | warning  | A file under the nodes option holds a relationship header, or the reverse; read by its header.            |
+| `W_DANGLING_REFERENCE`          | `DANGLING_REFERENCE`    | warning  | Relationship endpoints no node row declares became nodes (neo4j-admin refuses them).                      |
 
 ## Loss codes
 

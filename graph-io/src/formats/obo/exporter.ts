@@ -60,6 +60,7 @@ import {
     hasLineEnd,
     isOboWord,
     isQualifierName,
+    NOT_IN_WORD,
     qualifierBlock,
     tokenize,
 } from "./syntax.js";
@@ -151,7 +152,7 @@ export const OBO_LOSS = Object.freeze({
 
 /**
  * What the OBO flat file keeps: a directed multigraph with self-loops and any id (the exporter's
- * own rule refuses whitespace, `!`, `{` and `}`). No column of the snapshot's own reads back as
+ * own rule refuses whitespace, control characters, `!`, `{` and `}`). No column of the snapshot's own reads back as
  * a column: the file keeps the OBO vocabulary (`name`, `def`, `synonym`, ... with their own
  * types) and writes every other node column as property values and every edge column as
  * qualifiers, which check() reports column by column.
@@ -434,7 +435,7 @@ function hasKeys(value: unknown, keys: readonly string[]): value is Record<strin
  * @returns a word
  */
 function wordOf(text: string): string {
-    const out = text.replace(/[\s!{}]/g, "_");
+    const out = text.replace(new RegExp(NOT_IN_WORD.source, "gu"), "_");
     return out.length === 0 ? "_" : out;
 }
 
@@ -518,7 +519,7 @@ function planIds(
         if (mode === "error") {
             note(
                 LOSS.ID_CHARSET,
-                `${bad.length} node id(s) are not OBO ids (empty, or holding whitespace, "!", "{" or "}"); export() will throw unless sanitizeIds is "mangle"`,
+                `${bad.length} node id(s) are not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); export() will throw unless sanitizeIds is "mangle"`,
                 null,
                 bad.length,
             );

@@ -72,6 +72,12 @@ The codes this format's import report can hold, also exported as `GML_ISSUE` fro
 
 | Code                   | Key                 | Severity | Meaning                                                                                                                  |
 | ---------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `E_EMPTY_INPUT`        | `EMPTY_INPUT`       | error    | The input is empty or holds only whitespace (fatal).                                                                     |
+| `E_TOO_LARGE`          | `TOO_LARGE`         | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                                         |
+| `W_ENCODING_CONFLICT`  | `ENCODING_CONFLICT` | warning  | A byte order mark, the encoding option and the declared encoding disagree.                                               |
+| `W_CONTROL_CHARACTER`  | `CONTROL_CHARACTER` | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                                        |
+| `E_FOREIGN_FORMAT`     | `FOREIGN_FORMAT`    | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                                       |
+| `W_ISSUES_SUPPRESSED`  | `ISSUES_SUPPRESSED` | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                           |
 | `E_SYNTAX`             | `SYNTAX`            | error    | A grammar violation: an untokenisable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal). |
 | `E_INVALID_UTF8`       | `INVALID_UTF8`      | error    | The input holds invalid UTF-8 (fatal).                                                                                   |
 | `E_INVALID_ENCODING`   | `INVALID_ENCODING`  | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                 |
@@ -89,8 +95,12 @@ The codes this format's import report can hold, also exported as `GML_ISSUE` fro
 | `E_GML_ELEMENT_TYPE`   | `ELEMENT_TYPE`      | error    | A `node` / `edge` key whose value is not a record.                                                                       |
 | `E_GML_FLAG_TYPE`      | `FLAG_TYPE`         | error    | A `directed` / `multigraph` flag that is not an integer.                                                                 |
 | `W_GML_FLAG_VALUE`     | `FLAG_VALUE`        | warning  | A `directed` / `multigraph` flag outside 0 / 1, or repeated.                                                             |
-| `W_GML_UNKNOWN_ENTITY` | `UNKNOWN_ENTITY`    | warning  | A named entity in a string that no table decodes; kept as written.                                                       |
-| `W_PRECISION`          | `PRECISION`         | warning  | An integer beyond 2^53 rounded to f64.                                                                                   |
+| `W_GML_UNKNOWN_ENTITY` | `UNKNOWN_ENTITY`    | warning  | A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written.                                |
+| `W_PRECISION`          | `PRECISION`         | warning  | An integer beyond 2^53 rounded to f64, or a real literal beyond the f64 range stored as an infinity.                     |
+| `W_GML_GRAPHICS`       | `GRAPHICS`          | warning  | A node's graphics value that cannot give a position as written; kept in the graphics json column.                        |
+| `W_GML_NESTED_ELEMENT` | `NESTED_ELEMENT`    | warning  | A graph, node or edge record nested in a node or edge; kept as json, not read as structure.                              |
+| `W_GML_GROUPS`         | `GROUPS`            | warning  | yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment.                               |
+| `W_WIDENED`            | `WIDENED`           | warning  | A key whose values mix numbers and strings; the column is string.                                                        |
 | `W_COLUMN_RENAMED`     | `COLUMN_RENAMED`    | warning  | A column renamed `<name>#<key>` because the sink held the name with another shape.                                       |
 | `W_ROLE_TAKEN`         | `ROLE_TAKEN`        | warning  | A column declared without its role because the sink already holds it.                                                    |
 | `W_ID_MERGED`          | `ID_MERGED`         | warning  | Two id texts merged into one number under ids "number".                                                                  |

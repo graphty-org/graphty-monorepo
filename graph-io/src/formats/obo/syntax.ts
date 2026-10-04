@@ -586,14 +586,18 @@ export function escapeOboValue(text: string): string {
 
 /**
  * Whether a text can stand as one OBO word (an id, a relation, a subset or synonym type name): not
- * empty, no whitespace, no `!`, `{` or `}`. escapeOboWord() escapes what else would end it or turn
+ * empty, no whitespace, no control character (the importer refuses an id holding one), no `!`, `{`
+ * or `}`. escapeOboWord() escapes what else would end it or turn
  * it into another token (a backslash, a quote, a leading `[`).
  * @param text - the text
  * @returns true when the text is a word
  */
 export function isOboWord(text: string): boolean {
-    return text.length > 0 && !/[\s!{}]/.test(text);
+    return text.length > 0 && !NOT_IN_WORD.test(text);
 }
+
+/** A character an OBO word cannot hold: whitespace, a control character, `!`, `{` or `}`. */
+export const NOT_IN_WORD = /[\s!{}\p{Cc}]/u;
 
 /**
  * Write a word (see isOboWord()): a backslash and a quote escaped, and a leading `[` (which would

@@ -15,7 +15,7 @@
  * import kept in `meta.extra.obographs` are written back.
  */
 
-import { type Column, type GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 
 import {
     COLUMN_AS_PROPERTY_VALUE_CODE,
@@ -261,6 +261,8 @@ interface Synonym {
     readonly scope: string | null;
     readonly type: string | null;
     readonly xrefs: string[];
+    /** The synonym's own `meta`, kept by the importer as it was. */
+    readonly meta?: unknown;
 }
 
 /** One OBO Graphs export: the plan (ids, columns, notes) and the writer. */
@@ -350,13 +352,14 @@ class ObographsExport {
         this.weights = explicitWeights(snapshot);
         this.planIds();
         this.planNodes();
-        this.fatal = capabilityNotes(snapshot, settings.common, {
-            caps: dialectCapabilities("obographs"),
-            label: this.label,
-            labelAssumed: slotColumn(snapshot.nodes, "label", "name").assumed,
-            edgeSlot: "edge meta",
-            note: this.note,
-        });
+        this.fatal =
+            capabilityNotes(snapshot, settings.common, {
+                caps: dialectCapabilities("obographs"),
+                label: this.label,
+                labelAssumed: slotColumn(snapshot.nodes, "label", "name").assumed,
+                edgeSlot: "edge meta",
+                note: this.note,
+            }) ?? this.emptyIdError();
         this.planColumnNotes();
         this.planEdges(settings.common);
         emptyColumnNotes(snapshot, this.rows, this.frameless, this.written, this.note);
@@ -439,6 +442,29 @@ class ObographsExport {
             return { pred: found, exact: true };
         }
         return { pred: this.kept.ids === "iri" ? r : candidates[0], exact: false };
+    }
+
+    /**
+     * An empty node id: OBO Graphs gives every node a non-empty id, and the importer skips a node
+     * without one, so the export is refused.
+     * @returns the error, or null when every id has text
+     */
+    private emptyIdError(): GraphFormatError | null {
+        const { snapshot } = this;
+        let count = 0;
+        let first = -1;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            if (String(snapshot.ids.idOf(i)) === "") {
+                count++;
+                first = first < 0 ? i : first;
+            }
+        }
+        if (count === 0) {
+            return null;
+        }
+        const message = `${count} node id(s) are empty; an OBO Graphs node needs an id, so export() will throw`;
+        this.note(LOSS.ID_CHARSET, message, null, count);
+        return new GraphFormatError("E_INVALID_ID", message, { reason: "charset", count, id: "", index: first });
     }
 
     /** The IRI of every node, the Typedefs named by a shorthand, and the numeric-id note. */
@@ -809,6 +835,9 @@ class ObographsExport {
         if (s.type !== null) {
             out.synonymType = this.iriOf(s.type).iri;
         }
+        if (s.meta !== undefined) {
+            out.meta = s.meta;
+        }
         return out;
     }
 
@@ -1033,7 +1062,7 @@ function carries(name: string, column: Column, rows: readonly number[], reproduc
                     v.every(
                         (s) =>
                             isJsonObject(s) &&
-                            Object.keys(s).length === 4 &&
+                            Object.keys(s).length === ("meta" in s ? 5 : 4) &&
                             (s.text === null || typeof s.text === "string") &&
                             (s.scope === null || (typeof s.scope === "string" && SYNONYM_SCOPES.has(s.scope))) &&
                             (s.type === null || reproducible(s.type)) &&

@@ -71,19 +71,31 @@ The codes this format's import report can hold, also exported as `GRAPHML_ISSUE`
 
 | Code                               | Key                      | Severity | Meaning                                                                                                                     |
 | ---------------------------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `E_EMPTY_INPUT`                    | `EMPTY_INPUT`            | error    | Fatal: the input holds no markup at all (empty, whitespace or a byte order mark only).                                      |
+| `E_TOO_LARGE`                      | `TOO_LARGE`              | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                                            |
+| `W_ENCODING_CONFLICT`              | `ENCODING_CONFLICT`      | warning  | A declared encoding the byte order mark contradicts (the mark wins).                                                        |
+| `W_CONTROL_CHARACTER`              | `CONTROL_CHARACTER`      | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                                           |
+| `E_FOREIGN_FORMAT`                 | `FOREIGN_FORMAT`         | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                                          |
+| `W_ISSUES_SUPPRESSED`              | `ISSUES_SUPPRESSED`      | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                              |
 | `E_XML_SYNTAX`                     | `XML_SYNTAX`             | error    | Fatal: the input is not well-formed XML.                                                                                    |
 | `E_INVALID_UTF8`                   | `INVALID_UTF8`           | error    | Fatal: the input holds invalid UTF-8.                                                                                       |
 | `E_INVALID_ENCODING`               | `INVALID_ENCODING`       | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                    |
 | `W_ENCODING_FALLBACK`              | `ENCODING_FALLBACK`      | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                                 |
 | `W_UNKNOWN_ENCODING`               | `UNKNOWN_ENCODING`       | warning  | A declared encoding the platform cannot decode was ignored.                                                                 |
 | `E_NOT_GRAPHML`                    | `NOT_GRAPHML`            | error    | Fatal: the root element is not `<graphml>`.                                                                                 |
+| `W_GRAPHML_NAMESPACE`              | `NAMESPACE`              | warning  | The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML.                                         |
 | `E_NO_GRAPH`                       | `NO_GRAPH`               | error    | Fatal: the document has no `<graph>`.                                                                                       |
 | `E_GRAPHML_KEY_MISSING_ID`         | `KEY_MISSING_ID`         | error    | A `<key>` without an id.                                                                                                    |
 | `E_DUPLICATE_KEY`                  | `DUPLICATE_KEY`          | error    | Two `<key>` elements with the same id.                                                                                      |
 | `W_GRAPHML_KEY_DOMAIN_UNSUPPORTED` | `KEY_DOMAIN_UNSUPPORTED` | warning  | A key declared for hyperedges, ports or endpoints (never used).                                                             |
 | `E_MISSING_ID`                     | `MISSING_ID`             | error    | A `<node>` without an id.                                                                                                   |
 | `E_MISSING_ENDPOINT`               | `MISSING_ENDPOINT`       | error    | An `<edge>` without a source or a target.                                                                                   |
+| `E_UNKNOWN_NODE`                   | `UNKNOWN_NODE`           | error    | An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped.                           |
+| `W_GRAPHML_GRAPH_ENDPOINT`         | `GRAPH_ENDPOINT`         | warning  | An edge endpoint that names a nested `<graph>`, not a node; a node of that id is created.                                   |
+| `E_UNKNOWN_PARENT`                 | `UNKNOWN_PARENT`         | error    | The nodes of a nested graph whose container node was skipped lose their parent.                                             |
+| `W_DUPLICATE_ATTRIBUTE`            | `DUPLICATE_ATTRIBUTE`    | warning  | Two `<data>` of one key on one element, two `<default>` in one key, or two weight keys; one is kept.                        |
 | `E_GRAPHML_UNKNOWN_KEY`            | `UNKNOWN_KEY`            | error    | A `<data>` whose key was never declared.                                                                                    |
+| `W_GRAPHML_KEY_DECLARED_LATE`      | `KEY_DECLARED_LATE`      | warning  | A `<key>` declared after `<data>` that used it; those values were already reported and dropped.                             |
 | `W_GRAPHML_KEY_DOMAIN`             | `KEY_DOMAIN`             | warning  | A `<data>` whose key is declared for another domain.                                                                        |
 | `E_GRAPHML_DATA_MISSING_KEY`       | `DATA_MISSING_KEY`       | error    | A `<data>` without a key attribute.                                                                                         |
 | `E_GRAPHML_KEY_FOR_INVALID`        | `KEY_FOR_INVALID`        | error    | A `<key>` whose `for` is not a GraphML domain.                                                                              |
@@ -97,12 +109,18 @@ The codes this format's import report can hold, also exported as `GRAPHML_ISSUE`
 | `W_GRAPHML_EDGEDEFAULT_MISSING`    | `EDGEDEFAULT_MISSING`    | warning  | A `<graph>` without edgedefault; the `defaultDirected` option applies.                                                      |
 | `W_MULTIPLE_GRAPHS`                | `MULTIPLE_GRAPHS`        | warning  | A second top-level `<graph>`; its nodes and edges are merged into the first.                                                |
 | `W_COUNT_HINT`                     | `COUNT_HINT`             | warning  | A `parse.nodes` / `parse.edges` hint the sink cannot reserve (ignored).                                                     |
+| `W_COUNT_MISMATCH`                 | `COUNT_MISMATCH`         | warning  | A `parse.nodes` / `parse.edges` hint that disagrees with what the graph holds.                                              |
 | `E_HYPEREDGE`                      | `HYPEREDGE`              | error    | A hyperedge under `hyperedges: "error"`.                                                                                    |
 | `W_GRAPHML_HYPEREDGE_SKIPPED`      | `HYPEREDGE_SKIPPED`      | warning  | Hyperedges skipped under `hyperedges: "skip"`.                                                                              |
 | `E_GRAPHML_HYPEREDGE_ENDPOINT`     | `HYPEREDGE_ENDPOINT`     | error    | An endpoint of a hyperedge without a node, or with an unknown type.                                                         |
 | `W_GRAPHML_PORT_DECLARATION`       | `PORT_DECLARATION`       | warning  | `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are.                           |
+| `W_DANGLING_REFERENCE`             | `DANGLING_REFERENCE`     | warning  | A `sourceport` / `targetport` naming a port its node does not declare (once, with the count).                               |
+| `W_GRAPHML_EDGE_GRAPH_DROPPED`     | `EDGE_GRAPH_DROPPED`     | warning  | A `<graph>` inside an `<edge>` (legal GraphML): it and the nodes and edges it holds are dropped.                            |
+| `W_GRAPHML_HUB_ID_CLASH`           | `HUB_ID_CLASH`           | warning  | A `<node>` whose id is that of a hub `hyperedges: "star"` created; the node is merged into the hub.                         |
+| `W_GRAPHML_ORIGINAL_ID_IGNORED`    | `ORIGINAL_ID_IGNORED`    | warning  | A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph).                |
+| `W_GRAPHML_YFILES_VALUE`           | `YFILES_VALUE`           | warning  | A yFiles graphics value (a geometry coordinate, a width) that is not a number; it is not mapped.                            |
 | `W_GRAPHML_PARSE_HINT_IGNORED`     | `PARSE_HINT_IGNORED`     | warning  | A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). |
-| `W_GRAPHML_UNKNOWN_XML_ATTRIBUTE`  | `UNKNOWN_XML_ATTRIBUTE`  | warning  | An XML attribute GraphML does not define on `<graph>`, `<node>` or `<edge>`; it is not kept.                                |
+| `W_UNKNOWN_XML_ATTRIBUTE`          | `UNKNOWN_XML_ATTRIBUTE`  | warning  | An XML attribute GraphML does not define (or the importer does not keep) on an element; it is not kept.                     |
 | `W_GRAPHML_LOCATOR_DROPPED`        | `LOCATOR_DROPPED`        | warning  | A `<locator>` element.                                                                                                      |
 | `W_GRAPHML_DESC_DROPPED`           | `DESC_DROPPED`           | warning  | A `<desc>` of a node, an edge or a hyperedge.                                                                               |
 | `W_UNKNOWN_ELEMENT`                | `UNKNOWN_ELEMENT`        | warning  | An element the GraphML schema does not define at that place.                                                                |

@@ -80,34 +80,50 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 
 The codes this format's import report can hold, also exported as `CSV_ISSUE` from `@graphty/graph-io/csv`.
 
-| Code                        | Key                    | Severity | Meaning                                                                                                |
-| --------------------------- | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `E_EMPTY_INPUT`             | `EMPTY_INPUT`          | error    | The input is empty (fatal).                                                                            |
-| `E_INVALID_UTF8`            | `INVALID_UTF8`         | error    | The input holds invalid UTF-8 (fatal).                                                                 |
-| `E_INVALID_ENCODING`        | `INVALID_ENCODING`     | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).               |
-| `W_ENCODING_FALLBACK`       | `ENCODING_FALLBACK`    | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                            |
-| `W_UNKNOWN_ENCODING`        | `UNKNOWN_ENCODING`     | warning  | A declared encoding the platform cannot decode was ignored.                                            |
-| `E_CSV_NO_ENDPOINT_COLUMNS` | `NO_ENDPOINT_COLUMNS`  | error    | The header names neither endpoint columns nor an id column (fatal).                                    |
-| `E_CSV_NO_ID_COLUMN`        | `NO_ID_COLUMN`         | error    | A node table without an id column (fatal).                                                             |
-| `E_CSV_FIELD_COUNT`         | `FIELD_COUNT`          | error    | A row with a different field count than the header.                                                    |
-| `E_MISSING_ENDPOINT`        | `MISSING_ENDPOINT`     | error    | An edge row with a blank source or target.                                                             |
-| `E_MISSING_ID`              | `MISSING_ID`           | error    | A node row with a blank id.                                                                            |
-| `E_CSV_BAD_TYPE`            | `BAD_TYPE`             | error    | A Type cell outside Directed / Undirected / Mutual.                                                    |
-| `E_CSV_UNCLOSED_QUOTE`      | `UNCLOSED_QUOTE`       | error    | An unterminated quoted field (fatal).                                                                  |
-| `E_CSV_QUOTE`               | `QUOTE`                | error    | Text after a closing quote (fatal).                                                                    |
-| `W_CSV_NO_DATA_ROWS`        | `NO_DATA_ROWS`         | warning  | A header and no data rows.                                                                             |
-| `W_DUPLICATE_NODE`          | `DUPLICATE_NODE`       | warning  | A node table row repeating an id.                                                                      |
-| `E_DUPLICATE_EDGE_ID`       | `DUPLICATE_EDGE_ID`    | error    | An edge row repeating an edge id (skipped).                                                            |
-| `W_ID_MERGED`               | `ID_MERGED`            | warning  | Two id cells merged into one number under ids "number".                                                |
-| `W_CSV_COLUMN_MISSING`      | `COLUMN_MISSING`       | warning  | An explicitly named weight column the file does not have.                                              |
-| `W_ROLE_TAKEN`              | `ROLE_TAKEN`           | warning  | A column whose role another column of the sink already holds.                                          |
-| `W_COLUMN_RENAMED`          | `COLUMN_RENAMED`       | warning  | A column renamed `<name>#<position>` (a repeated header, or a name the sink holds with another shape). |
-| `W_OPTION_IGNORED`          | `OPTION_IGNORED`       | warning  | A common option the importer has no use for was given.                                                 |
-| `W_SINK_OPTION`             | `SINK_OPTION`          | warning  | A builder-policy option the sink does not honour.                                                      |
-| `W_DIRECTION_REFUSED`       | `DIRECTION_REFUSED`    | warning  | The sink refused the file's direction.                                                                 |
-| `W_DIRECTION_FORCED`        | `DIRECTION_FORCED`     | warning  | Edges forced to the policy's direction.                                                                |
-| `E_MIXED_DIRECTION`         | `MIXED_DIRECTION`      | error    | A mixed file under onMixedDirection "error" (fatal).                                                   |
-| `W_WIDENING_UNSUPPORTED`    | `WIDENING_UNSUPPORTED` | warning  | A text column the sink could not widen to the dtype its cells imply.                                   |
+| Code                              | Key                         | Severity | Meaning                                                                                                |
+| --------------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `E_EMPTY_INPUT`                   | `EMPTY_INPUT`               | error    | The input is empty (fatal).                                                                            |
+| `E_TOO_LARGE`                     | `TOO_LARGE`                 | error    | The input is longer than one JavaScript string, or holds a line that is (fatal).                       |
+| `W_ENCODING_CONFLICT`             | `ENCODING_CONFLICT`         | warning  | A byte order mark, the encoding option and the declared encoding disagree.                             |
+| `W_CONTROL_CHARACTER`             | `CONTROL_CHARACTER`         | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                      |
+| `E_FOREIGN_FORMAT`                | `FOREIGN_FORMAT`            | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                     |
+| `W_ISSUES_SUPPRESSED`             | `ISSUES_SUPPRESSED`         | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                         |
+| `E_INVALID_UTF8`                  | `INVALID_UTF8`              | error    | The input holds invalid UTF-8 (fatal).                                                                 |
+| `E_INVALID_ENCODING`              | `INVALID_ENCODING`          | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).               |
+| `W_ENCODING_FALLBACK`             | `ENCODING_FALLBACK`         | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                            |
+| `W_UNKNOWN_ENCODING`              | `UNKNOWN_ENCODING`          | warning  | A declared encoding the platform cannot decode was ignored.                                            |
+| `E_CSV_NO_ENDPOINT_COLUMNS`       | `NO_ENDPOINT_COLUMNS`       | error    | The header names neither endpoint columns nor an id column (fatal).                                    |
+| `E_CSV_NO_ID_COLUMN`              | `NO_ID_COLUMN`              | error    | A node table without an id column (fatal).                                                             |
+| `E_CSV_FIELD_COUNT`               | `FIELD_COUNT`               | error    | A row with a different field count than the header.                                                    |
+| `E_MISSING_ENDPOINT`              | `MISSING_ENDPOINT`          | error    | An edge row with a blank source or target.                                                             |
+| `E_MISSING_ID`                    | `MISSING_ID`                | error    | A node row with a blank id.                                                                            |
+| `E_CSV_BAD_TYPE`                  | `BAD_TYPE`                  | error    | A Type cell outside Directed / Undirected / Mutual.                                                    |
+| `E_CSV_UNCLOSED_QUOTE`            | `UNCLOSED_QUOTE`            | error    | An unterminated quoted field (fatal).                                                                  |
+| `E_CSV_QUOTE`                     | `QUOTE`                     | error    | Text after a closing quote (fatal).                                                                    |
+| `W_CSV_NO_DATA_ROWS`              | `NO_DATA_ROWS`              | warning  | A header and no data rows.                                                                             |
+| `W_DUPLICATE_NODE`                | `DUPLICATE_NODE`            | warning  | A node table row repeating an id.                                                                      |
+| `E_DUPLICATE_EDGE_ID`             | `DUPLICATE_EDGE_ID`         | error    | An edge row repeating an edge id (skipped).                                                            |
+| `W_ID_MERGED`                     | `ID_MERGED`                 | warning  | Two id cells merged into one number under ids "number".                                                |
+| `W_CSV_COLUMN_MISSING`            | `COLUMN_MISSING`            | warning  | An explicitly named weight column the file does not have.                                              |
+| `W_ROLE_TAKEN`                    | `ROLE_TAKEN`                | warning  | A column whose role another column of the sink already holds.                                          |
+| `W_COLUMN_RENAMED`                | `COLUMN_RENAMED`            | warning  | A column renamed `<name>#<position>` (a repeated header, or a name the sink holds with another shape). |
+| `W_OPTION_IGNORED`                | `OPTION_IGNORED`            | warning  | A common option the importer has no use for was given.                                                 |
+| `W_SINK_OPTION`                   | `SINK_OPTION`               | warning  | A builder-policy option the sink does not honour.                                                      |
+| `W_DIRECTION_REFUSED`             | `DIRECTION_REFUSED`         | warning  | The sink refused the file's direction.                                                                 |
+| `W_DIRECTION_FORCED`              | `DIRECTION_FORCED`          | warning  | Edges forced to the policy's direction.                                                                |
+| `E_MIXED_DIRECTION`               | `MIXED_DIRECTION`           | error    | A mixed file under onMixedDirection "error" (fatal).                                                   |
+| `W_WIDENING_UNSUPPORTED`          | `WIDENING_UNSUPPORTED`      | warning  | A text column the sink could not widen to the dtype its cells imply.                                   |
+| `E_CSV_OTHER_FORMAT`              | `OTHER_FORMAT`              | error    | The input opens like another format (XML / HTML, JSON, GML, DOT, Pajek) (fatal).                       |
+| `W_CSV_STRAY_QUOTE`               | `STRAY_QUOTE`               | warning  | A quote inside an unquoted field, kept as text (once per import).                                      |
+| `W_CSV_COMMENT_DIRECTION`         | `COMMENT_DIRECTION`         | warning  | A leading comment's direction disagrees with defaultDirected or an earlier comment.                    |
+| `W_CSV_TYPE_COLUMN_IGNORED`       | `TYPE_COLUMN_IGNORED`       | warning  | A column named like Type holds direction words but is a plain attribute (once per import).             |
+| `W_CSV_TRAILING_HEADER_DELIMITER` | `TRAILING_HEADER_DELIMITER` | warning  | The header ends in a delimiter; rows without the empty last cell are complete.                         |
+| `W_CSV_SINGLE_COLUMN`             | `SINGLE_COLUMN`             | warning  | Every row is one cell another delimiter would split (a likely wrong delimiter option).                 |
+| `W_CSV_AMBIGUOUS_COLUMN`          | `AMBIGUOUS_COLUMN`          | warning  | Several header columns name one role; the one not chosen is a plain attribute.                         |
+| `W_CSV_PADDED_ID`                 | `PADDED_ID`                 | warning  | An unquoted id with leading or trailing whitespace, kept as written (once per import).                 |
+| `W_CSV_COMMENT_LIKE_RECORD`       | `COMMENT_LIKE_RECORD`       | warning  | A leading # / % line skipped as a comment has the fields of a record.                                  |
+| `W_CSV_TRAILING_DELIMITER`        | `TRAILING_DELIMITER`        | warning  | Data rows end in one extra empty cell (a trailing delimiter); dropped (once per import).               |
+| `W_CSV_WEIGHT_AS_ATTRIBUTE`       | `WEIGHT_AS_ATTRIBUTE`       | warning  | A headerless three-column table's text third column is an attribute, not the weight (once per import). |
 
 ## Loss codes
 

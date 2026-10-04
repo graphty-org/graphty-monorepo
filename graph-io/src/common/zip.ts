@@ -536,8 +536,6 @@ export interface ZipWriteEntry {
 
 /** The DOS time and date written on every entry: 1980-01-01 00:00, so equal input gives equal bytes. */
 const DOS_DATE = (0 << 9) | (1 << 5) | 1;
-/** General purpose flag bit 11: the entry name is UTF-8. */
-const UTF8_FLAG = 0x0800;
 /** Version needed to extract a stored entry (1.0). */
 const STORED_VERSION = 10;
 

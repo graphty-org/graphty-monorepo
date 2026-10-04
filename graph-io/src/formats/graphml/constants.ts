@@ -13,6 +13,7 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_KEY_CODE,
     DUPLICATE_NODE_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
     ID_MERGED_CODE,
@@ -122,6 +123,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
+    /** A declared encoding a byte order mark contradicts; the mark wins. */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: the root element is not `<graphml>`. */
     NOT_GRAPHML: "E_NOT_GRAPHML",

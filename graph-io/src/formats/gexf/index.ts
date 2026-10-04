@@ -14,6 +14,7 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
     INVALID_ENCODING_CODE,
@@ -71,6 +72,8 @@ export const GEXF_ISSUE = Object.freeze({
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
+    /** A declared encoding a byte order mark contradicts; the mark wins. */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** The root element is not `<gexf>` (fatal). */
     NOT_GEXF: NOT_GEXF_CODE,

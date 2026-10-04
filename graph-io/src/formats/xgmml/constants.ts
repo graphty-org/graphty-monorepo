@@ -16,6 +16,7 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     EQUATION_AS_TEXT_CODE,
     GRAPH_NOT_FOUND_CODE,
@@ -131,6 +132,8 @@ export const XGMML_ISSUE = Object.freeze({
     /** Undeclared non-UTF-8 bytes were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
+    /** A declared encoding a byte order mark contradicts; the mark wins. */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: the root element is not `<graph>` (an XHTML page embedding one, a GraphML file). */
     NO_GRAPH: NO_GRAPH_CODE,

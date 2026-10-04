@@ -18,7 +18,13 @@
 import { GraphFormatError } from "@graphty/graph-format";
 
 import { type ImportInput } from "../types.js";
-import { ENCODING_FALLBACK_CODE, INVALID_ENCODING_CODE, INVALID_UTF8_CODE, UNKNOWN_ENCODING_CODE } from "./codes.js";
+import {
+    ENCODING_CONFLICT_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
+    INVALID_UTF8_CODE,
+    UNKNOWN_ENCODING_CODE,
+} from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 export { INVALID_UTF8_CODE };
@@ -80,6 +86,79 @@ function bomEncoding(head: Uint8Array): string | null {
 }
 
 /**
+ * The UTF-16 encoding an XML declaration without a byte order mark shows by its byte pattern
+ * (`<?` as `3C 00 3F 00` or `00 3C 00 3F`; XML 1.0 appendix F).
+ * @param head - the first bytes
+ * @returns "utf-16le", "utf-16be" or null
+ */
+function utf16Signature(head: Uint8Array): string | null {
+    if (head.byteLength < 4) {
+        return null;
+    }
+    if (head[0] === 0x3c && head[1] === 0 && head[2] === 0x3f && head[3] === 0) {
+        return "utf-16le";
+    }
+    if (head[0] === 0 && head[1] === 0x3c && head[2] === 0 && head[3] === 0x3f) {
+        return "utf-16be";
+    }
+    return null;
+}
+
+/**
+ * What binary data the first bytes show (a gzip stream, a zip archive), for a decode error that
+ * names it instead of blaming the text encoding.
+ * @param head - the first bytes
+ * @returns the message, or null for anything else
+ */
+function binaryInput(head: Uint8Array): string | null {
+    if (head.byteLength >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
+        return "the input is gzip-compressed binary data (it starts with the gzip signature 1F 8B), not text; decompress it before importing";
+    }
+    if (head.byteLength >= 4 && head[0] === 0x50 && head[1] === 0x4b && head[2] === 3 && head[3] === 4) {
+        return "the input is a zip archive, not text; a Cytoscape session (.cys) is read by the cys importer, any other archive must be extracted first";
+    }
+    return null;
+}
+
+/**
+ * Whether bytes end inside a multi-byte UTF-8 sequence of which at least two bytes are present
+ * (a lead byte and one or more continuation bytes): the input was cut short. A single dangling
+ * lead byte is not counted, since it is also a complete windows-1252 character.
+ * @param bytes - the rest of the input from a character boundary
+ * @returns true when everything is valid UTF-8 but the last sequence is incomplete
+ */
+function endsInsideSequence(bytes: Uint8Array): boolean {
+    let i = bytes.byteLength - 1;
+    let continuation = 0;
+    while (i >= 0 && continuation < 3 && (bytes[i] & 0xc0) === 0x80) {
+        i--;
+        continuation++;
+    }
+    if (i < 0 || continuation === 0) {
+        return false;
+    }
+    const lead = bytes[i];
+    let length = 0;
+    if (lead >= 0xc2 && lead <= 0xdf) {
+        length = 2;
+    } else if (lead >= 0xe0 && lead <= 0xef) {
+        length = 3;
+    } else if (lead >= 0xf0 && lead <= 0xf4) {
+        length = 4;
+    }
+    if (continuation + 1 >= length) {
+        return false;
+    }
+    try {
+        // a streaming decode holds a valid incomplete tail back instead of throwing
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: true });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * The one byte decoder of an import: picks the encoding from the head (option, BOM, declaration,
  * UTF-8) and decodes strictly, switching to windows-1252 with a warning when undeclared input
  * turns out not to be UTF-8 while everything decoded so far was ASCII.
@@ -129,10 +208,15 @@ class ByteDecoder {
             this.use(explicit, false);
             return;
         }
-        const bom = bomEncoding(head);
+        const bom = bomEncoding(head) ?? utf16Signature(head);
         if (bom !== null) {
+            this.checkDeclaration(head.subarray(bom === "utf-8" ? 3 : 0), bom);
             this.use(bom, false);
             return;
+        }
+        const binary = binaryInput(head);
+        if (binary !== null) {
+            this.report.fail(INVALID_UTF8_CODE, binary, undefined, { byteOffset: 0 });
         }
         const declared = this.options.declaredEncoding?.(new TextDecoder("windows-1252").decode(head)) ?? null;
         if (declared !== null) {
@@ -153,6 +237,26 @@ class ByteDecoder {
             }
         }
         this.use("utf-8", true);
+    }
+
+    /**
+     * W_ENCODING_CONFLICT when the file declares an encoding other than the one its byte order
+     * mark announces: the mark wins, as XML 1.0 appendix F has it.
+     * @param head - the first bytes after the mark
+     * @param bom - the encoding the mark announces
+     */
+    private checkDeclaration(head: Uint8Array, bom: string): void {
+        const declared = this.options.declaredEncoding?.(new TextDecoder("windows-1252").decode(head)) ?? null;
+        const canonical = declared === null ? null : canonicalEncoding(declared);
+        if (canonical === null || canonical === bom || (canonical.startsWith("utf-16") && bom.startsWith("utf-16"))) {
+            return;
+        }
+        this.report.warning(
+            "coercion",
+            ENCODING_CONFLICT_CODE,
+            `the input starts with a ${bom} byte order mark but declares the encoding ${JSON.stringify(declared)}; it is read as ${bom}`,
+            { element: declared },
+        );
     }
 
     /**
@@ -195,6 +299,14 @@ class ByteDecoder {
     private recover(bytes: Uint8Array, stream: boolean): string {
         const where = { byteOffset: this.offset };
         const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        if (!stream && this.mayFallBack && this.asciiSoFar && endsInsideSequence(all)) {
+            return this.report.fail(
+                INVALID_UTF8_CODE,
+                `the input ends inside a UTF-8 sequence near byte ${this.offset} (truncated?)`,
+                undefined,
+                where,
+            );
+        }
         // a NUL byte never occurs in windows-1252 text: it marks binary data (or BOM-less UTF-16)
         if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all)) {
             this.report.warning(
@@ -206,7 +318,10 @@ class ByteDecoder {
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
         if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+            const after =
+                this.mayFallBack && !this.asciiSoFar
+                    ? " after valid non-ASCII UTF-8 text; pass the encoding option"
+                    : "";
             return this.report.fail(
                 INVALID_UTF8_CODE,
                 `invalid UTF-8 near byte ${this.offset}${after}`,

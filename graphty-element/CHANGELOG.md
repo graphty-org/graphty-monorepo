@@ -1,3 +1,19 @@
+## 3.12.0 (2026-10-04)
+
+### 🚀 Features
+
+- **graphty-element:** legend blocks state what a higher value means and the bound range ([#912](https://github.com/graphty-org/graphty-monorepo/pull/912))
+- **graphty-element:** a yes/no switch for framing after a load ([#900](https://github.com/graphty-org/graphty-monorepo/pull/900))
+
+### 🩹 Fixes
+
+- **graphty-element:** legend reading and range only where they hold; keep an explicit fit ([e58419396](https://github.com/graphty-org/graphty-monorepo/commit/e58419396))
+- **graphty-element:** give label declutter a view door of its own ([#903](https://github.com/graphty-org/graphty-monorepo/pull/903))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.11.1 (2026-10-04)
 
 ### 🩹 Fixes

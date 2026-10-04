@@ -1,3 +1,17 @@
+## 0.8.45 (2026-10-04)
+
+### 🩹 Fixes
+
+- **graphty:** re-scan test dependencies every run so a stale Vite cache cannot reload a test ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.12.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.44 (2026-10-04)
 
 ### 🩹 Fixes

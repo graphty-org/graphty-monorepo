@@ -108,6 +108,9 @@ export function oboColumnDecl(domain: "node" | "edge", name: string): ColumnDecl
 /** The OBO PURL base every OBO Foundry IRI starts with. */
 const OBO_PURL = "http://purl.obolibrary.org/obo/";
 
+/** The same base under https, which newer OBO Graphs writers use. */
+const OBO_PURL_HTTPS = "https://purl.obolibrary.org/obo/";
+
 /** The oboInOwl namespace of the OBO-to-OWL mapping's annotation properties. */
 const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
 
@@ -115,16 +118,18 @@ const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
  * An IRI as the identifier the `.obo` file writes (the OBO 1.4 mapping, section 5.9, read
  * backwards): `http://purl.obolibrary.org/obo/GO_0008150` is `GO:0008150` (the prefix is the text
  * before the first underscore), and `http://purl.obolibrary.org/obo/go#regulates` (how the OWL
- * translation writes an unprefixed OBO id: subsets, relations, synonym types) is `regulates`.
+ * translation writes an unprefixed OBO id: subsets, relations, synonym types) is `regulates`; the
+ * same under `https://purl.obolibrary.org/obo/`.
  * Every other IRI, and an OBO PURL that fits neither form (`.../obo/T/Female`), is kept.
  * @param iri - the IRI
  * @returns the CURIE or local id, or the IRI unchanged
  */
 export function compactOboIri(iri: string): string {
-    if (!iri.startsWith(OBO_PURL)) {
+    const base = [OBO_PURL, OBO_PURL_HTTPS].find((b) => iri.startsWith(b));
+    if (base === undefined) {
         return iri;
     }
-    const rest = iri.slice(OBO_PURL.length);
+    const rest = iri.slice(base.length);
     const hash = rest.indexOf("#");
     if (hash > 0) {
         const local = rest.slice(hash + 1);

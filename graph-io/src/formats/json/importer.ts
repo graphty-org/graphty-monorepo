@@ -41,11 +41,12 @@ import {
     type NodeId,
 } from "@graphty/graph-format";
 
-import { uniqueColumnName } from "../../common/attributes.js";
+import { RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
     DANGLING_REFERENCE_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
@@ -60,6 +61,7 @@ import {
     OPTION_IGNORED_CODE,
     SYNTAX_CODE,
     TOO_LARGE_CODE,
+    UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
@@ -238,6 +240,14 @@ export const JSON_ISSUE = Object.freeze({
     BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** OBO Graphs: a node type or synonym predicate outside the schema's set; kept as written, once per name. */
+    UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
+    /** OBO Graphs: a single-valued OBO tag given twice in basicPropertyValues; the first is kept, as the .obo importer keeps it. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /** OBO Graphs: a vocabulary column renamed `<name>#<name>` because the sink already holds the name. */
+    COLUMN_RENAMED: RENAMED_CODE,
+    /** OBO Graphs: a vocabulary column declared without its role because the sink already holds it. */
+    ROLE_TAKEN: ROLE_TAKEN_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -882,16 +892,17 @@ export class ImportContext {
      * Add a node, counting it or recording the failure.
      * @param id - the node id
      * @param element - the element name
+     * @param why - more about a repeated id, for the duplicate warning
      * @returns the node index, or -1 when the sink refused the node
      */
-    pushNode(id: NodeId, element: string): number {
+    pushNode(id: NodeId, element: string, why = ""): number {
         this.checkAbort();
         const existing = this.sink.indexOf(id);
         if (existing !== INVALID_INDEX) {
             this.report.warning(
                 "merged",
                 JSON_ISSUE.DUPLICATE_NODE,
-                `${element}: node ${JSON.stringify(id)} already exists; its attributes are merged (the later values win)`,
+                `${element}: node ${JSON.stringify(id)} already exists${why}; its attributes are merged (the later values win)`,
                 { element },
             );
             return existing;

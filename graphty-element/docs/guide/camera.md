@@ -50,6 +50,24 @@ With padding:
 graph.zoomToFit({ padding: 1.2 }); // 20% extra space
 ```
 
+### Framing after a load
+
+The element frames the graph on its own after every data load and layout change. To leave the
+camera where the reader put it, switch that off:
+
+```typescript
+element.autoFrame = false; // a load or layout change no longer moves the camera
+element.autoFrame = true; // back to framing each load (the default)
+```
+
+```html
+<graphty-element auto-frame="false"></graphty-element>
+```
+
+`zoomToFit()` still frames the graph while it is off. The switch is a preference of the view: it
+records no undo step and is not saved in a project file. It is independent of
+`startingCameraDistance`, which also stops automatic framing but places the camera at a distance.
+
 ### Zoom In and Out
 
 Move the camera one step nearer or further, the way a zoom button does. The same call works on

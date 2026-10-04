@@ -48,7 +48,7 @@ export type {
     RepaintRequest,
     ValidationResult,
 } from "./Layer";
-export type { FieldWords, LegendBlock, LegendSwatch } from "./legend";
+export type { FieldWords, LegendBlock, LegendReading, LegendSwatch } from "./legend";
 export { quotePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";

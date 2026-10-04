@@ -729,7 +729,8 @@ function sourceOf(request: LoadDataRequest, format: string | undefined): DataSou
     }
 
     if (request.inputMethod === "file" && request.file !== undefined) {
-        return { ...type, config: { file: request.file } };
+        const graph = request.graphIndex === undefined ? {} : { graphIndex: request.graphIndex };
+        return { ...type, config: { file: request.file, ...graph } };
     }
 
     if (request.inputMethod === "paste" && request.data !== undefined) {

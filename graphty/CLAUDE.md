@@ -43,6 +43,11 @@ graphty/
 └── index.html
 ```
 
+`src/workspace/` is the tier 1 shell, reachable at `?next` until the Switch-over
+(design/ui/tier1-real-app/plan.md): `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`keys/`, and one directory per later package. Each package registers its commands in its own
+`commands.ts`, which `registrations.ts` collects.
+
 ## Essential Commands
 
 ```bash

@@ -13,7 +13,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -184,6 +184,30 @@ export function viewed(window) {
 }
 
 /**
+ * Sends one key to the pane, for a screen the caller opened itself (the self-test closes the
+ * usage panel with Escape).
+ * @param {Window} window the window
+ * @param {string} key a tmux key name
+ */
+export function pressKey(window, key) {
+    tmux(window.socket, ["send-keys", "-t", window.pane, key]);
+}
+
+/**
+ * Kills a tmux server and removes its socket file, which `kill-server` leaves behind.
+ * @param {string} socket the server's name (`-L`)
+ */
+export function killServer(socket) {
+    try {
+        tmux(socket, ["kill-server"]);
+    } catch {
+        // no server left
+    }
+    const uid = /** @type {() => number} */ (process.getuid)();
+    rmSync(join(process.env.TMUX_TMPDIR || "/tmp", `tmux-${uid}`, socket), { force: true });
+}
+
+/**
  * Kills the window, if it is still there.
  * @param {Window} window the window
  */
@@ -202,11 +226,11 @@ function killWindow(window) {
  * C-u and nothing is submitted.
  * @param {Window} window the window
  * @param {string} text the line
- * @param {(ms: number) => Promise<unknown>} sleep waits
+ * @param {(ms: number) => Promise<unknown>} [sleep] waits
  * @returns {Promise<{sent: boolean, why?: string, capture?: string}>} whether it was submitted,
  *   and if not, why, with the capture that decided it
  */
-async function typeLine(window, text, sleep) {
+export async function typeLine(window, text, sleep = delay) {
     const before = capturePane(window);
     const screen = readScreen(before, window.name);
     if (screen.kind !== "empty-box") return { sent: false, why: screen.kind, capture: before };

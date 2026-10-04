@@ -4,7 +4,18 @@ import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { identify } from "../lib/proc.mjs";
-import { capturePane, doorbellText, endSession, interrupt, readRegistry, ring, running, viewed } from "../lib/tmux.mjs";
+import {
+    capturePane,
+    doorbellText,
+    endSession,
+    interrupt,
+    pressKey,
+    readRegistry,
+    ring,
+    running,
+    typeLine,
+    viewed,
+} from "../lib/tmux.mjs";
 import { fakeWorkers, killServer, sleep, typed } from "./helpers/fake-worker.mjs";
 
 /** @type {ReturnType<typeof fakeWorkers>} */
@@ -58,6 +69,18 @@ describe("startWorker", () => {
         });
         expect(windows).not.toContain("issue-1");
         expect(readRegistry(fw.sessionsDir, started.window.pid)).toBeNull();
+    });
+});
+
+describe("typeLine and pressKey", () => {
+    it("type a command into the empty box and send a key to a screen the caller opened", async () => {
+        const { window } = await fw.start("issue-3", { screen: "idle" });
+        expect(await typeLine(window, "/usage", sleep)).toEqual({ sent: true });
+        pressKey(window, "Escape");
+        for (let i = 0; i < 100 && fw.keys("issue-3").at(-1)?.key !== "Escape"; i++) await delay(20);
+        const keys = fw.keys("issue-3");
+        expect(keys.find((k) => k.submit !== undefined)).toEqual({ submit: "/usage" });
+        expect(keys.at(-1)).toEqual({ key: "Escape" });
     });
 });
 

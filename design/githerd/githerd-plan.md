@@ -254,6 +254,7 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 | 5.8 Push queue (`actor/push.mjs`) | Priority queue, pushes as tracked children with hooks, gate output classification, wait state, results as news | Fake remote with a fake gate | Pushes survive a worker's death |
 | 5.9 Death and recovery | `/proc` cwd sweep, `index.lock` removal, GitHub re-read, death counting, resume or fresh (after S14) | Kill a fake worker mid-push | The job continues with correct news |
 | 5.10 Platform self-test | The checks of design 11.4 with the real command line, on its own socket | Run on this machine | Passes on Claude Code 2.1.288 |
+| | **Ran 2026-10-04 (`githerd selftest`, `lib/selftest.mjs`) on Claude Code 2.1.289, the version installed by then, with Opus 5.5, on socket `githerd-selftest`: passes, every check including resume and the weekly limit ("77% used, resets Oct 8, 3pm (UTC)" from `/usage`). The socket, the worktree and the sessions were gone afterwards. The first run failed two checks, both fixed: Claude Code 2.1.289 sets `CLAUDE_EFFORT` itself (added to the allow list), and a failing `gh pr create` fires no PostToolUse (the check reads the guard's write log). It also found the installed guard never ran: through the `current/` symlink it did not recognize itself as the entry point, so every call was allowed; fixed in `bin/githerd-guard.mjs`. The `gh pr create` names a repository that does not exist, so gh stops at a read and nothing is written. Design 11.4 changed** | | | |
 
 ### Milestone 6: job kinds
 

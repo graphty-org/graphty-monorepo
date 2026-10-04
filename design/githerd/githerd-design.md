@@ -1521,12 +1521,26 @@ Code version change, after a githerd version change, and on `githerd selftest`. 
 worker command line (the same `env -i`, `--settings`, `--mcp-config` and a cwd under `.worktrees/`)
 and the configured model, and checks: the registry entry appears; SessionStart reaches the daemon
 with the model and no dialog blocks a fresh worktree; no "Do you want to proceed" appears through
-`githerd_next`, `githerd_claim` and a `gh pr create` for a branch that does not exist (GitHub
-refuses it, so nothing is created); no Pushover variable, and no `CLAUDE*`
-variable beyond the ones Claude Code sets itself and the ones the owner's user settings set (S18), is visible to a hook or the Bash tool; the doorbell starts a turn and UserPromptSubmit sees
-the nonce; a Stop block is obeyed; `githerd_wait` idles and the doorbell wakes; `/exit` removes the
-registry entry; resume works (else resume is marked unverified); the weekly-limit text is readable
-(else display-only). Failure stops starts, is a banner everywhere, and pages once.
+`githerd_next`, `githerd_claim` and a `gh pr create --repo <owner>/githerd-selftest-missing`
+(gh fails on its first read, a repository lookup, so it sends no write at all; a branch that does
+not exist in the real repository would have sent the create mutation for GitHub to refuse); no
+Pushover variable, and no `CLAUDE*` variable beyond the ones Claude Code sets itself and the ones
+the owner's user settings set (S18), is visible to a hook or the Bash tool; the doorbell starts a
+turn and UserPromptSubmit sees the nonce; a Stop block is obeyed; `githerd_wait` idles and the
+doorbell wakes; `/exit` removes the registry entry; resume works (else resume is marked
+unverified); the weekly-limit text is readable from the `/usage` panel ("Current week (all
+models)", "N% used", "Resets ..."; else display-only). Failure stops starts, is a banner
+everywhere, and pages once.
+
+It checks Claude Code, not the daemon: the worker's hook and MCP commands are probes that report
+to the self-test (the MCP probe serves the eleven tools' real schemas, the hook probe prints the
+real hook's output), and the guard is the installed one, reached through a symlink as `current/`
+is. That symlink is how the first run found a guard that never ran: it compared `argv[1]`, the
+link, with its own file, so every call was allowed. Two more facts from the first run: Claude Code
+2.1.289 sets `CLAUDE_EFFORT` in every hook and Bash process itself, and a Bash command that fails
+fires no PostToolUse, so the `gh pr create` check reads the guard's write log. The result is
+`selftest.json` in the state directory (`lib/selftest.mjs`); a dead worker is resumed only when it
+records a pass with resume verified on the installed Claude Code version.
 
 ---
 

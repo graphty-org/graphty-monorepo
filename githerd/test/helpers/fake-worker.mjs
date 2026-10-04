@@ -2,7 +2,6 @@
  * Starts fake workers (`fake-screen-claude.mjs`) in windows on a private tmux server, through the
  * real worker command line, and removes everything afterwards.
  */
-import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { identify } from "../../lib/proc.mjs";
-import { capturePane, running, startWorker } from "../../lib/tmux.mjs";
+import { capturePane, killServer, running, startWorker } from "../../lib/tmux.mjs";
+
+export { killServer };
 import { workerArgv } from "../../lib/worker-settings.mjs";
 
 const FAKE = fileURLToPath(new URL("fake-screen-claude.mjs", import.meta.url));
@@ -81,21 +82,6 @@ export function fakeWorkers() {
             if (left.length) throw new Error(`fake workers left running: ${left.join(", ")}`);
         },
     };
-}
-
-/**
- * Kills a private tmux server and removes its socket file, which `kill-server` leaves behind.
- * @param {string} socket the server's name (`-L`)
- */
-export function killServer(socket) {
-    const dir = process.env.TMUX_TMPDIR || "/tmp";
-    const uid = /** @type {() => number} */ (process.getuid)();
-    try {
-        execFileSync("tmux", ["-L", socket, "kill-server"], { stdio: "ignore" });
-    } catch {
-        // no server left
-    }
-    rmSync(join(dir, `tmux-${uid}`, socket), { force: true });
 }
 
 /**

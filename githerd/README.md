@@ -69,6 +69,7 @@ githerd ensure                   # find or start the daemon, e.g. after a contai
 githerd restart                  # servherd restart githerd
 githerd dev                      # this working tree as the githerd-dev daemon, dry-run only
 githerd doctor [--send-test]     # gh, servherd, daemon code, pm2 autorestart, notify, signing
+githerd selftest                 # one worker on its own tmux server through every platform check
 ```
 
 The container has no cron and no systemd: pm2 restarts a crashed daemon (servherd's

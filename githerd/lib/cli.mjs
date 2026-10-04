@@ -34,6 +34,7 @@ import {
 import { UNCHECKED_STOPS } from "./hook.mjs";
 import { createNotifier } from "./notify.mjs";
 import { gateLock, sameProcess } from "./proc.mjs";
+import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 
@@ -56,6 +57,8 @@ const USAGE = `usage: githerd <command>
   restart                                  servherd restart githerd
   dev                                      run this working tree as the githerd-dev daemon
   doctor [--send-test]                     check everything githerd depends on
+  selftest                                 run the platform self-test: one worker on its own tmux
+                                           server, through every behavior githerd relies on
   version                                  the version
 Environment: GITHERD_CONFIG (config file), GITHERD_STATE_DIR (state directory; .githerd-dev for
 the development daemon).`;
@@ -80,6 +83,7 @@ const LOWER_MODES = new Set(["dry-run", "paused"]);
  * @property {number} [signTimeoutMs] the doctor's signing timeout
  * @property {number} [healthWaitMs] how long `ensure` and `dev` wait for a started daemon
  * @property {AbortSignal} [signal] ends `githerd board` (otherwise SIGINT does)
+ * @property {typeof runSelftest} [selftest] runs the self-test (tests replace it)
  */
 
 /**
@@ -237,6 +241,7 @@ function daemonEnv(record, stateDir) {
  * @property {Parameters<typeof launcherContext>[0]} ctxOptions what the launcher needs
  * @property {number} signTimeoutMs the doctor's signing timeout
  * @property {AbortSignal} [signal] ends `githerd board`
+ * @property {typeof runSelftest} selftest runs the self-test
  */
 
 /**
@@ -255,6 +260,7 @@ export async function runCli(argv, options = {}) {
         signTimeoutMs = SIGN_TIMEOUT_MS,
         healthWaitMs,
         signal,
+        selftest = runSelftest,
     } = options;
     const [command, ...rest] = argv;
 
@@ -294,6 +300,7 @@ export async function runCli(argv, options = {}) {
         ctxOptions,
         signTimeoutMs,
         signal,
+        selftest,
     });
 }
 
@@ -653,7 +660,34 @@ const HANDLERS = {
     restart: cmdService,
     dev: cmdService,
     doctor: cmdService,
+    selftest: cmdSelftest,
 };
+
+/**
+ * `selftest`: the platform self-test with the configured repository and model (design 11.4).
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code: 0 passed, 1 failed, 2 no usable config
+ */
+async function cmdSelftest(c) {
+    const found = launcherContext(c.ctxOptions);
+    const config = found.kind === "ready" ? found.ctx.config : null;
+    if (!config) {
+        const why =
+            found.kind === "unconfigured" ? found.reason : (found.kind === "ready" && found.problem) || "no config";
+        c.err(`githerd selftest: ${why}`);
+        return 2;
+    }
+    const result = await c.selftest({
+        root: c.root,
+        stateDir: c.stateDir,
+        repo: config.repo,
+        model: config.runs.model.default,
+        env: c.env,
+        log: (line) => c.out(`... ${line}`),
+    });
+    for (const line of selftestText(result)) c.out(line);
+    return result.passed ? 0 : 1;
+}
 
 /**
  * The state as the files hold it: `state.json`, else `state.json.bak`, else rebuilt from the

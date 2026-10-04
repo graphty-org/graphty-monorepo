@@ -111,6 +111,7 @@ import {
     writeProgress,
 } from "./store.mjs";
 import { recoverDeath } from "./session-death.mjs";
+import { resumeVerified } from "./selftest.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionTools, statusData } from "./tools.mjs";
 import { readVersion } from "./version.mjs";
@@ -1868,15 +1869,15 @@ export async function startDaemon({
             const pass = await watchPass(state, now(), { pushQueued: queued });
             for (const line of pass.ledger) void ledger(line);
             for (const id of pass.dead) {
-                // The self-test that verifies resume (design 11.4) does not run yet, so every
-                // death starts the next session fresh.
+                // Resume only when the last self-test verified it on the installed Claude Code
+                // (design 11.4); otherwise the next session starts fresh.
                 await recoverDeath({
                     job: state.jobs[id],
                     state,
                     repo: config.repo,
                     github: github(),
                     ledger,
-                    resumeVerified: false,
+                    resumeVerified: await resumeVerified(stateDir),
                     now,
                 });
             }

@@ -37,13 +37,17 @@ import { type ImportReportBuilder } from "./report.js";
 export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
 
 /**
- * The prefix of the string a non-standard token or an exact integer is rewritten to (a NUL
- * character first, which no sensible attribute value starts with).
+ * An exponent of 15 or more: a literal such as `9.007199254740993e15` or `1e400` that may denote an
+ * integer beyond 2^53 or overflow the double range, which MAYBE_UNSAFE_INTEGER does not see.
  */
-const SENTINEL = `${String.fromCharCode(0)}graph-io:`;
+export const MAYBE_INEXACT_EXPONENT = /[0-9][eE]\+?0*(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})/;
 
-/** The sentinel prefix of an integer literal kept as its digits. */
-const EXACT_SENTINEL = `${SENTINEL}exact:`;
+/**
+ * The prefix of the string a non-standard token or an exact integer is rewritten to (a NUL
+ * character first, which no sensible attribute value starts with). A document that already holds
+ * the text gets a numbered variant, so a genuine string is never revived as a number.
+ */
+const SENTINEL = `${String.fromCharCode(0)}graph-io`;
 
 /** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
 const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
@@ -55,6 +59,9 @@ const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
 /** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
 const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
 
+/** A JSON number literal, split into sign, integer digits, fraction digits and exponent. */
+const NUMBER_PARTS = /^(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/;
+
 /** What rewriteNumbers() found. */
 interface RewrittenNumbers {
     /** The rewritten text. */
@@ -63,19 +70,73 @@ interface RewrittenNumbers {
     readonly tokens: Set<string>;
     /** The integer literals beyond 2^53 that were quoted. */
     readonly bigIntegers: string[];
+    /**
+     * The literals with a fraction or an exponent that denote an integer beyond 2^53 a double cannot
+     * hold (`9007199254740993.0`), and the finite literals that overflow to an infinity (`1e400`):
+     * read as the nearest double, which changes the value.
+     */
+    readonly inexact: string[];
+    /** The JSON.parse reviver that turns the sentinel strings of this rewrite back into numbers. */
+    readonly revive: (key: string, value: unknown) => unknown;
+    /** The JSON.parse reviver that turns this rewrite's exact sentinels into ExactInteger. */
+    readonly reviveExact: (key: string, value: unknown) => unknown;
+}
+
+/**
+ * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the text
+ * already contains that one (only the NUL-free part is searched, since the JSON text spells a NUL
+ * as an escape).
+ * @param text - the document text
+ * @returns the prefix
+ */
+function sentinelFor(text: string): string {
+    let k = 0;
+    while (text.includes(`graph-io${k === 0 ? "" : String(k)}:`)) {
+        k++;
+    }
+    return `${SENTINEL}${k === 0 ? "" : String(k)}:`;
+}
+
+/**
+ * Whether a number literal with a fraction or an exponent reads back as another value: an integer
+ * beyond 2^53 the nearest double misses, or a finite literal beyond the double range.
+ * @param literal - the literal as written
+ * @returns true when the double read for it is not the value it denotes
+ */
+function isInexactLiteral(literal: string): boolean {
+    const value = Number(literal);
+    if (!Number.isFinite(value)) {
+        return true;
+    }
+    if (Number.isSafeInteger(value) || !Number.isInteger(value)) {
+        return false;
+    }
+    const m = NUMBER_PARTS.exec(literal);
+    if (m === null) {
+        return false;
+    }
+    const digits = (m[2] + (m[3] ?? "")).replace(/0+$/, "");
+    const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
+    if (digits.length === 0 || exponent < 0) {
+        // a fraction that rounds to an integer: ordinary floating-point rounding
+        return false;
+    }
+    const exact = BigInt(digits) * 10n ** BigInt(exponent);
+    return exact !== BigInt(Math.abs(value));
 }
 
 /**
  * Rewrite the numbers JSON.parse cannot read exactly, outside strings and in value positions only:
  * NaN / Infinity / -Infinity become sentinel strings (when `nonstandard` is true), an integer
  * literal that is not a safe integer becomes a string of its digits (or, with `exactSentinel`, a
- * sentinel string reviveExact() turns into an ExactInteger). A container stack tells a value
- * position (after `:`, `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays invalid.
+ * sentinel string the result's reviveExact turns into an ExactInteger). A container stack tells a
+ * value position (after `:`, `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays
+ * invalid. Literals with a fraction or an exponent that no double holds are listed, not rewritten.
  * @param text - the document text
  * @param options - which rewrites apply
  * @param options.nonstandard - rewrite NaN / Infinity / -Infinity (default true)
  * @param options.exactSentinel - quote big integers as sentinels instead of bare digits (default false)
- * @returns the rewritten text, the non-standard tokens seen and the integer literals quoted
+ * @returns the rewritten text, what was found and the revivers of this rewrite
  */
 export function rewriteNumbers(
     text: string,
@@ -83,9 +144,12 @@ export function rewriteNumbers(
 ): RewrittenNumbers {
     const nonstandard = options.nonstandard ?? true;
     const exactSentinel = options.exactSentinel ?? false;
+    const sentinel = sentinelFor(text);
+    const exactPrefix = `${sentinel}exact:`;
     const parts: string[] = [];
     const tokens = new Set<string>();
     const bigIntegers: string[] = [];
+    const inexact: string[] = [];
     const arrays: boolean[] = [];
     let expectValue = true;
     let copied = 0;
@@ -120,16 +184,20 @@ export function rewriteNumbers(
             if (token !== undefined) {
                 end = i + token[0].length;
                 tokens.add(token[0]);
-                replacement = JSON.stringify(`${SENTINEL}${token[0]}`);
+                replacement = JSON.stringify(`${sentinel}${token[0]}`);
             } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
                 end = i + 1;
                 while (end < n && "0123456789+-.eE".includes(text[end])) {
                     end++;
                 }
                 const literal = text.slice(i, end);
-                if (INTEGER_LITERAL.test(literal) && !Number.isSafeInteger(Number(literal))) {
-                    bigIntegers.push(literal);
-                    replacement = exactSentinel ? JSON.stringify(`${EXACT_SENTINEL}${literal}`) : `"${literal}"`;
+                if (INTEGER_LITERAL.test(literal)) {
+                    if (!Number.isSafeInteger(Number(literal))) {
+                        bigIntegers.push(literal);
+                        replacement = exactSentinel ? JSON.stringify(`${exactPrefix}${literal}`) : `"${literal}"`;
+                    }
+                } else if (isInexactLiteral(literal)) {
+                    inexact.push(literal);
                 }
             }
             if (replacement !== null) {
@@ -142,22 +210,165 @@ export function rewriteNumbers(
         i++;
     }
     parts.push(text.slice(copied));
-    return { text: parts.join(""), tokens, bigIntegers };
+    const revive = (_key: string, value: unknown): unknown => {
+        if (typeof value === "string" && value.startsWith(sentinel)) {
+            const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(sentinel.length));
+            return found === undefined ? value : found[1];
+        }
+        return value;
+    };
+    const reviveExact = (_key: string, value: unknown): unknown =>
+        typeof value === "string" && value.startsWith(exactPrefix)
+            ? new ExactInteger(value.slice(exactPrefix.length))
+            : value;
+    return { text: parts.join(""), tokens, bigIntegers, inexact, revive, reviveExact };
+}
+
+/** One key repeated in a JSON object. */
+export interface DuplicateKey {
+    /** The key. */
+    readonly key: string;
+    /** The UTF-16 offset of the repeated occurrence. */
+    readonly offset: number;
+}
+
+/** Keys of one object compared pairwise up to this count; a wider object switches to a Set. */
+const LINEAR_KEYS = 32;
+
+/**
+ * The keys that occur twice in one object of a valid JSON text, which JSON.parse silently reduces
+ * to the last value (RFC 8259 section 4: names SHOULD be unique). One pass over the characters
+ * that jumps over strings; the keys of a small object are compared in place, without
+ * slicing (the parse itself costs about as much as this scan, so it allocates nothing per key).
+ * Keys are compared as written: `"\u0069d"` and `"id"` are not recognised as one key.
+ * @param text - a text JSON.parse accepted (or its rewrite)
+ * @returns every repetition in document order
+ */
+export function findDuplicateKeys(text: string): DuplicateKey[] {
+    const found: DuplicateKey[] = [];
+    // per depth: the [start, end) of each key of the open object (reused), or -1 for an array
+    const spans: number[][] = [];
+    const wide: (Set<string> | null)[] = [];
+    let depth = 0;
+    const n = text.length;
+    for (let at = 0; at < n; at++) {
+        const c = text.charCodeAt(at);
+        if (c === 123 || c === 91) {
+            // { or [
+            if (spans.length === depth) {
+                spans.push([]);
+                wide.push(null);
+            }
+            spans[depth].length = 0;
+            if (c === 91) {
+                spans[depth].push(-1);
+            }
+            wide[depth] = null;
+            depth++;
+        } else if (c === 125 || c === 93) {
+            depth--;
+        } else if (c === 34) {
+            const end = closingQuote(text, at + 1);
+            const keys = depth > 0 ? spans[depth - 1] : null;
+            if (keys !== null && keys[0] !== -1 && isKey(text, end + 1)) {
+                if (isRepeated(text, at + 1, end, keys, wide, depth - 1)) {
+                    found.push({ key: text.slice(at + 1, end), offset: at });
+                }
+            }
+            at = end;
+        }
+    }
+    return found;
 }
 
 /**
- * The JSON.parse reviver that turns the non-standard sentinel strings of rewriteNumbers() back into
- * numbers.
- * @param _key - the member key (unused)
- * @param value - the parsed value
- * @returns the number for a sentinel string, the value otherwise
+ * Whether a key repeats one already seen in its object, remembering it otherwise.
+ * @param text - the text
+ * @param start - the key's first character
+ * @param end - the key's closing quote
+ * @param keys - the spans of the object's keys so far
+ * @param wide - the Set of each depth's keys once the object is wide
+ * @param level - the object's depth
+ * @returns true for a repetition
  */
-export function reviveNonstandard(_key: string, value: unknown): unknown {
-    if (typeof value === "string" && value.startsWith(SENTINEL)) {
-        const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(SENTINEL.length));
-        return found === undefined ? value : found[1];
+function isRepeated(
+    text: string,
+    start: number,
+    end: number,
+    keys: number[],
+    wide: (Set<string> | null)[],
+    level: number,
+): boolean {
+    const set = wide[level];
+    if (set !== null) {
+        const key = text.slice(start, end);
+        return set.has(key) || (set.add(key), false);
     }
-    return value;
+    const length = end - start;
+    for (let k = 0; k < keys.length; k += 2) {
+        if (keys[k + 1] - keys[k] === length && sameText(text, keys[k], start, length)) {
+            return true;
+        }
+    }
+    keys.push(start, end);
+    if (keys.length > 2 * LINEAR_KEYS) {
+        const all = new Set<string>();
+        for (let k = 0; k < keys.length; k += 2) {
+            all.add(text.slice(keys[k], keys[k + 1]));
+        }
+        wide[level] = all;
+    }
+    return false;
+}
+
+/**
+ * Whether two ranges of one text hold the same characters.
+ * @param text - the text
+ * @param a - the first range's start
+ * @param b - the second range's start
+ * @param length - the ranges' length
+ * @returns true when equal
+ */
+function sameText(text: string, a: number, b: number, length: number): boolean {
+    for (let i = 0; i < length; i++) {
+        if (text.charCodeAt(a + i) !== text.charCodeAt(b + i)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * The offset of the quote that closes a JSON string.
+ * @param text - the text
+ * @param from - the offset after the opening quote
+ * @returns the closing quote's offset (the text length when there is none)
+ */
+function closingQuote(text: string, from: number): number {
+    for (let q = text.indexOf('"', from); q >= 0; q = text.indexOf('"', q + 1)) {
+        let backslashes = 0;
+        while (text.charCodeAt(q - 1 - backslashes) === 92) {
+            backslashes++;
+        }
+        if (backslashes % 2 === 0) {
+            return q;
+        }
+    }
+    return text.length;
+}
+
+/**
+ * Whether the string that ends before an offset is an object key: a colon follows after whitespace.
+ * @param text - the text
+ * @param from - the offset after the closing quote
+ * @returns true for a key
+ */
+function isKey(text: string, from: number): boolean {
+    let i = from;
+    while (i < text.length && isSpace(text.charCodeAt(i))) {
+        i++;
+    }
+    return text.charCodeAt(i) === 58;
 }
 
 /** An integer literal beyond 2^53, kept as its exact digits (a CX id must never lose a digit). */
@@ -183,19 +394,6 @@ export class ExactInteger {
 }
 
 /**
- * The JSON.parse reviver of an element whose big integers were rewritten as exact sentinels.
- * @param _key - the member key (unused)
- * @param value - the parsed value
- * @returns an ExactInteger for an exact sentinel, the value otherwise
- */
-function reviveExact(_key: string, value: unknown): unknown {
-    if (typeof value === "string" && value.startsWith(EXACT_SENTINEL)) {
-        return new ExactInteger(value.slice(EXACT_SENTINEL.length));
-    }
-    return value;
-}
-
-/**
  * Parse one JSON value, keeping integer literals beyond 2^53 as ExactInteger.
  * @param text - the JSON text
  * @returns the value and whether it may hold an ExactInteger; SyntaxError when it is not JSON
@@ -208,7 +406,7 @@ export function parseExact(text: string): { readonly value: unknown; readonly ex
     if (scan.bigIntegers.length === 0) {
         return { value: JSON.parse(text) as unknown, exact: false };
     }
-    return { value: JSON.parse(scan.text, reviveExact) as unknown, exact: true };
+    return { value: JSON.parse(scan.text, scan.reviveExact) as unknown, exact: true };
 }
 
 /**

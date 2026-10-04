@@ -46,8 +46,10 @@ import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
     DANGLING_REFERENCE_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    EMPTY_COLUMN_DROPPED_CODE,
     EMPTY_INPUT_CODE,
     ENCODING_FALLBACK_CODE,
     GRAPH_NOT_FOUND_CODE,
@@ -58,6 +60,8 @@ import {
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    PARENT_CYCLE_CODE,
+    PRECISION_CODE,
     SYNTAX_CODE,
     TOO_LARGE_CODE,
     UNKNOWN_ENCODING_CODE,
@@ -66,7 +70,12 @@ import {
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, textChunks, throwIfAborted } from "../../common/input.js";
-import { MAYBE_UNSAFE_INTEGER, reviveNonstandard, rewriteNumbers } from "../../common/json-elements.js";
+import {
+    findDuplicateKeys,
+    MAYBE_INEXACT_EXPONENT,
+    MAYBE_UNSAFE_INTEGER,
+    rewriteNumbers,
+} from "../../common/json-elements.js";
 import {
     chooseGraph,
     type ImportFormatDefaults,
@@ -238,6 +247,22 @@ export const JSON_ISSUE = Object.freeze({
     BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A number literal no double holds exactly (an integer beyond 2^53 with a fraction or an exponent, or beyond the double range). */
+    PRECISION: PRECISION_CODE,
+    /** A key repeated in one JSON object; JSON.parse keeps the last value, the earlier is dropped. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /**
+     * The document contradicts itself: a declared option its edges break (multigraph false with
+     * parallel links, graphology's options), a record whose section disagrees with its shape, a
+     * JGF inner id other than its key, the two listings of one adjacency edge.
+     */
+    INCONSISTENT: "W_JSON_INCONSISTENT",
+    /** indexLinks "auto" read integer endpoints as array positions although they also name node ids. */
+    INDEX_LINKS: "W_JSON_INDEX_LINKS",
+    /** A Cytoscape parent link that would close a cycle; that link is dropped. */
+    PARENT_CYCLE: PARENT_CYCLE_CODE,
+    /** An attribute key that is null on every element makes no column (NetworkX writes None as null). */
+    EMPTY_COLUMN_DROPPED: EMPTY_COLUMN_DROPPED_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -1223,7 +1248,8 @@ export class ImportContext {
 // ============================================================ document level
 
 /**
- * Parse the whole text; syntax errors and empty input abort the import.
+ * Parse the whole text; syntax errors and empty input abort the import. A key repeated in one
+ * object (which JSON.parse silently reduces to its last value) is reported per repetition.
  * @param text - the decoded text
  * @param report - the report
  * @returns the parsed value
@@ -1240,21 +1266,37 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         syntaxError = err instanceof Error ? err.message : String(err);
     }
     // the fast path: strict JSON without a digit run long enough to be an unsafe integer
-    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text)) {
+    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text) && !MAYBE_INEXACT_EXPONENT.test(text)) {
+        reportDuplicateKeys(text, report);
         return root;
     }
-    const scan = rewriteNumbers(text);
-    if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
-        try {
-            root = JSON.parse(scan.text, scan.tokens.size > 0 ? reviveNonstandard : undefined) as unknown;
-            syntaxError = null;
-        } catch {
-            // the rewrite did not make it valid JSON: report the parser's message on the original text
+    let scan: ReturnType<typeof rewriteNumbers>;
+    try {
+        scan = rewriteNumbers(text);
+        if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
+            try {
+                root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
+                syntaxError = null;
+            } catch (err) {
+                if (err instanceof RangeError) {
+                    throw err;
+                }
+                // the rewrite did not make it valid JSON: report the parser's message on the original text
+            }
         }
+    } catch (err) {
+        if (!(err instanceof RangeError)) {
+            throw err;
+        }
+        // the rewrite (quoted big integers, sentinel strings) is longer than one string can hold
+        const message = `the document with its numbers rewritten is longer than the most one JavaScript string holds`;
+        report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
+        throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
     }
     if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}`);
+        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), { line: syntaxLine(text, syntaxError) });
     }
+    reportDuplicateKeys(text, report);
     if (scan.tokens.size > 0) {
         report.warning(
             "coercion",
@@ -1263,15 +1305,151 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         );
     }
     if (scan.bigIntegers.length > 0) {
-        const shown = scan.bigIntegers.slice(0, BIG_INTEGERS_SHOWN).join(", ");
-        const more = scan.bigIntegers.length - BIG_INTEGERS_SHOWN;
         report.warning(
             "precision",
             JSON_ISSUE.BIG_INTEGER,
-            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${shown}${more > 0 ? ` and ${more} more` : ""}`,
+            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${listed(scan.bigIntegers)}`,
+        );
+    }
+    if (scan.inexact.length > 0) {
+        report.warning(
+            "precision",
+            JSON_ISSUE.PRECISION,
+            `${scan.inexact.length} number literal(s) no double holds exactly, read as the nearest double (an infinity beyond the range): ${listed(scan.inexact)}`,
         );
     }
     return root;
+}
+
+/**
+ * The first literals of a list for a message, with the count of the rest.
+ * @param literals - the literals
+ * @returns the text
+ */
+function listed(literals: readonly string[]): string {
+    const more = literals.length - BIG_INTEGERS_SHOWN;
+    return `${literals.slice(0, BIG_INTEGERS_SHOWN).join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
+}
+
+/** How many repeated keys are reported one by one before the rest is summed up. */
+const DUPLICATE_KEYS_SHOWN = 10;
+
+/**
+ * Report every key repeated in one object (JSON.parse keeps the last value, so the earlier one is
+ * gone): one warning per repetition up to DUPLICATE_KEYS_SHOWN, then one with the remaining count.
+ * @param text - the document text
+ * @param report - the report
+ */
+function reportDuplicateKeys(text: string, report: ImportReportBuilder): void {
+    const found = findDuplicateKeys(text);
+    let line = 1;
+    let counted = 0;
+    for (const { key, offset } of found.slice(0, DUPLICATE_KEYS_SHOWN)) {
+        line += countLines(text, counted, offset);
+        counted = offset;
+        report.warning(
+            "merged",
+            JSON_ISSUE.DUPLICATE_ATTRIBUTE,
+            `key ${JSON.stringify(key)} appears twice in one object; the earlier value is dropped (JSON.parse keeps the last)`,
+            { line, element: key },
+        );
+    }
+    if (found.length > DUPLICATE_KEYS_SHOWN) {
+        report.warning(
+            "merged",
+            JSON_ISSUE.DUPLICATE_ATTRIBUTE,
+            `${found.length - DUPLICATE_KEYS_SHOWN} more repeated key(s); each earlier value is dropped`,
+        );
+    }
+}
+
+/**
+ * The line breaks in a range of the text.
+ * @param text - the text
+ * @param from - the start offset
+ * @param to - the end offset
+ * @returns how many \n the range holds
+ */
+function countLines(text: string, from: number, to: number): number {
+    let lines = 0;
+    for (let i = text.indexOf("\n", from); i >= 0 && i < to; i = text.indexOf("\n", i + 1)) {
+        lines++;
+    }
+    return lines;
+}
+
+/** The longest text the line of an unpositioned syntax error is searched in (a bisection of JSON.parse calls). */
+const SYNTAX_SEARCH_LIMIT = 64 * 1024 * 1024;
+
+/**
+ * The 1-based line of a JSON.parse error: from the message's "(line L" or "position N" when the
+ * engine gives one, the last line for an unexpected end, else the shortest prefix that fails the
+ * same way (V8 names no position for "Unexpected token").
+ * @param text - the document
+ * @param message - the parser's message
+ * @returns the line
+ */
+function syntaxLine(text: string, message: string): number {
+    const line = /\(line ([0-9]+)/.exec(message);
+    if (line !== null) {
+        return Number(line[1]);
+    }
+    const position = /position ([0-9]+)/.exec(message);
+    if (position !== null) {
+        return countLines(text, 0, Number(position[1])) + 1;
+    }
+    if (!/^Unexpected token/.test(message) || text.length > SYNTAX_SEARCH_LIMIT) {
+        // ponytail: an unexpected end (or a huge text) is placed on the last line
+        return countLines(text, 0, text.length) + 1;
+    }
+    // the shortest prefix that holds the offending token: shorter prefixes end early instead
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        let failsOnToken = false;
+        try {
+            JSON.parse(text.slice(0, mid + 1));
+        } catch (err) {
+            failsOnToken = err instanceof Error && /^Unexpected token/.test(err.message);
+        }
+        if (failsOnToken) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return countLines(text, 0, lo) + 1;
+}
+
+/**
+ * The E_SYNTAX message: the parser's, with a hint when the text is JSON Lines (one document per
+ * line, as apoc.export.json and many loggers write), which this importer does not read.
+ * @param text - the document
+ * @param message - the parser's message
+ * @returns the message
+ */
+function syntaxMessage(text: string, message: string): string {
+    const first = text.indexOf("\n");
+    const rest = first < 0 ? "" : text.slice(first + 1, text.indexOf("\n", first + 1) >>> 0).trim();
+    if (first >= 0 && rest.startsWith("{") && isJson(text.slice(0, first)) && isJson(rest)) {
+        return `invalid JSON: the input is JSON Lines (one document per line), which is not supported; convert it to one JSON document (${message})`;
+    }
+    return `invalid JSON: ${message}`;
+}
+
+/**
+ * Whether a text parses as JSON.
+ * @param text - the text
+ * @returns true when JSON.parse accepts it
+ */
+function isJson(text: string): boolean {
+    try {
+        JSON.parse(text);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /** How many of the integers kept as text the warning lists. */

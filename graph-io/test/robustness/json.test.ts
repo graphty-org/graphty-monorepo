@@ -472,7 +472,7 @@ describe("JSON robustness: ids and endpoints", () => {
 
     it("json-big-integer-fraction-or-exponent: lossy literals with a fraction or an exponent are named", async () => {
         const { report } = await load('{"nodes":[{"id":9007199254740993.0},{"id":9.007199254740995e15}],"links":[]}');
-        const big = issue(report, JSON_ISSUE.BIG_INTEGER);
+        const big = issue(report, JSON_ISSUE.PRECISION);
         expect(big.message).toMatch(/9007199254740993\.0/);
         expect(big.message).toMatch(/9\.007199254740995e15/);
     });
@@ -527,14 +527,14 @@ describe("JSON robustness: node-link semantics", () => {
     it("json-weight-non-finite: the Infinity token is a legal weight with W_JSON_NONSTANDARD_NUMBER", async () => {
         const text = '{"nodes":[{"id":"a"},{"id":"b"}],"links":[{"source":"a","target":"b","weight":Infinity}]}';
         const { s, report } = await load(text);
-        expect(s.edgeList().weight?.[0]).toBe(Infinity);
+        expect(s.edgeList().weights?.[0]).toBe(Infinity);
         expect(codes(report)).toEqual([JSON_ISSUE.NONSTANDARD_NUMBER]);
     });
 
     it("json-weight-non-finite: a literal that overflows to Infinity is W_PRECISION naming it", async () => {
         const text = '{"nodes":[{"id":"a"},{"id":"b"}],"links":[{"source":"a","target":"b","weight":1e400}]}';
         const { s, report } = await load(text);
-        expect(s.edgeList().weight?.[0]).toBe(Infinity);
+        expect(s.edgeList().weights?.[0]).toBe(Infinity);
         expect(issue(report, JSON_ISSUE.PRECISION).message).toMatch(/1e400/);
     });
 

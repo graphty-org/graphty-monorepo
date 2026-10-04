@@ -639,7 +639,6 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         board.startPhase(job, "registry", now());
         job.phase = "registry";
     }
-    await ctx.save();
     const env = workerEnv({ env: ctx.env, path, signing, job: job.id, nonce });
     const argv = workerArgv({
         env,
@@ -649,7 +648,18 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
         prompt: LAUNCH_PROMPT,
         resume,
     });
-    const started = await ctx.platform.start({ job: job.id, cwd: job.worktree, argv });
+    let started;
+    try {
+        await ctx.save();
+        started = await ctx.platform.start({ job: job.id, cwd: job.worktree, argv });
+    } catch (err) {
+        // tmux failed (startWorker throws): a holder with no window would hold the slot unwatched.
+        if (job.holder?.nonce !== nonce) return;
+        const error = /** @type {Error} */ (err).message;
+        void ctx.ledger({ kind: "session-start-failed", job: job.id, capture: null, model: null, error });
+        startFailed(state, job, now(), `session start failed: ${error}`);
+        return;
+    }
     const left = job.holder?.nonce !== nonce;
     // SessionStart reported a model outside the allowed ones before the window was known (hook.mjs).
     const wrong = left ? null : job.holder.wrongModel;

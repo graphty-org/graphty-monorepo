@@ -279,7 +279,7 @@ async function retarget(ctx, number) {
 }
 
 /** The update results after which a child needs nothing more until its base moves again. */
-export const SETTLED = new Set(["updated", "current", "would-do"]);
+const SETTLED = new Set(["updated", "current", "would-do"]);
 
 /**
  * The stack upkeep of one reconcile: retargets and child updates from `stackSteps`, parents

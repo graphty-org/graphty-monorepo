@@ -1,8 +1,13 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { startDaemon } from "../../lib/daemon.mjs";
 import { ownerItemsPoll, endItem, raiseItem } from "../../lib/notify.mjs";
+import { readLedger } from "../../lib/store.mjs";
+import { createFakeGh, httpOutput } from "../helpers/fake-gh.mjs";
 
 const DATA = new URL("data/", import.meta.url);
 const FROM = Date.parse("2026-09-26T00:00:00Z");
@@ -91,5 +96,97 @@ describe("an absent week", () => {
         expect(texts.size).toBe(3);
         expect(pages).toHaveLength(3);
         expect(sent.length).toBe(digests.length + pages.length);
+    });
+});
+
+describe("an absent week, through the whole daemon", () => {
+    it("every page it sends is a digest or a blocking item: no alive notice, no reminder, no recovery", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "githerd-absent-"));
+        const config = join(dir, "githerd.config.json");
+        writeFileSync(
+            config,
+            JSON.stringify({
+                repo: "o/r",
+                lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+                notify: { command: ["true"] },
+            }),
+        );
+        const sha = "a".repeat(40);
+        const ok = (/** @type {unknown} */ body) => httpOutput({ status: 200, body });
+        const gh = createFakeGh(({ args, input }) => {
+            const path = args.at(-1);
+            if (input?.includes("pullRequests(")) {
+                return ok({
+                    data: {
+                        repository: {
+                            defaultBranchRef: { name: "master", target: { oid: sha } },
+                            pullRequests: { nodes: [] },
+                        },
+                    },
+                });
+            }
+            if (input?.includes("search(")) return ok({ data: { search: { issueCount: 0, nodes: [] } } });
+            if (path === "user") return ok({ login: "apowers313" });
+            if (path.includes("/actions/workflows/ci.yml/runs?")) {
+                return ok({
+                    workflow_runs: [
+                        {
+                            id: 1,
+                            run_attempt: 1,
+                            head_sha: sha,
+                            status: "completed",
+                            conclusion: "success",
+                            updated_at: "2026-09-25T12:00:00Z",
+                        },
+                    ],
+                });
+            }
+            if (path.includes("/commits?sha=master")) {
+                return ok([
+                    { sha, parents: [], commit: { message: "first", committer: { date: "2026-09-25T12:00:00Z" } } },
+                ]);
+            }
+            if (path.includes("/issues?")) return ok([]);
+            return ok([]);
+        });
+        let clock = new Date(FROM);
+        const daemon = await startDaemon({
+            root: dir,
+            port: 0,
+            exec: gh.exec,
+            git: async () => ({ code: 0, stdout: "", stderr: "" }),
+            now: () => clock,
+            env: { GITHERD_CONFIG: config, PATH: process.env.PATH },
+            stateDir: join(dir, ".githerd"),
+            autoPoll: false,
+            runs: false,
+            log: () => {},
+        });
+        try {
+            const events = weekEvents();
+            let next = 0;
+            for (let t = FROM; t < TO; t += 30 * 60_000) {
+                clock = new Date(t);
+                for (; next < events.length && events[next].at <= t; next++) {
+                    const e = events[next];
+                    if (e.raise) raiseItem(daemon.state, e.raise, new Date(e.at));
+                    else endItem(daemon.state, /** @type {string} */ (e.end), "cleared", new Date(e.at));
+                }
+                await daemon.poll();
+                await daemon.flushNotifications();
+            }
+            await daemon.shutdown();
+            const sent = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "notify");
+            const digests = sent.filter((e) => e.keys[0].startsWith("digest:"));
+            const owner = sent.filter((e) => e.keys[0].startsWith("owner:"));
+            expect(sent).toHaveLength(digests.length + owner.length);
+            expect(new Set(digests.map((e) => e.keys[0])).size).toBe(digests.length);
+            expect(digests.length).toBeLessThanOrEqual(7);
+            expect(owner.every((e) => e.message.startsWith("GPU lane failed"))).toBe(true);
+            expect(owner).toHaveLength(3);
+        } finally {
+            if (!daemon.fenced) await daemon.shutdown();
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

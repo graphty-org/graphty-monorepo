@@ -1,7 +1,8 @@
 /**
  * The githerd daemon (design section 3.2): one long-lived process per repository that polls
  * GitHub (design section 6), keeps `state.json` and the ledger, answers the session tools over
- * HTTP and pages the owner by the paging policy.
+ * HTTP and pages the owner only through owner items (design 11.3): something only the owner can
+ * do, paged by `planPages` in notify.mjs by his presence, batched, and again only on a change.
  *
  * HTTP, on 127.0.0.1 only:
  * - `GET /health`: the fields launchers use to decide whether this daemon is usable.
@@ -24,7 +25,11 @@
  *
  * Pages reach the owner's phone only while the `owner-items` write group is acting; until then
  * each one is recorded in the ledger as `delivered: false`, held. The one exception is the fatal
- * page ("githerd is DOWN"), which bypasses the hold: it is the owner's to act on.
+ * page ("githerd is DOWN"), which bypasses the hold: it is the owner's to act on. Owner items come
+ * from: a red master no fix run will handle (or whose fix run ended without a fix), a state file
+ * githerd could not read, and the escalations of kinds `decision`, `credential`, `approval` and
+ * `visual-review` raised by the daemon or a run. Nothing else pages: not an outage, not work in
+ * progress, not anything githerd is handling.
  *
  * Trust: the only author githerd acts on is the account gh is logged in as. Every poll asks GitHub
  * for that login (`gh api user`) and keeps it in `state.trust.login`; it starts null at every start
@@ -74,8 +79,7 @@ import { failureKey } from "./lanes.mjs";
 import { createMcpServer } from "./mcp.mjs";
 import { accumulateMerged, searchMerged } from "./merged.mjs";
 import { foldHead, mergeGateChecks, npmLookup, openPr, postMergeStatuses, readDependencies } from "./merge-status.mjs";
-import { createNotifier, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
-import { pagesFor } from "./paging.mjs";
+import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { containerStart, identify } from "./proc.mjs";
 import { buildPrompt } from "./prompts.mjs";
 import { advanceProposals, veto } from "./proposals.mjs";
@@ -122,6 +126,13 @@ const MAX_BODY = 1024 * 1024;
 const ISSUES_START = "1970-01-01T00:00:00Z";
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
+/** Escalation kinds that are owner items, and what each blocks (design 11.3). */
+const ITEM_KINDS = /** @type {Record<string, "workers" | null>} */ ({
+    decision: null,
+    credential: "workers",
+    approval: null,
+    "visual-review": null,
+});
 /** The owner's override labels; honored only when the owner applied them. */
 const OVERRIDES = new Set([NEXT, SKIP]);
 /** The session tools a judgment run also gets. */
@@ -285,6 +296,21 @@ function noteLaneName(lane, runName, ms) {
     if (runName) lane.workflowName = runName;
     if (lane.verdict !== "red") delete lane.redSince;
     else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
+}
+
+/**
+ * Describes an incident's failing lanes for an owner item.
+ * @param {any} incident the incident record
+ * @returns {string} for example "ci (Build, Lint) at abc123456"
+ */
+function describeIncident(incident) {
+    const lanes = Object.entries(incident?.lanes ?? {}).map(([lane, l]) =>
+        /** @type {any} */ (l).failingJobs?.length
+            ? `${lane} (${/** @type {any} */ (l).failingJobs.join(", ")})`
+            : lane,
+    );
+    const where = incident?.redSha ? ` at ${incident.redSha.slice(0, 9)}` : "";
+    return `${lanes.join(", ") || "a gating lane"}${where}`;
 }
 
 /**
@@ -453,8 +479,6 @@ export async function startDaemon({
     let config = null;
     /** @type {string | null} */
     let configError = null;
-    /** @type {string[]} raised during the current poll, or by startup */
-    const raised = [];
     /** @type {any[]} the default branch's recent commits, head first; memory only */
     let commits = [];
     /** @type {string | null | undefined} `.mergify.yml` on the default branch; undefined until read */
@@ -564,7 +588,6 @@ export async function startDaemon({
     function raise(args) {
         const r = board.escalate(state, args, { daemon: true }, now());
         if (r.existing) return;
-        raised.push(args.key);
         say("info", `escalation ${args.kind} ${args.key}: ${args.summary}`);
         void ledger({
             kind: "escalation",
@@ -649,12 +672,40 @@ export async function startDaemon({
         }));
 
     /**
-     * Sends the pages one event calls for.
-     * @param {{type: string} & Record<string, any>} event the event
+     * Raises the owner item of a red master that needs him: no fix run will handle it, its fix run
+     * ended without a fix, or githerd restarted on empty state into a red master. It blocks the
+     * release, so it pages even while he is away.
+     * @param {string} id the incident
+     * @param {string} why what makes it his, appended to the incident's lanes
      */
-    function page(event) {
-        if (!config) return;
-        for (const p of pagesFor(event, state, config)) notifier.send(p);
+    function masterRedItem(id, why) {
+        const question = why.startsWith("githerd restarted")
+            ? `${why}: ${describeIncident(state.incidents[id])}`
+            : `master red: ${describeIncident(state.incidents[id])}; ${why}`;
+        raiseItem(state, { id: `master-red:${id}`, kind: "master-red", question, blocks: "release" }, now());
+    }
+
+    /**
+     * Keeps the escalation owner items in step with the escalations: one item per open escalation
+     * of a kind in `ITEM_KINDS` raised by the daemon or a run (an interactive session's own
+     * escalation reaches the owner through that session), ended when the escalation resolves.
+     */
+    function escalationItems() {
+        for (const esc of Object.values(state.escalations ?? {})) {
+            const e = /** @type {any} */ (esc);
+            const id = `escalation:${e.key}`;
+            if (e.resolvedAt) {
+                endItem(state, id, "cleared", now());
+                continue;
+            }
+            const byGitherd = e.raisedBy === "daemon" || String(e.raisedBy).startsWith("run-");
+            if (!(e.kind in ITEM_KINDS) || !byGitherd) continue;
+            raiseItem(
+                state,
+                { id, kind: e.kind, question: e.summary, target: e.target ?? null, blocks: ITEM_KINDS[e.kind] },
+                now(),
+            );
+        }
     }
 
     /**
@@ -790,9 +841,8 @@ export async function startDaemon({
             const fix = commits.find((c) => c.sha === m.greenSha);
             m.fixedAt = fix?.commit?.committer?.date ?? iso;
             event("master-recovered", { incident: open.id, sha: m.greenSha });
-            page({ type: "master-recovered", incident: open.id });
+            endItem(state, `master-red:${open.id}`, "cleared", now());
         }
-        page({ type: "poll", now: iso });
     }
 
     /**
@@ -950,7 +1000,11 @@ export async function startDaemon({
         // With runs on, the dispatcher pages later if no run will handle it.
         const runStarting =
             runner !== null && Boolean(state.trust.login) && admit(state, config, mode(), "master-red", now()).ok;
-        page({ type: "master-red-confirmed", incident: incident.id, runStarting, restartedSince });
+        if (restartedSince) {
+            masterRedItem(incident.id, `githerd restarted, master is red since ${restartedSince.slice(0, 16)} UTC`);
+        } else if (!runStarting || config.runs.maxConcurrent === 0) {
+            masterRedItem(incident.id, "no fix run will handle it");
+        }
     }
 
     /**
@@ -1051,6 +1105,7 @@ export async function startDaemon({
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         await mergeGate(gh, prList.repository.pullRequests.nodes, branch);
+        escalationItems();
         await ownerItemsPoll({
             api: gh,
             repo: config.repo,
@@ -1465,8 +1520,9 @@ export async function startDaemon({
         }
         if (kind === "master-red") {
             void started.done.then((/** @type {any} */ rec) => {
-                if (rec.status !== "interrupted")
-                    page({ type: "master-red-run-ended", incident, fixed: rec.outcome === "done" });
+                if (rec.status !== "interrupted" && rec.outcome !== "done") {
+                    masterRedItem(incident, "the fix run ended without a fix");
+                }
             });
         }
         return { ok: true, id: started.id };
@@ -1557,9 +1613,7 @@ export async function startDaemon({
             issueTexts,
             holdUntil,
         });
-        for (const incident of result.masterRedUnhandled) {
-            page({ type: "master-red-confirmed", incident, runStarting: false });
-        }
+        for (const incident of result.masterRedUnhandled) masterRedItem(incident, "no fix run will handle it");
         if (!result.slotsFull && !(holdUntil && t < holdUntil)) await retriage?.tick();
     }
 
@@ -1591,7 +1645,6 @@ export async function startDaemon({
                 readConfig();
                 return { ok: false };
             }
-            raised.length = 0;
             try {
                 const waited = await pollGitHub();
                 if (waited) {
@@ -1617,12 +1670,6 @@ export async function startDaemon({
                     summary: `GitHub unreachable since ${state.rate.downSince.slice(0, 16)} UTC`,
                     clearWhen: "github-up",
                 });
-            }
-            if (raised.length) page({ type: "escalations-raised", keys: [...raised] });
-            const today = loopTickAt.slice(0, 10);
-            if (String(state.schedule.lastAliveAt ?? "").slice(0, 10) !== today) {
-                state.schedule.lastAliveAt = loopTickAt;
-                page({ type: "daily", date: today });
             }
             await save();
             if (!fenced) void notifier.flush();
@@ -1898,6 +1945,19 @@ export async function startDaemon({
     say("info", `githerd ${version} listening on 127.0.0.1:${boundPort} for ${root} (${mode()})`);
 
     /**
+     * The owner item for state githerd could not read: what it knew about incidents, proposals
+     * and runs is gone, and runs wait. It blocks every worker start, so it pages while he is away.
+     * @param {string} summary what happened
+     */
+    function stateItem(summary) {
+        raiseItem(
+            state,
+            { id: `state-reset:${startedAt}`, kind: "state-reset", question: summary, blocks: "workers" },
+            now(),
+        );
+    }
+
+    /**
      * Raises what a start found wrong: a notify command that cannot run, and state that was not
      * read whole from state.json.
      */
@@ -1913,11 +1973,11 @@ export async function startDaemon({
         if (loaded.source === "empty") {
             const summary = `state.json unreadable; githerd started empty (files kept as ${kept})`;
             raise({ key: "state-reset", kind: "blocked", summary, detail });
-            page({ type: "state-reset", at: startedAt, summary });
+            stateItem(summary);
         } else if (loaded.source === "ledger") {
             const summary = `state.json and its backup unreadable; githerd rebuilt jobs, claims and sessions from the ledger (files kept as ${kept})`;
             raise({ key: "state-from-ledger", kind: "blocked", summary, detail });
-            page({ type: "state-reset", at: startedAt, summary });
+            stateItem(summary);
         } else if (loaded.source === "bak") {
             const summary = `state.json unreadable; githerd started from state.json.bak (file kept as ${kept})`;
             raise({ key: "state-from-backup", kind: "other", summary, detail });

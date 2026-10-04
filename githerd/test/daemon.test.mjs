@@ -547,9 +547,10 @@ describe("the poll loop", () => {
             "master-recovered",
         ]);
         expect(masterRed()).toHaveLength(1);
-        expect(pages().filter((p) => p.message.startsWith("master green again"))).toEqual([
-            { status: "info", message: expect.stringContaining(Object.keys(daemon.state.incidents)[0]) },
-        ]);
+        // Recovery is not the owner's to act on: it ends his item and pages nothing.
+        expect(pages().filter((p) => p.message.startsWith("master green again"))).toEqual([]);
+        const id = Object.keys(daemon.state.incidents)[0];
+        expect(daemon.state.ownerItems[`master-red:${id}`]).toMatchObject({ endedBy: "cleared" });
 
         // the dry-run fake gh recorded no write; from the reconcile after the red sighting the failing
         // job would have been re-run once on the red head and once on the last green commit
@@ -591,17 +592,25 @@ describe("the poll loop", () => {
         expect(existsSync(notifyLog)).toBe(false);
     });
 
-    it("sends the daily alive notice once a day", async () => {
+    it("pages no daily alive notice, no outage and no hourly reminder of a red master", async () => {
         const daemon = await start();
-        await poll(daemon);
-        clock = new Date("2026-10-02T12:03:00Z");
         await poll(daemon);
         clock = new Date("2026-10-03T00:01:00Z");
         await poll(daemon);
-        expect(pages().filter((p) => p.message.startsWith("githerd alive"))).toEqual([
-            { status: "info", message: "githerd alive: master green, 0 open escalations" },
-            { status: "info", message: "githerd alive: master green, 0 open escalations" },
-        ]);
+        // A red master, red for three hours: one owner item, never an "after 2 hours" page.
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-03T00:04:00Z", "2026-10-03T03:30:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        gh.exec = async () => ({ code: 1, stdout: "", stderr: "network down" });
+        clock = new Date("2026-10-03T05:00:00Z");
+        await poll(daemon);
+        const texts = pages().map((p) => p.message);
+        expect(texts.filter((m) => /alive|still red|green again|digest/.test(m))).toEqual([]);
+        expect(texts.filter((m) => /unreachable|GitHub/.test(m))).toEqual([]);
     });
 
     it("never runs the notify command for a development daemon unless GITHERD_DEV_NOTIFY=1", async () => {
@@ -1118,15 +1127,20 @@ describe("unreadable state", () => {
             await poll(daemon);
         }
         expect(daemon.state.master.verdict).toBe("red");
-        const red = pages().filter((p) => /master (is )?red/.test(p.message));
-        expect(red).toEqual([
+        // The unreadable state paged on the first poll; the red master waits for the batching
+        // window to end, then pages once.
+        expect(pages()).toEqual([
+            { status: "waiting", message: expect.stringMatching(/^state.json unreadable; githerd started empty/) },
+        ]);
+        clock = new Date("2026-10-02T12:19:00Z");
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:22:00Z");
+        await poll(daemon);
+        expect(pages().filter((p) => /master (is )?red/.test(p.message))).toEqual([
             {
                 status: "waiting",
                 message: "githerd restarted, master is red since 2026-10-02T12:00 UTC: ci (Build) at bbbbbbbbb",
             },
-        ]);
-        expect(pages().filter((p) => p.message.startsWith("state.json unreadable"))).toEqual([
-            { status: "error", message: expect.stringContaining("githerd started empty") },
         ]);
     });
 
@@ -1144,9 +1158,9 @@ describe("unreadable state", () => {
         expect(daemon.state.sessions["wt-2"]).toMatchObject({ cwd: "/x", branch: "feat/y" });
         expect(daemon.state.recovery).toMatchObject({ emptyStart: true, at: clock.toISOString() });
         expect(daemon.state.escalations["state-from-ledger"]).toMatchObject({ kind: "blocked", resolvedAt: null });
-        await daemon.flushNotifications();
+        await poll(daemon);
         expect(pages().filter((p) => p.message.includes("rebuilt"))).toEqual([
-            { status: "error", message: expect.stringContaining("from the ledger") },
+            { status: "waiting", message: expect.stringContaining("from the ledger") },
         ]);
     });
 

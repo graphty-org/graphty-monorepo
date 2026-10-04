@@ -139,7 +139,7 @@ function readJson(path) {
  * @param {Record<string, string | undefined>} env the environment
  * @returns {{"x-githerd-caller": string}} the header
  */
-export function callerHeader(env) {
+function callerHeader(env) {
     const agent = Object.keys(env).some((k) => k === "CLAUDECODE" || k.startsWith("CLAUDE_"));
     return { "x-githerd-caller": agent ? "agent" : "owner" };
 }

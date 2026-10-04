@@ -391,7 +391,20 @@ describe("choosing one graph", () => {
     // the reader. When graph-io gives an importer listGraphs, this fails until its reader declares
     // `static listGraphs` and passes `graphChoice()` to the importer.
     it("every built-in reader lists its graphs exactly when its importer does", () => {
-        for (const type of ["json", "graphml", "gexf", "csv", "gml", "dot", "pajek"]) {
+        for (const type of [
+            "json",
+            "graphml",
+            "gexf",
+            "csv",
+            "gml",
+            "dot",
+            "pajek",
+            "xgmml",
+            "cx2",
+            "cx",
+            "cys",
+            "obo",
+        ]) {
             const reader = DataSource.get(type, { data: "" });
             assert.isNotNull(reader, type);
             const readerLists = (reader.constructor as typeof DataSource).listGraphs !== undefined;

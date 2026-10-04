@@ -19,7 +19,7 @@ the expectation today; the reference points into
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 98 | 11 | 88 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
-| json | 427 | 397 | 30 | 79 | 0 |
+| json | 427 | 398 | 29 | 80 | 0 |
 | neo4j | 45 | 25 | 20 | 24 | 0 |
 | obo | 102 | 102 | 0 | 0 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
@@ -370,10 +370,6 @@ No known failures.
 ### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (1)
 
 - `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
-
-### Cytoscape position.z ignored (sources.md 8.4 Cytoscape) (1)
-
-- `cytoscape/desktop-export.cyjs`: node "108" role:position: expected [5,90,7.5], got [5,90,0]
 
 ### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (1)
 

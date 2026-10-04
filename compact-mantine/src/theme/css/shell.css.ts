@@ -705,13 +705,34 @@ const css = `
     height: 24px;
     color: ${LABEL_INK};
 }
-.cm-qa-row-label {
+.cm-qa-row-text {
+    display: flex;
+    flex-direction: column;
     flex: 1;
+    min-width: 0;
+}
+.cm-qa-row-label {
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
+/* A middle cut: the head gives way to an ellipsis, the tail always shows. */
+.cm-qa-row-label[data-truncate="middle"] { display: flex; text-overflow: clip; }
+.cm-qa-row-head { min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; }
+.cm-qa-row-tail { flex: none; white-space: pre; }
+/* A row with a second line: 44 tall, the name on 16 and the dimmed line on 16 under it. */
+.cm-qa-row[data-two-line] { height: 44px; }
+.cm-qa-row[data-two-line] .cm-qa-row-label { line-height: 18px; }
+.cm-qa-row-description {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    ${cmFont("body")}
+    color: var(--cm-text-secondary);
+}
+.cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
 .cm-qa-row-shortcut {
     flex: none;
     padding-inline-end: 4px;

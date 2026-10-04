@@ -92,8 +92,6 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "Help" }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Save/ }));
-        // Export... is a stub until the Export package lands.
-        assert.isNull(within(menu).queryByRole("menuitem", { name: /Export/ }));
     });
 
     it("draws a File list command in both menus once its package builds it", async () => {

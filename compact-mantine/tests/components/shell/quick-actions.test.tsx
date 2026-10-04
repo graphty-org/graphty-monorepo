@@ -93,4 +93,56 @@ describe("QuickActions", () => {
         expect(screen.getByRole("combobox")).toHaveValue("");
         expect(screen.getByRole("button", { name: "Visual search" })).toBeInTheDocument();
     });
+
+    describe("the field list options", () => {
+        const FIELDS: QuickAction[] = [
+            { value: "degree", label: "degree" },
+            {
+                value: "community",
+                label: "community",
+                disabled: true,
+                description: "Holds groups, not amounts",
+            },
+            { value: "chapters", label: "shared_chapters_with_valjean" },
+        ];
+
+        it("draws a second line as the option's description, keeping the name its label alone", async () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} />);
+            const option = screen.getByRole("option", { name: "community" });
+            expect(option).toHaveAccessibleDescription("Holds groups, not amounts");
+            // A search keeps the reason, where it would lose a section heading.
+            await userEvent.keyboard("comm");
+            expect(screen.getByRole("option", { name: "community" })).toHaveAccessibleDescription(
+                "Holds groups, not amounts",
+            );
+        });
+
+        it("keeps the search field and focus on a short list; the arrows, Enter and Escape work there", async () => {
+            const onRun = vi.fn();
+            const onClose = vi.fn();
+            renderShell(<QuickActions actions={FIELDS} onRun={onRun} onClose={onClose} />);
+            const input = screen.getByRole("combobox");
+            expect(input).toHaveFocus();
+            const list = screen.getByRole("listbox");
+            expect(list).not.toHaveAttribute("tabindex");
+            expect(list).not.toHaveAttribute("aria-activedescendant");
+            expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "degree" }).id);
+            // The disabled field stays listed, and the arrows skip it.
+            expect(screen.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
+            await userEvent.keyboard("{ArrowDown}");
+            expect(input).toHaveFocus();
+            expect(screen.getByRole("option", { name: /shared_chapters/ })).toHaveAttribute("data-highlighted");
+            await userEvent.keyboard("{Enter}");
+            expect(onRun).toHaveBeenCalledWith("chapters");
+            await userEvent.keyboard("{Escape}");
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        it("cuts a name in the middle when asked, with the full name as the tooltip", () => {
+            renderShell(<QuickActions actions={FIELDS} onRun={vi.fn()} truncate="middle" />);
+            const option = screen.getByRole("option", { name: "shared_chapters_with_valjean" });
+            expect(option).toHaveAttribute("title", "shared_chapters_with_valjean");
+            expect(option.querySelector(".cm-qa-row-tail")).toHaveTextContent("_valjean");
+        });
+    });
 });

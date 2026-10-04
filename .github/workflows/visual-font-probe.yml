@@ -45,6 +45,9 @@ jobs:
                   du -cb $(cat "$out/files.txt") | tail -1 > "$out/total-bytes.txt"
                   tar -chzf "$out/fonts.tgz" -T "$out/files.txt" 2>/dev/null
                   tar -chzf "$out/etc-fonts.tgz" /etc/fonts 2>/dev/null
+                  dpkg -S $(cat "$out/files.txt") > "$out/owners.txt" 2>&1 || true
+                  find /usr/share/fonts -type l -printf '%p -> %l\n' > "$out/symlinks.txt"
+                  tar -chzf "$out/copyright.tgz" $(for p in $(awk '{print $2}' "$out/packages.txt" | cut -d: -f1); do ls /usr/share/doc/$p/copyright 2>/dev/null; done)
                   ls -la "$out"
                   cat "$out/fc-match.txt" "$out/fc-match-charset.txt" "$out/packages.txt" "$out/total-bytes.txt"
             - uses: actions/upload-artifact@v4

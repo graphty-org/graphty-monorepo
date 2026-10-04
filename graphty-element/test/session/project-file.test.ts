@@ -434,13 +434,42 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("reads a data file into a load draft, the one intake verb (#913)", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "kept" }]);
+        const csv = new File(["source,target\na,b\nb,c\n"], "ties.csv");
+
+        const report = await session.project.open(csv);
+
+        assert.strictEqual(report.opened, "graph");
+        assert.strictEqual(report.draft?.type, "csv");
+        assert.deepStrictEqual(report.restored, []);
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            ["kept"],
+            "nothing loads until the draft does",
+        );
+        await report.draft?.load();
+        assert.strictEqual(session.data.statistics().edgeCount, 2);
+
+        const gml = await session.project.open("graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]", {
+            fileName: "ring.gml",
+        });
+        assert.strictEqual(gml.opened, "graph");
+        assert.strictEqual(gml.draft?.type, "gml");
+        const json = await session.project.open('{ "nodes": [{ "id": "x" }], "edges": [] }');
+        assert.strictEqual(json.opened, "graph", "JSON that is not a graphty document is data");
+        session.dispose();
+    });
+
     it("refuses what it cannot read and leaves the session as it was", async () => {
         const { harness } = withDegree();
         const { session } = harness;
         await session.data.addNodes([{ id: "kept" }]);
 
         assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
-        assert.strictEqual(await refusal(session, '{ "nodes": [] }'), "E_UNKNOWN_FORMAT");
+        assert.strictEqual(await refusal(session, "<not a graph>"), "E_UNKNOWN_FORMAT");
         assert.strictEqual(
             await refusal(session, '{ "kind": "graphty-document", "version": 2, "members": [] }'),
             "E_UNSUPPORTED_VERSION",

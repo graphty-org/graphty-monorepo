@@ -528,6 +528,27 @@ describe("HTTP endpoints", () => {
         expect(news.map((n) => n.text)).toEqual(["CI went green"]);
     });
 
+    it("names in the Stop gate what the last refused githerd_done found missing", async () => {
+        const daemon = await start();
+        const job = newJob({ kind: "pr", target: "pr:7", id: "j1" }, clock);
+        job.state = "working";
+        job.news.push({ at: clock.toISOString(), text: "not done yet: Build is red on abc", acked: true });
+        job.news.push({ at: clock.toISOString(), text: "CI went green", acked: true });
+        daemon.state.jobs = { j1: job };
+        const res = await fetch(`${daemon.url}/hook`, {
+            method: "POST",
+            body: JSON.stringify({ event: "Stop", job: "j1", nonce: "n", input: { session_id: "w1" } }),
+        });
+        expect((await res.json()).block).toMatch(/GitHub still shows missing: Build is red on abc\. /);
+        job.state = "done";
+        const done = await fetch(`${daemon.url}/hook`, {
+            method: "POST",
+            body: JSON.stringify({ event: "Stop", job: "j1", nonce: "n", input: { session_id: "w1" } }),
+        });
+        expect(await done.json()).toEqual({});
+        await daemon.shutdown();
+    });
+
     it("recovers a worker whose session died: news, a fresh next session and a ledger line", async () => {
         const daemon = await start();
         const job = newJob({ kind: "issue", target: "#12", id: "issue-12" }, clock);

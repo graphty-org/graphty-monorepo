@@ -260,12 +260,20 @@ describe("sessionToolSet", () => {
         expect((await call(ctx, "githerd_read", {}, {})).text).toBe("name an issue or a pr");
     });
 
-    it("says the job-kind and owner-layer tools are not available yet, and changes nothing", async () => {
+    it("checks a githerd_done claim of the held job and records the report", async () => {
         const job = heldJob("pr-7");
         const { ctx, commits } = setup({ jobs: { "pr-7": job } });
-        const done = await call(ctx, "githerd_done", { job: "pr-7", outcome: "done", findings: "f", defects: [] });
-        expect(done.isError).toBe(true);
-        expect(done.text).toMatch(/^not available yet/);
+        const report = { job: "pr-7", outcome: "failed", findings: "flaky runner", defects: [] };
+        expect(JSON.parse((await call(ctx, "githerd_done", report)).text)).toEqual({ verified: true });
+        expect(commits).toEqual([expect.objectContaining({ kind: "done-report", job: "pr-7", outcome: "failed" })]);
+        expect(job.report).toMatchObject({ outcome: "failed", session: "w1" });
+        const other = await call(ctx, "githerd_done", report, { session: "w2", job: "pr-7", nonce: "n1" });
+        expect(other).toMatchObject({ isError: true, text: expect.stringMatching(/does not hold pr-7/) });
+    });
+
+    it("says the owner-layer tools are not available yet, and changes nothing", async () => {
+        const job = heldJob("pr-7");
+        const { ctx, commits } = setup({ jobs: { "pr-7": job } });
         const ask = { job: "pr-7", kind: "money", question: "q", options: [{ choice: "a", undoCost: "none" }] };
         expect((await call(ctx, "githerd_ask_owner", ask)).isError).toBe(true);
         expect((await call(ctx, "githerd_record", { kind: "order", text: "x" })).isError).toBe(true);

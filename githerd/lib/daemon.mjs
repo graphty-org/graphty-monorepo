@@ -75,6 +75,7 @@ import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
 import { dispatch } from "./dispatch.mjs";
+import { doneIo, pollVerifying } from "./done.mjs";
 import { classify } from "./classify.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, notePickups, queueAges } from "./lanes.mjs";
@@ -134,6 +135,8 @@ const GITHUB_DOWN_MS = 30 * 60_000;
 /** Largest request body accepted. */
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
+/** How the news of a refused `githerd_done` starts (board.verifyResult). */
+const NOT_DONE = "not done yet: ";
 const MAX_BODY = 1024 * 1024;
 /** Where the issue poll starts on a fresh state: the whole history, read 10 pages per poll. */
 const ISSUES_START = "1970-01-01T00:00:00Z";
@@ -753,6 +756,15 @@ export async function startDaemon({
         }));
 
     /**
+     * What `githerd_done` and the verification poll read: git in the root, the GitHub client, npm.
+     * ponytail: release and local-gate incidents stay undecided until the daemon stores its release
+     * truth and the reference gate's result and passes them here as `releaseOpen` and `localGate`.
+     * @returns {import("./done.mjs").DoneIo} the reader
+     */
+    const doneReader = () =>
+        doneIo({ root, repo: config.repo, github: github(), branch: state.master.branch ?? "master" });
+
+    /**
      * Raises the owner item of a red master that needs him: no fix run will handle it, its fix run
      * ended without a fix, or githerd restarted on empty state into a red master. It blocks the
      * release, so it pages even while he is away.
@@ -1324,6 +1336,10 @@ export async function startDaemon({
             digestHourUtc: config.digest.hourUtc,
             ledger,
         });
+        for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
+            void ledger({ kind: "done-verify", ...change });
+            if (change.action === "working") await ringJob(state.jobs[change.job]);
+        }
         await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
             await advanceProposals(state, {
@@ -1990,6 +2006,7 @@ export async function startDaemon({
                     await ledger(entry);
                 },
                 uid: process.getuid?.() ?? 0,
+                io: doneReader(),
             });
         },
     });
@@ -2212,9 +2229,9 @@ export async function startDaemon({
     }
 
     /**
-     * What the hooks need to know that is not in the state (design 4.10).
-     * ponytail: no `doneHolds` or `missing` yet, so the Stop gate never ends a session and names
-     * the done-condition generically; they arrive with the job's done-condition check.
+     * What the hooks need to know that is not in the state (design 4.10). The done-condition was
+     * checked when the worker called `githerd_done`: a job that holds is `done`, and what was missing
+     * is the last "not done yet" news.
      * @returns {import("./hook.mjs").HookFacts} the facts
      */
     function hookFacts() {
@@ -2234,6 +2251,10 @@ export async function startDaemon({
             models: MODELS,
             githubUnknownSince: state.github.downSince ?? null,
             uid: process.getuid?.() ?? 0,
+            doneHolds: (/** @type {any} */ job) => job.state === "done",
+            missing: (/** @type {any} */ job) =>
+                job.news.findLast((/** @type {any} */ n) => n.text.startsWith(NOT_DONE))?.text.slice(NOT_DONE.length) ??
+                "",
         });
     }
 

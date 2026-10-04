@@ -811,7 +811,7 @@ A kind exists only if GitHub or the machine can check its done-condition.
 |---|---|---|---|
 | `incident` | A code-red key on master (4.5); a shared or master-side key (4.4); a release half-state or a real pending release; a visual coverage gap on master; a required check that never reports; a matched advisory failing the audit; a red non-gating master workflow (low priority); a shared local gate key | one key or one named condition | Master: the failing workflow's newest master run is green at a commit containing the recorded fix. Shared: the key passes on master's fix and on one canary pull request updated and green. Release: npm has the tagged versions and master the version commit. Local: the gate passes on the green commit |
 | `pr` | An own failure; a conflict the tools cannot resolve; an owner's visual reject [R14]; an abandoned githerd pull request | one pull request | Required checks green on the current head (base master, not draft), or waiting only on the owner (visual review, owner item) |
-| `issue` | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove | one issue or a triage group | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not pending for a reason the worker can fix. Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
+| `issue` | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove | one issue or a triage group | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not failing on a line the worker can fix (section 4.6 lines 3, a breaking commit under a title without `!`; 4, a package npm does not know; 8, the issue revision acknowledged). Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
 | `triage` | New or changed issues (20 per job); a refresh after 20 merges; a full pass after 100 merges | a batch | Each issue has one type, priority and effort label from the existing set and a recorded verdict |
 | `review` | A githerd pull request has a new patch id; a sensitive-path pull request (4.6 line 6) | one diff | A verdict for that patch id |
 | `title` | A title commitlint rejects for length or scope, when the session that made the pull request is not open | one pull request title | `Lint PR Title` green. No worktree |
@@ -1006,8 +1006,10 @@ githerd_done: { job: string, outcome: "done"|"split"|"not-needed"|"failed",
 //                 patchId, notes }
 // "not-needed" goes through the same propose, confirm and grace path as an obsolete issue.
 // A pushedHead that is an ancestor of GitHub's head is accepted when every later commit is a
-// merge from master made by the daemon or the review tool.
-// -> { verified: true } | { verified: false, missing: string[] }
+// merge from master (the daemon's update-branch call, Mergify's update and the review tool all add
+// one). A merge is recognized by its shape: on the first-parent line, its other parents on master.
+// -> { verified: true } | { verified: false, missing: string[], ended?: true }
+// `ended` is set when this was the third refused claim in a row and the attempt ended.
 
 // 10. Ask the owner. Only for what only the owner can do.
 githerd_ask_owner: { job: string,
@@ -1138,7 +1140,7 @@ Every time a worker's turn ends, the Stop hook asks the daemon, which answers fr
 |---|---|
 | Steered by the owner | Allow, silently |
 | Done-condition holds | Allow; the daemon ends the session |
-| `waiting`, or `parked`, or claim "wait" | Allow |
+| `waiting`, `verifying` or `parked`, or claim "wait" | Allow |
 | GitHub unknown | Allow, with "GitHub unreachable since <t>; githerd will ring you; do not retry or work around it"; an implicit wait on GitHub |
 | `background_tasks` in the Stop input is not empty [PF 3.1], [PF 10.10] | Allow; the job waits on a local task; its output growth is progress (each entry has an id but no path; the output is `/tmp/claude-<uid>/<cwd slug>/<sessionId>/tasks/<id>.output`) |
 | `stop_hook_active` is true | Allow; the watchdog takes over [PF 3.1] |

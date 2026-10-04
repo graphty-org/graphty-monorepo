@@ -6,13 +6,15 @@
  * this daemon does not serve before any handler runs.
  *
  * A worker is known by its job and nonce: a call that names a job is refused unless the caller holds
- * it. `githerd_done`, `githerd_ask_owner` and `githerd_record` belong to the job kinds and the owner
- * layer (plan milestone 6) and answer that they are not available yet.
+ * it. `githerd_done` checks the claim against GitHub before accepting it (done.mjs); `githerd_ask_owner`
+ * and `githerd_record` belong to the owner layer (plan milestone 6) and answer that they are not
+ * available yet.
  */
 
 import { availableParallelism, loadavg } from "node:os";
 
 import * as board from "./board.mjs";
+import { githerdDone } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
 import { jobText } from "./job-text.mjs";
 import { TOOLS } from "./mcp.mjs";
@@ -57,6 +59,7 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
  * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void>} commit persists the
  *   state, then appends the ledger entry
  * @property {number} uid the user id, for a background task's output path
+ * @property {import("./done.mjs").DoneIo} io what `githerd_done` reads to check a claim
  */
 
 /**
@@ -196,7 +199,10 @@ export function sessionToolSet(ctx) {
         githerd_rerun: async (args, caller, client) =>
             rerun(ctx, heldJob(state, args.job, sessionOf(caller, client), client), args),
         githerd_read: async (args) => read(ctx, args),
-        githerd_done: notYet,
+        githerd_done: async (args, caller, client) => {
+            const session = sessionOf(caller, client);
+            return githerdDone(ctx, heldJob(state, args.job, session, client), args, session);
+        },
         githerd_ask_owner: notYet,
         githerd_record: notYet,
     };

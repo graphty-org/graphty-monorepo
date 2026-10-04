@@ -421,7 +421,7 @@ function stopGate(job, req, facts, now) {
     const note = (/** @type {string} */ why, extra = {}) => [{ kind: "stop-gate", job: job.id, allow: why, ...extra }];
     if (job.steeredAt) return { answer: {}, ledger: note("steered") };
     if (facts.doneHolds?.(job)) return { answer: {}, ledger: note("done"), end: true };
-    if (["waiting", "parked"].includes(job.state) || job.claim?.overlap?.decision === "wait") {
+    if (["waiting", "parked", "verifying"].includes(job.state) || job.claim?.overlap?.decision === "wait") {
         return { answer: {}, ledger: note("waiting") };
     }
     if (facts.githubUnknownSince) {

@@ -287,7 +287,7 @@ describe("answerHook: the Stop gate", () => {
         expect(asksOwner(undefined)).toBe(false);
     });
 
-    it("allows a steered, done, waiting or parked job, and a claim that waits", () => {
+    it("allows a steered, done, waiting, verifying or parked job, and a claim that waits", () => {
         let state = workingState();
         state.jobs["pr-7"].steeredAt = T0.toISOString();
         expect(answerHook(state, worker(REC.stopFirst), facts(), T0).ledger[0].allow).toBe("steered");
@@ -298,6 +298,9 @@ describe("answerHook: the Stop gate", () => {
         expect(answerHook(state, worker(REC.stopFirst), facts(), T0).answer).toEqual({});
         state = workingState();
         move(state.jobs["pr-7"], "parked", T0, { waitingFor: { owner: "item-1" } });
+        expect(answerHook(state, worker(REC.stopFirst), facts(), T0).ledger[0].allow).toBe("waiting");
+        state = workingState();
+        move(state.jobs["pr-7"], "verifying", T0);
         expect(answerHook(state, worker(REC.stopFirst), facts(), T0).ledger[0].allow).toBe("waiting");
     });
 

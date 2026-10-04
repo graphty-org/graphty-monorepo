@@ -184,15 +184,15 @@ anything and without asking about unsaved changes. That step sets `dirty`, like 
 
 You need this section only to read or write the file yourself. A graphty document (`kind: "graphty-document"`, version 1) whose members are:
 
-| Member                | Holds                                                              |
-| --------------------- | ------------------------------------------------------------------ |
-| `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect      |
-| `graphty-session`     | the settings, layout, filter and time window, sets and named views |
-| `graphty-arrangement` | each placed node's id and position, and the pinned nodes           |
-| `graphty-results`     | each finished run: what ran, its fields, and its values as columns |
-| `graphty-style`       | the style layers                                                   |
-| `graphty-notes`       | the notes                                                          |
-| `graphty-view-state`  | the selection; never needed to open the file                       |
+| Member                | Holds                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect, and the `source` they were loaded from |
+| `graphty-session`     | the settings, layout, filter and time window, sets and named views                                    |
+| `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                              |
+| `graphty-results`     | each finished run: what ran, its fields, and its values as columns                                    |
+| `graphty-style`       | the style layers                                                                                      |
+| `graphty-notes`       | the notes                                                                                             |
+| `graphty-view-state`  | the selection; never needed to open the file                                                          |
 
 Node values are keyed by node id. Edge values are keyed by the edge's position in the data
 member, with the data's fingerprint beside them, so a hand edit of the data is detected rather

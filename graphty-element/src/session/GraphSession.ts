@@ -1867,6 +1867,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             importer: () => dispatcher.capturedDispatch(),
             slice,
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
+            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
         },
         {

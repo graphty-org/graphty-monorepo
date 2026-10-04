@@ -442,6 +442,8 @@ function write(
     });
 
     const { layout, visibility, selection } = session;
+    // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
+    const source = session.data.source();
     const leaveOut = new Set<string>(options.leaveOut ?? []);
     const members: Record<string, unknown>[] = [
         {
@@ -450,6 +452,7 @@ function write(
             format: "json",
             dialect: "node-link",
             graph: { nodes, links: edges.map(({ id: _id, ...edge }) => edge) },
+            ...(source === null ? {} : { source }),
         },
         {
             kind: "graphty-session",
@@ -784,18 +787,23 @@ async function clearInto(tx: TransactionScope): Promise<void> {
 }
 
 /**
- * Add a data member's graph.
+ * Add a data member's graph, and the source it records.
  * @param tx - The transaction.
  * @param graph - The graph.
+ * @param source - The member's `source`: where the graph was loaded from, when the file says.
  * @returns The edge ids this session gave the file's edges, by position.
  */
-async function importInto(tx: TransactionScope, graph: NodeLink): Promise<(EdgeId | undefined)[]> {
+async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
         mutation: { kind: "add-edges", records: graph.links, source: "source", target: "target" },
     });
+    if (isObject(source)) {
+        await tx.execute({ op: "data.setSource", source });
+    }
+
     return tx.data
         .edges()
         .slice(before)
@@ -886,6 +894,7 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
+    const source = doc.members.get("graphty-data")?.[0]?.source;
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
@@ -894,7 +903,7 @@ async function readProject(
     await attempt(opening, "config", () =>
         tx.config.set({ ...(isObject(state.config) ? state.config : {}), name } as ProjectConfigPatch),
     );
-    const edgeIds = await importInto(tx, graph);
+    const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
@@ -1235,7 +1244,7 @@ export function projectOf(
                 await session.transaction("Open document", async (tx) => {
                     const opening = { tx, problems, restored };
                     if (graph !== undefined) {
-                        await importInto(tx, graph);
+                        await importInto(tx, graph, data?.source);
                         restored.add("graph");
                     }
 

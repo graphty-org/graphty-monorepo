@@ -1371,6 +1371,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             neighbors: READ,
             lastImport: READ,
             source: READ,
+            renameSource: {
+                kind: "dispatches",
+                op: "data.setSource",
+                call: {
+                    kind: "call",
+                    args: ["Door source"],
+                    // A source is renamed only once one is loaded.
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import({ type: "json", config: { data: TINY_JSON } });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "data.setSource", source: { type: "json", name: "Door source", config: {} } }],
+            },
             attributes: READ,
             histogram: READ,
             declare: {

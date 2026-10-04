@@ -778,6 +778,21 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
+     * Give the source the graph was loaded from a new name, as one undoable step: what
+     * {@link source} reports as `name` from then on. The name is saved with the project, and undo
+     * restores the old one.
+     *
+     * ```ts
+     * await session.data.renameSource("Les Miserables characters");
+     * session.data.source()?.name; // "Les Miserables characters"
+     * ```
+     * @param name - the new name; not empty
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-source"`) when no
+     *     source is loaded, and (`"empty-name"`) for an empty name.
+     */
+    renameSource(name: string): Promise<void>;
+    /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -1294,6 +1309,8 @@ export interface CommandOutcomeMap {
     "data.expand": Promise<void>;
     /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
+    /** Settles once the source is recorded. */
+    "data.setSource": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.patch": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */

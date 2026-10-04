@@ -131,6 +131,17 @@ you give one. A file read also records its `size` in bytes. The inline text and 
 are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
 answers `null`.
 
+To give the source a name of your reader's choosing, rename it. It is one undoable step, and the
+name is saved with the project:
+
+```typescript
+await session.data.renameSource("Les Miserables characters");
+session.data.source()?.name; // "Les Miserables characters"
+```
+
+With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
+an empty name rejects with `"empty-name"`.
+
 ## Replacing the Graph
 
 A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one

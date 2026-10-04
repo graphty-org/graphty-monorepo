@@ -88,6 +88,8 @@ interface DataWrites {
     slice(): GraphSlice;
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
+    /** Dispatch `data.setSource`. */
+    setSource(source: DataSourceDescriptor): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
 }
@@ -1057,6 +1059,36 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Give the loaded source a new name, as one undoable step.
+     * @param name - the new name
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no source is loaded or the name is empty.
+     */
+    async renameSource(name: string): Promise<void> {
+        this.requireLive("renameSource");
+        const current = this.source();
+        if (current === null) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "No data source is loaded, so there is none to rename.",
+                source: "data",
+                details: { reason: "no-source", name },
+            });
+        }
+
+        if (typeof name !== "string" || name.trim() === "") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A data source's new name is a string with something in it.",
+                source: "data",
+                details: { reason: "empty-name", name },
+            });
+        }
+
+        await this.writes.setSource({ ...current, name });
+    }
+
+    /**
      * What the last load did.
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -1373,6 +1405,9 @@ export function headlessDataService(
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },
         import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
+        values: (values, draft) => {
+            dispatcher.graph.writer(draft, store).setGraphValues(values);
+        },
     };
 }
 

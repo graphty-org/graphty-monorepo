@@ -19,7 +19,7 @@ import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
-import { isStorableId, untilAborted } from "./project/ingest";
+import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import type {
     DraftColumn,
     DraftRow,
@@ -220,6 +220,12 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
         for (const edge of chunk.edges) {
             edges.push(edge);
         }
+    }
+
+    // Refused now, as the load would refuse it, rather than held as two empty tables.
+    const unreadable = nodes.length + edges.length === 0 ? unreadableSource(type, errorsOf(reader).errors) : null;
+    if (unreadable !== null) {
+        throw unreadable;
     }
 
     return {

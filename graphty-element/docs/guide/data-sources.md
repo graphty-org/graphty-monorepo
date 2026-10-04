@@ -158,7 +158,9 @@ try {
 `replace` is accepted by `loadFromFile`, `loadFromUrl` and, as a third argument, by
 `addDataFromSource(type, opts, { replace: true })`. A source that holds no nodes and no edges at
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
-the format's schema, `data-loading-error-summary` still reports why. A replacing load that stops at
+the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
+read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
+naming the format and, when the parser knows it, the line. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 

@@ -186,7 +186,8 @@ try {
 | `E_UNKNOWN_ATTRIBUTE`         | A mapping names a column the table does not have; `details.candidates`   |
 | `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table   |
 | `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target` |
-| `E_EMPTY_LOAD`                | The file holds nothing to load                                           |
+| `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`  |
+| `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)    |
 | `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`        |
 | `E_DISPOSED`                  | The draft was loaded or disposed                                         |
 

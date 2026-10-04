@@ -319,18 +319,39 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
-    it("refuses a file with nothing readable with the code import refuses it with", async () => {
-        const session = createGraphSession();
-        const source = { type: "graphml", config: { data: "<graphml" } };
-        const draft = await session.data.prepare(source);
+    it("refuses a file its parser cannot read as unreadable, not as empty (#928)", async () => {
+        for (const [type, data] of [
+            ["graphml", "<graphml"],
+            ["json", "{"],
+            ["gml", "graph ["],
+        ]) {
+            const session = createGraphSession();
+            const source = { type, config: { data } };
+            const prepared = await refusal(session.data.prepare(source));
+            const imported = await refusal(session.data.import(source));
 
-        assert.deepEqual(
-            draft.tables.map((table) => table.rowCount),
-            [0, 0],
-        );
-        assert.strictEqual((await refusal(draft.report()))?.code, "E_EMPTY_LOAD");
-        assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_EMPTY_LOAD");
-        assertUntouched(session);
-        session.dispose();
+            assert.strictEqual(prepared?.code, "E_PARSE_FAILED", type);
+            assert.strictEqual(imported?.code, "E_PARSE_FAILED", type);
+            assert.strictEqual(prepared?.details?.format, type);
+            assertUntouched(session);
+            session.dispose();
+        }
+    });
+
+    it("refuses a file that parsed and holds nothing as empty (#928)", async () => {
+        for (const [type, data] of [
+            ["csv", ""],
+            ["csv", "id,name\n"],
+            ["json", '{"nodes":[],"edges":[]}'],
+        ]) {
+            const session = createGraphSession();
+            const source = { type, config: { data } };
+            const draft = await session.data.prepare(source);
+
+            assert.strictEqual((await refusal(draft.report()))?.code, "E_EMPTY_LOAD", data);
+            assert.strictEqual((await refusal(session.data.import(source)))?.code, "E_EMPTY_LOAD", data);
+            assertUntouched(session);
+            session.dispose();
+        }
     });
 });

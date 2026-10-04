@@ -19,7 +19,7 @@ import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
 import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
-import { ErrorAggregator } from "../../data/ErrorAggregator";
+import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
@@ -201,6 +201,32 @@ function loadProgressChange(progress: LoadProgress, phase: ProgressChange["phase
         total: null,
         fraction: null,
     };
+}
+
+/**
+ * The refusal of a source whose parser could not read it: one that produced no record and
+ * reported a parse error. An empty file, or one whose rows were all refused by its schema, is
+ * not this; it is `E_EMPTY_LOAD`.
+ * @param format - The data source that read it.
+ * @param errors - The errors its read reported.
+ * @returns `E_PARSE_FAILED` naming the format and, when known, the line; null when no parse error.
+ */
+export function unreadableSource(format: string, errors: readonly DataLoadingError[]): GraphtyError | null {
+    const unreadable = errors.find((each) => each.category === "parse-error");
+    if (unreadable === undefined) {
+        return null;
+    }
+
+    return new GraphtyError({
+        code: "E_PARSE_FAILED",
+        source: "data",
+        message: `The ${format} source could not be read: ${unreadable.message}`,
+        details: {
+            format,
+            rowErrors: errors.length,
+            ...(unreadable.line === undefined ? {} : { line: unreadable.line }),
+        },
+    });
 }
 
 /** How far a load has got. */
@@ -1000,6 +1026,15 @@ export class Ingest<K extends KnownEdge> {
                 // rolls back rather than recording an empty graph as a load. A file of edges alone
                 // is not empty: its endpoints become nodes.
                 const rowErrors = errors.getErrorCount();
+                // A file the parser could not read is not an empty file: the two have different fixes.
+                const unreadable =
+                    progress.nodeRecords + progress.edgeRecords === 0
+                        ? unreadableSource(type, errors.getErrors())
+                        : null;
+                if (unreadable !== null) {
+                    throw unreadable;
+                }
+
                 if (progress.nodeRecords === 0 && progress.edgeRecords === 0) {
                     throw new GraphtyError({
                         code: "E_EMPTY_LOAD",

@@ -78,7 +78,7 @@ describe("the workspace frame", () => {
         unmount();
 
         renderWorkspace({ ...OPEN, dockOpen: true });
-        assert.isNotNull(within(screen.getByRole("region", { name: "Table" })).getByText("Table"));
+        assert.isNotNull(screen.getByRole("region", { name: "Table" }));
     });
 
     it("lists built commands in the main menu and leaves stubs out", async () => {

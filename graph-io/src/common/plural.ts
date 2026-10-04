@@ -38,3 +38,12 @@ export function elementCount(nodes: number, edges: number): string {
     }
     return parts.join(" and ");
 }
+
+/**
+ * A word with its indefinite article, chosen by its first letter: "an integer", "a double".
+ * @param word - the word
+ * @returns "a word" or "an word"
+ */
+export function withArticle(word: string): string {
+    return `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
+}

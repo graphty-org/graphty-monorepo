@@ -1008,7 +1008,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
     if (relationSlot.assumed && relationSlot.column !== null) {
         note(
             ROLE_ASSUMED_CODE,
-            `edge column "${RELATION_COLUMN}" is written as each clause's relation and reads back as the relation (role kind)`,
+            `edge column "${RELATION_COLUMN}" has no role, so it is taken as the relation of each edge: it is written as each line's relation, and reads back with the relation role ("kind")`,
             RELATION_COLUMN,
             relationSlot.column.length - relationSlot.column.nullCount,
         );

@@ -215,7 +215,7 @@ export const JSON_ISSUE = Object.freeze({
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The text is not valid JSON. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** No dialect matches the document's top-level shape. */
+    /** No dialect matches the document's top-level shape. The import stops. */
     DIALECT: "E_JSON_DIALECT",
     /** A section (nodes, edges, elements, graph) has the wrong JSON type. */
     SHAPE: "E_JSON_SHAPE",

@@ -5,11 +5,13 @@
  */
 
 import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
+    GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
@@ -88,6 +90,10 @@ export const GML_ISSUE = Object.freeze({
     NO_GRAPH: NO_GRAPH_CODE,
     /** The file holds more than one `graph` block and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph. */
     MULTIPLE_GRAPHS: SECOND_GRAPH_CODE,
+    /** `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops. */
+    GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
+    /** `graphName` matches more than one graph; pass `graphIndex`. The import stops. */
+    AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A node without an `id`. */
     MISSING_ID: MISSING_ID_CODE,
     /** A node without a `label` under nodeIdFrom "label". */
@@ -158,7 +164,10 @@ export const GML_ISSUE = Object.freeze({
      * it anyway.
      */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
-    /** Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note). */
+    /**
+     * Under `nodeIdFrom: "label"` or `"index"` the file's integer ids are not kept. It is listed in `report.lossy`, not
+     * in `report.issues`.
+     */
     ID_DROPPED: ID_DROPPED_CODE,
 });
 

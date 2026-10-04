@@ -43,6 +43,7 @@ import {
 
 import { declareResolved } from "../../common/attributes.js";
 import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
@@ -51,6 +52,7 @@ import {
     EMPTY_INPUT_CODE,
     ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
+    GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
@@ -153,6 +155,10 @@ export const DOT_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
+    /** `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops. */
+    GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
+    /** `graphName` matches more than one graph; pass `graphIndex`. The import stops. */
+    AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. */
     NUMERAL_AMBIGUITY: "W_DOT_NUMERAL_AMBIGUITY",
     /** Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. */

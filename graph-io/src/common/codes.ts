@@ -306,7 +306,8 @@ export const EQUATION_AS_TEXT_CODE = "W_EQUATION_AS_TEXT";
 export const STYLES_NOT_IMPORTED_CODE = "W_STYLES_NOT_IMPORTED";
 
 /**
- * A CX array member that is not a one-key object holding an array or an object; the block is skipped.
+ * A CX file is an array of blocks, each an object with one key (`{"nodes": [...]}`). A member of that array
+ * that is not such a block cannot be read and is skipped; the rest of the file is read.
  * @category Issue and loss codes
  */
 export const BAD_ASPECT_BLOCK_CODE = "E_BAD_ASPECT_BLOCK";
@@ -363,7 +364,17 @@ export const STATUS_WARNING_CODE = "W_STATUS_WARNING";
 export const TOO_LARGE_CODE = "E_TOO_LARGE";
 
 /**
- * `graphIndex` is past the last graph in the file, or `graphName` matches none of them. The import stops.
+ * A value that does not fit its attribute's type. An import records it for a value that does not parse as the
+ * type the file declares for it ("x" in an integer attribute): GraphML and GEXF leave that value unset, Neo4j CSV
+ * skips the row. A save throws it when an attribute value cannot be written in the format; `checkExport()` returns
+ * the `E_` note that names the attribute.
+ * @category Issue and loss codes
+ */
+export const COLUMN_TYPE_CODE = "E_COLUMN_TYPE";
+
+/**
+ * `graphIndex` is past the last graph in the file, or `graphName` matches none of them. The import stops, and
+ * the message lists the index and name of each graph the file holds.
  * @category Issue and loss codes
  */
 export const GRAPH_NOT_FOUND_CODE = "E_GRAPH_NOT_FOUND";

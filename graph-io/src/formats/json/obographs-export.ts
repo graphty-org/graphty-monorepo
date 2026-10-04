@@ -645,7 +645,7 @@ class ObographsExport {
         if (slot.assumed && relation !== null) {
             note(
                 LOSS.ROLE_ASSUMED,
-                `edge column "relation" is written as each edge's pred and reads back as the relation (role kind)`,
+                `edge column "relation" has no role, so it is taken as the relation of each edge: it is written as each edge's pred, and reads back with the relation role ("kind")`,
                 "relation",
                 relation.length - relation.nullCount,
             );

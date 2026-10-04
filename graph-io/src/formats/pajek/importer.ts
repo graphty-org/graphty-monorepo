@@ -29,10 +29,12 @@ import {
 
 import { declareResolved, RENAMED_CODE, ROLE_TAKEN_CODE, uniqueColumnName } from "../../common/attributes.js";
 import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_NODE_CODE,
     ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
+    GRAPH_NOT_FOUND_CODE,
     INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
@@ -127,6 +129,10 @@ export const PAJEK_ISSUE = Object.freeze({
      * `importAllGraphs()` reads every one.
      */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
+    /** `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops. */
+    GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
+    /** `graphName` matches more than one graph; pass `graphIndex`. The import stops. */
+    AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A data line before the first section header. */
     OUTSIDE_SECTION: "E_PAJEK_OUTSIDE_SECTION",
     /** A section header the importer cannot parse. */

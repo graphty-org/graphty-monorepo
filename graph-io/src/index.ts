@@ -11,9 +11,10 @@
  */
 
 // ============================================================ graph-format re-exports
-// The error class every deliberate graph-io failure extends, and the graph type every function takes
-// or returns, and the graph an importer fills, so a caller needs no second import.
-export { GraphFormatError, type GraphSink, type GraphSnapshot } from "@graphty/graph-format";
+// The error class every deliberate graph-io failure extends, the graph type every function takes
+// or returns, the graph an importer fills, and the "no such index" value a plugin compares with, so a
+// caller needs no second import.
+export { GraphFormatError, type GraphSink, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 // ============================================================ io contract types (12.4)
 export {
@@ -274,6 +275,7 @@ export {
 export {
     chooseGraph,
     DEFAULT_ERROR_LIMIT,
+    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,

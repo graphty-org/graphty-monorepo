@@ -75,7 +75,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
-import { agree, plural } from "../../common/plural.js";
+import { agree, plural, withArticle } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseTemporal } from "../../common/temporal.js";
 import { parseWeightText } from "../../common/weights.js";
@@ -1555,7 +1555,7 @@ function checkNeo4jRange(spec: DeclaredTypeSpec, value: unknown, text: string): 
         if (bad) {
             throw new GraphFormatError(
                 "E_COLUMN_TYPE",
-                `"${text}" is not a ${base}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`,
+                `"${text}" is not ${withArticle(base)}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`,
                 {
                     value: text,
                     kind: base,

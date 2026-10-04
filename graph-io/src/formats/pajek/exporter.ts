@@ -45,14 +45,15 @@ export interface PajekExportOptions extends CommonExportOptions {
     /**
      * Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name`
      * option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare
-     * `*Network` line. Plain .net readers do not expect the line.
+     * `*Network` line. Plain .net readers do not expect the line. An explicit `false` wins over
+     * `name`: `{ networkHeader: false, name: "x" }` writes no line.
      * @defaultValue false, or true when `name` is given
      */
     networkHeader?: boolean | undefined;
     /**
-     * The network name written on the `*Network` line. Giving one writes the line. The default is the
-     * graph's name (`snapshot.meta.name`), which a Pajek, DOT, GML or GEXF import keeps; a graph read
-     * from CSV has none.
+     * The network name written on the `*Network` line. Giving one writes the line, unless
+     * `networkHeader` is `false`. The default is the graph's name (`snapshot.meta.name`), which a
+     * Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
      * @defaultValue the graph's name
      */
     name?: string | undefined;

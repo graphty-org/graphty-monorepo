@@ -204,7 +204,10 @@ export const CX2_ISSUE = Object.freeze({
     JSON_NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
     /** The file's style rules are not applied; they are kept so a CX2 export writes them back. */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
-    /** A member of the top-level array that is not a one-key aspect block, or an element that is not an object. */
+    /**
+     * A member of the file's top-level array that is not a block with one key (`{"nodes": [...]}`), or an element of a
+     * block that is not an object. It is skipped; the rest of the file is read.
+     */
     BAD_ASPECT_BLOCK: BAD_ASPECT_BLOCK_CODE,
     /** An aspect out of its place (after the post-metadata or the status, a third metaData, late declarations). */
     ASPECT_ORDER: ASPECT_ORDER_CODE,

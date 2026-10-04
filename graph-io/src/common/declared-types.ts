@@ -15,6 +15,7 @@
 
 import { type Dtype, GraphFormatError, type ScalarDtype } from "@graphty/graph-format";
 
+import { withArticle } from "./plural.js";
 import { parseTemporal, type TemporalKind } from "./temporal.js";
 
 /**
@@ -403,5 +404,5 @@ function parseJsonText(text: string): unknown {
  */
 function typeError(text: string, kind: ValueKind): GraphFormatError {
     const shown = text.length > 40 ? `${text.slice(0, 40)}...` : text;
-    return new GraphFormatError("E_COLUMN_TYPE", `"${shown}" is not a ${kind}`, { value: text, kind });
+    return new GraphFormatError("E_COLUMN_TYPE", `"${shown}" is not ${withArticle(kind)}`, { value: text, kind });
 }

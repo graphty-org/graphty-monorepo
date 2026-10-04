@@ -177,9 +177,12 @@ export const CX_ISSUE = Object.freeze({
     ROOT_ONLY: "W_CX_ROOT_ONLY",
     /** The program that wrote the file marked it as failed, so it is incomplete. The import stops. */
     STATUS_FAILED: STATUS_FAILED_CODE,
-    /** The producer marked the document as successful with an error text. */
+    /** The program that wrote the file marked it as successful but added an error message; the message is shown. */
     STATUS_WARNING: STATUS_WARNING_CODE,
-    /** A member of the array that is not a one-key aspect block, or an element that is not an object. */
+    /**
+     * A member of the file's top-level array that is not a block with one key (`{"nodes": [...]}`), or an element of a
+     * block that is not an object. It is skipped; the rest of the file is read.
+     */
     BAD_ASPECT_BLOCK: BAD_ASPECT_BLOCK_CODE,
     /** An aspect after the post-metadata or after the status, a third metaData. */
     ASPECT_ORDER: ASPECT_ORDER_CODE,
@@ -204,7 +207,7 @@ export const CX_ISSUE = Object.freeze({
     PARENT_CYCLE: PARENT_CYCLE_CODE,
     /** The style rules of cyVisualProperties are not applied; they are kept so a CX export writes them back. */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
-    /** A node without an @id. */
+    /** A node without an id (its `@id` key). The node is skipped. */
     MISSING_ID: MISSING_ID_CODE,
     /** An edge without s or t. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,

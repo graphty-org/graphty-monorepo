@@ -166,10 +166,11 @@ export interface CsvImportOptions extends CommonImportOptions {
      */
     labelColumn?: CsvColumnRef | undefined;
     /**
-     * A node table to read before the edges, as a string, bytes or a stream: its ids become nodes
-     * and its other columns node attributes.
+     * A node table to read before the edges: its ids become nodes and its other columns node
+     * attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (the second file a
+     * user picked, say).
      */
-    nodes?: ImportInput | undefined;
+    nodes?: ImportInput | Blob | undefined;
     /**
      * Give the nodes of a node table without an id column the row number as id (0 for the first
      * data row, turned into an id by `ids`), instead of failing with E_CSV_NO_ID_COLUMN. It applies
@@ -526,7 +527,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         typeColumn: o.typeColumn,
         idColumn: o.idColumn ?? null,
         labelColumn: o.labelColumn ?? null,
-        nodes: o.nodes ?? null,
+        nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
     };
@@ -728,6 +729,8 @@ class TableReader {
     private dataRows = 0;
 
     private nodeOrdinal = 0;
+    /** Whether a field-count error has already suggested `table: "adjacency"`. */
+    private adjacencyHinted = false;
 
     /** The edge ids seen so far (the id column is unique; a repeat is skipped with an issue). */
     private readonly edgeIds = new Set<string>();
@@ -1492,9 +1495,18 @@ class TableReader {
         const { counts } = report;
         const quoted = completeRow(plan, row, cellQuoted, report, line);
         if (row.length !== plan.width) {
-            report.error("validation-error", FIELD_COUNT_CODE, `${row.length} field${plural(row.length)}, expected ${plan.width}`, {
-                line,
-            });
+            // the first row too long for an auto table says what an adjacency list needs, since one reads this way
+            const hint =
+                this.state.csv.table === "auto" && row.length > plan.width && !this.adjacencyHinted
+                    ? '; if each line is a node followed by its neighbors, pass table: "adjacency"'
+                    : "";
+            this.adjacencyHinted ||= hint !== "";
+            report.error(
+                "validation-error",
+                FIELD_COUNT_CODE,
+                `${row.length} field${plural(row.length)}, expected ${plan.width}${hint}`,
+                { line },
+            );
             counts.skippedEdges++;
             return;
         }
@@ -1936,3 +1948,18 @@ export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     sniff,
     import: importCsv,
 });
+
+/**
+ * The `nodes` option as an input: a Blob or File is read through its stream. Checked by shape, so a
+ * Blob from another realm or from Node's `fs.openAsBlob()` counts too.
+ * @param value - the option value
+ * @returns the input, or null when there is no node table
+ */
+function nodesInput(value: ImportInput | Blob | undefined): ImportInput | null {
+    if (value === undefined) {
+        return null;
+    }
+    const object = value as { stream?: unknown; size?: unknown };
+    const blob = typeof value === "object" && typeof object.stream === "function" && typeof object.size === "number";
+    return blob ? (value as Blob).stream() : (value as ImportInput);
+}

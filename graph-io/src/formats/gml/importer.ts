@@ -240,6 +240,7 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "weightFrom",
     "weightDtype",
     "restoreMangledIds",
+    "long",
     "errorLimit",
     "signal",
     "onProgress",
@@ -801,7 +802,9 @@ class GmlImport {
      * @returns the plan
      */
     private planOf(domain: "node" | "edge" | "graph", entry: KeySchema, top = false): ColumnPlan {
-        const kind = kindOf(entry);
+        // long: "string" keeps every digit of an integer key that holds values beyond 2^53, as text
+        const asText = entry.unsafe && this.options.long === "string" && kindOf(entry) === "int";
+        const kind = asText ? "string" : kindOf(entry);
         let scalar: ScalarDtype = dtypeOfKind(kind, entry);
         if (
             scalar === "string" &&
@@ -825,11 +828,11 @@ class GmlImport {
                 `${WIDENED_CODE}:${domain}:${entry.key}`,
             );
         }
-        if (entry.unsafe) {
+        if (entry.unsafe && !asText) {
             this.report.warnOnce(
                 "precision",
                 PRECISION_CODE,
-                `${domain} key "${entry.key}" holds integers beyond 2^53; they are stored as the nearest f64`,
+                `${domain} key "${entry.key}" holds integers beyond 2^53; they are stored as the nearest f64 (pass long: "string" to keep every digit as text)`,
                 { element: entry.key },
                 `${PRECISION_CODE}:${domain}:${entry.key}`,
             );
@@ -1502,7 +1505,12 @@ class GmlImport {
             this.collectItem(plan, v, seq, this.graphTouched);
             return;
         }
-        this.sink.setGraphValue(plan.name, this.scalarOf(plan, v), graphDecl(plan));
+        const value = this.scalarOf(plan, v);
+        this.sink.setGraphValue(plan.name, value, graphDecl(plan));
+        if (seq === GRAPH_SEQ && plan.key === "name" && typeof value === "string") {
+            // the graph block's `name` is the graph's name too (snapshot.meta.name, and what graphName matches)
+            this.sink.setMeta({ name: value });
+        }
     }
 
     /**

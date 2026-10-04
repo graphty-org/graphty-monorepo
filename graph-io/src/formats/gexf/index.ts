@@ -10,6 +10,7 @@ import {
     BAD_OPTIONS_CODE,
     BAD_VALUE_CODE,
     COLUMN_RENAMED_CODE,
+    COLUMN_TYPE_CODE,
     COUNT_HINT_CODE,
     COUNT_MISMATCH_CODE,
     DIRECTION_FORCED_CODE,
@@ -77,6 +78,11 @@ export { type GexfVersion } from "./schema.js";
 export const GEXF_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
     ...ELEMENT_ISSUE,
+    /**
+     * A value that does not parse as the type its attribute declares ("x" in an integer attribute). The value is
+     * left unset; the node or edge is kept.
+     */
+    COLUMN_TYPE: COLUMN_TYPE_CODE,
     /** The XML is not well-formed. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** The input is not valid UTF-8. The import stops. */

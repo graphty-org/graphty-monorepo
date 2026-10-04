@@ -85,7 +85,10 @@ export const CSV_ISSUE = Object.freeze({
      * import stops.
      */
     NO_ID_COLUMN: NO_ID_COLUMN_CODE,
-    /** A row with a different field count than the header. */
+    /**
+     * A row with a different number of fields than the header; the row is skipped. An adjacency list read without
+     * `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
+     */
     FIELD_COUNT: FIELD_COUNT_CODE,
     /** An edge row with a blank source or target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,

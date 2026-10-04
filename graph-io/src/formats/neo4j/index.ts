@@ -7,6 +7,7 @@
 
 import {
     COLUMN_RENAMED_CODE,
+    COLUMN_TYPE_CODE,
     ELEMENT_ISSUE,
     ENCODING_FALLBACK_CODE,
     INPUT_ISSUE,
@@ -74,6 +75,11 @@ export {
 export const NEO4J_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
     ...ELEMENT_ISSUE,
+    /**
+     * A cell that does not parse as its column's declared type ("x" in an `:int` column, a `:byte` beyond 127). The
+     * row is skipped.
+     */
+    COLUMN_TYPE: COLUMN_TYPE_CODE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**

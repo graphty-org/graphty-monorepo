@@ -231,7 +231,10 @@ export const XGMML_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id used twice; the second edge is skipped. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /** A meta-edge the 2.x writer repeats inside a group; the copy is dropped. */
+    /**
+     * Cytoscape 2.x writes each edge of a group a second time, inside the group. The repeats are dropped, so every edge
+     * is read once; nothing is lost.
+     */
     GROUP_DUPLICATE_EDGE: "W_XGMML_GROUP_DUPLICATE_EDGE",
     /** A `directed` or `cy:directed` value other than 0 / 1. */
     BAD_DIRECTED: "W_XGMML_BAD_DIRECTED",
@@ -247,13 +250,19 @@ export const XGMML_ISSUE = Object.freeze({
     SURROGATE_PAIRED: "W_XGMML_SURROGATE_PAIRED",
     /** An empty list whose element type nothing states; a list of strings is assumed. */
     EMPTY_LIST_TYPE: "W_XGMML_EMPTY_LIST_TYPE",
-    /** A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json. */
+    /**
+     * An attribute holds a structure a single column cannot (a list of records, a list of lists, a Cytoscape 2.x map
+     * or XML from another tool). Its value is kept as a JSON value, which a save as XGMML writes back.
+     */
     RECORD_LIST: "W_XGMML_RECORD_LIST",
     /** A pointer into another file (`file.xgmml#id`); kept as text. */
     CROSS_FILE_REFERENCE: "W_XGMML_CROSS_FILE_REFERENCE",
     /** A graph nested in an edge's att; there is no model for it. */
     EDGE_NESTED_GRAPH: "W_XGMML_EDGE_NESTED_GRAPH",
-    /** Elements of a session network declared outside every registered subnetwork. */
+    /**
+     * Some nodes or edges of a Cytoscape session belong to none of its networks (Cytoscape keeps group meta-edges and
+     * the members of collapsed groups this way). They are not read; the message counts them.
+     */
     ROOT_ONLY_ELEMENTS: "W_XGMML_ROOT_ONLY_ELEMENTS",
     /** A value that does not parse as its declared type; the cell is unset. */
     BAD_VALUE: BAD_VALUE_CODE,

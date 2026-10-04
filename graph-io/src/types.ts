@@ -107,15 +107,18 @@ export interface CommonImportOptions {
      */
     weightFrom?: string | null | undefined;
     /**
-     * The precision of the exact weight column (`snapshot.edges.byRole("weight")`). "f64" keeps 0.1
-     * and 16777217 exact; "f32" uses half the memory. The weight arrays `snapshot.weights` and
-     * `snapshot.edgeList().weights` are always 32-bit: read exact values from the weight column.
+     * Whether weights a 32-bit float cannot hold exactly are also kept exactly. "f64" keeps them in
+     * an edge column that `snapshot.edges.byRole("weight")` finds, so 0.1 and 16777217
+     * stay exact. "f32" keeps no such column and uses less memory: the 32-bit weight arrays
+     * `snapshot.weights` and `snapshot.edgeList().weights`, which every import fills, are then the
+     * only weights.
      * @defaultValue "f64"
      */
     weightDtype?: "f32" | "f64" | undefined;
     /**
      * How a column the file declares as a 64-bit integer is stored: "f64" (a number, exact up to
-     * 2^53) or "string" (every digit kept, as text).
+     * 2^53) or "string" (every digit kept, as text). GML declares no types, so there it applies to a
+     * key whose integer values go beyond 2^53.
      * @defaultValue "f64"
      */
     long?: "f64" | "string" | undefined;
@@ -426,11 +429,13 @@ export interface GraphExporter<Opts = unknown> {
 }
 
 /**
- * What kind of problem an ImportIssue is: "parse-error" (the text is not valid in the format),
- * "missing-value" (something required is absent), "validation-error" (a value is not allowed, or a
- * policy option refused it), "unsupported" (the file uses something graph-io does not read),
- * "precision" (a value was rounded), "coercion" (a value or id changed type) and "merged" (elements
- * were combined).
+ * What an ImportIssue is about, for errors and warnings alike: "parse-error" (the text is not valid
+ * in the format), "missing-value" (something required is absent), "validation-error" (a value
+ * breaks a rule of the format or of an option; an error skips it, a warning keeps it as written,
+ * such as an id with spaces around it), "unsupported" (the file uses something graph-io does not
+ * read), "precision" (a value was rounded), "coercion" (a value or id changed type) and "merged"
+ * (elements were combined). Sort by `severity` first: the category says what kind of problem it
+ * is, not how serious.
  * @category Reports and errors
  */
 export type IssueCategory =

@@ -308,6 +308,12 @@ export interface CheckExtras {
     /** Like `attributes`, for edge attributes only: false for a format that writes no edge attributes. */
     readonly edgeAttributes?: boolean | undefined;
     /**
+     * Columns the format writes although it writes no other attributes: a column a format option
+     * names, such as an edge label column. Keyed by `node` or `edge`. They get no W_COLUMN_DROPPED
+     * note; the type notes of a written column still apply.
+     */
+    readonly writtenColumns?: Readonly<Partial<Record<"node" | "edge", readonly string[]>>> | undefined;
+    /**
      * False for a format (or an option) that writes no edge weights: a weighted graph gets one
      * W_WEIGHTS_DROPPED note. Default true.
      */
@@ -582,7 +588,12 @@ function checkColumns(
         if (domain === "edge" && role === "id") {
             continue;
         }
-        if (writesAttributes(domain, extras) === false && !(role !== null && (extras.roles?.has(role) ?? false))) {
+        const named = extras.writtenColumns?.[domain as "node" | "edge"]?.includes(name) ?? false;
+        if (
+            writesAttributes(domain, extras) === false &&
+            !named &&
+            !(role !== null && (extras.roles?.has(role) ?? false))
+        ) {
             note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, column.length - column.nullCount);
             continue;
         }

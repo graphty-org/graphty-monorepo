@@ -375,12 +375,14 @@ function cellText(column: Column, row: number): string | null {
  * @returns the plan
  */
 /**
- * W_CSV_NODE_TABLE: the node columns an edge-table export leaves for a second, node-table export.
+ * W_CSV_NODE_TABLE: the node columns an edge-table or adjacency export leaves for a second, node-table export.
  * @param names - the node columns, label first
+ * @param table - the table being written ("edges" or "adjacency")
  * @param note - the recorder
  */
 function nodeTableNote(
     names: readonly string[],
+    table: string,
     note: (code: string, message: string, column?: string | null, count?: number | null) => void,
 ): void {
     const written = names.length;
@@ -388,7 +390,7 @@ function nodeTableNote(
         const shown = names.slice(0, 3).map((n) => JSON.stringify(n)).join(", ") + (written > 3 ? ", ..." : "");
         note(
             CSV_LOSS.NODE_TABLE,
-            `the edge table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
+            `the ${table === "adjacency" ? "adjacency" : "edge"} table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
             null,
             written,
         );
@@ -572,6 +574,7 @@ function planExport(
     } else {
         nodeTableNote(
             [...(nodeLabel === null ? [] : [nodeLabel.meta.name]), ...nodeColumns.map((c) => c.column.meta.name)],
+            csv.table,
             note,
         );
     }

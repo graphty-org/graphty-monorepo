@@ -167,6 +167,18 @@ const IGNORABLE_OPTION_NAMES = [
     "hyperedges",
 ] as const;
 
+/** The defaults that are the same in every format (the others, such as `defaultDirected`, differ by format). */
+const FIXED_DEFAULTS: Readonly<Partial<Record<(typeof IGNORABLE_OPTION_NAMES)[number], unknown>>> = {
+    nodeIdFrom: "id",
+    duplicateEdges: "keep",
+    selfLoops: "keep",
+    onMixedDirection: "expand",
+    weightDtype: "f64",
+    long: "f64",
+    restoreMangledIds: true,
+    hyperedges: "skip",
+};
+
 /**
  * Report every common option the caller set to a non-default value that the format has no use
  * for: one
@@ -192,7 +204,8 @@ export function reportUnusedOptions(
             continue;
         }
         const value: unknown = options[name];
-        if (value === undefined) {
+        if (value === undefined || value === FIXED_DEFAULTS[name]) {
+            // an option spelled out at its default changes nothing, whether or not the format reads it
             continue;
         }
         report.warning(
@@ -215,6 +228,18 @@ export function reportUnusedOptions(
  */
 export function graphChosen(options: GraphChoiceOptions | undefined): boolean {
     return options?.graphIndex !== undefined || options?.graphName !== undefined;
+}
+
+/**
+ * The graphs of an input as an E_GRAPH_NOT_FOUND message lists them: their indexes and names, so the
+ * caller can choose without a second call.
+ * @param names - each graph's name, null for an unnamed graph
+ * @returns the text to append, starting with "; "
+ */
+function graphNamesText(names: readonly (string | null)[]): string {
+    const shown = names.slice(0, 10).map((n, i) => `${i} ${n === null ? "(unnamed)" : JSON.stringify(n)}`);
+    const more = names.length > shown.length ? `, and ${names.length - shown.length} more` : "";
+    return `; the file holds ${shown.join(", ")}${more}`;
 }
 
 /**
@@ -274,7 +299,7 @@ export function chooseGraph(
         if (matches.length === 0) {
             return report.fail(
                 GRAPH_NOT_FOUND_CODE,
-                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph${plural(names.length)}`,
+                `graphName ${JSON.stringify(graphName)} names none of the ${names.length} graph${plural(names.length)}${graphNamesText(names)}`,
                 { element: graphName },
                 { names: [...names] },
             );
@@ -283,7 +308,10 @@ export function chooseGraph(
     }
     const index = graphIndex ?? 0;
     if (index >= names.length) {
-        return report.fail(GRAPH_NOT_FOUND_CODE, `graphIndex ${index} is beyond the ${names.length} graph${plural(names.length)}`);
+        return report.fail(
+            GRAPH_NOT_FOUND_CODE,
+            `graphIndex ${index} is beyond the ${names.length} graph${plural(names.length)}${graphNamesText(names)}`,
+        );
     }
     return index;
 }

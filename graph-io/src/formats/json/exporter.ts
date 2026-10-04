@@ -82,14 +82,16 @@ export interface JsonExportOptions extends CommonExportOptions {
     /**
      * node-link, d3 and vis: the source key. The default is the key a JSON import read, else
      * "source" ("from" for vis). graph-io finds "source", "src" and "from" by itself; for another
-     * key, read the file back with the same `sourceKey` import option, or every edge is skipped.
+     * key, read the file back with the same `sourceKey` import option. Without it every edge is an
+     * `E_MISSING_ENDPOINT` error and is skipped, and a file with more edges than `errorLimit` (100 by
+     * default) fails to load with an `ImportError`. `checkExport()` does not warn about this.
      * @defaultValue as read, else "source"
      */
     sourceKey?: string | undefined;
     /**
      * node-link, d3 and vis: the target key. The default is the key a JSON import read, else
      * "target" ("to" for vis). graph-io finds "target", "dst" and "to" by itself; for another key,
-     * read the file back with the same `targetKey` import option.
+     * read the file back with the same `targetKey` import option, as for `sourceKey`.
      * @defaultValue as read, else "target"
      */
     targetKey?: string | undefined;

@@ -446,6 +446,21 @@ All packages: 80% lines/functions/statements, 75% branches
 
 ## CI/CD Pipeline
 
+The adopted plan for how pull requests are checked, merged and released is
+`design/ci/ci-cd-plan.md` (decision record `design/decisions/2026-10-04-ci-cd-plan-adopted.md`).
+The target flow:
+
+- A pull request runs the affected CI; drafts run none. The owner approves its screenshots there.
+- Mergify checks batches of up to 4 ready pull requests, 2 batches at once. Each batch gets the
+  full un-selected suite on the combined tree, and a failing batch is bisected. The visual gate
+  passes a batch whose images equal the owner-approved images of its pull requests.
+- A red master freezes the queue and opens a `priority:critical` revert automatically.
+- Releases go out once a day as a release pull request, plus an ad hoc release on demand.
+
+**Live today:** none of the target flow. The workflows below, the serial in-place queue under
+"Merging" and the release on every merge under "Release versioning" are still what runs. The
+plan's section 16 is the order of the migration. Update this paragraph as each step lands.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |
@@ -485,6 +500,15 @@ package has no guide pages, so its documentation link is the generated API refer
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
 ### Release versioning
+
+Today `release.yml` publishes after every green merge. The adopted plan (`design/ci/ci-cd-plan.md`,
+sections 10 and 11; being implemented) replaces that with a daily release train. Once a day it
+opens a "chore: release" pull request from the newest commit green on every lane, Mergify merges
+it, and `release.yml` publishes it with npm trusted publishing. An ad hoc release cuts the same
+pull request at once, for the owner or an agent the owner asked:
+`gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
+start one on your own initiative. Everything below about versions, holds and changelogs holds for
+both.
 
 `release.yml` runs `nx release`, which bumps each package from the conventional commits since its
 last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a
@@ -807,6 +831,10 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Release workflow reuses CI artifacts (no rebuild)
 
 ### Merging
+
+The adopted plan (`design/ci/ci-cd-plan.md`, sections 4 to 6; being implemented) moves Mergify to
+batches of up to 4 pull requests, 2 batches checked at once, each with the full suite on the
+combined tree, and a gate that accepts a batch. Until that lands, the queue below is what runs.
 
 Mergify merges pull requests (`.mergify.yml`): it queues every pull request into master that is not
 a draft, has no conflict, has no `hold` label and has no breaking `!` in its title, brings it up to

@@ -39,9 +39,7 @@ says what they are; a Cytoscape session is the one zip file it reads.
 
 ## Asking without loading
 
-`sniff(hints)` runs the same detection without loading the file. (`sniffFormat()` is a lower-level
-function for code that keeps importers outside a registry; you do not need it.) Pass what you
-know, any of:
+`sniff(hints)` runs the same detection without loading the file. Pass what you know, any of:
 
 - `filename`: a file name or path
 - `mimeType`: a MIME type

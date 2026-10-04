@@ -2,7 +2,6 @@ import {
     capabilities,
     checkCapabilities,
     type CommonExportOptions,
-    DEFAULT_ERROR_LIMIT,
     encodeChunks,
     type GraphExporter,
     type GraphImporter,
@@ -10,6 +9,7 @@ import {
     ImportReportBuilder,
     joinText,
     LineReader,
+    pairFolding,
     refusedSave,
     reportUnusedOptions,
     resolveExportOptions,
@@ -40,14 +40,20 @@ function* lines(snapshot: GraphSnapshot, options?: CommonExportOptions): Generat
     if (refused !== null) {
         throw refused;
     }
+    const { sanitizeIds: idPolicy, onMixedDirection } = resolveExportOptions(options);
     // the id to write for each node; under "mangle", the ids that are not integers are renumbered
-    const ids = sanitizeIds(snapshot, "integer", resolveExportOptions(options).sanitizeIds);
-    yield snapshot.directed ? "directed\n" : "undirected\n";
+    const ids = sanitizeIds(snapshot, "integer", idPolicy);
+    // the format holds one direction: a graph with both is written the way onMixedDirection says
+    yield snapshot.directed && onMixedDirection !== "undirected" ? "directed\n" : "undirected\n";
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const original = ids.isChanged(i) ? ` ${JSON.stringify(ids.originalAt(i))}` : "";
         yield `node ${String(ids.idAt(i))}${original}\n`;
     }
+    const folding = pairFolding(snapshot); // an undirected edge of a mixed graph is stored twice; write it once
     for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (folding.folded(e)) {
+            continue;
+        }
         yield `edge ${String(ids.idAt(snapshot.edgeSource(e)))} ${String(ids.idAt(snapshot.edgeTarget(e)))}\n`;
     }
 }
@@ -74,7 +80,7 @@ export const numbersImporter: GraphImporter = {
 
     async import(input, sink, options) {
         const opts = resolveImportOptions(options, { ids: "number", defaultDirected: false, weightFrom: null });
-        const report = new ImportReportBuilder("numbers", options?.errorLimit ?? DEFAULT_ERROR_LIMIT);
+        const report = new ImportReportBuilder("numbers", opts.errorLimit);
         reportUnusedOptions(options, report, new Set(["restoreMangledIds"]));
         const nodeOf = new Map<string, string | number>(); // the id written in the file -> the node's id
         for await (const text of new LineReader(input, report, opts)) {

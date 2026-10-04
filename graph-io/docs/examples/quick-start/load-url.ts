@@ -2,7 +2,7 @@ import { GraphFormatError, loadFromUrl } from "@graphty/graph-io";
 
 try {
     const { snapshot, format, report } = await loadFromUrl(
-        "https://graphty.app/docs/graph-io/samples/got-network.graphml",
+        "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
     );
     console.log(`Read ${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
     for (const issue of report.issues) {

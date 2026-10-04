@@ -1,7 +1,6 @@
 import {
     chooseGraph,
     type CommonImportOptions,
-    DEFAULT_ERROR_LIMIT,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphSink,
@@ -27,6 +26,9 @@ interface Section {
     readonly edges: readonly (readonly [string, string])[];
 }
 
+// the format's defaults for the common options
+const DEFAULTS = { ids: "string", defaultDirected: false, weightFrom: null } as const;
+
 /**
  * Decode the input once and split it into its graphs. Decoding warnings go into `report`.
  * @param input - the file
@@ -39,7 +41,7 @@ async function readSections(
     options: CommonImportOptions | undefined,
     report: ImportReportBuilder,
 ): Promise<Section[]> {
-    const opts = resolveImportOptions(options, { ids: "string", defaultDirected: false, weightFrom: null });
+    const opts = resolveImportOptions(options, DEFAULTS);
     const text = await readText(input, report, opts);
     const sections: { name: string; edges: [string, string][] }[] = [];
     for (const line of text.split("\n")) {
@@ -85,7 +87,7 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
 
     // one graph: the one graphIndex or graphName chooses, else the first
     async import(input, sink, options) {
-        const report = new ImportReportBuilder("sections", options?.errorLimit ?? DEFAULT_ERROR_LIMIT);
+        const report = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
         const sections = await readSections(input, options, report);
         const index = chooseGraph(
             sections.map((s) => s.name),
@@ -104,7 +106,7 @@ export const sectionsImporter: GraphImporter<GraphChoiceOptions> = {
 
     // every graph, each into its own sink with its own report; importAllGraphs() calls this
     async importAll(input, sinkFor, options) {
-        const decoding = new ImportReportBuilder("sections", options?.errorLimit ?? DEFAULT_ERROR_LIMIT);
+        const decoding = new ImportReportBuilder("sections", resolveImportOptions(options, DEFAULTS).errorLimit);
         const sections = await readSections(input, options, decoding);
         // fork() starts each graph's report with what decoding recorded
         return sections.map((s, i) => fill(s, sinkFor(i), decoding.fork()));

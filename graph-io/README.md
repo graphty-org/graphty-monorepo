@@ -1,7 +1,5 @@
 # @graphty/graph-io
 
-[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![npm version](https://img.shields.io/npm/v/@graphty/graph-io.svg)](https://www.npmjs.com/package/@graphty/graph-io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -14,8 +12,9 @@ could not read or could not save instead of dropping it.
 npm install @graphty/graph-io
 ```
 
-This reads [got-network.graphml](https://graphty.app/docs/graph-io/samples/got-network.graphml), a
-sample file from the guide; download it to run the example as it is.
+This reads
+[got-network.graphml](https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml),
+a public-domain Game of Thrones network; download it to run the example as it is.
 
 <!-- generated:begin example:quick-start/readme -->
 
@@ -40,7 +39,8 @@ await writeFile("got-network.gexf", await exportGraphToBytes(snapshot, "gexf"));
 ([docs/guide/quick-start.md](./docs/guide/quick-start.md) in the repository): load files from URLs
 and file pickers, use the graph data, check what a save would lose, and handle errors. The full
 documentation, including how to add a format of your own, is at
-[graphty.app/docs/graph-io](https://graphty.app/docs/graph-io/).
+[graphty.app/docs/graph-io](https://graphty.app/docs/graph-io/). The sample files the guide's
+examples read are in [docs/samples](./docs/samples/) in the repository.
 
 Formats: [JSON](https://graphty.app/docs/graph-io/guide/formats/json) (NetworkX, d3, JGF,
 Cytoscape.js, graphology, vis.js, OBO Graphs),

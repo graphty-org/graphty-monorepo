@@ -35,6 +35,8 @@ exports[`documentation examples > formats/csv runs 1`] = `
 ]
 `;
 
+exports[`documentation examples > formats/csv-decimal-comma runs 1`] = `[]`;
+
 exports[`documentation examples > formats/cx runs 1`] = `
 [
   "[wrote] got-copy.cx (35625 bytes)",
@@ -129,7 +131,7 @@ exports[`documentation examples > loading/url-request runs 1`] = `[]`;
 
 exports[`documentation examples > quick-start/download runs 1`] = `
 [
-  "[confirm] 107 node id(s) are not integers are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
+  "[confirm] 107 node id(s) are not integers, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back
 edge column "Edge Label" is written as "Edge_Label"
 edge column "Edge Label" has no set cell and is not written: GML writes cells, never declarations",
   "[download] got.gml (text/x-gml, 31748 bytes)",
@@ -153,6 +155,8 @@ exports[`documentation examples > quick-start/save-node runs 1`] = `
 `;
 
 exports[`documentation examples > quick-start/use-data runs 1`] = `[]`;
+
+exports[`documentation examples > reading/added-columns runs 1`] = `[]`;
 
 exports[`documentation examples > reading/attributes runs 1`] = `[]`;
 

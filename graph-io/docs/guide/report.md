@@ -5,6 +5,11 @@ to a node that does not exist. When graph-io meets one, it skips the element it 
 going, and lists the problem in the import report. Anything it changes on the way, such as a value
 it rounds or two edges it merges, is listed too.
 
+An edge to a node the file never declares is not always a problem. Most formats create that node
+without a word, because their files often leave nodes undeclared: the `addMissingNodes` option is
+on by default for every format except GEXF, XGMML, CX, CX2 and Cytoscape sessions. Pass
+`addMissingNodes: false` to have such edges skipped and reported as `E_UNKNOWN_NODE` errors.
+
 ## Reading the report
 
 Every load returns a `report` next to the snapshot:
@@ -65,9 +70,12 @@ The report has these fields:
 
 Each issue has:
 
-- `severity`: `"error"` or `"warning"`. An error means the element (a node, an edge, or one value)
-  was skipped. A warning means it was kept, but changed or guessed: a value widened to a larger
-  type, two ids merged, an encoding guessed.
+- `severity`: `"error"` or `"warning"`. An error means something was skipped. A warning means it
+  was kept, but changed or guessed: a value widened to a larger type, two ids merged, an encoding
+  guessed. Errors about a node or an edge as a whole (`E_INVALID_ID`, `E_UNKNOWN_NODE`,
+  `E_MISSING_ENDPOINT`, and `E_INVALID_WEIGHT`, because the weight belongs to the edge) skip that
+  node or edge, and `counts.skippedNodes` or `counts.skippedEdges` counts it. Errors about one
+  attribute value skip only that value; the node or edge is kept without it.
 - `code`: a stable string to switch on. Error codes start with `E_`, warning codes with `W_`.
 - `message`: a sentence in plain English, for people.
 - `line`: the 1-based line in the file, or `null` when the format has no lines (a zip file) or the

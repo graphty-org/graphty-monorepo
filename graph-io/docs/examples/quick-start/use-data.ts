@@ -1,6 +1,8 @@
 import { loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/samples/got-network.graphml");
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 // the attribute the file marks as each node's label (null when there is none)
 const label = snapshot.nodes.byRole("label");

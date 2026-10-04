@@ -75,6 +75,16 @@ interface FormatFacts {
  * @returns the cell text
  */
 function cell(s: string): string {
+    return prose(s).split("|").join(ESCAPED_PIPE);
+}
+
+/**
+ * A doc comment as one line of a list: one line, links as code, internal design references removed. Pipes stay
+ * as they are, since only a table needs them escaped.
+ * @param s - the doc text
+ * @returns the line
+ */
+function prose(s: string): string {
     return (
         s
             .replace(/\s+/g, " ")
@@ -92,8 +102,6 @@ function cell(s: string): string {
                     : part,
             )
             .join("`")
-            .split("|")
-            .join(ESCAPED_PIPE)
             .trim()
     );
 }
@@ -335,6 +343,27 @@ class Source {
     }
 
     /**
+     * The call signatures of an interface's methods, as a reader writes the call.
+     * @param sym - the interface's symbol
+     * @param names - the methods
+     * @returns the signature text per method, `name(param: Type, ...): Result`
+     */
+    signatures(sym: ts.Symbol, names: readonly string[]): Map<string, string> {
+        const type = this.checker.getDeclaredTypeOfSymbol(sym);
+        const flags = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+        return new Map(
+            names.map((name) => {
+                const prop = type.getProperty(name);
+                const sig = prop === undefined ? undefined : this.checker.getTypeOfSymbol(prop).getCallSignatures()[0];
+                if (sig === undefined) {
+                    throw new Error(`GraphSink no longer has a method ${name}`);
+                }
+                return [name, `${name}${this.checker.signatureToString(sig, undefined, flags)}`];
+            }),
+        );
+    }
+
+    /**
      * The doc comments of the capability fields.
      * @param index - the root barrel's exports
      * @returns the doc text by field name
@@ -387,7 +416,8 @@ async function collectFormats(src: Source): Promise<FormatFacts[]> {
     const root = src.exportsOf(ENTRIES["graph-io"]);
     const commonNames = (type: string): Set<string> =>
         new Set(src.options(root.get(type) as ts.Symbol).map((r) => r.name));
-    const commonImport = commonNames("CommonImportOptions");
+    // graphIndex / graphName are importGraph()'s; a format page points at them once instead of listing them
+    const commonImport = new Set([...commonNames("CommonImportOptions"), ...commonNames("GraphChoiceOptions")]);
     const commonExport = commonNames("CommonExportOptions");
     for (const name of registry.formats()) {
         const entry = entryOf(name);
@@ -472,12 +502,24 @@ interface Context {
     readonly formats: readonly FormatFacts[];
     readonly capabilityDocs: ReadonlyMap<string, string>;
     readonly jsonDialects: readonly { readonly dialect: string; readonly caps: ExportCapabilities }[];
-    /** The codes of the shared input layer, which every importer can record. */
-    readonly inputCodes: ReadonlySet<string>;
+    /** The codes every importer can record (unreadable input, refused elements), with their shared meaning. */
+    readonly inputCodes: ReadonlyMap<string, string>;
     /** The loss codes any exporter's capability check can return (the root `LOSS` table). */
     readonly sharedLosses: readonly CodeRow[];
     /** The common import options each format reads, by format name. */
     readonly usedOptions: ReadonlyMap<string, ReadonlySet<string>>;
+    /** The header name lists of the CSV importer. */
+    readonly csvHeaders: CsvHeaders;
+}
+
+/** The header name lists of the CSV importer, as src/formats/csv/header.ts exports them. */
+interface CsvHeaders {
+    readonly SOURCE_NAMES: readonly string[];
+    readonly TARGET_NAMES: readonly string[];
+    readonly ID_NAMES: readonly string[];
+    readonly EDGE_ID_NAMES: readonly string[];
+    readonly LABEL_NAMES: readonly string[];
+    readonly TYPE_NAME: string;
 }
 
 /**
@@ -520,12 +562,20 @@ async function context(): Promise<Context> {
     const dialects = (json.JSON_DIALECTS ?? []) as readonly string[];
     const dialectCaps = json.dialectCapabilities as ((d: string) => ExportCapabilities) | undefined;
     const formats = withRelayedDocs(await collectFormats(src), src, index, runtime);
+    const csvHeaders = (await import("../src/formats/csv/header.js")) as CsvHeaders;
     return {
+        csvHeaders,
         src,
         index,
         runtime,
         formats,
-        inputCodes: new Set(Object.values(runtime.INPUT_ISSUE as Readonly<Record<string, string>>)),
+        inputCodes: new Map(
+            ["INPUT_ISSUE", "ELEMENT_ISSUE"].flatMap((t) =>
+                src
+                    .codes(index.get(t) as ts.Symbol, runtime[t] as Readonly<Record<string, unknown>>)
+                    .map((r) => [r.code, r.doc] as const),
+            ),
+        ),
         sharedLosses: src.codes(index.get("LOSS") as ts.Symbol, runtime.LOSS as Readonly<Record<string, unknown>>),
         usedOptions: usedOptionsOf(formats.map((f) => f.name)),
         capabilityDocs: src.capabilityDocs(index),
@@ -587,7 +637,7 @@ function fidelityTable(ctx: Context): string[] {
  * @returns the markdown lines
  */
 function capabilityLegend(ctx: Context): string[] {
-    return [...ctx.capabilityDocs].flatMap(([k, doc]) => [`#### ${k}`, "", cell(doc), ""]);
+    return [...ctx.capabilityDocs].flatMap(([k, doc]) => [`#### ${k}`, "", prose(doc), ""]);
 }
 
 /**
@@ -687,39 +737,60 @@ function defaultCell(value: string): string {
 }
 
 /**
- * An options table.
- * @param rows - the options
- * @param usedBy - for the common import options: which formats read each option
- * @returns the markdown lines
+ * The first sentence of a doc comment, for a table cell; the whole comment goes in the list under the table.
+ * @param doc - the doc text, on one line
+ * @returns the first sentence, or the whole text when it is one sentence
  */
-function optionsTable(rows: readonly OptionRow[], usedBy?: (name: string) => string): string[] {
-    if (rows.length === 0) {
-        return ["This format has no options of its own."];
-    }
-    const head = ["Option", "Type", "Default", ...(usedBy === undefined ? [] : ["Read by"]), "Meaning"];
-    return table(
-        head,
-        rows.map((o) => [
-            code(o.name),
-            code(o.type),
-            defaultCell(o.defaultValue),
-            ...(usedBy === undefined ? [] : [usedBy(o.name)]),
-            cell(o.doc),
-        ]),
-    );
+function firstSentence(doc: string): string {
+    // a sentence ends at ". " before a word, a quote or a code span; "1.5" does not end one
+    const m = /^(.+?[.!?])\s+(?=[A-Za-z"`(])/.exec(doc);
+    return m === null ? doc : m[1];
 }
 
 /**
- * A code table.
+ * An options table with one short line per option, then the full description of every option whose doc says more
+ * than its first sentence, each under its own anchor so a page can link to one option.
+ * @param rows - the options
+ * @param anchor - the prefix of the options' anchors on this page (`import`, `export`, ...)
+ * @param usedBy - for the common import options: which formats read each option
+ * @returns the markdown lines
+ */
+function optionsTable(rows: readonly OptionRow[], anchor: string, usedBy?: (name: string) => string): string[] {
+    if (rows.length === 0) {
+        return ["This format has no options of its own."];
+    }
+    const id = (o: OptionRow): string => `${anchor}-${o.name.toLowerCase()}`;
+    const full = (o: OptionRow): string => {
+        const read = usedBy?.(o.name);
+        return [prose(o.doc), read === undefined || read === "every format" ? "" : `Read by: ${read}.`]
+            .filter((x) => x !== "")
+            .join(" ");
+    };
+    const short = (o: OptionRow): string => prose(firstSentence(o.doc.replace(/\s+/g, " ")));
+    const detailed = rows.filter((o) => full(o) !== short(o));
+    const out = table(
+        ["Option", "Type", "Default", "Meaning"],
+        rows.map((o) => [
+            detailed.includes(o) ? `[${code(o.name)}](#${id(o)})` : code(o.name),
+            code(o.type),
+            defaultCell(o.defaultValue),
+            cell(short(o)),
+        ]),
+    );
+    if (detailed.length > 0) {
+        out.push("", ...detailed.flatMap((o) => [`- <a id="${id(o)}"></a>${code(o.name)}: ${full(o)}`]));
+    }
+    return out;
+}
+
+/**
+ * A list of codes with their meanings: a list, not a table, so a long meaning stays readable in the Markdown source.
  * @param rows - the codes
- * @param errorMeans - what the "error" severity means in this table
+ * @param errorMeans - what the "error" severity means in this list
  * @returns the markdown lines
  */
 function codesTable(rows: readonly CodeRow[], errorMeans: string): string[] {
-    return table(
-        ["Code", "Key", "Severity", "Meaning"],
-        rows.map((r) => [code(r.code), code(r.key), r.code.startsWith("E_") ? errorMeans : "warning", cell(r.doc)]),
-    );
+    return rows.map((r) => `- ${code(r.code)} (${r.code.startsWith("E_") ? errorMeans : "warning"}): ${prose(r.doc)}`);
 }
 
 /**
@@ -743,8 +814,13 @@ function referenceBlock(ctx: Context, f: FormatFacts): string[] {
             "## Import options",
             "",
             "These come on top of the [options every importer takes](../options.md#every-importer).",
+            ...(f.importer.importAll === undefined && f.importer.listGraphs === undefined
+                ? []
+                : [
+                      "A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.",
+                  ]),
             "",
-            ...optionsTable(f.importOptions ?? []),
+            ...optionsTable(f.importOptions ?? [], "import"),
             "",
         );
     }
@@ -754,24 +830,26 @@ function referenceBlock(ctx: Context, f: FormatFacts): string[] {
             "",
             "These come on top of the [options every exporter takes](../options.md#every-exporter).",
             "",
-            ...optionsTable(f.exportOptions ?? []),
+            ...optionsTable(f.exportOptions ?? [], "export"),
             "",
         );
     }
     if (f.issues.length > 0) {
-        const own = f.issues.filter((r) => !ctx.inputCodes.has(r.code));
-        const shared = f.issues.filter((r) => ctx.inputCodes.has(r.code));
+        // a shared code the format documents in its own words is listed with the format's codes
+        const isShared = (r: CodeRow): boolean => ctx.inputCodes.get(r.code) === r.doc;
+        const own = f.issues.filter((r) => !isShared(r));
+        const shared = f.issues.filter(isShared);
         out.push(
             "## Import issue codes",
             "",
-            `The codes this format's import report can hold, also exported as \`${tablePrefix(f)}_ISSUE\` from \`${f.subpath}\`.`,
+            `The codes this format's import report can hold. They are also exported as \`${tablePrefix(f)}_ISSUE\` from \`${f.subpath}\`, keyed by the code without its \`E_\` / \`W_\` and \`${tablePrefix(f)}_\` prefixes.`,
             "",
             ...(own.length > 0 ? codesTable(own, "error") : ["This format records no codes of its own."]),
             "",
         );
         if (shared.length > 0) {
             out.push(
-                `Like every format, it can also record the codes for unreadable input: ${shared.map((r) => `[${code(r.code)}](../codes.md#${r.code})`).join(", ")}.`,
+                `Like every format, it can also record the codes for unreadable input and for elements the graph refuses: ${shared.map((r) => `[${code(r.code)}](../codes.md#${r.code})`).join(", ")}.`,
                 "",
             );
         }
@@ -780,9 +858,17 @@ function referenceBlock(ctx: Context, f: FormatFacts): string[] {
         out.push(
             "## Loss codes",
             "",
-            `The codes \`checkExport(snapshot, "${f.name}", options)\` can return before a save, also exported as \`${tablePrefix(f)}_LOSS\` from \`${f.subpath}\`. An \`E_\` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.`,
+            `The codes \`checkExport(snapshot, "${f.name}", options)\` can return before a save, also exported as \`${tablePrefix(f)}_LOSS\` from \`${f.subpath}\`. An \`E_\` code means the save throws unless you change the graph or the options.`,
             "",
-            ...codesTable(f.losses, "error (save throws)"),
+            ...codesTable(f.losses, "error, the save throws"),
+            "",
+            `When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): ${[
+                ...new Set(ctx.sharedLosses.map((r) => r.code)),
+            ]
+                .filter((c) => !f.losses.some((r) => r.code === c))
+                .sort(byCodeUnit)
+                .map((c) => `[${code(c)}](../codes.md#${c})`)
+                .join(", ")}.`,
             "",
         );
     }
@@ -841,27 +927,29 @@ function optionsBlock(ctx: Context): string[] {
         "",
         "`CommonImportOptions`: every importer accepts these next to its own options. An option a format does not read is reported in the import report as `W_OPTION_IGNORED` when you set it.",
         "",
-        ...optionsTable(commonImport, (n) => (builderPolicies.has(n) ? "every format" : usedBy(n))),
+        ...optionsTable(commonImport, "import", (n) => (builderPolicies.has(n) ? "every format" : usedBy(n))),
         "",
         "## Every exporter",
         "",
         "`CommonExportOptions`: every exporter accepts these next to its own options.",
         "",
-        ...optionsTable(commonExport),
+        ...optionsTable(commonExport, "export"),
         "",
         "## importGraph and importAllGraphs",
         "",
         "`ImportGraphOptions`: everything above, plus these, plus the chosen format's own import options.",
         "",
-        ...optionsTable(importGraphOwn),
+        ...optionsTable(importGraphOwn, "importgraph"),
         "",
         "## loadFromUrl",
         "",
         "`LoadFromUrlOptions`: everything `importGraph()` takes, plus:",
         "",
-        ...optionsTable(own("LoadFromUrlOptions", importNames)),
+        ...optionsTable(own("LoadFromUrlOptions", importNames), "loadfromurl"),
         "",
-        "`loadFromFile()` takes the same options as `importGraph()`.",
+        "## loadFromFile",
+        "",
+        "`loadFromFile()` takes the same options as [importGraph()](#importgraph-and-importallgraphs).",
         "",
         "## Saving: exportGraph, exportGraphToBytes, checkExport and the others",
         "",
@@ -871,7 +959,7 @@ function optionsBlock(ctx: Context): string[] {
         "",
         "`DownloadGraphOptions`: everything the other save functions take, plus:",
         "",
-        ...optionsTable(own("DownloadGraphOptions", inherited)),
+        ...optionsTable(own("DownloadGraphOptions", inherited), "download"),
         "",
         "## Each format's own options",
         "",
@@ -881,13 +969,92 @@ function optionsBlock(ctx: Context): string[] {
                 `[${f.name}](./formats/${f.name}.md)`,
                 f.importer === undefined
                     ? "no importer"
-                    : `[${(f.importOptions ?? []).length}](./formats/${f.name}.md#import-options)`,
+                    : ownOptions(f.importOptions, `./formats/${f.name}.md#import-options`, `${f.name} import options`),
                 f.exporter === undefined
                     ? "read only"
-                    : `[${(f.exportOptions ?? []).length}](./formats/${f.name}.md#export-options)`,
+                    : ownOptions(f.exportOptions, `./formats/${f.name}.md#export-options`, `${f.name} export options`),
             ]),
         ),
     ];
+}
+
+/**
+ * A cell of the per-format options table: a link to the format's own options, or "none".
+ * @param rows - the format's own options
+ * @param href - where they are documented
+ * @param text - the link text
+ * @returns the cell text
+ */
+function ownOptions(rows: readonly OptionRow[] | undefined, href: string, text: string): string {
+    return (rows ?? []).length === 0
+        ? "none"
+        : `[${text}](${href}): ${(rows ?? []).map((o) => code(o.name)).join(", ")}`;
+}
+
+/**
+ * The header names the CSV importer recognizes, from the lists it matches against.
+ * @param ctx - the context
+ * @returns the markdown lines
+ */
+function csvHeadersBlock(ctx: Context): string[] {
+    const h = ctx.csvHeaders;
+    const names = (xs: readonly string[]): string => xs.map((x) => code(x)).join(", ");
+    return table(
+        ["Column", "Header names", "To name another column"],
+        [
+            ["Edge source", names(h.SOURCE_NAMES), "`sourceColumn`"],
+            ["Edge target", names(h.TARGET_NAMES), "`targetColumn`"],
+            ["Node id (node table)", names(h.ID_NAMES), "`idColumn`"],
+            ["Edge id (edge table)", names(h.EDGE_ID_NAMES), ""],
+            ["Label", names(h.LABEL_NAMES), ""],
+            ["Edge weight", "`weight`, or the name you pass as `weightFrom`", "`weightFrom`"],
+            [
+                "Edge direction",
+                `${code(h.TYPE_NAME)}, only in a Gephi table (a header with exactly \`Source\` and \`Target\`)`,
+                "`typeColumn`",
+            ],
+        ],
+    );
+}
+
+/** The sink methods an importer calls, with what each does; the signatures come from GraphSink itself. */
+const SINK_METHODS: readonly (readonly [string, string])[] = [
+    ["addNode", "Adds a node, or finds the node with this id. Returns its index."],
+    [
+        "addEdge",
+        "Adds an edge between two node ids and returns its index. A node the graph does not have yet is created, unless `addMissingNodes` is false. In an importer, add edges through `DirectionResolver.addEdge()` instead, which calls this.",
+    ],
+    ["setEdgeWeight", "Sets the weight of an edge already added."],
+    ["setDirected", "Sets whether the graph is directed. `DirectionResolver.setHeader()` calls it for you."],
+    [
+        "declareNodeColumn",
+        'Declares a node attribute, `{ name, dtype, role }` (for example `{ name: "label", dtype: "string", role: "label" }`), and returns its handle. Declaring the same attribute again returns the same handle.',
+    ],
+    ["declareEdgeColumn", "Declares an edge attribute, the same way."],
+    ["setNodeValue", "Sets a node's value of an attribute, by handle or by name."],
+    ["setEdgeValue", "Sets an edge's value of an attribute, by handle or by name."],
+    ["setGraphValue", "Sets an attribute of the whole graph."],
+    ["setMeta", "Sets the graph's `name`, `description` and other details, which `snapshot.meta` returns."],
+    ["indexOf", "The index of the node with this id, or `INVALID_INDEX` (4294967295)."],
+    ["reserve", "Makes room for this many nodes and edges, for a file that states its size up front."],
+];
+
+/**
+ * The GraphSink methods an importer calls (guide/extending/new-format.md).
+ * @param ctx - the context
+ * @returns the markdown lines
+ */
+function sinkBlock(ctx: Context): string[] {
+    const sym = ctx.index.get("GraphSink");
+    if (sym === undefined) {
+        throw new Error("the root barrel no longer exports GraphSink");
+    }
+    const sigs = ctx.src.signatures(
+        sym,
+        SINK_METHODS.map(([name]) => name),
+    );
+    // a list item, not a table cell: a pipe in a signature stays as it is
+    return SINK_METHODS.map(([name, meaning]) => `- \`${sigs.get(name) ?? name}\`: ${meaning}`);
 }
 
 /** One code across every format. */
@@ -957,7 +1124,7 @@ function codesBlock(ctx: Context): string[] {
                 ]
                     .filter((s) => s !== "")
                     .join(" ");
-                return `- <a id="${c}"></a>${code(c)}: ${cell(u.doc)}${where === "" ? "" : ` ${where}`}`;
+                return `- <a id="${c}"></a>${code(c)}: ${prose(u.doc)}${where === "" ? "" : ` ${where}`}`;
             }),
         "",
     ];
@@ -995,6 +1162,8 @@ function plan(formats: readonly string[]): PagePlan {
     for (const f of formats) {
         pages.set(`guide/formats/${f}.md`, [`glance:${f}`, `reference:${f}`]);
     }
+    pages.set("guide/formats/csv.md", ["glance:csv", "headers:csv", "reference:csv"]);
+    pages.set("guide/extending/new-format.md", ["sink"]);
     return pages;
 }
 
@@ -1098,6 +1267,13 @@ function render(ctx: Context, block: string): string {
         case "reference":
             if (f !== undefined) {
                 return referenceBlock(ctx, f).join("\n");
+            }
+            break;
+        case "sink":
+            return sinkBlock(ctx).join("\n");
+        case "headers":
+            if (name === "csv") {
+                return csvHeadersBlock(ctx).join("\n");
             }
             break;
         default:

@@ -65,7 +65,7 @@ await writeFile("got.graphml", await exportGraphToBytes(snapshot, "graphml", opt
 <!-- generated:begin output:saving/check -->
 
 ```text
-E_ID_CHARSET: 2 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces); the save fails unless sanitizeIds is "mangle"
+E_ID_CHARSET: 2 node id(s) are not XML name tokens (letters, digits and . - _ : only; no spaces), so the save fails unless sanitizeIds is "mangle"
 W_COLUMN_NAME_CHANGED: node column "Label" (label) is written into the format's label slot and reads back as "label"
 [ 'W_ID_MANGLED', 'W_COLUMN_NAME_CHANGED' ]
 ```
@@ -211,9 +211,10 @@ graph [
 
 <!-- generated:end -->
 
-GraphML, GEXF, CSV, Pajek, XGMML, Cytoscape sessions and some JSON dialects keep mixed direction,
-so they need no option. The [All formats](./formats/index.md) table lists them under
-`mixedDirection`.
+GraphML, GEXF, CSV, Pajek, XGMML, Cytoscape sessions and the JGF and graphology JSON dialects keep
+mixed direction, so they need no option. The `mixedDirection` column of the
+[What each writer keeps](./formats/index.md#what-each-writer-keeps) table shows this for every
+format and JSON dialect.
 
 ## Format options
 
@@ -222,10 +223,9 @@ JSON. They go in the same options object as `sanitizeIds` and `onMixedDirection`
 [CSV example](./formats/csv.md#loading-and-saving) passes `table: "nodes"` this way. Each
 [format page](./formats/index.md) lists its options.
 
-An option the chosen format does not have is ignored without a warning, so one options object can
-serve several formats. That also means a misspelled option is ignored. In TypeScript, check the
-names with `satisfies` and the format's options type, which includes `sanitizeIds` and
-`onMixedDirection`:
+An option the chosen format does not have is ignored without a warning. That also means a
+misspelled option is ignored. In TypeScript, check the names with `satisfies` and the format's
+options type, which includes `sanitizeIds` and `onMixedDirection`:
 
 <!-- generated:begin example:saving/typed-options -->
 
@@ -245,9 +245,32 @@ console.log(gml.split("\n").slice(0, 7).join("\n"));
 
 <!-- generated:end -->
 
+<!-- generated:begin output:saving/typed-options -->
+
+```text
+graph [
+  directed 0
+  node [
+    id 0
+    graphty_originalId "Aemon"
+    label "Aemon"
+  ]
+```
+
+<!-- generated:end -->
+
 Use `satisfies` rather than a type annotation: a variable declared as `const options:
 GmlExportOptions` cannot be passed to the save functions, as
 [Loading graphs](./loading.md#options) explains. Spread it (`{ ...options }`) if you have one.
+
+Be careful when one options object serves several formats. The common options (`sanitizeIds`,
+`onMixedDirection`) mean the same everywhere, and an option only one of the formats has is
+harmless. But two formats can each have an option of the same name with a different meaning:
+JSON's `indent` is a number of spaces and DOT's is the indentation text, and CSV and JSON both have
+a `dialect`. A value of the wrong kind makes `checkExport()` and the save throw `E_UNSUPPORTED`
+with the option's name in `err.details.option`. Keep format options in a separate object per
+format, and spread the shared ones into each:
+`{ ...shared, indent: 2 }` for JSON, `{ ...shared, indent: "\t" }` for DOT.
 
 ## Large graphs: stream to a file
 
@@ -326,7 +349,9 @@ Pajek, Neo4j, XGMML, CX2, CX, OBO, Cytoscape session), so `find()` picks the mor
 ```ts
 import { exportGraphToBlob, loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/samples/got-network.graphml");
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 // your server's upload endpoint
 const body = new FormData();
@@ -354,9 +379,12 @@ import { FormatRegistry } from "@graphty/graph-io";
 import { csvExporter, csvImporter } from "@graphty/graph-io/csv";
 
 const io = new FormatRegistry().registerImporter(csvImporter).registerExporter(csvExporter);
-const { snapshot } = await io.loadFromUrl("https://graphty.app/docs/graph-io/samples/got-edges.csv", {
-    defaultDirected: false, // the table has no Type column; these edges are undirected
-});
+const { snapshot } = await io.loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-edges.csv",
+    {
+        defaultDirected: false, // the table has no Type column; these edges are undirected
+    },
+);
 
 // <button id="save">Save as CSV</button>
 document.querySelector("#save").addEventListener("click", async () => {

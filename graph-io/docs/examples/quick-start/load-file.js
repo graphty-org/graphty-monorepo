@@ -15,7 +15,7 @@ input.addEventListener("change", async () => {
     try {
         const { snapshot, report } = await loadFromFile(file);
         if (snapshot.nodeCount === 0) {
-            // a text file that is not a graph can still read as an empty CSV table
+            // catches an empty result only: any text with commas can read as a small CSV graph
             console.error(`${file.name} holds no graph`);
             return;
         }

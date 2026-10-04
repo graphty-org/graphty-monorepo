@@ -90,32 +90,37 @@ export const netscopeImporter: GraphImporter<CsvImportOptions> = {
         const decoding = new ImportReportBuilder("netscope", opts.errorLimit);
         const text = await readText(input, decoding, opts);
 
-        // Turn the preamble into comment lines, which the CSV importer skips; the lines keep their numbers
-        const blank = /\r?\n\s*\r?\n/.exec(text);
-        const end = blank === null ? 0 : blank.index + blank[0].length;
-        const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
-        const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
-        const table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
+        // Turn the preamble (the lines before the first blank line) into comment lines, which the CSV importer
+        // skips; the lines keep their numbers. A file without a preamble is passed on as it is.
+        let table = text;
+        const issues: ImportIssue[] = [];
+        if (PREAMBLE.test(text)) {
+            const blank = /\r?\n\s*\r?\n/.exec(text);
+            const end = blank === null ? text.length : blank.index + blank[0].length;
+            const instrument = /^Instrument: (.*)$/m.exec(text.slice(0, end))?.[1] ?? "unknown";
+            const lines = text.slice(0, end).split("\n"); // the last entry is the empty rest after the blank line
+            table = lines.map((line, i) => (i < lines.length - 1 ? "#" : line)).join("\n") + text.slice(end);
+            issues.push({
+                category: "unsupported",
+                severity: "warning",
+                code: "W_NETSCOPE_PREAMBLE",
+                message: `skipped the NetScope preamble (instrument ${instrument})`,
+                line: 1,
+                element: null,
+            });
+        }
 
         // The text is already decoded and its progress reported: the CSV importer gets neither option again
         const csv = await csvImporter.import(table, sink, { ...options, onProgress: undefined, encoding: undefined });
 
         // One report: the decoding warnings, the preamble, then the table's issues
-        const preamble: ImportIssue = {
-            category: "unsupported",
-            severity: "warning",
-            code: "W_NETSCOPE_PREAMBLE",
-            message: `skipped the NetScope preamble (instrument ${instrument})`,
-            line: 1,
-            element: null,
-        };
         const decoded = decoding.finish();
         return {
             ...csv,
             format: "netscope",
-            issues: [...decoded.issues, preamble, ...csv.issues],
+            issues: [...decoded.issues, ...issues, ...csv.issues],
             errorCount: csv.errorCount + decoded.errorCount,
-            warningCount: csv.warningCount + decoded.warningCount + 1,
+            warningCount: csv.warningCount + decoded.warningCount + issues.length,
         };
     },
 };
@@ -176,7 +181,8 @@ progress calls would count the wrong bytes.
 
 The preamble lines are replaced by `#` lines rather than cut off. The CSV importer skips leading
 `#` lines as comments, and every row keeps its line number, so the bad row above is reported on
-line 7, where it is in the file.
+line 7, where it is in the file. A `.nsc` file that does not start with the preamble is passed to
+the CSV importer unchanged, without the warning.
 
 The report the CSV importer returns is a plain object. The wrapper returns a copy with its own
 format name and its own warning, so the preamble is not dropped silently. Every CSV option still
@@ -234,7 +240,7 @@ b,c,Directed
 
 The CSV importer skips leading `#` lines, so the stamped file still reads back as the same graph,
 and `check()` (copied from the CSV exporter, and what `checkExport()` calls) is still correct. If
-your change means the file reads back differently, wrap `check()` too and add a note that says how;
+your change means the file reads back differently, wrap `check()` too and add a note that says how,
 as [Writing a format plugin](./new-format.md#checking-what-a-save-loses) explains.
 
 ## Reusing a format's codes and options

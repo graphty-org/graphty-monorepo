@@ -6,7 +6,9 @@ parts of it you need to use a graph you loaded. The graph-format README document
 
 ## Nodes and ids
 
-Nodes are numbered `0` to `snapshot.nodeCount - 1` in the order the file lists them. Every function
+Nodes are numbered `0` to `snapshot.nodeCount - 1` in the order they are first seen in the file.
+In a format that lists its nodes, that is the order of the list; in an edge list such as CSV, a
+node is numbered when it first appears in an edge. Every function
 on the snapshot takes and returns these numbers (node indexes); the ids from the file are kept in
 `snapshot.ids`:
 
@@ -60,8 +62,69 @@ Label
 <!-- generated:end -->
 
 The attribute names are the file's. The label column is called `Label` here because the CSV header
-says so, `label` in a GraphML file and `name` in some JSON files, so use `byRole("label")` when you
-want the label whatever the file calls it.
+says so, `label` in a GraphML file and `name` in a CX file, so use `byRole("label")` when you want
+the label whatever the file calls it.
+
+`byRole("label")` finds the label in every format that has a place for one: GraphML, GEXF, GML,
+DOT, Pajek, CSV, XGMML, CX, CX2, Cytoscape sessions, OBO, and the JGF and OBO Graphs JSON
+dialects. The other JSON dialects (node-link, d3, Cytoscape.js, graphology, vis) and Neo4j CSV have
+no such place: a `label` or `name` key there is an ordinary attribute and `byRole("label")` is
+`null`. Read it by name instead, for example
+`snapshot.nodes.get("label") ?? snapshot.nodes.get("name")`. In a d3 file whose nodes have a
+`name` and no `id`, the names are the node ids.
+
+## Columns graph-io adds
+
+Some imports add attributes the file does not have, to keep what the file said in a form the
+snapshot can hold. Their names start with `graphty.`, so you can tell them apart:
+
+- `graphty.directed` (edges): In a graph with both directed and undirected edges: `true` for an edge the file made directed, `false` for an undirected one. An undirected edge is stored as two edges, one each way.
+- `graphty.pair` (edges): Which two edges are the halves of one undirected edge, so a save writes them back as one.
+- `graphty.mutual` (edges): A GEXF `mutual` edge.
+- `graphty.weight` (edges): The exact weights, when the 32-bit `edgeList().weights` cannot hold them (see [Weights](#weights)).
+- `graphty.cluster` (nodes): `true` for a node that stands for a DOT cluster (`subgraph cluster_x { }`). Each cluster becomes a node, so `nodeCount` includes them.
+- `graphty.parent` (nodes): The cluster a DOT node belongs to.
+- `graphty.sourcePort`, `graphty.targetPort` (edges): DOT ports (`a:n -> b:s`).
+- `graphty.hyperedge` (nodes): `true` for a hub node made for a GraphML hyperedge under `hyperedges: "star"`.
+- `graphty.placeholder` (nodes): `true` for a node made for an OBO term that is referred to but never declared.
+- `graphty.originalId` (nodes): The original ids of a GraphML file saved with `sanitizeIds: "mangle"`, read with `restoreMangledIds: false`.
+
+Leave them in the snapshot when you save it again with graph-io: the exporters use them to write the
+file back the same way. When you copy attributes into another library or count nodes, skip them:
+
+<!-- generated:begin example:reading/added-columns -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("teams.gv"), { filename: "teams.gv" });
+
+// Columns whose names start with "graphty." were added by graph-io, not by the file
+const own = snapshot.nodes.names().filter((name) => !name.startsWith("graphty."));
+console.log(own);
+
+// Each DOT cluster is a node too, marked in graphty.cluster
+const people = Array.from({ length: snapshot.nodeCount }, (_, i) => i).filter(
+    (i) => snapshot.nodes.value("graphty.cluster", i) !== true,
+);
+console.log(`${snapshot.nodeCount} nodes, ${people.length} of them not clusters`);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:reading/added-columns -->
+
+```text
+[ 'label', 'style', 'color', 'shape' ]
+9 nodes, 7 of them not clusters
+```
+
+<!-- generated:end -->
+
+Groups in other formats can add nodes too: in a CX file, a `cyGroups` group whose id is not a node
+becomes one.
 
 ## Edges
 

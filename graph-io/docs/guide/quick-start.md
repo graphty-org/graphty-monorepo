@@ -20,7 +20,7 @@ JupyterLite), import it from a CDN instead:
 import { loadFromUrl } from "https://esm.sh/@graphty/graph-io";
 ```
 
-Most programs need eight functions, and this page uses them all: `loadFromUrl()`,
+Most programs need eight functions: `loadFromUrl()`,
 `loadFromFile()` and `importGraph()` read a graph; `exportGraphToBytes()`, `exportGraphToString()`,
 `exportGraphToBlob()` and `downloadGraph()` write one; and `checkExport()` says what a format would
 not keep. The package exports many more names. Those are format options, issue codes, and the
@@ -39,7 +39,7 @@ import { GraphFormatError, loadFromUrl } from "@graphty/graph-io";
 
 try {
     const { snapshot, format, report } = await loadFromUrl(
-        "https://graphty.app/docs/graph-io/samples/got-network.graphml",
+        "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
     );
     console.log(`Read ${format}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
     for (const issue of report.issues) {
@@ -87,7 +87,9 @@ arrays that d3, react-force-graph and similar libraries take:
 ```ts
 import { loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/samples/got-network.graphml");
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 // the attribute the file marks as each node's label (null when there is none)
 const label = snapshot.nodes.byRole("label");
@@ -126,7 +128,8 @@ shows how to read it. That page also covers attributes, degrees and the rest of 
 
 In a browser, `loadFromFile()` reads a `File` from an `<input type="file">` or a drop event. The
 file name tells graph-io the likely format, and `listFormats()` gives you every extension graph-io
-reads, for the input's `accept` attribute.
+reads, for the input's `accept` attribute. Each entry of `listFormats()` has the format's name in
+`format`, its `extensions`, and `canImport` and `canExport`.
 
 <!-- generated:begin example:quick-start/load-file -->
 
@@ -148,7 +151,7 @@ input.addEventListener("change", async () => {
     try {
         const { snapshot, report } = await loadFromFile(file);
         if (snapshot.nodeCount === 0) {
-            // a text file that is not a graph can still read as an empty CSV table
+            // catches an empty result only: any text with commas can read as a small CSV graph
             console.error(`${file.name} holds no graph`);
             return;
         }
@@ -168,10 +171,11 @@ input.addEventListener("change", async () => {
 
 <!-- generated:end -->
 
-A load that does not throw can still hold an empty or meaningless graph. A short text file whose
-lines contain commas reads as a CSV edge list, and a text file with no graph in it can read as an
-empty CSV table. That is why the example checks `snapshot.nodeCount`. When you know which format
-the user should pick, pass it as `format`, and any other file is refused.
+A load that does not throw can still hold an empty or meaningless graph. The example's
+`snapshot.nodeCount` check catches only the empty case. Any text whose lines contain commas reads as
+a CSV edge list: a note saying "Dear team, the meeting is on Monday." loads as a graph with 2 nodes
+and 1 edge. When you know which format the user should pick, pass it as `format` (for example
+`loadFromFile(file, { format: "graphml" })`), and any other file is refused with an `ImportError`.
 
 In Node, the same function reads a file from disk. A Blob from `fs.openAsBlob(path)` has no file
 name, so pass one: `loadFromFile(await openAsBlob(path), { filename: path })`. You can also pass
@@ -219,7 +223,8 @@ A note's code tells you how serious it is:
 - A code starting with `W_` is a warning. The file is written, but this part of the graph does not
   read back the same.
 - A code starting with `E_` means the format cannot hold the graph with these options, and the
-  save throws instead of writing. The note's message says which option fixes it, when one does.
+  save throws instead of writing. When an option fixes it, the note's message names the option and
+  the value to pass, such as `sanitizeIds` `"mangle"`.
 
 Pass the same options object to `checkExport()` and to the save, so the check describes the file
 you actually write.
@@ -229,16 +234,20 @@ you actually write.
 `downloadGraph()` saves a graph as a file in the browser, as if the user clicked a download link.
 This example offers the graph as GML. GML node ids must be integers and its attribute names cannot
 contain spaces, so `checkExport()` returns `E_` notes until the example passes `"mangle"` for both.
-The originals are written to the file, and graph-io reads them back. One options object holds all
-three kinds of option: `sanitizeIds` works for every format, `sanitizeKeys` is a GML option that
-other formats ignore, and `filename` is read by `downloadGraph()` alone.
+The originals are written to the file, and graph-io reads them back. One options object holds three
+kinds of option: `sanitizeIds` works for every format, `sanitizeKeys` is a GML option, and
+`filename` is read by `downloadGraph()` alone. Keep one such object per format: two formats can
+each have an option with the same name and a different meaning, as
+[Saving graphs](./saving.md#format-options) explains.
 
 <!-- generated:begin example:quick-start/download -->
 
 ```js
 import { checkExport, downloadGraph, loadFromUrl } from "@graphty/graph-io";
 
-const { snapshot } = await loadFromUrl("https://graphty.app/docs/graph-io/samples/got-network.graphml");
+const { snapshot } = await loadFromUrl(
+    "https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml",
+);
 
 // <button id="save">Save as GML</button>
 document.querySelector("#save").addEventListener("click", async () => {
@@ -260,8 +269,9 @@ document.querySelector("#save").addEventListener("click", async () => {
 
 <!-- generated:end -->
 
-To upload a graph instead, use `exportGraphToBlob()` and put the blob in a `FormData`. See
-[Saving graphs](./saving.md).
+To upload a graph instead, use `exportGraphToBlob()` and put the blob in a `FormData`. To get the
+file as text, for example to show it in a page, use `exportGraphToString()`:
+`const gml = await exportGraphToString(snapshot, "gml", options)`. See [Saving graphs](./saving.md).
 
 ## When something goes wrong
 
@@ -289,17 +299,20 @@ examples above do. [The import report and errors](./report.md) shows how to bran
 ## Sample files
 
 The examples read these files. Download the ones you need to run the Node examples in the same
-directory.
+directory. They are also in the graph-io repository, in
+[graph-io/docs/samples](https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io/docs/samples).
 
 The Game of Thrones character network by Melanie Walsh
 ([sample-social-network-datasets](https://github.com/melaniewalsh/sample-social-network-datasets),
-public domain): 107 characters and 352 weighted edges.
+public domain): 107 characters and 352 weighted edges. The examples that load it by URL read it
+from that repository.
 
-- [got-network.graphml](https://graphty.app/docs/graph-io/samples/got-network.graphml): the
-  network as GraphML.
-- [got-edges.csv](https://graphty.app/docs/graph-io/samples/got-edges.csv) and
-  [got-nodes.csv](https://graphty.app/docs/graph-io/samples/got-nodes.csv): the edges and the
-  characters as CSV tables.
+- [got-network.graphml](https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-network.graphml):
+  the network as GraphML.
+- [got-edges.csv](https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-edges.csv)
+  and
+  [got-nodes.csv](https://raw.githubusercontent.com/melaniewalsh/sample-social-network-datasets/master/sample-datasets/game-of-thrones/got-nodes.csv):
+  the edges and the characters as CSV tables.
 - The same network saved by graph-io in other formats:
   [got.gml](https://graphty.app/docs/graph-io/samples/got.gml),
   [got.gexf](https://graphty.app/docs/graph-io/samples/got.gexf),
@@ -329,8 +342,3 @@ Small files written for this guide:
 - [Saving graphs](./saving.md): streaming large graphs to a file, choosing a format from a file
   name, and ids or edge directions a format cannot hold.
 - [All formats](./formats/index.md): what each format keeps, and which one to pick.
-
-If you display graphs with [graphty-element](https://graphty.app/docs/graphty-element/), you
-already use graph-io: `element.loadFromUrl()` and `element.loadFromFile()` read files through it.
-Use graph-io directly when you want the graph data yourself, for example to convert files, analyze a
-graph, or draw it with your own renderer.

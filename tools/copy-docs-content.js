@@ -75,8 +75,8 @@ for (const { src, dest, exclude } of contentMap) {
 
     // Clean destination (but preserve api/generated which is created by typedoc)
     if (existsSync(destPath)) {
-        // Remove everything except api/generated
-        const items = ["guide", "index.md", "api/index.md"];
+        // Remove everything except api/generated (examples too, so a renamed example leaves no stale copy)
+        const items = ["guide", "examples", "index.md", "api/index.md"];
         for (const item of items) {
             const itemPath = join(destPath, item);
             if (existsSync(itemPath)) {

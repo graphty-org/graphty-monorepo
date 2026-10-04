@@ -135,80 +135,80 @@ This format has no options of its own.
 
 ## Import issue codes
 
-The codes this format's import report can hold, also exported as `CX2_ISSUE` from `@graphty/graph-io/cx2`.
+The codes this format's import report can hold. They are also exported as `CX2_ISSUE` from `@graphty/graph-io/cx2`, keyed by the code without its `E_` / `W_` and `CX2_` prefixes.
 
-| Code                         | Key                       | Severity | Meaning                                                                                                                                                                                               |
-| ---------------------------- | ------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_SYNTAX`                   | `SYNTAX`                  | error    | The text is not valid JSON. The import stops.                                                                                                                                                         |
-| `E_INVALID_UTF8`             | `INVALID_UTF8`            | error    | The input is not valid UTF-8. The import stops.                                                                                                                                                       |
-| `E_INVALID_ENCODING`         | `INVALID_ENCODING`        | error    | Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The import stops.                                                                           |
-| `W_ENCODING_FALLBACK`        | `ENCODING_FALLBACK`       | warning  | Bytes that are not UTF-8 were read as windows-1252.                                                                                                                                                   |
-| `W_UNKNOWN_ENCODING`         | `UNKNOWN_ENCODING`        | warning  | An encoding the platform cannot decode was ignored.                                                                                                                                                   |
-| `E_CX2_NO_DESCRIPTOR`        | `NO_DESCRIPTOR`           | error    | The document is not a JSON array, or its first element is not the CX2 descriptor with `CXVersion`. The import stops.                                                                                  |
-| `E_CX2_VERSION`              | `VERSION`                 | error    | `CXVersion` names a version other than 2 ("1.x" means the file is CX1; read it as `cx`). The import stops.                                                                                            |
-| `W_CX2_MINOR_VERSION`        | `MINOR_VERSION`           | warning  | CXVersion is a 2.x other than "2.0" (or not a string); the document is read.                                                                                                                          |
-| `E_CX2_NO_STATUS`            | `NO_STATUS`               | error    | The document has no status block, or a malformed one.                                                                                                                                                 |
-| `E_STATUS_FAILED`            | `STATUS_FAILED`           | error    | The program that wrote the file marked it as failed, so it is incomplete. The import stops.                                                                                                           |
-| `W_STATUS_WARNING`           | `STATUS_WARNING`          | warning  | The producer marked the document as successful with an error text.                                                                                                                                    |
-| `W_CX2_UNDECLARED_FRAGMENTS` | `UNDECLARED_FRAGMENTS`    | warning  | An aspect appears in several blocks although the descriptor does not declare fragments.                                                                                                               |
-| `E_CX2_DECLARATION_CONFLICT` | `DECLARATION_CONFLICT`    | error    | An attribute declared twice with two different types; the first declaration wins.                                                                                                                     |
-| `W_CX2_UNDECLARED_ATTRIBUTE` | `UNDECLARED_ATTRIBUTE`    | warning  | An attribute value whose name no declaration covers; its column is inferred.                                                                                                                          |
-| `W_CX2_RESERVED_KEY`         | `RESERVED_KEY`            | warning  | A node or edge attribute named `id`, which the specification reserves.                                                                                                                                |
-| `E_CX2_ALIAS_CONFLICT`       | `ALIAS_CONFLICT`          | error    | An alias that is another attribute's name or another attribute's alias; the alias is ignored.                                                                                                         |
-| `W_CX2_NETWORK_DECLARATION`  | `NETWORK_DECLARATION`     | warning  | A network attribute declaration with an alias or a default, which CX2 forbids; both ignored.                                                                                                          |
-| `W_CX2_EXTRA_ELEMENTS`       | `EXTRA_ELEMENTS`          | warning  | An aspect that holds one element holds several; the first is read.                                                                                                                                    |
-| `W_CX2_PARTIAL_LAYOUT`       | `PARTIAL_LAYOUT`          | warning  | Some nodes have coordinates and others none, or a node has x without y.                                                                                                                               |
-| `W_CX2_ALIAS_BYPASSED`       | `ALIAS_BYPASSED`          | warning  | A full attribute name used where its alias is declared; read as the same attribute.                                                                                                                   |
-| `W_CX2_LEGACY_LAYOUT`        | `LEGACY_LAYOUT`           | warning  | A CX1 cartesianLayout aspect next to node coordinates; kept, not applied.                                                                                                                             |
-| `W_SINGLE_OBJECT_ASPECT`     | `SINGLE_OBJECT_ASPECT`    | warning  | An aspect CX2 defines as an array of elements written as one object; read as one element.                                                                                                             |
-| `W_MULTI_ASPECT_FRAGMENT`    | `MULTI_ASPECT_FRAGMENT`   | warning  | A member holding several aspects; each array-valued key is read as its own block.                                                                                                                     |
-| `W_JSON_NONSTANDARD_NUMBER`  | `JSON_NONSTANDARD_NUMBER` | warning  | The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers.                                                                                                              |
-| `W_STYLES_NOT_IMPORTED`      | `STYLES_NOT_IMPORTED`     | warning  | The file's style rules are not applied; they are kept so a CX2 export writes them back.                                                                                                               |
-| `E_BAD_ASPECT_BLOCK`         | `BAD_ASPECT_BLOCK`        | error    | A member of the top-level array that is not a one-key aspect block, or an element that is not an object.                                                                                              |
-| `W_ASPECT_ORDER`             | `ASPECT_ORDER`            | warning  | An aspect out of its place (after the post-metadata or the status, a third metaData, late declarations).                                                                                              |
-| `W_COUNT_MISMATCH`           | `COUNT_MISMATCH`          | warning  | A metaData element count disagrees with what was read.                                                                                                                                                |
-| `E_BAD_VALUE`                | `BAD_VALUE`               | error    | A value that does not match its declared type; the cell is unset.                                                                                                                                     |
-| `W_BAD_DEFAULT`              | `BAD_DEFAULT`             | warning  | A declared default that does not match its type.                                                                                                                                                      |
-| `W_UNKNOWN_ATTR_TYPE`        | `UNKNOWN_ATTR_TYPE`       | warning  | A declared type CX2 does not define; the column is inferred from the values.                                                                                                                          |
-| `W_DANGLING_REFERENCE`       | `DANGLING_REFERENCE`      | warning  | A bypass or a layout entry naming no node or edge.                                                                                                                                                    |
-| `W_DUPLICATE_ATTRIBUTE`      | `DUPLICATE_ATTRIBUTE`     | warning  | The same attribute twice on one element (its alias and its full name).                                                                                                                                |
-| `E_MISSING_ID`               | `MISSING_ID`              | error    | A node without an id.                                                                                                                                                                                 |
-| `E_MISSING_ENDPOINT`         | `MISSING_ENDPOINT`        | error    | An edge without s or t.                                                                                                                                                                               |
-| `W_DUPLICATE_NODE`           | `DUPLICATE_NODE`          | warning  | A node id declared twice; the second merges into the first.                                                                                                                                           |
-| `E_DUPLICATE_EDGE_ID`        | `DUPLICATE_EDGE_ID`       | error    | An edge id declared twice; the second edge is skipped.                                                                                                                                                |
-| `E_INVALID_ID`               | `INVALID_ID`              | error    | An id that is not an integer.                                                                                                                                                                         |
-| `E_UNKNOWN_NODE`             | `UNKNOWN_NODE`            | error    | An edge endpoint naming no node (addMissingNodes false, the default).                                                                                                                                 |
-| `E_INVALID_WEIGHT`           | `INVALID_WEIGHT`          | error    | A weight that is not a number.                                                                                                                                                                        |
-| `W_ID_TEXT_TYPE`             | `ID_TEXT_TYPE`            | warning  | An id spelled as a string or a non-integer literal; read as the integer.                                                                                                                              |
-| `W_PRECISION`                | `PRECISION`               | warning  | An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.                                                                                             |
-| `W_ID_MERGED`                | `ID_MERGED`               | warning  | Two id texts merged under `ids: "number"`.                                                                                                                                                            |
-| `W_UNKNOWN_ELEMENT`          | `UNKNOWN_ELEMENT`         | warning  | An element key CX2 does not define.                                                                                                                                                                   |
-| `W_COLUMN_RENAMED`           | `COLUMN_RENAMED`          | warning  | An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.                                                                      |
-| `W_ROLE_TAKEN`               | `ROLE_TAKEN`              | warning  | You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.                                                                   |
-| `W_DIRECTION_REFUSED`        | `DIRECTION_REFUSED`       | warning  | You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.                                      |
-| `W_DIRECTION_FORCED`         | `DIRECTION_FORCED`        | warning  | Edges of the other direction were read with the direction `onMixedDirection` chose.                                                                                                                   |
-| `W_OPTION_IGNORED`           | `OPTION_IGNORED`          | warning  | You set an option this format does not use; it had no effect. The message names the option.                                                                                                           |
-| `W_SINK_OPTION`              | `SINK_OPTION`             | warning  | You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies. |
+- `E_EMPTY_INPUT` (error): The input is empty. The import stops.
+- `E_TOO_LARGE` (error): The input is larger than graph-io's size limit. The import stops.
+- `E_INVALID_ID` (error): An id that is not an integer.
+- `E_UNKNOWN_NODE` (error): An edge endpoint naming no node (addMissingNodes false, the default).
+- `E_INVALID_WEIGHT` (error): A weight that is not a number.
+- `E_DUPLICATE_EDGE_ID` (error): An edge id declared twice; the second edge is skipped.
+- `E_SYNTAX` (error): The text is not valid JSON. The import stops.
+- `E_INVALID_UTF8` (error): The input is not valid UTF-8. The import stops.
+- `E_INVALID_ENCODING` (error): Some bytes are not valid in the encoding that was chosen (by a byte order mark or the `encoding` option). The import stops.
+- `W_ENCODING_FALLBACK` (warning): Bytes that are not UTF-8 were read as windows-1252.
+- `W_UNKNOWN_ENCODING` (warning): An encoding the platform cannot decode was ignored.
+- `E_CX2_NO_DESCRIPTOR` (error): The document is not a JSON array, or its first element is not the CX2 descriptor with `CXVersion`. The import stops.
+- `E_CX2_VERSION` (error): `CXVersion` names a version other than 2 ("1.x" means the file is CX1; read it as `cx`). The import stops.
+- `W_CX2_MINOR_VERSION` (warning): CXVersion is a 2.x other than "2.0" (or not a string); the document is read.
+- `E_CX2_NO_STATUS` (error): The document has no status block, or a malformed one.
+- `E_STATUS_FAILED` (error): The program that wrote the file marked it as failed, so it is incomplete. The import stops.
+- `W_STATUS_WARNING` (warning): The producer marked the document as successful with an error text.
+- `W_CX2_UNDECLARED_FRAGMENTS` (warning): An aspect appears in several blocks although the descriptor does not declare fragments.
+- `E_CX2_DECLARATION_CONFLICT` (error): An attribute declared twice with two different types; the first declaration wins.
+- `W_CX2_UNDECLARED_ATTRIBUTE` (warning): An attribute value whose name no declaration covers; its column is inferred.
+- `W_CX2_RESERVED_KEY` (warning): A node or edge attribute named `id`, which the specification reserves.
+- `E_CX2_ALIAS_CONFLICT` (error): An alias that is another attribute's name or another attribute's alias; the alias is ignored.
+- `W_CX2_NETWORK_DECLARATION` (warning): A network attribute declaration with an alias or a default, which CX2 forbids; both ignored.
+- `W_CX2_EXTRA_ELEMENTS` (warning): An aspect that holds one element holds several; the first is read.
+- `W_CX2_PARTIAL_LAYOUT` (warning): Some nodes have coordinates and others none, or a node has x without y.
+- `W_CX2_ALIAS_BYPASSED` (warning): A full attribute name used where its alias is declared; read as the same attribute.
+- `W_CX2_LEGACY_LAYOUT` (warning): A CX1 cartesianLayout aspect next to node coordinates; kept, not applied.
+- `W_SINGLE_OBJECT_ASPECT` (warning): An aspect CX2 defines as an array of elements written as one object; read as one element.
+- `W_MULTI_ASPECT_FRAGMENT` (warning): A member holding several aspects; each array-valued key is read as its own block.
+- `W_JSON_NONSTANDARD_NUMBER` (warning): The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers.
+- `W_STYLES_NOT_IMPORTED` (warning): The file's style rules are not applied; they are kept so a CX2 export writes them back.
+- `E_BAD_ASPECT_BLOCK` (error): A member of the top-level array that is not a one-key aspect block, or an element that is not an object.
+- `W_ASPECT_ORDER` (warning): An aspect out of its place (after the post-metadata or the status, a third metaData, late declarations).
+- `W_COUNT_MISMATCH` (warning): A metaData element count disagrees with what was read.
+- `E_BAD_VALUE` (error): A value that does not match its declared type; the cell is unset.
+- `W_BAD_DEFAULT` (warning): A declared default that does not match its type.
+- `W_UNKNOWN_ATTR_TYPE` (warning): A declared type CX2 does not define; the column is inferred from the values.
+- `W_DANGLING_REFERENCE` (warning): A bypass or a layout entry naming no node or edge.
+- `W_DUPLICATE_ATTRIBUTE` (warning): The same attribute twice on one element (its alias and its full name).
+- `E_MISSING_ID` (error): A node without an id.
+- `E_MISSING_ENDPOINT` (error): An edge without s or t.
+- `W_DUPLICATE_NODE` (warning): A node id declared twice; the second merges into the first.
+- `W_ID_TEXT_TYPE` (warning): An id spelled as a string or a non-integer literal; read as the integer.
+- `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
+- `W_ID_MERGED` (warning): Two id texts merged under `ids: "number"`.
+- `W_UNKNOWN_ELEMENT` (warning): An element key CX2 does not define.
+- `W_COLUMN_RENAMED` (warning): An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a repeated column header.
+- `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.
+- `W_DIRECTION_REFUSED` (warning): You read into a graph builder whose direction is already set, or which already holds edges, so the file is read with the builder's direction instead of its own.
+- `W_DIRECTION_FORCED` (warning): Edges of the other direction were read with the direction `onMixedDirection` chose.
+- `W_OPTION_IGNORED` (warning): You set an option this format does not use; it had no effect. The message names the option.
+- `W_SINK_OPTION` (warning): You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`, `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
 
-Like every format, it can also record the codes for unreadable input: [`E_EMPTY_INPUT`](../codes.md#E_EMPTY_INPUT), [`E_TOO_LARGE`](../codes.md#E_TOO_LARGE), [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED).
+Like every format, it can also record the codes for unreadable input and for elements the graph refuses: [`W_ENCODING_CONFLICT`](../codes.md#W_ENCODING_CONFLICT), [`W_CONTROL_CHARACTER`](../codes.md#W_CONTROL_CHARACTER), [`E_FOREIGN_FORMAT`](../codes.md#E_FOREIGN_FORMAT), [`W_ISSUES_SUPPRESSED`](../codes.md#W_ISSUES_SUPPRESSED), [`E_DUPLICATE_EDGE`](../codes.md#E_DUPLICATE_EDGE), [`E_SELF_LOOP`](../codes.md#E_SELF_LOOP).
 
 ## Loss codes
 
-The codes `checkExport(snapshot, "cx2", options)` can return before a save, also exported as `CX2_LOSS` from `@graphty/graph-io/cx2`. An `E_` code means the save throws unless you change the graph or the options. A save can also return the [shared loss codes](../codes.md#shared-loss-codes) that any format can.
+The codes `checkExport(snapshot, "cx2", options)` can return before a save, also exported as `CX2_LOSS` from `@graphty/graph-io/cx2`. An `E_` code means the save throws unless you change the graph or the options.
 
-| Code                           | Key                      | Severity            | Meaning                                                                                                                                                                          |
-| ------------------------------ | ------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `W_CX2_UNDIRECTED_AS_DIRECTED` | `UNDIRECTED_AS_DIRECTED` | warning             | Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back as directed.                                                      |
-| `W_CX2_JSON_AS_STRING`         | `JSON_AS_STRING`         | warning             | A nested (json) column is written as a string attribute holding its JSON text.                                                                                                   |
-| `W_CX2_NONFINITE_AS_NULL`      | `NONFINITE_AS_NULL`      | warning             | NaN and the infinities cannot be written; they are written as null and read back unset.                                                                                          |
-| `W_MUTUAL_EXPANDED`            | `MUTUAL_EXPANDED`        | warning             | A mutual pair is written as two directed edges without its mark.                                                                                                                 |
-| `W_WEIGHT_KEY_CLASH`           | `WEIGHT_KEY_CLASH`       | warning             | An attribute without the weight role is named like the key weights are written under; it reads back as the edge weight, or is not written when the graph has weights of its own. |
-| `W_HIERARCHY_DROPPED`          | `HIERARCHY_DROPPED`      | warning             | A parent / parents column: CX2 has no containment.                                                                                                                               |
-| `W_TEMPORAL_DROPPED`           | `TEMPORAL_DROPPED`       | warning             | A start / end / timestamp column: CX2 has no time.                                                                                                                               |
-| `W_ROLE_DROPPED`               | `ROLE_DROPPED`           | warning             | An attribute with a role the format has no place for is written as a plain attribute; the role is lost.                                                                          |
-| `W_DTYPE_UNSUPPORTED`          | `DTYPE_UNSUPPORTED`      | warning             | An attribute type CX2 stores as another (a 32-bit float as double, an unsigned integer as long, a dictionary as string); it reads back with that type.                           |
-| `E_ID_CHARSET`                 | `ID_CHARSET`             | error (save throws) | Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with `E_INVALID_ID`. Pass `sanitizeIds: "mangle"` to rewrite them.                                |
-| `W_ID_MANGLED`                 | `ID_MANGLED`             | warning             | Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.                                                                                           |
-| `W_EDGE_IDS_GENERATED`         | `EDGE_IDS_GENERATED`     | warning             | Edges without a usable id get generated integer ids.                                                                                                                             |
+- `W_CX2_UNDIRECTED_AS_DIRECTED` (warning): Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back as directed.
+- `W_CX2_JSON_AS_STRING` (warning): A nested (json) column is written as a string attribute holding its JSON text.
+- `W_CX2_NONFINITE_AS_NULL` (warning): NaN and the infinities cannot be written; they are written as null and read back unset.
+- `W_MUTUAL_EXPANDED` (warning): A mutual pair is written as two directed edges without its mark.
+- `W_WEIGHT_KEY_CLASH` (warning): An attribute without the weight role is named like the key weights are written under; it reads back as the edge weight, or is not written when the graph has weights of its own.
+- `W_HIERARCHY_DROPPED` (warning): A parent / parents column: CX2 has no containment.
+- `W_TEMPORAL_DROPPED` (warning): A start / end / timestamp column: CX2 has no time.
+- `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
+- `W_DTYPE_UNSUPPORTED` (warning): An attribute type CX2 stores as another (a 32-bit float as double, an unsigned integer as long, a dictionary as string); it reads back with that type.
+- `E_ID_CHARSET` (error, the save throws): Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with `E_INVALID_ID`. Pass `sanitizeIds: "mangle"` to rewrite them.
+- `W_ID_MANGLED` (warning): Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept.
+- `W_EDGE_IDS_GENERATED` (warning): Edges without a usable id get generated integer ids.
+
+When the graph has something this format cannot hold, it can also return the [shared loss codes](../codes.md#shared-loss-codes): [`E_ID_TEXT_COLLISION`](../codes.md#E_ID_TEXT_COLLISION), [`E_MIXED_DIRECTION`](../codes.md#E_MIXED_DIRECTION), [`E_XML_ILLEGAL_CHAR`](../codes.md#E_XML_ILLEGAL_CHAR), [`W_COLUMN_DROPPED`](../codes.md#W_COLUMN_DROPPED), [`W_COLUMN_NAME_CHANGED`](../codes.md#W_COLUMN_NAME_CHANGED), [`W_COMPONENTS_FLATTENED`](../codes.md#W_COMPONENTS_FLATTENED), [`W_DEFAULT_DROPPED`](../codes.md#W_DEFAULT_DROPPED), [`W_DYNAMIC_VALUES_DROPPED`](../codes.md#W_DYNAMIC_VALUES_DROPPED), [`W_EDGE_IDS_DROPPED`](../codes.md#W_EDGE_IDS_DROPPED), [`W_EMPTY_COLUMN_DROPPED`](../codes.md#W_EMPTY_COLUMN_DROPPED), [`W_EXTENSION_TABLE_DROPPED`](../codes.md#W_EXTENSION_TABLE_DROPPED), [`W_GRAPH_ATTRIBUTES_DROPPED`](../codes.md#W_GRAPH_ATTRIBUTES_DROPPED), [`W_ID_RENUMBERED`](../codes.md#W_ID_RENUMBERED), [`W_ID_TEXT_TYPE`](../codes.md#W_ID_TEXT_TYPE), [`W_INTEGRAL_F64_AS_I32`](../codes.md#W_INTEGRAL_F64_AS_I32), [`W_JSON_UNSUPPORTED`](../codes.md#W_JSON_UNSUPPORTED), [`W_LIST_UNSUPPORTED`](../codes.md#W_LIST_UNSUPPORTED), [`W_MIXED_DIRECTION`](../codes.md#W_MIXED_DIRECTION), [`W_MULTI_EDGES`](../codes.md#W_MULTI_EDGES), [`W_MUTUAL_AS_UNDIRECTED`](../codes.md#W_MUTUAL_AS_UNDIRECTED), [`W_NONFINITE_AS_NULL`](../codes.md#W_NONFINITE_AS_NULL), [`W_OPEN_INTERVAL`](../codes.md#W_OPEN_INTERVAL), [`W_OPTIONS_DROPPED`](../codes.md#W_OPTIONS_DROPPED), [`W_OPTIONS_GAINED`](../codes.md#W_OPTIONS_GAINED), [`W_PARENTS_DROPPED`](../codes.md#W_PARENTS_DROPPED), [`W_POSITIONS_DROPPED`](../codes.md#W_POSITIONS_DROPPED), [`W_ROLE_ASSUMED`](../codes.md#W_ROLE_ASSUMED), [`W_SELF_LOOPS`](../codes.md#W_SELF_LOOPS), [`W_SPELLS_DROPPED`](../codes.md#W_SPELLS_DROPPED), [`W_STORAGE_CLASS_CHANGED`](../codes.md#W_STORAGE_CLASS_CHANGED), [`W_TEMPORAL_TEXT_DROPPED`](../codes.md#W_TEMPORAL_TEXT_DROPPED), [`W_TEXT_INFERRED`](../codes.md#W_TEXT_INFERRED), [`W_VIZ_DROPPED`](../codes.md#W_VIZ_DROPPED), [`W_WEIGHTS_DROPPED`](../codes.md#W_WEIGHTS_DROPPED).
 
 <!-- generated:end -->

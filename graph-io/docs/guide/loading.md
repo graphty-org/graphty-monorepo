@@ -16,8 +16,13 @@ Each returns a promise of `{ snapshot, format, report, sniff, freeze }`:
 - `report`: the [import report](./report.md), which lists everything that was skipped or changed.
 - `sniff`: how the format was detected (its `confidence` and whether the content, the file name or
   the MIME type matched), or `null` when you named the format.
-- `freeze`: what the last step of the import changed (`mergedEdges`, `droppedSelfLoops`). Both are
-  also reported as warnings, so you rarely need it.
+- `freeze`: what the last step of the import changed. Its fields are `mergedEdges` and
+  `droppedSelfLoops` (both also reported as warnings), `droppedEdges`, `compacted`, `widened`
+  (attribute columns whose type grew while reading), `timings` (filled only with the `freeze`
+  option's `profile: true`), and `nodeRemap` and `edgeRemap`, which map old positions to new ones
+  when edges were merged or dropped. `edgeRemap` has one entry per edge read, so logging the whole
+  result of a large import prints thousands of numbers: log `snapshot` and `report` instead. Most
+  programs never read `freeze`.
 
 ## What you can pass in
 
@@ -172,8 +177,10 @@ first id: "1"
 
 The format names are `json`, `graphml`, `gexf`, `csv`, `gml`, `dot`, `pajek`, `neo4j`, `xgmml`,
 `cx2`, `cx`, `obo` and `cys`. A name graph-io does not know throws a `GraphFormatError` with code
-`E_UNSUPPORTED`. `listFormats()` returns every name, including formats you
-[registered yourself](./extending/new-format.md).
+`E_UNSUPPORTED`. `listFormats()` returns one entry per format, including formats you
+[registered yourself](./extending/new-format.md); the name is the entry's `format` field
+(`listFormats().map((f) => f.format)`), next to `extensions`, `mimeTypes`, `canImport` and
+`canExport`.
 
 ## Options
 
@@ -284,7 +291,8 @@ document with a `graphs` array, a CX collection, an XGMML session file, and a Cy
 - `importGraph()` reads the first graph and adds the warning `W_MULTIPLE_GRAPHS`, which says how
   many it skipped.
 - `graphIndex` (0-based) or `graphName` chooses another graph, in every one of these formats. One
-  that names no graph fails with `E_GRAPH_NOT_FOUND`.
+  that names no graph fails with `E_GRAPH_NOT_FOUND`. The report still holds `W_MULTIPLE_GRAPHS`,
+  because the other graphs were not read; when you chose the graph on purpose, you can ignore it.
 - `importAllGraphs(input, options)` reads every graph and returns one result per graph.
 - `listGraphs(input, options)` lists the graphs without reading them: each entry has an `index`, a
   `name`, and node and edge counts when the file states them. JSON, CX, XGMML and Cytoscape
@@ -340,8 +348,8 @@ two directed edges, one each way. `report.counts.expandedMixed` counts such edge
 
 ## Cancelling and progress
 
-Pass an `AbortSignal` as `signal` to stop a load. The import stops within a few dozen elements and
-the promise rejects with the signal's reason: a `DOMException` named `"AbortError"`, or
+Pass an `AbortSignal` as `signal` to stop a load. The import stops within 64 elements (nodes,
+edges or lines) and the promise rejects with the signal's reason: a `DOMException` named `"AbortError"`, or
 `"TimeoutError"` for `AbortSignal.timeout()`. Catch it separately from `GraphFormatError`.
 
 `onProgress(bytesDone, bytesTotal)` is called as the input is read. For a string or a
@@ -394,16 +402,24 @@ stopped: AbortError
 
 ## Keeping your bundle small
 
-The `@graphty/graph-io` entry point registers every format, because format detection needs them
-all, so a bundle that imports `loadFromUrl()`, `loadFromFile()` or `downloadGraph()` from it holds
-the code of every format.
+The top-level load and save functions (`loadFromUrl()`, `loadFromFile()`, `importGraph()`,
+`exportGraphToBytes()`, `checkExport()`, `downloadGraph()`, `listFormats()` and the others) use a
+registry that holds every format, because format detection needs them all. A bundle that imports
+any of them holds the code of every format: about 950 KB minified, 300 KB gzipped, including
+`@graphty/graph-format`. Vite warns about chunks over 500 KB, so expect that warning.
+
+graph-io is marked as free of side effects, so a bundler (Vite, webpack, Rollup, esbuild) keeps
+only what you import. Importing `FormatRegistry`, the format entry points or helpers such as
+`LineReader` from `@graphty/graph-io` does not bring in the formats; only the top-level functions
+above do.
 
 Every format also has its own entry point, `@graphty/graph-io/<format>`, which exports its importer
 (`graphmlImporter`), its exporter, its option types and its code tables. To ship only the formats
 you need, register them in a `FormatRegistry` of your own and call its methods, which are the same
 functions: `importGraph()`, `loadFromUrl()`, `loadFromFile()`, `exportGraphToBytes()`,
 `exportGraphToBlob()`, `checkExport()` and the rest. Your bundle then holds those formats and
-`@graphty/graph-format`, and nothing else.
+`@graphty/graph-format`, and nothing else. With only CSV it is about 380 KB minified (115 KB
+gzipped), of which `@graphty/graph-format` is about 175 KB (50 KB gzipped).
 
 <!-- generated:begin example:loading/small-bundle -->
 

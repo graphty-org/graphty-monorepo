@@ -1274,10 +1274,9 @@ export async function runLauncher({
     // The eleven tools of design section 6, answered at once for `tools/list`. A call is checked
     // against its schema here, then forwarded with this session's identity and the tool protocol.
     const home = env.HOME ?? homedir();
-    const tools = forwardingTools(
-        forward,
-        () => identifySession({ ppid, env, home, stateDir: ctx.stateDir }),
-        (meta) => (meta.session ? transcriptTyped(cwd, home, meta.session) : null),
+    const identity = () => ({ ...identifySession({ ppid, env, home, stateDir: ctx.stateDir }), cwd });
+    const tools = forwardingTools(forward, identity, (meta) =>
+        meta.session ? transcriptTyped(cwd, home, meta.session) : null,
     );
     const local = createMcpServer({ serverInfo, tools: () => tools });
 
@@ -1338,7 +1337,8 @@ export async function runLauncher({
                 method: "POST",
                 headers,
                 body: JSON.stringify({
-                    session,
+                    // The id its tool calls carry, so both land on one session record.
+                    session: identity().session ?? session,
                     cwd,
                     branch: currentBranch(cwd),
                     typedAt: sessionTypedAt(cwd, env.HOME ?? homedir()),

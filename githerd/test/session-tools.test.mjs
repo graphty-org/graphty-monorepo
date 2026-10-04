@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { move, newJob } from "../lib/board.mjs";
@@ -110,6 +114,26 @@ describe("sessionToolSet", () => {
         expect((await call(ctx, "githerd_status", {})).text).toContain("MASTER");
         const json = JSON.parse((await call(ctx, "githerd_status", { section: "release", format: "json" })).text);
         expect(json).toHaveProperty("master");
+    });
+
+    it("records where an owner session works: from its MCP server, else from Claude Code's registry", async () => {
+        const home = mkdtempSync(join(tmpdir(), "githerd-home-"));
+        try {
+            mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+            // The registry entry of an owner session, with the fields githerd reads.
+            const entry = { pid: 4242, sessionId: "d2b6bb9a", cwd: "/home/o/Projects/repo", startedAt: 1 };
+            writeFileSync(join(home, ".claude", "sessions", "4242.json"), JSON.stringify(entry));
+            const { ctx } = setup({ jobs: {}, master: { lanes: {} } }, { home });
+            await call(ctx, "githerd_status", {}, { session: "s1", cwd: "/home/o/Projects/repo/.worktrees/x" });
+            expect(ctx.state.sessions.s1.cwd).toBe("/home/o/Projects/repo/.worktrees/x");
+            // An MCP server that sends no cwd: its pid's registry entry, when it names the session.
+            await call(ctx, "githerd_status", {}, { session: "d2b6bb9a", pid: 4242 });
+            expect(ctx.state.sessions.d2b6bb9a.cwd).toBe("/home/o/Projects/repo");
+            await call(ctx, "githerd_status", {}, { session: "other", pid: 4242 });
+            expect(ctx.state.sessions.other.cwd).toBeNull();
+        } finally {
+            rmSync(home, { recursive: true, force: true });
+        }
     });
 
     it("gives a worker its job and news once, and refuses another worker's nonce", async () => {

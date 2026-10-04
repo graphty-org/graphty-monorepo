@@ -53,6 +53,7 @@ export const INTERNAL_ERROR = -32603;
  * @property {"hook" | "registry" | null} [sessionSource] where the session id came from
  * @property {string | null} [job] a worker's job (`GITHERD_JOB`)
  * @property {string | null} [nonce] a worker's start nonce (`GITHERD_NONCE`)
+ * @property {string} [cwd] the session's working directory
  * @property {{at: string, text: string} | null} [typed] on `githerd_record` only: the newest prompt
  *   the owner typed into the session, from its transcript, so the daemon records his words
  */

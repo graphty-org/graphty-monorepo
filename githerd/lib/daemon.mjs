@@ -2421,6 +2421,7 @@ export async function startDaemon({
                     await ledger(entry);
                 },
                 uid: process.getuid?.() ?? 0,
+                home: env.HOME ?? homedir(),
                 io: doneReader(),
                 ring: ringJob,
             });

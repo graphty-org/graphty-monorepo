@@ -10,7 +10,9 @@
  * `githerd_ask_owner` and `githerd_record` are the owner layer (owner.mjs).
  */
 
+import { readFileSync } from "node:fs";
 import { availableParallelism, loadavg } from "node:os";
+import { join } from "node:path";
 
 import * as board from "./board.mjs";
 import { githerdDone } from "./done.mjs";
@@ -59,6 +61,7 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
  * @property {(entry: {kind: string} & Record<string, unknown>) => Promise<void>} commit persists the
  *   state, then appends the ledger entry
  * @property {number} uid the user id, for a background task's output path
+ * @property {string} [home] the home directory holding Claude Code's session registry
  * @property {import("./done.mjs").DoneIo} io what `githerd_done` reads to check a claim
  * @property {(job: any) => Promise<void>} ring rings a job's worker, for a job an answer sent back
  *   to work
@@ -72,6 +75,27 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
  */
 function sessionOf(caller, client) {
     return client.session ?? caller?.session ?? null;
+}
+
+/**
+ * Where a session works: what its MCP server sends on every call, else, once, the `cwd` of Claude
+ * Code's registry entry for the session's process (`<home>/.claude/sessions/<pid>.json`), which an
+ * MCP server too old to send it still names by pid. The entry counts only when it names the session.
+ * @param {any} client the client's metadata
+ * @param {string} session the session
+ * @param {string | null | undefined} known the cwd already recorded for it
+ * @param {string | undefined} home the home directory
+ * @returns {string | undefined} the cwd, or undefined to leave the record as it is
+ */
+function sessionCwd(client, session, known, home) {
+    if (typeof client?.cwd === "string") return client.cwd;
+    if (known || !home || !Number.isInteger(client?.pid)) return undefined;
+    try {
+        const entry = JSON.parse(readFileSync(join(home, ".claude", "sessions", `${client.pid}.json`), "utf8"));
+        return entry.sessionId === session && typeof entry.cwd === "string" ? entry.cwd : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -262,7 +286,10 @@ export function sessionToolSet(ctx) {
             const session = sessionOf(caller, client ?? {});
             // The protocol of an accepted call: the daemon serves the previous one while a live
             // session still speaks it (design 9.8).
-            if (session) board.heartbeat(state, { session }, now).protocol = client?.protocol;
+            if (session) {
+                const cwd = sessionCwd(client, session, state.sessions?.[session]?.cwd, ctx.home);
+                board.heartbeat(state, { session, cwd }, now).protocol = client?.protocol;
+            }
             return handlers[tool.name](args, caller, client ?? {});
         },
     }));

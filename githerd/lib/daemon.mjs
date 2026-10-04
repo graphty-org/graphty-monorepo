@@ -70,7 +70,7 @@ import * as board from "./board.mjs";
 import { groupModes } from "./board-text.mjs";
 import { effectiveMode, MODELS, resolveConfig } from "./config.mjs";
 import { createGitHub, GitHubError } from "./github.mjs";
-import { answerHook, writeNews } from "./hook.mjs";
+import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { findSuspects, masterVerdict, releaseState, updateLane } from "./master.mjs";
 import { servherd as servherdData } from "./launcher.mjs";
@@ -129,6 +129,8 @@ const GIT_TIMEOUT_MS = 60_000;
 /** GitHub unreachable this long raises a `blocked` escalation. */
 const GITHUB_DOWN_MS = 30 * 60_000;
 /** Largest request body accepted. */
+/** How many handled hook event ids are remembered, to skip a spooled copy of one. */
+const HOOK_IDS = 500;
 const MAX_BODY = 1024 * 1024;
 /** Where the issue poll starts on a fresh state: the whole history, read 10 pages per poll. */
 const ISSUES_START = "1970-01-01T00:00:00Z";
@@ -1914,6 +1916,8 @@ export async function startDaemon({
     /** Polls, then schedules the next poll. */
     async function tick() {
         timer = null;
+        // Events a hook spooled while this daemon was up but slow land now, not at the next start.
+        await drainHooks();
         try {
             await poll();
         } catch (err) {
@@ -2170,12 +2174,34 @@ export async function startDaemon({
     }
 
     /**
-     * Answers one hook event, live or spooled, and records what it changed.
+     * Answers one hook event, live or spooled, and records what it changed. An event is applied
+     * once: its id is remembered, and the spooled copy of an event the daemon already answered live
+     * is skipped. A spooled event is applied at the time it happened, and a spooled Stop or
+     * StopFailure older than the API record it would change is dropped.
      * @param {import("./hook.mjs").HookRequest} req the event
+     * @param {boolean} [spooled] it comes from the spool
      * @returns {Promise<import("./hook.mjs").HookAnswer>} the answer for the hook
      */
-    async function handleHook(req) {
-        const result = answerHook(state, req, hookFacts(), now());
+    async function handleHook(req, spooled = false) {
+        const seen = (state.hookIds ??= []);
+        const skip = async (/** @type {string} */ kind) => {
+            await ledger({ kind, event: req.event, job: req.job ?? null, id: req.id ?? null, ts: req.ts ?? null });
+            return {};
+        };
+        if (req.id && seen.includes(req.id)) return skip("hook-duplicate");
+        const remember = () => {
+            if (!req.id) return;
+            seen.push(req.id);
+            if (seen.length > HOOK_IDS) seen.splice(0, seen.length - HOOK_IDS);
+        };
+        if (spooled && staleSpooled(state, req)) {
+            remember();
+            await save();
+            return skip("hook-stale");
+        }
+        const at = spooled && req.ts && !Number.isNaN(Date.parse(req.ts)) ? new Date(req.ts) : now();
+        const result = answerHook(state, req, hookFacts(), at);
+        remember();
         await save();
         for (const line of result.ledger) await ledger(line);
         return result.answer;
@@ -2387,7 +2413,7 @@ export async function startDaemon({
         try {
             const drained = await drainSpool(stateDir, async (e) => {
                 await appendLedger(stateDir, { kind: "spooled", spooled: e }, { now });
-                if (typeof e.event === "string") await handleHook(e);
+                if (typeof e.event === "string") await handleHook(e, true);
             });
             for (const name of drained.bad) say("error", `spool: ${name} did not parse and was removed`);
         } catch (err) {
@@ -2446,6 +2472,7 @@ export async function startDaemon({
         state,
         poll,
         watch,
+        drainHooks,
         shutdown,
         rpc: (message, context) => mcp.handle(message, context ?? { session: "local" }),
         flushNotifications: () => notifier.flush(),
@@ -2465,6 +2492,7 @@ export async function startDaemon({
  * @property {() => Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} [poll] one
  *   poll now
  * @property {() => Promise<void>} [watch] one watchdog pass now
+ * @property {() => Promise<void>} [drainHooks] answers the spooled hook events now, as every poll does
  * @property {() => Promise<void>} [shutdown] the SIGTERM path
  * @property {() => string | null} [fatal] the fatal reason, null while not in fatal mode
  * @property {boolean} [containerRestarted] true when PID 1 started since the previous daemon's

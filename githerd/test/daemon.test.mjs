@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { newJob } from "../lib/board.mjs";
+import { move, newJob } from "../lib/board.mjs";
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { hashToken } from "../lib/run-tools.mjs";
@@ -1795,6 +1795,71 @@ describe("liveness", () => {
             expect.objectContaining({ spooled: { ts: clock.toISOString(), kind: "stop", session: "s1" } }),
         ]);
         expect(readdirSync(join(stateDir, "spool"))).toEqual([]);
+    });
+
+    it("applies a hook event once, even when the hook gave up and spooled it while the daemon answered", async () => {
+        const stateDir = join(dir, ".githerd");
+        const daemon = await start();
+        const job = newJob({ kind: "pr", target: "pr:7", id: "j1" }, clock);
+        move(job, "starting", clock);
+        move(job, "working", clock);
+        daemon.state.jobs = { j1: job };
+        const event = {
+            id: "h1",
+            event: "StopFailure",
+            job: "j1",
+            nonce: "n",
+            input: { session_id: "w1", error: "overloaded" },
+        };
+        await fetch(`${daemon.url}/hook`, { method: "POST", body: JSON.stringify(event) });
+        expect(job.apiErrors.count).toBe(1);
+        await spoolEvent(stateDir, event, { now: () => clock });
+        await daemon.drainHooks();
+        expect(job.apiErrors.count).toBe(1);
+        expect(readdirSync(join(stateDir, "spool"))).toEqual([]);
+        await daemon.shutdown();
+        const kinds = (await readLedger(stateDir)).map((e) => e.kind);
+        expect(kinds.filter((k) => k === "api-failure")).toHaveLength(1);
+        expect(kinds).toContain("hook-duplicate");
+    });
+
+    it("applies a spooled event at its own time, and drops a stop older than the API stop it would lift", async () => {
+        const stateDir = join(dir, ".githerd");
+        const daemon = await start();
+        const job = newJob({ kind: "pr", target: "pr:7", id: "j1" }, clock);
+        move(job, "starting", clock);
+        move(job, "working", clock);
+        daemon.state.jobs = { j1: job };
+        const earlier = new Date(clock.getTime() - 5 * 60_000);
+        const steer = {
+            id: "h2",
+            event: "UserPromptSubmit",
+            job: "j1",
+            nonce: "n",
+            input: { session_id: "w1", prompt: "stop that" },
+        };
+        await spoolEvent(stateDir, steer, { now: () => earlier });
+        daemon.state.apiStop = { kind: "credential", error: "authentication_failed", at: clock.toISOString() };
+        await spoolEvent(
+            stateDir,
+            { id: "h3", event: "Stop", job: null, nonce: null, input: { session_id: "o1" } },
+            { now: () => earlier },
+        );
+        await daemon.drainHooks();
+        expect(job.steeredAt).toBe(earlier.toISOString());
+        expect(daemon.state.apiStop).toMatchObject({ kind: "credential" });
+        const later = new Date(clock.getTime() + 60_000);
+        await spoolEvent(
+            stateDir,
+            { id: "h4", event: "Stop", job: null, nonce: null, input: { session_id: "o1" } },
+            { now: () => later },
+        );
+        await daemon.drainHooks();
+        expect(daemon.state.apiStop).toBeNull();
+        await daemon.shutdown();
+        expect((await readLedger(stateDir)).filter((e) => e.kind === "hook-stale")).toEqual([
+            expect.objectContaining({ event: "Stop", id: "h3", ts: earlier.toISOString() }),
+        ]);
     });
 
     it("answers a spooled hook event, so its effect on the state lands late rather than never", async () => {

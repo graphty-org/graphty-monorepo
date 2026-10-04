@@ -16,6 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,6 +69,9 @@ const ASK_REASON =
 
 /**
  * @typedef {object} HookRequest what the hook sends to the daemon's `POST /hook`
+ * @property {string} [id] made once per event, before the first attempt, and spooled with it: a
+ *   daemon that was only slow handles the live request, and the spooled copy is then skipped
+ * @property {string} [ts] when the event happened; set on a spooled event
  * @property {string} event the hook event
  * @property {string | null} job the worker's job (`GITHERD_JOB`), null in an owner session
  * @property {string | null} nonce the worker's start nonce (`GITHERD_NONCE`)
@@ -275,7 +279,7 @@ export async function runHook(event, input, { cwd, env, fetch: fetcher = fetch, 
         rmSync(join(stateDir, "jobs", job, "agents"), { recursive: true, force: true });
     }
     /** @type {HookRequest} */
-    const request = { event, job, nonce: env.GITHERD_NONCE || null, input: hookInput };
+    const request = { id: randomUUID(), event, job, nonce: env.GITHERD_NONCE || null, input: hookInput };
     let answer;
     try {
         answer = await askDaemon(stateDir, request, fetcher);
@@ -482,6 +486,23 @@ function stopFailure(state, job, req, now) {
         }
     }
     return { answer: {}, ledger: [entry] };
+}
+
+/**
+ * Whether a spooled Stop or StopFailure happened before the API record it would change: a Stop
+ * older than the current usage or credential stop must not lift it, and a failure older than the
+ * job's retry count must not add to it.
+ * @param {any} state the daemon state
+ * @param {HookRequest} req the spooled request
+ * @returns {boolean} true when it is too old to apply
+ */
+export function staleSpooled(state, req) {
+    if (req.event !== "Stop" && req.event !== "StopFailure") return false;
+    const ts = Date.parse(req.ts ?? "");
+    if (Number.isNaN(ts)) return false;
+    const job = req.job ? state.jobs?.[req.job] : null;
+    const records = [state.apiStop?.at, job?.apiErrors?.at].map((at) => Date.parse(at ?? ""));
+    return records.some((at) => ts < at);
 }
 
 /**

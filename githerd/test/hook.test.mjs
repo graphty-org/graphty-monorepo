@@ -28,6 +28,7 @@ import {
     newsOutput,
     restartIfDown,
     runHook,
+    staleSpooled,
     statusLine,
     taskOutputPath,
     UNCHECKED_STOPS,
@@ -410,6 +411,26 @@ describe("answerHook: Notification and other events", () => {
     });
 });
 
+describe("staleSpooled", () => {
+    it("is true only for a Stop or StopFailure older than the API stop or the job's error count", () => {
+        const at = (/** @type {number} */ m) => new Date(T0.getTime() + m * 60_000).toISOString();
+        const state = { apiStop: null, jobs: { j: { apiErrors: { count: 1, at: at(10) } } } };
+        const req = (/** @type {string} */ event, /** @type {number} */ m, job = "j") => ({
+            event,
+            job,
+            nonce: null,
+            input: {},
+            ts: at(m),
+        });
+        expect(staleSpooled(state, req("StopFailure", 5))).toBe(true);
+        expect(staleSpooled(state, req("StopFailure", 15))).toBe(false);
+        expect(staleSpooled(state, req("UserPromptSubmit", 5))).toBe(false);
+        expect(staleSpooled(state, req("Stop", 5, ""))).toBe(false);
+        expect(staleSpooled({ ...state, apiStop: { at: at(20) } }, req("Stop", 15, ""))).toBe(true);
+        expect(staleSpooled(state, { ...req("Stop", 5), ts: undefined })).toBe(false);
+    });
+});
+
 describe("newsOutput", () => {
     it("gives unacknowledged news once, in the format the session relayed", () => {
         const jobDir = join(dir, "jobs", "pr-7");
@@ -473,7 +494,13 @@ describe("runHook", () => {
             {
                 url: "/hook",
                 session: REC.startStartup.session_id,
-                body: { event: "SessionStart", job: null, nonce: null, input: { ...REC.startStartup, cwd: repo } },
+                body: {
+                    id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+                    event: "SessionStart",
+                    job: null,
+                    nonce: null,
+                    input: { ...REC.startStartup, cwd: repo },
+                },
             },
         ]);
         expect(restarts).toEqual([]);
@@ -508,6 +535,8 @@ describe("runHook", () => {
             JSON.parse(readFileSync(join(stateDir, "spool", n), "utf8")),
         );
         expect(spooled).toHaveLength(2);
+        expect(spooled[0].id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(spooled[1].id).not.toBe(spooled[0].id);
         expect(spooled[0]).toMatchObject({
             event: "Stop",
             job: "pr-7",

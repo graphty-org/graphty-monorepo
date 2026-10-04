@@ -771,7 +771,12 @@ command finds no file and exits 0 without output.
 
 Hooks answer from the daemon's cache only and never make a network call. The daemon gets 2 s; on
 no answer the hook spools the event to `spool/`, checks `alive` (restart only if it is stale and
-the lock's pid is dead, under the restart lock), prints one line, and exits 0. A hook never
+the lock's pid is dead, under the restart lock), prints one line, and exits 0. Each event carries an
+id made before the first attempt, and the daemon remembers the ids it handled, so a daemon that
+was only slow applies the live request and skips the spooled copy. The spool is drained at start
+and before every poll; a spooled event is applied at the time it happened, and a spooled Stop or
+StopFailure older than the API stop or the job's error count it would change is dropped, with a
+ledger line. A hook never
 blocks an owner session because githerd is broken; a Stop gate that fails open is counted and
 shown ("Stop gate unreachable: N stops allowed unchecked").
 

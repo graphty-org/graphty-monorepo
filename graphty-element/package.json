@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.14.1",
+    "version": "3.14.2",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -149,6 +149,7 @@
         "benchmark": "tsx benchmarks/run.ts",
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
         "lint:fix": "eslint --fix",
+        "api:report": "node ../tools/api-report.mjs .",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",

@@ -820,6 +820,44 @@ interface CollectedElement {
     readonly depth: number;
 }
 
+/** The id keys of the aspects whose ids are checked for precision. */
+const ID_KEYS: ReadonlyMap<string, readonly string[]> = new Map([
+    ["nodes", ["@id"]],
+    ["edges", ["@id", "s", "t"]],
+]);
+
+/**
+ * File an attribute element by its attribute name n; one without a usable name is reported and skipped.
+ * @param table - the aspect's attribute table
+ * @param name - the aspect
+ * @param held - the element
+ * @param report - the report
+ */
+function fileAttribute(table: Map<string, Held[]>, name: string, held: Held, report: ImportReportBuilder): void {
+    const { value, line } = held;
+    const n = isRecord(value) ? value.n : undefined;
+    if (n === undefined || n === null) {
+        report.error("missing-value", MISSING_ID_CODE, `a ${name} element has no attribute name n; skipped`, {
+            line,
+            element: name,
+        });
+        return;
+    }
+    if (typeof n !== "string" || n === "") {
+        report.error(
+            "validation-error",
+            BAD_VALUE_CODE,
+            `a ${name} element has the attribute name n ${shown(n)}, not a non-empty string; skipped`,
+            { line, element: name },
+        );
+        return;
+    }
+    if (!table.has(n)) {
+        table.set(n, []);
+    }
+    table.get(n)?.push(held);
+}
+
 /**
  * File one parsed aspect element: kept verbatim, checked (numberVerification), filed by attribute
  * name (an attribute element without a usable name n is reported and skipped) or by aspect.
@@ -845,36 +883,11 @@ function collectElement(state: CollectState, element: CollectedElement): void {
         checkNumberVerification(value, ++state.verifications, report, line);
         return;
     }
-    let inexact = 0;
-    if (name === "nodes") {
-        inexact = inexactBits(text, ["@id"], depth);
-    } else if (name === "edges") {
-        inexact = inexactBits(text, ["@id", "s", "t"], depth);
-    }
-    const held: Held = { value, line, inexact };
+    const ids = ID_KEYS.get(name);
+    const held: Held = { value, line, inexact: ids === undefined ? 0 : inexactBits(text, ids, depth) };
     const table = attributeTable(doc, name);
     if (table !== null) {
-        const n = isRecord(value) ? value.n : undefined;
-        if (n === undefined || n === null) {
-            report.error("missing-value", MISSING_ID_CODE, `a ${name} element has no attribute name n; skipped`, {
-                line,
-                element: name,
-            });
-            return;
-        }
-        if (typeof n !== "string" || n === "") {
-            report.error(
-                "validation-error",
-                BAD_VALUE_CODE,
-                `a ${name} element has the attribute name n ${shown(n)}, not a non-empty string; skipped`,
-                { line, element: name },
-            );
-            return;
-        }
-        if (!table.has(n)) {
-            table.set(n, []);
-        }
-        table.get(n)?.push(held);
+        fileAttribute(table, name, held, report);
         return;
     }
     if (!doc.aspects.has(name)) {
@@ -1154,7 +1167,51 @@ function structuralId(
  * @returns one plan per graph (at least one)
  */
 function graphPlans(doc: CxDocument, report: ImportReportBuilder): GraphPlan[] {
-    const subs = new Map<NodeId, { nodes: Set<NodeId> | null; edges: Set<NodeId> | null }>();
+    const subs = readSubnetworks(doc, report);
+    const { relationNames, order, views } = readRelations(doc, subs, report);
+    if (order.length <= 1) {
+        const sub = order.length === 1 ? order[0] : null;
+        const members = sub === null ? undefined : subs.get(sub);
+        let graphViews = sub === null ? [] : (views.get(sub) ?? []);
+        if (graphViews.length === 0) {
+            graphViews = [...new Set([...views.values()].flat())];
+        }
+        if (graphViews.length === 0) {
+            graphViews = layoutViews(doc);
+        }
+        const relationName = sub === null ? null : (relationNames.get(sub) ?? null);
+        return [
+            {
+                index: 0,
+                name: relationName ?? networkName(doc, sub),
+                subnetwork: sub,
+                nodes: members?.nodes ?? null,
+                edges: members?.edges ?? null,
+                views: graphViews,
+            },
+        ];
+    }
+    return order.map((sub, index) => ({
+        index,
+        name: relationNames.get(sub) ?? networkName(doc, sub),
+        subnetwork: sub,
+        nodes: subs.get(sub)?.nodes ?? null,
+        edges: subs.get(sub)?.edges ?? null,
+        views: views.get(sub) ?? [],
+    }));
+}
+
+/** A subnetwork's members: null when the element does not list them. */
+type Subnetwork = { nodes: Set<NodeId> | null; edges: Set<NodeId> | null };
+
+/**
+ * The subnetworks a document declares (cySubNetworks), by id; a repeated id is reported and skipped.
+ * @param doc - the document
+ * @param report - the report
+ * @returns the subnetworks
+ */
+function readSubnetworks(doc: CxDocument, report: ImportReportBuilder): Map<NodeId, Subnetwork> {
+    const subs = new Map<NodeId, Subnetwork>();
     for (const held of aspect(doc, "cySubNetworks")) {
         const sub = structuralId(held, "cySubNetworks", "@id", report);
         if (sub === null) {
@@ -1178,6 +1235,22 @@ function graphPlans(doc: CxDocument, report: ImportReportBuilder): GraphPlan[] {
         };
         subs.set(id, { nodes: memberSet(value.nodes, onBad), edges: memberSet(value.edges, onBad) });
     }
+    return subs;
+}
+
+/**
+ * The network relations of a document: each subnetwork's name, the order Cytoscape opens them in
+ * (the relations' order, then the other subnetworks), and each one's views.
+ * @param doc - the document
+ * @param subs - the subnetworks
+ * @param report - the report
+ * @returns the names, the order and the views
+ */
+function readRelations(
+    doc: CxDocument,
+    subs: ReadonlyMap<NodeId, Subnetwork>,
+    report: ImportReportBuilder,
+): { relationNames: Map<NodeId, string>; order: NodeId[]; views: Map<NodeId, NodeId[]> } {
     const relationNames = new Map<NodeId, string>();
     const order: NodeId[] = [];
     const views = new Map<NodeId, NodeId[]>();
@@ -1194,8 +1267,8 @@ function graphPlans(doc: CxDocument, report: ImportReportBuilder): GraphPlan[] {
             continue;
         }
         const { value, id: child } = relation;
+        const parent = value.r === "view" ? refId(value.p) : null;
         if (value.r === "view") {
-            const parent = refId(value.p);
             if (parent !== null) {
                 addView(parent, child);
             }
@@ -1215,56 +1288,31 @@ function graphPlans(doc: CxDocument, report: ImportReportBuilder): GraphPlan[] {
             addView(sub, view.id);
         }
     }
-    for (const id of subs.keys()) {
-        if (!order.includes(id)) {
-            order.push(id);
+    order.push(...[...subs.keys()].filter((id) => !order.includes(id)));
+    return { relationNames, order, views };
+}
+
+/**
+ * A subnetwork's name from the network attributes: the one scoped to it, else the unscoped one.
+ * @param doc - the document
+ * @param sub - the subnetwork, or null
+ * @returns the name, or null
+ */
+function networkName(doc: CxDocument, sub: NodeId | null): string | null {
+    let found: string | null = null;
+    for (const { value } of doc.attributes.network.get("name") ?? []) {
+        if (!isRecord(value) || typeof value.v !== "string") {
+            continue;
+        }
+        const scope = value.s === undefined ? null : refId(value.s);
+        if (scope === sub) {
+            return value.v;
+        }
+        if (scope === null) {
+            found ??= value.v;
         }
     }
-    const networkName = (sub: NodeId | null): string | null => {
-        let found: string | null = null;
-        for (const { value } of doc.attributes.network.get("name") ?? []) {
-            if (!isRecord(value) || typeof value.v !== "string") {
-                continue;
-            }
-            const scope = value.s === undefined ? null : refId(value.s);
-            if (scope === sub) {
-                return value.v;
-            }
-            if (scope === null) {
-                found ??= value.v;
-            }
-        }
-        return found;
-    };
-    if (order.length <= 1) {
-        const sub = order.length === 1 ? order[0] : null;
-        const members = sub === null ? undefined : subs.get(sub);
-        let graphViews = sub === null ? [] : (views.get(sub) ?? []);
-        if (graphViews.length === 0) {
-            graphViews = [...new Set([...views.values()].flat())];
-        }
-        if (graphViews.length === 0) {
-            graphViews = layoutViews(doc);
-        }
-        return [
-            {
-                index: 0,
-                name: (sub === null ? null : (relationNames.get(sub) ?? null)) ?? networkName(sub),
-                subnetwork: sub,
-                nodes: members?.nodes ?? null,
-                edges: members?.edges ?? null,
-                views: graphViews,
-            },
-        ];
-    }
-    return order.map((sub, index) => ({
-        index,
-        name: relationNames.get(sub) ?? networkName(sub),
-        subnetwork: sub,
-        nodes: subs.get(sub)?.nodes ?? null,
-        edges: subs.get(sub)?.edges ?? null,
-        views: views.get(sub) ?? [],
-    }));
+    return found;
 }
 
 /**
@@ -2632,24 +2680,45 @@ class CxReader {
             }
             const v = plainJson(value.v);
             for (const raw of Array.isArray(value.po) ? (value.po as unknown[]) : [value.po]) {
-                const po = refId(raw);
-                const previous = po === null ? undefined : chosen.get(po);
-                if (po === null || (previous !== undefined && previous.scope > scope)) {
-                    continue;
-                }
-                if (previous?.scope === scope && JSON.stringify(previous.value) !== JSON.stringify(v)) {
-                    this.report.warnOnce(
-                        "validation-error",
-                        DUPLICATE_ATTRIBUTE_CODE,
-                        `edge ${shown(raw)} has the attribute "${weightFrom}" twice; the later value wins`,
-                        { line, element: weightFrom },
-                        `${DUPLICATE_ATTRIBUTE_CODE}:edge:${weightFrom}`,
-                    );
-                }
-                chosen.set(po, { scope, value: v });
+                this.chooseWeight(chosen, raw, { scope, value: v }, line, weightFrom);
             }
         }
         return new Map([...chosen].map(([id, { value }]) => [id, value]));
+    }
+
+    /**
+     * Keep one weight attribute element's value for one edge, unless a more specific scope already
+     * gave it one; a second value in the same scope wins, with a warning.
+     * @param chosen - the value chosen so far per edge
+     * @param raw - the edge reference as written
+     * @param weight - the value and the scope it applies in
+     * @param weight.scope - the scope: higher is more specific
+     * @param weight.value - the value
+     * @param line - the element's line
+     * @param weightFrom - the attribute name
+     */
+    private chooseWeight(
+        chosen: Map<NodeId, { scope: number; value: unknown }>,
+        raw: unknown,
+        weight: { scope: number; value: unknown },
+        line: number,
+        weightFrom: string,
+    ): void {
+        const po = refId(raw);
+        const previous = po === null ? undefined : chosen.get(po);
+        if (po === null || (previous !== undefined && previous.scope > weight.scope)) {
+            return;
+        }
+        if (previous?.scope === weight.scope && JSON.stringify(previous.value) !== JSON.stringify(weight.value)) {
+            this.report.warnOnce(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `edge ${shown(raw)} has the attribute "${weightFrom}" twice; the later value wins`,
+                { line, element: weightFrom },
+                `${DUPLICATE_ATTRIBUTE_CODE}:edge:${weightFrom}`,
+            );
+        }
+        chosen.set(po, weight);
     }
 
     /**

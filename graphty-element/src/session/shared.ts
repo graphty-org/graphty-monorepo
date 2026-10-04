@@ -83,11 +83,13 @@ export interface CodedFact<Code extends string = string> {
  */
 export interface ProgressChange {
     /**
-     * What is making progress: `"load"` for a data import and `"run"` for an algorithm run.
+     * What is making progress: `"load"` for a data import, `"prepare"` for `data.prepare()`
+     * reading a source into a load draft, and `"run"` for an algorithm run. A prepare is sent like
+     * a load: a start, the rows read so far, and an end with its `outcome`.
      *
      * OPEN UNION: later releases add tasks. Show a generic bar for one you do not know.
      */
-    readonly task: "load" | "run";
+    readonly task: "load" | "prepare" | "run";
     /** The run, when `task` is `"run"`. */
     readonly run?: RunId;
     /**
@@ -97,7 +99,8 @@ export interface ProgressChange {
      */
     readonly phase: "start" | "progress" | "end";
     /**
-     * How many units are done. For a load, the records read so far (nodes and edges); for a run,
+     * How many units are done. For a load, the records read so far (nodes and edges); for a
+     * prepare, the rows read so far (a CSV file's are counted once the file is read); for a run,
      * whatever unit the algorithm counts in.
      */
     readonly completed: number;
@@ -106,18 +109,18 @@ export interface ProgressChange {
     /** How far along, from 0 to 1, or null when the total is not known. Never an invented number. */
     readonly fraction: number | null;
     /**
-     * What is being read, on every change of a load: the name the source was given or its file's
+     * What is being read, on every change of a load or a prepare: the name the source was given or its file's
      * name or URL's last part, and the URL when it was read from one. Absent for a run.
      */
     readonly source?: { readonly name?: string; readonly url?: string };
     /**
-     * How a load stopped, on its `phase: "end"` change only.
+     * How a load or a prepare stopped, on its `phase: "end"` change only.
      *
      * OPEN UNION: later releases may add outcomes.
      */
     readonly outcome?: "succeeded" | "failed" | "cancelled";
     /**
-     * Why a load failed, on its `phase: "end"` change when `outcome` is `"failed"` and the failure
+     * Why a load or a prepare failed, on its `phase: "end"` change when `outcome` is `"failed"` and the failure
      * carried a code: the code and the details the rejection carries (for `E_TOO_LARGE`, its
      * `limit`, `count` and `of`).
      */

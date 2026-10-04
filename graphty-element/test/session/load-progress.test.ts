@@ -1,6 +1,7 @@
 /**
  * @file A load's `progress:changed`: it says when the load starts (before anything is read), what
- * it reads, and how it ended -- with the refusal's code and details when it failed (#902).
+ * it reads, and how it ended -- with the refusal's code and details when it failed (#902). And a
+ * prepare's, which reads the same way under `task: "prepare"` (#910).
  */
 
 import { assert, describe, it } from "vitest";
@@ -74,6 +75,41 @@ describe("a load's progress", () => {
             1,
             "one end",
         );
+        session.dispose();
+    });
+});
+
+describe("a prepare's progress", () => {
+    it("starts, counts the rows read, and ends when the draft is ready", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+
+        const draft = await session.data.prepare({
+            config: { file: new File(["id,name\na,A\nb,B\nc,C\n"], "people.csv") },
+        });
+
+        assert.isTrue(seen.every((change) => change.task === "prepare" && change.source?.name === "people.csv"));
+        assert.deepInclude(seen[0], { phase: "start", completed: 0 });
+        assert.deepInclude(
+            seen.find((change) => change.phase === "progress"),
+            { completed: 3 },
+        );
+        assert.deepInclude(seen.at(-1), { phase: "end", outcome: "succeeded", completed: 3 });
+        assert.strictEqual(draft.tables[0]?.rowCount, 3);
+        session.dispose();
+    });
+
+    it("counts a graph file's records chunk by chunk, and ends a refused read as failed", async () => {
+        const session = createGraphSession();
+        const seen = watch(session);
+
+        await session.data.prepare({ type: "json", config: { data: DATA } });
+        const read = seen.splice(0);
+        await session.data.prepare({ type: "json", config: { data: "{" } }).catch(() => undefined);
+
+        assert.deepInclude(read.at(-1), { phase: "end", outcome: "succeeded", completed: 3 });
+        assert.deepInclude(seen.at(-1), { task: "prepare", phase: "end", outcome: "failed" });
+        assert.strictEqual(seen.at(-1)?.error?.code, "E_PARSE_FAILED");
         session.dispose();
     });
 });

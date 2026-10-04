@@ -36,14 +36,14 @@ import {
 import { Draft, isPair, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { Ingest } from "./project/ingest";
+import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { type ResolvedResult, resolveResult, resultCell, resultSortValue } from "./results/pageColumns";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
-import type { ColumnRef } from "./shared";
+import type { ColumnRef, ProgressChange } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type {
     DataSourceDescriptor,
@@ -91,6 +91,8 @@ interface DataWrites {
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Publish a progress change as the session's `progress:changed`. */
+    progress?(change: ProgressChange): void;
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -487,8 +489,7 @@ export class SessionData implements SessionDataApi {
     async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const resolved = resolveImportSource(source);
-        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, options.signal);
+        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         const draft = new Draft(read, {
             config: () => this.readConfig(),
             graph: () => {
@@ -1426,6 +1427,49 @@ function fileOf(
     return typeof file.name === "string" && typeof file.size === "number" && typeof file.slice === "function"
         ? (value as ReturnType<typeof fileOf>)
         : null;
+}
+
+/**
+ * Settle a source and read it once, publishing the read as `task: "prepare"` progress: a start
+ * before anything is read, the rows read so far, and an end saying how it stopped.
+ * @param source - What `prepare` takes.
+ * @param signal - Abandons the read.
+ * @param publish - Where the progress goes.
+ * @returns What was read.
+ * @throws What reading throws, after the end is published.
+ */
+async function readWithProgress(
+    source: DataSourceInput,
+    signal: AbortSignal | undefined,
+    publish: (change: ProgressChange) => void,
+): Promise<Awaited<ReturnType<typeof readSource>>> {
+    const named = progressSource(source.config, source.name);
+    let completed = 0;
+    const change = (phase: ProgressChange["phase"], end?: Pick<ProgressChange, "outcome" | "error">): void => {
+        publish({
+            task: "prepare",
+            phase,
+            completed,
+            total: null,
+            fraction: null,
+            ...(named === undefined ? {} : { source: named }),
+            ...end,
+        });
+    };
+
+    change("start");
+    try {
+        const resolved = resolveImportSource(source);
+        const read = await readSource(resolved instanceof Promise ? await resolved : resolved, signal, (rows) => {
+            completed = rows;
+            change("progress");
+        });
+        change("end", { outcome: "succeeded" });
+        return read;
+    } catch (error) {
+        change("end", failedEnd(error, signal));
+        throw error;
+    }
 }
 
 /**

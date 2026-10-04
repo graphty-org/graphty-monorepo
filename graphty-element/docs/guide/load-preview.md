@@ -225,5 +225,23 @@ Only one draft is held at a time. A new `prepare`, and any `import`, disposes th
 and a successful `load` disposes its own. Disposing lets go of the rows only: `draft.type`,
 `draft.tables` and `draft.mapping` stay readable, and only the methods refuse with `E_DISPOSED`.
 
-Progress for the load itself arrives on the `progress:changed` session event, with
-`task: "load"`; see [Columns, Runs & Progress](./vocabulary).
+## Showing progress
+
+Reading a large file takes a while, and so does loading it. Both report on the
+`progress:changed` session event (`graphty-progress-change` on the element): `prepare` with
+`task: "prepare"`, and the load with `task: "load"`. Each sends `phase: "start"` before anything
+is read, then the rows or records read so far in `completed`, then `phase: "end"` with an
+`outcome` of `"succeeded"`, `"failed"` or `"cancelled"`. `source.name` names the file.
+
+```ts
+session.on("progress:changed", (change) => {
+    if (change.task !== "prepare") return;
+    status.textContent =
+        change.phase === "end" ? "" : `Reading ${change.source?.name ?? "data"}: ${change.completed} rows`;
+});
+const draft = await session.data.prepare({ config: { file } });
+```
+
+A file's size is not known as rows, so `total` and `fraction` are `null`: show a count, not a
+bar. A CSV file is parsed in one pass, so its row count arrives once the file is read; a graph
+file's arrives a chunk at a time. See [Columns, Runs & Progress](./vocabulary) for the fields.

@@ -216,7 +216,7 @@ function loadProgressChange(
  * @param name - The name the import was given.
  * @returns The source, or undefined when nothing names it.
  */
-function progressSource(opts: object, name: string | undefined): ProgressChange["source"] {
+export function progressSource(opts: object, name: string | undefined): ProgressChange["source"] {
     const { url, file, filename } = opts as { url?: unknown; file?: { name?: unknown }; filename?: unknown };
     const link = typeof url === "string" && !url.startsWith("data:") ? url : undefined;
     const named = [name, filename, file?.name, link?.split(/[?#]/)[0]?.split("/").pop()].find(
@@ -238,7 +238,7 @@ function progressSource(opts: object, name: string | undefined): ProgressChange[
  * @param signal - Its cancel signal.
  * @returns The outcome, and the coded error when it carried one.
  */
-function failedEnd(error: unknown, signal: AbortSignal | undefined): Pick<ProgressChange, "outcome" | "error"> {
+export function failedEnd(error: unknown, signal: AbortSignal | undefined): Pick<ProgressChange, "outcome" | "error"> {
     if (signal?.aborted === true) {
         return { outcome: "cancelled" };
     }

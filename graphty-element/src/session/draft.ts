@@ -185,10 +185,15 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * Read a source once, holding its rows.
  * @param source - The source, its format settled.
  * @param signal - Abandons the read.
+ * @param progress - Told the rows read so far, after each table or chunk.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
-export async function readSource(source: ImportSource, signal?: AbortSignal): Promise<ReadSource> {
+export async function readSource(
+    source: ImportSource,
+    signal?: AbortSignal,
+    progress: (rows: number) => void = () => undefined,
+): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
     const reader = DataSource.get(type, config);
@@ -207,6 +212,7 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
         const tables = Object.entries(rowTables).map(([id, read]) =>
             heldTable(id, pairNames[id] ?? named, false, read.rows, read.lines, read.columns),
         );
+        progress(tables.reduce((sum, held) => sum + held.rows.length, 0));
         return { source, tables, declaredDirection: null, ...errorsOf(reader) };
     }
 
@@ -221,6 +227,8 @@ export async function readSource(source: ImportSource, signal?: AbortSignal): Pr
         for (const edge of chunk.edges) {
             edges.push(edge);
         }
+
+        progress(nodes.length + edges.length);
     }
 
     // Refused now, as the load would refuse it, rather than held as two empty tables.

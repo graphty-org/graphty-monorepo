@@ -298,6 +298,12 @@ const REFUSED = [
     ["githerd mode paused", /githerd mode is the owner's/],
     ["node githerd/bin/githerd.mjs answer ask-pr-7 yes", /githerd answer is the owner's/],
     ["pnpm exec githerd policy end policy-1", /githerd policy is the owner's/],
+    // workers never start or change githerd (design 9.4)
+    ["node githerd/bin/githerd.mjs restart", /githerd restart: workers never start or change githerd/],
+    ["githerd install", /githerd install: workers never start or change githerd/],
+    ["githerd ensure", /githerd ensure: workers never/],
+    ["githerd dev", /githerd dev: workers never/],
+    ["node ../githerd/bin/githerd.mjs selftest", /githerd selftest: workers never/],
     ["curl -X POST http://127.0.0.1:9123/owner -d x", /talk to githerd only through its tools/],
     ["curl localhost:9123/owner", /talk to githerd only through its tools/],
     ["wget -qO- http://localhost/owner", /talk to githerd only through its tools/],
@@ -306,6 +312,7 @@ const REFUSED = [
 /** Bash commands allowed: the alternatives the refusals name, and ordinary work. */
 const ALLOWED = [
     "githerd status",
+    "githerd doctor",
     "node githerd/bin/githerd.mjs why pr-7",
     'git commit -S -m "fix: x"',
     "git commit -S -m \"$(cat <<'EOF'\nfix(githerd): x\n\nBody text.\nEOF\n)\"",

@@ -245,10 +245,17 @@ function checkReviewTool(name, args) {
 
 /** The githerd CLI's commands that are the owner's to run. */
 const OWNER_COMMANDS = new Set(["answer", "order", "policy", "ack", "veto", "mode"]);
+/**
+ * The githerd CLI's commands that start, restart, reinstall or self-test the shared daemon
+ * (design 9.4): never a worker's, which would repoint `current/`, rewrite `daemon-env.json` from
+ * its own environment, or kill the self-test's tmux server.
+ */
+const SERVICE_COMMANDS = new Set(["install", "ensure", "restart", "dev", "selftest"]);
 
 /**
  * The githerd CLI's owner commands (`answer`, `order`, `policy`, `ack`, `veto`, `mode`) are the
- * owner's, however the CLI is reached: `githerd` on the PATH or `node .../githerd.mjs`.
+ * owner's, and its service commands (`install`, `ensure`, `restart`, `dev`, `selftest`) are never
+ * a worker's, however the CLI is reached: `githerd` on the PATH or `node .../githerd.mjs`.
  * @param {string} name the program
  * @param {string[]} args its arguments
  */
@@ -262,6 +269,9 @@ function checkOwnerCommand(name, args) {
     const verb = rest.find((a) => !a.startsWith("-"));
     if (verb !== undefined && OWNER_COMMANDS.has(verb)) {
         refuse(`githerd ${verb} is the owner's: ask him through githerd_ask_owner`);
+    }
+    if (verb !== undefined && SERVICE_COMMANDS.has(verb)) {
+        refuse(`githerd ${verb}: workers never start or change githerd`);
     }
 }
 

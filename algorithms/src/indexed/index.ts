@@ -13,6 +13,7 @@ export { bellmanFord, type BellmanFordResult } from "./bellman-ford.js";
 export {
     betweennessCentrality,
     type BetweennessOptions,
+    type BetweennessResult,
     edgeBetweennessCentrality,
     type EdgeBetweennessOptions,
     type EdgeScoresResult,

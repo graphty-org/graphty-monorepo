@@ -56,7 +56,7 @@ interface GridModifiers {
  * @param max - The highest allowed value
  * @returns The number, brought into range
  */
-function clamp(value: number, min: number, max: number): number {
+export function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
 }
 

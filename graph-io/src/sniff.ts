@@ -34,9 +34,11 @@ export type GraphFormatName =
     | "csv"
     | "json"
     | "neo4j"
+    | "xgmml"
     | "cx2"
     | "cx"
-    | "obo";
+    | "obo"
+    | "cys";
 
 /**
  * The built-in format names in the default registry's order, which is also the tie-break order of
@@ -52,9 +54,11 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "dot",
     "pajek",
     "neo4j",
+    "xgmml",
     "cx2",
     "cx",
     "obo",
+    "cys",
 ]);
 
 /** How many bytes of the input the sniffers look at; the registry reads no more than this before deciding. */

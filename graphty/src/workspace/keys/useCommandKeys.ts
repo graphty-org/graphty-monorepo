@@ -49,9 +49,9 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 return;
             }
         };
-        window.addEventListener("keydown", onKeyDown);
+        globalThis.addEventListener("keydown", onKeyDown);
         return () => {
-            window.removeEventListener("keydown", onKeyDown);
+            globalThis.removeEventListener("keydown", onKeyDown);
         };
     }, [workspace]);
 }

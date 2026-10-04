@@ -7,6 +7,8 @@
  * - `data.import`: a load through a registered data source, replacing the graph or adding to it.
  * - `data.expand`: the neighbourhood a double-click fetched, added as one step. The fetched
  *   records are in the command, so redo never fetches again.
+ * - `data.declare`: what a column measures, kept in the `attributes` slice under
+ *   `<kind>:<name>` so it is saved and undone like any other project change.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -23,7 +25,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -130,8 +132,29 @@ interface DataExpandCommand {
     readonly target?: string;
 }
 
+/** `data.declare`: what a column measures, overriding what the element inferred. */
+interface DataDeclareCommand {
+    readonly op: "data.declare";
+    readonly column: { readonly kind: "node" | "edge"; readonly name: string };
+    readonly declaration: MeasurementDeclaration;
+}
+
 /** Every data op. */
-export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand;
+export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand;
+
+/** The measurements every declaration may name. */
+const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
+
+/**
+ * The `attributes` slice key one column's declaration is kept under.
+ * @param column - The column.
+ * @param column.kind - Nodes or edges.
+ * @param column.name - Its literal name.
+ * @returns The key.
+ */
+export function declarationKey(column: { readonly kind: string; readonly name: string }): string {
+    return `${column.kind}:${column.name}`;
+}
 
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
@@ -469,5 +492,39 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     },
 };
 
+const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
+    op: "data.declare",
+    undo: { kind: "undoable", label: (command) => `Declare ${command.column.name}` },
+    // A declaration repaints nothing: a layer keeps the binding it was created with.
+    moves: false,
+    keys: (command) => [`attributes/${declarationKey(command.column)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { declaration } = command;
+        const { order } = declaration as { order?: unknown };
+        const valid =
+            DECLARABLE.has(declaration.measurement) &&
+            (declaration.measurement === "ordinal"
+                ? Array.isArray(order) &&
+                  order.length > 0 &&
+                  order.every((value) => typeof value === "string" || typeof value === "number")
+                : order === undefined);
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A declaration names one of ${[...DECLARABLE].join(", ")}, and an ordinal one lists its values in order.`,
+                source: "data",
+                details: { column: command.column, declaration, available: [...DECLARABLE] },
+            });
+        }
+
+        const stored: MeasurementDeclaration =
+            declaration.measurement === "ordinal"
+                ? { measurement: "ordinal", order: Object.freeze([...declaration.order]) }
+                : { measurement: declaration.measurement };
+        ctx.draft.attributes.set(declarationKey(command.column), Object.freeze(stored));
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand] as const;
+export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand, dataDeclare] as const;

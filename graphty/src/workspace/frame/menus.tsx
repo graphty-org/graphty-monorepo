@@ -18,7 +18,7 @@ import { useCommand, useWorkspace } from "../state/WorkspaceContext";
  * @param props.id - The command id
  * @returns The row
  */
-function CommandItem({ id }: { id: string }): React.JSX.Element | null {
+function CommandItem({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
     const door = useCommand(id);
     if (door === null) {
         return null;
@@ -52,7 +52,7 @@ function CommandItem({ id }: { id: string }): React.JSX.Element | null {
  * @param props.sections - The sections, top to bottom
  * @returns The rows
  */
-export function Sections({ sections }: { sections: readonly (readonly string[])[] }): React.JSX.Element {
+export function Sections({ sections }: Readonly<{ sections: readonly (readonly string[])[] }>): React.JSX.Element {
     const { registry } = useWorkspace();
     const drawn = sections
         .map((ids) => ids.filter((id) => registry.built(id) !== undefined))
@@ -111,7 +111,10 @@ export function MainMenu(): React.JSX.Element {
  * @param props.onDoubleClick - Starts a rename
  * @returns The project name and its menu
  */
-export function ProjectMenu({ name, onDoubleClick }: { name: string; onDoubleClick: () => void }): React.JSX.Element {
+export function ProjectMenu({
+    name,
+    onDoubleClick,
+}: Readonly<{ name: string; onDoubleClick: () => void }>): React.JSX.Element {
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>

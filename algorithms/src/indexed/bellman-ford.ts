@@ -1,4 +1,11 @@
-import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    INVALID_INDEX,
+    type NodeRef,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
 import { type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 
@@ -19,12 +26,13 @@ export interface BellmanFordResult extends SsspResult {
  * nothing; after `nodeCount - 1` rounds one more round decides `hasNegativeCycle`. The predecessor
  * is the relaxing ARC, as in `dijkstra`, so a parallel edge on a path is identified exactly.
  * @param g - The adjacency to search
- * @param source - The node index to start from
+ * @param sourceNode - The node to start from: its index, or `{ id }`
  * @param options - Cutoff (a relaxation beyond it is skipped) and per-arc weight override
  * @returns The distances, the predecessor arcs, the path accessors and the negative-cycle flag
  * @public
  */
-export function bellmanFord(g: AdjacencyView, source: number, options: SsspOptions = {}): BellmanFordResult {
+export function bellmanFord(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): BellmanFordResult {
+    const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
     const cutoff = options.cutoff ?? Infinity;
@@ -66,7 +74,7 @@ export function bellmanFord(g: AdjacencyView, source: number, options: SsspOptio
         dist,
         predArc,
         hasNegativeCycle,
-        pathTo: (target: number): U32 => walkPredArcs(g, predArc, source, target),
-        pathEdges: (target: number): U32 => walkPredEdges(g, predArc, source, target),
+        pathTo: (target: NodeRef): U32 => walkPredArcs(g, predArc, source, target),
+        pathEdges: (target: NodeRef): U32 => walkPredEdges(g, predArc, source, target),
     };
 }

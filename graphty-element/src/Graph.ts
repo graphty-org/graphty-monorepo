@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    Observable,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -106,6 +107,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -301,6 +303,8 @@ export class Graph implements GraphContext {
      * framing is skipped while it is set, so it never moves a camera somebody has just placed.
      */
     #cameraPlaced = false;
+    /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -374,6 +378,8 @@ export class Graph implements GraphContext {
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
+    /** Told the node label counts once the view is still and they changed. */
+    readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
@@ -1664,6 +1670,16 @@ export class Graph implements GraphContext {
         } else if (Object.keys(project).length > 0) {
             this.setProjectConfig({ layoutBehavior: project });
         }
+    }
+
+    /**
+     * How many node labels this graph is drawing, and why the rest are not, as of the last frame
+     * that decided it. All zeros before a label is drawn. Reading it never forces a frame.
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
     /**
@@ -3073,7 +3089,7 @@ export class Graph implements GraphContext {
      * ```
      */
     zoomToFit(): void {
-        this.updateManager.enableZoomToFit();
+        this.updateManager.enableZoomToFit(true);
     }
 
     // GraphContext implementation methods
@@ -3479,13 +3495,36 @@ export class Graph implements GraphContext {
 
     /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
-     * first settlement -- unless the configuration placed the camera itself with
-     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
+     * configuration placed the camera itself with `startingCameraDistance`. An explicit
+     * `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
         this.#cameraPlaced = false;
-        if (this.styles.config.graph.startingCameraDistance === undefined) {
+        if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @returns True (the default) when it does
+     */
+    getAutoFrame(): boolean {
+        return this.#autoFrame;
+    }
+
+    /**
+     * Switch the camera's own framing after a data load or a layout change on or off. Off, the
+     * camera stays where it is, and a re-frame already following a moving layout stops. An
+     * explicit `zoomToFit()` frames the graph either way. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to frame after each load or layout change, false to leave the camera alone.
+     */
+    setAutoFrame(on: boolean): void {
+        this.#autoFrame = on;
+        if (!on) {
+            this.updateManager.stopAutoZoomToFit();
         }
     }
 

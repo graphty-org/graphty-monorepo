@@ -45,7 +45,7 @@ import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
-import type { ImportReport } from "../data/report";
+import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -865,6 +865,8 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        // A pass still queued would repaint from a store disposed below.
+        this.dispatcher.lane.close();
         // The store may be the renderer's, and gone: nothing is captured on the way out.
         this.dispatcher.arrangement.bind(null);
         this.dispatcher.clear();
@@ -1555,6 +1557,22 @@ function fieldWordsOf(
 }
 
 /**
+ * Each group's place by size in one run, from 1 for the largest, read from the run's `sizes`
+ * table -- the order its summary and its page columns rank the groups in.
+ * @param runs - The session's runs.
+ * @returns The reader, keyed by the group as a category name.
+ */
+function groupRanksOf(runs: RunsApi): (runId: RunId) => ReadonlyMap<string, number> | undefined {
+    return (runId: RunId): ReadonlyMap<string, number> | undefined => {
+        const sizes = runs.get(runId)?.result?.graph.sizes;
+
+        return Array.isArray(sizes)
+            ? new Map((sizes as readonly { readonly group: unknown }[]).map((row, at) => [String(row.group), at + 1]))
+            : undefined;
+    };
+}
+
+/**
  * The run id behind any of the three ways a caller names a run.
  * @param ref - The run, its result, or its id.
  * @returns The run id.
@@ -1853,7 +1871,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as ImportReport | undefined) ?? store.store.lastImport ?? null,
+        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -1864,6 +1882,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
             importer: () => dispatcher.capturedDispatch(),
             slice,
+            measure: async (command, config) => {
+                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                try {
+                    await dispatcherOf(scratch).dispatch(command);
+                    const report = scratch.data.lastImport();
+                    if (report === null) {
+                        throw new GraphtyError({
+                            code: "E_INTERNAL",
+                            source: "data",
+                            message: "A measured load finished without a report.",
+                        });
+                    }
+
+                    return report;
+                } finally {
+                    scratch.dispose();
+                }
+            },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
             declarations: () => dispatcher.state.attributes,
         },
@@ -1873,6 +1909,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
+            // Read through calls: the runs are built below.
+            run: (id: RunId) => runs.get(id),
+            runIds: () => runs.list().map((run) => run.id),
         },
     );
     // A session that holds a store of its own kind writes it through its own ingest; the element
@@ -2410,6 +2449,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeIndex: nodeIndexOf(snapshot),
         edgeIndex: edgeIndexOf(snapshot),
         field: fieldWordsOf(data, runs),
+        groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an

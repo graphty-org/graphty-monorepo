@@ -153,8 +153,25 @@ export interface PreparedBinding {
      * policy -- largest first. Empty when nothing folded.
      */
     readonly lumped: readonly string[];
+    /**
+     * Each category as the data spells it -- the number `0`, not the name `"0"` -- so a legend
+     * hands back the value a result or a column published. Empty when there are no categories.
+     */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
+    /** How many elements carry each category, by name. Empty when there are no categories. */
+    readonly categoryCounts: ReadonlyMap<string, number>;
+    /** The values the binding was told not to paint, as category names. Empty when none are. */
+    readonly hidden: ReadonlySet<string>;
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /**
+     * The two ends of the range the binding maps values onto, in the channel's own units and
+     * clamped to what the channel draws, in the order the range was authored: `reverse` does not
+     * swap them, and only an authored range such as `[3, 1]` reads high to low. Present only for a
+     * channel that carries a number, such as a node's size or an edge's width, through a scale
+     * that maps onto a range, and absent when a `map` or an `other` value paints values of its own.
+     */
+    readonly range?: readonly [number, number];
     /** What the column held. */
     readonly counts: BindingCounts;
     /**
@@ -170,6 +187,13 @@ export interface PreparedBinding {
      * @returns The value to paint, or undefined when the element is not painted at all.
      */
     paint(value: unknown): EncodedValue | undefined;
+    /**
+     * What the encoding would paint a value if it were not hidden: what a legend shows beside a
+     * hidden row, so the reader sees which colour comes back when it is shown again.
+     * @param value - The value.
+     * @returns The value to paint, or undefined when the encoding paints nothing for it.
+     */
+    paintIgnoringHidden(value: unknown): EncodedValue | undefined;
 }
 
 /** Everything {@link prepareBinding} is given. */
@@ -388,6 +412,8 @@ interface ColumnFacts {
     readonly nonPositive: number;
     /** How often each category appeared. */
     readonly categoryCounts: ReadonlyMap<string, number>;
+    /** The first value each category was read from, as the data spells it. */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
 }
 
 /**
@@ -403,6 +429,7 @@ interface ColumnFacts {
 function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): ColumnFacts {
     const numbers: number[] = [];
     const categoryCounts = new Map<string, number>();
+    const categoryValues = new Map<string, unknown>();
     let seen = 0;
     let unreadable = 0;
     let nonPositive = 0;
@@ -431,12 +458,17 @@ function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): Co
             continue;
         }
 
-        categoryCounts.set(name, (categoryCounts.get(name) ?? 0) + 1);
+        const count = categoryCounts.get(name);
+        if (count === undefined) {
+            categoryValues.set(name, value);
+        }
+
+        categoryCounts.set(name, (count ?? 0) + 1);
     }
 
     numbers.sort((left, right) => left - right);
 
-    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts };
+    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts, categoryValues };
 }
 
 /**
@@ -910,10 +942,14 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         domain: null,
         categories: [],
         lumped: [],
+        categoryValues: new Map(),
+        categoryCounts: new Map(),
+        hidden: new Set(),
         groups: 0,
         counts: NO_COUNTS,
         departures: [],
         paint: (): EncodedValue => value,
+        paintIgnoringHidden: (): EncodedValue => value,
     };
 }
 
@@ -1032,6 +1068,8 @@ interface Painter {
     readonly palette: PaletteDescriptor | null;
     /** How many distinct values it paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /** The ends of the range it maps onto, for a channel that carries a number. */
+    readonly range?: readonly [number, number];
     /**
      * The channel value for one element: what the element carries in, the value to paint out, and
      * undefined when the element is not painted at all.
@@ -1252,10 +1290,17 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const { map } = parts;
+    // Passthrough reads neither the domain nor the range, so it maps onto no range at all. A `map`
+    // or an `other` value paints values of its own, so the range no longer bounds what is drawn.
+    const bounded = descriptor.accepts === "number" && parts.scale !== "passthrough" && overrides === null;
+    const ends = bounded ? (context.range ?? [0, 1]) : null;
+    const low = ends === null ? undefined : convert(ends[0]);
+    const high = ends === null ? undefined : convert(ends[1]);
 
     return {
         palette: null,
         groups,
+        ...(typeof low === "number" && typeof high === "number" ? { range: [low, high] as const } : {}),
         paint: (value): EncodedValue | undefined => {
             if (overrides !== null) {
                 const name = readCategory(value);
@@ -1367,6 +1412,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         descriptor.accepts === "color"
             ? colorPainter(descriptor, binding, parts)
             : valuePainter(descriptor, binding, parts);
+    const hidden = new Set((binding.hidden ?? []).map((value) => readCategory(value)).filter((name) => name !== null));
     const counts: BindingCounts = {
         seen: parts.facts.seen,
         unreadable: parts.facts.unreadable,
@@ -1384,10 +1430,21 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         domain: parts.numeric ? parts.settled.domain : null,
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
+        categoryValues: parts.facts.categoryValues,
+        categoryCounts: parts.facts.categoryCounts,
+        hidden,
         groups: painter.groups,
+        ...(painter.range === undefined ? {} : { range: painter.range }),
         counts,
         departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
-        paint: painter.paint,
+        paint:
+            hidden.size === 0
+                ? painter.paint
+                : (value): EncodedValue | undefined => {
+                      const name = readCategory(value);
+                      return name !== null && hidden.has(name) ? undefined : painter.paint(value);
+                  },
+        paintIgnoringHidden: painter.paint,
     };
 }
 

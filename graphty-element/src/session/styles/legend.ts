@@ -59,8 +59,25 @@ import type { ScaleRegistry } from "./scales";
 export interface LegendSwatch {
     /** The value in the words a reader sees. */
     readonly label: string;
-    /** The value itself, for a consumer that wants to filter or select by it. */
+    /**
+     * The value itself, for a consumer that wants to filter or select by it -- spelled as the data
+     * spells it, so a run's group `0` is the number `0` here as it is in the run's summary, its
+     * `sizes` table and its per-node values, never the string `"0"`.
+     */
     readonly value: unknown;
+    /**
+     * The group's place by size, from 1 for the largest, on a block that colours a run's groups
+     * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
+     * groups, a table column and the legend can name one group the same way. Absent on any other
+     * row.
+     */
+    readonly rank?: number;
+    /**
+     * The binding does not paint this value (its `hidden` list names it): elements carrying it
+     * are drawn as the layers beneath paint them. `color`, `size` and `paints` still say what the
+     * value is painted when it is shown again. Absent on a row that is painted.
+     */
+    readonly hidden?: true;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
@@ -84,6 +101,31 @@ export interface LegendSwatch {
      * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
      */
     readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+}
+
+/**
+ * What a higher value means on the drawing, as a fact for a legend to put in its own words.
+ *
+ * `code` names the fact and `params` carries its parts, so an application writes the sentence
+ * ("Darker means more Influence", with the field's words from {@link LegendBlock.field}) in its
+ * own language and voice.
+ */
+export interface LegendReading {
+    /** A higher value of `field` is drawn further in `direction` on `channel`. */
+    readonly code: "legend.higher";
+    /** The parts of the fact. */
+    readonly params: {
+        /** The channel the block describes. */
+        readonly channel: Channel;
+        /**
+         * Which way a higher value moves the paint: `"darker"` or `"lighter"` for a colour (by
+         * the luminance of the colours painted at the two ends of the domain), `"larger"` or
+         * `"smaller"` for a number such as a size, a width or an opacity.
+         */
+        readonly direction: "darker" | "lighter" | "larger" | "smaller";
+        /** The column path the encoding reads. */
+        readonly field: Path;
+    };
 }
 
 /**
@@ -134,6 +176,28 @@ export interface LegendBlock {
             /** The high percentile, such as "p98". */
             readonly to: string;
         };
+    };
+    /**
+     * What a higher value means on the drawing. Present only for an encoding that reads a numeric
+     * domain and paints its two ends differently in one direction: absent for categories, for a
+     * diverging palette (both ends are strong), for a fixed value and for a domain of one value.
+     * @since 3.10.0
+     */
+    readonly reading?: LegendReading;
+    /**
+     * The range the binding maps values onto, in the channel's own units ("1 to 3" for a node
+     * size; node size is unitless, never pixels). Present only for a channel that carries a
+     * number, such as `node.size` or `edge.width`, and absent when the binding's `map` or `other` paints values
+     * of its own, which the range does not bound. It is the binding's range, not the smallest and
+     * largest swatch: a reversed binding still reads low to high here, and the swatches are only
+     * samples of it.
+     * @since 3.10.0
+     */
+    readonly range?: {
+        /** The low end. */
+        readonly min: number;
+        /** The high end. */
+        readonly max: number;
     };
     /** The palette, when the channel carries a colour. */
     readonly palette?: {
@@ -212,6 +276,15 @@ export interface LegendSources {
      * @returns True only when every element `below` selects is also selected by `above`.
      */
     readonly covers?: (above: Layer, below: Layer) => boolean;
+    /**
+     * Each group's place by size in one run, from its `sizes` table, keyed by the group as a
+     * category name: the rank the run summary and the page columns carry.
+     *
+     * Absent, or undefined for a run, a swatch's rank is its place among the swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -421,17 +494,17 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
 }
 
 /**
- * Whether a path reads the groups a run partitioned its elements into.
+ * The run whose groups a path reads.
  *
  * Those swatches are labelled with the names the run's summary gives the same groups, so a reader
  * sees "Group 1" in the key and in the list of groups rather than a raw id in one of them.
  * @param path - The column path.
- * @returns True for `results.<run>.group`.
+ * @returns The run id for `results.<run>.group`, otherwise undefined.
  */
-function readsGroups(path: Path | null): boolean {
+function groupsRunOf(path: Path | null): string | undefined {
     const parts = path?.split(".") ?? [];
 
-    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group";
+    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group" ? parts[1] : undefined;
 }
 
 /**
@@ -439,32 +512,65 @@ function readsGroups(path: Path | null): boolean {
  * @param prepared - The prepared binding.
  * @param order - The values the binding maps, in the order it maps them: an ordinal column's
  *   declared order, which the rows follow before the rest.
+ * @param sources - Where a run's group ranks come from.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
-function categorySwatches(prepared: PreparedBinding, order: readonly string[]): readonly LegendSwatch[] {
-    const groups = readsGroups(prepared.path);
+function categorySwatches(
+    prepared: PreparedBinding,
+    order: readonly string[],
+    sources: LegendSources,
+): readonly LegendSwatch[] {
+    const run = groupsRunOf(prepared.path);
+    const groups = run !== undefined;
+    // The run's own ranks, so a group is ranked here as in its summary and its page column even
+    // when an `order` re-sorts the rows or the layer's selector covers part of the run.
+    const ranks = run === undefined ? undefined : sources.groupRanks?.(run);
+    const rankOf = (category: string, index: number): number | undefined =>
+        ranks === undefined ? index + 1 : ranks.get(category);
     const rank = (category: string): number => {
         const at = order.indexOf(category);
         return at === -1 ? order.length : at;
     };
     // A stable sort, so the categories no order names keep their largest-first order.
     const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
-    const swatches: LegendSwatch[] = categories.map((category, index) => ({
-        label: groups ? groupName(index + 1) : category,
-        value: category,
-        ...swatchPaint(prepared.paint(category)),
-    }));
-    const { lumped } = prepared;
-    const folded = lumped.length > 0 ? prepared.paint(lumped[0]) : undefined;
+    const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
+    const row = (category: string, index: number): LegendSwatch => {
+        const rank = groups ? rankOf(category, index) : undefined;
+        return {
+            label: rank === undefined ? category : groupName(rank),
+            value: valueOf(category),
+            ...(rank === undefined ? {} : { rank }),
+            ...swatchPaint(prepared.paintIgnoringHidden(category)),
+            ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
+        };
+    };
+    const swatches: LegendSwatch[] = categories.map(row);
+    const folded = prepared.lumped.length > 0 ? prepared.paintIgnoringHidden(prepared.lumped[0]) : undefined;
+
+    if (folded === undefined) {
+        return swatches;
+    }
+
+    // A hidden value the bucket folded is not painted, so it leaves the bucket's row for a row of
+    // its own marked hidden, and the bucket's row says only what is still painted grey.
+    const lumped = prepared.lumped.filter((category) => !prepared.hidden.has(category));
+    for (const category of prepared.lumped) {
+        if (prepared.hidden.has(category)) {
+            swatches.push({ ...row(category, categories.length), ...swatchPaint(folded) });
+        }
+    }
 
     // The bucket gets one row saying what it holds, so a reader is told what the grey means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.
-    if (folded !== undefined) {
+    if (lumped.length > 0) {
+        const hiddenCount = prepared.lumped
+            .filter((category) => prepared.hidden.has(category))
+            .reduce((sum, category) => sum + (prepared.categoryCounts.get(category) ?? 0), 0);
         swatches.push({
             label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
-            value: lumped,
+            value: lumped.map(valueOf),
             ...swatchPaint(folded),
-            count: prepared.counts.other,
+            count: prepared.counts.other - hiddenCount,
             role: "other",
         });
     }
@@ -526,9 +632,10 @@ function literalSwatches(prepared: PreparedBinding, layer: Layer): readonly Lege
  * Every swatch one encoding has to show, before the cap.
  * @param prepared - The prepared binding.
  * @param layer - The layer it belongs to.
+ * @param sources - Where a run's group ranks come from.
  * @returns The swatches, in the order a legend reads them.
  */
-function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSwatch[] {
+function allSwatches(prepared: PreparedBinding, layer: Layer, sources: LegendSources): readonly LegendSwatch[] {
     if (prepared.path === null) {
         return literalSwatches(prepared, layer);
     }
@@ -536,7 +643,7 @@ function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSw
     if (prepared.categories.length > 0) {
         // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
         // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
-        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}));
+        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}), sources);
     }
 
     if (prepared.domain === null) {
@@ -663,6 +770,92 @@ function departuresOf(
 }
 
 /**
+ * Whether a painted value carries the numbers of a colour.
+ * @param value - What the encoding painted.
+ * @returns True for a colour with its red, green and blue bytes.
+ */
+function isRgb(value: unknown): value is { r: number; g: number; b: number } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "r" in value &&
+        "g" in value &&
+        "b" in value &&
+        typeof value.r === "number" &&
+        typeof value.g === "number" &&
+        typeof value.b === "number"
+    );
+}
+
+/**
+ * The relative luminance of a colour (WCAG), which orders colours from dark to light.
+ * @param color - The colour, each channel 0 to 255.
+ * @param color.r - Red.
+ * @param color.g - Green.
+ * @param color.b - Blue.
+ * @returns The luminance, 0 (black) to 1 (white).
+ */
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+    const linear = (byte: number): number => {
+        const c = byte / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * Which way the paint moves from one value to another.
+ * @param low - What the low end of the domain is painted.
+ * @param high - What the high end is painted.
+ * @returns The direction, or undefined when the two are not comparable or are the same.
+ */
+function directionOf(
+    low: EncodedValue | undefined,
+    high: EncodedValue | undefined,
+): LegendReading["params"]["direction"] | undefined {
+    if (typeof low === "number" && typeof high === "number") {
+        if (high === low) {
+            return undefined;
+        }
+
+        return high > low ? "larger" : "smaller";
+    }
+
+    if (isRgb(low) && isRgb(high)) {
+        const from = luminance(low);
+        const to = luminance(high);
+        if (from === to) {
+            return undefined;
+        }
+
+        return to < from ? "darker" : "lighter";
+    }
+
+    return undefined;
+}
+
+/**
+ * What a higher value means on the drawing.
+ * @param prepared - The prepared binding.
+ * @param kind - The block's kind. Only a sequential block has one direction: a diverging palette
+ *   is strong at both ends, and a categorical one's colors are unrelated, so neither states one.
+ * @returns The reading, or undefined when the encoding has no one direction to state.
+ */
+function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): LegendReading | undefined {
+    const { domain, path } = prepared;
+    if (path === null || domain === null || kind !== "sequential" || !(domain[1] > domain[0])) {
+        return undefined;
+    }
+
+    const direction = directionOf(prepared.paint(domain[0]), prepared.paint(domain[1]));
+
+    return direction === undefined
+        ? undefined
+        : { code: "legend.higher", params: { channel: prepared.channel, direction, field: path } };
+}
+
+/**
  * Build one block.
  * @param layer - The layer it describes.
  * @param prepared - One encoding the layer prepared, which names the channel it paints.
@@ -680,7 +873,7 @@ function buildBlock(
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
-    const all = allSwatches(prepared, layer);
+    const all = allSwatches(prepared, layer, sources);
     // The "other" row is what the paint folded, so it is kept whatever the cap drops.
     const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
     const rows = other === undefined ? all : all.slice(0, -1);
@@ -688,17 +881,22 @@ function buildBlock(
     const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
+    const kind = kindOf(prepared, layer);
+    const reading = readingOf(prepared, kind);
+    const { range } = prepared;
 
     return {
         channel,
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
-        kind: kindOf(prepared, layer),
+        kind,
         ...(path === null ? {} : { field: { ...fieldWords(path, layer.target, sources), path } }),
         ...(scale === null
             ? {}
             : { scale: { kind: scale, label: sources.scales.describe(scale)?.plainName ?? scale } }),
         ...(domain === undefined ? {} : { domain }),
+        ...(reading === undefined ? {} : { reading }),
+        ...(range === undefined ? {} : { range: { min: Math.min(...range), max: Math.max(...range) } }),
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),

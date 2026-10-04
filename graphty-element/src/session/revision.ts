@@ -13,13 +13,16 @@ export class RevisionCache<T> {
     readonly #revision: () => unknown;
     #at: unknown = undefined;
     readonly #values = new Map<string, T>();
+    readonly #max: number;
 
     /**
      * Create an empty cache.
      * @param revision - Reads the revision now; any change of value drops every entry.
+     * @param max - The most keys kept within one revision; the oldest is dropped past it.
      */
-    constructor(revision: () => unknown) {
+    constructor(revision: () => unknown, max = Infinity) {
         this.#revision = revision;
+        this.#max = max;
     }
 
     /**
@@ -40,6 +43,10 @@ export class RevisionCache<T> {
         }
 
         const value = build();
+        if (this.#values.size >= this.#max) {
+            this.#values.delete(this.#values.keys().next().value as string);
+        }
+
         this.#values.set(key, value);
         return value;
     }

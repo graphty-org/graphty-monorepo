@@ -20,18 +20,22 @@ const ring = (from: number): { source: string; target: string; weight: number }[
 
 export const TWO_RINGS_EDGES = [...ring(0), ...ring(6), { source: "n0", target: "n6", weight: 9 }];
 
-/** Where each node sits, in scene units: the two rings side by side, the bridge between them. */
+/**
+ * Where each node sits, in scene units: the two rings side by side, the bridge between them. Ring
+ * neighbors are six units apart, about six default node widths (a default node is one unit across),
+ * so every edge reads as a line rather than a gap between touching nodes.
+ */
 export const TWO_RINGS_POSITIONS = [
-    { id: "n0", x: -2.4, y: 0 },
-    { id: "n1", x: -4.4, y: 3.464 },
-    { id: "n2", x: -8.4, y: 3.464 },
-    { id: "n3", x: -10.4, y: 0 },
-    { id: "n4", x: -8.4, y: -3.464 },
-    { id: "n5", x: -4.4, y: -3.464 },
-    { id: "n6", x: 2.4, y: 0 },
-    { id: "n7", x: 4.4, y: -3.464 },
-    { id: "n8", x: 8.4, y: -3.464 },
-    { id: "n9", x: 10.4, y: 0 },
-    { id: "n10", x: 8.4, y: 3.464 },
-    { id: "n11", x: 4.4, y: 3.464 },
+    { id: "n0", x: -3.6, y: 0 },
+    { id: "n1", x: -6.6, y: 5.196 },
+    { id: "n2", x: -12.6, y: 5.196 },
+    { id: "n3", x: -15.6, y: 0 },
+    { id: "n4", x: -12.6, y: -5.196 },
+    { id: "n5", x: -6.6, y: -5.196 },
+    { id: "n6", x: 3.6, y: 0 },
+    { id: "n7", x: 6.6, y: -5.196 },
+    { id: "n8", x: 12.6, y: -5.196 },
+    { id: "n9", x: 15.6, y: 0 },
+    { id: "n10", x: 12.6, y: 5.196 },
+    { id: "n11", x: 6.6, y: 5.196 },
 ];

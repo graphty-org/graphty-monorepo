@@ -34,6 +34,11 @@ const contentMap = [
         dest: "layout",
         exclude: [".vitepress", "decisions"],
     },
+    {
+        src: "graph-io/docs",
+        dest: "graph-io",
+        exclude: [".vitepress", "decisions"],
+    },
     // One page, index.md, which includes visual-review/README.md when the site is built.
     {
         src: "visual-review/docs",

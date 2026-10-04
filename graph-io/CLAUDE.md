@@ -32,6 +32,9 @@ graph-io/
 +-- scripts/entries.js            # the bundle entries: graph-io + one per format (shared by both scripts below)
 +-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*
 +-- scripts/bundle-types.js       # dist/graph-io.d.ts and dist/<format>.d.ts, one-line re-exports of dist/src/**
++-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
++-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
++-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/
 +-- src/
 |   +-- index.ts                  # the only root barrel; named exports only
 |   +-- types.ts                  # section 12.4 contract types and ImportError
@@ -166,7 +169,12 @@ the two correctly.
    `test/formats/<fmt>/*.test.ts` covering every corpus file (manifest counts, every input shape),
    export -> re-import equality (`expectSameSnapshot`), every LossNote path and every malformed
    file (`ImportError` with a report).
-7. Document the format in README.md (the matrix and the known losses) and STATUS.md.
+7. Run `npm run docs:reference`: it creates `docs/guide/formats/<fmt>.md` with the generated
+   blocks (capabilities, options, issue and loss codes) filled in from the registry, the subpath
+   barrel and the doc comments; then write the page's prose (what the format is, loading and
+   saving, what a saved file keeps and loses). `test/docs-reference.test.ts` fails while a page is
+   stale, an option or code has no doc comment, or a published doc comment mentions the internal
+   design documents.
 
 ## Conformance suite
 

@@ -11,7 +11,12 @@ import { join, extname } from "path";
 const API_DIRS =
     process.argv.length > 2
         ? process.argv.slice(2)
-        : ["./docs/graphty-element/api/generated", "./docs/algorithms/api/generated", "./docs/layout/api/generated"];
+        : [
+              "./docs/graphty-element/api/generated",
+              "./docs/algorithms/api/generated",
+              "./docs/layout/api/generated",
+              "./docs/graph-io/api/generated",
+          ];
 
 async function processFile(filePath) {
     const content = await readFile(filePath, "utf-8");

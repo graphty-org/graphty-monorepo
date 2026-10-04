@@ -1117,6 +1117,32 @@ export class XmlTokenizer {
     }
 
     /**
+     * Read the CDATA section at `pos` into the text.
+     * @param pos - the index of the `<`
+     * @returns the index after the section, or -1 when the buffer ends before the section does
+     */
+    private cdataEnd(pos: number): number {
+        const end = this.buffer.indexOf("]]>", pos + 9);
+        if (end < 0) {
+            return -1;
+        }
+        if (this.text.length === 0) {
+            this.textLine = this.line;
+        }
+        const cdata = this.buffer.slice(pos + 9, end);
+        const bad = illegalCharIndex(cdata);
+        if (bad >= 0) {
+            throw new XmlSyntaxError(
+                "a character XML 1.0 forbids appears in a CDATA section",
+                this.lineIn(pos, pos + 9 + bad),
+            );
+        }
+        this.text += cdata;
+        this.advanceLine(pos, end + 3);
+        return end + 3;
+    }
+
+    /**
      * Read the `<!...>` markup at `pos`: a comment, a CDATA section or the DOCTYPE.
      * @param pos - the index of the `<`
      * @returns the index after the markup, or -1 when the buffer ends before the markup does
@@ -1141,24 +1167,7 @@ export class XmlTokenizer {
             return end + 3;
         }
         if (buffer.startsWith("<![CDATA[", pos)) {
-            const end = buffer.indexOf("]]>", pos + 9);
-            if (end < 0) {
-                return -1;
-            }
-            if (this.text.length === 0) {
-                this.textLine = this.line;
-            }
-            const cdata = buffer.slice(pos + 9, end);
-            const bad = illegalCharIndex(cdata);
-            if (bad >= 0) {
-                throw new XmlSyntaxError(
-                    "a character XML 1.0 forbids appears in a CDATA section",
-                    this.lineIn(pos, pos + 9 + bad),
-                );
-            }
-            this.text += cdata;
-            this.advanceLine(pos, end + 3);
-            return end + 3;
+            return this.cdataEnd(pos);
         }
         if (!buffer.startsWith("<!DOCTYPE", pos)) {
             if (buffer.slice(pos + 2, pos + 9).toUpperCase() === "DOCTYPE") {

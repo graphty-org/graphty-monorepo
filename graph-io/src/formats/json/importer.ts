@@ -3519,23 +3519,7 @@ function resolveCytoscapeParents(
             node = linkOf.get(node)?.parent;
         }
         if (node !== undefined && onPath.has(node)) {
-            let closing: [number, ParentLink] | null = null;
-            for (const member of path.slice(path.indexOf(node))) {
-                const link = linkOf.get(member);
-                if (link !== undefined && (closing === null || link.order > closing[1].order)) {
-                    closing = [member, link];
-                }
-            }
-            if (closing !== null) {
-                const { id, element } = closing[1];
-                report.error(
-                    "validation-error",
-                    JSON_ISSUE.PARENT_CYCLE,
-                    `${element}: parent ${JSON.stringify(id)} would make the node its own ancestor; the link is dropped`,
-                    { element },
-                );
-                linkOf.delete(closing[0]);
-            }
+            dropClosingLink(report, linkOf, path.slice(path.indexOf(node)));
         }
         for (const member of path) {
             done.add(member);
@@ -3544,6 +3528,33 @@ function resolveCytoscapeParents(
     for (const [index, { parent }] of linkOf) {
         ctx.nodes.set(parentColumn, index, parent);
     }
+}
+
+/**
+ * Drop the link of a parent cycle that came last in the document (the one that closed it).
+ * @param report - the report
+ * @param linkOf - the links by child, the dropped one removed
+ * @param cycle - the nodes of the cycle
+ */
+function dropClosingLink(report: ImportReportBuilder, linkOf: Map<number, ParentLink>, cycle: readonly number[]): void {
+    let closing: [number, ParentLink] | null = null;
+    for (const member of cycle) {
+        const link = linkOf.get(member);
+        if (link !== undefined && (closing === null || link.order > closing[1].order)) {
+            closing = [member, link];
+        }
+    }
+    if (closing === null) {
+        return;
+    }
+    const { id, element } = closing[1];
+    report.error(
+        "validation-error",
+        JSON_ISSUE.PARENT_CYCLE,
+        `${element}: parent ${JSON.stringify(id)} would make the node its own ancestor; the link is dropped`,
+        { element },
+    );
+    linkOf.delete(closing[0]);
 }
 
 /**

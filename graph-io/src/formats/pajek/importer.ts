@@ -1608,27 +1608,8 @@ class PajekParser {
         const seen = new Set<string>();
         for (let i = start; i < tokens.length; ) {
             const token = tokens[i];
-            if (token.startsWith("[") && !isIntervalToken(token)) {
-                this.skip(domain);
-                throw new LineError(
-                    "validation-error",
-                    PAJEK_ISSUE.INTERVAL,
-                    `time interval ${token} is not closed by "]"`,
-                );
-            }
-            if (isIntervalToken(token)) {
-                try {
-                    const spells = parseIntervals(token);
-                    // an empty `[]` is no spell at all
-                    extras.spells = spells.length === 0 ? null : spells;
-                } catch (err) {
-                    this.skip(domain);
-                    throw new LineError(
-                        "validation-error",
-                        PAJEK_ISSUE.INTERVAL,
-                        err instanceof Error ? err.message : String(err),
-                    );
-                }
+            if (token.startsWith("[")) {
+                extras.spells = this.intervals(token, domain);
                 i++;
                 continue;
             }
@@ -1654,6 +1635,34 @@ class PajekParser {
             i += 2;
         }
         return extras;
+    }
+
+    /**
+     * The spells of a row's interval token; a malformed one skips the row.
+     * @param token - the token, starting with "["
+     * @param domain - what is skipped when the token is malformed
+     * @returns the spells, or null for an empty `[]`, which is no spell at all
+     */
+    private intervals(token: string, domain: "node" | "edge"): [number, number][] | null {
+        if (!isIntervalToken(token)) {
+            this.skip(domain);
+            throw new LineError(
+                "validation-error",
+                PAJEK_ISSUE.INTERVAL,
+                `time interval ${token} is not closed by "]"`,
+            );
+        }
+        try {
+            const spells = parseIntervals(token);
+            return spells.length === 0 ? null : spells;
+        } catch (err) {
+            this.skip(domain);
+            throw new LineError(
+                "validation-error",
+                PAJEK_ISSUE.INTERVAL,
+                err instanceof Error ? err.message : String(err),
+            );
+        }
     }
 
     /**
@@ -1828,9 +1837,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         parser.finish();
         if (rest !== null) {
             const objects =
-                rest.objects > 0
-                    ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read`
-                    : "";
+                rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : "";
             report.warning(
                 "unsupported",
                 PAJEK_ISSUE.MULTIPLE_GRAPHS,

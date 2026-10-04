@@ -169,50 +169,105 @@ export interface TokenNotes {
  * @category Plugin helpers
  */
 export function tokenize(line: string, notes?: TokenNotes): string[] | null {
-    const tokens: string[] = [];
-    let current = "";
-    let started = false;
-    let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-        const c = line.charCodeAt(i);
+    const tokens = new LineTokens(line, notes);
+    let i = 0;
+    while (i < line.length) {
+        i = tokens.step(i);
+    }
+    return tokens.finish();
+}
+
+/** The state of tokenize() along one line. */
+class LineTokens {
+    private readonly tokens: string[] = [];
+
+    private current = "";
+
+    private started = false;
+
+    private quoted = false;
+
+    /**
+     * Start a line.
+     * @param line - the line
+     * @param notes - set to what the line holds beyond its tokens, when given
+     */
+    constructor(
+        private readonly line: string,
+        private readonly notes: TokenNotes | undefined,
+    ) {}
+
+    /**
+     * Read the character at `i`.
+     * @param i - its index
+     * @returns the index of the next character to read
+     */
+    step(i: number): number {
+        const c = this.line.codePointAt(i);
         if (c === 34) {
-            // a quote that opens inside a token, or closes with more of the token after it
-            const next = line.codePointAt(i + 1);
-            const joined = quoted ? i + 1 < line.length && !isBlank(next) : started;
-            if (joined && notes !== undefined) {
-                notes.oddQuote = true;
-            }
-            quoted = !quoted;
-            started = true;
-            continue;
+            this.quote(i);
+            return i + 1;
         }
-        if (!quoted && !started && c === 91) {
-            const close = line.indexOf("]", i);
-            if (close > i && line.lastIndexOf("[", close) === i) {
-                current += line.slice(i, close + 1);
-                started = true;
-                i = close;
-                continue;
-            }
+        const close = !this.quoted && !this.started && c === 91 ? this.intervalEnd(i) : -1;
+        if (close > 0) {
+            this.current += this.line.slice(i, close + 1);
+            this.started = true;
+            return close + 1;
         }
-        if (!quoted && (c === 32 || c === 9 || c === 13 || c === 12 || c === 11)) {
-            if (started) {
-                tokens.push(current);
-                current = "";
-                started = false;
-            }
-            continue;
+        if (!this.quoted && isBlank(c)) {
+            this.endToken();
+            return i + 1;
         }
-        current += line[i];
-        started = true;
+        this.current += this.line[i];
+        this.started = true;
+        return i + 1;
     }
-    if (quoted) {
-        return null;
+
+    /**
+     * The tokens of the line.
+     * @returns them, or null when a quote is not closed
+     */
+    finish(): string[] | null {
+        if (this.quoted) {
+            return null;
+        }
+        this.endToken();
+        return this.tokens;
     }
-    if (started) {
-        tokens.push(current);
+
+    /**
+     * Open or close a quote. One that opens inside a token, or closes with more of the token after
+     * it, is noted.
+     * @param i - the quote's index
+     */
+    private quote(i: number): void {
+        const next = this.line.codePointAt(i + 1);
+        const joined = this.quoted ? i + 1 < this.line.length && !isBlank(next) : this.started;
+        if (joined && this.notes !== undefined) {
+            this.notes.oddQuote = true;
+        }
+        this.quoted = !this.quoted;
+        this.started = true;
     }
-    return tokens;
+
+    /**
+     * Where a `[` that starts a token is closed, when no other `[` comes first.
+     * @param i - the index of the `[`
+     * @returns the index of its `]`, or -1
+     */
+    private intervalEnd(i: number): number {
+        const close = this.line.indexOf("]", i);
+        return close > i && this.line.lastIndexOf("[", close) === i ? close : -1;
+    }
+
+    /** End the token being read, if any. */
+    private endToken(): void {
+        if (this.started) {
+            this.tokens.push(this.current);
+            this.current = "";
+            this.started = false;
+        }
+    }
 }
 
 /**

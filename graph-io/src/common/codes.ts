@@ -84,6 +84,12 @@ export const ENCODING_FALLBACK_CODE = "W_ENCODING_FALLBACK";
 /** The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. */
 export const UNKNOWN_ENCODING_CODE = "W_UNKNOWN_ENCODING";
 
+/** The file declares an encoding its byte order mark contradicts; the byte order mark wins. */
+export const ENCODING_CONFLICT_CODE = "W_ENCODING_CONFLICT";
+
+/** An XML attribute the format does not define (or does not keep) on that element; it is not kept. */
+export const UNKNOWN_XML_ATTRIBUTE_CODE = "W_UNKNOWN_XML_ATTRIBUTE";
+
 /** The sink refused the file's direction (locked or non-empty); the file is read as the sink's. */
 export const DIRECTION_REFUSED_CODE = "W_DIRECTION_REFUSED";
 

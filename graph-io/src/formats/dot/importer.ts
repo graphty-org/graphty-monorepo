@@ -47,6 +47,7 @@ import {
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
     INVALID_ENCODING_CODE,
@@ -120,6 +121,8 @@ export const DOT_ISSUE = Object.freeze({
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
     /** Subgraphs or braces nested deeper than the parser's limit; fatal. */
     NESTING: "E_DOT_NESTING",
     /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */

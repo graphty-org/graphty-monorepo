@@ -18,7 +18,13 @@
 import { GraphFormatError } from "@graphty/graph-format";
 
 import { type ImportInput } from "../types.js";
-import { ENCODING_FALLBACK_CODE, INVALID_ENCODING_CODE, INVALID_UTF8_CODE, UNKNOWN_ENCODING_CODE } from "./codes.js";
+import {
+    ENCODING_CONFLICT_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
+    INVALID_UTF8_CODE,
+    UNKNOWN_ENCODING_CODE,
+} from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 export { INVALID_UTF8_CODE };
@@ -45,8 +51,8 @@ export interface ReadOptions {
 /** How many leading bytes the declaration check sees (an XML prolog, a DOT `charset` near the top). */
 const HEAD_BYTES = 1024;
 
-/** How many leading bytes the BOM check needs. */
-const BOM_BYTES = 3;
+/** How many leading bytes the BOM check needs (four: a UTF-32 mark, a zip signature). */
+const BOM_BYTES = 4;
 
 /**
  * The canonical name of an encoding label, or null when the platform's TextDecoder does not know it.
@@ -59,6 +65,42 @@ export function canonicalEncoding(label: string): string | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * What the first bytes say the input is when it is not text at all: a compressed file or an
+ * archive opened as a text format, or UTF-32, which TextDecoder cannot read.
+ * @param head - the first bytes
+ * @returns a sentence for the fatal E_INVALID_ENCODING, or null for anything else
+ */
+function binaryKind(head: Uint8Array): string | null {
+    const starts = (...bytes: number[]): boolean => bytes.every((b, i) => head[i] === b);
+    if (starts(0x1f, 0x8b)) {
+        return "the input is gzip-compressed data (it starts with the gzip magic bytes 1F 8B); decompress it first";
+    }
+    if (starts(0x50, 0x4b, 0x03, 0x04) || starts(0x50, 0x4b, 0x05, 0x06)) {
+        return "the input is a zip archive (it starts with PK 03 04); extract the graph file from it first";
+    }
+    if (starts(0xff, 0xfe, 0x00, 0x00) || starts(0x00, 0x00, 0xfe, 0xff)) {
+        return "the input is UTF-32 (its byte order mark says so), which is not supported; convert it to UTF-8";
+    }
+    return null;
+}
+
+/**
+ * The UTF-16 byte order of BOM-less UTF-16 input that starts with an XML declaration (XML 1.0
+ * Appendix F: `<?` as 3C 00 3F 00 or 00 3C 00 3F).
+ * @param head - the first bytes
+ * @returns "utf-16le", "utf-16be" or null
+ */
+function bomlessUtf16(head: Uint8Array): string | null {
+    if (head[0] === 0x3c && head[1] === 0x00 && head[2] === 0x3f && head[3] === 0x00) {
+        return "utf-16le";
+    }
+    if (head[0] === 0x00 && head[1] === 0x3c && head[2] === 0x00 && head[3] === 0x3f) {
+        return "utf-16be";
+    }
+    return null;
 }
 
 /**
@@ -101,6 +143,12 @@ class ByteDecoder {
     /** Bytes decoded so far, for error positions. */
     private offset = 0;
 
+    /** Whether the file declares UTF-8 (read like an undeclared file, but the fallback warning says so). */
+    private declaredUtf8 = false;
+
+    /** Whether the decoder switched to windows-1252; later bytes that look like UTF-8 are then reported once. */
+    private fellBack = false;
+
     /**
      * Create the decoder of one import.
      * @param report - where warnings and the fatal decode error go
@@ -124,14 +172,19 @@ class ByteDecoder {
      * @param head - the first bytes (up to HEAD_BYTES; fewer when the input is shorter)
      */
     start(head: Uint8Array): void {
+        const binary = binaryKind(head);
+        if (binary !== null) {
+            this.report.fail(INVALID_ENCODING_CODE, binary, undefined, { byteOffset: 0 });
+        }
         const explicit = this.options.encoding ?? null;
         if (explicit !== null) {
             this.use(explicit, false);
             return;
         }
-        const bom = bomEncoding(head);
+        const bom = bomEncoding(head) ?? bomlessUtf16(head);
         if (bom !== null) {
             this.use(bom, false);
+            this.checkDeclaration(head, bom);
             return;
         }
         const declared = this.options.declaredEncoding?.(new TextDecoder("windows-1252").decode(head)) ?? null;
@@ -144,7 +197,9 @@ class ByteDecoder {
                     `the input declares the encoding ${JSON.stringify(declared)}, which this platform cannot decode; reading it as UTF-8`,
                     { element: declared },
                 );
-            } else if (canonical !== "utf-8" && !canonical.startsWith("utf-16")) {
+            } else if (canonical === "utf-8") {
+                this.declaredUtf8 = true;
+            } else if (!canonical.startsWith("utf-16")) {
                 // a declared UTF-16 without a BOM is not UTF-16 (its declaration read as ASCII), and
                 // a declared UTF-8 gets the same undeclared treatment: tools often write the default
                 // prolog over Latin-1 bytes
@@ -153,6 +208,29 @@ class ByteDecoder {
             }
         }
         this.use("utf-8", true);
+    }
+
+    /**
+     * Report a declared encoding that contradicts the byte order mark (the mark wins).
+     * @param head - the first bytes
+     * @param bom - the encoding the mark (or BOM-less UTF-16 detection) chose
+     */
+    private checkDeclaration(head: Uint8Array, bom: string): void {
+        const reader = this.options.declaredEncoding;
+        if (reader === undefined) {
+            return;
+        }
+        const declared = reader(new TextDecoder(bom).decode(head).replace(/^\uFEFF/, ""));
+        const canonical = declared === null ? null : canonicalEncoding(declared);
+        if (canonical === null || canonical === bom || (canonical.startsWith("utf-16") && bom.startsWith("utf-16"))) {
+            return;
+        }
+        this.report.warning(
+            "coercion",
+            ENCODING_CONFLICT_CODE,
+            `the byte order mark says ${bom} but the file declares ${JSON.stringify(declared)}; read as ${bom}`,
+            { element: declared },
+        );
     }
 
     /**
@@ -171,6 +249,9 @@ class ByteDecoder {
                 throw err;
             }
             text = this.recover(bytes, stream);
+        }
+        if (this.fellBack) {
+            this.reportUtf8After(bytes, this.offset);
         }
         if (this.asciiSoFar && this.mayFallBack) {
             if (/[\u0080-\uffff]/.test(text)) {
@@ -193,32 +274,85 @@ class ByteDecoder {
      * @returns the bytes decoded as windows-1252
      */
     private recover(bytes: Uint8Array, stream: boolean): string {
-        const where = { byteOffset: this.offset };
         const all = this.carry.byteLength === 0 ? bytes : concatBytes([this.carry, bytes]);
+        const allStart = this.offset - this.carry.byteLength;
+        if (this.encoding !== "utf-8") {
+            const end = this.offset + bytes.byteLength;
+            if (!stream && this.encoding.startsWith("utf-16") && end % 2 === 1) {
+                return this.report.fail(
+                    INVALID_ENCODING_CODE,
+                    `the input ends inside a ${this.encoding} code unit at byte ${end - 1} (an odd number of bytes: the file looks truncated)`,
+                    undefined,
+                    { byteOffset: end - 1 },
+                );
+            }
+            return this.report.fail(
+                INVALID_ENCODING_CODE,
+                `the bytes near byte ${this.offset} are not valid ${this.encoding}`,
+                undefined,
+                { byteOffset: this.offset },
+            );
+        }
+        // where the bad sequence starts: a chunk may begin with the continuation bytes of a
+        // sequence the decoder already holds, which are skipped
+        let skip = 0;
+        while (!this.asciiSoFar && skip < 3 && skip < all.byteLength && (all[skip] & 0xc0) === 0x80) {
+            skip++;
+        }
+        const bad = utf8Error(all.subarray(skip));
+        const at = bad === null ? allStart : allStart + skip + bad.index;
+        // a sequence cut short by the end of the input after at least one continuation byte is a
+        // truncated UTF-8 file, not windows-1252; a lone lead byte at the end stays ambiguous
+        // (Latin-1 "caf\xE9" without a final newline ends in one), so it may still fall back
+        const cut = bad !== null && bad.truncated && !stream && skip + bad.index < all.byteLength - 1;
         // a NUL byte never occurs in windows-1252 text: it marks binary data (or BOM-less UTF-16)
-        if (this.mayFallBack && this.asciiSoFar && !all.includes(0) && !startsWithUtf8(all)) {
+        if (this.mayFallBack && this.asciiSoFar && !cut && !all.includes(0) && !startsWithUtf8(all)) {
             this.report.warning(
                 "coercion",
                 ENCODING_FALLBACK_CODE,
-                `the input is not valid UTF-8 (near byte ${this.offset}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+                this.declaredUtf8
+                    ? `the input declares UTF-8 but is not valid UTF-8 (at byte ${at}); everything before was ASCII, so it is read as windows-1252 (pass the encoding option to choose another)`
+                    : `the input is not valid UTF-8 (at byte ${at}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
             );
             this.use("windows-1252", false);
+            this.fellBack = true;
+            this.reportUtf8After(all, allStart);
             return (this.decoder as TextDecoder).decode(all, { stream });
         }
-        if (this.encoding === "utf-8") {
-            const after = this.mayFallBack ? " after valid non-ASCII UTF-8 text; pass the encoding option" : "";
+        if (cut) {
             return this.report.fail(
                 INVALID_UTF8_CODE,
-                `invalid UTF-8 near byte ${this.offset}${after}`,
+                `the input ends inside a UTF-8 sequence that starts at byte ${at} (the file looks truncated)`,
                 undefined,
-                where,
+                { byteOffset: at },
             );
         }
-        return this.report.fail(
-            INVALID_ENCODING_CODE,
-            `the bytes near byte ${this.offset} are not valid ${this.encoding}`,
-            undefined,
-            where,
+        const after =
+            this.mayFallBack && (!this.asciiSoFar || startsWithUtf8(all))
+                ? " after valid non-ASCII UTF-8 text; pass the encoding option"
+                : "";
+        return this.report.fail(INVALID_UTF8_CODE, `invalid UTF-8 at byte ${at}${after}`, undefined, {
+            byteOffset: at,
+        });
+    }
+
+    /**
+     * After the windows-1252 fallback, report once that later bytes hold a valid multi-byte UTF-8
+     * sequence: the input mixes encodings, and those characters are read as two or three
+     * windows-1252 characters each.
+     * @param bytes - bytes being decoded as windows-1252
+     * @param start - the byte offset of the first of them
+     */
+    private reportUtf8After(bytes: Uint8Array, start: number): void {
+        const at = utf8SequenceIndex(bytes);
+        if (at < 0) {
+            return;
+        }
+        this.fellBack = false;
+        this.report.warning(
+            "coercion",
+            ENCODING_FALLBACK_CODE,
+            `bytes read as windows-1252 hold valid UTF-8 (at byte ${start + at}): the input mixes encodings, and its UTF-8 characters are read as windows-1252 (pass the encoding option to choose one)`,
         );
     }
 
@@ -232,6 +366,83 @@ class ByteDecoder {
         this.encoding = this.decoder.encoding;
         this.mayFallBack = mayFallBack;
     }
+}
+
+/**
+ * The length of the UTF-8 sequence a lead byte starts and the range its second byte must be in
+ * (RFC 3629 table 3-7: no overlong forms, no surrogates, nothing above U+10FFFF).
+ * @param lead - the byte
+ * @returns [length, low, high], or null for a byte that cannot start a multi-byte sequence
+ */
+function utf8Lead(lead: number): [number, number, number] | null {
+    if (lead >= 0xc2 && lead <= 0xdf) {
+        return [2, 0x80, 0xbf];
+    }
+    if (lead === 0xe0) {
+        return [3, 0xa0, 0xbf];
+    }
+    if (lead === 0xed) {
+        return [3, 0x80, 0x9f];
+    }
+    if (lead >= 0xe1 && lead <= 0xef) {
+        return [3, 0x80, 0xbf];
+    }
+    if (lead === 0xf0) {
+        return [4, 0x90, 0xbf];
+    }
+    if (lead === 0xf4) {
+        return [4, 0x80, 0x8f];
+    }
+    if (lead >= 0xf1 && lead <= 0xf3) {
+        return [4, 0x80, 0xbf];
+    }
+    return null;
+}
+
+/**
+ * The first invalid UTF-8 sequence of some bytes.
+ * @param bytes - the bytes
+ * @returns its index and whether it is a sequence the end of the bytes cut short; null when valid
+ */
+function utf8Error(bytes: Uint8Array): { readonly index: number; readonly truncated: boolean } | null {
+    let i = 0;
+    while (i < bytes.byteLength) {
+        if (bytes[i] < 0x80) {
+            i++;
+            continue;
+        }
+        const lead = utf8Lead(bytes[i]);
+        if (lead === null) {
+            return { index: i, truncated: false };
+        }
+        const [length, low, high] = lead;
+        for (let k = 1; k < length; k++) {
+            if (i + k >= bytes.byteLength) {
+                return { index: i, truncated: true };
+            }
+            const b = bytes[i + k];
+            if (k === 1 ? b < low || b > high : (b & 0xc0) !== 0x80) {
+                return { index: i, truncated: false };
+            }
+        }
+        i += length;
+    }
+    return null;
+}
+
+/**
+ * Where the first complete, valid multi-byte UTF-8 sequence of some bytes starts.
+ * @param bytes - the bytes
+ * @returns its index, or -1
+ */
+function utf8SequenceIndex(bytes: Uint8Array): number {
+    for (let i = 0; i < bytes.byteLength; i++) {
+        const lead = bytes[i] < 0xc2 ? null : utf8Lead(bytes[i]);
+        if (lead !== null && i + lead[0] <= bytes.byteLength && utf8Error(bytes.subarray(i, i + lead[0])) === null) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 /**

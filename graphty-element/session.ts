@@ -72,6 +72,7 @@ export type {
     DataSourceInput,
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgePageOptions,

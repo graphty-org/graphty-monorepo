@@ -147,8 +147,8 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
 - `unmatched`: `{ rows, values }`: `rows` is the number of edge rows naming a node no node row
   holds (nor the graph, for a merge), and `values` the number of distinct node ids those rows
   name -- the nodes `unmatched: "add"` would create. A load with no node rows into an empty
-  graph has none: every node comes from the edges. `draft.rows("edges", { only: "unmatched" })`
-  lists those rows.
+  graph has none: every node comes from the edges.
+  `draft.rows("edges", { only: "unmatched", choices })` lists those rows.
 - `tooLarge`: `null` when the load fits; otherwise the `details` the load would refuse with as
   `E_TOO_LARGE`: `{ limit, count, of, graph }` -- the limit, the count that passed it, whether
   that count is of `"nodes"` or `"edges"`, and the nodes and edges the graph held when the batch
@@ -157,13 +157,30 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   edges to nodes the file never declared, and the nodes they would have created. Call `report()`
   again with them; if nothing fits, `dispose()` the draft.
 
-`draft.rows(id, { offset, limit, only })` pages through a table as `{ records, offset, total }`,
-each record `{ line, values }`. For a CSV file `line` is the line the row starts on (the header is
-line 1); for other formats it is the row's position. `only: "unmatched"` and `only: "rejected"`
-(rows whose key or endpoints cannot be a node id) read with the choices the last `report()` was
-given -- the one place a draft reuses earlier choices. A rejected row here is one the mapping
-cannot turn into a node or an edge; it is not a row the format's own schema refused, which
-`data-loading-error-summary` reports after a load.
+`draft.rows(id, { offset, limit, only, choices })` pages through a table as
+`{ records, offset, total }`, each record `{ line, values }`. For a CSV file `line` is the line the
+row starts on (the header is line 1); for other formats it is the row's position. `only` picks
+which rows:
+
+| `only`        | The rows                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `"unmatched"` | Edge rows naming a node no node row holds (nor the graph, for a merge)                   |
+| `"rejected"`  | Rows whose key or endpoints cannot be a node id                                          |
+| `"loaded"`    | Rows the load makes into nodes or edges: not rejected, nor unmatched under `"leave-out"` |
+
+Pass the same `choices` you passed `report()`, so the rows listed are the rows it counted. Without
+`choices` the rows are read with the draft's own mapping, replacing the graph; a draft never
+reuses the choices an earlier call was given.
+
+```ts
+const choices = { mode: "merge", unmatched: "leave-out" } as const;
+const report = await draft.report(choices);
+const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit: Infinity });
+// unmatched.total === report.unmatched.rows
+```
+
+A rejected row here is one the mapping cannot turn into a node or an edge; it is not a row the
+format's own schema refused, which `data-loading-error-summary` reports after a load.
 
 ## Errors
 

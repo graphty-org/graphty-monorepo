@@ -23,6 +23,7 @@ import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import type {
     DraftColumn,
     DraftRow,
+    DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     LoadChoices,
@@ -345,8 +346,6 @@ export class Draft implements LoadDraft {
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
-    /** The choices the last `report()` was given, which `rows()` reads with. */
-    private lastChoices: LoadChoices = {};
 
     /**
      * Hold what was read.
@@ -390,7 +389,6 @@ export class Draft implements LoadDraft {
     async report(choices: LoadChoices = {}): Promise<LoadReport> {
         const read = this.live("report");
         const plan = this.plan(read, choices);
-        this.lastChoices = choices;
         const merging = choices.mode === "merge";
         const config = this.host.config();
         return this.host.measure(
@@ -430,8 +428,8 @@ export class Draft implements LoadDraft {
     private page(table: string, options: DraftRowOptions): RecordPage<DraftRow> {
         const read = this.live("rows");
         const held = this.table(read, table);
-        const { offset = 0, limit = 100, only } = options;
-        const picked = only === undefined ? null : this.filter(read, held, only);
+        const { offset = 0, limit = 100, only, choices = {} } = options;
+        const picked = only === undefined ? null : this.filter(read, held, only, choices);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
@@ -625,23 +623,25 @@ export class Draft implements LoadDraft {
     }
 
     /**
-     * The rows of a table that are unmatched or rejected under the last reported choices.
+     * The rows of a table that are unmatched, rejected or loaded under a set of choices.
      * @param read - The rows.
      * @param held - The table.
      * @param only - Which rows.
+     * @param choices - The choices `report` and `load` take.
      * @returns Their indexes.
      */
-    private filter(read: ReadSource, held: HeldTable, only: "unmatched" | "rejected"): number[] {
-        const { mapping, held: rows } = this.plan(read, this.lastChoices);
+    private filter(read: ReadSource, held: HeldTable, only: DraftRowFilter, choices: LoadChoices): number[] {
+        const { mapping, held: rows } = this.plan(read, choices);
         const roles = mapping.tables[held.table.id];
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
             readEndpoint(row as Record<string, unknown>, expression);
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
-            if (only === "rejected") {
+            if (only !== "unmatched") {
                 const idPath = rows.idPath ?? this.host.config().knownFields.nodeIdPath;
                 held.rows.forEach((row, index) => {
-                    if (roles.key !== null && !isStorableId(value(row, idPath))) {
+                    const rejected = roles.key !== null && !isStorableId(value(row, idPath));
+                    if (rejected === (only === "rejected")) {
                         picked.push(index);
                     }
                 });
@@ -659,14 +659,17 @@ export class Draft implements LoadDraft {
         const known = new Set<unknown>(
             rows.nodes.map((row) => value(row, rows.idPath ?? this.host.config().knownFields.nodeIdPath)),
         );
-        const graph = this.lastChoices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
+        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
             const rejected = !ends.every(isStorableId);
             const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end as NodeId));
-            if (only === "rejected" ? rejected : unmatched) {
+            // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
+            // does; a folding policy would have to fold repeats here too.
+            const loaded = !rejected && !(unmatched && choices.unmatched === "leave-out");
+            if ({ rejected, unmatched, loaded }[only]) {
                 picked.push(index);
             }
         });

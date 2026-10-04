@@ -255,7 +255,7 @@ describe("session.data.prepare", () => {
         const report = await draft.report({ mode: "merge" });
         assert.strictEqual(report.counts.nodes, 5);
         assert.deepEqual(report.unmatched, { rows: 0, values: 0 });
-        assert.strictEqual((await draft.rows("edges", { only: "unmatched" })).total, 0);
+        assert.strictEqual((await draft.rows("edges", { only: "unmatched", choices: { mode: "merge" } })).total, 0);
         session.dispose();
     });
 
@@ -267,7 +267,7 @@ describe("session.data.prepare", () => {
             const choices = { mode: "merge", unmatched } as const;
 
             const report = await draft.report(choices);
-            const unmatchedRows = await draft.rows("rows", { only: "unmatched" });
+            const unmatchedRows = await draft.rows("rows", { only: "unmatched", choices });
             await draft.load(choices);
             const loaded = session.data.lastImport();
 
@@ -280,6 +280,45 @@ describe("session.data.prepare", () => {
             );
             session.dispose();
         }
+    });
+
+    it("reads rows under the choices it is given, not the last report's (#927)", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id\nz\n" } });
+        const draft = await pair(session);
+        const flipped = { mapping: { tables: { edges: { source: "target", target: "source" } } } };
+
+        // No report() first: the rows follow the choices passed in.
+        const before = await draft.rows("edges", { only: "unmatched", choices: flipped });
+        await draft.report({ mode: "merge" });
+        const own = await draft.rows("edges", { only: "unmatched" });
+        const merged = await draft.rows("edges", { only: "unmatched", choices: { mode: "merge" } });
+
+        assert.deepEqual(
+            before.records.map((row) => row.values.target),
+            ["z"],
+        );
+        assert.strictEqual(own.total, 1, "an earlier report's merge is not reused");
+        assert.strictEqual(merged.total, 0, "the graph holds z");
+        session.dispose();
+    });
+
+    it("lists the rows a load makes into nodes and edges (#927)", async () => {
+        const session = createGraphSession();
+        const draft = await pair(session);
+        const choices = { unmatched: "leave-out" } as const;
+
+        const report = await draft.report(choices);
+        const edges = await draft.rows("edges", { only: "loaded", choices, limit: Infinity });
+        const nodes = await draft.rows("nodes", { only: "loaded", choices, limit: Infinity });
+
+        assert.strictEqual(edges.total, report.counts.edges);
+        assert.deepEqual(
+            edges.records.map((row) => row.values.target),
+            ["b", "c"],
+        );
+        assert.strictEqual(nodes.total, report.counts.nodes);
+        session.dispose();
     });
 
     it("reads a graph file as two tables whose roles the format sets", async () => {

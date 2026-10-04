@@ -917,12 +917,27 @@ export interface DraftRowOptions {
     readonly offset?: number;
     /** The most rows; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
+    /** Which rows to read; every row when absent. */
+    readonly only?: DraftRowFilter;
     /**
-     * `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
-     * `"rejected"`: rows whose key or endpoints cannot be a node id. Read with the draft's own mapping.
+     * The choices the rows are read under: the same `LoadChoices` `report` and `load` take, so
+     * the rows listed are the rows that report counted. Absent reads with the draft's own
+     * mapping, replacing the graph -- never with the choices an earlier `report` was given.
      */
-    readonly only?: "unmatched" | "rejected";
+    readonly choices?: LoadChoices;
 }
+
+/**
+ * Which rows of a draft table `LoadDraft.rows` reads, under the choices it is given.
+ *
+ * - `"unmatched"`: edge rows naming a node no node row (nor, for a merge, the graph) holds.
+ * - `"rejected"`: rows whose key or endpoints cannot be a node id.
+ * - `"loaded"`: the rows the load makes into nodes or edges: every row not rejected, less the
+ *   unmatched edge rows when `unmatched` is `"leave-out"`.
+ *
+ * OPEN UNION: later releases may add filters.
+ */
+export type DraftRowFilter = "unmatched" | "rejected" | "loaded";
 
 /**
  * The column roles of one table. Every value is a column name exactly as `DraftColumn.name`

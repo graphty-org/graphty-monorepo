@@ -20,7 +20,8 @@
  *   it; a release key must be gone from the daemon's release truth; a local key needs the gate to
  *   pass on the green commit.
  * - `triage`: every issue of the batch has a verdict, and on GitHub exactly one type, priority and
- *   effort label from the configured sets, the ones reported.
+ *   effort label from the configured sets, the ones reported. A refresh's entries are the issues its
+ *   session judged affected: each must be an open issue the job listed, and there may be none.
  * - `review`: a verdict for the patch id the job was made for.
  * - `title`: `Lint PR Title` green on the pull request's head.
  * - `major`: the pull request merged into master, and npm's latest version of the package is the
@@ -265,8 +266,15 @@ async function triageAnswer(job, report, view) {
     for (const n of job.facts?.batch ?? []) {
         if (!result.some((/** @type {any} */ r) => r.issue === n)) gaps.push(`#${n} has no verdict`);
     }
-    if (!result.length) gaps.push("result: a verdict for each issue of the batch");
+    // A refresh may find that the merges affect no issue; every entry must be an issue it listed.
+    const refresh = job.facts?.scope === "refresh";
+    const listed = new Set((job.facts?.open ?? []).map((/** @type {any} */ i) => i.number));
+    if (!result.length && !refresh) gaps.push("result: a verdict for each issue of the batch");
     for (const r of result) {
+        if (refresh && !listed.has(r.issue)) {
+            gaps.push(`#${r.issue} is not one of the open issues this refresh listed`);
+            continue;
+        }
         if (!TRIAGE_VERDICTS.has(r.verdict)) gaps.push(`#${r.issue}: unknown verdict ${r.verdict}`);
         const issue = await view.io.issue(r.issue);
         if (!issue) {

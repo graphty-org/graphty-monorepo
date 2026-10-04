@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { accumulateMerged, MERGED_QUERY, parseMerged, rankForRefresh, searchMerged } from "../lib/merged.mjs";
+import { accumulateMerged, MERGED_QUERY, parseMerged, searchMerged } from "../lib/merged.mjs";
 
 const SEARCH = JSON.parse(
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures", "merged-search.json"), "utf8"),
@@ -29,6 +29,24 @@ describe("parseMerged", () => {
         expect(p365.closes).toEqual([135, 136, 141]);
     });
 
+    it("reads the issues a pull request mentions without closing them (design 5.1)", () => {
+        const [pr] = parseMerged({
+            search: {
+                nodes: [
+                    {
+                        number: 5,
+                        title: "fix(layout): see #12",
+                        body: "Closes #14. Related to #13 and #12; not a&#15; or x/#16.",
+                        mergedAt: "x",
+                        closingIssuesReferences: { nodes: [{ number: 14 }] },
+                    },
+                ],
+            },
+        });
+        expect(pr.closes).toEqual([14]);
+        expect(pr.mentions).toEqual([12, 13]);
+    });
+
     it("skips empty nodes and tolerates missing fields", () => {
         expect(parseMerged({ search: { nodes: [{}, { number: 1, title: "t", mergedAt: "x" }] } })).toEqual([
             {
@@ -38,6 +56,7 @@ describe("parseMerged", () => {
                 mergedAt: "x",
                 mergeSha: null,
                 closes: [],
+                mentions: [],
                 paths: [],
                 truncated: false,
             },
@@ -59,12 +78,13 @@ describe("searchMerged", () => {
 });
 
 describe("accumulateMerged", () => {
-    it("accumulates paths per pull request, collects closed issues, and is idempotent", () => {
+    it("keeps each merge for the next refresh job, collects closed issues, and is idempotent", () => {
         const prs = parseMerged(SEARCH);
         const once = accumulateMerged({}, prs);
         expect(once.lastScanAt).toBe("2026-10-02T16:14:33Z");
         expect(once.closed).toEqual([135, 136, 141, 188, 543]);
-        expect(once.pendingPaths["graphty-element/src/NodeBehavior.ts"]).toEqual([718]);
+        expect(once.pending.map((p) => p.number)).toEqual([718, 717, 365]);
+        expect(once.pending[0].paths).toContain("graphty-element/src/NodeBehavior.ts");
         expect(accumulateMerged(once, prs)).toEqual(once);
         const more = accumulateMerged(once, [
             {
@@ -73,46 +93,20 @@ describe("accumulateMerged", () => {
                 mergedAt: "2026-10-01T00:00:00Z",
                 mergeSha: null,
                 closes: [],
+                mentions: [9],
                 paths: ["graphty-element/src/NodeBehavior.ts"],
                 truncated: false,
             },
         ]);
-        expect(more.pendingPaths["graphty-element/src/NodeBehavior.ts"]).toEqual([718, 800]);
+        expect(more.pending.at(-1)).toEqual({
+            number: 800,
+            title: "",
+            mergeSha: null,
+            paths: ["graphty-element/src/NodeBehavior.ts"],
+            truncated: false,
+            mentions: [9],
+        });
         // the scan mark never moves back
         expect(more.lastScanAt).toBe("2026-10-02T16:14:33Z");
-    });
-});
-
-describe("rankForRefresh", () => {
-    const paths = ["graphty-element/src/Edge.ts", "graphty-element/src/managers/DataManager.ts"];
-
-    it("ranks an issue naming a changed file above one naming only its top directory", () => {
-        const ranked = rankForRefresh(
-            [
-                { number: 1, title: "graphty-element: slow", body: "something in graphty-element" },
-                { number: 2, title: "Edge arrows", body: "Edge.ts draws the arrow twice" },
-                { number: 3, title: "unrelated", body: "layout/src/foo.ts and graphty-elementary" },
-                { number: 4, title: "full path", body: "see graphty-element/src/managers/DataManager.ts" },
-            ],
-            paths,
-        );
-        expect(ranked.map((r) => r.number)).toEqual([4, 2, 1]);
-        expect(ranked.find((r) => r.number === 1)).toEqual({ number: 1, files: 0, dirs: 1 });
-    });
-
-    it("excludes issues a merged pull request closes", () => {
-        const issues = [
-            { number: 543, title: "Edge.ts", body: null },
-            { number: 9, title: "Edge.ts" },
-        ];
-        expect(rankForRefresh(issues, paths, [543]).map((r) => r.number)).toEqual([9]);
-    });
-
-    it("breaks ties by issue number", () => {
-        const issues = [
-            { number: 7, body: "Edge.ts" },
-            { number: 5, body: "Edge.ts" },
-        ];
-        expect(rankForRefresh(issues, paths).map((r) => r.number)).toEqual([5, 7]);
     });
 });

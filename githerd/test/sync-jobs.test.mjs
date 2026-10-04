@@ -30,7 +30,7 @@ function base() {
         prs: {},
         issues: { byNumber: {} },
         mergeGate: { heads: {} },
-        merged: { count: 0, pendingPaths: {}, closed: [] },
+        merged: { count: 0, pending: [], closed: [] },
         jobs: {},
     };
 }
@@ -228,28 +228,43 @@ describe("syncJobs: triage", () => {
         expect(state.jobs["triage-new-2"].facts.batch).toHaveLength(5);
     });
 
-    it("refreshes the issues the last 20 merges touched, and passes over every issue after 100", () => {
+    it("hands the last 20 merges and the open issues to one refresh job, and passes over every issue after 100", () => {
         const state = base();
-        issue(state, 1, LABELED, { text: "layout breaks in layout/src/force.ts" });
+        issue(state, 1, LABELED, { text: "layout breaks\nin layout/src/force.ts" });
         issue(state, 2, LABELED, { text: "unrelated" });
+        issue(state, 3, LABELED, { text: "closed by a merge" });
+        issue(state, 4, LABELED, { text: "named by a merge" });
         sync(state);
         let merged = state.merged;
         const prs = Array.from({ length: 20 }, (_, i) => ({
             number: 100 + i,
+            title: `pr ${i}`,
             mergedAt: `2026-10-04T11:${String(i).padStart(2, "0")}:00Z`,
-            closes: [],
+            mergeSha: null,
+            closes: i === 0 ? [3] : [],
+            mentions: i === 1 ? [4, 999] : [],
             paths: ["layout/src/force.ts"],
+            truncated: false,
         }));
         merged = accumulateMerged({ ...merged, lastScanAt: "2026-10-04T10:00:00Z" }, /** @type {any} */ (prs));
         expect(merged.count).toBe(20);
         state.merged = merged;
         expect(sync(state).created).toEqual(["triage-refresh-1"]);
-        expect(state.jobs["triage-refresh-1"].facts).toMatchObject({ scope: "refresh", batch: [1] });
-        expect(state.merged.pendingPaths).toEqual({});
+        // No issue is picked by matching text: every open issue the merges do not close is listed,
+        // and the session judges which ones they affect. A mentioned open issue must be judged.
+        const facts = state.jobs["triage-refresh-1"].facts;
+        expect(facts).toMatchObject({ scope: "refresh", batch: [4] });
+        expect(facts.open).toEqual([
+            { number: 1, title: "layout breaks" },
+            { number: 2, title: "unrelated" },
+            { number: 4, title: "named by a merge" },
+        ]);
+        expect(facts.merged.map((/** @type {any} */ p) => p.number)).toHaveLength(20);
+        expect(state.merged.pending).toEqual([]);
         move(state.jobs["triage-refresh-1"], "cancelled", NOW);
         state.merged.count = 120;
         expect(sync(state).created).toEqual(["triage-full-2"]);
-        expect(state.jobs["triage-full-2"].facts.batch).toEqual([1, 2]);
+        expect(state.jobs["triage-full-2"].facts.batch).toEqual([1, 2, 3, 4]);
     });
 });
 

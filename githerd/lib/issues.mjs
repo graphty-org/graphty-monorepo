@@ -24,7 +24,7 @@ export function overlapped(mark) {
 
 /** Pages read per poll at most; the rest are read on the next poll, from the advanced mark. */
 export const MAX_PAGES = 10;
-/** How much of an issue body is kept, for ranking a refresh pass. */
+/** How much of an issue body is kept in the state. */
 const ISSUE_TEXT_MAX = 2000;
 
 /**
@@ -76,7 +76,8 @@ export function applyIssues(saved, items) {
             state: item.state,
             labels: (item.labels ?? []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name)),
             author: item.user?.login ?? null,
-            // For ranking a refresh pass (jobs.mjs); a worker reads the issue through githerd_read.
+            // The title is the open-issue list a refresh job gets (jobs.mjs); a worker reads the
+            // issue itself through githerd_read.
             text: `${item.title ?? ""}\n${String(item.body ?? "").slice(0, ISSUE_TEXT_MAX)}`,
         };
         changed.push(item.number);

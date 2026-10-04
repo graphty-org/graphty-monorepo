@@ -287,6 +287,26 @@ const FALSE_CLAIMS = [
         "unknown verdict",
     ],
     [
+        "refresh verdict on an issue it did not list",
+        "triage",
+        "refresh",
+        { scope: "refresh", batch: [], open: [{ number: 5, title: "t" }] },
+        { result: [{ issue: 9, verdict: "keep", labels: {} }] },
+        {},
+        {},
+        "#9 is not one of the open issues this refresh listed",
+    ],
+    [
+        "refresh missing a mentioned issue",
+        "triage",
+        "refresh",
+        { scope: "refresh", batch: [5], open: [{ number: 5, title: "t" }] },
+        { result: [] },
+        {},
+        {},
+        "#5 has no verdict",
+    ],
+    [
         "review without verdict",
         "review",
         "7",
@@ -373,6 +393,11 @@ describe("verifyClaim", () => {
                         },
                     ],
                 }),
+            ],
+            // A refresh whose session judged that the merges affect no listed issue.
+            [
+                working("triage", "refresh", { scope: "refresh", batch: [], open: [{ number: 5, title: "t" }] }),
+                report({ result: [] }),
             ],
             [
                 working("review", "7", { patchId: "p1" }),

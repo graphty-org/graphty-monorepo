@@ -494,7 +494,7 @@ export async function startDaemon({
     state.master.lanes ??= {};
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
-    state.merged ??= { lastScanAt: null, pendingPaths: {}, closed: [] };
+    state.merged ??= { lastScanAt: null, pending: [], closed: [] };
     state.rate ??= {};
     state.writes ??= { pending: [] };
     state.github ??= { downSince: null, lastError: null };

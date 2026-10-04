@@ -20,6 +20,37 @@ const JOBS = {
     pr: { kind: "pr", target: "#412", reason: "own failure on the current head" },
     issue: { kind: "issue", target: "#737", reason: "high bug" },
     triage: { kind: "triage", target: "20 new issues since 2026-10-03" },
+    "triage-refresh": {
+        kind: "triage",
+        target: "2 merges against 2 open issues",
+        reason: "refresh pass after merges",
+        facts: {
+            scope: "refresh",
+            batch: [5],
+            merged: [
+                {
+                    number: 760,
+                    title: "fix(layout): force step",
+                    mergeSha: "a".repeat(40),
+                    paths: ["layout/src/force.ts"],
+                    truncated: false,
+                    mentions: [5],
+                },
+                {
+                    number: 761,
+                    title: "feat: big",
+                    mergeSha: "b".repeat(40),
+                    paths: ["a.ts", "b.ts"],
+                    truncated: true,
+                    mentions: [],
+                },
+            ],
+            open: [
+                { number: 5, title: "force layout drifts" },
+                { number: 9, title: "docs typo" },
+            ],
+        },
+    },
     review: { kind: "review", target: "#760 at patch 9f8e7d" },
     title: { kind: "title", target: "#761" },
     major: { kind: "major", target: "graphty-element: #770 #771" },

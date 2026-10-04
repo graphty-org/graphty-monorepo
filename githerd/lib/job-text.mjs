@@ -62,6 +62,36 @@ const DONE = /** @type {Record<string, string>} */ ({
     major: "one pull request holds the whole group, it merged, and npm shows the new major version.",
 });
 
+/** A refresh triage job's purpose and done-condition: the session judges which issues are affected. */
+const REFRESH_PURPOSE =
+    "The pull requests below merged since the last refresh. Judge which of the open issues below they affect (fixed, made obsolete, changed or duplicated), reading the diffs (git show on each merge commit) and the issues (githerd_read) as you need. Label and judge each affected issue. Change no code.";
+const REFRESH_DONE =
+    "each open issue you judge the merges affect, and every issue under MUST JUDGE, has exactly one type, one priority (critical, high, medium, low) " +
+    "and one effort (high, medium, low) label from the labels the repository already has, and a verdict: keep, duplicate (of which issue), obsolete or fixed (with evidence). " +
+    "An issue the merges do not affect needs no entry.";
+
+/**
+ * The lines a refresh triage job adds: the merges with their changed files, the issues they mention
+ * without closing them, and the open issues.
+ * @param {any} facts the job's facts
+ * @returns {string[]} the lines
+ */
+function refreshLines(facts) {
+    const lines = ["MERGED SINCE THE LAST REFRESH:"];
+    for (const pr of facts.merged ?? []) {
+        const more = pr.truncated ? " (more files than listed)" : "";
+        lines.push(`  #${pr.number} ${pr.title ?? ""} (merge ${String(pr.mergeSha ?? "unknown").slice(0, 12)})${more}`);
+        lines.push(...(pr.paths ?? []).map((/** @type {string} */ p) => `      ${p}`));
+    }
+    if (facts.batch?.length) {
+        lines.push(
+            `MUST JUDGE (a merge mentions them without closing them): ${facts.batch.map((/** @type {number} */ n) => `#${n}`).join(" ")}`,
+        );
+    }
+    lines.push("OPEN ISSUES:", ...(facts.open ?? []).map((/** @type {any} */ i) => `  #${i.number} ${i.title}`));
+    return lines;
+}
+
 /** How to report the end, by kind. */
 const FINISH = /** @type {Record<string, string>} */ ({
     triage: "Call githerd_done with outcome done and result set to one entry per issue.",
@@ -137,11 +167,18 @@ function earlier(job) {
  */
 export function jobText(job, ctx = {}) {
     if (!(job.kind in TARGET_NOUN)) throw new Error(`no job text for kind ${job.kind}`);
-    const done = job.kind === "incident" ? INCIDENT_DONE[job.facts?.scope ?? "master"] : DONE[job.kind];
+    const refresh = job.kind === "triage" && job.facts?.scope === "refresh";
+    const done = refresh
+        ? REFRESH_DONE
+        : job.kind === "incident"
+          ? INCIDENT_DONE[job.facts?.scope ?? "master"]
+          : DONE[job.kind];
     if (!done) throw new Error(`no done-condition for incident scope ${job.facts?.scope}`);
-    const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${PURPOSE[job.kind]}`];
+    const purpose = refresh ? REFRESH_PURPOSE : PURPOSE[job.kind];
+    const lines = [`JOB ${job.id}`, `TARGET: ${TARGET_NOUN[job.kind]} ${job.target}`, `WHAT FOR: ${purpose}`];
     if (job.reason) lines.push(`WHY NOW: ${job.reason}`);
     lines.push(`DONE WHEN: ${done}`, `TO FINISH: ${FINISH[job.kind] ?? FINISH_DEFAULT}`, ...earlier(job));
+    if (refresh) lines.push(...refreshLines(job.facts));
     const policies = (ctx.policies ?? []).filter((p) => !p.endedAt && p.text);
     if (policies.length) lines.push("OWNER POLICIES:", ...policies.map((p) => `  - ${p.text}`));
     lines.push("RULES:", ...RULES.map((r) => `  - ${r}`));

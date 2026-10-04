@@ -13,9 +13,11 @@
  *   config, hooks or worker instructions (those are listed for the owner's sessions).
  * - `title-<n>`: such a pull request whose only failing check is `Lint PR Title`.
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.
- * - `triage-<scope>-<seq>`: one triage job at a time, 20 issues at most: unlabeled issues first
- *   (`new`), then a refresh of the issues the last 20 merges touched, and a full pass over every
- *   open issue after 100 merges. No clock: merges count.
+ * - `triage-<scope>-<seq>`: one triage job at a time: unlabeled issues first (`new`, 20 at most),
+ *   then a refresh after 20 merges, and a full pass over every open issue after 100 merges (20 per
+ *   job). A refresh job is given the merged pull requests with their changed files and the open
+ *   issues; its session judges which issues the merges affect. The issues a merge mentions without
+ *   closing are in its batch. No clock: merges count.
  * - `issue-<n>`: one queued issue job at a time, for the issue at the front of the ranked list;
  *   the next is made once that one leaves the queue, never one per backlog issue.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
@@ -23,7 +25,6 @@
  */
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
-import { rankForRefresh } from "./merged.mjs";
 import { orderPosition } from "./owner.mjs";
 import { NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
 import { touches } from "./prs.mjs";
@@ -237,7 +238,9 @@ function reviewJobs(state, add, cancel) {
 
 /**
  * The triage jobs, one in flight at a time: unlabeled issues first, then the refresh and full
- * passes that merges call for, 20 issues per job.
+ * passes that merges call for. A full pass takes 20 issues per job. A refresh is one job holding the
+ * merges and the open issues they may affect: which ones they do is the session's judgment, and
+ * the done check only validates its verdicts (done.mjs).
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
@@ -248,17 +251,17 @@ function triageJobs(state, config, now, add) {
     const passes = (state.triagePasses ??= { refreshAt: merges, fullAt: merges, queue: [], seq: 0 });
     const open = Object.entries(state.issues?.byNumber ?? {})
         .filter(([, i]) => i.state === "open" && byOwner(state, i.author))
-        .map(([n, i]) => ({ number: Number(n), text: i.text ?? "" }));
+        .map(([n, i]) => ({ number: Number(n), title: String(i.text ?? "").split("\n")[0] }))
+        .sort((a, b) => a.number - b.number);
     if (merges - passes.fullAt >= FULL_MERGES) {
         passes.queue = [{ scope: "full", issues: open.map((i) => i.number).sort((a, b) => a - b) }];
         passes.fullAt = merges;
         passes.refreshAt = merges;
     } else if (merges - passes.refreshAt >= REFRESH_MERGES) {
-        const paths = Object.keys(state.merged?.pendingPaths ?? {});
-        const issues = open.map((i) => ({ number: i.number, title: "", body: i.text }));
-        const ranked = rankForRefresh(issues, paths, state.merged?.closed ?? []).slice(0, TRIAGE_BATCH);
-        if (ranked.length) passes.queue.push({ scope: "refresh", issues: ranked.map((r) => r.number) });
-        state.merged.pendingPaths = {};
+        const merged = state.merged?.pending ?? [];
+        const closed = new Set(state.merged?.closed ?? []);
+        if (merged.length && open.some((i) => !closed.has(i.number))) passes.queue.push({ scope: "refresh", merged });
+        state.merged.pending = [];
         passes.refreshAt = merges;
     }
     const inFlight = Object.values(state.jobs).some((j) => j.kind === "triage" && !TERMINAL.includes(j.state));
@@ -266,6 +269,10 @@ function triageJobs(state, config, now, add) {
     const unlabeled = readyIssues(state, config, now).triage;
     let scope = "new";
     let batch = unlabeled.slice(0, TRIAGE_BATCH);
+    if (!batch.length && passes.queue[0]?.scope === "refresh") {
+        refreshJob(state, passes, open, now, add);
+        return;
+    }
     if (!batch.length) {
         const next = passes.queue[0];
         if (!next) return;
@@ -283,6 +290,36 @@ function triageJobs(state, config, now, add) {
         target: `${batch.length} issues: ${batch.map((n) => `#${n}`).join(" ")}`,
         reason: scope === "new" ? "unlabeled issues" : `${scope} pass after merges`,
         facts: { scope, batch, since: now.toISOString() },
+    });
+}
+
+/**
+ * The refresh job at the front of the triage queue (design 5.1): the merges since the last refresh,
+ * with their changed files, and every open issue they do not close. The issues a merge mentions
+ * without closing must each get a verdict; for the rest, the session decides which the merges
+ * affect.
+ * @param {any} state the daemon state
+ * @param {any} passes `state.triagePasses`
+ * @param {{number: number, title: string}[]} open the owner's open issues
+ * @param {Date} now the clock
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ */
+function refreshJob(state, passes, open, now, add) {
+    const { merged } = passes.queue.shift();
+    const closed = new Set(state.merged?.closed ?? []);
+    const issues = open.filter((i) => !closed.has(i.number));
+    const listed = new Set(issues.map((i) => i.number));
+    const batch = [...new Set(merged.flatMap((/** @type {any} */ pr) => pr.mentions ?? []))]
+        .filter((n) => listed.has(Number(n)))
+        .sort((a, b) => Number(a) - Number(b));
+    if (!issues.length) return;
+    passes.seq += 1;
+    add({
+        id: `triage-refresh-${passes.seq}`,
+        kind: "triage",
+        target: `${merged.length} merges against ${issues.length} open issues`,
+        reason: "refresh pass after merges",
+        facts: { scope: "refresh", batch, merged, open: issues, since: now.toISOString() },
     });
 }
 

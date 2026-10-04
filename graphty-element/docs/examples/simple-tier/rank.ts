@@ -8,7 +8,7 @@
  */
 import { defineAlgorithm } from "../../../extend";
 
-// PageRank: on every pass, each node's rank flows to its neighbours, shared out by its degree.
+// PageRank: on every pass, each node's rank flows to its neighbors, shared out by its degree.
 defineAlgorithm({
     id: "acme-rank",
     options: { passes: { type: "integer", default: 30, min: 1, max: 200 } },

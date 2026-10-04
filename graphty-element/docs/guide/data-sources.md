@@ -604,10 +604,10 @@ Choose something else with `data.knownFields.repeatedEdges`:
 | `error`          | throws `E_DUPLICATE_EDGE`, naming both endpoints               |
 
 Per call, `addEdges` takes the same choice as an option, which is what an incremental load wants:
-re-fetching a node's neighbourhood legitimately re-supplies edges the graph already holds.
+re-fetching a node's neighborhood legitimately re-supplies edges the graph already holds.
 
 ```typescript
-await graph.addEdges(neighbourhood, { repeated: "first" });
+await graph.addEdges(neighborhood, { repeated: "first" });
 ```
 
 What the policy did is on the load report:
@@ -653,7 +653,7 @@ leaves the edges the graph had. Past those figures the renderer runs out of memo
 slowing down, so the error is the element declining what it cannot draw. The figures were measured
 with the default edge style; a patterned line style (dots, dashes) costs more memory per edge, so
 under one the renderer can run out before the ceiling. Load a subset, or explore a large graph a
-neighbourhood at a time (see [Incremental Loading](#incremental-loading)).
+neighborhood at a time (see [Incremental Loading](#incremental-loading)).
 
 1. **Batch loading**: Load nodes before edges
 2. **Progressive loading**: Load in chunks for very large graphs

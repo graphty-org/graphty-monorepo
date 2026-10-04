@@ -78,7 +78,6 @@ import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
-import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -303,7 +302,6 @@ export class Graph implements GraphContext {
     #cameraPlaced = false;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
-    needRays = true;
     // graph engine - delegate to LayoutManager
     pinOnDrag?: boolean;
     // graph
@@ -872,7 +870,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             contextConfig,
-            this.needRays,
         );
 
         // Set GraphContext on managers
@@ -1315,7 +1312,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             this.graphContext.getConfig(),
-            this.needRays,
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
@@ -3727,8 +3723,13 @@ export class Graph implements GraphContext {
         // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
         // so we must explicitly dispose them before calling updateStyle()
         for (const edge of this.dataManager.edges.values()) {
-            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
-            if (edge.mesh instanceof PatternedLineMesh) {
+            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
+            // A batched line is not disposed here: `meshCache.clear()` above disposed the
+            // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
+            // is what tells `updateStyle()` below to build the line again.
+            if (edge.drawnLine !== null) {
+                // the batch this edge was drawn from is already gone
+            } else if (edge.mesh instanceof PatternedLineMesh) {
                 edge.mesh.dispose();
             } else if (!edge.mesh.isDisposed()) {
                 edge.mesh.dispose();
@@ -3766,8 +3767,8 @@ export class Graph implements GraphContext {
             this.updateManager.redrawArrangement();
         }
 
-        // Now update edges to connect to the updated node positions
-        Edge.updateRays(this);
+        // Now update edges to connect to the updated node positions. Each one aims its own
+        // ray when it needs it, so there is nothing to prime here.
         for (const edge of this.dataManager.edges.values()) {
             edge.update();
         }
@@ -3834,14 +3835,6 @@ export class Graph implements GraphContext {
             settings.graph.immersive = mode;
         });
         this.writeSceneDimension(false);
-    }
-
-    /**
-     * Check if ray updates are needed for edge arrows.
-     * @returns True if rays need updating
-     */
-    needsRayUpdate(): boolean {
-        return this.needRays;
     }
 
     /**

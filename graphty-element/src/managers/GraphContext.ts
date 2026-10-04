@@ -75,11 +75,6 @@ export interface GraphContext {
     is2D(): boolean;
 
     /**
-     * Check if ray updates are needed (for edge arrows)
-     */
-    needsRayUpdate(): boolean;
-
-    /**
      * Get graph-level configuration options
      */
     getConfig(): GraphContextConfig;
@@ -168,7 +163,6 @@ export class DefaultGraphContext implements GraphContext {
      * @param scene - Babylon.js Scene instance
      * @param statsManager - StatsManager instance for performance monitoring
      * @param config - Graph-level configuration options
-     * @param rayUpdateNeeded - Whether ray updates are needed for edge arrows
      * @param stylePainter - Painter answering what the session's style stack resolved, when one
      *     is bound
      */
@@ -180,7 +174,6 @@ export class DefaultGraphContext implements GraphContext {
         private scene: Scene,
         private statsManager: StatsManager,
         private config: GraphContextConfig,
-        private rayUpdateNeeded = true,
         private stylePainter?: StylePainter,
     ) {}
 
@@ -249,22 +242,6 @@ export class DefaultGraphContext implements GraphContext {
         // Support both new viewMode and deprecated twoD for backward compatibility
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         return config.viewMode === "2d" || config.twoD;
-    }
-
-    /**
-     * Check if ray updates are needed for edge arrows
-     * @returns True if ray updates are needed, false otherwise
-     */
-    needsRayUpdate(): boolean {
-        return this.rayUpdateNeeded;
-    }
-
-    /**
-     * Set whether ray updates are needed for edge arrows
-     * @param needed - Whether ray updates are needed
-     */
-    setRayUpdateNeeded(needed: boolean): void {
-        this.rayUpdateNeeded = needed;
     }
 
     /**

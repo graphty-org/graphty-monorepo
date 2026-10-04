@@ -162,9 +162,8 @@ describe("EdgeMesh", () => {
             // Both should be instances from the same source mesh
             assert.exists(arrow1);
             assert.exists(arrow2);
-            const instance1 = arrow1;
-            const instance2 = arrow2;
-            assert.equal(instance1.sourceMesh, instance2.sourceMesh);
+            // Two slots of one batch, which is what sharing means now that a cap is not a mesh.
+            assert.strictEqual(arrow1.batchMesh, arrow2.batchMesh);
         });
 
         test("creates different arrow for different styleId", () => {

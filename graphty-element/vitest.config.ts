@@ -39,6 +39,7 @@ import { defineConfig } from "vitest/config";
  */
 const BABYLON_SIDE_EFFECTS = [
     "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Meshes/thinInstanceMesh",
     "@babylonjs/core/Culling/ray",
     "@babylonjs/core/Animations/animatable",
 ];

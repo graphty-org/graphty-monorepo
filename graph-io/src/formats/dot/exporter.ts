@@ -38,23 +38,46 @@ import {
     TARGET_PORT_COLUMN,
 } from "./names.js";
 
-/** The DOT exporter's format-specific options. */
+/**
+ * The DOT exporter's format-specific options.
+ * @category Built-in formats
+ */
 export interface DotExportOptions {
-    /** The indentation of one nesting level; four spaces by default. */
+    /**
+     * The indentation of one nesting level.
+     * @defaultValue "    " (four spaces)
+     */
     indent?: string | undefined;
-    /** The graph name to write; `meta.name` by default, null for an anonymous graph. */
+    /**
+     * The graph name to write, or null for an anonymous graph. The default is the graph's name
+     * (`snapshot.meta.name`), which a DOT, GML or GEXF import keeps.
+     * @defaultValue the graph's name
+     */
     name?: string | null | undefined;
-    /** Whether to write `strict`; by default when `meta.extra.dot.strict` is true. */
+    /**
+     * Whether to write the `strict` keyword. The default is to write it when the graph was read
+     * from a strict DOT file.
+     * @defaultValue as read
+     */
     strict?: boolean | undefined;
 }
 
-/** The LossNote codes of the DOT exporter; the shared ones are LOSS's. */
+/**
+ * The LossNote codes of the DOT exporter; the shared ones are LOSS's.
+ * @category Built-in formats
+ */
 export const DOT_LOSS = Object.freeze({
-    /** An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT quoted string; export() throws. */
+    /**
+     * An id, name or text with a backslash before a quote or a line break, or at its end, cannot be written as a DOT
+     * quoted string; the save fails.
+     */
     TRAILING_BACKSLASH: "E_DOT_TRAILING_BACKSLASH",
-    /** A non-finite f32 / f64 cell has no numeric DOT spelling and reads back as text. */
+    /** NaN or an infinity has no DOT number spelling; it is written as text and reads back as text. */
     NON_FINITE: "W_DOT_NON_FINITE",
-    /** Text cells that look like numbers or booleans read back as such (DOT attribute values are untyped). */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
     /** A plain column named like an attribute the exporter writes for a role (weight, key, pos) is not written. */
     ATTRIBUTE_CLASH: "W_DOT_ATTRIBUTE_CLASH",
@@ -68,7 +91,10 @@ export const DOT_LOSS = Object.freeze({
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A declared column whose every row is unset is not written (DOT writes cells, never declarations). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
-    /** A role-less column named `label` reads back with the label role. */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A parent that is a plain node is written as a node and a cluster of one name; it reads back marked as a cluster. */
     CLUSTER_MARKED: "W_DOT_CLUSTER_MARKED",
@@ -162,6 +188,7 @@ const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "t
 
 /**
  * The exporter plugin for DOT / Graphviz text.
+ * @category Built-in formats
  */
 export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     format: DOT_FORMAT,
@@ -452,7 +479,7 @@ class ExportPlan {
         if (unwritable > 0) {
             note(
                 DOT_LOSS.TRAILING_BACKSLASH,
-                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; export() will throw`,
+                `${unwritable} id(s), name(s) or text value(s) hold a backslash before a quote or a line break, or at the end, which a DOT quoted string cannot carry; the save fails`,
                 null,
                 unwritable,
             );

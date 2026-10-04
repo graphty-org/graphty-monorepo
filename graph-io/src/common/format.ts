@@ -10,6 +10,7 @@
  * The shortest decimal text that reads back to the same f32 value through Math.fround.
  * @param value - an f32 value (a JS number holding one)
  * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values, "-0" for negative zero
+ * @category Plugin helpers
  */
 export function formatF32(value: number): string {
     if (!Number.isFinite(value)) {
@@ -32,6 +33,7 @@ export function formatF32(value: number): string {
  * of its f32 rounding reads back as the same number (0.2 does; 123456789.123 and 0.123456789 do not).
  * @param value - a finite number
  * @returns true when nothing a reader would see is lost
+ * @category Plugin helpers
  */
 export function survivesF32(value: number): boolean {
     return Number(formatF32(Math.fround(value))) === value;
@@ -42,6 +44,7 @@ export function survivesF32(value: number): boolean {
  * decimal in JS, except for negative zero, which `String()` writes as "0".
  * @param value - the value
  * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values, "-0" for negative zero
+ * @category Plugin helpers
  */
 export function formatF64(value: number): string {
     return Object.is(value, -0) ? "-0" : String(value);
@@ -58,6 +61,7 @@ export function formatF64(value: number): string {
  * @param value - the value
  * @param dtype - the column dtype the value comes from; f32 values use the shortest fround-round-trip text
  * @returns the text
+ * @category Plugin helpers
  */
 export function formatDecimal(value: number, dtype: "f32" | "f64" | "i32" | "u32" | "u8" = "f64"): string {
     if (!Number.isFinite(value)) {
@@ -79,6 +83,7 @@ export function formatDecimal(value: number, dtype: "f32" | "f64" | "i32" | "u32
  * @param value - the value
  * @param dtype - the column dtype the value comes from; f32 values use the shortest fround-round-trip text
  * @returns the text
+ * @category Plugin helpers
  */
 export function formatGmlReal(value: number, dtype: "f32" | "f64" | "i32" | "u32" | "u8" = "f64"): string {
     if (Number.isNaN(value)) {
@@ -101,6 +106,7 @@ export function formatGmlReal(value: number, dtype: "f32" | "f64" | "i32" | "u32
  * integer), avoiding the exponent form `String()` uses above 1e21.
  * @param value - an integral value
  * @returns the digits
+ * @category Plugin helpers
  */
 export function formatInteger(value: number): string {
     if (Number.isSafeInteger(value) || !Number.isFinite(value)) {
@@ -115,6 +121,7 @@ export function formatInteger(value: number): string {
  * @param value - the value
  * @param dtype - the column dtype the value came from
  * @returns the text
+ * @category Plugin helpers
  */
 export function formatNumber(value: number, dtype: "f32" | "f64" | "i32" | "u32" | "u8"): string {
     return dtype === "f32" ? formatF32(value) : formatF64(value);

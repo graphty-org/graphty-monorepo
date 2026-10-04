@@ -76,6 +76,7 @@ const DTYPES: Readonly<Record<ScalarKind, ScalarDtype>> = {
 
 /**
  * Collects the attribute values of one table, then declares and writes the columns.
+ * @category Plugin helpers
  */
 export class ColumnSet {
     private readonly domain: Domain;

@@ -14,7 +14,10 @@ import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../c
 import { ImportError, type ImportInput } from "../../types.js";
 import { CYS_ISSUE, FORMAT, MAX_RATIO } from "./constants.js";
 
-/** An entry of the session, by its path under the session's root folder. */
+/**
+ * An entry of the session, by its path under the session's root folder.
+ * @category Plugin helpers
+ */
 export interface SessionEntry {
     /** The path under the root folder, as the archive spells it (URL-encoded parts). */
     readonly path: string;
@@ -24,7 +27,10 @@ export interface SessionEntry {
     readonly zip: ZipEntry;
 }
 
-/** A 3.x network file: one root network (a collection). */
+/**
+ * A 3.x network file: one root network (a collection).
+ * @category Plugin helpers
+ */
 export interface NetworkEntry extends SessionEntry {
     /** The root network's saved SUID. */
     readonly suid: string;
@@ -40,7 +46,10 @@ interface ViewEntry extends SessionEntry {
     readonly view: string;
 }
 
-/** A 3.x table file. */
+/**
+ * A 3.x table file.
+ * @category Plugin helpers
+ */
 export interface TableEntry extends SessionEntry {
     /** The path under `tables/` (what `cytables.xml` names). */
     readonly tablePath: string;
@@ -77,7 +86,10 @@ interface SessionLayout {
     readonly skipped: readonly string[];
 }
 
-/** An opened session: its bytes, its layout and an entry reader within the byte budget. */
+/**
+ * An opened session: its bytes, its layout and an entry reader within the byte budget.
+ * @category Plugin helpers
+ */
 export interface Session {
     readonly layout: SessionLayout;
     /**
@@ -97,6 +109,7 @@ export interface Session {
  * text as it is.
  * @param text - the encoded text
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export function urlDecode(text: string): string {
     const plus = text.replace(/\+/g, " ");
@@ -397,13 +410,17 @@ type Mutable = {
  * A list of names for a message: the first ten, then a count.
  * @param names - the names
  * @returns the text
+ * @category Plugin helpers
  */
 export function listed(names: readonly string[]): string {
     const head = names.slice(0, 10).join(", ");
     return names.length > 10 ? `${head} and ${names.length - 10} more` : head;
 }
 
-/** One element of a small XML document, as a tree. */
+/**
+ * One element of a small XML document, as a tree.
+ * @category Plugin helpers
+ */
 export interface XmlNode {
     /** The local name. */
     readonly name: string;
@@ -490,6 +507,7 @@ export async function parseXmlTree(
  * @param node - the tree
  * @param name - the local name
  * @returns the elements
+ * @category Plugin helpers
  */
 export function elementsNamed(node: XmlNode, name: string): XmlNode[] {
     const out: XmlNode[] = [];

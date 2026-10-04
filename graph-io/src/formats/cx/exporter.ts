@@ -47,12 +47,16 @@ import { ORIGINAL_ID_ATTRIBUTE } from "../cx2/importer.js";
 /** The format name. */
 const CX_FORMAT = "cx";
 
-/** The format-specific options of the CX exporter: none yet (the common options apply). */
+/**
+ * The format-specific options of the CX exporter: none yet (the common options apply).
+ * @category Built-in formats
+ */
 export type CxExportOptions = Readonly<Record<never, never>>;
 
 /**
  * The loss notes the CX exporter's check() returns, by name. A key is the code without its
  * severity and format prefixes.
+ * @category Built-in formats
  */
 export const CX_LOSS = Object.freeze({
     /** Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. */
@@ -65,9 +69,12 @@ export const CX_LOSS = Object.freeze({
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A start / end / timestamp column: CX has no time. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A role column written as a plain attribute. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A role-less column the importer reads back with a role (`name` as the label, a graph `name` as the graph's name). */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A dtype CX declares as another (f32 as double, u32 as long, u8 as integer, dict as string, ...). */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
@@ -77,13 +84,19 @@ export const CX_LOSS = Object.freeze({
     DEFAULT_DROPPED: LOSS.DEFAULT,
     /** Declared options: CX has no enumerations. */
     OPTIONS_DROPPED: LOSS.OPTIONS,
-    /** Node ids that are not integers under the default sanitizeIds "error": export() throws E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: LOSS.ID_CHARSET,
     /** Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept. */
     ID_MANGLED: LOSS.ID_MANGLED,
     /** Edges without a usable integer id get generated ids. */
     EDGE_IDS_GENERATED: LOSS.EDGE_IDS_GENERATED,
-    /** A role column reads back under the importer's fixed name (the label as `name`, a parents list as `parent`). */
+    /**
+     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * name the format's importer gives it.
+     */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
     /** An extension table other than the `cx:citations` / `cx:supports` tables a CX import creates. */
     EXTENSION_TABLE_DROPPED: LOSS.EXTENSION_TABLE,
@@ -98,6 +111,7 @@ export const CX_LOSS = Object.freeze({
  * integer edge ids, typed string / double / integer / boolean attributes and lists of them, network
  * attributes, the position role (one view), and containment as `cyGroups`. f32, u32, u8 and dict
  * columns are written as the nearest declared type and read back as it.
+ * @category Built-in formats
  */
 export const CX_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: false,
@@ -1352,6 +1366,7 @@ function* mapIterable<T, U>(items: Iterable<T>, fn: (item: T) => U): Generator<U
 
 /**
  * The CX version 1 exporter plugin.
+ * @category Built-in formats
  */
 export const cxExporter: GraphExporter<CxExportOptions> = Object.freeze({
     format: CX_FORMAT,

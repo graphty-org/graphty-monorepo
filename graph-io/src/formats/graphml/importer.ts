@@ -119,12 +119,16 @@ const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
     "targetport",
 ]);
 
-/** The format-specific options of the GraphML importer. */
+/**
+ * The format-specific options of the GraphML importer.
+ * @category Built-in formats
+ */
 export interface GraphmlImportOptions {
     /**
-     * How keys with a `yfiles.type` (yEd / yFiles graphics) are read: "json" (default) keeps the
-     * nested XML of each `<data>` as a json column with origin.namespace "yfiles"; "skip" reports
-     * them once and declares nothing.
+     * How yEd graphics (keys with a `yfiles.type`) are read: "json" keeps each one as a JSON
+     * attribute holding its XML, which the GraphML exporter writes back unchanged; "skip" leaves
+     * them out, with a W_GRAPHML_YFILES_SKIPPED warning per key.
+     * @defaultValue "json"
      */
     yfiles?: "json" | "skip" | undefined;
 }
@@ -2682,7 +2686,10 @@ async function importGraphml(
     return report.finish();
 }
 
-/** The GraphML importer. */
+/**
+ * The GraphML importer.
+ * @category Built-in formats
+ */
 export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freeze({
     format: FORMAT,
     extensions: EXTENSIONS,

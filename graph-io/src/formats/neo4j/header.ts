@@ -11,10 +11,16 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-/** The structural field types and the marker for a property column. */
+/**
+ * The structural field types and the marker for a property column.
+ * @category Plugin helpers
+ */
 export type FieldKind = "ID" | "LABEL" | "START_ID" | "END_ID" | "TYPE" | "IGNORE" | "PROPERTY";
 
-/** One parsed header cell. */
+/**
+ * One parsed header cell.
+ * @category Plugin helpers
+ */
 export interface HeaderField {
     /** The cell text as written. */
     readonly text: string;
@@ -47,6 +53,7 @@ const CELL = /^([^:(){}]*)(?::([^:(){}]*))?(?:\(([^)]*)\))?(?:\{([^}]*)\})?$/;
  * @param count - how many cells are valid
  * @param quoted - which cells were quoted, or undefined to look at every cell (the first record)
  * @returns true when the record is a header
+ * @category Plugin helpers
  */
 export function isHeaderRecord(cells: readonly string[], count: number, quoted?: readonly boolean[]): boolean {
     let quotedMarker = false;
@@ -88,6 +95,7 @@ function isQuotedHeader(cells: readonly string[], count: number, quoted: readonl
  * Parse one header cell.
  * @param text - the cell text
  * @returns the field; E_UNSUPPORTED (reason "header") for a cell outside the grammar
+ * @category Plugin helpers
  */
 export function parseHeaderField(text: string): HeaderField {
     const trimmed = text.trim();
@@ -178,6 +186,7 @@ function headerError(text: string, reason: string): GraphFormatError {
  * @param type - the field type or property type
  * @param space - the id space, or null
  * @returns the cell text
+ * @category Plugin helpers
  */
 export function formatHeaderField(name: string, type: string, space: string | null): string {
     const base = `${name}:${type}`;

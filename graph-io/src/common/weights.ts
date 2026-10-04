@@ -15,7 +15,10 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { parseDecimalText } from "./declared-types.js";
 import { formatF32, formatF64, formatInteger } from "./format.js";
 
-/** The weight of an edge added without one (design section 3.7). */
+/**
+ * The weight of an edge added without one (design section 3.7).
+ * @category Plugin helpers
+ */
 export const DEFAULT_WEIGHT = 1;
 
 /**
@@ -23,6 +26,7 @@ export const DEFAULT_WEIGHT = 1;
  * @param name - the field name (attribute title, CSV header, JSON key)
  * @param weightFrom - the resolved option; null means unweighted
  * @returns true when the field is THE weight
+ * @category Plugin helpers
  */
 export function isWeightField(name: string, weightFrom: string | null): boolean {
     return weightFrom !== null && name === weightFrom;
@@ -33,6 +37,7 @@ export function isWeightField(name: string, weightFrom: string | null): boolean 
  * omitted), the number otherwise.
  * @param text - the cell text
  * @returns the weight, or undefined when blank; E_INVALID_WEIGHT for NaN or non-numeric text
+ * @category Plugin helpers
  */
 export function parseWeightText(text: string): number | undefined {
     const trimmed = text.trim();
@@ -56,6 +61,7 @@ export function parseWeightText(text: string): number | undefined {
  * undefined, the number for a finite or infinite number, the parsed number for numeric text.
  * @param value - the field value
  * @returns the weight, or undefined when absent; E_INVALID_WEIGHT for NaN, a boolean, an object or non-numeric text
+ * @category Plugin helpers
  */
 export function weightFromValue(value: unknown): number | undefined {
     if (value === undefined || value === null) {
@@ -104,8 +110,8 @@ function invalidWeight(value: unknown, cause: unknown): GraphFormatError {
  * role column when present (its validity says which edges had an explicit weight, its dtype how
  * the value is written), else `edgeList().weights` as f32 for every edge of a weighted snapshot;
  * nothing for an unweighted one. One implementation for every exporter.
- * Consumed by the per-format exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ExplicitWeights {
     /** Whether any edge can have an explicit weight (the snapshot is weighted). */
@@ -161,6 +167,7 @@ function weightFormatter(dtype: string): (value: number) => string {
  * Build the explicit-weight view of a snapshot.
  * @param snapshot - the snapshot
  * @returns the view
+ * @category Plugin helpers
  */
 export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
     const shadowColumn = snapshot.edges.byRole("weight");

@@ -988,10 +988,21 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         expect(noteCodes(checkCapabilities(s, NO_CAPABILITIES, resolveExportOptions(undefined)))).toContain(
             LOSS.SELF_LOOPS,
         );
-        // the cases above plus this one cover the whole table
-        const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS]);
+        // W_COLUMN_DROPPED is for a plugin that writes no attributes (CheckExtras.attributes false); every
+        // built-in writes them
+        const t = new GraphBuilder({ directed: true });
+        t.addEdge(1, 2);
+        t.setNodeValue("color", 0, "red");
+        const withColumn = t.freeze();
+        expect(
+            noteCodes(
+                checkCapabilities(withColumn, NO_CAPABILITIES, resolveExportOptions(undefined), { attributes: false }),
+            ),
+        ).toContain(LOSS.COLUMN_DROPPED);
+        // the cases above plus these cover the whole table
+        const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS, LOSS.COLUMN_DROPPED]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(41);
+        expect(Object.keys(LOSS)).toHaveLength(42);
     });
 });
 

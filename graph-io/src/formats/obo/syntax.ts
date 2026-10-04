@@ -21,6 +21,7 @@ const ESCAPES: Readonly<Record<string, string>> = Object.freeze({
  * backslash at the very end is dropped.
  * @param text - raw text
  * @returns the unescaped text
+ * @category Plugin helpers
  */
 export function unescapeObo(text: string): string {
     if (!text.includes("\\")) {
@@ -61,6 +62,7 @@ function isEscaped(text: string, index: number): boolean {
  * one inside a quoted value is text).
  * @param line - the raw line
  * @returns the pieces, the line itself when it holds no such form feed
+ * @category Plugin helpers
  */
 export function splitFormFeeds(line: string): string[] {
     if (!line.includes("\f")) {
@@ -88,6 +90,7 @@ export function splitFormFeeds(line: string): string[] {
  * Whether a raw line ends with an unescaped backslash (the 1.0 / 1.2 line continuation).
  * @param line - the raw line, trailing whitespace included
  * @returns true when the line continues on the next one
+ * @category Plugin helpers
  */
 export function endsWithContinuation(line: string): boolean {
     return line.endsWith("\\") && !isEscaped(line, line.length - 1);
@@ -105,6 +108,7 @@ interface TagValue {
  * Split a line at its first unescaped colon (values contain colons freely: `is_a: GO:0000001`).
  * @param line - the raw line, trimmed
  * @returns the tag and the rest, or null when the line has no colon
+ * @category Plugin helpers
  */
 export function splitTagValue(line: string): TagValue | null {
     for (let i = 0; i < line.length; i++) {
@@ -127,6 +131,7 @@ export function splitTagValue(line: string): TagValue | null {
  * hide the comment after it.
  * @param rest - the raw value
  * @returns the value before the comment, trailing whitespace removed
+ * @category Plugin helpers
  */
 export function stripComment(rest: string): string {
     let quoted = false;
@@ -146,7 +151,10 @@ export function stripComment(rest: string): string {
     return rest.trimEnd();
 }
 
-/** The qualifiers of a clause: name to value (a list when a name repeats). */
+/**
+ * The qualifiers of a clause: name to value (a list when a name repeats).
+ * @category Plugin helpers
+ */
 export type Qualifiers = Record<string, string | string[]>;
 
 /** A value with its trailing qualifier blocks split off. */
@@ -166,6 +174,7 @@ interface QualifiedValue {
  * is scanned once, so a value of many blocks costs its length, not its length times its blocks.
  * @param value - the raw value without its comment
  * @returns the value and its qualifiers
+ * @category Plugin helpers
  */
 export function splitQualifiers(value: string): QualifiedValue {
     if (!value.endsWith("}")) {
@@ -232,6 +241,7 @@ function braceBlocks(value: string): Map<number, number> {
  * file truncated inside it).
  * @param value - a raw value, closing blocks already split off
  * @returns the index, or -1 when every brace is closed
+ * @category Plugin helpers
  */
 export function unclosedBlock(value: string): number {
     let quoted = false;
@@ -282,6 +292,7 @@ function addQualifier(record: Qualifiers, name: string, value: string | string[]
  * (qualifier names may be IRIs with colons).
  * @param inner - the text between the braces
  * @returns the qualifiers, or null when the block does not parse (a pair without `=`, an unclosed quote)
+ * @category Plugin helpers
  */
 export function parseQualifiers(inner: string): Qualifiers | null {
     const out: Qualifiers = Object.create(null) as Qualifiers;
@@ -346,7 +357,10 @@ function closingQuote(text: string, from: number): number {
     return -1;
 }
 
-/** One token of a value. */
+/**
+ * One token of a value.
+ * @category Plugin helpers
+ */
 export interface Token {
     /** A bare word, a quoted string or a bracketed list. */
     readonly kind: "word" | "quoted" | "list";
@@ -361,6 +375,7 @@ export interface Token {
  * Whitespace separates tokens; an escaped space belongs to its word.
  * @param value - the raw value
  * @returns the tokens
+ * @category Plugin helpers
  */
 export function tokenize(value: string): Token[] {
     const tokens: Token[] = [];
@@ -430,7 +445,10 @@ function closingBracket(text: string, from: number): number {
     return -1;
 }
 
-/** One cross-reference: `ID "description" {qualifiers}`. */
+/**
+ * One cross-reference: `ID "description" {qualifiers}`.
+ * @category Plugin helpers
+ */
 export interface Xref {
     /** The id (may hold spaces: `NIST Chemistry WebBook:110-63-4`, which owlapi reads). */
     readonly id: string;
@@ -447,6 +465,7 @@ export interface Xref {
  * string its description, a closing block its qualifiers.
  * @param raw - the raw text of one xref
  * @returns the xref, or null when it has no id
+ * @category Plugin helpers
  */
 export function parseXref(raw: string): Xref | null {
     const { value, qualifiers } = splitQualifiers(raw.trim());
@@ -478,6 +497,7 @@ export function parseXref(raw: string): Xref | null {
  * braces (a solitary xref needs no escaping of its commas only outside a list).
  * @param inner - the raw text between the brackets
  * @returns the xrefs, in order
+ * @category Plugin helpers
  */
 export function parseXrefList(inner: string): Xref[] {
     const out: Xref[] = [];
@@ -515,6 +535,7 @@ export function parseXrefList(inner: string): Xref[] {
  * have escaped).
  * @param value - the raw value, qualifiers already split off
  * @returns true when a stray brace is present
+ * @category Plugin helpers
  */
 export function hasStrayBrace(value: string): boolean {
     let quoted = false;
@@ -545,6 +566,7 @@ const LINE_ENDS = /\r\n|\r|\f/g;
  * end wherever it stands and no escape can spell; the writers turn them into `\n`.
  * @param text - the text
  * @returns true when the text loses a character on the way through an OBO file
+ * @category Plugin helpers
  */
 export function hasLineEnd(text: string): boolean {
     return text.includes("\r") || text.includes("\f");
@@ -556,20 +578,19 @@ export function hasLineEnd(text: string): boolean {
  * `\W` is never written: graph-io reads it as a space, fastobo and the 1.4 BNF as the letter W.
  * @param text - the text
  * @returns the escaped text, without the quotes
+ * @category Plugin helpers
  */
 export function escapeOboQuoted(text: string): string {
-    return text
-        .replace(LINE_ENDS, "\n")
-        .replace(/[\\"\n\t]/g, (ch) => {
-            switch (ch) {
-                case "\n":
-                    return "\\n";
-                case "\t":
-                    return "\\t";
-                default:
-                    return `\\${ch}`;
-            }
-        });
+    return text.replace(LINE_ENDS, "\n").replace(/[\\"\n\t]/g, (ch) => {
+        switch (ch) {
+            case "\n":
+                return "\\n";
+            case "\t":
+                return "\\t";
+            default:
+                return `\\${ch}`;
+        }
+    });
 }
 
 /**
@@ -579,6 +600,7 @@ export function escapeOboQuoted(text: string): string {
  * and trailing spaces cannot be kept.
  * @param text - the text
  * @returns the escaped text
+ * @category Plugin helpers
  */
 export function escapeOboValue(text: string): string {
     return escapeOboQuoted(text).replace(/[!{}[\],]/g, (ch) => `\\${ch}`);
@@ -591,12 +613,16 @@ export function escapeOboValue(text: string): string {
  * it into another token (a backslash, a quote, a leading `[`).
  * @param text - the text
  * @returns true when the text is a word
+ * @category Plugin helpers
  */
 export function isOboWord(text: string): boolean {
     return text.length > 0 && !NOT_IN_WORD.test(text);
 }
 
-/** A character an OBO word cannot hold: whitespace, a control character, `!`, `{` or `}`. */
+/**
+ * A character an OBO word cannot hold: whitespace, a control character, `!`, `{` or `}`.
+ * @category Plugin helpers
+ */
 export const NOT_IN_WORD = /[\s!{}\p{Cc}]/u;
 
 /**
@@ -604,6 +630,7 @@ export const NOT_IN_WORD = /[\s!{}\p{Cc}]/u;
  * open an xref list).
  * @param word - a text isOboWord() accepts
  * @returns the text to write
+ * @category Plugin helpers
  */
 export function escapeOboWord(word: string): string {
     const out = word.replace(/[\\"]/g, (ch) => `\\${ch}`);
@@ -616,6 +643,7 @@ export function escapeOboWord(word: string): string {
  * the first `=`, unescaped only after the split).
  * @param name - the name
  * @returns true when the name is written as it is
+ * @category Plugin helpers
  */
 export function isQualifierName(name: string): boolean {
     return name.length > 0 && name === name.trim() && !/[=",{}[\]!\\\n\r\t\f]/.test(name);
@@ -625,6 +653,7 @@ export function isQualifierName(name: string): boolean {
  * A qualifier block: `{name="value", ...}`, a list value as one pair per item.
  * @param pairs - the name / value pairs, in order (names isQualifierName() accepts)
  * @returns the block with a leading space, or "" when there are no pairs
+ * @category Plugin helpers
  */
 export function qualifierBlock(pairs: readonly (readonly [string, string])[]): string {
     if (pairs.length === 0) {

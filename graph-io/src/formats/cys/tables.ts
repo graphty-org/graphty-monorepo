@@ -35,7 +35,10 @@ interface CyColumn {
     readonly list: boolean;
 }
 
-/** One table, read. */
+/**
+ * One table, read.
+ * @category Plugin helpers
+ */
 export interface CyTable {
     /** The table's path under `tables/` as the archive spells it (what cytables.xml names). */
     readonly path: string;
@@ -199,6 +202,7 @@ function tableError(report: ImportReportBuilder, entry: string, reason: string):
  * @param namespace - the table namespace the column belongs to (null for the network's own table)
  * @param hidden - whether the column is hidden (HIDDEN and app tables)
  * @returns the att, or null
+ * @category Plugin helpers
  */
 export function cellAtt(
     column: CyColumn,
@@ -286,7 +290,10 @@ function att(
     };
 }
 
-/** One virtual column of `tables/cytables.xml`. */
+/**
+ * One virtual column of `tables/cytables.xml`.
+ * @category Plugin helpers
+ */
 export interface VirtualColumn {
     /** The column name in the target table. */
     readonly name: string;

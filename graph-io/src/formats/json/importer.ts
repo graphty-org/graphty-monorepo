@@ -4,7 +4,7 @@
  * `directed` / `multigraph` / `graph`), the d3 lineage of the same shape (`name` ids, integer
  * index endpoints), JSON Graph Format v2 (nodes keyed by id, per-edge `directed`, hyperedges),
  * Cytoscape.js elements (`data.id` / `data.source` / `data.target`, `position`, `classes`,
- * `data.parent`), graphology serialisation (`key` / `attributes`, `undirected` edges, `options`)
+ * `data.parent`), graphology serialization (`key` / `attributes`, `undirected` edges, `options`)
  * vis.js (`from` / `to`), and NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data (nested
  * `id` / `children`) -- and pushes it scalar by scalar into the sink.
  *
@@ -126,58 +126,83 @@ import { importObographs } from "./obographs.js";
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
  * a JGF or OBO Graphs `graphs` array (the first by default); a graph's name is its `id`, else its
  * label.
+ * @category Built-in formats
  */
 export interface JsonImportOptions extends GraphChoiceOptions {
-    /** The dialect to read; "auto" (default) sniffs the parsed document. */
+    /**
+     * The dialect to read; "auto" detects it from the document. The dialect that was read is in
+     * `snapshot.meta.extra.json.dialect`.
+     * @defaultValue "auto"
+     */
     dialect?: JsonImportDialect | "auto" | undefined;
     /**
-     * node-link / d3 / vis / adjacency / tree: the node key holding the id; auto: "id" (node-link /
-     * d3: "id" when any node has it, else "name").
+     * node-link, d3, vis, adjacency and tree documents: the node key that holds the id. The default
+     * is "id" (for node-link and d3, "name" when no node has an "id").
+     * @defaultValue "id"
      */
     nodeIdKey?: string | undefined;
-    /** node-link / d3: the top-level key holding the edges; auto: "edges" when present, else "links". */
+    /**
+     * node-link and d3 documents: the top-level key that holds the edges. The default is "edges"
+     * when the document has it, else "links".
+     * @defaultValue "edges" or "links"
+     */
     edgesKey?: string | undefined;
-    /** node-link / d3 / vis: the edge key holding the source; auto: "source", "src" or "from" (vis: "from"). */
+    /**
+     * node-link, d3 and vis documents: the edge key that holds the source. The default is the first
+     * of "source", "src" and "from" the edges use (vis: "from").
+     * @defaultValue "source"
+     */
     sourceKey?: string | undefined;
-    /** node-link / d3 / vis: the edge key holding the target; auto: "target", "dst" or "to" (vis: "to"). */
+    /**
+     * node-link, d3 and vis documents: the edge key that holds the target. The default is the first
+     * of "target", "dst" and "to" the edges use (vis: "to").
+     * @defaultValue "target"
+     */
     targetKey?: string | undefined;
     /**
-     * node-link / d3: whether edge endpoints are node array positions; "auto" (default) says yes when
-     * every endpoint is an integer below the node count and no node id is a number.
+     * node-link and d3 documents: whether edge ends are positions in the node array rather than
+     * ids; "auto" says yes when every end is an integer below the number of nodes and no node id is
+     * a number.
+     * @defaultValue "auto"
      */
     indexLinks?: boolean | "auto" | undefined;
     /**
-     * obographs: "curie" (default) reads `http://purl.obolibrary.org/obo/GO_0008150` as `GO:0008150`
-     * and `.../obo/go#regulates` as `regulates`, the identifiers the `.obo` file of the same ontology
-     * writes; "iri" keeps every IRI as written.
+     * OBO Graphs documents: "curie" reads `http://purl.obolibrary.org/obo/GO_0008150` as
+     * `GO:0008150` and `.../obo/go#regulates` as `regulates`, the ids the `.obo` file of the same
+     * ontology uses; "iri" keeps every IRI as written.
+     * @defaultValue "curie"
      */
     oboIds?: "curie" | "iri" | undefined;
     /**
-     * obographs: "metadata" (default) keeps PROPERTY nodes and their subPropertyOf / inverseOf edges
-     * in `meta.extra.obographs`, as the OBO importer keeps `[Typedef]` frames; "nodes" makes them
-     * nodes and edges.
+     * OBO Graphs documents: "metadata" keeps the relation definitions (PROPERTY nodes, with their
+     * subPropertyOf and inverseOf edges) in `snapshot.meta.extra.obographs`, the way the OBO
+     * importer keeps `[Typedef]` frames; "nodes" makes them nodes and edges of the graph.
+     * @defaultValue "metadata"
      */
     typedefs?: "metadata" | "nodes" | undefined;
     /**
-     * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
-     * and array positions from the document root (`"data.nodes"`, `"graphs.0.nodes"`); the object holding it is read as the graph record
-     * (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names
-     * nothing is an E_MISSING_SECTION issue and the graph has no node records.
+     * node-link, d3, vis and graphology documents: where the node array is, as a dotted path of
+     * keys and array positions from the top of the document (`"data.nodes"`, `"graphs.0.nodes"`).
+     * The object that holds the array is read as the graph (its `directed`, `multigraph`, `graph`
+     * and edge keys). A path that leads nowhere is reported as E_MISSING_SECTION and the graph has
+     * no nodes.
+     * @defaultValue "nodes"
      */
     nodesPath?: string | undefined;
     /**
-     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys and array positions
-     * from the document root (`"data.links"`); by default the edges or links key of the object
-     * holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has
-     * no edge records.
+     * node-link, d3, vis and graphology documents: where the edge array is, as a dotted path
+     * (`"data.links"`). The default is the edges or links key next to the node array. A path that
+     * leads nowhere is reported as E_MISSING_SECTION and the graph has no edges.
+     * @defaultValue next to the nodes
      */
     edgesPath?: string | undefined;
 }
 
 /**
  * The issue codes the JSON importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the JSON-specific ones. A key is the code without
+ * the other importers and the JSON-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const JSON_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -215,7 +240,10 @@ export const JSON_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** Edge ids of mixed JSON types were stored as text. */
     EDGE_ID_STRINGIFIED: "W_EDGE_ID_STRINGIFIED",
-    /** A JGF or OBO Graphs `graphs` array holds more than one graph; only the chosen one is read. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** `graphIndex` is beyond the `graphs` array, or `graphName` names none of its graphs (fatal). */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
@@ -237,9 +265,12 @@ export const JSON_ISSUE = Object.freeze({
     POSITIONAL_NODES: "W_POSITIONAL_NODES",
     /** A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. */
     UNREAD_KEY: "W_JSON_UNREAD_KEY",
-    /** A builder-policy option (addMissingNodes, duplicateEdges, selfLoops, weightDtype) differs from the sink's (the shared W_SINK_OPTION). */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** A common option the dialect has no use for (nodeIdFrom outside node-link, long, restoreMangledIds). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
@@ -253,7 +284,7 @@ export const JSON_ISSUE = Object.freeze({
     BIG_INTEGER: "W_JSON_BIG_INTEGER",
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** A number literal no double holds exactly (an integer beyond 2^53 with a fraction or an exponent, or beyond the double range). */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /**
      * The document contradicts itself: a declared option its edges break (multigraph false with
@@ -274,9 +305,15 @@ export const JSON_ISSUE = Object.freeze({
      * or, in OBO Graphs, a single-valued OBO tag given twice in basicPropertyValues (the first is kept).
      */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
-    /** OBO Graphs: a vocabulary column renamed `<name>#<name>` because the sink already holds the name. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** OBO Graphs: a vocabulary column declared without its role because the sink already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
 });
 
@@ -816,6 +853,7 @@ class AttributeWriter {
 
 /**
  * Everything one import call shares between the dialect readers.
+ * @category Plugin helpers
  */
 export class ImportContext {
     readonly sink: GraphSink;
@@ -1715,7 +1753,7 @@ function reportUnreadKeys(ctx: ImportContext, record: JsonRecord, known: Readonl
 /** The keys of a vis.js document the reader reads. */
 const VIS_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges"]);
 
-/** The keys of a graphology serialisation the reader reads. */
+/** The keys of a graphology serialization the reader reads. */
 const GRAPHOLOGY_DOCUMENT_KEYS: ReadonlySet<string> = new Set(["nodes", "edges", "options", "attributes"]);
 
 /** The keys of a JGF graph object the reader reads. */
@@ -2524,7 +2562,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
 // ============================================================ graphology
 
 /**
- * Read a graphology serialisation: `options.type` decides the header direction ("mixed" or absent:
+ * Read a graphology serialization: `options.type` decides the header direction ("mixed" or absent:
  * from the edges' `undirected` flags), `options.multi` the declared multigraph flag, node `key`
  * the id, `attributes` the columns, edge `key` the edge id.
  * @param ctx - the context
@@ -2915,6 +2953,7 @@ function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
  * @param root - the document
  * @param what - the dialect's name, for the messages
  * @returns the graph object; the import fails when there is none
+ * @category Plugin helpers
  */
 export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string): JsonRecord {
     const { report } = ctx;
@@ -2928,7 +2967,7 @@ export function chosenGraph(ctx: ImportContext, root: JsonRecord, what: string):
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,
-            `the document holds ${graphs.length} graphs; only graphs[${index}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
+            `the document holds ${graphs.length} graphs; only graphs[${index}] is read (${graphs.length - 1} skipped); importAllGraphs() reads every one`,
             { element: "graphs" },
         );
     }
@@ -3654,6 +3693,7 @@ function writeElementKeys(writer: AttributeWriter, row: number, record: JsonReco
 
 /**
  * The JSON importer plugin.
+ * @category Built-in formats
  */
 export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
     format: "json",

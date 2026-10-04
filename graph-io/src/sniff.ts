@@ -12,6 +12,9 @@
  * - `0.5 + 0.35 * content + 0.1 * [extension matches] + 0.05 * [MIME type matches]` when the
  *   importer recognizes the content (`content > 0`), so a content match always scores at least
  *   0.5 and at most 1;
+ * - `0.25 * content + 0.05 * [MIME type matches]` for a weak content match (content below 0.5,
+ *   such as plain delimited text read as CSV) when the file name's extension belongs to another
+ *   format, so that format wins;
  * - `0.3 * [extension matches] + 0.1 * [MIME type matches]` when the content is absent or the
  *   importer rejects it, so a hint alone never reaches 0.5;
  * - nothing (the format is not a candidate) otherwise.
@@ -24,7 +27,10 @@
 import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect.js";
 import { type GraphImporter } from "./types.js";
 
-/** The names of the built-in formats. */
+/**
+ * The names of the built-in formats.
+ * @category Formats and detection
+ */
 export type GraphFormatName =
     | "gexf"
     | "graphml"
@@ -47,6 +53,7 @@ export type GraphFormatName =
  * ```ts
  * const format: FormatName = "pajek"; // or "my-format" after registry.registerImporter(myImporter)
  * ```
+ * @category Formats and detection
  */
 export type FormatName = GraphFormatName | (string & {});
 
@@ -54,6 +61,7 @@ export type FormatName = GraphFormatName | (string & {});
  * The built-in format names in the default registry's order, which is also the tie-break order of
  * sniffing: the more common format wins an extension two formats claim (`.xml` GraphML before GEXF,
  * `.csv` CSV before Neo4j) when the content does not decide.
+ * @category Formats and detection
  */
 export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "json",
@@ -71,24 +79,36 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "cys",
 ]);
 
-/** How many bytes of the input the sniffers look at; the registry reads no more than this before deciding. */
+/** Content confidence below this is a weak guess, which loses to a file extension another format claims. */
+const WEAK_CONTENT = 0.5;
+
+/**
+ * How many bytes of the input the sniffers look at; the registry reads no more than this before deciding.
+ * @category Formats and detection
+ */
 export const SNIFF_HEAD_BYTES = 8192;
 
-/** What is known about an input before it is read. */
+/**
+ * What is known about an input before it is read.
+ * @category Formats and detection
+ */
 export interface SniffHints {
     /** A file name or path; only its extension is used. */
     readonly filename?: string | null | undefined;
     /** A MIME type, with or without parameters (`text/csv; charset=utf-8`). */
     readonly mimeType?: string | null | undefined;
-    /** The first bytes (or characters) of the content. */
+    /** The first bytes (or characters) of the content; detection reads at most SNIFF_HEAD_BYTES of it. */
     readonly head?: Uint8Array | string | null | undefined;
 }
 
-/** One ranked candidate of a sniff. */
+/**
+ * One ranked candidate of a sniff.
+ * @category Formats and detection
+ */
 export interface SniffResult {
     /** The importer's format name. */
     readonly format: string;
-    /** The combined confidence in 0..1 (at least 0.5 when the content was recognized). */
+    /** The combined confidence in 0..1: at least 0.5 when the content was clearly recognized, at most 0.4 from a name or MIME type alone. */
     readonly confidence: number;
     /** The importer's own content confidence, 0 when no head was given or it rejected the head. */
     readonly content: number;
@@ -106,6 +126,7 @@ export interface SniffResult {
  * unless no dot follows them (`g.graphml#v2`).
  * @param filename - the name, path or URL
  * @returns the extension (`.gexf`), or null when the name has none
+ * @category Formats and detection
  */
 export function extensionOf(filename: string): string | null {
     // a scheme of two or more letters, so a Windows drive (`C:`) is not one
@@ -123,6 +144,7 @@ export function extensionOf(filename: string): string | null {
  * A MIME type without parameters, lower-cased, for comparison with an importer's list.
  * @param mimeType - the type as received (`Text/CSV; charset=utf-8`)
  * @returns the bare type (`text/csv`)
+ * @category Plugin helpers
  */
 export function normalizeMimeType(mimeType: string): string {
     const semicolon = mimeType.indexOf(";");
@@ -134,6 +156,7 @@ export function normalizeMimeType(mimeType: string): string {
  * encoded as UTF-8, a UTF-16 head with a byte order mark transcoded to UTF-8.
  * @param head - the head as given
  * @returns the bytes
+ * @category Plugin helpers
  */
 export function headBytes(head: Uint8Array | string): Uint8Array {
     if (typeof head === "string") {
@@ -148,14 +171,18 @@ export function headBytes(head: Uint8Array | string): Uint8Array {
 }
 
 /**
- * Rank the registered importers for an input by the rule of the module comment: every importer
- * whose content confidence is positive or whose extension / MIME type matches is a candidate,
- * ordered by confidence (ties in registration order).
- * @param hints - what is known about the input
- * @param importers - the registered importers, in registration order
+ * Rank a list of importers for an input. Most callers want `registry.sniffAll(hints)`, which passes
+ * the registered importers for you. An importer is a candidate when it recognizes the content or
+ * its extension or MIME type matches. A content match scores 0.5 to 1 (more with a matching
+ * extension or MIME type); a name or MIME type alone scores at most 0.4; a weak content guess (a
+ * confidence below 0.5 from the importer, such as plain delimited text for CSV) scores below 0.25
+ * when the file's extension belongs to another format. Ties go to the importer listed first.
+ * @param hints - `{ filename, mimeType, head }`, any of them
+ * @param importers - the importers to rank, in tie-break order (`registry.importers()`)
  * @param onSniffError - called with the format and the error when an importer's sniff() throws
  * (that importer is then treated as not recognizing the head)
  * @returns the candidates, best first; empty when nothing matches
+ * @category Formats and detection
  */
 export function rankFormats(
     hints: SniffHints,
@@ -165,9 +192,12 @@ export function rankFormats(
     const extension = typeof hints.filename === "string" ? extensionOf(hints.filename) : null;
     const mime = typeof hints.mimeType === "string" ? normalizeMimeType(hints.mimeType) : null;
     const head = hints.head === undefined || hints.head === null ? null : headBytes(hints.head);
+    const all = [...importers];
+    const extensionClaimed =
+        extension !== null && all.some((i) => i.extensions.some((e) => e.toLowerCase() === extension));
     const candidates: { readonly result: SniffResult; readonly rank: number }[] = [];
     let rank = 0;
-    for (const importer of importers) {
+    for (const importer of all) {
         const extensionMatch = extension !== null && importer.extensions.some((e) => e.toLowerCase() === extension);
         const mimeMatch = mime !== null && importer.mimeTypes.some((m) => m.toLowerCase() === mime);
         let content = 0;
@@ -182,7 +212,10 @@ export function rankFormats(
             }
         }
         let confidence: number;
-        if (content > 0) {
+        if (content > 0 && content < WEAK_CONTENT && extensionClaimed && !extensionMatch) {
+            // a weak guess (plain delimited text read as CSV) never overrides another format's extension
+            confidence = 0.25 * content + (mimeMatch ? 0.05 : 0);
+        } else if (content > 0) {
             confidence = 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + (mimeMatch ? 0.05 : 0);
         } else if (extensionMatch || mimeMatch) {
             confidence = (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
@@ -205,10 +238,12 @@ export function rankFormats(
 }
 
 /**
- * The best candidate of rankFormats(), or null when no importer matches.
- * @param hints - what is known about the input
- * @param importers - the registered importers, in registration order
+ * The best candidate of rankFormats(), or null when no importer matches. Most callers want the
+ * top-level `sniff(hints)`, which uses the registered importers.
+ * @param hints - `{ filename, mimeType, head }`, any of them
+ * @param importers - the importers to rank, in tie-break order (`registry.importers()`)
  * @returns the best candidate, or null
+ * @category Formats and detection
  */
 export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter>): SniffResult | null {
     const ranked = rankFormats(hints, importers);
@@ -223,6 +258,7 @@ export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter
  * document.
  * @param head - the first bytes or characters of the document
  * @returns the dialect, or null when the head is not a JSON graph document
+ * @category Plugin helpers
  */
 export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDialect | null {
     const text = typeof head === "string" ? head : new TextDecoder("utf-8", { fatal: false }).decode(head);

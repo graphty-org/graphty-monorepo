@@ -47,50 +47,94 @@ import { checkRecordSyntax, type RecordSyntax } from "../csv/records.js";
 import { formatHeaderField } from "./header.js";
 import { ID_SPACE_COLUMN, LABELS_COLUMN, TYPE_COLUMN } from "./importer.js";
 
-/** The format-specific options of the Neo4j exporter. */
+/**
+ * The format-specific options of the Neo4j exporter.
+ * @category Built-in formats
+ */
 export interface Neo4jExportOptions {
-    /** Which tables to write: both (node sections first; default), the node sections or the relationship sections. */
+    /**
+     * Which tables to write: "all" (the node sections, then the relationship sections), "nodes" or
+     * "relationships".
+     * @defaultValue "all"
+     */
     part?: "all" | "nodes" | "relationships" | undefined;
-    /** The field delimiter; one character; "," by default. */
+    /**
+     * The field delimiter, one character.
+     * @defaultValue ","
+     */
     delimiter?: string | undefined;
-    /** The array delimiter of list values and `:LABEL` cells; ";" by default. */
+    /**
+     * The delimiter inside list values and `:LABEL` cells.
+     * @defaultValue ";"
+     */
     arrayDelimiter?: ";" | "," | "|" | undefined;
-    /** The quote character; one character; a double quote by default. */
+    /**
+     * The quote character, one character. Cells that hold the delimiter, the quote character or a
+     * line break are quoted with it. Pass the same value as the `quote` import option to read the
+     * file back.
+     * @defaultValue '"'
+     */
     quote?: string | undefined;
     /**
-     * The property that receives explicit edge weights (`<name>:double`); "weight" by default (the
-     * importer's `weightFrom` default); null writes no weights.
+     * The relationship property that holds the edge weights, written as `<name>:double`; null
+     * writes no weights. "weight" is also what the importer reads as the weight.
+     * @defaultValue "weight"
      */
     weightColumn?: string | null | undefined;
     /**
-     * The property name of the `:ID` column for nodes that have no stored-id column of their own
-     * (`<name>:ID`); null (default) writes a bare `:ID`.
+     * The property name of the `:ID` column (`<name>:ID`) for nodes that have no id property of
+     * their own; null writes a bare `:ID`.
+     * @defaultValue null
      */
     idColumn?: string | null | undefined;
 }
 
-/** Loss code: undirected edges (an undirected snapshot, or the folded pairs of a mixed one) written as directed relationships. */
+/**
+ * Loss code: undirected edges (an undirected snapshot, or the folded pairs of a mixed one) written as directed relationships.
+ * @category Built-in formats
+ */
 export const UNDIRECTED_LOSS = "W_NEO4J_UNDIRECTED_AS_DIRECTED";
 
-/** Loss code: node ids whose text re-imports as another type under the canonical id rule. */
+/**
+ * Loss code: node ids whose text re-imports as another type under the canonical id rule.
+ * @category Built-in formats
+ */
 export const ID_TEXT_TYPE_LOSS = ID_TEXT_TYPE_CODE;
 
-/** Loss code: two node ids share one text; export() throws E_INVALID_ID. */
+/**
+ * Loss code: two node ids share one text; export() throws E_INVALID_ID.
+ * @category Built-in formats
+ */
 export const ID_TEXT_COLLISION_LOSS = ID_TEXT_COLLISION_CODE;
 
-/** Loss code: an edge property column already uses the weight column name; export() throws E_COLUMN_EXISTS. */
+/**
+ * The `weightColumn` name is already an edge attribute; the save fails.
+ * @category Built-in formats
+ */
 export const WEIGHT_COLUMN_TAKEN_LOSS = "E_NEO4J_WEIGHT_COLUMN_TAKEN";
 
-/** Loss code: a node property column already uses the idColumn name; export() throws E_COLUMN_EXISTS. */
+/**
+ * The `idColumn` name is already a node attribute; the save fails.
+ * @category Built-in formats
+ */
 export const ID_COLUMN_TAKEN_LOSS = "E_NEO4J_ID_COLUMN_TAKEN";
 
-/** Loss code: a node has more than one stored-id column set; only the first is written. */
+/**
+ * Loss code: a node has more than one stored-id column set; only the first is written.
+ * @category Built-in formats
+ */
 export const MULTIPLE_ID_PROPERTIES_LOSS = "W_NEO4J_MULTIPLE_ID_PROPERTIES";
 
-/** Loss code: a declared integer type holds non-integral values and is written as double. */
+/**
+ * Loss code: a declared integer type holds non-integral values and is written as double.
+ * @category Built-in formats
+ */
 export const DECLARED_TYPE_CHANGED_LOSS = "W_NEO4J_DECLARED_TYPE_CHANGED";
 
-/** Loss code: a list item contains the array delimiter, which Neo4j cannot escape. */
+/**
+ * Loss code: a list item contains the array delimiter, which Neo4j cannot escape.
+ * @category Built-in formats
+ */
 export const ARRAY_DELIMITER_LOSS = "W_NEO4J_ARRAY_DELIMITER";
 
 /** The roles Neo4j has a slot for: `:TYPE`, `:LABEL` and the id space of `:ID(Space)`. */
@@ -114,6 +158,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
  * arrays; a dict column reads back as string (the header has no enumeration type); a position or
  * visual column is written as a plain property (a point for a 2- or 3-component position) and
  * reads back without its role.
+ * @category Built-in formats
  */
 export const NEO4J_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: false,
@@ -711,7 +756,7 @@ class ExportPlan {
         if (collisions > 0) {
             this.note(
                 ID_TEXT_COLLISION_LOSS,
-                `${collisions} node id(s) share their text with another id (a number and a string); export() will throw`,
+                `${collisions} node id(s) share their text with another id (a number and a string); the save fails`,
                 null,
                 collisions,
             );
@@ -1017,7 +1062,7 @@ class ExportPlan {
         if (text.length === 0) {
             return quote + quote;
         }
-        return quoteCsvCell(text, this.options.syntax.delimiter);
+        return quoteCsvCell(text, this.options.syntax.delimiter, quote);
     }
 
     /**
@@ -1281,7 +1326,10 @@ function textOf(column: Column, row: number): string {
     }
 }
 
-/** The Neo4j exporter. */
+/**
+ * The Neo4j exporter.
+ * @category Built-in formats
+ */
 export const neo4jExporter: GraphExporter<Neo4jExportOptions> = Object.freeze({
     format: NEO4J,
     capabilities: NEO4J_CAPABILITIES,

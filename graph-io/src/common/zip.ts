@@ -27,7 +27,10 @@ import { decodeEntryName, throwIfAborted } from "./input.js";
 /** Why a zip could not be read; the importer maps each kind to its own issue code. */
 type ZipErrorKind = "not-zip" | "corrupt" | "unsupported" | "too-large";
 
-/** A zip that cannot be read, or an entry that cannot be inflated. */
+/**
+ * A zip that cannot be read, or an entry that cannot be inflated.
+ * @category Plugin helpers
+ */
 export class ZipError extends Error {
     /** What went wrong. */
     readonly kind: ZipErrorKind;
@@ -44,7 +47,10 @@ export class ZipError extends Error {
     }
 }
 
-/** One entry of the central directory. */
+/**
+ * One entry of the central directory.
+ * @category Plugin helpers
+ */
 export interface ZipEntry {
     /** The name, decoded, as the central directory spells it. */
     readonly name: string;
@@ -64,7 +70,10 @@ export interface ZipEntry {
     readonly directory: boolean;
 }
 
-/** How one entry is read. */
+/**
+ * How one entry is read.
+ * @category Plugin helpers
+ */
 export interface ReadEntryOptions {
     /** The cancellation signal. */
     readonly signal?: AbortSignal | null | undefined;
@@ -76,7 +85,10 @@ export interface ReadEntryOptions {
     readonly maxRatio: number;
 }
 
-/** A per-entry size under which the ratio limit does not apply (tiny entries compress well). */
+/**
+ * A per-entry size under which the ratio limit does not apply (tiny entries compress well).
+ * @category Plugin helpers
+ */
 export const RATIO_FLOOR = 1024 * 1024;
 
 const EOCD_SIGNATURE = 0x06054b50;
@@ -116,6 +128,7 @@ const METHOD_NAMES: Readonly<Record<number, string>> = {
  * Whether bytes start with a local file header signature (`PK\x03\x04`).
  * @param bytes - the bytes
  * @returns true for the start of a zip
+ * @category Plugin helpers
  */
 export function startsLikeZip(bytes: Uint8Array): boolean {
     return bytes.byteLength >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4;
@@ -127,6 +140,7 @@ export function startsLikeZip(bytes: Uint8Array): boolean {
  * @returns the entries in directory order; ZipError "not-zip" when there is no end record and the
  * bytes do not start like a zip, "corrupt" for an end record or directory that does not fit,
  * "unsupported" for a split archive
+ * @category Plugin helpers
  */
 export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -521,12 +535,16 @@ function crcUpdate(crc: number, bytes: Uint8Array): number {
  * The CRC-32 of bytes.
  * @param bytes - the bytes
  * @returns the checksum
+ * @category Plugin helpers
  */
 export function crc32(bytes: Uint8Array): number {
     return (crcUpdate(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
 }
 
-/** One entry for writeZip(): its name and its bytes. */
+/**
+ * One entry for writeZip(): its name and its bytes.
+ * @category Plugin helpers
+ */
 export interface ZipWriteEntry {
     /** The entry name (UTF-8, `/` separated). */
     readonly name: string;

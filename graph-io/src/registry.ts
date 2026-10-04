@@ -17,9 +17,9 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
-import { EDGES_MERGED_CODE, FETCH_CODE } from "./common/codes.js";
+import { EDGES_MERGED_CODE, FETCH_CODE, SELF_LOOPS_DROPPED_CODE } from "./common/codes.js";
 import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
-import { resolveImportOptions } from "./common/options.js";
+import { chooseGraph, resolveImportOptions } from "./common/options.js";
 import { ImportReportBuilder, isAbortError, messageOf } from "./common/report.js";
 import { collectBytes } from "./common/writer.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
@@ -48,62 +48,101 @@ import {
     type ImportInput,
     type ImportIssue,
     type ImportReport,
+    type IssueCategory,
     type LossNote,
 } from "./types.js";
 
-/** The issue code of an input whose format no registered importer recognizes. */
+/**
+ * The issue code of an input whose format no registered importer recognizes.
+ * @category Issue and loss codes
+ */
 export const UNKNOWN_FORMAT_CODE = "E_UNKNOWN_FORMAT";
 
 /**
  * The issue code of a registered importer whose sniff() threw while the format was being chosen;
  * that importer was treated as not recognizing the input (a defect in that importer).
+ * @category Issue and loss codes
  */
 export const SNIFF_FAILED_CODE = "W_SNIFF_FAILED";
 
-/** The builder options importGraph() accepts beyond the ones the common import options seed. */
+/**
+ * The `builder` option of importGraph(): settings for building the graph that the common import
+ * options do not cover. `weighted`: "auto" (the default) gives the graph weights when any edge has
+ * one, true always does (every weight 1 when the file has none), false never does. `expectedNodes`
+ * and `expectedEdges`: how many nodes and edges to make room for up front, which saves time on a
+ * large file whose size you know.
+ * @category Loading
+ */
 export type BuilderSeed = Omit<
     GraphBuilderOptions,
     "directed" | "addMissingNodes" | "duplicateEdges" | "selfLoops" | "weightDtype"
 >;
 
 /**
- * The options of importGraph(): the common import options (which also seed the registry's
- * builder), the format choice and the hints sniffing uses, the builder and
- * freeze options, and any format-specific option (`delimiter`, `dialect`, ...) passed through to
- * the importer unchanged. `graphIndex` / `graphName` choose one graph of an input that holds
- * several, for the formats that list their graphs.
+ * The options of importGraph(), importAllGraphs(), listGraphs() and loadFromFile(): the common
+ * import options, the format and the hints used to detect it, the graph to read from a file that
+ * holds several, and any format-specific option (`delimiter`, `dialect`, ...), which reaches the
+ * importer unchanged.
+ * @category Loading
  */
 export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOptions {
     /**
-     * The format to read the input as ("graphml", "csv", ...), or "auto" (the default) to work it
-     * out from `filename`, `mimeType` and the first bytes of the input.
+     * The format to read the input as ("graphml", "csv", ...; `listFormats()` names them all), or
+     * "auto" to work it out from `filename`, `mimeType` and the first bytes of the input. Name it to
+     * be strict: detection reads a file graph-io cannot place as the closest format it recognizes.
+     * @defaultValue "auto"
      */
     readonly format?: FormatName | "auto" | undefined;
-    /** The file name or full path the input came from; only its extension is used, as a format hint. */
+    /**
+     * The file name or full path the input came from; only its extension is used, as a format hint.
+     * loadFromUrl() takes it from the URL and loadFromFile() from a File's name when you do not pass
+     * it.
+     */
     readonly filename?: string | null | undefined;
-    /** The MIME type the input was served as, a hint for sniffing. */
+    /**
+     * The MIME type the input was served as, a format hint. loadFromUrl() takes it from the
+     * response's Content-Type and loadFromFile() from the Blob's `type` when you do not pass it.
+     */
     readonly mimeType?: string | null | undefined;
-    /** Builder options the common options do not cover (`weighted`, `expectedNodes`, ...). */
+    /**
+     * Settings for building the graph: `weighted` ("auto", true or false: whether the graph gets
+     * weights), `expectedNodes` and `expectedEdges` (room to make up front for a large file). Most
+     * programs never set it.
+     */
     readonly builder?: BuilderSeed | undefined;
-    /** Options of the freeze that follows the import. */
+    /**
+     * Settings for the last step of an import, which turns what was read into the snapshot:
+     * `label` (a name kept on the snapshot for debugging), `prepare` (views of the graph to compute
+     * up front, such as `["reverse"]`), `checksum` (record checksums so the snapshot can be checked
+     * later) and `profile` (record how long each step took, in `result.freeze.timings`). Most
+     * programs never set it.
+     */
     readonly freeze?: FreezeOptions | undefined;
     /**
      * The most attribute slots that hold no value the import may allocate before it stops with
      * E_TOO_MANY_EMPTY_CELLS. Every attribute is a column with one slot per node (or edge), so a file
      * whose nodes each have a differently named attribute would otherwise need nodes x attributes
-     * memory. Default 2^24 (16,777,216); Infinity turns the check off. Dense files are never stopped.
-     * @default 16777216
+     * memory. Infinity turns the check off. Files whose elements mostly share their attributes are
+     * never stopped.
+     * @defaultValue 16777216
      */
     readonly maxEmptyCells?: number | undefined;
     /** Format-specific options, passed to the importer as they are. */
     readonly [formatOption: string]: unknown;
 }
 
-/** What importGraph(), loadFromUrl() and loadFromFile() return. */
+/**
+ * What importGraph(), loadFromUrl() and loadFromFile() return.
+ * @category Loading
+ */
 export interface ImportGraphResult {
     /** The format the input was read as ("graphml", ...). */
     readonly format: string;
-    /** How the format was detected, or null when you named it. Most callers can ignore it. */
+    /**
+     * How the format was detected (the candidate's `confidence` and what matched), or null when you
+     * named the format. Most callers can ignore it. The JSON dialect that was read is in
+     * `snapshot.meta.extra.json.dialect` either way.
+     */
     readonly sniff: SniffResult | null;
     /**
      * The graph. `snapshot.nodeCount`, `snapshot.edgeCount`, attribute tables and so on come from
@@ -116,7 +155,12 @@ export interface ImportGraphResult {
      * `counts.skippedNodes` / `counts.skippedEdges` say how much is missing from `snapshot`.
      */
     readonly report: ImportReport;
-    /** Statistics from the final build step. Most callers can ignore it. */
+    /**
+     * What the last step of the import did to the graph: `mergedEdges` (parallel edges merged by
+     * `duplicateEdges`), `droppedSelfLoops` (removed by `selfLoops: "drop"`), and `timings` when you
+     * passed `freeze: { profile: true }`. Both counts are also reported as warnings, so most callers
+     * can ignore it.
+     */
     readonly freeze: FreezeReport;
 }
 
@@ -126,6 +170,7 @@ export interface ImportGraphResult {
  * ```ts
  * await loadFromUrl("/api/graph.csv", { request: { headers: { Authorization: token } }, delimiter: ";" });
  * ```
+ * @category Loading
  */
 export interface LoadFromUrlOptions extends ImportGraphOptions {
     /**
@@ -141,16 +186,21 @@ export interface LoadFromUrlOptions extends ImportGraphOptions {
  * ```ts
  * await downloadGraph(snapshot, "graphml", { filename: "network.graphml" });
  * ```
+ * @category Saving
  */
 export interface DownloadGraphOptions extends ExportGraphOptions {
     /**
      * The file name the browser saves as. The default is "graph" plus the first entry of the
      * format's `extensions` ("graph.graphml"), or "graph.<format>" when it lists none.
+     * @defaultValue "graph" plus the format's extension
      */
     readonly filename?: string | undefined;
 }
 
-/** One format the registry can read, write or both. */
+/**
+ * One format the registry can read, write or both.
+ * @category Formats and detection
+ */
 export interface FormatInfo {
     /** The name you pass as `format`: "graphml", "gexf", "csv", "pajek", ... */
     readonly format: string;
@@ -174,7 +224,10 @@ export interface FormatInfo {
     readonly capabilities: ExportCapabilities | null;
 }
 
-/** The options of exportGraph(): the common export options plus any format-specific option, passed through. */
+/**
+ * The options of exportGraph(): the common export options plus any format-specific option, passed through.
+ * @category Saving
+ */
 export interface ExportGraphOptions extends CommonExportOptions {
     /** Format-specific options, passed to the exporter as they are. */
     readonly [formatOption: string]: unknown;
@@ -194,6 +247,7 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
  * A registry of importers and exporters by format name. Registration order is the tie-break
  * order of sniffing; the default registry lists the built-in formats in the
  * order of GRAPH_FORMATS.
+ * @category Formats and detection
  */
 export class FormatRegistry {
     private readonly importerMap = new Map<string, GraphImporter>();
@@ -290,9 +344,10 @@ export class FormatRegistry {
     }
 
     /**
-     * Rank the registered importers for an input.
-     * @param hints - the filename, MIME type and / or head of the input
-     * @returns the candidates, best first; empty when nothing matches
+     * Every format that could be the input, best first, from the same hints as sniff(): use it to
+     * offer the user a choice when the best guess is not certain.
+     * @param hints - `{ filename, mimeType, head }`, any of them
+     * @returns the candidates, best first; empty when no format claims the input
      */
     sniffAll(hints: SniffHints): readonly SniffResult[] {
         return rankFormats(hints, this.importerMap.values());
@@ -309,17 +364,28 @@ export class FormatRegistry {
     }
 
     /**
-     * Read an input into a fresh builder and freeze it. The format is the one named in the options, else sniffed from the filename,
-     * the MIME type and the first bytes of the content; the builder is seeded from the common
-     * options with `directed: true` as a placeholder that the importer overrides from the file.
-     * An input holding several graphs yields the first, with a warning naming how many were
-     * skipped; importAllGraphs() returns every one.
+     * Read a graph from a string, bytes or a stream. The format is the one you name in `format`,
+     * else it is detected from `filename`, `mimeType` and the first bytes of the content. From an
+     * input that holds several graphs, it reads the one `graphIndex` or `graphName` chooses, else
+     * the first, with a W_MULTIPLE_GRAPHS warning; importAllGraphs() returns every one.
      * @param input - the text, bytes, stream or chunks to read
      * @param options - the format, hints, common and format-specific import options
-     * @returns the snapshot, the import report and the freeze report
+     * @returns the graph (`snapshot`), the format it was read as, and the import report
      */
     async importGraph(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
         const chosen = await this.choose(input, options);
+        const { importer } = chosen;
+        if (
+            (options.graphIndex !== undefined || options.graphName !== undefined) &&
+            importer.importAll !== undefined &&
+            importer.listGraphs === undefined
+        ) {
+            // an importer that reads several graphs but does not choose among them itself (DOT, GML,
+            // Pajek): read them all and return the chosen one, so the choice is never ignored
+            const all = await this.readAll(chosen, options);
+            const names = all.map((r) => r.snapshot.meta.name);
+            return all[chooseGraph(names, options, new ImportReportBuilder(importer.format, 0))];
+        }
         let builder: GraphBuilder;
         let report: ImportReport;
         try {
@@ -372,7 +438,7 @@ export class FormatRegistry {
      * @returns the graph, the format it was read as, and the import report
      */
     loadFromFile(file: Blob, options: ImportGraphOptions = {}): Promise<ImportGraphResult> {
-        const {name} = (file as { name?: unknown });
+        const { name } = file as { name?: unknown };
         return this.importGraph(file.stream(), {
             ...options,
             filename: options.filename ?? (typeof name === "string" ? name : null),
@@ -382,15 +448,23 @@ export class FormatRegistry {
 
     /**
      * Read every graph of an input (a DOT file with several graphs, a Pajek project with several
-     * networks, a JGF document with a `graphs` array), each into its own fresh builder, frozen.
-     * A format whose importer has no importAll() holds one graph per input, so the result has one
-     * entry. Options, sniffing and the builder seed are those of importGraph().
+     * networks, a JGF document with a `graphs` array), each as its own snapshot. A format that holds
+     * one graph per file gives one result. Options and detection are those of importGraph().
      * @param input - the text, bytes, stream or chunks to read
      * @param options - the format, hints, common and format-specific import options
      * @returns one result per graph, in document order
      */
     async importAllGraphs(input: ImportInput, options: ImportGraphOptions = {}): Promise<ImportGraphResult[]> {
-        const chosen = await this.choose(input, options);
+        return this.readAll(await this.choose(input, options), options);
+    }
+
+    /**
+     * Read every graph of an input with the chosen importer.
+     * @param chosen - the importer and the input to hand it
+     * @param options - the importGraph options
+     * @returns one result per graph, in document order
+     */
+    private async readAll(chosen: ChosenImporter, options: ImportGraphOptions): Promise<ImportGraphResult[]> {
         const { importer } = chosen;
         const builders: GraphBuilder[] = [];
         let reports: ImportReport[];
@@ -474,7 +548,7 @@ export class FormatRegistry {
                     failures.warning(
                         "unsupported",
                         SNIFF_FAILED_CODE,
-                        `the ${format} importer's sniff() threw (${messageOf(err)}); it was treated as not recognising the input`,
+                        `the ${format} importer's sniff() threw (${messageOf(err)}); it was treated as not recognizing the input`,
                         { element: format },
                     ),
                 );
@@ -520,7 +594,11 @@ export class FormatRegistry {
      * @param options - the exporter's common and format-specific options
      * @returns the whole document
      */
-    async exportGraphToString(snapshot: GraphSnapshot, format: FormatName, options?: ExportGraphOptions): Promise<string> {
+    async exportGraphToString(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options?: ExportGraphOptions,
+    ): Promise<string> {
         return this.exporter(format).exportToString(snapshot, options);
     }
 
@@ -588,6 +666,7 @@ export class FormatRegistry {
 /**
  * A new registry holding every built-in importer and exporter, in the order of GRAPH_FORMATS.
  * @returns a new registry
+ * @category Formats and detection
  */
 export function createRegistry(): FormatRegistry {
     return new FormatRegistry()
@@ -619,45 +698,71 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(cysExporter);
 }
 
-/** The default registry: every built-in format. */
-export const registry: FormatRegistry = createRegistry();
+/**
+ * The default registry: every built-in format.
+ * @category Formats and detection
+ */
+export const registry: FormatRegistry = /* @__PURE__ */ createRegistry();
 
 /**
- * Read an input into a fresh builder and freeze it, through the default registry.
- * @param input - the text, bytes, stream or chunks to read
- * @param options - the format, hints, common and format-specific import options
- * @returns the snapshot, the import report and the freeze report
+ * Read a graph from a string, bytes or a stream. The format is the one you name in `format`, else
+ * it is detected from `filename`, `mimeType` and the first bytes; an input that matches no format
+ * fails with E_UNKNOWN_FORMAT. From a file that holds several graphs it reads the one `graphIndex`
+ * or `graphName` chooses, else the first, with a W_MULTIPLE_GRAPHS warning. For a File or Blob use
+ * loadFromFile(), for a URL loadFromUrl().
+ * @param input - the whole text, the bytes (a Uint8Array or a Node Buffer), a ReadableStream of
+ *   bytes, or an async iterable of text or byte chunks (a Node read stream)
+ * @param options - the format, format hints, the options every importer takes and the format's own
+ *   options
+ * @returns the graph (`snapshot`), the format it was read as, and the import report
+ * @throws ImportError when the input could not be read; `err.issue?.code` says why
+ * @throws GraphFormatError with code E_UNSUPPORTED for a `format` no importer is registered for, or
+ *   an option value that is not allowed (`err.details.option` names it)
+ * @throws the signal's reason when `signal` aborts
+ * @category Loading
  */
 export function importGraph(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult> {
     return registry.importGraph(input, options);
 }
 
 /**
- * Read every graph of an input, each into its own frozen snapshot, through the default registry.
- * @param input - the text, bytes, stream or chunks to read
- * @param options - the format, hints, common and format-specific import options
- * @returns one result per graph, in document order
+ * Read every graph of a file that can hold several (DOT, GML, a Pajek project, a JSON Graph Format
+ * or OBO Graphs document, CX, XGMML, a Cytoscape session). A format that holds one graph per file
+ * gives one result. Options and errors are the same as importGraph()'s.
+ * @param input - the text, bytes or stream to read
+ * @param options - the same options as importGraph()
+ * @returns one result per graph, in file order
+ * @category Loading
  */
 export function importAllGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<ImportGraphResult[]> {
     return registry.importAllGraphs(input, options);
 }
 
 /**
- * The graphs of an input that can hold several, through the default registry.
- * @param input - the text, bytes, stream or chunks to read
- * @param options - the format, hints, common and format-specific import options
- * @returns one listing per graph, in document order; null when the format does not list its graphs
+ * List the graphs of a file without reading them: each one's `index`, `name`, and node and edge
+ * counts when the file states them. Pass the index or name to importGraph() as `graphIndex` or
+ * `graphName`. The counts come from the file and can differ from what an import reads, for example
+ * when the import adds edges the listing does not count. JSON, CX, XGMML and Cytoscape sessions can
+ * list their graphs; for DOT, GML and Pajek it returns null, and importAllGraphs() is the way to see
+ * them.
+ * @param input - the text, bytes or stream to read
+ * @param options - the same options as importGraph()
+ * @returns one listing per graph, in file order; null when the format cannot list its graphs
+ * @category Loading
  */
 export function listGraphs(input: ImportInput, options?: ImportGraphOptions): Promise<readonly GraphListing[] | null> {
     return registry.listGraphs(input, options);
 }
 
 /**
- * Write a snapshot in a format through the default registry, as UTF-8 chunks.
- * @param snapshot - the snapshot
- * @param format - the format name
- * @param options - the exporter's common and format-specific options
- * @returns the encoded chunks
+ * Write a graph in a format as a stream of UTF-8 byte chunks, for a graph too large to hold as one
+ * file in memory. In Node, pipe it to a file with `pipeline(exportGraph(...), createWriteStream(path))`.
+ * Options and errors are the same as exportGraphToBytes()'s.
+ * @param snapshot - the graph to write
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - sanitizeIds, onMixedDirection and the format's own options
+ * @returns the file's bytes, chunk by chunk
+ * @category Saving
  */
 export function exportGraph(
     snapshot: GraphSnapshot,
@@ -668,11 +773,14 @@ export function exportGraph(
 }
 
 /**
- * Write a snapshot in a format through the default registry, as one string.
- * @param snapshot - the snapshot
- * @param format - the format name
- * @param options - the exporter's common and format-specific options
- * @returns the whole document
+ * Write a graph in a format and return the file as one string. A binary format (a Cytoscape
+ * session) cannot be a string and fails with E_UNSUPPORTED; use exportGraphToBytes() for it. Options
+ * and errors are the same as exportGraphToBytes()'s.
+ * @param snapshot - the graph to write
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - sanitizeIds, onMixedDirection and the format's own options
+ * @returns the whole file
+ * @category Saving
  */
 export async function exportGraphToString(
     snapshot: GraphSnapshot,
@@ -683,11 +791,17 @@ export async function exportGraphToString(
 }
 
 /**
- * What exporting a snapshot in a format would lose, through the default registry.
- * @param snapshot - the snapshot
- * @param format - the format name
- * @param options - the exporter's common and format-specific options
- * @returns the loss notes, empty when the export is exact
+ * What saving a graph in a format would lose, without writing anything. Pass the same options you
+ * will pass to the save. Each note has a stable `code`: "E_" means the save would throw, "W_" means
+ * the file is written but that part does not read back the same. An empty array means the file
+ * reads back as the same graph. Runs synchronously.
+ * @param snapshot - the graph to check
+ * @param format - a format name from listFormats() where `canExport` is true
+ * @param options - the options you will save with
+ * @returns the loss notes, empty when the save is exact
+ * @throws GraphFormatError with code E_UNSUPPORTED when no exporter is registered for `format`, or
+ *   when an option value is not allowed (`err.details.option` names it)
+ * @category Saving
  */
 export function checkExport(
     snapshot: GraphSnapshot,
@@ -711,7 +825,7 @@ export function checkExport(
  * @param url - an absolute URL, or in a browser one relative to the page
  * @param options - import options, plus `request` for fetch
  * @returns the graph, the format it was read as, and the import report
- * @throws ImportError when the file could not be loaded; `err.issue.code` is "E_FETCH" for a
+ * @throws ImportError when the file could not be loaded; `err.issue?.code` is "E_FETCH" for a
  *   network failure, a CORS refusal or a status outside 200-299 (`err.details.url`,
  *   `err.details.status` -- null for a network failure -- and `err.details.cause`, fetch's own
  *   error), "E_UNKNOWN_FORMAT" when no format recognizes the file (pass `format`), or the code of
@@ -733,6 +847,7 @@ export function checkExport(
  *     }
  * }
  * ```
+ * @category Loading
  */
 export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Promise<ImportGraphResult> {
     return registry.loadFromUrl(url, options);
@@ -747,7 +862,7 @@ export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Pr
  * @param file - the File or Blob to read
  * @param options - the same options as importGraph()
  * @returns the graph, the format it was read as, and the import report
- * @throws ImportError when the file could not be loaded (`err.issue.code` E_UNKNOWN_FORMAT or a parse error)
+ * @throws ImportError when the file could not be loaded (`err.issue?.code` E_UNKNOWN_FORMAT or a parse error)
  * @throws GraphFormatError with code E_UNSUPPORTED when `format` names no registered importer
  * @throws the signal's reason when `signal` aborts
  * @example
@@ -760,6 +875,7 @@ export function loadFromUrl(url: string | URL, options?: LoadFromUrlOptions): Pr
  *     }
  * });
  * ```
+ * @category Loading
  */
 export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<ImportGraphResult> {
     return registry.loadFromFile(file, options);
@@ -771,9 +887,8 @@ export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<
  * or the network. To stream a very large graph, use exportGraph(). To find out beforehand what the
  * file will not keep, call checkExport() with the same format and the same options object: every
  * "E_" note it returns makes this call throw, and every "W_" note describes a loss this call
- * accepts. With default options, any "E_" note makes the call throw: sanitizeIds is "error" (ids
- * are never renamed) and onMixedDirection is "error". Pass sanitizeIds "mangle" or
- * onMixedDirection "directed" / "undirected" to write anyway. The format's own options (the CSV
+ * accepts. Most "E_" notes go away with `sanitizeIds: "mangle"` (rewrite ids the format cannot
+ * hold) or `onMixedDirection: "directed"` / `"undirected"`. The format's own options (the CSV
  * `table` and `dialect`, the GEXF `version`, ...) go in the same object.
  * @param snapshot - the graph to write
  * @param format - a format name from listFormats() where `canExport` is true
@@ -781,13 +896,19 @@ export function loadFromFile(file: Blob, options?: ImportGraphOptions): Promise<
  * @returns the encoded file
  * @throws GraphFormatError with code E_UNSUPPORTED when no exporter is registered for `format`
  * @throws GraphFormatError when the graph cannot be written in this format under these options
- *   (checkExport() returns an "E_" note for the same call)
+ *   (checkExport() returns an "E_" note for the same call). The thrown code names the kind of
+ *   failure rather than the note: E_INVALID_ID for ids (the E_ID_CHARSET and E_ID_TEXT_COLLISION
+ *   notes), E_DIRECTED for direction (E_MIXED_DIRECTION), and E_COLUMN_TYPE or E_UNSUPPORTED for a
+ *   value the format cannot write; each note's entry on the codes page says which
+ * @throws GraphFormatError with code E_UNSUPPORTED for an option value that is not allowed
+ *   (`err.details.option` names it)
  * @example
  * ```ts
  * import { writeFile } from "node:fs/promises";
  *
  * await writeFile("out.gexf", await exportGraphToBytes(snapshot, "gexf"));
  * ```
+ * @category Saving
  */
 export function exportGraphToBytes(
     snapshot: GraphSnapshot,
@@ -814,6 +935,7 @@ export function exportGraphToBytes(
  * body.append("file", await exportGraphToBlob(snapshot, "graphml"), "graph.graphml");
  * await fetch("/api/graphs", { method: "POST", body });
  * ```
+ * @category Saving
  */
 export function exportGraphToBlob(
     snapshot: GraphSnapshot,
@@ -827,7 +949,7 @@ export function exportGraphToBlob(
  * Browser only: write a graph in a format and have the browser save it as a file, the same as
  * clicking a download link. Call it from a click handler; awaiting other work first is fine. The
  * promise resolves once the file has been handed to the browser. There is no way to learn
- * whether the user then cancelled the save. Calling it where there is no `document` (Node, a
+ * whether the user then canceled the save. Calling it where there is no `document` (Node, a
  * worker) throws instead of silently doing nothing; importing it is safe everywhere. Formats you
  * registered with `registry.registerExporter()` can be downloaded too.
  * @param snapshot - the graph to write
@@ -842,6 +964,7 @@ export function exportGraphToBlob(
  *     void downloadGraph(snapshot, "graphml", { filename: "network.graphml" });
  * });
  * ```
+ * @category Saving
  */
 export async function downloadGraph(
     snapshot: GraphSnapshot,
@@ -880,15 +1003,26 @@ export async function downloadGraph(
  * input.accept = listFormats().filter((f) => f.canImport).flatMap((f) => f.extensions).join(",");
  * const target = listFormats().find((f) => f.canExport && f.extensions.includes(extensionOf(path) ?? ""));
  * ```
+ * @category Formats and detection
  */
 export function listFormats(): readonly FormatInfo[] {
     return registry.listFormats();
 }
 
 /**
- * Sniff an input's format through the default registry.
- * @param hints - the filename, MIME type and / or head of the input
- * @returns the best candidate, or null when no built-in importer claims it
+ * Detect a file's format without reading it, from what you know about it: a `filename` (only the
+ * extension counts), a `mimeType`, and `head`, the file's first bytes or characters (up to
+ * SNIFF_HEAD_BYTES; pass `bytes.subarray(0, SNIFF_HEAD_BYTES)`). It uses every format of the default
+ * registry, including the ones you registered. For every candidate, best first, call
+ * `registry.sniffAll(hints)`.
+ * @param hints - `{ filename, mimeType, head }`, any of them
+ * @returns the best candidate (`format`, `confidence` and what matched), or null when no format
+ *   claims the input
+ * @example
+ * ```ts
+ * sniff({ filename: "graph.xml", head: "<?xml version=\"1.0\"?><gexf" })?.format; // "gexf"
+ * ```
+ * @category Formats and detection
  */
 export function sniff(hints: SniffHints): SniffResult | null {
     return registry.sniff(hints);
@@ -1017,7 +1151,7 @@ function result(
         format: chosen.importer.format,
         sniff: chosen.sniff,
         snapshot: frozen.snapshot,
-        report: withMergedEdges(
+        report: withFreezeWarnings(
             warnings.length === 0
                 ? report
                 : Object.freeze({
@@ -1025,36 +1159,47 @@ function result(
                       issues: Object.freeze([...warnings, ...report.issues]),
                       warningCount: report.warningCount + warnings.length,
                   }),
-            frozen.report.mergedEdges,
+            frozen.report,
         ),
         freeze: frozen.report,
     });
 }
 
 /**
- * The import report with one W_EDGES_MERGED warning when the freeze merged parallel edges: a
- * merging duplicateEdges policy (on the builder or as a per-freeze override) keeps one edge per
- * group, and whatever told the others apart (a relation, a label) is gone.
+ * The import report with what the builder's policies changed while the graph was built: one
+ * W_EDGES_MERGED warning when `duplicateEdges` merged parallel edges (whatever told them apart, a
+ * relation or a label, is lost) and one W_SELF_LOOPS_DROPPED warning when `selfLoops: "drop"`
+ * removed self-loops, so nothing the caller's options removed goes unreported.
  * @param report - the import's report
- * @param merged - the freeze report's mergedEdges
- * @returns the report, with the warning when merged is not 0
+ * @param freeze - the freeze report
+ * @returns the report, with the warnings added
  */
-function withMergedEdges(report: ImportReport, merged: number): ImportReport {
-    if (merged === 0) {
+function withFreezeWarnings(report: ImportReport, freeze: FreezeReport): ImportReport {
+    const added: ImportIssue[] = [];
+    const warn = (category: IssueCategory, code: string, message: string): void => {
+        added.push(Object.freeze({ category, severity: "warning" as const, code, message, line: null, element: null }));
+    };
+    if (freeze.mergedEdges > 0) {
+        warn(
+            "merged",
+            EDGES_MERGED_CODE,
+            `${freeze.mergedEdges} parallel edge(s) were merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
+        );
+    }
+    if (freeze.droppedSelfLoops > 0) {
+        warn(
+            "validation-error",
+            SELF_LOOPS_DROPPED_CODE,
+            `${freeze.droppedSelfLoops} self-loop(s) were removed by selfLoops: "drop"`,
+        );
+    }
+    if (added.length === 0) {
         return report;
     }
-    const issue = Object.freeze({
-        category: "merged" as const,
-        severity: "warning" as const,
-        code: EDGES_MERGED_CODE,
-        message: `${merged} parallel edge(s) were merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
-        line: null,
-        element: null,
-    });
     return Object.freeze({
         ...report,
-        issues: Object.freeze([...report.issues, issue]),
-        warningCount: report.warningCount + 1,
+        issues: Object.freeze([...report.issues, ...added]),
+        warningCount: report.warningCount + added.length,
     });
 }
 
@@ -1127,7 +1272,7 @@ interface PeekedInput {
     readonly input: ImportInput;
     /**
      * Close the source when the importer never iterated the replaying input (it threw first, an
-     * abort for instance): a stream's reader is cancelled and released, an async generator finalised.
+     * abort for instance): a stream's reader is canceled and released, an async generator finalised.
      * @returns when the source is closed
      */
     close(): Promise<void>;

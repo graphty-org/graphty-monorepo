@@ -104,28 +104,42 @@ import { ImportReportBuilder } from "../../common/report.js";
 import { weightFromValue } from "../../common/weights.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 
-/** The format name. */
+/**
+ * The format name.
+ * @category Plugin helpers
+ */
 export const CX2_FORMAT = "cx2";
 
-/** The node attribute the exporter's `sanitizeIds: "mangle"` keeps an original id in. */
+/**
+ * The node attribute the exporter's `sanitizeIds: "mangle"` keeps an original id in.
+ * @category Plugin helpers
+ */
 export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
 
-/** The origin namespace of the per-element visual property columns. */
+/**
+ * The origin namespace of the per-element visual property columns.
+ * @category Plugin helpers
+ */
 export const BYPASS_NAMESPACE = "cx2.bypass";
 
-/** The format-specific options of the CX2 importer. */
+/**
+ * The format-specific options of the CX2 importer.
+ * @category Built-in formats
+ */
 export interface Cx2ImportOptions {
     /**
-     * Where a node's `z` goes: "column" (default) keeps it in the f64 node column `z` (Cytoscape
-     * writes a stacking order there); "position" makes it the third component of the position.
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
      */
     zAs?: "column" | "position" | undefined;
 }
 
 /**
  * The issue codes the CX2 importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the CX2-specific ones. A key is the code without
+ * the other importers and the CX2-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const CX2_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -213,23 +227,35 @@ export const CX2_ISSUE = Object.freeze({
     INVALID_WEIGHT: "E_INVALID_WEIGHT",
     /** An id spelled as a string or a non-integer literal; read as the integer. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
-    /** An integer beyond 2^53: an id kept as its digits, a value stored as the nearest f64. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /** Two id texts merged under `ids: "number"`. */
     ID_MERGED: ID_MERGED_CODE,
     /** An element key CX2 does not define. */
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
-    /** A column renamed because its name was taken. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A column that lost its role because another column holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** The sink refused the direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A common option CX2 has no use for. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder option the caller's sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The input is beyond a size limit (fatal). */
     TOO_LARGE: TOO_LARGE_CODE,
@@ -323,6 +349,7 @@ const SCALARS: ReadonlyMap<string, Cx2Scalar> = new Map([
  * Resolve a declared type text.
  * @param d - the `d` value
  * @returns the type, or null when CX2 does not define it
+ * @category Plugin helpers
  */
 export function cx2Type(d: string): Cx2Type | null {
     const list = d.startsWith("list_of_");
@@ -2194,7 +2221,7 @@ class Cx2Reader {
             report.warning(
                 "unsupported",
                 STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${styles.join("; ")}); they are kept in meta.extra.cx2.opaque (style import is issue #706)`,
+                `the file's style rules are not applied (${styles.join("; ")}); they are kept in meta.extra.cx2.opaque`,
                 { element: STYLE_ASPECTS.filter((a) => doc.opaque.has(a)).join(",") },
             );
         }
@@ -2316,6 +2343,7 @@ function describeStyle(aspect: string, elements: readonly unknown[]): string {
  * Resolve the zAs option.
  * @param value - the option
  * @returns the mode; E_UNSUPPORTED for any other value
+ * @category Plugin helpers
  */
 export function zAsOption(value: unknown): "column" | "position" {
     if (value === undefined) {
@@ -2332,6 +2360,7 @@ export function zAsOption(value: unknown): "column" | "position" {
 
 /**
  * The CX2 importer plugin.
+ * @category Built-in formats
  */
 export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
     format: CX2_FORMAT,

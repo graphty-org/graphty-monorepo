@@ -38,7 +38,10 @@ import { type ImportReportBuilder } from "./report.js";
 
 // ============================================================ exact integers
 
-/** A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992). */
+/**
+ * A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992).
+ * @category Plugin helpers
+ */
 export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
 
 /**
@@ -48,6 +51,7 @@ export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
  * (`90071992547409.93e2`). MAYBE_UNSAFE_INTEGER sees none of them.
  * ponytail: a literal that underflows through 300+ leading fraction zeros and no exponent is not
  * gated; add a digit-count check if such files turn up.
+ * @category Plugin helpers
  */
 export const MAYBE_INEXACT_EXPONENT =
     /[0-9][eE]\+?0*(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})|[0-9][eE]-0*([3-9][0-9]{2}|[1-9][0-9]{3,})|(?<![0-9.])(?=(?:[0-9]\.?){16})[0-9]+\.[0-9]+[eE]/;
@@ -179,6 +183,7 @@ function isInexactLiteral(literal: string): boolean {
  * @param options.nonstandard - rewrite NaN / Infinity / -Infinity (default true)
  * @param options.exactSentinel - quote big integers as sentinels instead of bare digits (default false)
  * @returns the rewritten text, what was found and the revivers of this rewrite
+ * @category Plugin helpers
  */
 export function rewriteNumbers(
     text: string,
@@ -285,6 +290,7 @@ const LINEAR_KEYS = 32;
  * Keys are compared as written: `"\u0069d"` and `"id"` are not recognized as one key.
  * @param text - a text JSON.parse accepted (or its rewrite)
  * @returns every repetition in document order
+ * @category Plugin helpers
  */
 export function findDuplicateKeys(text: string): DuplicateKey[] {
     const found: DuplicateKey[] = [];
@@ -413,7 +419,10 @@ function isKey(text: string, from: number): boolean {
     return text.charCodeAt(i) === 58;
 }
 
-/** An integer literal beyond 2^53, kept as its exact digits (a CX id must never lose a digit). */
+/**
+ * An integer literal beyond 2^53, kept as its exact digits (a CX id must never lose a digit).
+ * @category Plugin helpers
+ */
 export class ExactInteger {
     /** The digits, with a leading minus for a negative value. */
     readonly digits: string;
@@ -439,6 +448,7 @@ export class ExactInteger {
  * Parse one JSON value, keeping integer literals beyond 2^53 as ExactInteger.
  * @param text - the JSON text
  * @returns the value and whether it may hold an ExactInteger; SyntaxError when it is not JSON
+ * @category Plugin helpers
  */
 export function parseExact(text: string): { readonly value: unknown; readonly exact: boolean } {
     if (!MAYBE_UNSAFE_INTEGER.test(text)) {
@@ -457,6 +467,7 @@ export function parseExact(text: string): { readonly value: unknown; readonly ex
  * @param value - the value
  * @param onPrecision - called with the digits of each integer that lost precision
  * @returns the plain JSON value
+ * @category Plugin helpers
  */
 export function plainJson(value: unknown, onPrecision?: (digits: string) => void): unknown {
     if (value instanceof ExactInteger) {
@@ -482,6 +493,7 @@ export function plainJson(value: unknown, onPrecision?: (digits: string) => void
  * @param target - the object
  * @param key - the key
  * @param value - the value
+ * @category Plugin helpers
  */
 export function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
     if (key === "__proto__") {
@@ -679,7 +691,10 @@ function checkParsed(text: string, parsed: unknown, line: number, report: Import
 
 // ============================================================ the streaming aspect scanner
 
-/** A problem with the document's JSON; the importer turns it into a fatal E_SYNTAX or E_EMPTY_INPUT. */
+/**
+ * A problem with the document's JSON; the importer turns it into a fatal E_SYNTAX or E_EMPTY_INPUT.
+ * @category Plugin helpers
+ */
 export class JsonScanError extends Error {
     /** The 1-based line of the problem. */
     readonly line: number;
@@ -701,7 +716,10 @@ export class JsonScanError extends Error {
     }
 }
 
-/** One thing the scanner found in a CX document. */
+/**
+ * One thing the scanner found in a CX document.
+ * @category Plugin helpers
+ */
 export type AspectEvent =
     | {
           /**
@@ -1349,6 +1367,7 @@ async function* blockElements(
  * Report an element or member the scanner refused for its depth (E_BAD_ASPECT_BLOCK; skipped).
  * @param report - the report
  * @param event - the "deep" event
+ * @category Plugin helpers
  */
 export function reportTooDeep(report: ImportReportBuilder, event: Extract<AspectEvent, { kind: "deep" }>): void {
     report.error(
@@ -1365,6 +1384,7 @@ export function reportTooDeep(report: ImportReportBuilder, event: Extract<Aspect
  * @param report - the report
  * @param where - where the aspect is kept (meta.extra.cx, ...)
  * @returns the callback
+ * @category Plugin helpers
  */
 export function keptPrecision(report: ImportReportBuilder, where: string): (digits: string) => void {
     return (digits) => {
@@ -1383,6 +1403,7 @@ export function keptPrecision(report: ImportReportBuilder, where: string): (digi
  * aspect (`{"nodes": [...], "edges": [...]}`); a block of its own needs nothing.
  * @param report - the report
  * @param event - the "block" event
+ * @category Plugin helpers
  */
 export function reportSharedBlock(report: ImportReportBuilder, event: Extract<AspectEvent, { kind: "block" }>): void {
     if (event.shared) {
@@ -1417,6 +1438,7 @@ const DECIMAL_INTEGER_TEXT = /^-?(0|[1-9][0-9]*)$/;
  * @param raw - the parsed value
  * @param inexactLiteral - whether the number was written as a non-integer literal (`5.0`, `1e3`)
  * @returns the id and how it was spelled
+ * @category Plugin helpers
  */
 export function cxId(raw: unknown, inexactLiteral = false): CxId {
     if (raw instanceof ExactInteger) {
@@ -1460,6 +1482,7 @@ const NUMBER_LITERAL = /-?[0-9][0-9.eE+-]*/y;
  * @param keyDepth - the nesting depth of the element's own keys: 1, or 2 for an element written as
  * a member's single object (`{"nodes": {"@id": 1.0}}`)
  * @returns true when the literal holds a fraction or an exponent
+ * @category Plugin helpers
  */
 export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean {
     const quoted = JSON.stringify(key);
@@ -1491,7 +1514,10 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
 
 // ============================================================ Cytoscape positions (design section 1.0.2)
 
-/** The name of the position column of every Cytoscape-family importer. */
+/**
+ * The name of the position column of every Cytoscape-family importer.
+ * @category Plugin helpers
+ */
 export const POSITION_COLUMN = "position";
 
 /** The name of the stacking-order column (Cytoscape's NODE_Z_LOCATION). */
@@ -1502,6 +1528,7 @@ const Z_COLUMN = "z";
  * @param format - the importer's format name
  * @param sourceDims - 3 when z goes into the position (zAs "position")
  * @returns the declaration
+ * @category Plugin helpers
  */
 export function positionDecl(format: string, sourceDims = 2): ColumnDecl {
     return {
@@ -1520,6 +1547,7 @@ export function positionDecl(format: string, sourceDims = 2): ColumnDecl {
  * The stacking-order column `z` (f64, origin namespace "cytoscape").
  * @param format - the importer's format name
  * @returns the declaration
+ * @category Plugin helpers
  */
 export function zDecl(format: string): ColumnDecl {
     return {
@@ -1536,6 +1564,7 @@ export function zDecl(format: string): ColumnDecl {
  * Infinity of a literal like 1e400 do not, nor does NaN).
  * @param value - the coordinate
  * @returns true when the column can hold it
+ * @category Plugin helpers
  */
 export function fitsF32(value: number): boolean {
     return Number.isFinite(Math.fround(value));
@@ -1546,6 +1575,7 @@ export function fitsF32(value: number): boolean {
  * failing, without the BOM.
  * @param head - the first bytes
  * @returns the text
+ * @category Plugin helpers
  */
 export function headText(head: Uint8Array): string {
     let encoding = "utf-8";
@@ -1562,6 +1592,7 @@ export function headText(head: Uint8Array): string {
  * that never yields -0.
  * @param y - the coordinate
  * @returns the flipped coordinate
+ * @category Plugin helpers
  */
 export function flipY(y: number): number {
     return y === 0 ? 0 : -y;
@@ -1577,6 +1608,7 @@ const STRUCTURE_ASPECTS: ReadonlySet<string> = new Set(["metaData", "status", "n
  * `metaData` or an aspect after the post-metadata or after `status` is W_ASPECT_ORDER; declared
  * element counts are compared with what was read (W_COUNT_MISMATCH); `status.success: false` is
  * fatal (E_STATUS_FAILED) and `success: true` with an error text a warning (W_STATUS_WARNING).
+ * @category Plugin helpers
  */
 export class CxStructure {
     private readonly report: ImportReportBuilder;
@@ -1781,6 +1813,7 @@ export class CxStructure {
  * Whether a value is a plain JSON object.
  * @param value - any value
  * @returns true for a non-null, non-array object
+ * @category Plugin helpers
  */
 export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof ExactInteger);
@@ -1795,6 +1828,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
  * @param decl - the declaration
  * @param report - the report the rename is recorded in
  * @returns the handle
+ * @category Plugin helpers
  */
 export function declareFresh(
     sink: GraphSink,

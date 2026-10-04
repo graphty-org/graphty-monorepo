@@ -26,10 +26,16 @@ import {
 import { hasKey, isJsonObject } from "./dialect.js";
 import { chosenGraph, type ImportContext, JSON_ISSUE, type JsonRecord } from "./importer.js";
 
-/** The node keys the schema defines; any other key goes to `obo.unrecognized`. */
+/**
+ * The node keys the schema defines; any other key goes to `obo.unrecognized`.
+ * @category Plugin helpers
+ */
 export const NODE_KEYS: ReadonlySet<string> = new Set(["id", "lbl", "type", "propertyType", "meta"]);
 
-/** The `meta` keys mapped onto columns; any other key goes to `obo.unrecognized` as `meta.<key>`. */
+/**
+ * The `meta` keys mapped onto columns; any other key goes to `obo.unrecognized` as `meta.<key>`.
+ * @category Plugin helpers
+ */
 export const META_KEYS: ReadonlySet<string> = new Set([
     "definition",
     "comments",
@@ -40,14 +46,20 @@ export const META_KEYS: ReadonlySet<string> = new Set([
     "deprecated",
 ]);
 
-/** The OBO frame type of an OBO Graphs node type. */
+/**
+ * The OBO frame type of an OBO Graphs node type.
+ * @category Plugin helpers
+ */
 export const FRAME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     CLASS: "Term",
     INDIVIDUAL: "Instance",
     PROPERTY: "Typedef",
 });
 
-/** The OBO name of the predicates OBO Graphs writes without an IRI. */
+/**
+ * The OBO name of the predicates OBO Graphs writes without an IRI.
+ * @category Plugin helpers
+ */
 export const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freeze({
     is_a: "is_a",
     subPropertyOf: "is_a",
@@ -55,7 +67,10 @@ export const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freez
     inverseOf: "inverse_of",
 });
 
-/** Predicates that relate two properties (metadata under typedefs "metadata"). */
+/**
+ * Predicates that relate two properties (metadata under typedefs "metadata").
+ * @category Plugin helpers
+ */
 export const PROPERTY_PREDICATES: ReadonlySet<string> = new Set(["subPropertyOf", "inverseOf"]);
 
 /** Writes the OBO vocabulary columns, declaring each on first use. */
@@ -243,6 +258,7 @@ function strings(ctx: ImportContext, value: unknown, path: string): string[] {
  * Read the chosen graph of an OBO Graphs document into the sink.
  * @param ctx - the import context
  * @param root - the document
+ * @category Plugin helpers
  */
 export function importObographs(ctx: ImportContext, root: JsonRecord): void {
     const graph = chosenGraph(ctx, root, "OBO Graphs");

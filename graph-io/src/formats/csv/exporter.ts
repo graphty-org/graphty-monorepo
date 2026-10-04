@@ -39,29 +39,53 @@ import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, 
 import { EDGE_ID_NAMES, findColumn, LABEL_NAMES } from "./header.js";
 import { DELIMITER_CANDIDATES } from "./records.js";
 
-/** The format-specific options of the CSV exporter. */
+/**
+ * The format-specific options of the CSV exporter.
+ * @category Built-in formats
+ */
 export interface CsvExportOptions {
     /**
-     * The header spelling: "gephi" (default) writes `Source,Target,Type,...,Weight` with the per-row
-     * direction; "generic" writes `source,target,...,weight` and no direction column.
+     * The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's
+     * direction in `Type`; "generic" writes `source,target,...,weight` and no direction column.
+     * @defaultValue "gephi"
      */
     dialect?: "gephi" | "generic" | undefined;
     /**
-     * Which table to write: the edge table (default), the node table, or an adjacency table (a node
-     * and its neighbors per row; read back with the importer's `table: "adjacency"`).
+     * Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and
+     * node attributes are not in it. "nodes": one node per row, with the node attributes and no
+     * edges. "adjacency": a node and its neighbors per row, which keeps every node and the node
+     * order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and
+     * edges, write the node table and the edge table to two files and read them back with the
+     * `nodes` import option.
+     * @defaultValue "edges"
      */
     table?: "edges" | "nodes" | "adjacency" | undefined;
-    /** The field delimiter; "," by default. */
+    /**
+     * The field delimiter.
+     * @defaultValue ","
+     */
     delimiter?: string | undefined;
-    /** The line terminator; "\n" by default. */
+    /**
+     * The line terminator.
+     * @defaultValue "\n"
+     */
     newline?: "\n" | "\r\n" | undefined;
-    /** Whether to write the header row; true by default (an adjacency table never has one). */
+    /**
+     * Whether to write the header row (an adjacency table never has one).
+     * @defaultValue true
+     */
     header?: boolean | undefined;
 }
 
-/** The CSV loss-note codes of check(); the shared ones are LOSS's. */
+/**
+ * The CSV loss-note codes of check(); the shared ones are LOSS's.
+ * @category Built-in formats
+ */
 export const CSV_LOSS = Object.freeze({
-    /** Two node ids share one text (a number and a string); export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
     /** Ids whose text reads back as the other type under the canonical rule. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
@@ -75,17 +99,26 @@ export const CSV_LOSS = Object.freeze({
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** An attribute column named like a reserved header is not written. */
     RESERVED_NAME: "W_CSV_RESERVED_NAME",
-    /** A column without a role that the importer gives one back by its name. */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A role column (id, label) whose name the importer does not recognize; the role is lost. */
     ROLE_NAME: "W_CSV_ROLE_NAME",
-    /** A role column (id, label) that is not string / dict reads back as string. */
+    /** An id or label attribute that is not text reads back as text. */
     TEXT_ROLE: "W_CSV_TEXT_ROLE",
     /** NaN / Infinity in a numeric column read back as text. */
     NONFINITE: "W_CSV_NONFINITE",
-    /** A text column whose every value reads back as a number or boolean. */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
-    /** A dict column whose cardinality makes the importer read it back as string, or the reverse. */
+    /**
+     * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often
+     * its values repeat. The values are the same.
+     */
     STORAGE_CLASS_CHANGED: LOSS.STORAGE_CLASS,
     /** Node attributes are written by a `table: "nodes"` export only. */
     NODE_TABLE: "W_CSV_NODE_TABLE",
@@ -97,7 +130,10 @@ export const CSV_LOSS = Object.freeze({
     EDGE_COLUMNS: "W_CSV_EDGE_COLUMNS",
 });
 
-/** What the CSV format keeps as declared. */
+/**
+ * What the CSV format keeps as declared.
+ * @category Built-in formats
+ */
 export const CSV_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: true,
     multiEdges: true,
@@ -348,7 +384,7 @@ function idNotes(
         if (collisions > 0) {
             note(
                 CSV_LOSS.ID_TEXT_COLLISION,
-                `${collisions} node id(s) share their text with another id (a number and a string); export() will throw E_INVALID_ID`,
+                `${collisions} node id(s) share their text with another id (a number and a string); the save fails with E_INVALID_ID`,
                 null,
                 collisions,
             );
@@ -1021,7 +1057,10 @@ function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExpor
     ]);
 }
 
-/** The CSV / TSV exporter plugin (subpath `@graphty/graph-io/csv`). */
+/**
+ * The CSV / TSV exporter plugin (subpath `@graphty/graph-io/csv`).
+ * @category Built-in formats
+ */
 export const csvExporter: GraphExporter<CsvExportOptions> = Object.freeze({
     format: "csv",
     capabilities: CSV_CAPABILITIES,

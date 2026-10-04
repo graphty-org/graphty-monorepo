@@ -22,6 +22,7 @@ interface OboColumnSpec {
  * The node columns of the OBO vocabulary, keyed by column name (design section 4.2). The names are
  * the OBO tag names, so a Gene Ontology user finds `namespace`, `def` and `is_obsolete` under the
  * names the GO documentation uses.
+ * @category Plugin helpers
  */
 export const OBO_NODE_COLUMNS: Readonly<Record<string, OboColumnSpec>> = Object.freeze({
     type: { dtype: "dict" },
@@ -81,7 +82,10 @@ const OBO_EDGE_COLUMNS: Readonly<Record<string, OboColumnSpec>> = Object.freeze(
     meta: { dtype: "json" },
 });
 
-/** The node column that marks a node made for an undeclared reference (design section 4.2). */
+/**
+ * The node column that marks a node made for an undeclared reference (design section 4.2).
+ * @category Plugin helpers
+ */
 export const PLACEHOLDER_COLUMN = "graphty.placeholder";
 
 /**
@@ -89,6 +93,7 @@ export const PLACEHOLDER_COLUMN = "graphty.placeholder";
  * @param domain - node or edge
  * @param name - the column name (a key of OBO_NODE_COLUMNS / OBO_EDGE_COLUMNS, or the placeholder column)
  * @returns the declaration, nullable, with origin `{ format: "obo", id: name }`
+ * @category Plugin helpers
  */
 export function oboColumnDecl(domain: "node" | "edge", name: string): ColumnDecl {
     if (name === PLACEHOLDER_COLUMN) {
@@ -105,13 +110,19 @@ export function oboColumnDecl(domain: "node" | "edge", name: string): ColumnDecl
     return decl;
 }
 
-/** The OBO PURL base every OBO Foundry IRI starts with. */
+/**
+ * The OBO PURL base every OBO Foundry IRI starts with.
+ * @category Plugin helpers
+ */
 export const OBO_PURL = "http://purl.obolibrary.org/obo/";
 
 /** The same base under https, which newer OBO Graphs writers use. */
 const OBO_PURL_HTTPS = "https://purl.obolibrary.org/obo/";
 
-/** The oboInOwl namespace of the OBO-to-OWL mapping's annotation properties. */
+/**
+ * The oboInOwl namespace of the OBO-to-OWL mapping's annotation properties.
+ * @category Plugin helpers
+ */
 export const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
 
 /**
@@ -123,6 +134,7 @@ export const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
  * Every other IRI, and an OBO PURL that fits neither form (`.../obo/T/Female`), is kept.
  * @param iri - the IRI
  * @returns the CURIE or local id, or the IRI unchanged
+ * @category Plugin helpers
  */
 export function compactOboIri(iri: string): string {
     const base = [OBO_PURL, OBO_PURL_HTTPS].find((b) => iri.startsWith(b));
@@ -142,7 +154,10 @@ export function compactOboIri(iri: string): string {
     return `${rest.slice(0, underscore)}:${rest.slice(underscore + 1)}`;
 }
 
-/** The OBO synonym scopes. */
+/**
+ * The OBO synonym scopes.
+ * @category Plugin helpers
+ */
 export const SYNONYM_SCOPES: ReadonlySet<string> = new Set(["EXACT", "BROAD", "NARROW", "RELATED"]);
 
 /**
@@ -150,6 +165,7 @@ export const SYNONYM_SCOPES: ReadonlySet<string> = new Set(["EXACT", "BROAD", "N
  * oboInOwl namespace).
  * @param pred - the predicate
  * @returns the scope, or null for a predicate that is not one of the four
+ * @category Plugin helpers
  */
 export function synonymScopeOf(pred: string): string | null {
     const local = pred.startsWith(OBO_IN_OWL) ? pred.slice(OBO_IN_OWL.length) : pred;
@@ -162,6 +178,7 @@ export function synonymScopeOf(pred: string): string | null {
  * the tags that are annotations), so the `.json` of an ontology fills the same columns as its
  * `.obo`. `shorthand` is the relation's short name; every predicate not listed is a
  * `property_value`.
+ * @category Plugin helpers
  */
 export const OBOGRAPHS_PREDICATE_TAGS: ReadonlyMap<string, string> = new Map([
     [`${OBO_IN_OWL}hasOBONamespace`, "namespace"],

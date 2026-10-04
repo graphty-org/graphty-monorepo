@@ -719,7 +719,7 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
             CX_ISSUE.DANGLING_REFERENCE,
         ]);
         expect(report.issues.find((i) => i.code === CX_ISSUE.STYLES_NOT_IMPORTED)?.message).toMatch(
-            /1 default\(s\), 1 mapping\(s\), 1 dependenc\(ies\).*#706/,
+            /1 default\(s\), 1 mapping\(s\), 1 dependenc\(ies\)\); they are kept/,
         );
         expect((s.meta.extra.cx as Record<string, unknown[]>).cyVisualProperties).toHaveLength(6);
     });

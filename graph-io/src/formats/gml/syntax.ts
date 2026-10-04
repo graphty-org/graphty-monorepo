@@ -13,45 +13,85 @@
 import { SYNTAX_CODE } from "../../common/codes.js";
 import { decodeGmlString } from "../../common/escape.js";
 
-/** A bare word: a key, or `INF` / `NAN` at a value position. */
+/**
+ * A bare word: a key, or `INF` / `NAN` at a value position.
+ * @category Plugin helpers
+ */
 export const TOKEN_WORD = 0;
-/** An integer literal. */
+/**
+ * An integer literal.
+ * @category Plugin helpers
+ */
 export const TOKEN_INT = 1;
-/** A real literal, including the non-finite spellings. */
+/**
+ * A real literal, including the non-finite spellings.
+ * @category Plugin helpers
+ */
 export const TOKEN_REAL = 2;
-/** A double-quoted string; start / end delimit the body between the quotes. */
+/**
+ * A double-quoted string; start / end delimit the body between the quotes.
+ * @category Plugin helpers
+ */
 export const TOKEN_STRING = 3;
-/** `[`. */
+/**
+ * `[`.
+ * @category Plugin helpers
+ */
 export const TOKEN_OPEN = 4;
-/** `]`. */
+/**
+ * `]`.
+ * @category Plugin helpers
+ */
 export const TOKEN_CLOSE = 5;
 
 /** The kind of one token. */
 type TokenKind = 0 | 1 | 2 | 3 | 4 | 5;
 
-/** The NetworkX marker that starts a one-element list written as repeated keys. */
+/**
+ * The NetworkX marker that starts a one-element list written as repeated keys.
+ * @category Plugin helpers
+ */
 export const LIST_START_MARKER = "_networkx_list_start";
 
-/** The string NetworkX writes for an empty list. */
+/**
+ * The string NetworkX writes for an empty list.
+ * @category Plugin helpers
+ */
 export const EMPTY_LIST_TEXT = "[]";
 
-/** The string NetworkX writes for an empty tuple, read as an empty list too. */
+/**
+ * The string NetworkX writes for an empty tuple, read as an empty list too.
+ * @category Plugin helpers
+ */
 export const EMPTY_TUPLE_TEXT = "()";
 
-/** The node key the exporter writes a mangled node's original id into (design section 8.5). */
+/**
+ * The node key the exporter writes a mangled node's original id into (design section 8.5).
+ * @category Plugin helpers
+ */
 export const ORIGINAL_ID_KEY = "graphty_originalId";
 
 /**
  * Issue code of every grammar violation (shared with the other text formats; the message carries
  * the detail): a bare token that is neither a key nor a number, an unclosed string, an unclosed
  * `[`, a `]` with no open `[`, a value without a key or a key without a value.
+ * @category Issue and loss codes
  */
 export const SYNTAX_STRUCTURE_CODE = SYNTAX_CODE;
-/** The code of an untokenizable bare token (E_SYNTAX). */
+/**
+ * The code of an untokenizable bare token (E_SYNTAX).
+ * @category Issue and loss codes
+ */
 export const SYNTAX_TOKEN_CODE = SYNTAX_CODE;
-/** The code of an unclosed string (E_SYNTAX). */
+/**
+ * The code of an unclosed string (E_SYNTAX).
+ * @category Issue and loss codes
+ */
 export const SYNTAX_STRING_CODE = SYNTAX_CODE;
-/** The code of an unclosed `[` (E_SYNTAX). */
+/**
+ * The code of an unclosed `[` (E_SYNTAX).
+ * @category Issue and loss codes
+ */
 export const SYNTAX_BRACKET_CODE = SYNTAX_CODE;
 
 const KEY_TEXT = /^[A-Za-z_][0-9A-Za-z_]*$/;
@@ -64,6 +104,7 @@ const NON_FINITE_WORD = /^(?:inf|infinity|nan)$/i;
 /**
  * A lexical or structural error of a GML text, with the 1-based line it was found on. The importer
  * turns it into a fatal parse-error issue.
+ * @category Plugin helpers
  */
 export class GmlSyntaxError extends Error {
     /** The issue code. */
@@ -89,6 +130,7 @@ export class GmlSyntaxError extends Error {
 /**
  * The tokens of one GML text, structurally validated: every `[` has its matching `]` recorded and
  * every key is followed by a value, so walkers need no error paths.
+ * @category Plugin helpers
  */
 export class GmlTokens {
     /** The source text the offsets index into. */
@@ -233,6 +275,7 @@ export class GmlTokens {
  * string, `INF` / `NAN`, or a bracketed sequence of pairs; every `[` has a `]`.
  * @param text - the GML text
  * @returns the validated tokens; GmlSyntaxError with the line of the first problem
+ * @category Plugin helpers
  */
 export function tokenizeGml(text: string): GmlTokens {
     const tokens = new GmlTokens(text, Math.max(1024, text.length >>> 3));
@@ -450,6 +493,7 @@ function describeToken(tokens: GmlTokens, i: number): string {
  * The numeric value of an INT or REAL token (or a WORD that is `INF` / `NAN` at a value position).
  * @param text - the token text
  * @returns the number; Infinity / -Infinity / NaN for the non-finite spellings
+ * @category Plugin helpers
  */
 export function numberOfText(text: string): number {
     if (NON_FINITE_TEXT.test(text)) {
@@ -467,6 +511,7 @@ export function numberOfText(text: string): number {
  * @param tokens - the tokens
  * @param i - the value token index
  * @returns true when the word is a real
+ * @category Plugin helpers
  */
 export function isNonFiniteWord(tokens: GmlTokens, i: number): boolean {
     return tokens.kind[i] === TOKEN_WORD && NON_FINITE_WORD.test(tokens.textOf(i));
@@ -477,6 +522,7 @@ export function isNonFiniteWord(tokens: GmlTokens, i: number): boolean {
  * writes and reads).
  * @param text - the candidate key
  * @returns true when it can be written as a key
+ * @category Plugin helpers
  */
 export function isGmlKey(text: string): boolean {
     return STRICT_KEY_TEXT.test(text);
@@ -487,6 +533,7 @@ export function isGmlKey(text: string): boolean {
  * non-letter is prefixed with `x` (the exporter's `sanitizeKeys: "mangle"`).
  * @param text - the text
  * @returns a valid key
+ * @category Plugin helpers
  */
 export function mangleGmlKey(text: string): string {
     const body = text.replace(/[^0-9A-Za-z_]/g, "_");
@@ -515,6 +562,7 @@ interface RecordFrame {
  * @param tokens - the validated tokens
  * @param open - the index of the record's `[`
  * @returns a null-prototype object
+ * @category Plugin helpers
  */
 export function parseRecord(tokens: GmlTokens, open: number): Record<string, unknown> {
     const root = Object.create(null) as Record<string, unknown>;
@@ -583,6 +631,7 @@ function storeValue(frame: RecordFrame, key: string, value: unknown): void {
  * @param tokens - the tokens
  * @param v - the value token index (INT, REAL, non-finite WORD or OPEN)
  * @returns the value
+ * @category Plugin helpers
  */
 export function scalarOrRecord(tokens: GmlTokens, v: number): unknown {
     return tokens.kind[v] === TOKEN_OPEN ? parseRecord(tokens, v) : numberOfText(tokens.textOf(v));

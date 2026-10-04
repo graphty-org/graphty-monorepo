@@ -8,36 +8,64 @@
  * `&#dddd;` character references of labels, and the column names both sides agree on.
  */
 
-/** The node column holding the vertex label (role label). */
+/**
+ * The node column holding the vertex label (role label).
+ * @category Plugin helpers
+ */
 export const LABEL_COLUMN = "label";
 
-/** The node column holding the vertex coordinates (role position, f32 x 3, units "file"). */
+/**
+ * The node column holding the vertex coordinates (role position, f32 x 3, units "file").
+ * @category Plugin helpers
+ */
 export const POSITION_COLUMN = "position";
 
-/** The node column holding the vertex shape keyword (dict, no role: Pajek has its own keyword set). */
+/**
+ * The node column holding the vertex shape keyword (dict, no role: Pajek has its own keyword set).
+ * @category Plugin helpers
+ */
 export const SHAPE_COLUMN = "shape";
 
-/** The edge column holding the relation name of a `*Arcs :k "name"` section (dict). */
+/**
+ * The edge column holding the relation name of a `*Arcs :k "name"` section (dict).
+ * @category Plugin helpers
+ */
 export const RELATION_COLUMN = "relation";
 
-/** The node or edge column holding Pajek time intervals (list of f64 pairs, role spells). */
+/**
+ * The node or edge column holding Pajek time intervals (list of f64 pairs, role spells).
+ * @category Plugin helpers
+ */
 export const SPELLS_COLUMN = "spells";
 
-/** The edge column holding the line value when `weightFrom` names another field or null. */
+/**
+ * The edge column holding the line value when `weightFrom` names another field or null.
+ * @category Plugin helpers
+ */
 export const VALUE_COLUMN = "value";
 
-/** The `weightFrom` default: Pajek's third column is the line value (design section 8.4). */
+/**
+ * The `weightFrom` default: Pajek's third column is the line value (design section 8.4).
+ * @category Plugin helpers
+ */
 export const VALUE_FIELD = "value";
 
-/** The node column holding the values of a `*Partition` object (i32). */
+/**
+ * The node column holding the values of a `*Partition` object (i32).
+ * @category Plugin helpers
+ */
 export const PARTITION_COLUMN = "partition";
 
-/** The node column holding the values of a `*Vector` object (f64). */
+/**
+ * The node column holding the values of a `*Vector` object (f64).
+ * @category Plugin helpers
+ */
 export const VECTOR_COLUMN = "vector";
 
 /**
  * The vertex shape keywords of the Pajek manual, lower-cased; a file may write them in any case
  * (use isShapeKeyword()).
+ * @category Plugin helpers
  */
 export const SHAPES: ReadonlySet<string> = new Set([
     "ellipse",
@@ -55,6 +83,7 @@ export const SHAPES: ReadonlySet<string> = new Set([
  * Whether a token is a vertex shape keyword, in any case (`Ellipse`, `BOX`).
  * @param token - the token
  * @returns true for a shape keyword
+ * @category Plugin helpers
  */
 export function isShapeKeyword(token: string): boolean {
     return SHAPES.has(token.toLowerCase());
@@ -77,10 +106,14 @@ type SectionKind =
  * The parameter key the exporter writes a node's original id under when `sanitizeIds: "mangle"`
  * renumbers it (design section 8.5: the exporter names the attribute, `restoreMangledIds` reads
  * it back); a user column of that name is reserved under "mangle".
+ * @category Plugin helpers
  */
 export const ORIGINAL_ID_KEY = "graphty_originalId";
 
-/** A parsed section header line. */
+/**
+ * A parsed section header line.
+ * @category Plugin helpers
+ */
 export interface SectionHeader {
     /** The section kind. */
     readonly kind: SectionKind;
@@ -114,7 +147,10 @@ const INTEGER_TEXT = /^[+-]?[0-9]+$/;
 const TIME_POINT =
     /^(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)(?:-(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?))?$/;
 
-/** What tokenize() noticed in a line beyond its tokens, for the importer to report. */
+/**
+ * What tokenize() noticed in a line beyond its tokens, for the importer to report.
+ * @category Plugin helpers
+ */
 export interface TokenNotes {
     /** A double quote in the middle of a token (`ab"c d"e`, a CSV-style doubled `""`): removed, the parts joined. */
     oddQuote: boolean;
@@ -130,6 +166,7 @@ export interface TokenNotes {
  * @param line - the line without its terminator
  * @param notes - when given, set to what the line held beyond its tokens
  * @returns the tokens, or null when a quote is not closed before the end of the line
+ * @category Plugin helpers
  */
 export function tokenize(line: string, notes?: TokenNotes): string[] | null {
     const tokens: string[] = [];
@@ -192,6 +229,7 @@ function isBlank(c: number): boolean {
  * `*Hierarchy`), whose next line is its own `*Vertices N`, never the network's.
  * @param keyword - the keyword as written
  * @returns true for a project object
+ * @category Plugin helpers
  */
 export function isProjectObject(keyword: string): boolean {
     return PROJECT_OBJECTS.has(keyword.toLowerCase());
@@ -203,6 +241,7 @@ const PROJECT_OBJECTS: ReadonlySet<string> = new Set(["permutation", "cluster", 
  * Whether a line is a Pajek comment (`%` first) or blank.
  * @param line - the line
  * @returns true when the importer skips it
+ * @category Plugin helpers
  */
 export function isCommentOrBlank(line: string): boolean {
     for (let i = 0; i < line.length; i++) {
@@ -219,6 +258,7 @@ export function isCommentOrBlank(line: string): boolean {
  * Whether a line starts a section (`*` first, after optional whitespace).
  * @param line - the line
  * @returns true for a header line
+ * @category Plugin helpers
  */
 export function isSectionLine(line: string): boolean {
     for (let i = 0; i < line.length; i++) {
@@ -237,6 +277,7 @@ export function isSectionLine(line: string): boolean {
  * lands in `extra` so the importer can report it instead of dropping it.
  * @param line - a line isSectionLine() accepted
  * @returns the header, or null when the line has no keyword or a quote is unbalanced
+ * @category Plugin helpers
  */
 export function parseSectionHeader(line: string): SectionHeader | null {
     const tokens = tokenize(line.trimStart().slice(1));
@@ -302,6 +343,7 @@ export function parseSectionHeader(line: string): SectionHeader | null {
  * Whether a token is a Pajek integer (a vertex number, a count), without sign.
  * @param token - the token
  * @returns true for one or more ASCII digits
+ * @category Plugin helpers
  */
 export function isVertexNumber(token: string): boolean {
     if (token.length === 0) {
@@ -320,6 +362,7 @@ export function isVertexNumber(token: string): boolean {
  * Whether a token is a time interval list `[...]`.
  * @param token - the token
  * @returns true when it starts with `[` and ends with `]`
+ * @category Plugin helpers
  */
 export function isIntervalToken(token: string): boolean {
     return token.length >= 2 && token.startsWith("[") && token.endsWith("]");
@@ -331,6 +374,7 @@ export function isIntervalToken(token: string): boolean {
  * around the parts are ignored and an empty `[]` is no spell at all.
  * @param token - a token isIntervalToken() accepted
  * @returns the spells as [start, end] pairs (empty for `[]`)
+ * @category Plugin helpers
  */
 export function parseIntervals(token: string): [number, number][] {
     const body = token.slice(1, -1);
@@ -380,6 +424,7 @@ const CHARACTER_REFERENCE = /&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));/g;
  * @param text - the label as written
  * @param onUnknown - called with each reference left as written, when given
  * @returns the decoded label
+ * @category Plugin helpers
  */
 export function decodeCharacterReferences(text: string, onUnknown?: (reference: string) => void): string {
     if (!text.includes("&#")) {
@@ -400,6 +445,7 @@ export function decodeCharacterReferences(text: string, onUnknown?: (reference: 
  * `&#...;` run is written as `&#38;`, the inverse of decodeCharacterReferences().
  * @param text - the label text
  * @returns the text to write
+ * @category Plugin helpers
  */
 export function encodeCharacterReferences(text: string): string {
     if (!text.includes("&#")) {
@@ -412,6 +458,7 @@ export function encodeCharacterReferences(text: string): string {
  * Write spells as a Pajek time interval token, the inverse of parseIntervals().
  * @param spells - [start, end] pairs
  * @returns the token, e.g. `[1-5,7-*]`
+ * @category Plugin helpers
  */
 export function formatIntervals(spells: readonly (readonly [number, number])[]): string {
     const parts: string[] = [];
@@ -432,6 +479,7 @@ export function formatIntervals(spells: readonly (readonly [number, number])[]):
  * coordinate, at the third position of a line row the value) and not a shape keyword.
  * @param text - the candidate key (a column name)
  * @returns true when the importer reads it back as a key
+ * @category Plugin helpers
  */
 export function isParameterKey(text: string): boolean {
     if (

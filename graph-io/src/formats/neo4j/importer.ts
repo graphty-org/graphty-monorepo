@@ -88,81 +88,147 @@ import {
 import { checkRecordSyntax, RecordReader, type RecordSyntax } from "../csv/records.js";
 import { type FieldKind, type HeaderField, isHeaderRecord, parseHeaderField } from "./header.js";
 
-/** The format-specific options of the Neo4j importer. */
+/**
+ * The format-specific options of the Neo4j importer.
+ * @category Built-in formats
+ */
 export interface Neo4jImportOptions {
-    /** Further node files, each with its own header row(s); read after the primary input. */
+    /**
+     * More node files, each a string, bytes or a stream with its own header row; read after the
+     * main input.
+     */
     nodes?: ImportInput | readonly ImportInput[] | undefined;
-    /** Relationship files, each with its own header row(s); read after the node files. */
+    /**
+     * Relationship files, each a string, bytes or a stream with its own header row; read after the
+     * node files.
+     */
     relationships?: ImportInput | readonly ImportInput[] | undefined;
     /**
-     * The field delimiter (neo4j-admin `--delimiter`); one character. When absent it is sniffed
-     * from the first rows between "," and a tab, so a `.tsv` file needs no option.
+     * The field delimiter, one character (neo4j-admin's `--delimiter`). The default is to detect
+     * "," or a tab from the first rows, so a `.tsv` file needs no option.
+     * @defaultValue detected
      */
     delimiter?: string | undefined;
-    /** The array delimiter of list values and `:LABEL` cells (neo4j-admin `--array-delimiter`); ";" by default. */
+    /**
+     * The delimiter inside list values and `:LABEL` cells (neo4j-admin's `--array-delimiter`).
+     * @defaultValue ";"
+     */
     arrayDelimiter?: ";" | "," | "|" | undefined;
-    /** The quote character (neo4j-admin `--quote`); one character; a double quote by default. */
+    /**
+     * The quote character, one character (neo4j-admin's `--quote`).
+     * @defaultValue '"'
+     */
     quote?: string | undefined;
 }
 
-/** The name of the node list column holding `:LABEL` values. */
+/**
+ * The name of the node list column holding `:LABEL` values.
+ * @category Plugin helpers
+ */
 export const LABELS_COLUMN = "labels";
 
-/** The name of the edge dict column holding `:TYPE` values. */
+/**
+ * The name of the edge dict column holding `:TYPE` values.
+ * @category Plugin helpers
+ */
 export const TYPE_COLUMN = "type";
 
-/** The name of the node dict column holding the id space of `:ID(Space)`. */
+/**
+ * The name of the node dict column holding the id space of `:ID(Space)`.
+ * @category Plugin helpers
+ */
 export const ID_SPACE_COLUMN = "idSpace";
 
-/** The name of the node string column holding the id text of a node of an id space (its id is `Space:id`). */
+/**
+ * The name of the node string column holding the id text of a node of an id space (its id is `Space:id`).
+ * @category Plugin helpers
+ */
 export const ORIGINAL_ID_COLUMN = "originalId";
 
-/** Issue code: a header row (or a whole section) is malformed; the import aborts. */
+/**
+ * Issue code: a header row (or a whole section) is malformed; the import aborts.
+ * @category Issue and loss codes
+ */
 export const HEADER_CODE = "E_NEO4J_HEADER";
 
-/** Issue code: a row has a different number of cells than its header. */
+/**
+ * Issue code: a row has a different number of cells than its header.
+ * @category Issue and loss codes
+ */
 export const COLUMN_COUNT_CODE = "E_NEO4J_COLUMN_COUNT";
 
-/** Issue code: a node row has an unquoted empty `:ID` cell (a quoted empty cell is the id ""). */
+/**
+ * Issue code: a node row has an unquoted empty `:ID` cell (a quoted empty cell is the id "").
+ * @category Issue and loss codes
+ */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 
-/** Issue code: a relationship row has an unquoted empty `:START_ID` or `:END_ID` cell. */
+/**
+ * Issue code: a relationship row has an unquoted empty `:START_ID` or `:END_ID` cell.
+ * @category Issue and loss codes
+ */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
 
-/** Issue code: a node id was declared twice (same id space); the later row's properties win. */
+/**
+ * Issue code: a node id was declared twice (same id space); the later row's properties win.
+ * @category Issue and loss codes
+ */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 
 /**
  * Issue code: a node id was declared in two id spaces -- a spaced id `Space:id` equals the text of an
  * id declared without a space; the later row is skipped.
+ * @category Issue and loss codes
  */
 export const ID_SPACE_COLLISION_CODE = "E_NEO4J_ID_SPACE_COLLISION";
 
 /**
  * Issue code: a `:START_ID(Space)` / `:END_ID(Space)` endpoint's qualified id `Space:id` names a node a
  * node row declared in another id space (without a space); the row is skipped.
+ * @category Issue and loss codes
  */
 export const ENDPOINT_SPACE_CODE = "E_NEO4J_ENDPOINT_SPACE";
 
-/** Issue code: two different id cells became one id under `ids: "number"`. */
+/**
+ * Issue code: two different id cells became one id under `ids: "number"`.
+ * @category Issue and loss codes
+ */
 export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 
-/** Issue code: a header brace option the importer does not act on. */
+/**
+ * Issue code: a header brace option the importer does not act on.
+ * @category Issue and loss codes
+ */
 export const HEADER_OPTION_CODE = "W_NEO4J_HEADER_OPTION_IGNORED";
 
-/** Issue code: a reserved column (labels / type / idSpace) lost its role because the sink already holds it. */
+/**
+ * Issue code: a reserved column (labels / type / idSpace) lost its role because the sink already holds it.
+ * @category Issue and loss codes
+ */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
 
-/** Issue code: a relationship row with an empty `:TYPE` cell (neo4j-admin requires a type); the relationship is kept. */
+/**
+ * Issue code: a relationship row with an empty `:TYPE` cell (neo4j-admin requires a type); the relationship is kept.
+ * @category Issue and loss codes
+ */
 export const MISSING_TYPE_CODE = "W_NEO4J_MISSING_TYPE";
 
-/** Issue code: a file given under the `nodes` option holds a relationship header, or the reverse. */
+/**
+ * Issue code: a file given under the `nodes` option holds a relationship header, or the reverse.
+ * @category Issue and loss codes
+ */
 export const SECTION_KIND_CODE = "W_NEO4J_SECTION_KIND";
 
-/** Issue code: relationship endpoints that no node row declares became nodes (the shared W_DANGLING_REFERENCE). */
+/**
+ * Issue code: relationship endpoints that no node row declares became nodes (the shared W_DANGLING_REFERENCE).
+ * @category Issue and loss codes
+ */
 export const DANGLING_REFERENCE_CODE = SHARED_DANGLING_REFERENCE_CODE;
 
-/** Loss code: `:IGNORE` columns were skipped. */
+/**
+ * Loss code: `:IGNORE` columns were skipped.
+ * @category Built-in formats
+ */
 export const IGNORED_COLUMNS_LOSS = "W_NEO4J_IGNORED_COLUMNS";
 
 /** The common options the Neo4j importer reads (the rest is reported by reportUnusedOptions). */
@@ -325,7 +391,7 @@ function resolveNeo4jOptions(options: Neo4jImportOptions | undefined): ResolvedN
 }
 
 /**
- * Normalise an input-list option.
+ * Normalize an input-list option.
  * @param name - the option name
  * @param value - one input, a list of inputs, or undefined
  * @returns the inputs; E_UNSUPPORTED for anything else
@@ -1600,7 +1666,10 @@ function sniffNeo4j(head: Uint8Array): number {
     return isHeaderRecord(cells, cells.length) ? 0.95 : 0;
 }
 
-/** The Neo4j importer. */
+/**
+ * The Neo4j importer.
+ * @category Built-in formats
+ */
 export const neo4jImporter: GraphImporter<Neo4jImportOptions> = Object.freeze({
     format: NEO4J,
     extensions: Object.freeze([".csv", ".tsv"]),

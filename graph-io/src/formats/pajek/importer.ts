@@ -82,16 +82,23 @@ import {
     VECTOR_COLUMN,
 } from "./syntax.js";
 
-/** The format-specific options of the Pajek importer. */
+/**
+ * The format-specific options of the Pajek importer.
+ * @category Built-in formats
+ */
 export interface PajekImportOptions {
     /**
      * The number of the first vertex: 1 (Pajek's rule), 0 (files written by zero-based scripts), or
-     * "auto" (default): 0 when the first vertex line is numbered 0, 1 otherwise.
+     * "auto": 0 when the first vertex line is numbered 0, 1 otherwise.
+     * @defaultValue "auto"
      */
     firstVertex?: 0 | 1 | "auto" | undefined;
 }
 
-/** Issue codes of the Pajek importer. */
+/**
+ * Issue codes of the Pajek importer.
+ * @category Built-in formats
+ */
 export const PAJEK_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
     /** The input holds invalid UTF-8 (fatal). */
@@ -104,9 +111,15 @@ export const PAJEK_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: no `*Vertices` section (an empty file, or not a Pajek network). */
     NO_VERTICES: "E_PAJEK_NO_VERTICES",
-    /** Fatal: `*Vertices` without a vertex count, one the sink cannot hold, or a first-mode count outside 0..N. */
+    /**
+     * `*Vertices` without a vertex count, with a count too large to hold, or with a first-mode count outside 0 to N;
+     * the import stops.
+     */
     VERTICES_COUNT: "E_PAJEK_VERTICES_COUNT",
-    /** A project file holds several networks; import() reads the first, importAll() reads every one. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** A data line before the first section header. */
     OUTSIDE_SECTION: "E_PAJEK_OUTSIDE_SECTION",
@@ -148,19 +161,28 @@ export const PAJEK_ISSUE = Object.freeze({
     LABEL_MERGED: "W_PAJEK_LABEL_MERGED",
     /** Two distinct label texts became one numeric id under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** A parameter column of `2.0`-style text kept at the value-inferred dtype (the sink cannot widen). */
+    /**
+     * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of
+     * its first values.
+     */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
     /** A structural column (label, position, shape, spells, relation) renamed `<name>#<id>` because the name was taken. */
     COLUMN_RENAMED: RENAMED_CODE,
-    /** A structural column declared without its role because the sink already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /** Two vertices carry the same `graphty_originalId` under restoreMangledIds and became one node. */
     ORIGINAL_ID_MERGED: "W_PAJEK_ORIGINAL_ID_MERGED",
     /** A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number. */
     ORIGINAL_ID_UNRESTORED: "W_PAJEK_ORIGINAL_ID_UNRESTORED",
-    /** A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honored; long, hyperedges are not). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION). */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
     /** A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined. */
     QUOTE_IN_TOKEN: "W_PAJEK_QUOTE_IN_TOKEN",
@@ -176,7 +198,7 @@ export const PAJEK_ISSUE = Object.freeze({
     RELATION_RENAMED: "W_PAJEK_RELATION_RENAMED",
     /** A negative vertex number in an adjacency list, read as its absolute value. */
     NEGATIVE_LIST_ENTRY: "W_PAJEK_NEGATIVE_LIST_ENTRY",
-    /** A coordinate the f32 position column cannot hold exactly (warned once). */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
 });
 
@@ -1697,7 +1719,10 @@ function firstVertexOption(value: unknown): 0 | 1 | "auto" {
 /** The start of a Pajek network: `*Vertices` or `*Network`, after blank lines and `%` comment lines. */
 const HEAD_PATTERN = /^(\s*%[^\r\n]*)*\s*\*(vertices|network)\b/i;
 
-/** The Pajek NET importer. */
+/**
+ * The Pajek NET importer.
+ * @category Built-in formats
+ */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     format: "pajek",
     extensions: Object.freeze([".net", ".paj"]),
@@ -1760,7 +1785,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 PAJEK_ISSUE.MULTIPLE_GRAPHS,
-                `the project file holds ${rest.count} more network(s) after the first; import() reads the first, importAll() reads every one${rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : ""}`,
+                `the project file holds ${rest.count} more network(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)${rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : ""}`,
                 { line: restLine },
             );
         }

@@ -44,7 +44,6 @@ function edges(s: GraphSnapshot): string[] {
     );
 }
 
-
 describe("FormatRegistry", () => {
     it("holds the built-in formats in GRAPH_FORMATS order; every one is read and written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
@@ -239,7 +238,7 @@ describe("importGraph (design 8.4)", () => {
         expect(merged.snapshot.edgeList().weights?.[0]).toBe(3);
         expect(merged.freeze.mergedEdges).toBe(1);
         expect(merged.freeze.droppedSelfLoops).toBe(1);
-        expect(merged.report.issues.map((i) => i.code)).toEqual(["W_EDGES_MERGED"]);
+        expect(merged.report.issues.map((i) => i.code)).toEqual(["W_EDGES_MERGED", "W_SELF_LOOPS_DROPPED"]);
         const strict = await importGraph("source,target\na,ghost\n", {
             format: "csv",
             addMissingNodes: false,
@@ -435,5 +434,46 @@ describe("exportGraph / exportGraphToString / checkExport (design 8.5)", () => {
         expect(sniff({ filename: "graph.gexf" })?.format).toBe("gexf");
         expect(sniff({ head: '*Vertices 2\n1 "a"\n2 "b"\n*Edges\n1 2\n' })?.format).toBe("pajek");
         expect(sniff({})).toBeNull();
+    });
+});
+
+describe("choosing a graph and refusing plain text", () => {
+    const dot = "digraph first { a -> b }\ndigraph second { c -> d; d -> e }\ndigraph third { x }\n";
+
+    it("reads the graph graphIndex or graphName names from a format that does not list its graphs", async () => {
+        const second = await importGraph(dot, { format: "dot", graphIndex: 1 });
+        expect(second.snapshot.meta.name).toBe("second");
+        expect(second.snapshot.edgeCount).toBe(2);
+        expect((await importGraph(dot, { graphName: "third" })).snapshot.nodeCount).toBe(1);
+        const paj = "*Network one\n*Vertices 1\n1 a\n*Network two\n*Vertices 2\n1 x\n2 y\n";
+        expect((await importGraph(paj, { format: "pajek", graphName: "two" })).snapshot.nodeCount).toBe(2);
+    });
+
+    it("fails loudly on a choice that names no graph", async () => {
+        for (const choice of [{ graphIndex: 7 }, { graphName: "nope" }]) {
+            const err = await importGraph(dot, { format: "dot", ...choice }).catch((e: unknown) => e);
+            expect(err).toBeInstanceOf(ImportError);
+            expect((err as ImportError).issue?.code).toBe("E_GRAPH_NOT_FOUND");
+        }
+    });
+
+    it("refuses a sentence instead of reading it as a CSV edge list", async () => {
+        const err = await importGraph("hello world this is not a graph").catch((e: unknown) => e);
+        expect((err as ImportError).issue?.code).toBe(UNKNOWN_FORMAT_CODE);
+    });
+
+    it("detects CSV from an endpoint header even when a later row is short", async () => {
+        const { format, report } = await importGraph("source,target\na,b\nc\n");
+        expect(format).toBe("csv");
+        expect(report.issues.map((i) => i.code)).toEqual(["E_CSV_FIELD_COUNT"]);
+    });
+
+    it("lets a file extension beat a weak content guess", async () => {
+        const err = await importGraph("This is a text file, not a session", { filename: "not-a-zip.cys" }).catch(
+            (e: unknown) => e,
+        );
+        expect((err as ImportError).issue?.code).toBe("E_CYS_NOT_ZIP");
+        expect(sniff({ filename: "x.cys", head: "a,b\nc,d\n" })?.format).toBe("cys");
+        expect(sniff({ head: "a,b\nc,d\n" })?.format).toBe("csv");
     });
 });

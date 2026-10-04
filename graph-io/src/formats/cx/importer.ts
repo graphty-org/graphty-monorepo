@@ -125,19 +125,24 @@ const CX_FORMAT = "cx";
 /** The origin namespace of the per-element visual property columns. */
 const CX_BYPASS_NAMESPACE = "cx.bypass";
 
-/** The format-specific options of the CX importer. */
+/**
+ * The format-specific options of the CX importer.
+ * @category Built-in formats
+ */
 export interface CxImportOptions extends GraphChoiceOptions {
     /**
-     * Where a node's `z` goes: "column" (default) keeps it in the f64 node column `z` (Cytoscape
-     * writes a stacking order there); "position" makes it the third component of the position.
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
      */
     zAs?: "column" | "position" | undefined;
 }
 
 /**
  * The issue codes the CX importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the CX-specific ones. A key is the code without
+ * the other importers and the CX-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const CX_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -175,7 +180,10 @@ export const CX_ISSUE = Object.freeze({
     COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A value that does not parse as its data type; the cell is unset. */
     BAD_VALUE: BAD_VALUE_CODE,
-    /** One attribute name with several data types: the column takes the wider one. */
+    /**
+     * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,
+     * or two declared types for one attribute.
+     */
     WIDENED: WIDENED_CODE,
     /** A data type CX does not define; the value is kept as text. */
     UNKNOWN_ATTR_TYPE: UNKNOWN_ATTR_TYPE_CODE,
@@ -213,11 +221,14 @@ export const CX_ISSUE = Object.freeze({
     INVALID_WEIGHT: "E_INVALID_WEIGHT",
     /** An id spelled as a string or a non-integer literal; read as the integer. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
-    /** An integer beyond 2^53: an id kept as its digits, a value stored as the nearest f64. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /** Two id texts merged under `ids: "number"`. */
     ID_MERGED: ID_MERGED_CODE,
-    /** A collection read by import(): the other subnetworks are skipped. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** graphIndex or graphName names no subnetwork (fatal). */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
@@ -225,17 +236,29 @@ export const CX_ISSUE = Object.freeze({
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** The input holds no graph (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** A column renamed because its name was taken. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A column that lost its role because another column holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** The sink refused the direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A common option CX has no use for. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder option the caller's sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The input is beyond a size limit (fatal). */
     TOO_LARGE: TOO_LARGE_CODE,
@@ -2815,7 +2838,7 @@ class CxReader {
             this.report.warning(
                 "unsupported",
                 STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx (style import is issue #706)`,
+                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
                 { element: "cyVisualProperties" },
             );
         }
@@ -3096,6 +3119,7 @@ async function run(
 
 /**
  * The CX version 1 importer plugin.
+ * @category Built-in formats
  */
 export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     format: CX_FORMAT,
@@ -3147,7 +3171,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
                     first.warning(
                         "unsupported",
                         MULTIPLE_GRAPHS_CODE,
-                        `the collection holds ${plans.length} subnetworks; graph ${index} is read and ${plans.length - 1} skipped (importAll() reads every one)`,
+                        `the collection holds ${plans.length} subnetworks; graph ${index} is read and ${plans.length - 1} skipped (importAllGraphs() reads every one)`,
                     );
                 }
                 return [index];

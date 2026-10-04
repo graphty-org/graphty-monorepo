@@ -74,15 +74,29 @@ import {
     type Xref,
 } from "./syntax.js";
 
-/** The format-specific options of the OBO importer. */
+/**
+ * The format-specific options of the OBO importer.
+ * @category Built-in formats
+ */
 export interface OboImportOptions {
-    /** "keep" (default): obsolete terms are nodes with `is_obsolete` true; "drop": they and their edges are left out. */
+    /**
+     * "keep" reads obsolete terms as nodes with `is_obsolete` set to true; "drop" leaves them and
+     * their edges out.
+     * @defaultValue "keep"
+     */
     obsolete?: "keep" | "drop" | undefined;
-    /** "metadata" (default): `[Typedef]` frames go to `meta.extra.obo.typedefs`; "nodes": they are nodes too, with their `is_a` edges. */
+    /**
+     * "metadata" keeps the `[Typedef]` frames (relation definitions) in
+     * `snapshot.meta.extra.obo.typedefs`; "nodes" makes them nodes too, with their `is_a` edges.
+     * @defaultValue "metadata"
+     */
     typedefs?: "metadata" | "nodes" | undefined;
 }
 
-/** Issue codes of the OBO importer. */
+/**
+ * Issue codes of the OBO importer.
+ * @category Built-in formats
+ */
 export const OBO_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
     /** The input is empty or whitespace (fatal). */
@@ -135,13 +149,19 @@ export const OBO_ISSUE = Object.freeze({
     OBSOLETE_DROPPED: "W_OBO_OBSOLETE_DROPPED",
     /** Two distinct id texts became one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** A vocabulary column renamed `<name>#obo` because the sink already holds the name. */
+    /** An OBO attribute was renamed `<name>#obo` because another attribute already has its name. */
     COLUMN_RENAMED: RENAMED_CODE,
-    /** A vocabulary column declared without its role because the sink already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** A common option the format has no use for (defaultDirected, weightFrom, nodeIdFrom, ...). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the caller passed that the caller's sink does not use. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
 });
 
@@ -182,7 +202,10 @@ const DEPRECATED_HEADER: ReadonlyMap<string, string> = new Map([
     ["version", "data-version"],
 ]);
 
-/** The 1.0 / 1.2 frame tags read as their 1.4 meaning: tag to [1.4 tag, synonym scope]. */
+/**
+ * The 1.0 / 1.2 frame tags read as their 1.4 meaning: tag to [1.4 tag, synonym scope].
+ * @category Plugin helpers
+ */
 export const DEPRECATED_TAGS: ReadonlyMap<string, readonly [string, string | null]> = new Map([
     ["exact_synonym", ["synonym", "EXACT"]],
     ["narrow_synonym", ["synonym", "NARROW"]],
@@ -204,7 +227,10 @@ const BUILTIN_RELATIONS: ReadonlySet<string> = new Set([
     "intersection_of",
 ]);
 
-/** Single-valued text tags (first value kept). */
+/**
+ * Single-valued text tags (first value kept).
+ * @category Plugin helpers
+ */
 export const TEXT_TAGS: ReadonlySet<string> = new Set([
     "name",
     "namespace",
@@ -216,12 +242,18 @@ export const TEXT_TAGS: ReadonlySet<string> = new Set([
     "inverse_of",
 ]);
 
-/** Single-valued boolean tags. */
+/**
+ * Single-valued boolean tags.
+ * @category Plugin helpers
+ */
 export const BOOL_TAGS: ReadonlySet<string> = new Set(
     Object.keys(OBO_NODE_COLUMNS).filter((name) => OBO_NODE_COLUMNS[name].dtype === "bool"),
 );
 
-/** Tags whose value is one id, collected in a list column. */
+/**
+ * Tags whose value is one id, collected in a list column.
+ * @category Plugin helpers
+ */
 export const ID_LIST_TAGS: ReadonlySet<string> = new Set([
     "alt_id",
     "subset",
@@ -311,7 +343,10 @@ function append<T>(map: Record<string, T[]>, key: string, value: T): void {
     }
 }
 
-/** Tags that only a Typedef frame may carry (elsewhere they are unrecognized). */
+/**
+ * Tags that only a Typedef frame may carry (elsewhere they are unrecognized).
+ * @category Plugin helpers
+ */
 export const TYPEDEF_TAGS: ReadonlySet<string> = new Set([
     "domain",
     "range",
@@ -2090,6 +2125,7 @@ function sniffObo(head: Uint8Array): number {
 
 /**
  * The OBO importer plugin.
+ * @category Built-in formats
  */
 export const oboImporter: GraphImporter<OboImportOptions> = Object.freeze({
     format: "obo",

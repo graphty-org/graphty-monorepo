@@ -13,7 +13,10 @@ import { type PairFolding } from "./direction.js";
 import { LOSS } from "./export.js";
 import { type ResolvedExportOptions } from "./options.js";
 
-/** Records a loss note. */
+/**
+ * Records a loss note.
+ * @category Plugin helpers
+ */
 export type CxNoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
 
 /**
@@ -28,7 +31,10 @@ const RAW_JSON = /"\\u0000cx:(-?[0-9]+)"/g;
 /** An integer literal beyond 2^53 as text: a CX id graph-io keeps as its digits. */
 const BIG_INTEGER_TEXT = /^-?[1-9][0-9]{15,}$/;
 
-/** The node ids as written: the original, a renumbered one, or a raw big integer. */
+/**
+ * The node ids as written: the original, a renumbered one, or a raw big integer.
+ * @category Plugin helpers
+ */
 export interface WrittenIds {
     /** How many ids were renumbered (sanitizeIds "mangle"). */
     readonly changed: number;
@@ -117,6 +123,7 @@ function writtenIds(snapshot: GraphSnapshot, mode: "error" | "mangle", format: s
  * @param ids - the written ids
  * @param count - the node count
  * @returns the counter: a number, or a raw big integer for stringify()
+ * @category Plugin helpers
  */
 export function nextNodeId(ids: WrittenIds, count: number): NodeId {
     let max = -1n;
@@ -155,6 +162,7 @@ function unwritableIds(snapshot: GraphSnapshot): number {
  * @param attribute - the attribute the originals are kept in
  * @param note - records a note
  * @returns the ids, or the error export() throws
+ * @category Plugin helpers
  */
 export function planNodeIds(
     snapshot: GraphSnapshot,
@@ -168,8 +176,8 @@ export function planNodeIds(
         note(
             common.sanitizeIds === "mangle" ? LOSS.ID_MANGLED : LOSS.ID_CHARSET,
             common.sanitizeIds === "mangle"
-                ? `${unwritable} node id(s) that are not integers are renumbered; the originals are kept in the ${attribute} attribute (restored by restoreMangledIds)`
-                : `${unwritable} node id(s) that are not integers; export() will throw unless sanitizeIds is "mangle"`,
+                ? `${unwritable} node id(s) that are not integers are renumbered; the original ids are written to the ${attribute} attribute, and an import with restoreMangledIds: true reads them back`
+                : `${unwritable} node id(s) that are not integers; the save fails unless sanitizeIds is "mangle"`,
             null,
             unwritable,
         );
@@ -227,6 +235,7 @@ function allIntegral(column: Column): boolean {
  * a json column (and a list of json items) is a string holding JSON text.
  * @param column - the column
  * @returns the type text
+ * @category Plugin helpers
  */
 export function declaredType(column: Column): string {
     const { meta } = column;
@@ -245,6 +254,7 @@ export function declaredType(column: Column): string {
  * Count the positions with a non-finite x or y.
  * @param position - the position column
  * @returns the count
+ * @category Plugin helpers
  */
 export function nonFinitePositions(position: Column): number {
     let count = 0;
@@ -265,6 +275,7 @@ export function nonFinitePositions(position: Column): number {
  * @param snapshot - the snapshot
  * @param note - records a note
  * @returns one id per edge
+ * @category Plugin helpers
  */
 export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
     const column = snapshot.edges.byRole("id");
@@ -328,6 +339,7 @@ export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
  * @param common - the resolved common options
  * @param undirectedCode - the format's "undirected written as directed" code
  * @param note - records a note
+ * @category Plugin helpers
  */
 export function directionNotes(
     snapshot: GraphSnapshot,
@@ -372,6 +384,7 @@ export function directionNotes(
 /**
  * The note recorder of a plan and its notes.
  * @returns the notes and the recorder
+ * @category Plugin helpers
  */
 export function noteList(): { notes: LossNote[]; note: CxNoteFn } {
     const notes: LossNote[] = [];
@@ -385,6 +398,7 @@ export function noteList(): { notes: LossNote[]; note: CxNoteFn } {
  * The JSON text of a value, keeping -0 and writing the raw big-integer ids of idAt() as numbers.
  * @param value - the value
  * @returns the text
+ * @category Plugin helpers
  */
 export function stringify(value: unknown): string {
     const text = JSON.stringify(value, (_key, v: unknown) => (Object.is(v, -0) ? `${RAW}-0` : v));

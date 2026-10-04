@@ -45,7 +45,10 @@ import {
 } from "./document.js";
 import { parseScalar } from "./values.js";
 
-/** The XGMML-specific options, resolved. */
+/**
+ * The XGMML-specific options, resolved.
+ * @category Plugin helpers
+ */
 export interface XgmmlSettings {
     /** Resolve missing or unknown endpoints through `"a (pp) b"` edge labels. */
     readonly labelAliases: boolean;
@@ -55,7 +58,10 @@ export interface XgmmlSettings {
     readonly zAs: "column" | "position";
 }
 
-/** What a session adds to the document's own rules. */
+/**
+ * What a session adds to the document's own rules.
+ * @category Plugin helpers
+ */
 export interface EmitExtras {
     /** Ids of nodes the session's group bookkeeping lists as groups. */
     readonly groupNodes?: ReadonlySet<string> | undefined;
@@ -86,7 +92,10 @@ export interface EmitExtras {
     readonly restoredIds?: ReadonlyMap<string, string> | undefined;
 }
 
-/** The dialect facts the rules depend on. */
+/**
+ * The dialect facts the rules depend on.
+ * @category Plugin helpers
+ */
 export interface Dialect {
     /** The documentVersion as written, or null. */
     readonly versionText: string | null;
@@ -130,6 +139,7 @@ const ALIAS_SPLIT = /[()]/;
  * @param doc - the document
  * @param report - the report the unparseable-version warning goes to
  * @returns the dialect
+ * @category Plugin helpers
  */
 export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dialect {
     const { root } = doc;
@@ -169,6 +179,7 @@ export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dial
  * @param doc - the document
  * @param dialect - its dialect
  * @returns the graphs, in document order
+ * @category Plugin helpers
  */
 export function graphsOf(doc: XgmmlDocument, dialect: Dialect): GraphRec[] {
     return dialect.session ? doc.root.subgraphs.filter((g) => isCyTrue(g.registered)) : [doc.root];
@@ -179,6 +190,7 @@ export function graphsOf(doc: XgmmlDocument, dialect: Dialect): GraphRec[] {
  * finite.
  * @param text - the text
  * @returns the number, or null when it does not parse or is not finite
+ * @category Plugin helpers
  */
 export function parseCoordinate(text: string): number | null {
     const parsed = parseScalar(text, "real", false);
@@ -199,6 +211,7 @@ function localRef(href: string): string | null {
  * @param doc - the document
  * @param graph - the graph (a registered subnetwork), or null for the whole document
  * @returns the declared node and edge records it holds, references resolved, in order
+ * @category Plugin helpers
  */
 export function membersOf(
     doc: XgmmlDocument,
@@ -262,6 +275,7 @@ interface NodeRow {
 
 /**
  * Pushes one graph of a document into a sink.
+ * @category Plugin helpers
  */
 export class XgmmlEmitter {
     private readonly doc: XgmmlDocument;
@@ -1277,6 +1291,7 @@ function isNameAtt(att: AttRec): boolean {
  * The three parts of a Cytoscape edge label (`source (interaction) target`).
  * @param label - the label, or null
  * @returns source alias, interaction, target alias; null when the label has another shape
+ * @category Plugin helpers
  */
 export function aliasesOf(label: string | null): [string, string, string] | null {
     if (label === null) {

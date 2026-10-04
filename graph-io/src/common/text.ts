@@ -15,6 +15,7 @@
 
 import { type ColumnHandle, GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
+import { PRECISION_CODE } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 const I32_TEXT = /^-?(0|[1-9][0-9]*)$/;
@@ -24,8 +25,8 @@ const I32_MAX = 2147483647;
 
 /**
  * The dtype a text cell parses as under the fixed text grammar.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type TextDtype = "bool" | "i32" | "f64" | "string";
 
@@ -33,6 +34,7 @@ export type TextDtype = "bool" | "i32" | "f64" | "string";
  * Classify one text cell by the fixed grammar.
  * @param text - the cell text, exactly as read (no trimming)
  * @returns bool, i32, f64 or string
+ * @category Plugin helpers
  */
 export function inferTextDtype(text: string): TextDtype {
     if (text === "true" || text === "false") {
@@ -56,6 +58,7 @@ export function inferTextDtype(text: string): TextDtype {
  * i32 / f64, the text itself for string. The sink infers the column dtype from the value.
  * @param text - the cell text, exactly as read
  * @returns the value
+ * @category Plugin helpers
  */
 export function parseTextCell(text: string): boolean | number | string {
     switch (inferTextDtype(text)) {
@@ -75,6 +78,7 @@ export function parseTextCell(text: string): boolean | number | string {
  * Whether a text cell is a number under the f64 grammar (an i32 or f64 literal).
  * @param text - the cell text
  * @returns true when parseTextCell(text) returns a number
+ * @category Plugin helpers
  */
 export function isNumericText(text: string): boolean {
     const dtype = inferTextDtype(text);
@@ -127,8 +131,8 @@ function textDtypeRank(dtype: TextDtype): number {
  *
  * A sink without the optional widening call keeps the value-inferred dtype and the writer records
  * one W_WIDENING_UNSUPPORTED warning per column.
- * Consumed by the per-format importers under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export class TextCellWriter {
     /** The column name in the sink. */
@@ -182,6 +186,21 @@ export class TextCellWriter {
     write(row: number, text: string): void {
         const kind = inferTextDtype(text);
         const value = parseTextCell(text);
+        if (
+            typeof value === "number" &&
+            !Number.isSafeInteger(value) &&
+            I32_TEXT.test(text) &&
+            BigInt(text) !== BigInt(value)
+        ) {
+            // an integer beyond 2^53 is stored as the nearest double; say so once per column
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${this.domain} column "${this.name}": integers beyond 2^53 are stored as the nearest double (first: ${text})`,
+                { element: this.name },
+                `${PRECISION_CODE}:${this.domain}:${this.name}`,
+            );
+        }
         const wasString = this.textDtype === "string";
         const textDtype =
             this.textDtype === null || textDtypeRank(kind) > textDtypeRank(this.textDtype) ? kind : this.textDtype;
@@ -273,7 +292,11 @@ export class TextCellWriter {
     }
 }
 
-/** Issue code: the sink has no widening call, so a text column keeps the dtype its values imply. */
+/**
+ * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of its
+ * first values.
+ * @category Issue and loss codes
+ */
 export const WIDENING_UNSUPPORTED_CODE = "W_WIDENING_UNSUPPORTED";
 
 /**

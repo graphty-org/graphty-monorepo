@@ -15,17 +15,29 @@ import { formatNumber } from "./format.js";
 import { PLACEHOLDER_COLUMN } from "./ontology.js";
 import { type ResolvedExportOptions } from "./options.js";
 
-/** A note recorder. */
+/**
+ * A note recorder.
+ * @category Plugin helpers
+ */
 export type NoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
 
 /** The generic notes the ontology formats replace with their own (see capabilityNotes()). */
-const SUPERSEDED: ReadonlySet<string> = new Set([LOSS.DTYPE, LOSS.LIST, LOSS.JSON, LOSS.COMPONENTS, LOSS.GRAPH_ATTRIBUTES]);
+const SUPERSEDED: ReadonlySet<string> = new Set([
+    LOSS.DTYPE,
+    LOSS.LIST,
+    LOSS.JSON,
+    LOSS.COMPONENTS,
+    LOSS.GRAPH_ATTRIBUTES,
+]);
 
 /** The roles the ontology formats have a slot for, and the column names their importers give them. */
 const SLOT_ROLES: ReadonlySet<string> = new Set(["label", "kind"]);
 const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "name", kind: "relation" });
 
-/** The roles whose columns are never written as values (their loss notes come from checkCapabilities()). */
+/**
+ * The roles whose columns are never written as values (their loss notes come from checkCapabilities()).
+ * @category Plugin helpers
+ */
 export const UNWRITTEN_ROLES: ReadonlySet<string> = new Set([
     "directed",
     "pair",
@@ -49,10 +61,16 @@ export const UNWRITTEN_ROLES: ReadonlySet<string> = new Set([
     "thickness",
 ]);
 
-/** The OBO frame types. */
+/**
+ * The OBO frame types.
+ * @category Plugin helpers
+ */
 export type FrameKind = "Term" | "Instance" | "Typedef";
 
-/** The frame types as a set, for checking a `type` cell. */
+/**
+ * The frame types as a set, for checking a `type` cell.
+ * @category Plugin helpers
+ */
 export const FRAME_KINDS: ReadonlySet<string> = new Set(["Term", "Instance", "Typedef"]);
 
 /**
@@ -61,6 +79,7 @@ export const FRAME_KINDS: ReadonlySet<string> = new Set(["Term", "Instance", "Ty
  * @param column - the column
  * @param row - the row
  * @returns the value or undefined
+ * @category Plugin helpers
  */
 export function cellOf(column: Column, row: number): unknown {
     if (!column.isSet(row)) {
@@ -76,6 +95,7 @@ export function cellOf(column: Column, row: number): unknown {
  * @param value - the value
  * @param dtype - the dtype it came from (the item dtype for a list item)
  * @returns the text
+ * @category Plugin helpers
  */
 export function textOf(value: unknown, dtype: string): string {
     switch (typeof value) {
@@ -84,7 +104,10 @@ export function textOf(value: unknown, dtype: string): string {
         case "boolean":
             return value ? "true" : "false";
         case "number":
-            return formatNumber(value, dtype === "f32" || dtype === "i32" || dtype === "u32" || dtype === "u8" ? dtype : "f64");
+            return formatNumber(
+                value,
+                dtype === "f32" || dtype === "i32" || dtype === "u32" || dtype === "u8" ? dtype : "f64",
+            );
         default:
             return JSON.stringify(value) ?? "null";
     }
@@ -96,6 +119,7 @@ export function textOf(value: unknown, dtype: string): string {
  * @param want - the vocabulary dtype
  * @param column - the column
  * @returns true when the column can be written into the vocabulary slot
+ * @category Plugin helpers
  */
 export function fitsVocabulary(want: string, column: Column): boolean {
     switch (want) {
@@ -112,6 +136,7 @@ export function fitsVocabulary(want: string, column: Column): boolean {
  * The values of a cell that may hold one value or a list of them.
  * @param value - the cell value, or undefined
  * @returns the values
+ * @category Plugin helpers
  */
 export function valuesOf(value: unknown): readonly unknown[] {
     if (value === undefined) {
@@ -135,6 +160,7 @@ interface Slot {
  * @param role - the role (`label` for `name`, `kind` for `relation`)
  * @param name - the name the importer gives the slot
  * @returns the column and whether its role is assumed
+ * @category Plugin helpers
  */
 export function slotColumn(table: GraphSnapshot["nodes"], role: "label" | "kind", name: string): Slot {
     const byRole = table.byRole(role);
@@ -178,6 +204,7 @@ function placeholderColumn(snapshot: GraphSnapshot): Column | null {
  * @param options.outgoingAllowed - whether a placeholder may be an edge's source
  * @param options.changed - whether a node's id is rewritten
  * @returns one flag per node, 1 for a node written without a frame
+ * @category Plugin helpers
  */
 export function framelessNodes(
     snapshot: GraphSnapshot,
@@ -222,6 +249,7 @@ export function framelessNodes(
  * @param frameless - the framelessNodes() flags
  * @param references - the node indices in the order the written edges reference them
  * @returns the number of nodes whose index changes
+ * @category Plugin helpers
  */
 export function movedNodes(frameless: Uint8Array, references: Iterable<number>): number {
     const order: number[] = [];
@@ -253,6 +281,7 @@ export function movedNodes(frameless: Uint8Array, references: Iterable<number>):
  * @param value - the value
  * @param nameOk - the name rule
  * @returns true when the record is written and read back unchanged
+ * @category Plugin helpers
  */
 export function isQualifierRecord(value: unknown, nameOk: (name: string) => boolean): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -296,6 +325,7 @@ interface CapabilityNoteSpec {
  * @param common - the common options
  * @param spec - the export's facts
  * @returns the fatal error of a mixed graph under onMixedDirection "error", or null
+ * @category Plugin helpers
  */
 export function capabilityNotes(
     snapshot: GraphSnapshot,
@@ -358,6 +388,7 @@ export function capabilityNotes(
  * @param frameless - the frameless flags (a placeholder column set only there reads back)
  * @param written - the written edges
  * @param note - records a note
+ * @category Plugin helpers
  */
 export function emptyColumnNotes(
     snapshot: GraphSnapshot,
@@ -379,7 +410,10 @@ export function emptyColumnNotes(
     for (const [domain, table, used] of tables) {
         for (const column of table) {
             const { role, name } = column.meta;
-            if ((role !== null && (UNWRITTEN_ROLES.has(role) || (domain === "edge" && role === "id"))) || used(column)) {
+            if (
+                (role !== null && (UNWRITTEN_ROLES.has(role) || (domain === "edge" && role === "id"))) ||
+                used(column)
+            ) {
                 continue;
             }
             note(LOSS.EMPTY_COLUMN, `${domain} column "${name}" has no value to write; it reads back absent`, name, 0);
@@ -393,6 +427,7 @@ export function emptyColumnNotes(
  * @param column - the column
  * @param rows - the written nodes
  * @param how - how the values are written, for the message
+ * @category Plugin helpers
  */
 export function notePropertyColumn(note: NoteFn, column: Column, rows: readonly number[], how: string): void {
     const count = rows.filter((i) => column.isSet(i)).length;

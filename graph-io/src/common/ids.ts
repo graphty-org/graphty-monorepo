@@ -27,6 +27,7 @@ export { ID_MERGED_CODE };
  * The "canonical" rule on one text cell.
  * @param text - the cell text, exactly as read
  * @returns the number for canonical safe-integer text (never for "-0"), the text itself otherwise
+ * @category Plugin helpers
  */
 export function canonicalId(text: string): NodeId {
     if (text !== "-0" && CANONICAL_INTEGER.test(text)) {
@@ -42,6 +43,7 @@ export function canonicalId(text: string): NodeId {
  * Whether a text cell is canonical integer text under the "canonical" rule (a number after import).
  * @param text - the cell text
  * @returns true when canonicalId(text) returns a number
+ * @category Plugin helpers
  */
 export function isCanonicalIntegerText(text: string): boolean {
     return typeof canonicalId(text) === "number";
@@ -52,6 +54,7 @@ export function isCanonicalIntegerText(text: string): boolean {
  * @param text - the cell text, exactly as read
  * @param mode - the coercion rule
  * @returns the id; E_INVALID_ID when the rule rejects the text
+ * @category Plugin helpers
  */
 export function coerceIdText(text: string, mode: IdCoercion): NodeId {
     switch (mode) {
@@ -82,6 +85,7 @@ export function coerceIdText(text: string, mode: IdCoercion): NodeId {
  * @param value - the value
  * @param mode - the coercion rule
  * @returns the id; E_INVALID_ID when the rule rejects the value
+ * @category Plugin helpers
  */
 export function coerceId(value: unknown, mode: IdCoercion): NodeId {
     if (typeof value === "string") {
@@ -116,6 +120,7 @@ function invalidId(value: unknown, reason: string): GraphFormatError {
 /**
  * A stateful coercer for one import call: applies the rule and, under "number", detects merges
  * (two distinct texts mapping to one number) so the importer can report them as coercion issues.
+ * @category Plugin helpers
  */
 export class IdCoercer {
     /** The rule. */

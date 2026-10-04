@@ -16,7 +16,10 @@ import { type ImportReportBuilder } from "../../common/report.js";
 import { isWhitespace, localName, type XmlHandler } from "../../common/xml.js";
 import { XGMML_ISSUE, XGMML_NAMESPACE, XLINK_NAMESPACE } from "./constants.js";
 
-/** One `<att>` and what it holds. */
+/**
+ * One `<att>` and what it holds.
+ * @category Plugin helpers
+ */
 export interface AttRec {
     /** The `name` (else `label`) attribute, or null. */
     name: string | null;
@@ -48,7 +51,10 @@ export interface AttRec {
     readonly namespace?: string | null | undefined;
 }
 
-/** A `<node>`. */
+/**
+ * A `<node>`.
+ * @category Plugin helpers
+ */
 export interface NodeRec {
     readonly kind: "node";
     /** The id (the label when the id is missing), or null for an `xlink:href` reference. */
@@ -79,7 +85,10 @@ export interface NodeRec {
     readonly viewId: string | null;
 }
 
-/** An `<edge>`. */
+/**
+ * An `<edge>`.
+ * @category Plugin helpers
+ */
 export interface EdgeRec {
     readonly kind: "edge";
     /** The id attribute, or null. */
@@ -111,7 +120,10 @@ export interface EdgeRec {
     readonly viewId: string | null;
 }
 
-/** A `<graph>`: the root, a subnetwork, a group or a nested-network pointer. */
+/**
+ * A `<graph>`: the root, a subnetwork, a group or a nested-network pointer.
+ * @category Plugin helpers
+ */
 export interface GraphRec {
     /** The id attribute, or null. */
     readonly id: string | null;
@@ -139,7 +151,10 @@ export interface GraphRec {
     readonly line: number;
 }
 
-/** A parsed document. */
+/**
+ * A parsed document.
+ * @category Plugin helpers
+ */
 export interface XgmmlDocument {
     /** The root graph. */
     readonly root: GraphRec;
@@ -223,13 +238,14 @@ const TRUE_TEXT = /^(1|true|yes)$/i;
  * Whether a Cytoscape flag text is true.
  * @param text - the text, or undefined
  * @returns true for 1, true or yes in any case
+ * @category Plugin helpers
  */
 export function isCyTrue(text: string | null | undefined): boolean {
     return text !== null && text !== undefined && TRUE_TEXT.test(text.trim());
 }
 
 /**
- * The name an XML attribute is known by, its `xlink` prefix normalised whatever prefix the file
+ * The name an XML attribute is known by, its `xlink` prefix normalized whatever prefix the file
  * binds XLink to (galFiltered.xgmml uses `ns1`), on the element itself or on any ancestor; an
  * unbound `xlink:` prefix is XLink too.
  * @param name - the attribute name as written
@@ -253,6 +269,7 @@ const NO_SCOPE: ReadonlyMap<string, string> = new Map();
 
 /**
  * The tokenizer handler that builds an XgmmlDocument.
+ * @category Plugin helpers
  */
 export class XgmmlParser implements XmlHandler {
     private readonly report: ImportReportBuilder;
@@ -342,7 +359,7 @@ export class XgmmlParser implements XmlHandler {
             this.capture(top, rawName, rawAttrs);
             return;
         }
-        const attrs = this.normalise(rawAttrs);
+        const attrs = this.normalize(rawAttrs);
         // an element of another namespace keeps its prefix, so no XGMML element name matches it
         const name = this.isXgmmlName(rawName) ? localName(rawName) : rawName;
         switch (top.kind) {
@@ -476,9 +493,9 @@ export class XgmmlParser implements XmlHandler {
     /**
      * The XML attribute map with every XLink prefix written `xlink:`.
      * @param attrs - the attributes as written
-     * @returns the normalised map
+     * @returns the normalized map
      */
-    private normalise(attrs: ReadonlyMap<string, string>): Map<string, string> {
+    private normalize(attrs: ReadonlyMap<string, string>): Map<string, string> {
         const out = new Map<string, string>();
         const { scope } = this;
         for (const [key, value] of attrs) {
@@ -511,7 +528,7 @@ export class XgmmlParser implements XmlHandler {
                 { line },
             );
         }
-        const graph = this.newGraph(this.normalise(rawAttrs), line, null, null);
+        const graph = this.newGraph(this.normalize(rawAttrs), line, null, null);
         this.rootGraph = graph;
         this.frames.push({ kind: "graph", graph });
     }
@@ -1053,6 +1070,7 @@ export class XgmmlParser implements XmlHandler {
  * the parent's name (Cytoscape 3 lists), or are several that share one name (2.x bend handles).
  * @param att - the att
  * @returns true for a list
+ * @category Plugin helpers
  */
 export function isListLike(att: AttRec): boolean {
     const names = new Set(att.children.map((c) => c.name));
@@ -1069,6 +1087,7 @@ export function isListLike(att: AttRec): boolean {
  * else its other XML attributes (a 2.x bend handle's x and y), else null.
  * @param att - the att
  * @returns the value
+ * @category Plugin helpers
  */
 export function attJson(att: AttRec): unknown {
     if (att.children.length === 0) {

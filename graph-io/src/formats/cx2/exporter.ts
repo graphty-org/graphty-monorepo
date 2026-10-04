@@ -34,12 +34,16 @@ import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./importer.js";
 
-/** The format-specific options of the CX2 exporter: none yet. */
+/**
+ * The format-specific options of the CX2 exporter: none yet.
+ * @category Built-in formats
+ */
 export type Cx2ExportOptions = Readonly<Record<never, never>>;
 
 /**
  * The loss notes the CX2 exporter's check() returns, by name. A key is the
  * code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const CX2_LOSS = Object.freeze({
     /** Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. */
@@ -56,11 +60,14 @@ export const CX2_LOSS = Object.freeze({
     HIERARCHY_DROPPED: LOSS.HIERARCHY,
     /** A start / end / timestamp column: CX2 has no time. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A role column written as a plain attribute. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /** A dtype CX2 declares as another (f32 as double, u32 as long, dict as string, ...). */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
-    /** Node ids that are not integers under the default sanitizeIds "error": export() throws E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: LOSS.ID_CHARSET,
     /** Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept. */
     ID_MANGLED: LOSS.ID_MANGLED,
@@ -73,6 +80,7 @@ export const CX2_LOSS = Object.freeze({
  * required integer edge ids, declared string / double / integer / boolean columns and lists of
  * them, declared defaults, network attributes and the position role. f32, u32, u8 and dict columns
  * are written as the nearest declared type and read back as it.
+ * @category Built-in formats
  */
 export const CX2_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: false,
@@ -702,6 +710,7 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
 
 /**
  * The CX2 exporter plugin.
+ * @category Built-in formats
  */
 export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
     format: CX2_FORMAT,

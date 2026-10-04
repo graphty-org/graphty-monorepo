@@ -179,7 +179,7 @@ describe("cx2Importer: the mapping (design section 1.3)", () => {
         const { opaque } = s.meta.extra.cx2 as { opaque: Record<string, unknown[]> };
         expect(Object.keys(opaque)).toEqual(["visualProperties", "cyHiddenAttributes"]);
         const styles = report.issues.find((i) => i.code === CX2_ISSUE.STYLES_NOT_IMPORTED);
-        expect(styles?.message).toMatch(/1 default\(s\), 0 node mapping\(s\), 0 edge mapping\(s\).*#706/);
+        expect(styles?.message).toMatch(/1 default\(s\), 0 node mapping\(s\), 0 edge mapping\(s\)\); they are kept/);
     });
 
     it("reads every input shape the same way", async () => {

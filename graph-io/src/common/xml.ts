@@ -14,7 +14,7 @@
  * CDATA sections (text), a DOCTYPE with an internal subset (skipped; entity declarations are not
  * expanded, so an unknown entity reference is a syntax error), the five predefined entities and
  * numeric character references (decimal and hexadecimal) in text and attribute values, attribute
- * value whitespace normalisation, end-of-line normalisation (CR LF and lone CR become LF), and
+ * value whitespace normalization, end-of-line normalization (CR LF and lone CR become LF), and
  * well-formedness: matching end tags, one root element, no text outside it, no duplicate
  * attributes, no unterminated markup at the end of the input. Namespaces are not resolved; element
  * and attribute names are reported as written (with their prefix).
@@ -33,7 +33,10 @@ import { type LossNote } from "../types.js";
 import { XML_ILLEGAL_CHAR_CODE } from "./codes.js";
 import { isNameChar } from "./export.js";
 
-/** The events of the tokenizer; every callback is synchronous. */
+/**
+ * The events of the tokenizer; every callback is synchronous.
+ * @category Plugin helpers
+ */
 export interface XmlHandler {
     /**
      * An element starts (a self-closing element produces start then end).
@@ -66,7 +69,10 @@ export interface XmlHandler {
     doctype?(text: string, line: number): void;
 }
 
-/** A well-formedness or syntax error, with the line it was found on. */
+/**
+ * A well-formedness or syntax error, with the line it was found on.
+ * @category Plugin helpers
+ */
 export class XmlSyntaxError extends Error {
     /** The 1-based line. */
     readonly line: number;
@@ -86,6 +92,7 @@ export class XmlSyntaxError extends Error {
 /**
  * The input holds no markup at all (empty, whitespace only, a byte order mark only): an importer
  * reports it as E_EMPTY_INPUT rather than as a syntax error.
+ * @category Plugin helpers
  */
 export class XmlEmptyInputError extends XmlSyntaxError {
     /**
@@ -102,6 +109,7 @@ export class XmlEmptyInputError extends XmlSyntaxError {
  * Opt-in repairs of two defects the Cytoscape XGMML writer is known to produce. Each is off unless its callback is given; GEXF and GraphML never
  * pass them, so their documents stay strictly well-formed. The callback is told the line of each
  * repair, so the importer can warn per occurrence.
+ * @category Plugin helpers
  */
 export interface XmlRepairs {
     /**
@@ -204,6 +212,7 @@ const ILLEGAL_CHAR = new RegExp(
  * written even as a character reference, so a conforming parser rejects the whole document.
  * @param text - the text
  * @returns true when the text cannot appear in an XML 1.0 document
+ * @category Plugin helpers
  */
 export function hasIllegalXmlChar(text: string): boolean {
     return ILLEGAL_CHAR.test(text);
@@ -226,6 +235,7 @@ function illegalCharIndex(text: string): number {
  * the first such text. Shared by the GEXF and GraphML exporters' check().
  * @param snapshot - the snapshot
  * @returns the notes, empty when every text is writable
+ * @category Plugin helpers
  */
 export function xmlIllegalTextNotes(snapshot: GraphSnapshot): LossNote[] {
     const notes: LossNote[] = [];
@@ -240,7 +250,7 @@ export function xmlIllegalTextNotes(snapshot: GraphSnapshot): LossNote[] {
         notes.push(
             Object.freeze({
                 code: XML_ILLEGAL_CHAR_CODE,
-                message: `${ids} node id(s) hold a character XML 1.0 cannot carry; export() will throw`,
+                message: `${ids} node id(s) hold a character XML 1.0 cannot carry; the save fails`,
                 column: null,
                 count: ids,
             }),
@@ -257,7 +267,7 @@ export function xmlIllegalTextNotes(snapshot: GraphSnapshot): LossNote[] {
                 notes.push(
                     Object.freeze({
                         code: XML_ILLEGAL_CHAR_CODE,
-                        message: `${domain} column "${column.meta.name}": ${bad} value(s) hold a character XML 1.0 cannot carry; export() will throw`,
+                        message: `${domain} column "${column.meta.name}": ${bad} value(s) hold a character XML 1.0 cannot carry; the save fails`,
                         column: column.meta.name,
                         count: bad,
                     }),
@@ -305,6 +315,7 @@ const XML_DECLARED_ENCODING = /^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z][A-Z
  * for the shared byte decoder (common/input.ts).
  * @param head - the start of the document, decoded as windows-1252
  * @returns the declared label, or null when there is no declaration or it names no encoding
+ * @category Plugin helpers
  */
 export function xmlDeclaredEncoding(head: string): string | null {
     const match = XML_DECLARED_ENCODING.exec(head);
@@ -316,6 +327,7 @@ export function xmlDeclaredEncoding(head: string): string | null {
  * BOM-less UTF-16 `<?`, XML 1.0 Appendix F) says so, else UTF-8, never failing.
  * @param head - the first bytes
  * @returns the text, a leading byte order mark removed
+ * @category Plugin helpers
  */
 export function sniffXmlText(head: Uint8Array): string {
     let label = "utf-8";
@@ -331,6 +343,7 @@ export function sniffXmlText(head: Uint8Array): string {
  * Whether a text is an XML Name.
  * @param text - the text
  * @returns true for a well-formed name
+ * @category Plugin helpers
  */
 export function isXmlName(text: string): boolean {
     if (text.length === 0) {
@@ -369,6 +382,7 @@ function isXmlChar(cp: number): boolean {
  * @param line - the line, for errors
  * @param repairs - the opt-in repairs (XGMML only); none by default
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs): string {
     let amp = raw.indexOf("&");
@@ -470,6 +484,7 @@ function lowSurrogateAfter(
  * Whether a text is whitespace only.
  * @param text - the text
  * @returns true when every character is XML whitespace (also for an empty text)
+ * @category Plugin helpers
  */
 export function isWhitespace(text: string): boolean {
     for (let i = 0; i < text.length; i++) {
@@ -484,6 +499,7 @@ export function isWhitespace(text: string): boolean {
  * The local part of a possibly prefixed XML name.
  * @param name - the name as written
  * @returns the text after the last colon, or the name itself
+ * @category Plugin helpers
  */
 export function localName(name: string): string {
     const colon = name.lastIndexOf(":");
@@ -601,6 +617,7 @@ const DECLARATION_OPENERS: readonly string[] = ["<!--", "<![CDATA[", "<!DOCTYPE"
 /**
  * The tokenizer state: the unconsumed tail of the input, the current line, the open element
  * stack and the text run being accumulated. `push()` chunks, then `finish()`.
+ * @category Plugin helpers
  */
 export class XmlTokenizer {
     private readonly handler: XmlHandler;
@@ -736,9 +753,9 @@ export class XmlTokenizer {
     }
 
     /**
-     * Append normalised text: continue a pending token's terminator scan over the new text alone,
+     * Append normalized text: continue a pending token's terminator scan over the new text alone,
      * and once the token is complete (or when none is pending) scan the buffer for tokens.
-     * @param text - the text, line breaks normalised
+     * @param text - the text, line breaks normalized
      */
     private feed(text: string): void {
         const { pending } = this;
@@ -1539,10 +1556,10 @@ export class XmlTokenizer {
 }
 
 /**
- * Attribute value normalisation (XML 1.0 section 3.3.3): a literal tab or line break becomes a
+ * Attribute value normalization (XML 1.0 section 3.3.3): a literal tab or line break becomes a
  * space; a character reference to one is kept, which is why this runs before entity decoding.
  * @param raw - the value between the quotes
- * @returns the normalised value
+ * @returns the normalized value
  */
 function normalizeAttributeValue(raw: string): string {
     return raw.includes("\n") || raw.includes("\t") ? raw.replace(/[\n\t]/g, " ") : raw;

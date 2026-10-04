@@ -47,13 +47,22 @@ import {
     VIZ_NAMESPACE,
 } from "./schema.js";
 
-/** The format-specific options of the GEXF exporter. */
+/**
+ * The format-specific options of the GEXF exporter.
+ * @category Built-in formats
+ */
 export interface GexfExportOptions {
-    /** The GEXF version to write: "1.3" (default) or "1.2". */
+    /**
+     * The GEXF version to write.
+     * @defaultValue "1.3"
+     */
     version?: GexfVersion | undefined;
 }
 
-/** LossNote codes specific to the GEXF exporter, next to the shared LOSS codes. */
+/**
+ * LossNote codes specific to the GEXF exporter, next to the shared LOSS codes.
+ * @category Built-in formats
+ */
 export const GEXF_LOSS = Object.freeze({
     /** GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped. */
     KIND_DROPPED: "W_GEXF_KIND_DROPPED",
@@ -75,13 +84,18 @@ export const GEXF_LOSS = Object.freeze({
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
-    /** A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32. */
+    /**
+     * A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back
+     * as a 32-bit float.
+     */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
     /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
-    /** A dict column without declared options gains one from its dictionary on re-import. */
+    /**
+     * A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.
+     */
     OPTIONS_GAINED: LOSS.OPTIONS_GAINED,
-    /** A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. */
+    /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
     XML_ILLEGAL_CHAR: LOSS.XML_ILLEGAL_CHAR,
 });
 
@@ -264,7 +278,7 @@ function planExport(
     if (typeChanges > 0) {
         note(
             GEXF_LOSS.ID_TEXT_TYPE,
-            `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honoured by the importer`,
+            `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honored by the importer`,
             null,
             typeChanges,
         );
@@ -1730,7 +1744,10 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
     return typeof value === "string" ? value : null;
 }
 
-/** The GEXF exporter; `capabilities` describes the default 1.3 output. */
+/**
+ * The GEXF exporter; `capabilities` describes the default 1.3 output.
+ * @category Built-in formats
+ */
 export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
     capabilities: CAPABILITIES_1_3,
@@ -1763,5 +1780,8 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     },
 });
 
-/** The capabilities of a 1.2 export, for callers that pass `version: "1.2"`. */
+/**
+ * The capabilities of a 1.2 export, for callers that pass `version: "1.2"`.
+ * @category Built-in formats
+ */
 export const GEXF_1_2_CAPABILITIES: ExportCapabilities = CAPABILITIES_1_2;

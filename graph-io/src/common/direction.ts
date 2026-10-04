@@ -36,15 +36,15 @@ import { type ImportReportBuilder } from "./report.js";
 
 /**
  * The direction of one source edge.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type EdgeKind = "directed" | "undirected" | "mutual";
 
 /**
  * Where an edge or header was read, for issues.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface EdgeLocation {
     /** The 1-based line, when known. */
@@ -53,13 +53,22 @@ export interface EdgeLocation {
     readonly element?: string | null | undefined;
 }
 
-/** The name of the bool edge column marking source-directed edges. */
+/**
+ * The name of the bool edge column marking source-directed edges.
+ * @category Plugin helpers
+ */
 export const DIRECTED_COLUMN = "graphty.directed";
 
-/** The name of the u32 edge column pairing the halves of an expanded edge. */
+/**
+ * The name of the u32 edge column pairing the halves of an expanded edge.
+ * @category Plugin helpers
+ */
 export const PAIR_COLUMN = "graphty.pair";
 
-/** The name of the bool edge column marking GEXF mutual edges. */
+/**
+ * The name of the bool edge column marking GEXF mutual edges.
+ * @category Plugin helpers
+ */
 export const MUTUAL_COLUMN = "graphty.mutual";
 
 export { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE };
@@ -71,6 +80,7 @@ const MUTUAL_DECL: ColumnDecl = { name: MUTUAL_COLUMN, dtype: "bool", role: "mut
 /**
  * Pushes edges into a sink while resolving each edge's direction. One instance per
  * import call; `setHeader()` before the first `addEdge()`.
+ * @category Plugin helpers
  */
 export class DirectionResolver {
     private readonly sink: GraphSink;
@@ -412,8 +422,8 @@ function direction(directed: boolean): string {
  * implementation for every exporter; the only per-format choice is whether a mutual pair folds
  * back into one edge (`foldMutual`, for formats with a mutual or undirected slot) or is written as
  * two directed edges (the default).
- * Consumed by the per-format exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface PairFolding {
     /** Whether the snapshot carries expanded pairs at all (the pair role column exists). */
@@ -447,7 +457,10 @@ export interface PairFolding {
     isMutual(e: number): boolean;
 }
 
-/** The per-format choice of pairFolding(). */
+/**
+ * The per-format choice of pairFolding().
+ * @category Plugin helpers
+ */
 export interface PairFoldingOptions {
     /**
      * Fold a mutual pair back into its primary (a format with a mutual or undirected slot);
@@ -461,6 +474,7 @@ export interface PairFoldingOptions {
  * @param snapshot - the snapshot
  * @param options - the per-format choice
  * @returns the view
+ * @category Plugin helpers
  */
 export function pairFolding(snapshot: GraphSnapshot, options: PairFoldingOptions = {}): PairFolding {
     const foldMutual = options.foldMutual ?? false;

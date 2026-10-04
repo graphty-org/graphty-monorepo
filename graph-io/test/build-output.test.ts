@@ -178,6 +178,13 @@ describe("Build Output Tests", () => {
         }
     });
 
+    it.skipIf(!bundleExists)("lets a bundler drop the default registry when only FormatRegistry is imported", () => {
+        // without the annotation every format stays in a bundle that registers one format of its own
+        expect(readFileSync(resolve("./dist/graph-io.js"), "utf-8")).toMatch(
+            /const registry = \/\* @__PURE__ \*\/ createRegistry\(\);/,
+        );
+    });
+
     it.skipIf(!bundleExists)("subpath bundles share one module instance with the root bundle", async () => {
         const root = (await import(resolve("./dist/graph-io.js"))) as Record<string, unknown>;
         expect(root.default).toBeUndefined();

@@ -29,6 +29,7 @@ const XML_REPLACEMENTS: Readonly<Record<string, string>> = {
  * surrogate) has no XML spelling at all and is E_COLUMN_TYPE; the exporters' check() counts them.
  * @param text - the text
  * @returns the escaped text
+ * @category Plugin helpers
  */
 export function escapeXmlText(text: string): string {
     if (hasIllegalXmlChar(text)) {
@@ -39,9 +40,10 @@ export function escapeXmlText(text: string): string {
 
 /**
  * Escape text for a double-quoted XML attribute value: `&`, `<`, `>`, `"` and the whitespace
- * characters attribute normalisation would fold; a character XML 1.0 forbids is E_COLUMN_TYPE.
+ * characters attribute normalization would fold; a character XML 1.0 forbids is E_COLUMN_TYPE.
  * @param text - the text
  * @returns the escaped text
+ * @category Plugin helpers
  */
 export function escapeXmlAttribute(text: string): string {
     if (hasIllegalXmlChar(text)) {
@@ -71,6 +73,7 @@ const GML_SPECIAL = /["&]|[^ -~]/gu;
  * A lone surrogate cannot be written and is E_COLUMN_TYPE.
  * @param text - the text
  * @returns the quoted GML string
+ * @category Plugin helpers
  */
 export function quoteGmlString(text: string): string {
     const escaped = text.replace(GML_SPECIAL, (c) => {
@@ -121,6 +124,7 @@ const GML_NAMED: ReadonlyMap<string, string> = (() => {
  * @param body - the text between the quotes
  * @param onUnknown - called with each entity left as written (`&name;`, `&#99999999;`), when given
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export function decodeGmlString(body: string, onUnknown?: (entity: string) => void): string {
     return body.replace(GML_ENTITY, (whole, entity: string) => {
@@ -150,6 +154,7 @@ const DOT_KEYWORDS: ReadonlySet<string> = new Set(["node", "edge", "graph", "dig
  * a digit, or a numeral, and not a keyword (case-insensitive).
  * @param text - the text
  * @returns true when the text can be written bare
+ * @category Plugin helpers
  */
 export function isBareDotId(text: string): boolean {
     if (DOT_KEYWORDS.has(text.toLowerCase())) {
@@ -188,6 +193,7 @@ function isDotIdentifier(text: string): boolean {
  * the closing quote. Every other text is writable; quoteDotId() writes it.
  * @param text - the id, name or value text
  * @returns true when quoteDotId(text) reads back as `text`
+ * @category Plugin helpers
  */
 export function isWritableDotText(text: string): boolean {
     return !text.endsWith("\\") && !text.includes('\\"') && !/\\[\r\n]/.test(text);
@@ -200,6 +206,7 @@ export function isWritableDotText(text: string): boolean {
  * backslash has no DOT spelling (isWritableDotText); the caller refuses it before writing.
  * @param text - the id or label text
  * @returns the DOT ID
+ * @category Plugin helpers
  */
 export function quoteDotId(text: string): string {
     if (isBareDotId(text)) {
@@ -209,29 +216,31 @@ export function quoteDotId(text: string): string {
 }
 
 /**
- * Write a set CSV cell per RFC 4180: quoted with `"` doubled when the text contains the
- * delimiter, a quote, a CR or LF, or leading / trailing whitespace; bare otherwise. The empty
- * string is written as the quoted empty cell `""`, so the importers can tell a set empty string
- * (and an empty-string node id, legal under design section 4.1) from an unset cell, which every
- * exporter writes as nothing between the delimiters.
+ * Write a set CSV cell per RFC 4180: quoted, with the quote character doubled, when the text
+ * contains the delimiter, the quote character, a CR or LF, or leading / trailing whitespace; bare
+ * otherwise. The empty string is written as an empty quoted cell (`""`), so the importers can tell a
+ * set empty string (and an empty-string node id) from an unset cell, which every exporter writes as
+ * nothing between the delimiters.
  * @param text - the cell text of a set cell
  * @param delimiter - the field delimiter (default ",")
+ * @param quote - the quote character (default `"`)
  * @returns the cell as written
+ * @category Plugin helpers
  */
-export function quoteCsvCell(text: string, delimiter = ","): string {
+export function quoteCsvCell(text: string, delimiter = ",", quote = '"'): string {
     if (text.length === 0) {
-        return '""';
+        return quote + quote;
     }
     if (
         !text.includes(delimiter) &&
-        !text.includes('"') &&
+        !text.includes(quote) &&
         !text.includes("\n") &&
         !text.includes("\r") &&
         text === text.trim()
     ) {
         return text;
     }
-    return `"${text.replace(/"/g, '""')}"`;
+    return `${quote}${text.split(quote).join(quote + quote)}${quote}`;
 }
 
 /**
@@ -239,6 +248,7 @@ export function quoteCsvCell(text: string, delimiter = ","): string {
  * labels, so a text containing a double quote, a CR or an LF cannot be written.
  * @param text - the label text
  * @returns true when quotePajekLabel() can write it
+ * @category Plugin helpers
  */
 export function isPajekLabel(text: string): boolean {
     return !text.includes('"') && !text.includes("\n") && !text.includes("\r");
@@ -251,6 +261,7 @@ export function isPajekLabel(text: string): boolean {
  * the exporter's check() counts those.
  * @param text - the label text
  * @returns the label as written
+ * @category Plugin helpers
  */
 export function quotePajekLabel(text: string): string {
     if (!isPajekLabel(text)) {

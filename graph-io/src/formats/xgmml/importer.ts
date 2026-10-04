@@ -45,26 +45,40 @@ import {
     type XgmmlSettings,
 } from "./emit.js";
 
-/** The format-specific options of the XGMML importer. */
+/**
+ * The format-specific options of the XGMML importer.
+ * @category Built-in formats
+ */
 export interface XgmmlImportOptions extends GraphChoiceOptions {
     /**
-     * Resolve an edge endpoint that is missing or names no node through Cytoscape's
-     * `"source (interaction) target"` edge label, and fill a missing interaction from it. Default:
-     * on for files that use the Cytoscape (`cy`) namespace, off otherwise.
+     * Find an edge end that is missing, or names no node, from Cytoscape's `"source (interaction)
+     * target"` edge label, and fill a missing interaction from it. The default is on for files that
+     * use Cytoscape's (`cy`) namespace, off for others.
+     * @defaultValue on for Cytoscape files
      */
     labelAliases?: boolean | undefined;
     /**
-     * Decode Cytoscape's two-character `\n` and `\t` escapes in string values. Default: on for
-     * files that use the Cytoscape namespace, off otherwise.
+     * Decode Cytoscape's two-character `\n` and `\t` escapes in text values. The default is on for
+     * files that use Cytoscape's namespace, off for others.
+     * @defaultValue on for Cytoscape files
      */
     cytoscapeEscapes?: boolean | undefined;
-    /** Read an `&` not followed by `;` within 7 characters as `&amp;` (warned per occurrence). Default false. */
+    /**
+     * Read an `&` that is not followed by `;` within 7 characters as `&amp;`, with a warning for
+     * each, instead of failing on the invalid XML.
+     * @defaultValue false
+     */
     repairBareAmpersands?: boolean | undefined;
-    /** Join two surrogate character references into one character (warned per pair). Default false. */
+    /**
+     * Join two character references that each hold half of a character (`&#xD83D;&#xDE00;`) into
+     * that character, with a warning for each pair, instead of failing.
+     * @defaultValue false
+     */
     pairSurrogateReferences?: boolean | undefined;
     /**
-     * Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.
-     * @default "column"
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
      */
     zAs?: "column" | "position" | undefined;
 }
@@ -102,6 +116,7 @@ const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
  * @param options - the caller's options
  * @param cytoscape - whether the document uses the Cytoscape namespace
  * @returns the settings; E_UNSUPPORTED for a value of the wrong type
+ * @category Plugin helpers
  */
 export function resolveSettings(options: XgmmlImportOptions | undefined, cytoscape: boolean): XgmmlSettings {
     const zAs = options?.zAs ?? "column";
@@ -333,7 +348,7 @@ async function importXgmml(
         prepared.report.warning(
             "unsupported",
             XGMML_ISSUE.MULTIPLE_GRAPHS,
-            `the session network document holds ${prepared.graphs.length} registered networks; ${prepared.graphs.length - 1} were not read (use importAll, graphIndex or graphName)`,
+            `the session network document holds ${prepared.graphs.length} registered networks; ${prepared.graphs.length - 1} were not read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
     return emitOne(prepared, prepared.graphs[index], sink);
@@ -428,7 +443,10 @@ function sniffXgmml(head: Uint8Array): number {
     return tag.includes("http://www.cs.rpi.edu/XGMML") ? 0.95 : 0.5;
 }
 
-/** The XGMML importer. */
+/**
+ * The XGMML importer.
+ * @category Built-in formats
+ */
 export const xgmmlImporter: GraphImporter<XgmmlImportOptions> = Object.freeze({
     format: FORMAT,
     extensions: EXTENSIONS,

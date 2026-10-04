@@ -18,13 +18,14 @@ import { ISSUES_SUPPRESSED_CODE } from "./codes.js";
 /**
  * The most warnings of one code a report keeps; later ones are counted in one W_ISSUES_SUPPRESSED
  * warning, so a per-row warning on a large file cannot grow the report without bound.
+ * @category Issue and loss codes
  */
 export const MAX_WARNINGS_PER_CODE = 1000;
 
 /**
  * Where an issue was found: the 1-based line and the element (id or attribute name) when known.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface IssueLocation {
     /** The 1-based source line, when known. */
@@ -35,8 +36,8 @@ export interface IssueLocation {
 
 /**
  * The mutable element counters of a report in progress; importers increment them directly in hot loops.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface MutableCounts {
     /** Nodes pushed. */
@@ -67,10 +68,8 @@ const CATEGORY_BY_CODE: Readonly<Partial<Record<GraphFormatErrorCode, IssueCateg
 };
 
 /**
- * The code a report used to give a thrown value that was not a GraphFormatError. Since audit round
- * 1 such a value (a TypeError, a RangeError: a bug in an importer or a sink, never a defect of the
- * input) propagates out of import() untouched, so no importer records this code any more; the
- * constant stays for consumers that switch on the codes of earlier reports.
+ * No longer recorded; kept so code that switches on older reports still compiles.
+ * @category Issue and loss codes
  */
 export const PARSE_ERROR_CODE = "E_PARSE";
 
@@ -78,6 +77,7 @@ export const PARSE_ERROR_CODE = "E_PARSE";
  * Accumulates an ImportReport while an importer runs. Errors count toward the error limit; the
  * error that takes the count beyond the limit is still recorded, `truncated` is set, and an
  * ImportError carrying the report so far is thrown. Warnings never abort.
+ * @category Plugin helpers
  */
 export class ImportReportBuilder {
     /** The importer's format name. */
@@ -398,6 +398,7 @@ function makeIssue(
  * `signal.reason`.
  * @param err - the thrown value
  * @returns true for an AbortError or a TimeoutError
+ * @category Plugin helpers
  */
 export function isAbortError(err: unknown): boolean {
     if (typeof err !== "object" || err === null) {
@@ -411,6 +412,7 @@ export function isAbortError(err: unknown): boolean {
  * The message of a thrown value: an Error's message, a string as is, anything else described by type.
  * @param err - the thrown value
  * @returns a plain message
+ * @category Plugin helpers
  */
 export function messageOf(err: unknown): string {
     if (err instanceof Error) {

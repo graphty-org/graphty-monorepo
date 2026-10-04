@@ -1,9 +1,9 @@
 /**
  * yFiles / yEd graphics read out of the JSON tree of a `yfiles.type` key (tree.ts) into typed
  * columns, beside the tree itself: a `y:ShapeNode` gives the node's position, size, fill and
- * border colours, label and shape, and a `y:PolyLineEdge` gives the edge's line colour and width,
+ * border colors, label and shape, and a `y:PolyLineEdge` gives the edge's line color and width,
  * its arrows and the direction they draw. The values are the ones graphty-element's own GraphML
- * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colours
+ * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colors
  * are `#RRGGBB` in upper case (a `#RGB` is expanded, any other text is kept as written), numbers
  * are parsed with parseFloat, the position is `[x, y, 0]` and the shape is the yFiles shape type
  * as written. One difference: a label whose text is a number (`<y:NodeLabel>0</y:NodeLabel>`) is
@@ -52,6 +52,7 @@ const EDGE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
  * @param field - the field name (a key of the values graphicsValues() returns)
  * @param keyId - the id of the GraphML key whose tree it is read from
  * @returns the declaration
+ * @category Plugin helpers
  */
 export function graphicsDecl(domain: "node" | "edge", field: string, keyId: string): ColumnDecl {
     const fields = domain === "node" ? NODE_FIELDS : EDGE_FIELDS;
@@ -76,6 +77,7 @@ export function graphicsDecl(domain: "node" | "edge", field: string, keyId: stri
  * @param meta.dtype - the column dtype
  * @param meta.origin - the column origin
  * @returns true for a mapped graphics column
+ * @category Plugin helpers
  */
 export function isGraphicsColumn(meta: {
     readonly name: string;
@@ -95,6 +97,7 @@ export function isGraphicsColumn(meta: {
  * @param table - the table it is in
  * @param domain - node or edge
  * @returns the number of rows that differ from the trees
+ * @category Plugin helpers
  */
 export function staleGraphicsRows(column: Column, table: Iterable<Column>, domain: "node" | "edge"): number {
     const field = column.meta.name.slice(YFILES_COLUMN_PREFIX.length);
@@ -132,6 +135,7 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
  * @param tree - the `<data>` content as tree.ts builds it
  * @param unmapped - receives the fields whose text is present but not a number (not mapped)
  * @returns field name -> value, in declaration order
+ * @category Plugin helpers
  */
 export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped: string[] = []): [string, unknown][] {
     const out: [string, unknown][] = [];
@@ -291,9 +295,9 @@ function checked(value: string | undefined, field: string, unmapped: string[]): 
 }
 
 /**
- * A colour attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
+ * A color attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
  * @param value - the text
- * @returns the colour, or undefined when absent or empty
+ * @returns the color, or undefined when absent or empty
  */
 function color(value: string | undefined): string | undefined {
     if (value === undefined || value.length === 0) {

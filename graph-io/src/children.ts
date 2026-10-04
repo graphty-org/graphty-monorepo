@@ -16,10 +16,16 @@
 
 import { type Column, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-/** The role of the column a children CSR is built over. */
+/**
+ * The role of the column a children CSR is built over.
+ * @category Plugin helpers
+ */
 export type ContainmentRole = "parent" | "parents";
 
-/** How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column. */
+/**
+ * How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column.
+ * @category Plugin helpers
+ */
 export interface ChildrenOptions {
     /**
      * The column to read: a role name (`parent` for the u32 single-parent column, `parents` for
@@ -30,7 +36,10 @@ export interface ChildrenOptions {
     readonly column?: ContainmentRole | Column | "auto" | null | undefined;
 }
 
-/** One depth-first traversal of the containment forest. */
+/**
+ * One depth-first traversal of the containment forest.
+ * @category Plugin helpers
+ */
 export interface DepthFirstOrder {
     /** Every node index exactly once: roots in index order, each followed by its descendants, cycle members last. */
     readonly order: Uint32Array;
@@ -43,6 +52,7 @@ export interface DepthFirstOrder {
 /**
  * The children CSR of a snapshot's containment column: the inverse
  * of the parent relation as a compressed sparse row structure over node indices.
+ * @category Plugin helpers
  */
 export class ChildrenCsr {
     /** The number of nodes (the row count of the CSR). */
@@ -251,6 +261,7 @@ export class ChildrenCsr {
  * @param snapshot - the snapshot
  * @param options - which column to read; the `parent` role, then `parents`, by default
  * @returns the CSR; empty (every node a root) when the snapshot has no containment column
+ * @category Plugin helpers
  */
 export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = {}): ChildrenCsr {
     const column = resolveColumn(snapshot, options.column === undefined ? "auto" : options.column);
@@ -263,6 +274,7 @@ export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = 
  * @param nodeCount - the node count the references index into
  * @param column - a u32 `parent`-shaped column, a list-of-u32 `parents`-shaped column, or null for none
  * @returns the CSR
+ * @category Plugin helpers
  */
 export function childrenFromColumn(nodeCount: number, column: Column | null): ChildrenCsr {
     const rowPtr = new Uint32Array(nodeCount + 1);

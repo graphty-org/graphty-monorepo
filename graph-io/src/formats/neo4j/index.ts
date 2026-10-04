@@ -59,8 +59,9 @@ export {
 
 /**
  * The issue codes the Neo4j importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts, the CSV record reader) and the Neo4j-specific ones.
+ * the other importers and the Neo4j-specific ones.
  * A key is the code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const NEO4J_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -96,15 +97,24 @@ export const NEO4J_ISSUE = Object.freeze({
     HEADER_OPTION_IGNORED: HEADER_OPTION_CODE,
     /** A declared type the format does not define (kept as string). */
     UNKNOWN_ATTR_TYPE: UNKNOWN_ATTR_TYPE_CODE,
-    /** A long value beyond 2^53 rounded. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
-    /** A column renamed `<name>#<id>` because the name was taken. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A role the caller's sink already holds. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** A common option the importer has no use for (nodeIdFrom, defaultDirected, ...). */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
     /** A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. */
     MISSING_TYPE: MISSING_TYPE_CODE,
@@ -117,6 +127,7 @@ export const NEO4J_ISSUE = Object.freeze({
 /**
  * The loss-note codes of the Neo4j importer (report.lossy) and exporter (check()), by name: the
  * Neo4j ones and, aliased, the shared ones it records (`LOSS` holds the generic pre-flight's).
+ * @category Built-in formats
  */
 export const NEO4J_LOSS = Object.freeze({
     /** `:IGNORE` columns skipped on import. */
@@ -125,17 +136,17 @@ export const NEO4J_LOSS = Object.freeze({
     UNDIRECTED_AS_DIRECTED: UNDIRECTED_LOSS,
     /** A mutual pair written as two directed relationships without its mark. */
     MUTUAL_EXPANDED: MUTUAL_EXPANDED_CODE,
-    /** A role column Neo4j has no slot for (label, ...) written as a plain property. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
     /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
     /** A node id whose text re-imports as another type under the canonical rule. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_LOSS,
-    /** A number and a string id with the same text; export() throws. */
+    /** Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with E_INVALID_ID. */
     ID_TEXT_COLLISION: ID_TEXT_COLLISION_LOSS,
-    /** The weight column name is taken by an edge column; export() throws. */
+    /** The `weightColumn` name is already an edge attribute; the save fails. */
     WEIGHT_COLUMN_TAKEN: WEIGHT_COLUMN_TAKEN_LOSS,
-    /** The id column name is taken by a node column; export() throws. */
+    /** The `idColumn` name is already a node attribute; the save fails. */
     ID_COLUMN_TAKEN: ID_COLUMN_TAKEN_LOSS,
     /** Several stored-id properties; one becomes the `:ID` column. */
     MULTIPLE_ID_PROPERTIES: MULTIPLE_ID_PROPERTIES_LOSS,

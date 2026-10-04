@@ -87,17 +87,21 @@ import {
 } from "./session.js";
 import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsOf } from "./tables.js";
 
-/** The format-specific options of the session importer. */
+/**
+ * The format-specific options of the session importer.
+ * @category Built-in formats
+ */
 export interface CysImportOptions extends GraphChoiceOptions {
     /**
-     * Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.
-     * @default "column"
+     * Where Cytoscape's `z` value (a drawing order, not a depth) goes: "column" keeps it as a node
+     * attribute named `z`; "position" makes it the third coordinate of the position.
+     * @defaultValue "column"
      */
     zAs?: "column" | "position" | undefined;
     /**
-     * The most bytes one import may inflate, in total (2 GiB by default); an entry beyond it, or one
-     * whose compression ratio is above 1000:1, is E_TOO_LARGE.
-     * @default 2147483648
+     * The most bytes one import may unpack from the session archive, in total (2 GiB). A file that
+     * would unpack to more, or one compressed more than 1000 to 1, fails with E_TOO_LARGE.
+     * @defaultValue 2147483648
      */
     maxUncompressedBytes?: number | undefined;
 }
@@ -1321,7 +1325,7 @@ function sessionMeta(
         report.warning(
             "unsupported",
             CYS_ISSUE.STYLES_NOT_IMPORTED,
-            `the session's styles (${layout.styles.map((s) => s.path).join(", ")}) are not applied: style import is issue #706`,
+            `the session's styles (${layout.styles.map((s) => s.path).join(", ")}) are not applied`,
         );
     }
     if (layout.skipped.length > 0) {
@@ -1379,7 +1383,7 @@ async function importCys(
         prepared.report.warning(
             "unsupported",
             CYS_ISSUE.MULTIPLE_GRAPHS,
-            `the session holds ${prepared.choices.length} networks; ${prepared.choices.length - 1} were not read (use importAll, graphIndex or graphName)`,
+            `the session holds ${prepared.choices.length} networks; ${prepared.choices.length - 1} were not read (importAllGraphs() reads every one; graphIndex or graphName chooses one)`,
         );
     }
     const report = await importChoice(prepared, index, sink);
@@ -1450,6 +1454,7 @@ const SESSION_NAME =
  * start after a short stub (a self-extracting archive) within the head.
  * @param head - the first bytes
  * @returns the confidence
+ * @category Plugin helpers
  */
 export function sniffCys(head: Uint8Array): number {
     for (let at = 0; at + 4 <= head.byteLength; at++) {
@@ -1460,7 +1465,10 @@ export function sniffCys(head: Uint8Array): number {
     return 0;
 }
 
-/** The Cytoscape session importer. */
+/**
+ * The Cytoscape session importer.
+ * @category Built-in formats
+ */
 export const cysImporter: GraphImporter<CysImportOptions> = Object.freeze({
     format: FORMAT,
     extensions: EXTENSIONS,

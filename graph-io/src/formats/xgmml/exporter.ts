@@ -48,11 +48,15 @@ import {
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
 
-/** The format-specific options of the XGMML exporter. */
+/**
+ * The format-specific options of the XGMML exporter.
+ * @category Built-in formats
+ */
 export interface XgmmlExportOptions {
     /**
-     * Write newline and tab in string values as Cytoscape's two-character `\n` and `\t` (what the
-     * Cytoscape writer does) instead of the character references `&#10;` and `&#9;` (default).
+     * Write line breaks and tabs in text values as Cytoscape's two-character `\n` and `\t`, as
+     * Cytoscape does, instead of the XML character references `&#10;` and `&#9;`.
+     * @defaultValue false
      */
     cytoscapeEscapes?: boolean | undefined;
 }
@@ -1202,7 +1206,10 @@ function planFor(snapshot: GraphSnapshot, options: (XgmmlExportOptions & CommonE
     return plan;
 }
 
-/** The XGMML exporter. */
+/**
+ * The XGMML exporter.
+ * @category Built-in formats
+ */
 export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     format: FORMAT,
     capabilities: CAPABILITIES,

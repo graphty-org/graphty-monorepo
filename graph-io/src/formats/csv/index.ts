@@ -12,6 +12,7 @@ import {
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     OPTION_IGNORED_CODE,
+    PRECISION_CODE,
     SINK_OPTION_CODE,
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
@@ -50,11 +51,14 @@ export { csvImporter, type CsvImportOptions } from "./importer.js";
 
 /**
  * The issue codes the CSV importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the CSV-specific ones. A key is the code without
+ * the other importers and the CSV-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const CSV_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; reported once per column. */
+    PRECISION: PRECISION_CODE,
     /** The input is empty (fatal). */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input holds invalid UTF-8 (fatal). */
@@ -91,21 +95,40 @@ export const CSV_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** An explicitly named weight column the file does not have. */
     COLUMN_MISSING: COLUMN_MISSING_CODE,
-    /** A column whose role another column of the sink already holds. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** A column renamed `<name>#<position>` (a repeated header, or a name the sink holds with another shape). */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A common option the importer has no use for was given. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
-    /** A text column the sink could not widen to the dtype its cells imply. */
+    /**
+     * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of
+     * its first values.
+     */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
     /** The input opens like another format (XML / HTML, JSON, GML, DOT, Pajek) (fatal). */
     OTHER_FORMAT: OTHER_FORMAT_CODE,

@@ -45,45 +45,87 @@ import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { EMPTY_LIST_TEXT, isGmlKey, LIST_START_MARKER, mangleGmlKey, ORIGINAL_ID_KEY } from "./syntax.js";
 
-/** The format-specific options of the GML exporter. */
+/**
+ * The format-specific options of the GML exporter.
+ * @category Built-in formats
+ */
 export interface GmlExportOptions {
     /**
-     * The edge key explicit weights are written under; by default the key the GML importer read
-     * them from (`meta.weightOrigin.id` when the snapshot came from GML), else `value`.
+     * The edge key the weights are written under. The default is the key a GML import read them
+     * from, else `value`.
+     * @defaultValue as read, else "value"
      */
     weightKey?: string | undefined;
     /**
-     * "error" (default): a column name or record key that is not a GML key (`[A-Za-z][0-9A-Za-z_]*`)
-     * or collides with a structural key makes export() throw; "mangle": such keys are rewritten
-     * (`.` and other characters become `_`, collisions get a `_2` suffix) and check() reports them.
+     * What to do with an attribute name or record key that GML cannot write (GML keys are
+     * `[A-Za-z][0-9A-Za-z_]*`, and `id`, `source`, `target` and the like are taken): "error" makes
+     * the save fail, "mangle" rewrites it (`.` and other characters become `_`, a clash gets a `_2`
+     * suffix) and checkExport() lists each rename.
+     * @defaultValue "error"
      */
     sanitizeKeys?: "error" | "mangle" | undefined;
 }
 
-/** Loss code: a json column holds numbers; JSON cannot keep GML's int / real distinction (design section 8.5). */
+/**
+ * Loss code: a json column holds numbers; JSON cannot keep GML's int / real distinction (design section 8.5).
+ * @category Issue and loss codes
+ */
 export const RECORD_NUMBER_TYPE_CODE = "W_GML_RECORD_NUMBER_TYPE";
-/** Loss code: a json column holds booleans, written as 1 / 0. */
+/**
+ * Loss code: a json column holds booleans, written as 1 / 0.
+ * @category Issue and loss codes
+ */
 export const RECORD_BOOLEAN_CODE = "W_GML_RECORD_BOOLEAN";
-/** Loss code: a json column holds nulls, which GML cannot write; the key (or the row) is omitted. */
+/**
+ * Loss code: a json column holds nulls, which GML cannot write; the key (or the row) is omitted.
+ * @category Issue and loss codes
+ */
 export const RECORD_NULL_CODE = "W_GML_RECORD_NULL";
-/** Loss code: a json column holds an array inside an array, which GML cannot write; export() throws. */
+/**
+ * An attribute holds an array inside an array, which GML cannot write; the save fails.
+ * @category Issue and loss codes
+ */
 export const NESTED_ARRAY_CODE = "E_GML_NESTED_ARRAY";
-/** Loss code: a json column holds arrays as row values; written as repeated keys, they re-import as a list column. */
+/**
+ * Loss code: a json column holds arrays as row values; written as repeated keys, they re-import as a list column.
+ * @category Issue and loss codes
+ */
 export const JSON_ARRAY_CODE = "W_GML_JSON_ARRAY";
-/** Loss code: a column name or record key is not a GML key; export() throws unless sanitizeKeys is "mangle". */
+/**
+ * Loss code: a column name or record key is not a GML key; export() throws unless sanitizeKeys is "mangle".
+ * @category Issue and loss codes
+ */
 export const INVALID_KEY_CODE = "E_GML_INVALID_KEY";
-/** Loss code: a column name collides with a structural GML key; export() throws unless sanitizeKeys is "mangle". */
+/**
+ * Loss code: a column name collides with a structural GML key; export() throws unless sanitizeKeys is "mangle".
+ * @category Issue and loss codes
+ */
 export const RESERVED_KEY_CODE = "E_GML_RESERVED_KEY";
-/** Loss code: keys rewritten under sanitizeKeys "mangle". */
+/**
+ * Loss code: keys rewritten under sanitizeKeys "mangle".
+ * @category Issue and loss codes
+ */
 export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
-/** Loss code: a position column with more than three components; x, y and z are written. */
+/**
+ * Loss code: a position column with more than three components; x, y and z are written.
+ * @category Issue and loss codes
+ */
 export const POSITION_COMPONENTS_CODE = "W_GML_POSITION_COMPONENTS";
-/** Loss code: a node's graphics record has x / y / z keys the position column replaces. */
+/**
+ * Loss code: a node's graphics record has x / y / z keys the position column replaces.
+ * @category Issue and loss codes
+ */
 export const GRAPHICS_OVERRIDDEN_CODE = "W_GML_GRAPHICS_OVERRIDDEN";
-/** Loss code: a node's graphics value is not a record and cannot hold the position; export() throws. */
+/**
+ * Loss code: a node's graphics value is not a record and cannot hold the position; export() throws.
+ * @category Issue and loss codes
+ */
 export const GRAPHICS_CONFLICT_CODE = "E_GML_GRAPHICS_CONFLICT";
 
-/** The default weight key (design section 8.4: GML weights are read from `value` by default). */
+/**
+ * The default weight key (design section 8.4: GML weights are read from `value` by default).
+ * @category Plugin helpers
+ */
 export const DEFAULT_WEIGHT_KEY = "value";
 
 /** The roles GML has a key for (`label`, the edge `id` and `key`); every other role is reported. */
@@ -305,7 +347,7 @@ function selectColumns(
                 notes.push(
                     note(
                         code,
-                        `${label} column "${column.meta.name}" ${why}; export() will throw unless sanitizeKeys is "mangle"`,
+                        `${label} column "${column.meta.name}" ${why}; the save fails unless sanitizeKeys is "mangle"`,
                         column.meta.name,
                     ),
                 );
@@ -463,7 +505,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
             notes.push(
                 note(
                     NESTED_ARRAY_CODE,
-                    `${where} holds arrays nested in arrays in ${stats.nestedArrays} row(s); GML cannot write them and export() will throw`,
+                    `${where} holds arrays nested in arrays in ${stats.nestedArrays} row(s); GML cannot write them and the save fails`,
                     name,
                     stats.nestedArrays,
                 ),
@@ -480,7 +522,7 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
                       )
                     : note(
                           INVALID_KEY_CODE,
-                          `${where}: ${stats.invalidKeys} record key(s) are not GML keys; export() will throw unless sanitizeKeys is "mangle"`,
+                          `${where}: ${stats.invalidKeys} record key(s) are not GML keys; the save fails unless sanitizeKeys is "mangle"`,
                           name,
                           stats.invalidKeys,
                       ),
@@ -612,7 +654,7 @@ function graphicsNotes(snapshot: GraphSnapshot, notes: LossNote[]): void {
         notes.push(
             note(
                 GRAPHICS_CONFLICT_CODE,
-                `${conflicts} node graphics value(s) are not records and cannot hold the position; export() will throw`,
+                `${conflicts} node graphics value(s) are not records and cannot hold the position; the save fails`,
                 "graphics",
                 conflicts,
             ),
@@ -1353,7 +1395,10 @@ function writeGraphics(w: GmlWriter, context: WriteContext, i: number): void {
     w.record("    ", "graphics", record, "graphics", extra);
 }
 
-/** The GML exporter plugin. */
+/**
+ * The GML exporter plugin.
+ * @category Built-in formats
+ */
 export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
     format: "gml",
     capabilities: GML_CAPABILITIES,

@@ -18,34 +18,64 @@ import {
 } from "../../common/codes.js";
 import { XGMML_ISSUE } from "../xgmml/constants.js";
 
-/** The format name. */
+/**
+ * The format name.
+ * @category Plugin helpers
+ */
 export const FORMAT = "cys";
 
-/** File extensions. */
+/**
+ * File extensions.
+ * @category Plugin helpers
+ */
 export const EXTENSIONS: readonly string[] = Object.freeze([".cys"]);
 
-/** MIME types: Cytoscape declares none, so the generic zip type. */
+/**
+ * MIME types: Cytoscape declares none, so the generic zip type.
+ * @category Plugin helpers
+ */
 export const MIME_TYPES: readonly string[] = Object.freeze(["application/zip"]);
 
-/** The `meta.extra` key of the session facts. */
+/**
+ * The `meta.extra` key of the session facts.
+ * @category Plugin helpers
+ */
 export const META_KEY = "cytoscape";
 
-/** The origin namespace of the columns the session importer adds (selection, hidden state). */
+/**
+ * The origin namespace of the columns the session importer adds (selection, hidden state).
+ * @category Plugin helpers
+ */
 export const CYTOSCAPE_NAMESPACE = "cytoscape";
 
-/** The 2.x selected state (bool node and edge column). */
+/**
+ * The 2.x selected state (bool node and edge column).
+ * @category Plugin helpers
+ */
 export const SELECTED_COLUMN = "cytoscape.selected";
 
-/** The 2.x hidden state (bool node and edge column). */
+/**
+ * The 2.x hidden state (bool node and edge column).
+ * @category Plugin helpers
+ */
 export const HIDDEN_COLUMN = "cytoscape.hidden";
 
-/** The prefix of the node columns of a second and further view's positions (`position@2`). */
+/**
+ * The prefix of the node columns of a second and further view's positions (`position@2`).
+ * @category Plugin helpers
+ */
 export const VIEW_POSITION_PREFIX = "position@";
 
-/** The default total of uncompressed bytes one import may inflate (2 GiB). */
+/**
+ * The default total of uncompressed bytes one import may inflate (2 GiB).
+ * @category Plugin helpers
+ */
 export const DEFAULT_MAX_UNCOMPRESSED = 2 * 1024 * 1024 * 1024;
 
-/** The largest uncompressed-to-compressed ratio an entry may have (real sessions reach 30:1). */
+/**
+ * The largest uncompressed-to-compressed ratio an entry may have (real sessions reach 30:1).
+ * @category Plugin helpers
+ */
 export const MAX_RATIO = 1000;
 
 /**
@@ -59,6 +89,7 @@ const RELAYED: Readonly<Record<string, string>> = Object.fromEntries(
 /**
  * Issue codes of the Cytoscape session importer: its own, the shared ones it records and the
  * XGMML codes it relays from the files inside (with the entry name in the message).
+ * @category Built-in formats
  */
 export const CYS_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -99,7 +130,10 @@ export const CYS_ISSUE = Object.freeze({
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The session holds no network. */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** The session holds several networks; one was read. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** graphIndex / graphName names no network (fatal). */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,

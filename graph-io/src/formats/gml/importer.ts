@@ -77,43 +77,84 @@ import {
     tokenizeGml,
 } from "./syntax.js";
 
-/** The format-specific options of the GML importer. */
+/**
+ * The format-specific options of the GML importer.
+ * @category Built-in formats
+ */
 export interface GmlImportOptions {
     /**
-     * Map a node's `graphics [ x y z ]` record to a `position` column with the position role
-     * (default true); false keeps the whole record in the `graphics` json column.
+     * Read a node's `graphics [ x y z ]` record as its position; false keeps the whole record as a
+     * JSON attribute named `graphics`.
+     * @defaultValue true
      */
     positions?: boolean | undefined;
     /**
-     * Store a string column whose values repeat a lot (fewer distinct values than half the rows) as a
-     * dictionary column (default true).
+     * Store a text attribute whose values repeat a lot (fewer distinct values than half the rows)
+     * as a dictionary column, which uses less memory and reads the same.
+     * @defaultValue true
      */
     dictionaries?: boolean | undefined;
 }
 
-/** Issue code: the text holds no `graph [ ... ]` block. */
+/**
+ * Issue code: the text holds no `graph [ ... ]` block.
+ * @category Issue and loss codes
+ */
 export const NO_GRAPH_CODE = SHARED_NO_GRAPH_CODE;
-/** Issue code: the text holds more than one `graph [ ... ]` block; import() reads the first, importAll() every one. */
+/**
+ * Issue code: the text holds more than one `graph [ ... ]` block; import() reads the first, importAll() every one.
+ * @category Issue and loss codes
+ */
 export const SECOND_GRAPH_CODE = MULTIPLE_GRAPHS_CODE;
-/** Issue code: a node block has no `id` key. */
+/**
+ * Issue code: a node block has no `id` key.
+ * @category Issue and loss codes
+ */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
-/** Issue code: a node block has no `label` key under `nodeIdFrom: "label"`. */
+/**
+ * Issue code: a node block has no `label` key under `nodeIdFrom: "label"`.
+ * @category Issue and loss codes
+ */
 export const MISSING_LABEL_CODE = "E_GML_MISSING_LABEL";
-/** Issue code: an edge block has no `source` or no `target` key. */
+/**
+ * Issue code: an edge block has no `source` or no `target` key.
+ * @category Issue and loss codes
+ */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
-/** Issue code: an `id`, `source` or `target` value is neither an integer nor a string. */
+/**
+ * Issue code: an `id`, `source` or `target` value is neither an integer nor a string.
+ * @category Issue and loss codes
+ */
 export const ID_TYPE_CODE = "E_GML_ID_TYPE";
-/** Issue code: string `id`, `source` or `target` values, outside the GML spec's integer ids; warned once per file. */
+/**
+ * Issue code: string `id`, `source` or `target` values, outside the GML spec's integer ids; warned once per file.
+ * @category Issue and loss codes
+ */
 export const STRING_ID_CODE = "W_GML_STRING_ID";
-/** Issue code: a node id (or label under `nodeIdFrom: "label"`) is declared twice; later keys overwrite. */
+/**
+ * Issue code: a node id (or label under `nodeIdFrom: "label"`) is declared twice; later keys overwrite.
+ * @category Issue and loss codes
+ */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
-/** Issue code: a structural key (`id`, `source`, `target`) appears twice in one block. */
+/**
+ * Issue code: a structural key (`id`, `source`, `target`) appears twice in one block.
+ * @category Issue and loss codes
+ */
 export const REPEATED_KEY_CODE = "E_GML_REPEATED_KEY";
-/** Issue code: a `node` or `edge` key whose value is not a `[ ... ]` block. */
+/**
+ * Issue code: a `node` or `edge` key whose value is not a `[ ... ]` block.
+ * @category Issue and loss codes
+ */
 export const ELEMENT_TYPE_CODE = "E_GML_ELEMENT_TYPE";
-/** Issue code: a `directed` or `multigraph` flag that is not an integer. */
+/**
+ * Issue code: a `directed` or `multigraph` flag that is not an integer.
+ * @category Issue and loss codes
+ */
 export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
-/** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or one repeated. */
+/**
+ * Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or one repeated.
+ * @category Issue and loss codes
+ */
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
 
 /** A flag written as a quoted integer, surrounding spaces allowed. */
@@ -121,27 +162,50 @@ const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
 /**
  * Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity, or a
  * numeric reference beyond U+10FFFF; it is kept as written.
+ * @category Issue and loss codes
  */
 export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
 /**
  * Issue code: a node's `graphics` value cannot give a position as written (not a record, repeated
  * in the node, or with an x / y / z that is not one number); the value is kept in the graphics
  * json column. Warned once per kind of problem, naming the first node.
+ * @category Issue and loss codes
  */
 export const GRAPHICS_CODE = "W_GML_GRAPHICS";
-/** Issue code: a `graph`, `node` or `edge` record inside a node or edge; kept as a json column, not read as structure. */
+/**
+ * Issue code: a `graph`, `node` or `edge` record inside a node or edge; kept as a json column, not read as structure.
+ * @category Issue and loss codes
+ */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
-/** Issue code: yEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment. */
+/**
+ * Issue code: yEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
+ * @category Issue and loss codes
+ */
 export const GROUPS_CODE = "W_GML_GROUPS";
-/** Issue code: a key whose values mix numbers and strings; the column is string, the numbers kept as written. */
+/**
+ * Issue code: a key whose values mix numbers and strings; the column is string, the numbers kept as written.
+ * @category Issue and loss codes
+ */
 export const WIDENED_CODE = SHARED_WIDENED_CODE;
-/** Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1). */
+/**
+ * Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1).
+ * @category Issue and loss codes
+ */
 export const PRECISION_CODE = SHARED_PRECISION_CODE;
-/** Issue code: the sink already holds a column of the name with another declaration; renamed `<name>#<key>`. */
+/**
+ * Issue code: the sink already holds a column of the name with another declaration; renamed `<name>#<key>`.
+ * @category Plugin helpers
+ */
 export const COLUMN_RENAMED_CODE_GML = COLUMN_RENAMED_CODE;
-/** Issue code: the sink already holds a column with the role; the column is declared without it. */
+/**
+ * Issue code: the sink already holds a column with the role; the column is declared without it.
+ * @category Issue and loss codes
+ */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
-/** Loss code: under `nodeIdFrom` "label" / "index" the integer `id` keys are not kept. */
+/**
+ * Loss code: under `nodeIdFrom` "label" / "index" the integer `id` keys are not kept.
+ * @category Issue and loss codes
+ */
 export const ID_DROPPED_CODE = "W_GML_ID_DROPPED";
 
 const FORMAT_DEFAULTS: ImportFormatDefaults = { ids: "canonical", defaultDirected: false, weightFrom: "value" };
@@ -1802,7 +1866,10 @@ function sniffGml(head: Uint8Array): number {
     return 0;
 }
 
-/** The GML importer plugin. */
+/**
+ * The GML importer plugin.
+ * @category Built-in formats
+ */
 export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     format: "gml",
     extensions: Object.freeze([".gml"]),
@@ -1832,7 +1899,7 @@ export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 SECOND_GRAPH_CODE,
-                `the input holds ${gml.graphCount - 1} more graph block(s) after the first; import() reads the first, importAll() reads every one`,
+                `the input holds ${gml.graphCount - 1} more graph block(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
             );
         }
         // an abort raised during the last few elements (after the last periodic check) still rejects

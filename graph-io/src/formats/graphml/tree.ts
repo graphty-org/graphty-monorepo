@@ -39,6 +39,7 @@ interface Frame {
  * Builds the tree of one subtree from start / end / text events. The outermost frame is the
  * `<data>` element itself; `finish()` returns its content: the object of its children, or its
  * text when it has none.
+ * @category Plugin helpers
  */
 export class XmlTreeBuilder {
     private readonly frames: Frame[] = [];
@@ -151,11 +152,12 @@ function attachChild(parent: Frame, name: string, value: unknown): void {
 }
 
 /**
- * Whether a value is a tree the writer can serialise: a string, number, boolean or null (text),
+ * Whether a value is a tree the writer can serialize: a string, number, boolean or null (text),
  * an array of such trees, or an object whose keys are `#text`, `@_<Name>` or `<Name>` with tree
  * values.
  * @param value - the value
  * @returns true when writeXmlTree() accepts it
+ * @category Plugin helpers
  */
 export function isXmlTree(value: unknown): boolean {
     return treeProblem(value) === null;
@@ -165,6 +167,7 @@ export function isXmlTree(value: unknown): boolean {
  * Why a value is not a serializable tree.
  * @param value - the value
  * @returns a message, or null when the value is a tree
+ * @category Plugin helpers
  */
 export function treeProblem(value: unknown): string | null {
     if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -220,6 +223,7 @@ export function treeProblem(value: unknown): string | null {
  * @param value - the tree (the content of a `<data>` element)
  * @param indent - the indentation of the containing element's children
  * @param out - receives the text parts
+ * @category Plugin helpers
  */
 export function writeXmlTree(value: unknown, indent: string, out: string[]): void {
     const problem = treeProblem(value);

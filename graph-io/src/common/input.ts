@@ -44,8 +44,8 @@ export { INVALID_UTF8_CODE };
 
 /**
  * Cancellation and progress hooks of the reader; the resolved importer options satisfy this shape.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ReadOptions {
     /** The cancellation signal, or null / undefined for none. */
@@ -91,6 +91,7 @@ const BOM_BYTES = 4;
  * The canonical name of an encoding label, or null when the platform's TextDecoder does not know it.
  * @param label - a WHATWG encoding label ("latin1", "UTF-16LE", "cp1252", ...)
  * @returns the canonical name ("windows-1252", "utf-16le", ...) or null
+ * @category Plugin helpers
  */
 export function canonicalEncoding(label: string): string | null {
     try {
@@ -182,6 +183,7 @@ function xmlDeclarationUtf16(head: Uint8Array): string | null {
  * registry hands to its own importer), so such an input is never read as text.
  * @param head - the first bytes or characters of the input
  * @returns a description such as "gzip-compressed data (decompress it first)", or null
+ * @category Plugin helpers
  */
 export function foreignKind(head: Uint8Array | string): string | null {
     if (typeof head !== "string") {
@@ -753,6 +755,7 @@ function controlByte(bytes: Uint8Array, final: boolean): number {
  * @param bytes - the name bytes from the central directory or a local header
  * @param cp437 - the entry's bit 11 is clear: decode a non-UTF-8 name as code page 437
  * @returns the name
+ * @category Plugin helpers
  */
 export function decodeEntryName(bytes: Uint8Array, cp437 = false): string {
     try {
@@ -800,7 +803,10 @@ const BOM = String.fromCharCode(0xfeff);
 /** The DOS end-of-file marker, Ctrl-Z. */
 const SUB = String.fromCharCode(0x1a);
 
-/** The longest string V8 makes (2^29 - 24 UTF-16 code units); longer text cannot be one string. */
+/**
+ * The longest string V8 makes (2^29 - 24 UTF-16 code units); longer text cannot be one string.
+ * @category Plugin helpers
+ */
 export const MAX_TEXT_LENGTH = 2 ** 29 - 24;
 
 /**
@@ -815,6 +821,7 @@ const CONTROL_CHARACTER = new RegExp(
  * Whether a value is an ImportInput this module can read.
  * @param input - any value
  * @returns true for a string, a Uint8Array, a ReadableStream or an async iterable
+ * @category Plugin helpers
  */
 export function isImportInput(input: unknown): input is ImportInput {
     if (typeof input === "string" || asBytes(input) !== null) {
@@ -846,6 +853,7 @@ function asBytes(value: unknown): Uint8Array | null {
  * pass it instead (an ArrayBuffer, a Blob, a fetch Response, null from a failed read).
  * @param input - what the caller passed
  * @returns the input (a Uint8Array from another realm re-viewed in this one)
+ * @category Plugin helpers
  */
 export function normalizeInput(input: unknown): ImportInput {
     if (typeof input === "string") {
@@ -891,6 +899,7 @@ export function normalizeInput(input: unknown): ImportInput {
  * null for a stream or an iterable.
  * @param input - the input
  * @returns the size, or null when unknown up front
+ * @category Plugin helpers
  */
 export function inputLength(input: ImportInput): number | null {
     if (typeof input === "string") {
@@ -931,8 +940,9 @@ function utf8Length(text: string): number {
  * `AbortSignal.throwIfAborted()` does: the reason as it is (the DOMException named "AbortError"
  * of a reason-less abort, or whatever the caller passed to `abort(reason)`, an Error or not), so a
  * caller can compare the rejection with `signal.reason`. Only a runtime that stores no reason at
- * all gets a synthesised AbortError.
+ * all gets a synthesized AbortError.
  * @param signal - the signal, or null
+ * @category Plugin helpers
  */
 export function throwIfAborted(signal: AbortSignal | null | undefined): void {
     if (signal === null || signal === undefined || !signal.aborted) {
@@ -967,6 +977,7 @@ function abortError(): Error {
  * @param promise - the pending operation
  * @param signal - the cancellation signal, or null
  * @returns the operation's result, or the abort reason as a rejection
+ * @category Plugin helpers
  */
 export function abortable<T>(promise: Promise<T>, signal: AbortSignal | null): Promise<T> {
     if (signal === null || typeof signal.addEventListener !== "function") {
@@ -998,6 +1009,7 @@ export function abortable<T>(promise: Promise<T>, signal: AbortSignal | null): P
  * A reader of a stream, or E_UNSUPPORTED when another reader holds the stream already.
  * @param stream - the stream
  * @returns the reader
+ * @category Plugin helpers
  */
 export function lockReader(stream: ReadableStream<Uint8Array>): ReadableStreamDefaultReader<Uint8Array> {
     if (stream.locked) {
@@ -1131,7 +1143,7 @@ function reportTextEncoding(report: ImportReportBuilder, encoding: string | null
  * Read an ImportInput as a sequence of decoded text chunks. Chunk boundaries carry no meaning:
  * a caller that needs lines uses LineReader, one that needs the whole document uses readText().
  * The signal is checked before every chunk and while a stream read is pending; a stream is
- * cancelled when the consumer stops early or the signal fires. Progress is reported after every
+ * canceled when the consumer stops early or the signal fires. Progress is reported after every
  * chunk, in bytes (text counted as UTF-8).
  * @param rawInput - the input
  * @param report - the report decode errors and the text checks are recorded in (E_INVALID_UTF8,
@@ -1317,7 +1329,7 @@ async function* streamChunks(
 
 /**
  * Read the whole input as bytes, for a binary format (a zip): nothing is decoded. The signal is
- * checked before every chunk and progress reported after it; a stream is cancelled when the read
+ * checked before every chunk and progress reported after it; a stream is canceled when the read
  * stops early.
  * @param rawInput - the input
  * @param options - cancellation and progress (the encoding is ignored)
@@ -1362,6 +1374,7 @@ export async function readBytes(rawInput: ImportInput, options: ReadOptions = {}
  * @param report - the report
  * @param message - what is too long
  * @param line - the line, when known
+ * @category Plugin helpers
  */
 export function tooLarge(report: ImportReportBuilder, message: string, line?: number): never {
     report.failWith("unsupported", TOO_LARGE_CODE, message, line === undefined ? undefined : { line });
@@ -1415,6 +1428,7 @@ export async function readText(
  * `\n`, `\r\n` and lone `\r` all end a line; the terminator is not part of the text; a final
  * line without a terminator is yielded when non-empty, and every line in between is yielded even
  * when empty (the importer decides what a blank line means).
+ * @category Plugin helpers
  */
 export class LineReader implements AsyncIterable<string> {
     private readonly input: ImportInput;

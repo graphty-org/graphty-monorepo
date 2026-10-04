@@ -424,3 +424,46 @@ describe("sanitizeIds (design 8.5)", () => {
         expect(countUnrepresentableIds(exact, "dense-1-based")).toBe(0);
     });
 });
+
+describe("checkCapabilities extras for plugins", () => {
+    const graph = (): GraphSnapshot => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("7", "a");
+        const label = b.declareNodeColumn({ name: "name", dtype: "string", role: "label" });
+        b.setNodeValue(label, 0, "seven");
+        b.setNodeValue("color", 1, "red");
+        return b.freeze();
+    };
+    const caps = capabilities({
+        multiEdges: true,
+        selfLoops: true,
+        edgeIds: "none",
+        idCharset: "any",
+        dtypes: ["string"],
+    });
+
+    it("attributes false notes each attribute once, except the roles the format writes", () => {
+        const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined), {
+            attributes: false,
+            roles: new Set(["label"]),
+            roleNames: { label: "label" },
+        });
+        expect(notes.map((n) => [n.code, n.column])).toEqual([
+            [LOSS.COLUMN_NAME_CHANGED, "name"],
+            [LOSS.COLUMN_DROPPED, "color"],
+        ]);
+    });
+
+    it("idsReadBack notes the ids that come back with another type", () => {
+        const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined), {
+            attributes: false,
+            idsReadBack: "canonical",
+        });
+        expect(notes.find((n) => n.code === LOSS.ID_TEXT_TYPE)?.count).toBe(1);
+        expect(
+            checkCapabilities(graph(), caps, resolveExportOptions(undefined), { attributes: false }).some(
+                (n) => n.code === LOSS.ID_TEXT_TYPE,
+            ),
+        ).toBe(false);
+    });
+});

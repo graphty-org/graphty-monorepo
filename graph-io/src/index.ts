@@ -1,11 +1,12 @@
 /**
- * The public barrel of @graphty/graph-io: the io contract
- * types and ImportError, the registry with `importGraph()` / `exportGraph()` / `sniff()`, the
- * `children` CSR helper, every built-in importer and exporter (also reachable through the per-format
- * subpath exports `@graphty/graph-io/<format>`), and the shared helpers a third-party importer or
- * exporter builds on (report builder, input reader, option resolution, direction resolver, id
- * coercion, the capability check and the loss / issue codes callers branch on). Named exports
- * only; no default export.
+ * Read and write graph files as `@graphty/graph-format` snapshots.
+ *
+ * Start with Loading and Saving: `loadFromUrl()`, `loadFromFile()` and `importGraph()` read a graph;
+ * `exportGraphToBytes()`, `exportGraphToBlob()`, `downloadGraph()` and `checkExport()` write one.
+ * Built-in formats holds each format's importer, exporter, options and code table, which you can
+ * also import from `@graphty/graph-io/<format>`. Plugin helpers are the building blocks for adding
+ * a format of your own. The guide is at https://graphty.app/docs/graph-io/.
+ * @module
  */
 
 // ============================================================ graph-format re-exports

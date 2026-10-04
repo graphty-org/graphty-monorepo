@@ -36,11 +36,15 @@ import {
     SHAPES,
 } from "./syntax.js";
 
-/** The format-specific options of the Pajek exporter. */
+/**
+ * The format-specific options of the Pajek exporter.
+ * @category Built-in formats
+ */
 export interface PajekExportOptions {
     /**
-     * Write a `*Network <name>` header line (the .paj project-file convention) when the snapshot's
-     * meta.name is set; default false, since plain .net readers do not expect it.
+     * Write a `*Network <name>` line, as Pajek project files (.paj) have, when the graph has a name
+     * (`snapshot.meta.name`). Plain .net readers do not expect it.
+     * @defaultValue false
      */
     networkHeader?: boolean | undefined;
 }
@@ -49,15 +53,19 @@ export interface PajekExportOptions {
  * The LossNote codes of the Pajek exporter's check(): the Pajek-specific ones and, aliased, the
  * shared ones it records itself (`LOSS` holds the rest of the generic pre-flight's codes). A key
  * is the code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const PAJEK_LOSS = Object.freeze({
-    /** A label or text value holds a double quote or a line break; export() will throw E_UNSUPPORTED. */
+    /**
+     * A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with
+     * E_UNSUPPORTED.
+     */
     TEXT: "E_PAJEK_TEXT",
     /** A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. */
     KEY_DROPPED: "W_PAJEK_KEY_DROPPED",
     /** A label role column that is not text; its values are written as text and re-import as string. */
     LABEL_AS_TEXT: "W_PAJEK_LABEL_AS_TEXT",
-    /** A non-finite f64 value; written as Infinity / NaN text, which re-imports as string. */
+    /** NaN or an infinity is written as the text Infinity or NaN, which reads back as text. */
     NONFINITE_AS_TEXT: "W_PAJEK_NONFINITE_AS_TEXT",
     /** A mutual pair; written as one undirected edge, the mark lost. */
     MUTUAL_AS_UNDIRECTED: LOSS.MUTUAL_AS_UNDIRECTED,
@@ -67,17 +75,23 @@ export const PAJEK_LOSS = Object.freeze({
     POSITION_STRIDE: "W_PAJEK_POSITION_STRIDE",
     /** meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. */
     FIRST_MODE_DROPPED: "W_PAJEK_FIRST_MODE_DROPPED",
-    /** A role column Pajek has no slot for (kind, ...) written as a plain parameter; the role is lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /** A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). */
     SHAPE_AS_PARAMETER: "W_PAJEK_SHAPE_AS_PARAMETER",
     /** A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. */
     LABEL_GAINED: "W_PAJEK_LABEL_GAINED",
-    /** A role-less node column named `label` reads back with the label role (its values become the vertex labels). */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped). */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
 });
 
@@ -892,7 +906,10 @@ function resolvePajekOptions(options: (PajekExportOptions & CommonExportOptions)
     return { networkHeader: value ?? false, mangle: common.sanitizeIds === "mangle" };
 }
 
-/** The Pajek NET exporter. */
+/**
+ * The Pajek NET exporter.
+ * @category Built-in formats
+ */
 export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
     format: "pajek",
     capabilities: CAPABILITIES,

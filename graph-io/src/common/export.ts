@@ -15,12 +15,14 @@ import {
     type Dtype,
     GraphFormatError,
     type GraphSnapshot,
+    type IdCoercion,
     INVALID_INDEX,
     type NodeId,
 } from "@graphty/graph-format";
 
 import { type ExportCapabilities, type LossNote } from "../types.js";
 import {
+    COLUMN_DROPPED_CODE,
     COLUMN_RENAMED_LOSS_CODE,
     EMPTY_COLUMN_DROPPED_CODE,
     ID_TEXT_COLLISION_CODE,
@@ -41,13 +43,26 @@ import {
     WEIGHT_KEY_CLASH_CODE,
     XML_ILLEGAL_CHAR_CODE,
 } from "./codes.js";
+import { coerceIdText } from "./ids.js";
 import { type ResolvedExportOptions } from "./options.js";
 
-/** The shared LossNote codes of checkCapabilities(). */
+/**
+ * The shared LossNote codes of checkCapabilities().
+ * @category Issue and loss codes
+ */
 export const LOSS = Object.freeze({
+    /**
+     * A node or edge attribute is not written: the format has no attributes, or none of this kind
+     * (`CheckExtras.attributes` false).
+     */
+    COLUMN_DROPPED: COLUMN_DROPPED_CODE,
     /** The format has no mixed direction; expanded pairs are written per onMixedDirection. */
     MIXED_DIRECTION: "W_MIXED_DIRECTION",
-    /** The format has no mixed direction and onMixedDirection is "error": export() will throw E_DIRECTED. */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION_ERROR: MIXED_DIRECTION_CODE,
     /** Parallel edges in a format without them. */
     MULTI_EDGES: "W_MULTI_EDGES",
@@ -59,7 +74,10 @@ export const LOSS = Object.freeze({
     EDGE_IDS_DROPPED: "W_EDGE_IDS_DROPPED",
     /** Ids outside the format's charset are rewritten (sanitizeIds "mangle"). */
     ID_MANGLED: "W_ID_MANGLED",
-    /** Ids outside the format's charset and sanitizeIds "error": export() will throw E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: "E_ID_CHARSET",
     /** The format numbers nodes 1..N; ids that are not their 1-based index are kept as labels only. */
     ID_RENUMBERED: "W_ID_RENUMBERED",
@@ -81,7 +99,7 @@ export const LOSS = Object.freeze({
     TEMPORAL: TEMPORAL_DROPPED_CODE,
     /** A `<column>.text` companion the format cannot carry. */
     TEMPORAL_TEXT: TEMPORAL_TEXT_DROPPED_CODE,
-    /** A role column the format has no slot for; written as a plain attribute, the role lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE: ROLE_DROPPED_CODE,
     /** A parents (multi-parent) column in a format with single containment only. */
     PARENTS: PARENTS_DROPPED_CODE,
@@ -91,25 +109,45 @@ export const LOSS = Object.freeze({
     MUTUAL_AS_UNDIRECTED: MUTUAL_AS_UNDIRECTED_CODE,
     /** Node ids whose written text reads back as the other type under the importer's id rule. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
-    /** Two node ids share one written text; export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: ID_TEXT_COLLISION_CODE,
     /** A plain column named like the importer's weight key reads back as THE weight. */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
-    /** A role-less column whose written name the importer maps to a role. */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
-    /** A role column written into the format's slot reads back under the importer's fixed name. */
+    /**
+     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * name the format's importer gives it.
+     */
     COLUMN_NAME_CHANGED: COLUMN_RENAMED_LOSS_CODE,
     /** A declared column whose every row is unset vanishes through a format without declarations. */
     EMPTY_COLUMN: EMPTY_COLUMN_DROPPED_CODE,
-    /** A string / dict column that reads back as the other storage class (the dictionary heuristic). */
+    /**
+     * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often
+     * its values repeat. The values are the same.
+     */
     STORAGE_CLASS: STORAGE_CLASS_CODE,
-    /** An f64 column whose set values are all integral reads back as i32 through an untyped format. */
+    /**
+     * A number attribute whose values are all whole numbers reads back as integers, because the format does not record
+     * the type.
+     */
     INTEGRAL_F64: INTEGRAL_F64_CODE,
-    /** Text cells that read back as numbers or booleans under the 5.1 grammar. */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: TEXT_INFERRED_CODE,
-    /** A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. */
+    /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
     XML_ILLEGAL_CHAR: XML_ILLEGAL_CHAR_CODE,
-    /** A dict column without declared options gains one on re-import. */
+    /**
+     * A dictionary attribute without a declared list of allowed values gains one, its distinct values, on re-import.
+     */
     OPTIONS_GAINED: OPTIONS_GAINED_CODE,
     /** A spells column in a format without spells. */
     SPELLS: "W_SPELLS_DROPPED",
@@ -129,7 +167,10 @@ export const LOSS = Object.freeze({
     NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
 });
 
-/** The capabilities of a format that keeps nothing beyond plain topology; the base every exporter overrides. */
+/**
+ * The capabilities of a format that keeps nothing beyond plain topology; the base every exporter overrides.
+ * @category Plugin helpers
+ */
 export const NO_CAPABILITIES: ExportCapabilities = Object.freeze({
     mixedDirection: false,
     multiEdges: false,
@@ -154,6 +195,7 @@ export const NO_CAPABILITIES: ExportCapabilities = Object.freeze({
  * conservative NO_CAPABILITIES value, so an exporter states what it keeps and nothing is assumed.
  * @param supported - the fields the format supports
  * @returns a frozen table
+ * @category Plugin helpers
  */
 export function capabilities(supported: Partial<ExportCapabilities>): ExportCapabilities {
     return Object.freeze({ ...NO_CAPABILITIES, ...supported, dtypes: Object.freeze([...(supported.dtypes ?? [])]) });
@@ -161,8 +203,8 @@ export function capabilities(supported: Partial<ExportCapabilities>): ExportCapa
 
 /**
  * Format facts checkCapabilities() needs that the capabilities table does not carry.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface CheckExtras {
     /** Whether the format can write open intervals (GEXF 1.2 startopen / endopen); default false. */
@@ -192,6 +234,18 @@ export interface CheckExtras {
      * importer gives it). Defaults to none.
      */
     readonly roleNames?: Readonly<Record<string, string>> | undefined;
+    /**
+     * False for a format that writes no node or edge attributes except the ones whose role is in
+     * `roles`: every other attribute column is reported once as W_COLUMN_DROPPED, instead of the
+     * type and role notes a written column gets. Default true.
+     */
+    readonly attributes?: boolean | undefined;
+    /**
+     * How the format's importer turns id text back into ids ("canonical" for most text formats), so
+     * an id that comes back with another type (the text "7" as the number 7) is reported as
+     * W_ID_TEXT_TYPE. Omit it when the format records each id's type.
+     */
+    readonly idsReadBack?: IdCoercion | undefined;
 }
 
 /** The roles checkCapabilities() treats structurally rather than as attribute columns. */
@@ -209,6 +263,7 @@ const HIERARCHY_ROLES: ReadonlySet<string> = new Set(["parent", "parents"]);
  * @param options - the resolved common export options
  * @param extras - format facts the capabilities table does not carry
  * @returns the notes, empty when the export is exact
+ * @category Plugin helpers
  */
 export function checkCapabilities(
     snapshot: GraphSnapshot,
@@ -277,7 +332,7 @@ export function checkCapabilities(
             note(
                 LOSS.ID_RENUMBERED,
                 options.sanitizeIds === "mangle"
-                    ? `${unrepresentable} node id(s) are not their 1-based index; nodes are numbered 1..N, the originals kept in the exporter's originalId attribute (restored by restoreMangledIds) and as labels of the nodes without a label value`
+                    ? `${unrepresentable} node id(s) are not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
                     : `${unrepresentable} node id(s) are not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
                 null,
                 unrepresentable,
@@ -285,16 +340,34 @@ export function checkCapabilities(
         } else if (options.sanitizeIds === "mangle") {
             note(
                 LOSS.ID_MANGLED,
-                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset are rewritten; originals kept in the originalId attribute`,
+                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
                 null,
                 unrepresentable,
             );
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset; export() will throw unless sanitizeIds is "mangle"`,
+                `${unrepresentable} node id(s) outside the ${caps.idCharset} charset; the save fails unless sanitizeIds is "mangle"`,
                 null,
                 unrepresentable,
+            );
+        }
+    }
+
+    if (extras.idsReadBack !== undefined) {
+        let retyped = 0;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            const id = snapshot.ids.idOf(i);
+            if (coerceIdText(String(id), extras.idsReadBack) !== id) {
+                retyped++;
+            }
+        }
+        if (retyped > 0) {
+            note(
+                LOSS.ID_TEXT_TYPE,
+                `${retyped} node id(s) read back with another type (a number as text, or text as a number)`,
+                null,
+                retyped,
             );
         }
     }
@@ -374,6 +447,10 @@ function checkColumns(
             }
         }
         if (domain === "edge" && role === "id") {
+            continue;
+        }
+        if (extras.attributes === false && !(role !== null && (extras.roles?.has(role) ?? false))) {
+            note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, column.length - column.nullCount);
             continue;
         }
         if (role === "timeText") {
@@ -512,6 +589,7 @@ function checkDtype(column: Column, label: string, caps: ExportCapabilities, not
  * expanded pair count once; an expanded self-loop has no mirror and counts once).
  * @param snapshot - the snapshot
  * @returns the count; 0 for an undirected snapshot or one without the directed role
+ * @category Plugin helpers
  */
 export function countMixedEdges(snapshot: GraphSnapshot): number {
     if (!snapshot.directed) {
@@ -540,6 +618,7 @@ export function countMixedEdges(snapshot: GraphSnapshot): number {
  * over the forward CSR; an undirected parallel edge is counted in both rows.
  * @param snapshot - the snapshot
  * @returns the count
+ * @category Plugin helpers
  */
 export function countParallelArcs(snapshot: GraphSnapshot): number {
     const { rowPtr, colIdx, nodeCount } = snapshot;
@@ -558,15 +637,15 @@ export function countParallelArcs(snapshot: GraphSnapshot): number {
 
 /**
  * The id charsets of ExportCapabilities.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type IdCharset = ExportCapabilities["idCharset"];
 
 /**
  * The ids to write for every node after sanitising.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface SanitizedIds {
     /** The charset applied. */
@@ -619,6 +698,7 @@ const NAME_CHAR_RANGES: readonly (readonly [number, number])[] = [
  * Whether a code point is an XML NameChar.
  * @param cp - the code point
  * @returns true when it may appear in an NMTOKEN
+ * @category Plugin helpers
  */
 export function isNameChar(cp: number): boolean {
     for (const [lo, hi] of NAME_CHAR_RANGES) {
@@ -636,6 +716,7 @@ export function isNameChar(cp: number): boolean {
  * Whether a text is an XML NMTOKEN (one or more NameChars; GraphML node and edge ids).
  * @param text - the text
  * @returns true for a non-empty text of NameChars
+ * @category Plugin helpers
  */
 export function isNmtoken(text: string): boolean {
     if (text.length === 0) {
@@ -655,6 +736,7 @@ export function isNmtoken(text: string): boolean {
  * @param id - the id
  * @param charset - the charset
  * @returns true when the id needs no rewriting ("dense-1-based" is never true: see sanitizeIds)
+ * @category Plugin helpers
  */
 export function isRepresentableId(id: NodeId, charset: IdCharset): boolean {
     switch (charset) {
@@ -679,6 +761,7 @@ export function isRepresentableId(id: NodeId, charset: IdCharset): boolean {
  * @param snapshot - the snapshot
  * @param charset - the charset
  * @returns the count
+ * @category Plugin helpers
  */
 export function countUnrepresentableIds(snapshot: GraphSnapshot, charset: IdCharset): number {
     const { ids } = snapshot;
@@ -719,6 +802,7 @@ export function countUnrepresentableIds(snapshot: GraphSnapshot, charset: IdChar
  * @param charset - the charset
  * @param mode - the resolved sanitizeIds option
  * @returns the ids to write
+ * @category Plugin helpers
  */
 export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "error" | "mangle"): SanitizedIds {
     const { ids } = snapshot;
@@ -809,6 +893,7 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
  * Rewrite a text as an NMTOKEN: every character that is not a NameChar becomes `_`.
  * @param text - the text
  * @returns a non-empty NMTOKEN
+ * @category Plugin helpers
  */
 export function mangleNmtoken(text: string): string {
     let out = "";

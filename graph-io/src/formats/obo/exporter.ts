@@ -65,16 +65,23 @@ import {
     tokenize,
 } from "./syntax.js";
 
-/** The format-specific options of the OBO exporter. */
+/**
+ * The format-specific options of the OBO exporter.
+ * @category Built-in formats
+ */
 export interface OboExportOptions {
     /**
-     * The relation written for an edge that has none (no `relation` value): an OBO id such as
-     * `is_a` (the default) or `part_of`. Reasoners and ROBOT read `is_a` as subclassing.
+     * The relation written for an edge that has none of its own (no `relation` value): an OBO id
+     * such as `is_a` or `part_of`. Reasoners and ROBOT read `is_a` as subclassing.
+     * @defaultValue "is_a"
      */
     relation?: string | undefined;
     /**
-     * The header `ontology` id (`go`, `uberon`): default the id the file was read with, else the
-     * graph name with every character outside `A-Z a-z 0-9 _ . -` replaced by `_`, else none.
+     * The `ontology` id written in the header, such as `go` or `uberon`. It may hold letters,
+     * digits and `_ . - /`; any other character makes checkExport() and the save throw
+     * E_UNSUPPORTED. The default is the id an OBO import read, else the graph name with every other
+     * character replaced by `_`, else no `ontology` line.
+     * @defaultValue as read, else the graph name
      */
     ontology?: string | undefined;
 }
@@ -82,6 +89,7 @@ export interface OboExportOptions {
 /**
  * The loss notes the OBO exporter's check() returns, by name. A key is the code without its
  * severity and format prefixes.
+ * @category Built-in formats
  */
 export const OBO_LOSS = Object.freeze({
     /** A node column outside the OBO vocabulary (or one whose values a tag cannot carry exactly) reads back inside the `property_value` column. */
@@ -106,13 +114,17 @@ export const OBO_LOSS = Object.freeze({
     GRAPH_COLUMN_AS_METADATA: GRAPH_COLUMN_AS_METADATA_CODE,
     /** A carriage return or form feed in a text cannot be written; it is written as a line feed. */
     LINE_END: "W_OBO_LINE_END",
-    /** Placeholder nodes read back after every written node, in the order the edges first name them. */
+    /** The nodes read back in a different order. */
     NODE_ORDER: NODE_ORDER_CODE,
     /** A mutual pair is written as two clauses without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** Undirected edges of a directed snapshot under onMixedDirection "directed" / "undirected". */
     MIXED_DIRECTION: LOSS.MIXED_DIRECTION,
-    /** Undirected edges of a directed snapshot under onMixedDirection "error": export() throws E_DIRECTED. */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION_ERROR: LOSS.MIXED_DIRECTION_ERROR,
     /** OBO has no edge ids. */
     EDGE_IDS_DROPPED: LOSS.EDGE_IDS_DROPPED,
@@ -124,11 +136,17 @@ export const OBO_LOSS = Object.freeze({
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
     /** OBO has no visual columns. */
     VIZ_DROPPED: LOSS.VIZ,
-    /** A role column without an OBO slot is written as a property value or qualifier; the role is lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A role-less `name` (nodes) or `relation` (edges) column is written into that slot and reads back with the role. */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
-    /** The label column reads back as `name`, the edge kind column as `relation`. */
+    /**
+     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * name the format's importer gives it.
+     */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
     /** A vocabulary column of the other text dtype (string for dict, dict for string) reads back as the vocabulary's. */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
@@ -140,13 +158,19 @@ export const OBO_LOSS = Object.freeze({
     OPTIONS_DROPPED: LOSS.OPTIONS,
     /** An extension table OBO cannot carry. */
     EXTENSION_TABLE_DROPPED: LOSS.EXTENSION_TABLE,
-    /** Node ids OBO cannot write as they are, under the default sanitizeIds "error": export() throws E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: LOSS.ID_CHARSET,
     /** Node ids OBO cannot write as they are, under sanitizeIds "mangle": rewritten, the original kept. */
     ID_MANGLED: LOSS.ID_MANGLED,
     /** Numeric ids are written as text and read back as strings. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Two ids have the same text (5 and "5"); export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
 });
 
@@ -156,6 +180,7 @@ export const OBO_LOSS = Object.freeze({
  * a column: the file keeps the OBO vocabulary (`name`, `def`, `synonym`, ... with their own
  * types) and writes every other node column as property values and every edge column as
  * qualifiers, which check() reports column by column.
+ * @category Built-in formats
  */
 export const OBO_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: false,
@@ -306,7 +331,6 @@ const XSD: Readonly<Record<string, string>> = Object.freeze({
     f32: "xsd:double",
     f64: "xsd:double",
 });
-
 
 /** A node column written as `property_value` lines. */
 interface PropertyColumn {
@@ -511,7 +535,12 @@ function planIds(
         }
     }
     if (numeric > 0) {
-        note(LOSS.ID_TEXT_TYPE, `${numeric} numeric node id(s) are written as text and read back as strings`, null, numeric);
+        note(
+            LOSS.ID_TEXT_TYPE,
+            `${numeric} numeric node id(s) are written as text and read back as strings`,
+            null,
+            numeric,
+        );
     }
     const originals = new Map<number, string>();
     let fatal: GraphFormatError | null = null;
@@ -519,7 +548,7 @@ function planIds(
         if (mode === "error") {
             note(
                 LOSS.ID_CHARSET,
-                `${bad.length} node id(s) are not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); export() will throw unless sanitizeIds is "mangle"`,
+                `${bad.length} node id(s) are not OBO ids (empty, or holding whitespace, a control character, "!", "{" or "}"); the save fails unless sanitizeIds is "mangle"`,
                 null,
                 bad.length,
             );
@@ -543,7 +572,7 @@ function planIds(
             }
             note(
                 LOSS.ID_MANGLED,
-                `${bad.length} node id(s) that are not OBO ids are rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text, restored by restoreMangledIds)`,
+                `${bad.length} node id(s) that are not OBO ids are rewritten with "_"; the originals are kept as ${ORIGINAL_ID} property values (JSON text; an import with restoreMangledIds: true reads them back as the ids)`,
                 null,
                 bad.length,
             );
@@ -555,7 +584,7 @@ function planIds(
         if (before !== undefined) {
             note(
                 LOSS.ID_TEXT_COLLISION,
-                `node ids ${JSON.stringify(snapshot.ids.idOf(before))} and ${JSON.stringify(snapshot.ids.idOf(i))} have the same text; export() will throw`,
+                `node ids ${JSON.stringify(snapshot.ids.idOf(before))} and ${JSON.stringify(snapshot.ids.idOf(i))} have the same text; the save fails`,
                 null,
                 1,
             );
@@ -736,7 +765,10 @@ function tagCarries(
             case "intersection_of":
                 return arrayOf(
                     v,
-                    (x) => hasKeys(x, ["relation", "target"]) && (x.relation === null || isWord(x.relation)) && isWord(x.target),
+                    (x) =>
+                        hasKeys(x, ["relation", "target"]) &&
+                        (x.relation === null || isWord(x.relation)) &&
+                        isWord(x.target),
                 );
             case "property_value":
                 return arrayOf(
@@ -755,7 +787,10 @@ function tagCarries(
             case "expand_expression_to":
                 return arrayOf(
                     v,
-                    (x) => hasKeys(x, ["template", "xrefs"]) && typeof x.template === "string" && arrayOf(x.xrefs, isXrefId, false),
+                    (x) =>
+                        hasKeys(x, ["template", "xrefs"]) &&
+                        typeof x.template === "string" &&
+                        arrayOf(x.xrefs, isXrefId, false),
                 );
             case "obo.qualifiers":
                 return (
@@ -816,7 +851,12 @@ function unrecognizedCarried(column: Column, rows: readonly number[], kinds: rea
                 (APPLIED_TAGS.has(tag) || TYPEDEF_TAGS.has(tag)) &&
                 !(TYPEDEF_TAGS.has(tag) && kinds[i] !== "Typedef") &&
                 !(tag === "instance_of" && kinds[i] !== "Instance");
-            if (applied || tag.length === 0 || !isTrimmed(tag) || !arrayOf(values, (t) => typeof t === "string" && isTrimmed(t))) {
+            if (
+                applied ||
+                tag.length === 0 ||
+                !isTrimmed(tag) ||
+                !arrayOf(values, (t) => typeof t === "string" && isTrimmed(t))
+            ) {
                 return false;
             }
         }
@@ -852,7 +892,8 @@ function keptObo(snapshot: GraphSnapshot): {
     unknownFrames: { type: string; clauses: Record<string, string[]> }[];
 } {
     const raw = snapshot.meta.extra.obo;
-    const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    const record =
+        typeof raw === "object" && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
     const clauses = (value: unknown): Record<string, string[]> => {
         const out: Record<string, string[]> = {};
         if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -1044,7 +1085,11 @@ function planTags(
         if (column === null || column === label || (column.meta.role !== null && column.meta.role !== "label")) {
             continue;
         }
-        if (name === UNRECOGNIZED ? unrecognizedCarried(column, rows, kinds) : tagCarries(name, column, rows, kinds, scopes)) {
+        if (
+            name === UNRECOGNIZED
+                ? unrecognizedCarried(column, rows, kinds)
+                : tagCarries(name, column, rows, kinds, scopes)
+        ) {
             tags.set(name, column);
         }
     }
@@ -1123,7 +1168,10 @@ function oboColumnNotes(
 ): void {
     for (const [name, column] of [...tags, ...(label === null ? [] : ([["name", label]] as const))]) {
         const want = name === "name" ? "string" : OBO_NODE_COLUMNS[name].dtype;
-        if (((want === "string" || want === "dict") && column.dtype !== want) || (column.dtype === "list" && column.child.dtype !== "string")) {
+        if (
+            ((want === "string" || want === "dict") && column.dtype !== want) ||
+            (column.dtype === "list" && column.child.dtype !== "string")
+        ) {
             note(
                 LOSS.DTYPE,
                 `node column "${column.meta.name}" holds ${column.dtype === "list" ? `${column.child.dtype} items` : column.dtype}; it reads back as ${column.dtype === "list" ? "string items" : want}`,
@@ -1165,7 +1213,11 @@ function planProperties(
     note: NoteFn,
 ): PropertyColumn[] {
     const out: PropertyColumn[] = [];
-    const slotted = new Set<Column>([...tags.values(), ...(label === null ? [] : [label]), ...(type === null ? [] : [type])]);
+    const slotted = new Set<Column>([
+        ...tags.values(),
+        ...(label === null ? [] : [label]),
+        ...(type === null ? [] : [type]),
+    ]);
     for (const column of snapshot.nodes) {
         const { role, name } = column.meta;
         if (slotted.has(column) || (role !== null && UNWRITTEN_ROLES.has(role))) {
@@ -1264,7 +1316,12 @@ function planEdgeColumns(
     const count = (column: Column): number => written.filter((e) => column.isSet(e)).length;
     for (const column of snapshot.edges) {
         const { role, name } = column.meta;
-        if (column === relation || column === qualifiers || role === "id" || (role !== null && UNWRITTEN_ROLES.has(role))) {
+        if (
+            column === relation ||
+            column === qualifiers ||
+            role === "id" ||
+            (role !== null && UNWRITTEN_ROLES.has(role))
+        ) {
             continue;
         }
         const written2 = isQualifierName(name) ? name : wordOf(name.replace(/[=",[\]\\]/g, "_"));
@@ -1340,7 +1397,12 @@ function planHeader(
             fill("ontology", meta.name);
         } else if (!values.has("ontology")) {
             const slug = meta.name.replace(/[^A-Za-z0-9_.-]/g, "_");
-            note(OBO_LOSS.ONTOLOGY_NAME, `the graph name ${JSON.stringify(meta.name)} is not an ontology id; written as ${slug}`, null, null);
+            note(
+                OBO_LOSS.ONTOLOGY_NAME,
+                `the graph name ${JSON.stringify(meta.name)} is not an ontology id; written as ${slug}`,
+                null,
+                null,
+            );
             values.set("ontology", [slug]);
             filled.add("ontology");
         }
@@ -1569,7 +1631,8 @@ function counted(s: FrameStats, text: string): string {
 function xrefText(f: FrameState, id: string, listTag: string | null): string {
     let out = escapeOboValue(counted(f.stats, id));
     const descriptions = f.p.tags.get("xref.descriptions");
-    const map = descriptions === undefined ? undefined : (cellOf(descriptions, f.row) as Record<string, string> | undefined);
+    const map =
+        descriptions === undefined ? undefined : (cellOf(descriptions, f.row) as Record<string, string> | undefined);
     if (map !== undefined && Object.prototype.hasOwnProperty.call(map, id) && !f.described.has(id)) {
         f.described.add(id);
         out += ` "${escapeOboQuoted(counted(f.stats, map[id]))}"`;
@@ -1669,7 +1732,10 @@ function edgeQualifiers(f: FrameState, e: number): string {
                 pairs.push([name, textOf(item, column.child.dtype)]);
             }
         } else {
-            pairs.push([name, column.dtype === "json" ? (JSON.stringify(value) ?? "null") : textOf(value, column.dtype)]);
+            pairs.push([
+                name,
+                column.dtype === "json" ? (JSON.stringify(value) ?? "null") : textOf(value, column.dtype),
+            ]);
         }
     }
     const weight = p.weights.text(e);
@@ -1716,7 +1782,9 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
         case "def": {
             const xrefs = f.p.tags.get("def.xrefs");
             const ids = (xrefs === undefined ? [] : (cellOf(xrefs, f.row) ?? [])) as string[];
-            out.push(`def: "${escapeOboQuoted(counted(stats, value as string))}" ${xrefList(f, ids, "def")}${cursor.block("def", value as string)}`);
+            out.push(
+                `def: "${escapeOboQuoted(counted(stats, value as string))}" ${xrefList(f, ids, "def")}${cursor.block("def", value as string)}`,
+            );
             return;
         }
         case "xref":
@@ -1725,10 +1793,18 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
             }
             return;
         case "synonym":
-            for (const s of value as { text: string; scope: string; type: string | null; xrefs: string[]; qualifiers?: unknown }[]) {
+            for (const s of value as {
+                text: string;
+                scope: string;
+                type: string | null;
+                xrefs: string[];
+                qualifiers?: unknown;
+            }[]) {
                 const type = s.type === null ? "" : ` ${escapeOboWord(s.type)}`;
                 const block = s.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(s.qualifiers));
-                out.push(`synonym: "${escapeOboQuoted(counted(stats, s.text))}" ${s.scope}${type} ${xrefList(f, s.xrefs, "synonym")}${block}`);
+                out.push(
+                    `synonym: "${escapeOboQuoted(counted(stats, s.text))}" ${s.scope}${type} ${xrefList(f, s.xrefs, "synonym")}${block}`,
+                );
             }
             return;
         case "intersection_of":
@@ -1739,7 +1815,12 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
             }
             return;
         case "property_value":
-            for (const x of value as { relation: string; value: string; datatype: string | null; qualifiers?: unknown }[]) {
+            for (const x of value as {
+                relation: string;
+                value: string;
+                datatype: string | null;
+                qualifiers?: unknown;
+            }[]) {
                 const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
                 const literal =
                     x.datatype === null && isOboWord(x.value)
@@ -1758,7 +1839,9 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
         case "expand_expression_to":
             for (const x of value as { template: string; xrefs: string[]; qualifiers?: unknown }[]) {
                 const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
-                out.push(`${tag}: "${escapeOboQuoted(counted(stats, x.template))}" ${xrefList(f, x.xrefs, tag)}${block}`);
+                out.push(
+                    `${tag}: "${escapeOboQuoted(counted(stats, x.template))}" ${xrefList(f, x.xrefs, tag)}${block}`,
+                );
             }
             return;
         case UNRECOGNIZED:
@@ -1901,6 +1984,7 @@ function* written(
 
 /**
  * The OBO exporter plugin.
+ * @category Built-in formats
  */
 export const oboExporter: GraphExporter<OboExportOptions> = Object.freeze({
     format: "obo",

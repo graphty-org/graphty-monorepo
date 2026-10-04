@@ -95,88 +95,191 @@ import {
 } from "./records.js";
 import { InferredColumn } from "./values.js";
 
-/** The format-specific options of the CSV importer. */
+/**
+ * The format-specific options of the CSV importer.
+ * @category Built-in formats
+ */
 export interface CsvImportOptions {
-    /** The field delimiter; sniffed from the first rows when omitted (`,`, tab, `;`, `|`, space). */
+    /**
+     * The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or
+     * space.
+     * @defaultValue detected
+     */
     delimiter?: string | undefined;
-    /** Whether the first row is a header; "auto" (default) decides from its content. */
+    /**
+     * Whether the first row is a header; "auto" decides from its content (a header names columns, a
+     * data row holds ids and numbers).
+     * @defaultValue "auto"
+     */
     header?: boolean | "auto" | undefined;
     /**
-     * What the input is: an edge table, a node table, an adjacency table (`node,neighbor[:weight],...`
-     * per row, no header by default), or "auto" (default): an edge table when source and target
-     * columns resolve, a node table when only an id column does. An adjacency table is never
-     * guessed: nothing in its rows tells it from an edge list.
+     * What the input is: "edges" (one edge per row), "nodes" (one node per row), "adjacency" (a
+     * node and its neighbors per row, `node,neighbor[:weight],...`, with no header unless you pass
+     * `header: true`), or "auto": an edge table when source and target columns can be found, a node
+     * table when only an id column can. An adjacency table is never detected, because its rows look
+     * like an edge list.
+     * @defaultValue "auto"
      */
     table?: "edges" | "nodes" | "adjacency" | "auto" | undefined;
-    /** The source column, by name or 0-based position; resolved from the header by default. */
+    /**
+     * The source column, by name or 0-based position. The default is the column the header names
+     * `source` (or `src`, `from`, ...); in a file without a header, the first column.
+     * @defaultValue from the header
+     */
     sourceColumn?: CsvColumnRef | undefined;
-    /** The target column, by name or 0-based position; resolved from the header by default. */
+    /**
+     * The target column, by name or 0-based position. The default is the column the header names
+     * `target` (or `dst`, `to`, ...); in a file without a header, the second column.
+     * @defaultValue from the header
+     */
     targetColumn?: CsvColumnRef | undefined;
     /**
-     * The per-row direction column (Directed / Undirected / Mutual); by default the exact `Type`
-     * column of a Gephi table (exact `Source` and `Target` headers); null reads no such column.
+     * The column that gives each edge's direction (Directed / Undirected / Mutual), by name or
+     * position. The default is the `Type` column of a Gephi table (one whose header has exactly
+     * `Source` and `Target`); null reads no such column.
+     * @defaultValue Gephi's Type
      */
     typeColumn?: CsvColumnRef | null | undefined;
-    /** The id column of a node table, by name or position; resolved from the header by default. */
+    /**
+     * The id column of a node table, by name or position. The default is the column the header
+     * names `id` (or `node`, `name`, `key`).
+     * @defaultValue from the header
+     */
     idColumn?: CsvColumnRef | undefined;
-    /** A node table read before the edges: its ids become nodes and its other columns node attributes. */
+    /**
+     * A node table to read before the edges, as a string, bytes or a stream: its ids become nodes
+     * and its other columns node attributes.
+     */
     nodes?: ImportInput | undefined;
     /**
-     * A node table whose header has no id column gets its ids from the row numbers (0 for the first
-     * data row), coerced by `ids`, instead of failing with E_CSV_NO_ID_COLUMN. The node table is the
-     * `nodes` input when one is given (the edge table is then read as without this option), else
-     * the input itself; its first row is a header even under `header: "auto"`. False by default.
+     * Give the nodes of a node table without an id column the row number as id (0 for the first
+     * data row, turned into an id by `ids`), instead of failing with E_CSV_NO_ID_COLUMN. It applies
+     * to the `nodes` table when you pass one, else to the input; that table's first row is then
+     * always a header.
+     * @defaultValue false
      */
     rowNumberIds?: boolean | undefined;
 }
 
-/** Issue code: the input holds no header row at all. */
+/**
+ * Issue code: the input holds no header row at all.
+ * @category Issue and loss codes
+ */
 export const EMPTY_INPUT_CODE = SHARED_EMPTY_INPUT_CODE;
-/** Issue code: the header names no source / target (or, for a node table, no id) column. */
+/**
+ * Issue code: the header names no source / target (or, for a node table, no id) column.
+ * @category Issue and loss codes
+ */
 export const NO_ENDPOINT_COLUMNS_CODE = "E_CSV_NO_ENDPOINT_COLUMNS";
-/** Issue code: a node table without an id column. */
+/**
+ * Issue code: a node table without an id column.
+ * @category Issue and loss codes
+ */
 export const NO_ID_COLUMN_CODE = "E_CSV_NO_ID_COLUMN";
-/** Issue code: a row with a different number of fields than the header. */
+/**
+ * Issue code: a row with a different number of fields than the header.
+ * @category Issue and loss codes
+ */
 export const FIELD_COUNT_CODE = "E_CSV_FIELD_COUNT";
-/** Issue code: an edge row with a blank source or target cell. */
+/**
+ * Issue code: an edge row with a blank source or target cell.
+ * @category Issue and loss codes
+ */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
-/** Issue code: a node row with a blank id cell. */
+/**
+ * Issue code: a node row with a blank id cell.
+ * @category Issue and loss codes
+ */
 export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
-/** Issue code: a Type cell that is not Directed, Undirected or Mutual. */
+/**
+ * Issue code: a Type cell that is not Directed, Undirected or Mutual.
+ * @category Issue and loss codes
+ */
 export const BAD_TYPE_CODE = "E_CSV_BAD_TYPE";
-/** Issue code: the table has a header and no data rows. */
+/**
+ * Issue code: the table has a header and no data rows.
+ * @category Issue and loss codes
+ */
 export const NO_DATA_ROWS_CODE = "W_CSV_NO_DATA_ROWS";
-/** Issue code: a node table row repeats an id; its attributes overwrite the earlier row's. */
+/**
+ * Issue code: a node table row repeats an id; its attributes overwrite the earlier row's.
+ * @category Issue and loss codes
+ */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
-/** Issue code: two distinct id cells became one id under `ids: "number"` (design section 4.1). */
+/**
+ * Issue code: two distinct id cells became one id under `ids: "number"` (design section 4.1).
+ * @category Issue and loss codes
+ */
 export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
-/** Issue code: an explicitly named weight column the file does not have. */
+/**
+ * Issue code: an explicitly named weight column the file does not have.
+ * @category Issue and loss codes
+ */
 export const COLUMN_MISSING_CODE = "W_CSV_COLUMN_MISSING";
-/** Issue code: a column whose role (id, label) is already held by another column of the sink. */
+/**
+ * Issue code: a column whose role (id, label) is already held by another column of the sink.
+ * @category Issue and loss codes
+ */
 export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
-/** Issue code: a repeated edge id (the column is unique); the edge is skipped. */
+/**
+ * Issue code: a repeated edge id (the column is unique); the edge is skipped.
+ * @category Issue and loss codes
+ */
 export const DUPLICATE_EDGE_ID_CODE = SHARED_DUPLICATE_EDGE_ID_CODE;
-/** Issue code: the input opens like another format (XML / HTML, JSON, GML, DOT, Pajek), not CSV (fatal). */
+/**
+ * Issue code: the input opens like another format (XML / HTML, JSON, GML, DOT, Pajek), not CSV (fatal).
+ * @category Issue and loss codes
+ */
 export const OTHER_FORMAT_CODE = "E_CSV_OTHER_FORMAT";
-/** Issue code: a quote inside an unquoted field (RFC 4180 forbids it); the quote is kept as text. */
+/**
+ * Issue code: a quote inside an unquoted field (RFC 4180 forbids it); the quote is kept as text.
+ * @category Issue and loss codes
+ */
 export const STRAY_QUOTE_CODE = "W_CSV_STRAY_QUOTE";
-/** Issue code: a leading comment's direction disagrees with defaultDirected or with an earlier comment. */
+/**
+ * Issue code: a leading comment's direction disagrees with defaultDirected or with an earlier comment.
+ * @category Issue and loss codes
+ */
 export const COMMENT_DIRECTION_CODE = "W_CSV_COMMENT_DIRECTION";
-/** Issue code: a column named like Gephi's Type holds direction words but is read as a plain attribute. */
+/**
+ * Issue code: a column named like Gephi's Type holds direction words but is read as a plain attribute.
+ * @category Issue and loss codes
+ */
 export const TYPE_COLUMN_IGNORED_CODE = "W_CSV_TYPE_COLUMN_IGNORED";
-/** Issue code: the header ends in a delimiter; rows without the empty last cell are read as complete. */
+/**
+ * Issue code: the header ends in a delimiter; rows without the empty last cell are read as complete.
+ * @category Issue and loss codes
+ */
 export const TRAILING_HEADER_DELIMITER_CODE = "W_CSV_TRAILING_HEADER_DELIMITER";
-/** Issue code: every row is one cell that another delimiter would split (a likely wrong delimiter). */
+/**
+ * Issue code: every row is one cell that another delimiter would split (a likely wrong delimiter).
+ * @category Issue and loss codes
+ */
 export const SINGLE_COLUMN_CODE = "W_CSV_SINGLE_COLUMN";
-/** Issue code: several header columns name the same role; the one not chosen is a plain attribute. */
+/**
+ * Issue code: several header columns name the same role; the one not chosen is a plain attribute.
+ * @category Issue and loss codes
+ */
 export const AMBIGUOUS_COLUMN_CODE = "W_CSV_AMBIGUOUS_COLUMN";
-/** Issue code: an unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id. */
+/**
+ * Issue code: an unquoted id with leading or trailing whitespace (kept, RFC 4180), distinct from the bare id.
+ * @category Issue and loss codes
+ */
 export const PADDED_ID_CODE = "W_CSV_PADDED_ID";
-/** Issue code: a leading `#` / `%` line skipped as a comment has the fields of a record. */
+/**
+ * Issue code: a leading `#` / `%` line skipped as a comment has the fields of a record.
+ * @category Issue and loss codes
+ */
 export const COMMENT_LIKE_RECORD_CODE = "W_CSV_COMMENT_LIKE_RECORD";
-/** Issue code: data rows end in one extra empty cell (a trailing delimiter); the cell is dropped. */
+/**
+ * Issue code: data rows end in one extra empty cell (a trailing delimiter); the cell is dropped.
+ * @category Issue and loss codes
+ */
 export const TRAILING_DELIMITER_CODE = "W_CSV_TRAILING_DELIMITER";
-/** Issue code: a headerless three-column table's third column holds text, so it is an attribute, not the weight. */
+/**
+ * Issue code: a headerless three-column table's third column holds text, so it is an attribute, not the weight.
+ * @category Issue and loss codes
+ */
 export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
 
 const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
@@ -528,6 +631,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * form the exporter writes for an id containing a colon), and part of the id otherwise.
  * @param text - the cell text
  * @returns the id text and the weight (undefined when the cell has none)
+ * @category Plugin helpers
  */
 export function splitNeighbour(text: string): { readonly id: string; readonly weight: number | undefined } {
     const colon = text.lastIndexOf(":");
@@ -627,7 +731,7 @@ class TableReader {
     }
 
     /**
-     * Read every row; the reader is closed (and a stream cancelled) when the import aborts midway.
+     * Read every row; the reader is closed (and a stream canceled) when the import aborts midway.
      */
     async read(): Promise<void> {
         const iterator = this.reader[Symbol.asyncIterator]();
@@ -1258,16 +1362,16 @@ class TableReader {
         const { where } = this;
         where.line = line;
         where.element = null;
-        let neighbours = 0;
+        let neighbors = 0;
         for (let k = 1; k < row.length; k++) {
             if (!isUnset(row[k], quoted[k])) {
-                neighbours++;
+                neighbors++;
             }
         }
         if (isUnset(row[0], quoted[0])) {
             report.error("missing-value", MISSING_ID_CODE, `line ${line}: blank node cell`, { line });
             counts.skippedNodes++;
-            counts.skippedEdges += neighbours;
+            counts.skippedEdges += neighbors;
             return;
         }
         const kind: EdgeKind = (this.state.commentDirected ?? common.defaultDirected) ? "directed" : "undirected";
@@ -1286,7 +1390,7 @@ class TableReader {
         } catch (err) {
             report.recordError(err, where);
             counts.skippedNodes++;
-            counts.skippedEdges += neighbours;
+            counts.skippedEdges += neighbors;
             return;
         }
         for (let k = 1; k < row.length; k++) {
@@ -1324,7 +1428,7 @@ class TableReader {
             report.error(
                 "validation-error",
                 FIELD_COUNT_CODE,
-                `line ${line}: ${row.length} field(s), the header has ${plan.width}`,
+                `line ${line}: ${row.length} field(s), expected ${plan.width}`,
                 { line },
             );
             counts.skippedEdges++;
@@ -1432,7 +1536,7 @@ class TableReader {
             report.error(
                 "validation-error",
                 FIELD_COUNT_CODE,
-                `line ${line}: ${row.length} field(s), the header has ${plan.width}`,
+                `line ${line}: ${row.length} field(s), expected ${plan.width}`,
                 { line },
             );
             counts.skippedNodes++;
@@ -1662,8 +1766,10 @@ const OTHER_FORMAT =
  * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT (also a leading C comment) and Pajek
  * openings after the leading `#` / `%` comment lines the reader skips, and 0 for a head that is
  * only such comments (the comments of another format, too long to see past); otherwise a
- * delimited first row with endpoint headers is 0.9, with an id header 0.6, any consistently
- * delimited rows 0.3, a single column 0.
+ * delimited first row with endpoint headers is 0.9 (even when a later row has the wrong width, which
+ * the importer reports), with an id header 0.6, and other consistently delimited rows 0.3, except
+ * rows of more than three space-separated words, which is plain text such as a sentence, not a
+ * headerless edge list (source, target, weight), so it is 0.
  * @param head - the first bytes of the input
  * @returns a confidence in 0..1
  */
@@ -1682,17 +1788,35 @@ function sniff(head: Uint8Array): number {
     const newline = sniffNewline(body);
     const delimiter = sniffDelimiter(body, newline, DELIMITER_CANDIDATES, '"', false, true);
     if (delimiter === null) {
-        return 0;
+        // a header naming both endpoints is evidence enough; a short or long row later is the
+        // importer's to report, not a reason to refuse the file
+        const first = body.slice(0, body.indexOf(newline) < 0 ? body.length : body.indexOf(newline));
+        return DELIMITER_CANDIDATES.some((d) => hasEndpointHeader(first, d)) ? 0.9 : 0;
     }
-    // the first record, honouring quotes (R and pandas quote every header name)
-    const names = headerNames(splitRecords(body, delimiter, '"', 1, false, true)?.[0] ?? []);
+    // the first record, honoring quotes (R and pandas quote every header name)
+    const records = splitRecords(body, delimiter, '"', 2, false, true) ?? [];
+    const names = headerNames(records[0] ?? []);
     if (findColumn(names, SOURCE_NAMES) >= 0 && findColumn(names, TARGET_NAMES) >= 0) {
         return 0.9;
     }
     if (findColumn(names, ID_NAMES) >= 0) {
         return 0.6;
     }
+    if (delimiter === " " && names.length > 3) {
+        return 0;
+    }
     return 0.3;
+}
+
+/**
+ * Whether one line, split on a delimiter, names a source and a target column.
+ * @param line - the first line of the input
+ * @param delimiter - the delimiter to split on
+ * @returns true for an edge table header
+ */
+function hasEndpointHeader(line: string, delimiter: string): boolean {
+    const names = headerNames(splitRecords(line, delimiter, '"', 1, false, true)?.[0] ?? []);
+    return names.length > 1 && findColumn(names, SOURCE_NAMES) >= 0 && findColumn(names, TARGET_NAMES) >= 0;
 }
 
 /**
@@ -1743,7 +1867,10 @@ async function importCsv(
     return report.finish();
 }
 
-/** The CSV / TSV importer plugin (subpath `@graphty/graph-io/csv`). */
+/**
+ * The CSV / TSV importer plugin (subpath `@graphty/graph-io/csv`).
+ * @category Built-in formats
+ */
 export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     format: "csv",
     extensions: Object.freeze([".csv", ".tsv", ".edges", ".edgelist"]),

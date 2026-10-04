@@ -57,7 +57,10 @@ import { type LossNote } from "../../types.js";
 import { dialectCapabilities, exponentIfUnsafe, isJsonObject } from "./dialect.js";
 import { BUILTIN_PREDICATES, FRAME_TYPES, META_KEYS, NODE_KEYS, PROPERTY_PREDICATES } from "./obographs.js";
 
-/** The loss codes only the `obographs` dialect records. */
+/**
+ * The loss codes only the `obographs` dialect records.
+ * @category Built-in formats
+ */
 export const OBOGRAPHS_LOSS = Object.freeze({
     /** An edge column (or the explicit weights) is written into the edge's `meta` and reads back inside the `meta` column. */
     EDGE_COLUMN_AS_META: "W_OBOGRAPHS_EDGE_COLUMN_AS_META",
@@ -67,7 +70,10 @@ export const OBOGRAPHS_LOSS = Object.freeze({
     DATATYPE_DROPPED: "W_OBOGRAPHS_DATATYPE_DROPPED",
 });
 
-/** The codes the dialect shares with the other exporters, under the names JSON_LOSS gives them. */
+/**
+ * The codes the dialect shares with the other exporters, under the names JSON_LOSS gives them.
+ * @category Built-in formats
+ */
 export const OBOGRAPHS_SHARED_LOSS = Object.freeze({
     /** A node column outside the OBO vocabulary reads back inside the `property_value` column. */
     COLUMN_AS_PROPERTY_VALUE: COLUMN_AS_PROPERTY_VALUE_CODE,
@@ -131,7 +137,14 @@ const PLACED: ReadonlySet<string> = new Set([
 ]);
 
 /** The basicPropertyValues columns, in the order they are written. */
-const PROPERTY_TAGS: readonly string[] = ["namespace", "alt_id", "created_by", "creation_date", "replaced_by", "consider"];
+const PROPERTY_TAGS: readonly string[] = [
+    "namespace",
+    "alt_id",
+    "created_by",
+    "creation_date",
+    "replaced_by",
+    "consider",
+];
 
 /** An IRI with a scheme. */
 const IRI = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
@@ -212,7 +225,8 @@ function ontologyIriOf(snapshot: GraphSnapshot, kept: Kept, option: string | nul
     }
     const { obo } = snapshot.meta.extra;
     const header = isJsonObject(obo) && isJsonObject(obo.header) ? obo.header : {};
-    const ontology = Array.isArray(header.ontology) && typeof header.ontology[0] === "string" ? header.ontology[0].trim() : null;
+    const ontology =
+        Array.isArray(header.ontology) && typeof header.ontology[0] === "string" ? header.ontology[0].trim() : null;
     const name = ontology ?? snapshot.meta.name;
     const id = name === null || name.length === 0 ? "graph" : name.replace(/[^A-Za-z0-9_.\-/]/g, "_");
     return `${OBO_PURL}${id}.owl`;
@@ -462,7 +476,7 @@ class ObographsExport {
         if (count === 0) {
             return null;
         }
-        const message = `${count} node id(s) are empty; an OBO Graphs node needs an id, so export() will throw`;
+        const message = `${count} node id(s) are empty; an OBO Graphs node needs an id, so the save fails`;
         this.note(LOSS.ID_CHARSET, message, null, count);
         return new GraphFormatError("E_INVALID_ID", message, { reason: "charset", count, id: "", index: first });
     }
@@ -492,7 +506,12 @@ class ObographsExport {
             }
         }
         if (numeric > 0) {
-            this.note(LOSS.ID_TEXT_TYPE, `${numeric} numeric node id(s) are written as text and read back as strings`, null, numeric);
+            this.note(
+                LOSS.ID_TEXT_TYPE,
+                `${numeric} numeric node id(s) are written as text and read back as strings`,
+                null,
+                numeric,
+            );
         }
     }
 
@@ -537,7 +556,10 @@ class ObographsExport {
         }
         const def = this.placed.get("def");
         const defXrefs = this.placed.get("def.xrefs");
-        if (defXrefs !== undefined && (def === undefined || this.rows.some((i) => def.isSet(i) !== defXrefs.isSet(i)))) {
+        if (
+            defXrefs !== undefined &&
+            (def === undefined || this.rows.some((i) => def.isSet(i) !== defXrefs.isSet(i)))
+        ) {
             this.placed.delete("def.xrefs");
         }
         if (def !== undefined && !this.placed.has("def.xrefs") && snapshot.nodes.get("def.xrefs") !== null) {
@@ -561,7 +583,8 @@ class ObographsExport {
     private planColumnNotes(): void {
         const { snapshot, rows, label, note } = this;
         const type = this.placed.get("type");
-        const typedefs = type === undefined ? 0 : rows.filter((i) => type.isSet(i) && type.value(i) === "Typedef").length;
+        const typedefs =
+            type === undefined ? 0 : rows.filter((i) => type.isSet(i) && type.value(i) === "Typedef").length;
         if (typedefs > 0) {
             note(
                 TYPEDEF_NODES_CODE,
@@ -635,7 +658,12 @@ class ObographsExport {
         this.metaColumn = metaOk ? meta : null;
         for (const column of snapshot.edges) {
             const { role } = column.meta;
-            if (column === relation || column === this.metaColumn || role === "id" || (role !== null && UNWRITTEN_ROLES.has(role))) {
+            if (
+                column === relation ||
+                column === this.metaColumn ||
+                role === "id" ||
+                (role !== null && UNWRITTEN_ROLES.has(role))
+            ) {
                 continue;
             }
             this.edgeColumns.push(column);
@@ -716,7 +744,12 @@ class ObographsExport {
         } else if (common.onMixedDirection !== "error") {
             const undirected = written.filter((e) => !folding.sourceDirected(e)).length;
             if (undirected > 0) {
-                note(DIRECTION_DROPPED_CODE, `${undirected} undirected edge(s) are written as one directed edge each`, null, undirected);
+                note(
+                    DIRECTION_DROPPED_CODE,
+                    `${undirected} undirected edge(s) are written as one directed edge each`,
+                    null,
+                    undirected,
+                );
             }
         }
         if (folding.mutualCount > 0) {
@@ -889,7 +922,11 @@ class ObographsExport {
      */
     private edgeRecord(e: number): string {
         const { src, dst } = this.ends;
-        const edge: Record<string, unknown> = { sub: this.iris[src[e]], pred: this.preds.get(e), obj: this.iris[dst[e]] };
+        const edge: Record<string, unknown> = {
+            sub: this.iris[src[e]],
+            pred: this.preds.get(e),
+            obj: this.iris[dst[e]],
+        };
         const base = this.metaColumn === null ? undefined : cellOf(this.metaColumn, e);
         const meta: Record<string, unknown> = isJsonObject(base) ? { ...base } : {};
         for (const column of this.edgeColumns) {
@@ -914,13 +951,19 @@ class ObographsExport {
      */
     private graphHead(): string {
         const { kept, snapshot } = this;
-        const graph: Record<string, unknown> = { id: typeof kept.graph.id === "string" ? kept.graph.id : this.ontologyIri };
-        const lbl = kept.graph.lbl ?? (snapshot.meta.name !== null && kept.graph.id === undefined ? snapshot.meta.name : undefined);
+        const graph: Record<string, unknown> = {
+            id: typeof kept.graph.id === "string" ? kept.graph.id : this.ontologyIri,
+        };
+        const lbl =
+            kept.graph.lbl ??
+            (snapshot.meta.name !== null && kept.graph.id === undefined ? snapshot.meta.name : undefined);
         if (lbl !== undefined) {
             graph.lbl = lbl;
         }
         const meta: Record<string, unknown> = isJsonObject(kept.graph.meta) ? { ...kept.graph.meta } : {};
-        const values: unknown[] = Array.isArray(meta.basicPropertyValues) ? [...(meta.basicPropertyValues as unknown[])] : [];
+        const values: unknown[] = Array.isArray(meta.basicPropertyValues)
+            ? [...(meta.basicPropertyValues as unknown[])]
+            : [];
         for (const column of snapshot.graph) {
             const v = cellOf(column, 0);
             const dtype = column.dtype === "list" ? column.child.dtype : column.dtype;
@@ -1013,6 +1056,7 @@ class ObographsExport {
  * @param snapshot - the snapshot
  * @param settings - the resolved settings
  * @returns the notes and the writer
+ * @category Plugin helpers
  */
 export function planObographs(snapshot: GraphSnapshot, settings: ObographsSettings): ObographsPlan {
     const plan = new ObographsExport(snapshot, settings);
@@ -1028,7 +1072,12 @@ export function planObographs(snapshot: GraphSnapshot, settings: ObographsSettin
  * @param reproducible - whether an id is written as an IRI that reads back as itself
  * @returns true when the place carries the column
  */
-function carries(name: string, column: Column, rows: readonly number[], reproducible: (id: unknown) => boolean): boolean {
+function carries(
+    name: string,
+    column: Column,
+    rows: readonly number[],
+    reproducible: (id: unknown) => boolean,
+): boolean {
     const spec = OBO_NODE_COLUMNS[name];
     if (!fitsVocabulary(spec.dtype, column) || column.meta.components > 1) {
         return false;

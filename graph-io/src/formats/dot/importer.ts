@@ -91,26 +91,33 @@ import {
 } from "./names.js";
 import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
 
-/** The DOT importer's format-specific options. */
+/**
+ * The DOT importer's format-specific options.
+ * @category Built-in formats
+ */
 export interface DotImportOptions {
     /**
      * What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a
-     * graph; a syntax error for Graphviz): "operator" (default) reads the edge with the operator's
-     * direction and resolves it per onMixedDirection, with a warning; "header" reads it with the
-     * graph's direction, with a warning; "error" aborts the import as Graphviz does.
+     * graph; Graphviz refuses such a file): "operator" reads the edge with the operator's
+     * direction, so the graph has both directions and `onMixedDirection` decides, with a warning;
+     * "header" reads it with the graph's direction, with a warning; "error" stops the import, as
+     * Graphviz does.
+     * @defaultValue "operator"
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
     /**
-     * Map a node's `pos` to a `pos` column with the position role and a trailing `!` to `pin`
-     * (default true); false keeps `pos` as the text the file wrote, like any other attribute.
+     * Read a node's `pos` attribute as its position (a trailing `!` becomes a `pin` attribute);
+     * false keeps `pos` as the text the file wrote, like any other attribute.
+     * @defaultValue true
      */
     positions?: boolean | undefined;
 }
 
 /**
  * The issue codes the DOT importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the DOT-specific ones. A key is the code without
+ * the other importers and the DOT-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const DOT_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -132,7 +139,10 @@ export const DOT_ISSUE = Object.freeze({
     NESTING: "E_DOT_NESTING",
     /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */
     EDGE_OPERATOR: "W_DOT_EDGE_OPERATOR",
-    /** A second graph in the same input; only the first is read. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. */
     NUMERAL_AMBIGUITY: "W_DOT_NUMERAL_AMBIGUITY",
@@ -144,11 +154,11 @@ export const DOT_ISSUE = Object.freeze({
     CLUSTER_NODE_MERGED: "W_DOT_CLUSTER_NODE_MERGED",
     /** A node mentioned in two unrelated clusters keeps the first. */
     CLUSTER_CONFLICT: "W_DOT_CLUSTER_CONFLICT",
-    /** A node `pos` that is not a point, or one beyond the f32 range of the position column; the value was dropped. */
+    /** A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped. */
     BAD_POS: "W_DOT_BAD_POS",
     /** Node `pos` values mix two and three coordinates; the position column records the first's. */
     POS_DIMS: "W_DOT_POS_DIMS",
-    /** A `pos` coordinate the f32 position column cannot hold exactly (warned once). */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /** The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz. */
     DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
@@ -161,23 +171,42 @@ export const DOT_ISSUE = Object.freeze({
     STRICT_MERGED: "W_DOT_STRICT_MERGED",
     /** An edge merged into an earlier one with the same endpoints and `key`. */
     KEY_MERGED: "W_DOT_KEY_MERGED",
-    /** A role (label, id, position, ...) was already taken in the caller's sink; the column was declared without it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** A column of another shape exists in the caller's sink under a name the importer declares; renamed `<name>#<id>`. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A common option the format has no use for was given a non-default value. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** Two distinct id texts merged under ids: "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** A builder-policy option the sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
-    /** A text column the sink could not widen to the dtype its cells imply. */
+    /**
+     * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of
+     * its first values.
+     */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
 });
 
@@ -260,6 +289,7 @@ interface Scope {
 
 /**
  * The importer plugin for DOT / Graphviz text.
+ * @category Built-in formats
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,
@@ -320,7 +350,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             report.warning(
                 "unsupported",
                 MULTIPLE_GRAPHS_CODE,
-                `the input holds ${skipped} more graph(s) after the first; import() reads the first, importAll() reads every one`,
+                `the input holds ${skipped} more graph(s) after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
                 { line: trailing.line },
             );
         }

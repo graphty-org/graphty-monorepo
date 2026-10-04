@@ -19,7 +19,10 @@ import {
 import { describe } from "./options.js";
 import { ImportReportBuilder } from "./report.js";
 
-/** The issue code of an import stopped for allocating too many empty attribute slots. */
+/**
+ * The issue code of an import stopped for allocating too many empty attribute slots.
+ * @category Issue and loss codes
+ */
 export const TOO_MANY_EMPTY_CELLS_CODE = "E_TOO_MANY_EMPTY_CELLS";
 
 /** The default limit: 2^24 empty slots, about 130 MB of f64 columns. */
@@ -30,6 +33,7 @@ const DEFAULT_MAX_EMPTY_CELLS = 2 ** 24;
  * @param value - the caller's value
  * @returns a non-negative integer or Infinity
  * @throws GraphFormatError E_UNSUPPORTED for anything else
+ * @category Plugin helpers
  */
 export function maxEmptyCellsOption(value: unknown): number {
     if (value === undefined) {
@@ -45,7 +49,10 @@ export function maxEmptyCellsOption(value: unknown): number {
     );
 }
 
-/** A GraphBuilder that throws an ImportError once its attribute columns hold too many empty slots. */
+/**
+ * A GraphBuilder that throws an ImportError once its attribute columns hold too many empty slots.
+ * @category Plugin helpers
+ */
 export class CellBudgetBuilder extends GraphBuilder {
     private readonly nodeColumns = new Set<number>();
     private readonly edgeColumns = new Set<number>();

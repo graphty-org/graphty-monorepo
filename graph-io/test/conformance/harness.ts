@@ -125,6 +125,8 @@ export interface Fixture {
      * without this field; set it to check a fixture of another format, or a different answer.
      */
     readonly sniffAs?: string | null;
+    /** What sniffing must answer from the content alone, when that differs from `sniffAs` (no file name to go on). */
+    readonly sniffByContentAs?: string | null;
 }
 
 /**
@@ -564,9 +566,10 @@ export function checkSniff(format: string, fixture: Fixture): string[] {
     const problems: string[] = [];
     for (const filename of [basename(fixture.file), null]) {
         const found = registry.sniff({ filename, head })?.format ?? null;
-        if (found !== expected) {
+        const want = filename === null && fixture.sniffByContentAs !== undefined ? fixture.sniffByContentAs : expected;
+        if (found !== want) {
             const how = filename === null ? "by content" : `as ${filename}`;
-            problems.push(`sniffed ${how}: expected ${String(expected)}, got ${String(found)}`);
+            problems.push(`sniffed ${how}: expected ${String(want)}, got ${String(found)}`);
         }
     }
     return problems;

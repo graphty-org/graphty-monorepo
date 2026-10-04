@@ -735,3 +735,14 @@ describe("neo4jExporter (design 8.5)", () => {
         });
     });
 });
+
+describe("neo4j export quote option", () => {
+    it("quotes cells with the quote character it declares", async () => {
+        const { importGraph, exportGraphToString } = await import("../../../src/registry.js");
+        const { snapshot } = await importGraph("id,name\n1,Keanu\tReeves\n", { format: "csv", table: "nodes" });
+        const text = await exportGraphToString(snapshot, "neo4j", { delimiter: "\t", quote: "'" });
+        expect(text).toContain("'Keanu\tReeves'");
+        const back = await importGraph(text, { format: "neo4j", delimiter: "\t", quote: "'" });
+        expect(back.snapshot.nodes.value("name", 0)).toBe("Keanu\tReeves");
+    });
+});

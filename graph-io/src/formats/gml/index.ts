@@ -59,8 +59,9 @@ export { gmlImporter, type GmlImportOptions } from "./importer.js";
 
 /**
  * The issue codes the GML importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the GML-specific ones. A key is the code without
+ * the other importers and the GML-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const GML_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -100,7 +101,7 @@ export const GML_ISSUE = Object.freeze({
     FLAG_VALUE: FLAG_VALUE_CODE,
     /** A named entity no table decodes, or a numeric reference beyond U+10FFFF; kept as written. */
     UNKNOWN_ENTITY: UNKNOWN_ENTITY_CODE,
-    /** An integer beyond 2^53 rounded to f64, or a real literal beyond the f64 range stored as an infinity. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /** A node's graphics value that cannot give a position as written; kept in the graphics json column. */
     GRAPHICS: GRAPHICS_CODE,
@@ -108,29 +109,51 @@ export const GML_ISSUE = Object.freeze({
     NESTED_ELEMENT: NESTED_ELEMENT_CODE,
     /** yEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
     GROUPS: GROUPS_CODE,
-    /** A key whose values mix numbers and strings; the column is string. */
+    /**
+     * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,
+     * or two declared types for one attribute.
+     */
     WIDENED: WIDENED_CODE,
-    /** A column renamed `<name>#<key>` because the sink held the name with another shape. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A column declared without its role because the sink already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** A common option the importer has no use for was given. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
     /** Under nodeIdFrom "label" / "index" the integer ids are not kept (a loss note). */
     ID_DROPPED: ID_DROPPED_CODE,
 });
 
-/** The loss-note codes the GML exporter's check() reports beyond the shared LOSS table, by name. */
+/**
+ * The loss-note codes the GML exporter's check() reports beyond the shared LOSS table, by name.
+ * @category Built-in formats
+ */
 export const GML_LOSS = Object.freeze({
     /** A json column holds numbers; GML records cannot keep int versus real. */
     RECORD_NUMBER_TYPE: RECORD_NUMBER_TYPE_CODE,
@@ -138,7 +161,7 @@ export const GML_LOSS = Object.freeze({
     RECORD_BOOLEAN: RECORD_BOOLEAN_CODE,
     /** A json column holds nulls, omitted. */
     RECORD_NULL: RECORD_NULL_CODE,
-    /** An array inside an array; export() throws. */
+    /** An attribute holds an array inside an array, which GML cannot write; the save fails. */
     NESTED_ARRAY: NESTED_ARRAY_CODE,
     /** A json row that is an array, written as repeated keys. */
     JSON_ARRAY: JSON_ARRAY_CODE,

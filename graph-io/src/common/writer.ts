@@ -8,12 +8,15 @@
 
 /**
  * Text parts an exporter produces.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type TextParts = Iterable<string> | AsyncIterable<string>;
 
-/** The target size of one encoded chunk; parts are coalesced up to it and never split. */
+/**
+ * The target size of one encoded chunk; parts are coalesced up to it and never split.
+ * @category Plugin helpers
+ */
 export const DEFAULT_CHUNK_BYTES = 64 * 1024;
 
 /**
@@ -101,9 +104,10 @@ export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<U
 
 /**
  * Wrap an async iterable of chunks as a ReadableStream, pulling one chunk per read and cancelling
- * the iterable when the stream is cancelled.
+ * the iterable when the stream is canceled.
  * @param chunks - the chunks
  * @returns a byte stream
+ * @category Plugin helpers
  */
 export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
     const iterator = chunks[Symbol.asyncIterator]();

@@ -8,7 +8,7 @@
  * / `graph`), the d3 lineage of the same shape (`links`, `name` ids, integer index endpoints),
  * JSON Graph Format v2 (`graph.nodes` keyed by id, per-edge `directed`, hyperedges), Cytoscape.js
  * elements (`data.id` / `data.source` / `data.target`, `position`, `classes`, `data.parent`),
- * graphology serialisation (`key` / `attributes`, `undirected` edges, `options.type` / `multi`) and
+ * graphology serialization (`key` / `attributes`, `undirected` edges, `options.type` / `multi`) and
  * vis.js (`from` / `to`); read only: NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data
  * (nested `id` / `children`).
  */
@@ -18,10 +18,16 @@ import { type GraphMeta } from "@graphty/graph-format";
 import { capabilities } from "../../common/export.js";
 import { type ExportCapabilities } from "../../types.js";
 
-/** The JSON dialects the plugin reads and writes. */
+/**
+ * The JSON dialects the plugin reads and writes.
+ * @category Plugin helpers
+ */
 export type JsonDialect = "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs";
 
-/** Every dialect name, for option checking and messages. */
+/**
+ * Every dialect name, for option checking and messages.
+ * @category Plugin helpers
+ */
 export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
     "node-link",
     "d3",
@@ -36,23 +42,31 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
  * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
  * adjacency_data (`nodes` plus one neighbor list per node under `adjacency`) and tree_data (a
  * nested `id` / `children` record). The exporter writes neither.
+ * @category Plugin helpers
  */
 export type JsonImportDialect = JsonDialect | "adjacency" | "tree";
 
-/** Every dialect the importer reads, for option checking and messages. */
+/**
+ * Every dialect the importer reads, for option checking and messages.
+ * @category Plugin helpers
+ */
 export const JSON_IMPORT_DIALECTS: readonly JsonImportDialect[] = Object.freeze([
     ...JSON_DIALECTS,
     "adjacency",
     "tree",
 ]);
 
-/** The key under `meta.extra` that holds the shape record (design section 8.5). */
+/**
+ * The key under `meta.extra` that holds the shape record (design section 8.5).
+ * @category Plugin helpers
+ */
 export const META_KEY = "json";
 
 /**
  * The shape information the importer records under `meta.extra.json` so the exporter can write the
  * same file back. Every field is optional because a snapshot may come from
  * another format or from an older record.
+ * @category Plugin helpers
  */
 export interface JsonShapeMeta {
     /** The dialect the file was read as. */
@@ -81,6 +95,7 @@ export interface JsonShapeMeta {
  * Whether a value is a plain JSON object (not null, not an array).
  * @param value - any value
  * @returns true for an object that is not an array
+ * @category Plugin helpers
  */
 export function isJsonObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,6 +107,7 @@ export function isJsonObject(value: unknown): value is Record<string, unknown> {
  * @param record - the record
  * @param key - the key
  * @returns true when the key is an own property
+ * @category Plugin helpers
  */
 export function hasKey(record: Readonly<Record<string, unknown>>, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(record, key);
@@ -101,6 +117,7 @@ export function hasKey(record: Readonly<Record<string, unknown>>, key: string): 
  * Whether a text names a dialect.
  * @param value - any value
  * @returns true for one of JSON_DIALECTS
+ * @category Plugin helpers
  */
 export function isJsonDialect(value: unknown): value is JsonDialect {
     return typeof value === "string" && (JSON_DIALECTS as readonly string[]).includes(value);
@@ -110,6 +127,7 @@ export function isJsonDialect(value: unknown): value is JsonDialect {
  * Whether a text names a dialect the importer reads.
  * @param value - any value
  * @returns true for one of JSON_IMPORT_DIALECTS
+ * @category Plugin helpers
  */
 export function isJsonImportDialect(value: unknown): value is JsonImportDialect {
     return typeof value === "string" && (JSON_IMPORT_DIALECTS as readonly string[]).includes(value);
@@ -128,6 +146,7 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
  * codes, the registry's sniff() uses it on a head that parses as a whole document.
  * @param root - the parsed document
  * @returns the dialect, or null when the document is not a graph document in any dialect
+ * @category Plugin helpers
  */
 export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
     if (Array.isArray(root)) {
@@ -228,6 +247,7 @@ function firstJsonObject(value: unknown): Record<string, unknown> | null {
  * from the JSON importer.
  * @param meta - the snapshot's metadata
  * @returns the fields found under `meta.extra.json`, each only when it has the expected type
+ * @category Plugin helpers
  */
 export function shapeMetaOf(meta: GraphMeta): JsonShapeMeta {
     const raw: unknown = meta.extra[META_KEY];
@@ -251,7 +271,10 @@ export function shapeMetaOf(meta: GraphMeta): JsonShapeMeta {
     };
 }
 
-/** The direction a dialect assumes when the file declares none (design section 8.4, `defaultDirected`). */
+/**
+ * The direction a dialect assumes when the file declares none (design section 8.4, `defaultDirected`).
+ * @category Plugin helpers
+ */
 export const DIALECT_DEFAULT_DIRECTED: Readonly<Record<JsonImportDialect, boolean>> = Object.freeze({
     "node-link": false,
     d3: false,
@@ -353,12 +376,16 @@ const TABLES: Readonly<Record<JsonDialect, ExportCapabilities>> = Object.freeze(
  * graph attributes everywhere but d3 (the bare shape) and vis.
  * @param dialect - the dialect
  * @returns its frozen capability table
+ * @category Plugin helpers
  */
 export function dialectCapabilities(dialect: JsonDialect): ExportCapabilities {
     return TABLES[dialect];
 }
 
-/** The Cytoscape element-level keys (everything else on an element lives under `data`). */
+/**
+ * The Cytoscape element-level keys (everything else on an element lives under `data`).
+ * @category Plugin helpers
+ */
 export const CYTOSCAPE_ELEMENT_KEYS: ReadonlySet<string> = new Set([
     "selected",
     "selectable",
@@ -370,13 +397,17 @@ export const CYTOSCAPE_ELEMENT_KEYS: ReadonlySet<string> = new Set([
     "renderedPosition",
 ]);
 
-/** The Cytoscape element keys the importer maps structurally rather than to columns. */
+/**
+ * The Cytoscape element keys the importer maps structurally rather than to columns.
+ * @category Plugin helpers
+ */
 export const CYTOSCAPE_STRUCTURAL_KEYS: ReadonlySet<string> = new Set(["data", "group", "position", "classes"]);
 
 /**
  * The suffix the importer appends to a column name that collides with a structural column or a
  * reserved key of its dialect (design section 5.6 names collisions deterministically); the exporter
  * strips it when the value goes back to the level the suffix names.
+ * @category Plugin helpers
  */
 export const SUFFIX = Object.freeze({
     /** A Cytoscape `data` key or a JGF / graphology attribute that collides with a structural column. */
@@ -385,19 +416,34 @@ export const SUFFIX = Object.freeze({
     element: "#element",
 });
 
-/** The default source keys of a node-link edge record, tried in order (as fromRecords does). */
+/**
+ * The default source keys of a node-link edge record, tried in order (as fromRecords does).
+ * @category Plugin helpers
+ */
 export const NODE_LINK_SOURCE_KEYS: readonly string[] = Object.freeze(["source", "src", "from"]);
 
-/** The default target keys of a node-link edge record, tried in order. */
+/**
+ * The default target keys of a node-link edge record, tried in order.
+ * @category Plugin helpers
+ */
 export const NODE_LINK_TARGET_KEYS: readonly string[] = Object.freeze(["target", "dst", "to"]);
 
-/** The name of the position column every JSON dialect writes / reads (design section 5.2). */
+/**
+ * The name of the position column every JSON dialect writes / reads (design section 5.2).
+ * @category Plugin helpers
+ */
 export const POSITION_COLUMN = "position";
 
-/** The name of the Cytoscape classes column (a list of strings with role "classes"). */
+/**
+ * The name of the Cytoscape classes column (a list of strings with role "classes").
+ * @category Plugin helpers
+ */
 export const CLASSES_COLUMN = "classes";
 
-/** The name of the Cytoscape parent column (u32 refersTo node, role "parent"). */
+/**
+ * The name of the Cytoscape parent column (u32 refersTo node, role "parent").
+ * @category Plugin helpers
+ */
 export const PARENT_COLUMN = "parent";
 
 /**
@@ -406,6 +452,7 @@ export const PARENT_COLUMN = "parent";
  * a number must not be written as one.
  * @param text - the shortest decimal text of a finite number
  * @returns the text, or its exponent form for an integer literal of 16 or more digits
+ * @category Plugin helpers
  */
 export function exponentIfUnsafe(text: string): string {
     const match = /^(-?)([0-9]{16,})$/.exec(text);

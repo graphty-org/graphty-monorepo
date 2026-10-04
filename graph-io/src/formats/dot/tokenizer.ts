@@ -12,7 +12,10 @@
 /** The kinds of token. */
 type DotTokenKind = "id" | "punct" | "eof";
 
-/** One token of a DOT document. */
+/**
+ * One token of a DOT document.
+ * @category Plugin helpers
+ */
 export interface DotToken {
     /** The kind. */
     readonly kind: DotTokenKind;
@@ -29,7 +32,10 @@ export interface DotToken {
     readonly line: number;
 }
 
-/** The error the lexer and parser throw for a grammar violation; the importer turns it into a fatal parse-error. */
+/**
+ * The error the lexer and parser throw for a grammar violation; the importer turns it into a fatal parse-error.
+ * @category Plugin helpers
+ */
 export class DotSyntaxError extends Error {
     /** The 1-based line of the violation. */
     readonly line: number;
@@ -83,6 +89,7 @@ function isDigit(c: number): boolean {
 
 /**
  * A pull lexer over one DOT document with arbitrary lookahead.
+ * @category Plugin helpers
  */
 export class DotTokenizer {
     private readonly text: string;

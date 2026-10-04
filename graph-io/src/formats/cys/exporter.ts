@@ -51,12 +51,14 @@ import { FORMAT } from "./constants.js";
 /**
  * The format-specific options of the Cytoscape session exporter: none yet. The collection and
  * network names come from the snapshot's `meta.name` (default "Network").
+ * @category Built-in formats
  */
 export type CysExportOptions = Readonly<Record<never, never>>;
 
 /**
  * The loss notes the session exporter's check() returns, by name. A key is the code without its
  * severity and format prefixes.
+ * @category Built-in formats
  */
 export const CYS_LOSS = Object.freeze({
     /** CyCSV has no unset text cell: an unset cell of a text column reads back as "". */
@@ -73,17 +75,29 @@ export const CYS_LOSS = Object.freeze({
     JSON_AS_STRING: "W_CYS_JSON_AS_STRING",
     /** A position that cannot be written as it is: another shape, a non-finite coordinate, a z read back in the z column. */
     POSITION: "W_CYS_POSITION",
-    /** A column written under another name: a Cytoscape column name, a name differing only in case, a name the importer owns. */
+    /**
+     * An attribute with a role (the label, say) is written where the format keeps that role, and reads back under the
+     * name the format's importer gives it.
+     */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
-    /** A role-less `name` column reads back as the label. */
+    /**
+     * An attribute without a role is written where the format keeps a role (a `name` column as the label, say), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** A mutual pair is written as two directed edges without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** Node ids that are numbers read back as their text. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Two node ids with one text (a number and a string): export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
-    /** Node ids that are not positive integers under the default sanitizeIds "error": export() throws E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: LOSS.ID_CHARSET,
     /** Node ids that are not positive integers under sanitizeIds "mangle": renumbered, originals kept. */
     ID_MANGLED: LOSS.ID_MANGLED,
@@ -93,7 +107,10 @@ export const CYS_LOSS = Object.freeze({
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
     /** A column whose every cell is unset (and which is not text) vanishes. */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
-    /** A text column that reads back as the other storage class (string / dict). */
+    /**
+     * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often
+     * its values repeat. The values are the same.
+     */
     STORAGE_CLASS_CHANGED: LOSS.STORAGE_CLASS,
     /** A plain `weight` edge column reads back as the edge weight. */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
@@ -101,7 +118,7 @@ export const CYS_LOSS = Object.freeze({
     HIERARCHY_DROPPED: LOSS.HIERARCHY,
     /** A start / end / timestamp column: sessions have no time. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A role column written as a plain column. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /** An extension table the session cannot carry. */
     EXTENSION_TABLE_DROPPED: LOSS.EXTENSION_TABLE,
@@ -111,6 +128,7 @@ export const CYS_LOSS = Object.freeze({
  * What a Cytoscape session keeps: mixed direction, parallel edges and self-loops, integer SUIDs
  * for nodes and edges, String / Double / Integer / Long / Boolean columns and lists of them,
  * graph columns and positions. Groups, defaults, styles and time are not written.
+ * @category Built-in formats
  */
 export const CYS_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: true,
@@ -764,7 +782,7 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
     if (collisions > 0) {
         note(
             LOSS.ID_TEXT_COLLISION,
-            `${collisions} node id(s) share their text with another id (a number and a string); export() will throw E_INVALID_ID`,
+            `${collisions} node id(s) share their text with another id (a number and a string); the save fails with E_INVALID_ID`,
             null,
             collisions,
         );
@@ -787,7 +805,7 @@ function planIds(snapshot: GraphSnapshot, common: ResolvedExportOptions, note: N
         } else {
             note(
                 LOSS.ID_CHARSET,
-                `${bad.length} node id(s) are not positive integers (Cytoscape SUIDs); export() will throw unless sanitizeIds is "mangle"`,
+                `${bad.length} node id(s) are not positive integers (Cytoscape SUIDs); the save fails unless sanitizeIds is "mangle"`,
                 null,
                 bad.length,
             );
@@ -1032,6 +1050,7 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
  * and `.-*_` kept, space as `+`, everything else `%XX`), then `-` as `%2D`.
  * @param text - the text
  * @returns the escaped text
+ * @category Plugin helpers
  */
 export function sessionEscape(text: string): string {
     const wellFormed = text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
@@ -1206,7 +1225,10 @@ async function* write(
     yield* writeZip(entries(snapshot, p));
 }
 
-/** The Cytoscape session exporter. */
+/**
+ * The Cytoscape session exporter.
+ * @category Built-in formats
+ */
 export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
     format: FORMAT,
     capabilities: CYS_CAPABILITIES,

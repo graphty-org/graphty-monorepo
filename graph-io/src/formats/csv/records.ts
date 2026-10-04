@@ -20,13 +20,22 @@ import { MAX_TEXT_LENGTH, type ReadOptions, textChunks, tooLarge } from "../../c
 import { type ImportReportBuilder } from "../../common/report.js";
 import { type ImportInput } from "../../types.js";
 
-/** Issue code: a quoted field is never closed; the import aborts (everything after it would be one cell). */
+/**
+ * Issue code: a quoted field is never closed; the import aborts (everything after it would be one cell).
+ * @category Issue and loss codes
+ */
 export const UNCLOSED_QUOTE_CODE = "E_CSV_UNCLOSED_QUOTE";
 
-/** Issue code: a closing quote is followed by text other than a delimiter or a line break; the import aborts. */
+/**
+ * Issue code: a closing quote is followed by text other than a delimiter or a line break; the import aborts.
+ * @category Issue and loss codes
+ */
 export const BAD_QUOTE_CODE = "E_CSV_QUOTE";
 
-/** The delimiters tried, in priority order, when none is given. */
+/**
+ * The delimiters tried, in priority order, when none is given.
+ * @category Plugin helpers
+ */
 export const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
 
 /** Rows the delimiter sniff looks at. */
@@ -58,7 +67,10 @@ const COMMENT = 5;
 
 type State = typeof START | typeof UNQUOTED | typeof QUOTED | typeof CLOSING | typeof AFTER_QUOTED | typeof COMMENT;
 
-/** The delimiter and quote of a reader. */
+/**
+ * The delimiter and quote of a reader.
+ * @category Plugin helpers
+ */
 export interface RecordSyntax {
     /** The field delimiter, one character; null sniffs it from the first rows. */
     readonly delimiter: string | null;
@@ -98,6 +110,7 @@ export interface RecordSyntax {
  * must differ.
  * @param syntax - the delimiter (or null for sniffing) and quote
  * @returns the syntax unchanged; E_UNSUPPORTED when invalid
+ * @category Plugin helpers
  */
 export function checkRecordSyntax(syntax: RecordSyntax): RecordSyntax {
     for (const [option, value] of [
@@ -129,13 +142,14 @@ export function checkRecordSyntax(syntax: RecordSyntax): RecordSyntax {
  * (classic Mac files); `\n` otherwise.
  * @param text - the preview text
  * @returns "\n" or "\r"
+ * @category Plugin helpers
  */
 export function sniffNewline(text: string): "\n" | "\r" {
     return !text.includes("\n") && text.includes("\r") ? "\r" : "\n";
 }
 
 /**
- * Split a text into records synchronously (the first `maxRows` of them), honouring quotes; for
+ * Split a text into records synchronously (the first `maxRows` of them), honoring quotes; for
  * the delimiter sniff and the registry's head sniff, where the input is a bounded preview.
  * @param text - the text
  * @param delimiter - the delimiter
@@ -145,6 +159,7 @@ export function sniffNewline(text: string): "\n" | "\r" {
  * delimiter or a line break (the import would abort under this delimiter)
  * @param collapse - the whitespace dialect (RecordSyntax.collapseSpaces) for a space delimiter
  * @returns the rows as cell arrays (blank lines skipped), or null (see strictQuotes)
+ * @category Plugin helpers
  */
 export function splitRecords(
     text: string,
@@ -244,6 +259,7 @@ export function splitRecords(
  * @param text - the preview text
  * @param comments - the comment characters
  * @returns the text from the first non-comment line on
+ * @category Plugin helpers
  */
 export function stripLeadingComments(text: string, comments: readonly string[]): string {
     if (comments.length === 0) {
@@ -287,6 +303,7 @@ export function stripLeadingComments(text: string, comments: readonly string[]):
  * instead of aborting the read
  * @param collapse - read a space candidate in the whitespace dialect (RecordSyntax.collapseSpaces)
  * @returns the delimiter, or null
+ * @category Plugin helpers
  */
 export function sniffDelimiter(
     text: string,
@@ -350,6 +367,7 @@ function isBlankRow(row: readonly string[]): boolean {
  * are skipped. The arrays are reused between records. When the syntax gives no delimiter, the
  * first rows (PREVIEW_ROWS, or PREVIEW_CHARS characters) are buffered and the delimiter sniffed
  * from them before the first record is yielded.
+ * @category Plugin helpers
  */
 export class RecordReader implements AsyncIterable<number> {
     /** The cells of the record most recently yielded; only the first `count` entries are valid. */
@@ -874,7 +892,10 @@ class RecordScanner {
     }
 }
 
-/** What the CSV importer's reader needs besides the input. */
+/**
+ * What the CSV importer's reader needs besides the input.
+ * @category Plugin helpers
+ */
 export interface CsvReaderOptions extends ReadOptions {
     /** The delimiter; null or undefined sniffs it from the preview. */
     readonly delimiter?: string | null | undefined;
@@ -895,6 +916,7 @@ export interface CsvReaderOptions extends ReadOptions {
  * unquoted one is "not set"). Blank lines, whitespace-only lines and rows of empty unquoted cells
  * are skipped. A space delimiter reads the whitespace dialect (RecordSyntax.collapseSpaces), and an
  * Excel `sep=X` first line names the delimiter when none is given.
+ * @category Plugin helpers
  */
 export class CsvRecordReader implements AsyncIterable<string[]> {
     private readonly inner: RecordReader;

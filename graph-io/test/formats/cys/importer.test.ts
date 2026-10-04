@@ -140,7 +140,7 @@ describe("cysImporter: the archive", () => {
         expect(skipped?.message).toContain("session_bookmarks.xml");
         const styles = report.issues.find((i) => i.code === CYS_ISSUE.STYLES_NOT_IMPORTED);
         expect(styles?.message).toContain("session_vizmap.xml");
-        expect(styles?.message).toContain("#706");
+        expect(styles?.message).not.toContain("#706");
         const relayed = report.issues.find((i) => i.code === "W_XGMML_ROOT_ONLY_ELEMENTS");
         expect(relayed?.message).toContain("networks/10-Collection.xgmml");
     });

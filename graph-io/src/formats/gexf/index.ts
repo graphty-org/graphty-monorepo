@@ -68,8 +68,9 @@ export { type GexfVersion } from "./schema.js";
 
 /**
  * The issue codes the GEXF importer records, by name: the codes shared with
- * the other importers (src/common/codes.ts) and the GEXF-specific ones. A key is the code without
+ * the other importers and the GEXF-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const GEXF_ISSUE = Object.freeze({
     ...INPUT_ISSUE,
@@ -91,7 +92,10 @@ export const GEXF_ISSUE = Object.freeze({
     NOT_GEXF: NOT_GEXF_CODE,
     /** The document has no `<graph>` (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
-    /** A second `<graph>`; its nodes and edges are merged into the first, its header is ignored. */
+    /**
+     * The file holds several graphs and only one was read: the first, or the one `graphIndex` or `graphName` chose.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** `<edges>` without `<nodes>`. */
     MISSING_NODES: MISSING_NODES_CODE,
@@ -115,7 +119,10 @@ export const GEXF_ISSUE = Object.freeze({
     ATTRIBUTE_ID: ATTRIBUTE_ID_CODE,
     /** A `<graph>` header attribute with an unknown value. */
     HEADER_VALUE: HEADER_VALUE_CODE,
-    /** A `count` hint the sink cannot reserve (ignored). */
+    /**
+     * A node or edge count the file announces is too large to reserve room for; it is ignored and the elements are
+     * read as they come.
+     */
     COUNT_HINT: COUNT_HINT_CODE,
     /** A `count` hint that disagrees with the elements of its section. */
     COUNT_MISMATCH: COUNT_MISMATCH_CODE,
@@ -133,9 +140,15 @@ export const GEXF_ISSUE = Object.freeze({
     BAD_DEFAULT: BAD_DEFAULT_CODE,
     /** Options that do not parse as the declared type. */
     BAD_OPTIONS: BAD_OPTIONS_CODE,
-    /** A column renamed `<name>#<id>` because the name was taken. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example a
+     * repeated column header.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A column declared without its role because the table already holds it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /** An `<attvalue for>` naming an undeclared attribute. */
     UNKNOWN_ATTRIBUTE: UNKNOWN_ATTRIBUTE_CODE,
@@ -143,7 +156,7 @@ export const GEXF_ISSUE = Object.freeze({
     ATTVALUE_SHAPE: ATTVALUE_SHAPE_CODE,
     /** A timed value on an attribute of a static group. */
     TIMED_VALUE_ON_STATIC: TIMED_STATIC_CODE,
-    /** A long value beyond 2^53 rounded. */
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
     /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
@@ -169,14 +182,24 @@ export const GEXF_ISSUE = Object.freeze({
     UNKNOWN_XML_ATTRIBUTE: UNKNOWN_XML_ATTRIBUTE_CODE,
     /** Text where GEXF allows only elements was ignored. */
     STRAY_TEXT: STRAY_TEXT_CODE,
-    /** A common option the importer has no use for was given. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honor. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
     /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
 });

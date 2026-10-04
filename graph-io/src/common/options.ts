@@ -1,5 +1,5 @@
 /**
- * Option normalisation for importers and exporters (design sections 8.4 and 8.5): every common
+ * Option normalization for importers and exporters (design sections 8.4 and 8.5): every common
  * option resolved to its documented default, enum values checked (E_UNSUPPORTED, the core's
  * convention for an option outside its set), and the per-format defaults (`ids`, `defaultDirected`,
  * `weightFrom`, `addMissingNodes`) supplied by the importer that calls resolveImportOptions().
@@ -18,7 +18,10 @@ import {
 import { canonicalEncoding } from "./input.js";
 import { type ImportReportBuilder } from "./report.js";
 
-/** The defaults an importer supplies for the options whose default is per format. */
+/**
+ * The defaults an importer supplies for the options whose default is per format.
+ * @category Plugin helpers
+ */
 export interface ImportFormatDefaults {
     /** "canonical" for text-cell formats, "keep" for JSON. */
     readonly ids: IdCoercion;
@@ -32,8 +35,8 @@ export interface ImportFormatDefaults {
 
 /**
  * CommonImportOptions with every field present.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ResolvedImportOptions {
     /** The id coercion rule. */
@@ -70,7 +73,10 @@ export interface ResolvedImportOptions {
     readonly encoding: string | null;
 }
 
-/** CommonExportOptions with every field present. */
+/**
+ * CommonExportOptions with every field present.
+ * @category Plugin helpers
+ */
 export interface ResolvedExportOptions {
     /** "error" never renames a node; "mangle" rewrites and keeps the original. */
     readonly sanitizeIds: "error" | "mangle";
@@ -89,7 +95,10 @@ const LONG_MODES: ReadonlySet<string> = new Set(["f64", "string"]);
 const HYPEREDGE_POLICIES: ReadonlySet<string> = new Set(["error", "skip", "star", "clique"]);
 const SANITIZE_MODES: ReadonlySet<string> = new Set(["error", "mangle"]);
 
-/** The default error limit: errors tolerated before an import aborts. */
+/**
+ * The default error limit: errors tolerated before an import aborts.
+ * @category Reports and errors
+ */
 export const DEFAULT_ERROR_LIMIT = 100;
 
 export { SINK_OPTION_CODE };
@@ -109,6 +118,7 @@ const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "we
  * refuses unknown endpoints before the sink sees them), so that request is honored on any sink and
  * only `addMissingNodes: true` against a refusing sink is reported
  * @returns the number of warnings recorded
+ * @category Plugin helpers
  */
 export function reportSinkOptions(
     sink: GraphSink,
@@ -165,6 +175,7 @@ const IGNORABLE_OPTION_NAMES = [
  * @param report - the report to record into
  * @param used - the common option names the importer reads
  * @returns the number of warnings recorded
+ * @category Plugin helpers
  */
 export function reportUnusedOptions(
     options: CommonImportOptions | undefined,
@@ -203,6 +214,7 @@ export function reportUnusedOptions(
  * @param options - the caller's graphIndex / graphName
  * @param report - the report a failure is recorded in
  * @returns the index of the graph to read; E_UNSUPPORTED for an option of the wrong type, or both
+ * @category Plugin helpers
  */
 export function chooseGraph(
     names: readonly (string | null)[],
@@ -270,6 +282,7 @@ export function chooseGraph(
  * @param options - the caller's options, possibly undefined
  * @param defaults - the importer's per-format defaults
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
+ * @category Plugin helpers
  */
 export function resolveImportOptions(
     options: CommonImportOptions | undefined,
@@ -300,6 +313,7 @@ export function resolveImportOptions(
  * Apply the documented defaults to an exporter's common options and check the enum values.
  * @param options - the caller's options, possibly undefined
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
+ * @category Plugin helpers
  */
 export function resolveExportOptions(options: CommonExportOptions | undefined): ResolvedExportOptions {
     const o: CommonExportOptions = options ?? {};
@@ -454,6 +468,7 @@ function encodingOption(value: unknown): string | null {
  * A short description of an option value for an error message.
  * @param value - the value
  * @returns the JSON text of a primitive, or the type name otherwise
+ * @category Plugin helpers
  */
 export function describe(value: unknown): string {
     switch (typeof value) {

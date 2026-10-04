@@ -58,14 +58,21 @@ import {
 import { treeProblem, writeXmlTree } from "./tree.js";
 import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
 
-/** The format-specific options of the GraphML exporter. */
+/**
+ * The format-specific options of the GraphML exporter.
+ * @category Built-in formats
+ */
 export interface GraphmlExportOptions {
-    /** Indent nested elements (default true); false writes one element per line without indentation. */
+    /**
+     * Indent nested elements; false writes one element per line without indentation.
+     * @defaultValue true
+     */
     pretty?: boolean | undefined;
     /**
-     * The top-level `edgedefault`. By default the one the importer recorded in
-     * `meta.extra.graphml` (so a mixed file re-imports with the same edge layout), else the
-     * snapshot's direction, with the majority direction for a mixed snapshot.
+     * The `edgedefault` of the graph element. The default is the one a GraphML import read, so a
+     * file with both directions reads back with the same edges marked, else the graph's direction
+     * (for a graph with both, the direction most edges have).
+     * @defaultValue as read
      */
     edgedefault?: "directed" | "undirected" | undefined;
 }
@@ -571,7 +578,7 @@ function planEdgeIds(snapshot: GraphSnapshot, column: Column, options: ResolvedE
     } else {
         note(
             LOSS.ID_CHARSET,
-            `${bad} edge id(s) outside the nmtoken charset; export() will throw unless sanitizeIds is "mangle"`,
+            `${bad} edge id(s) outside the nmtoken charset; the save fails unless sanitizeIds is "mangle"`,
             column.meta.name,
             bad,
         );
@@ -707,7 +714,7 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
             if (bad > 0) {
                 note(
                     GRAPHML_LOSS.YFILES_TREE,
-                    `${bad} value(s) of yfiles column "${name}" are not XML trees; export() will throw E_COLUMN_TYPE`,
+                    `${bad} value(s) of yfiles column "${name}" are not XML trees; the save fails with E_COLUMN_TYPE`,
                     name,
                     bad,
                 );
@@ -1440,6 +1447,7 @@ function* writeNodeSubtree(
 
 /**
  * The GraphML exporter.
+ * @category Built-in formats
  */
 export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
     format: FORMAT,

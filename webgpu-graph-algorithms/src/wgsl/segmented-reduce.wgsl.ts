@@ -17,6 +17,9 @@
  * and under the tiers TIER 0 still folds the low-degree rows, which are most of them. The two folds spell their
  * locals apart (`lo` / `hi` / `k` against `a0` / `a1`) so that each sabotage row names exactly one of them; the
  * VALUE snippet sees the same `row`, `arc`, `nbr` and `weight` in both.
+ *
+ * The dense loop counts DOWN (`left` from the row's arc count to 1, `arc = hi - left`) so that Dawn 0.6.x does not
+ * add its infinite-loop guard to it; the reason and the measurement are in `spmv-pull.wgsl.ts`.
  */
 
 /**
@@ -48,7 +51,8 @@ fn row_fold_dense(i: u32) -> f32 {                              // TIER 0's stri
     let lo = max(rowPtr[i], P.arcBase);
     let hi = min(rowPtr[i + 1u], P.arcEnd);
     var acc = identity();
-    for (var arc = lo; arc < hi; arc = arc + 1u) {
+    for (var left = select(0u, hi - lo, hi > lo); left > 0u; left = left - 1u) {   // counts DOWN (see the header)
+        let arc = hi - left;                             // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                         // the window-local index; this walk is contiguous
         let nbr = colIdx[k];
         var weight = 1.0;

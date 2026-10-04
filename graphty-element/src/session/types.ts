@@ -156,6 +156,34 @@ export interface PageColumn {
     readonly pending: boolean;
     /** One cell per record, aligned with `records`. */
     readonly values: readonly ResultCell[];
+    /**
+     * For a column of a partition's groups (a community run's `group`): each cell's group rank,
+     * aligned with `records` -- its place by size, 1 for the largest. It is the same `rank` the run
+     * summary's group and the legend's swatch carry, so a table names a group the way they do
+     * ("Group 3") rather than by its raw id. Undefined for a record in no group. Absent on any
+     * other column.
+     */
+    readonly ranks?: readonly (number | undefined)[];
+}
+
+/**
+ * A run whose result a page of one kind can show as a column: what
+ * {@link SessionDataApi.resultColumns} lists.
+ */
+export interface ResultColumnDescriptor {
+    /** The run's id; pass it, or the run, in `columns` or `sort`. */
+    readonly run: RunId;
+    /** The run's primary field, which a column naming only the run reads. */
+    readonly field: string;
+    /** The published path of the field, as a style selector or a filter reads it. */
+    readonly path: Path;
+    /** The field's declared type. */
+    readonly type: PageColumn["type"];
+    /**
+     * The field names groups (a community's `group`, a hierarchy's `level`), so a sort by it orders
+     * records by group size, largest group first when descending, rather than by the group's id.
+     */
+    readonly grouping: boolean;
 }
 
 /** Which records a page holds, and from where in their order. */
@@ -705,6 +733,16 @@ export interface SessionDataApi {
         options: EdgePageOptions & { readonly columns: readonly ResultColumn[] },
     ): RecordPage<EdgeRecord> & { readonly columns: readonly PageColumn[] };
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
+    /**
+     * The runs whose result a node or an edge page can show as a column with no field named: every
+     * run, in the session's order, whose primary field holds one value per record of that kind.
+     * Exactly the runs `nodePage({ columns: [run] })` or `edgePage(...)` accepts, so a table
+     * offers its result columns without trying each run. A run still computing is listed; its
+     * column comes back `pending`.
+     * @param kind - `"node"` for {@link nodePage}, `"edge"` for {@link edgePage}
+     * @returns one entry per run, in the order `session.runs.list()` returns them
+     */
+    resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     /**
      * Each distinct neighbor of a node once, with the combined weight of the edges between them.
      *

@@ -762,6 +762,18 @@ function checkBinding(
         });
     }
 
+    if (
+        binding.hidden !== undefined &&
+        (!Array.isArray(binding.hidden) ||
+            !binding.hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
+    ) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
+            path: `${path}.hidden`,
+        });
+    }
+
     if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
         report(log, {
             code: "E_UNSCOPED_RUN_ENCODING",

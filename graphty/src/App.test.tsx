@@ -86,5 +86,14 @@ describe("App", () => {
                 expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
             });
         });
+
+        it("renders the tier 1 workspace at ?next, on its start screen", () => {
+            withSearch("?next", () => {
+                render(<App />);
+
+                expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+                expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument();
+            });
+        });
     });
 });

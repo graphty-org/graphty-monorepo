@@ -253,19 +253,27 @@ for (const channel of channelsFor("edge")) {
 ### Labels that would overlap
 
 By default every label a style asks for is drawn, so labeled nodes that sit close together on
-screen draw their words over each other. Turn on `labels.declutter` in the element's behavior
-configuration to thin them out:
+screen draw their words over each other. Turn on `labelDeclutter` to thin them out:
 
 ```javascript
-element.layoutBehavior = { labels: { declutter: true } };
+element.labelDeclutter = true;
 ```
+
+```html
+<graphty-element label-declutter></graphty-element>
+```
+
+It is a preference of the view, not part of the project: switching it records no undo step and is
+not saved in a project file, so it suits a reader's "Show all labels" checkbox
+(`element.labelDeclutter = !showAll.checked`). It is the same switch as
+`layoutBehavior.labels.declutter`.
 
 With it on, the element keeps the label of a selected node first, then the label of the node
 with more edges, and hides any label whose words would cover the words of a label it has already
 kept. Only the words count: two labels whose padding or background overlap, but whose text does
 not, are both drawn. A hidden label comes back as soon as its node is clear, for example after
 the camera or the layout moves. Nothing in the style changes when this happens, and setting
-`declutter` back to `false` shows every label again on the next frame.
+`labelDeclutter` back to `false` shows every label again on the next frame.
 
 The element works this out again only when something that decides it changes -- the camera, the
 size of the viewport, a label, a node's position or visibility, the selection or the edges -- so a

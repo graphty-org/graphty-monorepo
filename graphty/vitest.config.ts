@@ -24,19 +24,16 @@ export default defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
-    // graphty-element's per-function lodash imports are pre-bundled up front (named through the
-    // element, which is the package that depends on lodash). Found mid-run instead, Vite
-    // re-optimizes and deletes the Babylon shader chunks a mounted element is about to import,
-    // and the element's meshes wait for their shaders forever.
     optimizeDeps: {
-        include: [
-            "@mantine/hooks",
-            "@graphty/graphty-element > lodash/cloneDeep.js",
-            "@graphty/graphty-element > lodash/debounce.js",
-            "@graphty/graphty-element > lodash/defaultsDeep.js",
-            "@graphty/graphty-element > lodash/get.js",
-            "@graphty/graphty-element > lodash/isEqual.js",
-        ],
+        include: ["@mantine/hooks"],
+        // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
+        // bundle under node_modules/.vite and trusts it while the lockfile and this config are
+        // unchanged -- it does not notice a SOURCE change that imports a dependency the cache
+        // lacks (lodash/get.js after the per-function lodash imports). That dependency is then
+        // found mid-run, Vite re-bundles and reloads the test page, and the files it was running
+        // report "(0 test)" and fail or hang (issue #885). The scan over the test files finds
+        // every dependency up front; it costs about 5 seconds a run.
+        force: true,
     },
     test: {
         globals: true,

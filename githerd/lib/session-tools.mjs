@@ -146,10 +146,17 @@ export function sessionToolSet(ctx) {
                 return JSON.stringify({ job, snapshot: snap, news, load, instructions });
             }
             const offered = Object.values(state.jobs ?? {}).filter((/** @type {any} */ j) => j.state === "queued");
+            // What githerd told this session, such as a worker's push that overlaps its files (8.2).
+            const record = session ? state.sessions?.[session] : null;
+            const news = (record?.news ?? [])
+                .filter((/** @type {any} */ n) => !n.acked)
+                .map((/** @type {any} */ n) => n.text);
+            for (const n of record?.news ?? []) n.acked = true;
             return JSON.stringify({
                 job: null,
                 offered,
                 snapshot: snap,
+                news,
                 load,
                 instructions: "To take a queued job, call githerd_claim with it and your overlap judgment.",
             });

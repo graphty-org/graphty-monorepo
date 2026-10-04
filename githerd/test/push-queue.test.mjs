@@ -9,6 +9,7 @@ import { createPushQueue } from "../lib/actor/push.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { identify } from "../lib/proc.mjs";
 import { codeEnv } from "../lib/worker-settings.mjs";
+import { changedFiles } from "../lib/worktrees.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
 /**
@@ -337,6 +338,58 @@ describe("a push", () => {
         await queue.drain();
         expect(remoteHead("githerd/b")).toBeNull();
         expect(second.job.news.at(-1).text).toBe("b is failed; nothing was pushed");
+    });
+});
+
+describe("the overlap check at a push (design 8.2)", () => {
+    it("records the jobs and owner sessions whose changed files the pushed diff touches, and tells both", async () => {
+        const a = workingJob("a");
+        put(join(a.dir, "shared.txt"), "a\n");
+        const head = commitAll(a.dir, "feat: shared");
+        // Job b is changing the same file, uncommitted; job c and the owner's session other files.
+        const b = workingJob("b");
+        put(join(b.dir, "shared.txt"), "b\n");
+        const c = workingJob("c");
+        state.sessions = { "main-1": { cwd: repo.root }, "main-2": { cwd: repo.root } };
+        put(join(repo.root, "a.txt"), "owner\n");
+        /** @type {string[]} */
+        const asked = [];
+        queue = makeQueue({
+            others: async (except) => {
+                asked.push(except);
+                return [
+                    { job: "b", files: await changedFiles(b.dir, "origin/master") },
+                    { job: "c", files: await changedFiles(c.dir, "origin/master") },
+                    { session: "main-1", files: await changedFiles(repo.root, "origin/master") },
+                ];
+            },
+        });
+        expect(await changedFiles(b.dir, "origin/master")).toEqual(["b.txt", "shared.txt"]);
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
+        await queue.drain();
+        expect(asked).toEqual(["a"]);
+        expect(a.job.related).toEqual(["b", "session:main-1"]);
+        expect(b.job.related).toEqual(["a"]);
+        expect(c.job.related).toBeUndefined();
+        const news = a.job.news.map((/** @type {any} */ n) => n.text);
+        expect(news).toContain(
+            "overlap: job b changes files your work changes too: shared.txt; recorded as related. Judge whether to coordinate, join or wait.",
+        );
+        expect(
+            news.some(
+                (/** @type {string} */ t) =>
+                    t.startsWith("overlap: session main-1 changes files") && t.includes("a.txt"),
+            ),
+        ).toBe(true);
+        expect(b.job.news.at(-1).text).toMatch(
+            /^overlap: job a's push changes files your work changes too: shared.txt/,
+        );
+        expect(rings.map((r) => r.job)).toEqual(["b", "a"]);
+        expect(state.sessions["main-1"].news).toHaveLength(1);
+        expect(entries.filter((e) => e.kind === "related")).toEqual([
+            { kind: "related", job: "a", with: "b", files: ["shared.txt"] },
+            { kind: "related", job: "a", with: "session:main-1", files: ["a.txt"] },
+        ]);
     });
 });
 

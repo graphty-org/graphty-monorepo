@@ -121,6 +121,15 @@ describe("sessionToolSet", () => {
         expect(wrong).toEqual({ text: "no job pr-7 for this worker", isError: true });
     });
 
+    it("gives an owner session the news githerd left for it once, such as a push overlapping its files", async () => {
+        const { ctx } = setup({
+            sessions: { o1: { cwd: "/r", news: [{ at: "x", text: "overlap: job a", acked: false }] } },
+        });
+        const owner = { session: "o1" };
+        expect(JSON.parse((await call(ctx, "githerd_next", {}, owner)).text).news).toEqual(["overlap: job a"]);
+        expect(JSON.parse((await call(ctx, "githerd_next", {}, owner)).text).news).toEqual([]);
+    });
+
     it("offers an owner session the queued jobs, and claims one with its judgment", async () => {
         const queued = newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW);
         const { ctx, commits } = setup({ jobs: { "issue-9": queued } });

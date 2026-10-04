@@ -198,6 +198,7 @@ const rank = (job) => {
  *   protectedPaths?: () => string[],
  *   defaultGateMs?: number,
  *   now?: () => Date,
+ *   others?: (job: string) => Promise<{job?: string, session?: string, files: string[]}[]>,
  * }} options `root` is the main checkout, where commits are checked; `mode` answers a write
  *   group's mode (pushes are group `workers`); `ring` delivers a result to the job's session (the
  *   doorbell); `credentialBlocked` names a blocked credential, or null; `env` is the whole
@@ -207,7 +208,8 @@ const rank = (job) => {
  *   main checkout's `.husky/_` by default, never the worktree's; `queueScript` the machine's push
  *   queue that every session pushes through, the main checkout's `tools/push-queue.sh` by default
  *   (a repository without it pushes directly); `protectedPaths` reads the config's list, refused
- *   like the gate's own paths
+ *   like the gate's own paths; `others` lists every other in-flight job's worktree and every
+ *   owner session with the files each is changing (design 8.2)
  * @returns {{
  *   request: (args: {job: string, branch: string, expectHead: string}, session: string | null) =>
  *     Promise<{queued: true, position: number, estimateMinutes: number} | {ok: false, reason: string}>,
@@ -234,6 +236,7 @@ export function createPushQueue({
     protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
     now = () => new Date(),
+    others = async () => [],
 }) {
     if (!env) throw new TypeError("createPushQueue needs the push's allow-listed environment");
     state.pushQueue ??= { next: 1, entries: [], failures: [] };
@@ -389,9 +392,53 @@ export function createPushQueue({
             state.pushedByGitherd ??= {};
             state.pushedByGitherd[e.head] = job.target;
             await ledger({ kind: "action", op, job: job.id, target: job.target });
+            await relate(job, e.head);
             return `pushed ${e.head} to ${e.branch}`;
         }
         return failed(e, job, r);
+    }
+
+    /**
+     * After a push (design 8.2): intersects the pushed branch's files (its diff from the merge base
+     * with the default branch) with every other in-flight worktree's and every owner session's
+     * changed files. Each non-empty intersection records the two as related and tells both
+     * holders. A fact about the diffs; whether to join or wait stays Claude's judgment.
+     * ponytail: a failure to read a diff skips the check for this push; the next push looks again.
+     * @param {any} job the job that pushed
+     * @param {string} head the commit pushed
+     */
+    async function relate(job, head) {
+        let pushed;
+        let found;
+        try {
+            pushed = new Set(lines(await git(root, ["diff", "--name-only", `${remote}/${defaultBranch}...${head}`])));
+            found = pushed.size ? await others(job.id) : [];
+        } catch (err) {
+            await ledger({ kind: "fault", what: "overlap at push", job: job.id, error: String(err?.message ?? err) });
+            return;
+        }
+        const at = now().toISOString();
+        for (const o of found) {
+            const both = o.files.filter((f) => pushed.has(f)).sort((a, b) => a.localeCompare(b));
+            if (!both.length) continue;
+            const named = both.slice(0, 10).join(", ") + (both.length > 10 ? ` and ${both.length - 10} more` : "");
+            const name = o.job ? `job ${o.job}` : `session ${o.session}`;
+            job.related = [...new Set([...(job.related ?? []), o.job ?? `session:${o.session}`])];
+            const text = (/** @type {string} */ who) =>
+                `overlap: ${who} changes files your work changes too: ${named}; recorded as related. ` +
+                "Judge whether to coordinate, join or wait.";
+            job.news.push({ at, text: text(name), acked: false });
+            const other = o.job ? state.jobs?.[o.job] : null;
+            if (other) {
+                other.related = [...new Set([...(other.related ?? []), job.id])];
+                other.news.push({ at, text: text(`job ${job.id}'s push`), acked: false });
+                await ring(other, text(`job ${job.id}'s push`));
+            } else if (o.session && state.sessions?.[o.session]) {
+                const s = state.sessions[o.session];
+                s.news = [...(s.news ?? []), { at, text: text(`job ${job.id}'s push`), acked: false }];
+            }
+            await ledger({ kind: "related", job: job.id, with: o.job ?? `session:${o.session}`, files: both });
+        }
     }
 
     /**

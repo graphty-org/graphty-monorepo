@@ -57,7 +57,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { accessSync, constants, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { basename, delimiter, join } from "node:path";
 import { homedir } from "node:os";
@@ -120,7 +120,14 @@ import { ring as ringWorker, running } from "./tmux.mjs";
 import { readVersion } from "./version.mjs";
 import { endRetired, watchPass, watchWanted } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
-import { referenceAudit, referenceDryRun, referenceGate, refreshReference, removeJobWorktree } from "./worktrees.mjs";
+import {
+    changedFiles,
+    referenceAudit,
+    referenceDryRun,
+    referenceGate,
+    refreshReference,
+    removeJobWorktree,
+} from "./worktrees.mjs";
 
 /** A green commit older than this, while merges go on past it, holds merges (design 4.7). */
 const STARVATION_MS = 6 * 3_600_000;
@@ -2704,8 +2711,42 @@ export async function startDaemon({
             secrets,
             protectedPaths: () => config?.protectedPaths ?? [],
             now,
+            others: overlapFacts,
         });
         return pushQueue;
+    }
+
+    /**
+     * Every other in-flight job's worktree and every owner session, with the files each is changing
+     * (design 8.2), for the overlap check at a push. A session in a job's worktree is that job's.
+     * @param {string} except the job that pushed
+     * @returns {Promise<{job?: string, session?: string, files: string[]}[]>} the holders and files
+     */
+    async function overlapFacts(except) {
+        const base = `origin/${state.master.branch ?? "master"}`;
+        // A checkout git cannot read (gone, not a repository) is left out, not the whole check.
+        const files = (/** @type {string} */ dir) =>
+            existsSync(dir) ? changedFiles(dir, base).catch(() => null) : Promise.resolve(null);
+        const jobTrees = new Set();
+        /** @type {{job?: string, session?: string, files: string[]}[]} */
+        const out = [];
+        for (const j of Object.values(state.jobs ?? {})) {
+            if (!j.worktree) continue;
+            jobTrees.add(j.worktree);
+            if (j.id === except || j.state === "queued" || board.TERMINAL.includes(j.state)) continue;
+            const changed = await files(j.worktree);
+            if (changed) out.push({ job: j.id, files: changed });
+        }
+        /** @type {Map<string, string[] | null>} */
+        const byCwd = new Map();
+        for (const [name, s] of Object.entries(state.sessions ?? {})) {
+            const cwd = /** @type {any} */ (s).cwd;
+            if (!cwd || [...jobTrees].some((t) => cwd === t || cwd.startsWith(`${t}/`))) continue;
+            if (!byCwd.has(cwd)) byCwd.set(cwd, await files(cwd));
+            const changed = byCwd.get(cwd);
+            if (changed) out.push({ session: name, files: changed });
+        }
+        return out;
     }
 
     /**

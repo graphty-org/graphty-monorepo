@@ -116,6 +116,28 @@ export async function git(cwd, args) {
 }
 
 /**
+ * The files a checkout is changing (design 8.2): its branch's diff from the merge base with `base`,
+ * plus its uncommitted and untracked paths, relative to the repository root.
+ * ponytail: a path git quotes (unusual characters) is kept quoted; such a path never matches.
+ * @param {string} dir the checkout, or a directory inside it
+ * @param {string} base the default branch's remote ref, such as `origin/master`
+ * @returns {Promise<string[]>} the paths, sorted
+ */
+export async function changedFiles(dir, base) {
+    const opts = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
+    const diff = await git(dir, [...opts, "diff", "--name-only", `${base}...HEAD`]);
+    // Not `git()`: its trim would cut the first line's leading status column.
+    const status = await run("git", [...opts, "status", "--porcelain", "--untracked-files=all"], { cwd: dir });
+    if (status.code !== 0) throw new Error(`git status failed: ${status.stderr.trim()}`);
+    const paths = new Set(diff ? diff.split("\n") : []);
+    for (const line of status.stdout.split("\n").filter(Boolean)) {
+        const path = line.slice(3);
+        paths.add(path.includes(" -> ") ? path.slice(path.indexOf(" -> ") + 4) : path);
+    }
+    return [...paths].filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Turns a target (`pr:704`, `master`, `issue:643`) into a name safe for a directory and a branch.
  * @param {string} target the target
  * @returns {string} for example `pr-704`

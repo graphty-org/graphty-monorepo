@@ -1,4 +1,5 @@
-import { execFileSync } from "child_process";
+import { execFileSync } from "node:child_process";
+
 import type { Plugin } from "vite";
 
 /**
@@ -16,7 +17,8 @@ type Git = (args: readonly string[]) => string | null;
 
 const git: Git = (args) => {
     try {
-        const out = execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+        const options = { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] } as const;
+        const out = execFileSync("git", args, options).trim(); // NOSONAR(S4036): build-time script runs the developer's or CI's own git
         return out === "" ? null : out;
     } catch {
         return null;

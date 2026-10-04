@@ -227,7 +227,7 @@ export function rewriteNumbers(
 }
 
 /** One key repeated in a JSON object. */
-export interface DuplicateKey {
+interface DuplicateKey {
     /** The key. */
     readonly key: string;
     /** The UTF-16 offset of the repeated occurrence. */

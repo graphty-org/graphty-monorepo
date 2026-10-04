@@ -270,6 +270,19 @@ async function crashLoop(stateDir, stale, at) {
 }
 
 /**
+ * Keeps what the merge decision needs on a lane record: the workflow's own name (CI, GPU,
+ * Hosts), which is how the decision knows a lane, and when its red stretch began.
+ * @param {any} lane the lane record, changed in place
+ * @param {string | undefined} runName the name on the lane's newest run
+ * @param {number} ms the poll's time
+ */
+function noteLaneName(lane, runName, ms) {
+    if (runName) lane.workflowName = runName;
+    if (lane.verdict !== "red") delete lane.redSince;
+    else lane.redSince ??= lane.updatedAt ?? new Date(ms).toISOString();
+}
+
+/**
  * Logs the runs a restart found lost or interrupted.
  * @param {{lost: string[], interrupted: string[]}} recovered what recoverRuns found
  * @param {(level: string, text: string) => void} say the log
@@ -1066,11 +1079,7 @@ export async function startDaemon({
             );
             const updated = updateLane(lane, m.lanes[lane], res.body?.workflow_runs ?? [], config, ms);
             m.lanes[lane] = updated.lane;
-            // The workflow's own name (CI, GPU, Hosts) is what the merge decision knows a lane by.
-            const runName = res.body?.workflow_runs?.[0]?.name;
-            if (runName) m.lanes[lane].workflowName = runName;
-            if (m.lanes[lane].verdict !== "red") delete m.lanes[lane].redSince;
-            else m.lanes[lane].redSince ??= m.lanes[lane].updatedAt ?? new Date(ms).toISOString();
+            noteLaneName(updated.lane, res.body?.workflow_runs?.[0]?.name, ms);
             for (const e of updated.events) {
                 const { event: kind, ...fields } = e;
                 event(kind, fields);
@@ -1111,8 +1120,8 @@ export async function startDaemon({
             const merged = await searchMerged(gh, config.repo, state.merged.lastScanAt ?? iso);
             // A stacked child of a merged pull request is retargeted to the default branch.
             const upkeep = (state.upkeep ??= { lastHeads: {}, mergedHeads: [] });
-            for (const pr of merged)
-                if (pr.headRef && !upkeep.mergedHeads.includes(pr.headRef)) upkeep.mergedHeads.push(pr.headRef);
+            const heads = merged.map((pr) => pr.headRef).filter((h) => h !== null);
+            upkeep.mergedHeads = [...new Set([...upkeep.mergedHeads, ...heads])];
             state.merged = accumulateMerged(state.merged, merged);
             state.merged.lastScanAt ??= iso;
         }
@@ -1124,10 +1133,17 @@ export async function startDaemon({
             } else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
             readConfig();
         }
-        if (mergify === undefined) {
-            const shown = await runGit(["show", `origin/${branch}:.mergify.yml`]);
-            mergify = shown.code === 0 ? shown.stdout : null;
-        }
+        if (mergify === undefined) mergify = await readMergify(branch);
+    }
+
+    /**
+     * `.mergify.yml` on the default branch as last fetched.
+     * @param {string} branch the default branch
+     * @returns {Promise<string | null>} the file, or null when it could not be read
+     */
+    async function readMergify(branch) {
+        const shown = await runGit(["show", `origin/${branch}:.mergify.yml`]);
+        return shown.code === 0 ? shown.stdout : null;
     }
 
     /**
@@ -1724,9 +1740,10 @@ export async function startDaemon({
                 return { status: 400, text: `veto takes issue:<n> or pr:<n>, not ${target}` };
             if (state.vetoes?.[target]) return { status: 409, text: `${target} is already vetoed` };
             const ended = veto(state, target, { by: "owner", reason: "githerd veto", at: now().toISOString() });
+            const what = ended ? `: its ${ended.kind} proposal ended` : "";
             return {
                 status: 200,
-                text: `vetoed ${target}${ended ? `: its ${ended.kind} proposal ended` : ""}; githerd will never propose closing it`,
+                text: `vetoed ${target}${what}; githerd will never propose closing it`,
                 entry: { kind: "veto", target, by: "owner" },
             };
         }

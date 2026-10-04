@@ -91,7 +91,7 @@ export function backoffSlot(openedAt, now) {
 export function laneNotProgressing(lane, ages) {
     const over = ages.filter((a) => a.over);
     if (over.length === 0) return null;
-    const worst = over.reduce((a, b) => (a.ageMs >= b.ageMs ? a : b));
+    const worst = over.reduce((a, b) => (a.ageMs >= b.ageMs ? a : b), over[0]);
     const min = (/** @type {number} */ ms) => Math.round(ms / MINUTE);
     return {
         key: `lane-not-progressing:${lane}`,

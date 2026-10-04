@@ -24,6 +24,7 @@ const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
 import { readLedger, spoolEvent } from "../lib/store.mjs";
+import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
 const FAKE_NOTIFY = fileURLToPath(new URL("helpers/fake-notify.mjs", import.meta.url));
@@ -800,6 +801,40 @@ describe("the poll loop", () => {
         const daemon = await start({ git: async () => ({ code: 1, stdout: "", stderr: "offline" }) });
         writeConfig();
         expect(await daemon.poll()).toEqual({ fatal: expect.stringContaining("no good githerd.config.json") });
+    });
+
+    it("counts each poll's GitHub calls by what they cost, in the ledger and in status", async () => {
+        let etag = 0;
+        gh = createFakeGh((call) => {
+            const out = respond(call);
+            // The login carries an ETag; asked again unchanged, it is a 304.
+            if (call.args.at(-1) !== "user") return out;
+            if (call.args.includes("-H"))
+                return httpOutput({ status: 304, headers: { "X-Ratelimit-Resource": "core" } });
+            return { ...out, stdout: out.stdout.replace("\r\n\r\n", `\r\nETag: "c${++etag}"\r\n\r\n`) };
+        });
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        const before = gh.calls.length;
+        await poll(daemon);
+        const second = gh.calls.slice(before);
+        const graphql = second.filter((c) => c.args.includes("graphql")).length;
+        const last = daemon.state.github.lastPoll;
+        expect(last).toMatchObject({ notModified: 1, graphql, search: 0 });
+        expect(last.core + last.notModified + last.graphql).toBe(second.length);
+        const uses = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "api-use");
+        expect(uses).toHaveLength(2);
+        expect(uses[1]).toMatchObject({ core: last.core, notModified: 1, graphql });
+
+        const ctx = { config: {}, now: clock, startedAt: clock, version: "0", mode: "dry-run", polledAt: null };
+        const text = statusText(statusData(daemon.state, /** @type {any} */ (ctx)), clock);
+        const hour = daemon.state.rate.usage;
+        expect(hour.core + hour.notModified + hour.graphql).toBe(gh.calls.length);
+        expect(text.split("\n")[1]).toBe(
+            `API: last poll ${last.core} core, 1 not modified (304, free), ${graphql} GraphQL; ` +
+                `hour 12:00 UTC so far ${hour.core} core, 1 not modified (304, free), ${hour.graphql} GraphQL`,
+        );
     });
 
     it("skips a poll while one is running", async () => {

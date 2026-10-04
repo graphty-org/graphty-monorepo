@@ -1944,6 +1944,20 @@ export async function startDaemon({
     }
 
     /**
+     * Records what one poll cost GitHub's rate budgets (the client's running totals before and
+     * after it) in the state, for status, and in the ledger when it asked GitHub anything.
+     * @param {Record<string, number>} before the totals when the poll began
+     * @param {string} at when the poll began
+     */
+    function noteApiUse(before, at) {
+        const total = state.rate.usage?.total;
+        if (!total) return;
+        const poll = Object.fromEntries(Object.entries(total).map(([k, v]) => [k, v - (before[k] ?? 0)]));
+        state.github.lastPoll = { at, ...poll };
+        if (Object.values(poll).some((n) => n > 0)) void ledger({ kind: "api-use", ...poll });
+    }
+
+    /**
      * One poll attempt: skipped while another runs. `loopTickAt` is set whether or not GitHub
      * answers. In fatal mode it only sets `loopTickAt` and returns the reason.
      * @returns {Promise<{skipped?: true, fenced?: true, fatal?: string, ok?: boolean}>} what happened
@@ -1968,6 +1982,7 @@ export async function startDaemon({
         step("poll");
         try {
             if (!mayWrite()) return { fenced: true };
+            const before = { ...state.rate.usage?.total };
             try {
                 const waited = await pollGitHub();
                 if (waited) {
@@ -1983,6 +1998,7 @@ export async function startDaemon({
                 say("error", `poll: ${lastPollError}`);
                 void ledger({ kind: "error", where: "poll", error: lastPollError });
             }
+            noteApiUse(before, loopTickAt);
             state.github.downSince = state.rate.downSince ?? null;
             // Checked after the poll, which throws while GitHub is down; a poll that completes has
             // cleared downSince, and its resolveDerived clears this escalation.

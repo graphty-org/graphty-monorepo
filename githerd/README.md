@@ -96,6 +96,11 @@ githerd doctor [--send-test]     # gh, servherd, daemon code, pm2 autorestart, n
 githerd selftest                 # one worker on its own tmux server through every platform check
 ```
 
+The `API:` line of `githerd status` is what githerd's own GitHub calls cost: the last poll, the
+current UTC hour so far and the hour before, as core calls, free 304s (an unchanged answer to a
+request sent with its ETag) and GraphQL calls. The ledger has the same per poll
+(`--kind api-use`) and per hour (`--kind api-hour`).
+
 The container has no cron and no systemd: pm2 restarts a crashed daemon (servherd's
 `--autorestart`), an open session's launcher restarts one whose `alive` file is over a minute old
 and whose process is gone, and after a container restart `githerd ensure` brings it back before any

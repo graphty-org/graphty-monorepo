@@ -173,6 +173,11 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             mode: ctx.mode,
             polledAt: ctx.polledAt ?? null,
             nextPollAt: ctx.nextPollAt ?? null,
+            api: {
+                lastPoll: state.github?.lastPoll ?? null,
+                hour: state.rate?.usage?.hour ? apiCounts(state.rate.usage) : null,
+                lastHour: state.rate?.usage?.lastHour ?? null,
+            },
         },
     };
     if (pr !== undefined) {
@@ -420,6 +425,32 @@ function proposalEntry(p) {
 }
 
 /**
+ * One hour's or one poll's GitHub calls, by what they cost.
+ * @param {any} u a usage record
+ * @returns {{hour?: string, core: number, notModified: number, graphql: number, search: number}} the counts
+ */
+function apiCounts(u) {
+    return { hour: u.hour, core: u.core, notModified: u.notModified, graphql: u.graphql, search: u.search };
+}
+
+/**
+ * Renders what githerd's own GitHub calls cost: the last poll, this UTC hour and the hour before.
+ * A 304 is free; core, GraphQL and search each spend their own hourly budget.
+ * @param {any} api the api data
+ * @returns {string | null} the line, or null before the first call
+ */
+function apiLine(api) {
+    if (!api?.lastPoll && !api?.hour) return null;
+    const words = (/** @type {any} */ c) =>
+        `${c.core} core, ${c.notModified} not modified (304, free), ${c.graphql} GraphQL${c.search ? `, ${c.search} search` : ""}`;
+    const parts = [];
+    if (api.lastPoll) parts.push(`last poll ${words(api.lastPoll)}`);
+    if (api.hour) parts.push(`hour ${api.hour.hour.slice(11)}:00 UTC so far ${words(api.hour)}`);
+    if (api.lastHour) parts.push(`hour ${api.lastHour.hour.slice(11)}:00 UTC ${words(api.lastHour)}`);
+    return `API: ${parts.join("; ")}`;
+}
+
+/**
  * Renders the trust part of status.
  * @param {any} t the trust data
  * @returns {string} the line
@@ -441,6 +472,8 @@ export function statusText(data, now) {
     const polled = g.polledAt ? `polled ${span(now.getTime() - Date.parse(g.polledAt))} ago` : "not polled yet";
     const next = g.nextPollAt ? `, next in ${span(Date.parse(g.nextPollAt) - now.getTime())}` : "";
     const lines = [`githerd ${g.version} (${g.mode}) -- ${polled}${next}`];
+    const api = apiLine(g.api);
+    if (api) lines.push(api);
     for (const f of data.faults ?? []) lines.push(`FAULT ${f.record}: ${f.problem}`);
     if (data.master) lines.push(...masterLines(data.master, now));
     if (data.prs) lines.push(...prLines(data.prs));

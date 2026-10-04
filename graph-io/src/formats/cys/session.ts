@@ -84,9 +84,10 @@ export interface Session {
      * Inflate one entry. Each entry counts against the byte budget and the progress once, however
      * often it is read.
      * @param entry - the entry
+     * @param report - the report a damaged or over-budget entry fails (the network being imported)
      * @returns its bytes
      */
-    read(entry: SessionEntry): Promise<Uint8Array>;
+    read(entry: SessionEntry, report: ImportReportBuilder): Promise<Uint8Array>;
     /** Report the progress complete: the import has read everything it needs. */
     done(): void;
 }
@@ -153,7 +154,7 @@ export async function openSession(
     const charged = new Set<string>();
     return {
         layout,
-        read: async (entry: SessionEntry): Promise<Uint8Array> => {
+        read: async (entry: SessionEntry, into: ImportReportBuilder): Promise<Uint8Array> => {
             const first = !charged.has(entry.name);
             const before = inflated;
             try {
@@ -170,7 +171,7 @@ export async function openSession(
                 }
                 return data;
             } catch (err) {
-                return zipFailure(err, report);
+                return zipFailure(err, into);
             }
         },
         done: (): void => {

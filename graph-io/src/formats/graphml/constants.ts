@@ -123,9 +123,9 @@ export const GRAPHML_ISSUE = Object.freeze({
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding a byte order mark contradicts; the mark wins. */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: the root element is not `<graphml>`. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
     /** Fatal: the document has no `<graph>`. */

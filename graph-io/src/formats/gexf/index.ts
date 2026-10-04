@@ -72,9 +72,9 @@ export const GEXF_ISSUE = Object.freeze({
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A declared encoding a byte order mark contradicts; the mark wins. */
     ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** The root element is not `<gexf>` (fatal). */
     NOT_GEXF: NOT_GEXF_CODE,
     /** The document has no `<graph>` (fatal). */

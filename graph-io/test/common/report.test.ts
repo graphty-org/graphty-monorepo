@@ -155,6 +155,27 @@ describe("ImportReportBuilder", () => {
         expect(b.warningCount).toBe(2);
     });
 
+    it("fork copies issues, counts, losses and warnOnce keys, and the two then diverge", () => {
+        const b = new ImportReportBuilder("csv", 5);
+        b.warnOnce("coercion", "W_ONCE", "first");
+        b.error("validation-error", "E_X", "bad");
+        b.loss("L_X", "lost");
+        b.counts.nodes = 3;
+        const copy = b.fork();
+        expect(copy.warnOnce("coercion", "W_ONCE", "again")).toBeNull();
+        expect(copy.finish()).toMatchObject({
+            counts: { nodes: 3 },
+            errorCount: 1,
+            warningCount: 1,
+            lossy: [{ code: "L_X" }],
+        });
+        copy.warning("coercion", "W_LATER", "only in the copy");
+        copy.counts.nodes++;
+        expect(b.issues.map((i) => i.code)).toEqual(["W_ONCE", "E_X"]);
+        expect(b.counts.nodes).toBe(3);
+        expect(copy.errorLimit).toBe(5);
+    });
+
     describe("recordError", () => {
         it("maps GraphFormatError codes to categories and keeps the code", () => {
             const b = new ImportReportBuilder("csv", Infinity);

@@ -56,7 +56,7 @@ import {
     XgmmlEmitter,
     type XgmmlSettings,
 } from "../xgmml/emit.js";
-import { parseXgmml, replay, resolveSettings } from "../xgmml/importer.js";
+import { parseXgmml, resolveSettings } from "../xgmml/importer.js";
 import {
     CYS_ISSUE,
     CYTOSCAPE_NAMESPACE,
@@ -154,13 +154,6 @@ interface Prepared {
     readonly choices: readonly Choice[];
     /** The network file documents parsed for the listing, by entry name (3.x). */
     readonly docs: Map<string, Parsed>;
-    /** What every network of the call shares, read once (3.x). */
-    readonly cache: {
-        /** The tables read so far, by path. */
-        readonly tables: Map<string, Promise<CyTable | null>>;
-        /** The virtual columns of cytables.xml. */
-        virtuals: Promise<VirtualColumn[]> | null;
-    };
 }
 
 /** A parsed XGMML entry. */
@@ -218,7 +211,7 @@ async function prepare(
         session.layout.era === "3"
             ? await networks3(session, report, inner, docs)
             : await networks2(session, report, inner);
-    return { report, common, inner, zAs, session, choices, docs, cache: { tables: new Map(), virtuals: null } };
+    return { report, common, inner, zAs, session, choices, docs };
 }
 
 /**
@@ -258,9 +251,10 @@ async function parseOptionalEntry(
     inner: ResolvedImportOptions,
     optional: boolean,
 ): Promise<Parsed | null> {
-    const bytes = await session.read(entry);
     const scratch = new ImportReportBuilder(FORMAT, Math.max(0, report.errorLimit - report.errorCount));
     try {
+        // a damaged entry (bad CRC, truncated deflate) fails the scratch report like a parse error
+        const bytes = await session.read(entry, scratch);
         const doc = await parseXgmml(bytes, scratch, inner, undefined);
         const dialect = dialectOf(doc, scratch);
         relay(scratch.issues, report, entry.name);
@@ -280,6 +274,11 @@ async function parseOptionalEntry(
         relay(issues.slice(0, -1), report, entry.name);
         const message = `${entry.name}: ${fatal?.message ?? err.message}`;
         const where = { line: fatal?.line ?? null };
+        if (fatal?.code === CYS_ISSUE.TOO_LARGE) {
+            // the byte budget is a limit of the whole import, not damage to one entry
+            report.error("unsupported", fatal.code, message);
+            throw report.abort(message, { code: fatal.code });
+        }
         if (optional) {
             report.error("parse-error", fatal?.code ?? CYS_ISSUE.CORRUPT, `${message}; the entry is not read`, where);
             return null;
@@ -384,7 +383,7 @@ async function networks3(
     if (layout.networkList === null) {
         return choices;
     }
-    const tree = await parseXmlTree(await session.read(layout.networkList), layout.networkList.name, report, inner);
+    const tree = await parseXmlTree(await session.read(layout.networkList, report), layout.networkList.name, report, inner);
     if (typeof tree === "string") {
         // the list only orders the networks: without it they keep the order of their entries
         report.warning(
@@ -521,21 +520,24 @@ async function fill3(
     const { doc, dialect } = parsed;
     const { graph } = choice;
     const members = membersOf(doc, graph);
+    // each network reads its tables into its own report, so a shared table's issues, and a
+    // table that fails the import, land in every network that reads it.
+    // ponytail: a table shared by several networks is inflated and parsed once per network (the
+    // byte budget is charged once); cache the parse and relay its issues if importAll gets slow
+    const tables = new Map<string, Promise<CyTable | null>>();
     const tableOf = (path: string): Promise<CyTable | null> => {
-        let pending = prepared.cache.tables.get(path);
+        let pending = tables.get(path);
         if (pending === undefined) {
             const entry = layout.tables.find((t) => t.tablePath === path);
             pending =
                 entry === undefined
                     ? Promise.resolve(null)
-                    : session.read(entry).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
-            prepared.cache.tables.set(path, pending);
+                    : session.read(entry, report).then((bytes) => readCyTable(bytes, path, entry.name, report, inner));
+            tables.set(path, pending);
         }
         return pending;
     };
-    prepared.cache.virtuals ??=
-        layout.cytables === null ? Promise.resolve([]) : readVirtuals(session, layout.cytables, report, inner);
-    const virtuals = await prepared.cache.virtuals;
+    const virtuals = layout.cytables === null ? [] : await readVirtuals(session, layout.cytables, report, inner);
     // a row of an element the file declares outside this network (a collapsed group's member, a
     // meta-edge) is Cytoscape's bookkeeping, not a stale row
     const declared = new Set<string>([
@@ -698,7 +700,7 @@ async function readVirtuals(
     report: ImportReportBuilder,
     inner: ResolvedImportOptions,
 ): Promise<VirtualColumn[]> {
-    const tree = await parseXmlTree(await session.read(entry), entry.name, report, inner);
+    const tree = await parseXmlTree(await session.read(entry, report), entry.name, report, inner);
     if (typeof tree === "string") {
         // only the shared columns are lost: every table's own columns are still read
         report.error("parse-error", CYS_ISSUE.TABLE, `${entry.name}: ${tree}; its virtual columns are not read`);
@@ -1036,7 +1038,7 @@ async function networks2(
     if (layout.cysession === null) {
         return report.fail(CYS_ISSUE.NOT_SESSION, "the session has no cysession.xml");
     }
-    const tree = await readXmlTree(await session.read(layout.cysession), layout.cysession.name, report, inner);
+    const tree = await readXmlTree(await session.read(layout.cysession, report), layout.cysession.name, report, inner);
     const documentVersion = tree.attrs.get("documentVersion") ?? "";
     if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
         report.warning(
@@ -1355,11 +1357,11 @@ async function importAllCys(
     // the archive is opened and its network files parsed once: one byte budget, one progress,
     // and every network's report starts from what reading the session recorded
     const first = await prepare(input, null, options);
-    const opened = first.report.finish();
+    const opened = first.report.fork();
     const reports: ImportReport[] = [];
     for (let i = 0; i < first.choices.length; i++) {
         const sink = sinkFor(i);
-        const prepared = i === 0 ? first : { ...first, report: replay(opened, first.common.errorLimit) };
+        const prepared = i === 0 ? first : { ...first, report: opened.fork() };
         reportSinkOptions(sink, options, prepared.report, true);
         reportUnusedOptions(options, prepared.report, USED_OPTIONS);
         reports.push(await importChoice(prepared, i, sink));

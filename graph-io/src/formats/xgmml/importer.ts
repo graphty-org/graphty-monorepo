@@ -351,11 +351,11 @@ async function importAllXgmml(
 ): Promise<ImportReport[]> {
     const first = await prepare(input, null, options);
     // the document is read once; every graph's report starts from what reading it recorded
-    const parsed = first.report.finish();
+    const parsed = first.report.fork();
     const reports: ImportReport[] = [];
     for (let i = 0; i < first.graphs.length; i++) {
         const sink = sinkFor(i);
-        const prepared = i === 0 ? first : { ...first, report: replay(parsed, first.common.errorLimit) };
+        const prepared = i === 0 ? first : { ...first, report: parsed.fork() };
         reportSinkOptions(sink, options, prepared.report, true);
         reportUnusedOptions(options, prepared.report, USED_OPTIONS);
         reports.push(emitOne(prepared, prepared.graphs[i], sink));
@@ -393,26 +393,6 @@ async function listXgmmlGraphs(
  */
 function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
     return graph.label ?? (graph === doc.root ? (doc.rdf.title ?? null) : null) ?? graph.id ?? null;
-}
-
-/**
- * A report builder that starts from the issues and counts of another report.
- * @param from - the report to start from
- * @param errorLimit - the error limit
- * @returns the builder
- */
-export function replay(from: ImportReport, errorLimit: number): ImportReportBuilder {
-    const report = new ImportReportBuilder(from.format, errorLimit);
-    for (const issue of from.issues) {
-        const where = { line: issue.line, element: issue.element };
-        if (issue.severity === "error") {
-            report.error(issue.category, issue.code, issue.message, where);
-        } else {
-            report.warning(issue.category, issue.code, issue.message, where);
-        }
-    }
-    Object.assign(report.counts, from.counts);
-    return report;
 }
 
 /**

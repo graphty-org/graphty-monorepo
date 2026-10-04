@@ -604,6 +604,15 @@ describe("cys robustness: views", () => {
         expect(issue?.severity).toBe("error");
         expect(issue?.message).toContain("views/2-8-Net.xgmml");
     });
+    it("skips a view whose zip data is damaged (a CRC mismatch) with an error naming it", async () => {
+        const damaged = { ...view("2", "8", node("80", "5", 'x="1" y="1"')), crc: 1 };
+        const { snapshot, report } = await load(session('<node id="5"/>', [damaged]));
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.nodes.get("position")).toBeNull();
+        const issue = report.issues.find((i) => i.code === CYS_ISSUE.CORRUPT);
+        expect(issue?.severity).toBe("error");
+        expect(issue?.message).toContain("views/2-8-Net.xgmml");
+    });
 });
 
 describe("cys robustness: tables", () => {
@@ -812,20 +821,19 @@ describe("cys robustness: 2.x sessions", () => {
 
 describe("cys robustness: importAll", () => {
     /** A session of `count` networks, each with its own node table of about `tableBytes` bytes. */
-    function multi(count: number, tableBytes = 100): Uint8Array {
+    function multi(count: number, tableBytes = 100, badCrc = -1): Uint8Array {
         const subs: [string, string, string][] = [];
         const tables: ZipInput[] = [];
         for (let i = 0; i < count; i++) {
             const id = String(i + 2);
             subs.push([id, `N${i}`, `<node id="${100 + i}"/>`]);
-            tables.push(
-                table(`${id}-N${i}/LOCAL_ATTRS-org.cytoscape.model.CyNode-t.cytable`, [
-                    '"SUID","w"',
-                    '"java.lang.Long","java.lang.String"',
-                    '"T",""',
-                    `"${100 + i}","${"w".repeat(tableBytes)}"`,
-                ]),
-            );
+            const entry = table(`${id}-N${i}/LOCAL_ATTRS-org.cytoscape.model.CyNode-t.cytable`, [
+                '"SUID","w"',
+                '"java.lang.Long","java.lang.String"',
+                '"T",""',
+                `"${100 + i}","${"w".repeat(tableBytes)}"`,
+            ]);
+            tables.push(i === badCrc ? { ...entry, crc: 1 } : entry);
         }
         return makeZip([
             { name: `${ROOT}3.0.0.version`, data: "" },
@@ -853,7 +861,19 @@ describe("cys robustness: importAll", () => {
         const results = await importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 40000 } as never);
         expect(results).toHaveLength(5);
         const err = await failure(importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 12000 } as never));
-        expect(codes(err.report)).toContain(CYS_ISSUE.TOO_LARGE);
+        expect(fatal(err).code).toBe(CYS_ISSUE.TOO_LARGE);
+        expect(fatal(err).message).toContain("tables/4-N2/");
+        // the failing network's own report: network 0 pushed its node, network 2 has not yet
+        expect(err.report.counts.nodes).toBe(0);
+        expect(err.report.issues).toHaveLength(1);
+    });
+
+    it("fails a later network's damaged table with that network's report, not the first one's", async () => {
+        const err = await failure(importAllGraphs(multi(5, 100, 3), { format: "cys" }));
+        expect(fatal(err).code).toBe(CYS_ISSUE.CORRUPT);
+        expect(fatal(err).message).toContain("tables/5-N3/");
+        expect(err.report.counts.nodes).toBe(0);
+        expect(err.report.issues).toHaveLength(1);
     });
 
     it("reports monotonic progress that ends at its total", async () => {

@@ -208,20 +208,30 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
             `the end record counts ${count} entries but the central directory holds more; entries would go unread`,
         );
     }
-    checkOverlap(entries);
+    checkOverlap(entries, view);
     return entries;
 }
 
 /**
- * Refuse entries whose data overlap (several directory entries naming one local header is a
- * known zip bomb: each inflates the same bytes again).
+ * Refuse entries whose local header and data overlap (several directory entries naming one local
+ * header is a known zip bomb: each inflates the same bytes again). An entry spans its local
+ * header, its local name and extra field, and its compressed data; a trailing data descriptor is
+ * not counted, since overlapping it inflates nothing twice. A damaged local header counts as a bare
+ * header here and is refused when the entry is read.
  * @param entries - the entries
+ * @param view - the archive
  */
-function checkOverlap(entries: readonly ZipEntry[]): void {
+function checkOverlap(entries: readonly ZipEntry[], view: DataView): void {
     const sorted = [...entries].sort((a, b) => a.localOffset - b.localOffset);
+    const end = (entry: ZipEntry): number => {
+        const at = entry.localOffset;
+        const intact = at + LOCAL_SIZE <= view.byteLength && view.getUint32(at, true) === LOCAL_SIGNATURE;
+        const lengths = intact ? view.getUint16(at + 26, true) + view.getUint16(at + 28, true) : 0;
+        return at + LOCAL_SIZE + lengths + entry.compressedSize;
+    };
     for (let i = 1; i < sorted.length; i++) {
         const before = sorted[i - 1];
-        if (sorted[i].localOffset < before.localOffset + LOCAL_SIZE + before.compressedSize) {
+        if (sorted[i].localOffset < end(before)) {
             throw new ZipError("corrupt", `the entries ${before.name} and ${sorted[i].name} overlap`);
         }
     }

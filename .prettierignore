@@ -42,6 +42,9 @@ graph-io/test/conformance/schemas/
 # githerd's replay data: GitHub's recorded answers, one record per line
 githerd/test/replay/data/
 
+# githerd's snapshots of the worker files it generates, byte for byte as it writes them
+githerd/test/worker-settings/
+
 # Generated benchmark reports
 algorithms/benchmark-results/
 

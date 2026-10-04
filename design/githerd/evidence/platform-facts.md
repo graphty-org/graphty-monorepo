@@ -1445,3 +1445,31 @@ an empty `agent_type` and no SubagentStart (one's last message was the prompt su
 Verdict: passes; the refusal reaches the model and it reports it. A plain counter is wrong, though:
 hidden agents stop without starting. Design changed: 10.1 counts subagents by id (PostToolUse
 `agentId` or SubagentStart in, SubagentStop with the same id out) and ignores stops it never saw start.
+
+### 10.12 S12 and S18 again, with the generated files of `lib/worker-settings.mjs`
+
+Claude Code 2.1.289, Haiku, on a private tmux socket, with the exact `settings.json`, `mcp.json` and
+`env -i` command line that `workerSettings`, `writeJobFiles`, `workerEnv` and `workerArgv` produce,
+cwd a fresh directory under the worktree. Fake Pushover keys were set as daemon variables and on the
+tmux server.
+
+```
+githerd MCP call          ran, no prompt ("waited 1s")
+gh pr create --help       ran, no prompt
+Write visual-baselines/   "File is in a directory that is denied by your permission settings."
+AskUserQuestion,Workflow  "No", "No" in the tool list
+superpowers, discord      0 mentions in the transcript
+Bash: PUSHOVER variables  0; gpg.format ssh; pnpm found
+hooks                     every registered event fired (guard on PreToolUse, PostToolUse Agent,
+                          SubagentStart, SubagentStop), PUSHOVER 0 in each
+CLAUDE* in hooks and Bash Claude Code's own, plus CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION from the
+                          `env` of the owner's user settings
+```
+
+Verdict: passes, after two fixes the first attempts forced. The worker did not start until `--`
+went before the prompt: `--mcp-config` takes several files and read the prompt as a second one.
+Then every fresh worktree opened a "New MCP server found in this project: githerd" dialog, from the
+project's `.mcp.json`; the generated settings now set `disabledMcpjsonServers: ["githerd"]`. A plain
+login shell's PATH lacked pnpm, which the owner's `~/.bashrc` adds only for interactive shells.
+Design changed: 7.1 (the `--`, the interactive login shell PATH, the user-settings `CLAUDE*` names),
+7.2 (the plugins named, `disabledMcpjsonServers`, the guard's registration) and 11.4.

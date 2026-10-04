@@ -1027,21 +1027,29 @@ Workers are prepared in parallel and started one at a time; only the span from `
 
    ```
    tmux -L githerd new-window -d -t githerd -n <job> -c <worktree> \
-     env -i HOME=$HOME USER=$USER LANG=$LANG TERM=xterm-256color PATH=<login shell PATH> \
+     env -i HOME=$HOME USER=$USER LANG=$LANG TERM=xterm-256color PATH=<interactive login shell PATH> \
             SSH_AUTH_SOCK=$SSH_AUTH_SOCK <the GIT_CONFIG_* signing variables> \
             GITHERD_JOB=<id> GITHERD_NONCE=<nonce> \
      claude --model <opus-5.5 or fable> -n githerd-<job> --permission-mode default \
-            --settings <jobs/id>/settings.json --mcp-config <jobs/id>/mcp.json \
+            --settings <jobs/id>/settings.json --mcp-config <jobs/id>/mcp.json -- \
             "You are a githerd worker. Call githerd_next for your job. Decide reversible
              questions yourself and say why; ask the owner only through githerd_ask_owner."
    ```
+
+   The `--` is needed: `--mcp-config` takes several files and otherwise reads the launch prompt as
+   a second configuration file, and claude exits (found by the first real worker start, platform
+   facts 10.12). The PATH is the one the owner's interactive login shell prints (`$SHELL -ilc`,
+   under a clean environment, only the PATH line kept): his `~/.bashrc` adds pnpm and the npm
+   global directory only for interactive shells, so a plain login shell has neither.
 
    `env -i` keeps the stale Claude variables and the Pushover keys that servherd's pm2 carries
    [R19] out of the worker. Verified (S18 in the plan): under `env -i`, neither a hook nor the Bash
    tool sees a Pushover variable (the Bash tool's shell snapshot does not bring `~/.bashrc`'s
    exports back), so the owner's own Stop and Notification hooks, which still run in a worker,
    cannot page from it. Claude Code sets about ten `CLAUDE*` variables of its own in every hook and
-   Bash process; the self-test allows exactly those.
+   Bash process; the self-test allows exactly those, plus any `CLAUDE*` name set in the `env` of the
+   owner's user settings (`CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` today), which reaches every
+   hook and Bash process too.
 
    Commits are signed with the owner's SSH signing key, which his user settings select for every
    Claude session through `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n` and `GIT_CONFIG_VALUE_n`
@@ -1077,10 +1085,19 @@ allow-all [PF 10.1]. The main checkout's `.claude/settings.local.json` applies i
 - **Deny**: tools `AskUserQuestion` and `Workflow`; `Edit(...)` rules (which cover Write too;
   `Write(...)` rules are ignored [PF 10]) for `visual-baselines/`, `githerd/`, `.claude/`,
   `.github/workflows/`, `.husky/`, `tools/prepush.sh` and `~/.githerd/`.
-- **Plugins** that demand interaction with the user are turned off through `enabledPlugins` [PF 10.1].
+- **Plugins** that demand interaction with the user are turned off through `enabledPlugins` [PF 10.1]:
+  `discord@claude-plugins-official` (it would bring the owner's chat into a worker) and
+  `superpowers@claude-plugins-official` (its skills stop to ask the user questions).
+- **Project MCP servers**: `disabledMcpjsonServers: ["githerd"]`. The project's `.mcp.json`
+  registers githerd for owner sessions, and unapproved it opens a "New MCP server found in this
+  project" dialog in every fresh worktree [PF 10.12]; a worker gets its server from its own
+  `mcp.json`.
 - **Prompt suggestions** off (`promptSuggestionEnabled: false`): a suggestion is ghost text in the
   input box that a plain pane capture cannot tell from the owner's unsent text [PF 10.9].
-- **Hooks**: every hook of 4.10, including the PreToolUse guard on Bash, Edit, Write and Agent.
+- **Hooks**: every hook of 4.10, including the PreToolUse guard on Bash, Edit, Write, MultiEdit,
+  NotebookEdit and Agent, which refuses the call when the guard is not installed, and the guard
+  again on PostToolUse (Agent), SubagentStart and SubagentStop to count subagents, which fails open
+  so a subagent can always stop. The guard is given the job's directory as its argument.
 
 ### 7.3 The Stop gate
 
@@ -1484,7 +1501,7 @@ and the configured model, and checks: the registry entry appears; SessionStart r
 with the model and no dialog blocks a fresh worktree; no "Do you want to proceed" appears through
 `githerd_next`, `githerd_claim` and a `gh pr create` for a branch that does not exist (GitHub
 refuses it, so nothing is created); no Pushover variable, and no `CLAUDE*`
-variable beyond the ones Claude Code sets itself (S18), is visible to a hook or the Bash tool; the doorbell starts a turn and UserPromptSubmit sees
+variable beyond the ones Claude Code sets itself and the ones the owner's user settings set (S18), is visible to a hook or the Bash tool; the doorbell starts a turn and UserPromptSubmit sees
 the nonce; a Stop block is obeyed; `githerd_wait` idles and the doorbell wakes; `/exit` removes the
 registry entry; resume works (else resume is marked unverified); the weekly-limit text is readable
 (else display-only). Failure stops starts, is a banner everywhere, and pages once.

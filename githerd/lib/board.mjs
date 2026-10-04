@@ -1,24 +1,20 @@
 /**
- * Claims, sessions and escalations (design sections 5.3, 5.5 and 7.1): pure functions over the
- * daemon's state object. Each one changes `state` in place and returns what the tool answers; the
- * caller persists the state and writes the ledger line before replying, which is what makes a
- * claim atomic.
+ * Sessions, escalations and job records (design sections 5.1 to 5.3, 8.2 and 9.5): pure functions
+ * over the daemon's state object. Each one changes `state` in place and returns what the tool
+ * answers; the caller persists the state and writes the ledger line before replying, which is what
+ * makes a claim atomic.
  *
- * A caller is `{session}` for an interactive session (its id from the launcher), `{run}` for a
- * judgment run (its run id, from a valid run token) or `{daemon: true}` for the daemon itself.
+ * A caller is `{session}` for an interactive session (its id from the launcher) or `{daemon: true}`
+ * for the daemon itself.
  */
 
-/** Default claim lifetime. */
-const DEFAULT_TTL_MINUTES = 120;
-/** Longest claim lifetime a caller may ask for. */
-const MAX_TTL_MINUTES = 480;
 /** A session whose heartbeat is older than this is gone, and its claims lapse. */
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const MINUTE = 60 * 1000;
 
 /**
- * @typedef {{session?: string, run?: string, daemon?: boolean}} Caller
+ * @typedef {{session?: string, daemon?: boolean}} Caller
  * @typedef {{target: string, holder: string, holderName: string | null, purpose: string,
  *   claimedAt: string, expiresAt: string, renewedAt: string | null, fixPr: number | null}} Claim
  */
@@ -26,13 +22,12 @@ const MINUTE = 60 * 1000;
 /**
  * The holder id a caller acts as.
  * @param {Caller} caller who is calling
- * @returns {string} the session id, the run id, or "daemon"
+ * @returns {string} the session id, or "daemon"
  */
 function holderOf(caller) {
-    if (caller.run) return caller.run;
     if (caller.session) return caller.session;
     if (caller.daemon) return "daemon";
-    throw new Error("caller names no session, run or daemon");
+    throw new Error("caller names no session or daemon");
 }
 
 /**
@@ -46,17 +41,16 @@ function ensure(state) {
 }
 
 /**
- * Whether a holder is still alive. A run lives while its record says `running`. A session lives
- * while its heartbeat is younger than 15 minutes, measured from `max(lastSeen, startedAt)` so that
- * after a daemon restart every session gets a full interval to reappear.
+ * Whether a session is still alive: while its heartbeat is younger than 15 minutes, measured from
+ * `max(lastSeen, startedAt)` so that after a daemon restart every session gets a full interval to
+ * reappear.
  * @param {any} state the daemon state
- * @param {string} holder a session id or run id
+ * @param {string} holder a session id
  * @param {Date} now the current time
  * @param {Date} startedAt when this daemon started
  * @returns {boolean} alive
  */
 export function holderAlive(state, holder, now, startedAt) {
-    if (holder.startsWith("run-")) return state.runs?.[holder]?.status === "running";
     const lastSeen = Date.parse(state.sessions?.[holder]?.lastSeen ?? "") || 0;
     return now.getTime() - Math.max(lastSeen, startedAt.getTime()) < SESSION_TIMEOUT_MS;
 }
@@ -73,32 +67,6 @@ function endReason(state, claim, now, startedAt) {
     if (Date.parse(claim.expiresAt) <= now.getTime()) return "expired";
     if (!holderAlive(state, claim.holder, now, startedAt)) return "holder-gone";
     return null;
-}
-
-/**
- * Whether two claim targets overlap: the same target, or two `path:` targets where one is a path
- * prefix of the other on a segment boundary.
- * @param {string} a a target
- * @param {string} b a target
- * @returns {boolean} they conflict
- */
-export function targetsConflict(a, b) {
-    if (a === b) return true;
-    if (!a.startsWith("path:") || !b.startsWith("path:")) return false;
-    const pa = trimSlashes(a.slice(5));
-    const pb = trimSlashes(b.slice(5));
-    return pa === pb || pa.startsWith(`${pb}/`) || pb.startsWith(`${pa}/`);
-}
-
-/**
- * A path without its trailing slashes.
- * @param {string} path the path
- * @returns {string} the path
- */
-function trimSlashes(path) {
-    let end = path.length;
-    while (end > 0 && path[end - 1] === "/") end--;
-    return path.slice(0, end);
 }
 
 /**
@@ -138,124 +106,6 @@ export function expire(state, now, startedAt) {
         if (!holderAlive(state, session, now, startedAt)) delete state.sessions[session];
     }
     return ended;
-}
-
-/**
- * Claims a target, or renews the caller's own claim on it.
- * @param {any} state the daemon state
- * @param {{target: string, purpose: string, ttlMinutes?: number, holderName?: string,
- *   fixPr?: number}} args the tool arguments, already schema-checked
- * @param {Caller} caller who is claiming
- * @param {Date} now the current time
- * @param {Date} startedAt when this daemon started
- * @returns {{ok: true, claim: Claim, renewed: boolean} | {ok: false, error: string} |
- *   {ok: false, target: string, heldBy: string, holderName: string | null, purpose: string,
- *   expiresAt: string}} the answer
- */
-export function claim(state, args, caller, now, startedAt) {
-    ensure(state);
-    const holder = holderOf(caller);
-    if (args.fixPr !== undefined) {
-        if (!caller.session) return { ok: false, error: "fixPr is accepted from interactive sessions only" };
-        if (args.target !== "master") return { ok: false, error: "fixPr is accepted only with target master" };
-    }
-    if (caller.session) heartbeat(state, { session: caller.session }, now);
-    expire(state, now, startedAt);
-
-    for (const other of Object.values(state.claims)) {
-        if (other.holder !== holder && targetsConflict(other.target, args.target)) {
-            return {
-                ok: false,
-                target: other.target,
-                heldBy: other.holder,
-                holderName: other.holderName,
-                purpose: other.purpose,
-                expiresAt: other.expiresAt,
-            };
-        }
-    }
-
-    const ttl = Math.min(args.ttlMinutes ?? DEFAULT_TTL_MINUTES, MAX_TTL_MINUTES);
-    const expiresAt = new Date(now.getTime() + ttl * MINUTE).toISOString();
-    const existing = state.claims[args.target];
-    if (existing) {
-        existing.purpose = args.purpose;
-        existing.expiresAt = expiresAt;
-        existing.renewedAt = now.toISOString();
-        if (args.holderName !== undefined) existing.holderName = args.holderName;
-        if (args.fixPr !== undefined) existing.fixPr = args.fixPr;
-        return { ok: true, claim: existing, renewed: true };
-    }
-    /** @type {Claim} */
-    const created = {
-        target: args.target,
-        holder,
-        holderName: args.holderName ?? null,
-        purpose: args.purpose,
-        claimedAt: now.toISOString(),
-        expiresAt,
-        renewedAt: null,
-        fixPr: args.fixPr ?? null,
-    };
-    state.claims[args.target] = created;
-    return { ok: true, claim: created, renewed: false };
-}
-
-/**
- * Ends a claim. Only its holder may, except that anyone may end a claim whose holder is gone.
- * @param {any} state the daemon state
- * @param {{target: string, outcome?: string, note?: string}} args the tool arguments
- * @param {Caller} caller who is releasing
- * @param {Date} now the current time
- * @param {Date} startedAt when this daemon started
- * @returns {{ok: true, claim: Claim, outcome: string} | {ok: false, error: string}} the answer
- */
-export function release(state, args, caller, now, startedAt) {
-    ensure(state);
-    const holder = holderOf(caller);
-    if (caller.session) heartbeat(state, { session: caller.session }, now);
-    const existing = state.claims[args.target];
-    if (!existing) return { ok: false, error: `no claim on ${args.target}` };
-    if (existing.holder !== holder && holderAlive(state, existing.holder, now, startedAt)) {
-        return {
-            ok: false,
-            error: `${args.target} is held by ${existing.holderName ?? existing.holder}, which is still alive`,
-        };
-    }
-    delete state.claims[args.target];
-    return { ok: true, claim: existing, outcome: args.outcome ?? "done" };
-}
-
-/**
- * Releases every claim a run holds; called when the run ends.
- * @param {any} state the daemon state
- * @param {string} run the run id
- * @returns {string[]} the released targets
- */
-export function releaseRun(state, run) {
-    ensure(state);
-    const targets = Object.values(state.claims)
-        .filter((c) => c.holder === run)
-        .map((c) => c.target);
-    for (const target of targets) delete state.claims[target];
-    return targets;
-}
-
-/**
- * Records what a session is doing, shown under SESSIONS in status.
- * @param {any} state the daemon state
- * @param {{doing: string, targets?: string[], pr?: number}} args the tool arguments
- * @param {Caller} caller who is reporting
- * @param {Date} now the current time
- * @returns {{ok: true, session: any} | {ok: false, error: string}} the answer
- */
-export function report(state, args, caller, now) {
-    if (!caller.session) return { ok: false, error: "only interactive sessions report" };
-    const record = heartbeat(state, { session: caller.session }, now);
-    record.doing = args.doing;
-    record.targets = args.targets ?? [];
-    record.pr = args.pr ?? null;
-    return { ok: true, session: record };
 }
 
 /**

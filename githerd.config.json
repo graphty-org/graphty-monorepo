@@ -31,36 +31,16 @@
         ".claude/",
         "CLAUDE.md"
     ],
-    "noAutoMergePaths": ["githerd/", "githerd.config.json", ".mcp.json", ".claude/", ".github/", "visual-review/"],
-    "worktreeSetup": ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"],
-    "runRulesFile": ".claude/githerd-rules.md",
     "actions": {
         "statuses": false,
         "prUpkeep": false,
-        "runWrites": false,
+        "workers": false,
         "proposals": false,
         "incidents": false
     },
     "grace": { "closeIssueDays": 7, "closeIssueShownDays": 3, "revertMinutes": 30 },
-    "runs": {
-        "maxConcurrent": 2,
-        "dailyBudgetUsd": 15,
-        "dryRunDailyBudgetUsd": 5,
-        "model": { "master-red": "claude-opus-5-5", "backlog-high": "claude-opus-5-5", "default": "claude-opus-5-5" },
-        "caps": {
-            "master-red": { "turns": 80, "budgetUsd": 6, "timeoutMinutes": 60 },
-            "pr-fix": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
-            "pr-conflict": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },
-            "backlog": { "turns": 80, "budgetUsd": 5, "timeoutMinutes": 60 },
-            "backlog-high": { "turns": 200, "budgetUsd": 8, "timeoutMinutes": 120 },
-            "default": { "turns": 30, "budgetUsd": 1.5, "timeoutMinutes": 15 }
-        },
-        "writesPerRun": 10
-    },
-    "backlog": { "wipCap": 3, "agingDays": 60 },
-    "refresh": { "everyHours": 24, "maxIssuesPerRun": 15, "minDaysBetween": 14 },
-    "retriage": { "intervalDays": 7, "startHourUtc": 9, "batchSize": 25, "runsPerHour": 2, "budgetUsd": 25 },
-    "staleDays": 14,
+    "workers": { "model": "claude-opus-5-5", "slots": 3, "urgent": 1, "waiting": 6, "hoursPerDay": 10 },
+    "backlog": { "agingDays": 60 },
     "notify": {
         "command": [
             "/home/apowers/.claude/scripts/claude-notify.sh",

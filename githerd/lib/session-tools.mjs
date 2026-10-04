@@ -1,6 +1,6 @@
 /**
- * The handlers of the eleven tools of design section 6, as the daemon serves them to every session
- * that is not a judgment run: owner sessions and workers. Names, descriptions and schemas are
+ * The handlers of the eleven tools of design section 6, as the daemon serves them to every session:
+ * owner sessions and workers. Names, descriptions and schemas are
  * `TOOLS` in mcp.mjs; the session's MCP server forwards calls here with `params._meta.githerd`
  * (the client's protocol, session, job and nonce), and the MCP core refuses a call in a protocol
  * this daemon does not serve before any handler runs.

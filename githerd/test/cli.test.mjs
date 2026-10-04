@@ -192,15 +192,7 @@ process.stderr.write("fake gh: offline\\n"); process.exit(1);`,
         FAKE_SERVHERD_DIR: fake,
         GITHERD_PM2: JSON.stringify([process.execPath, FAKE_SERVHERD, "pm2"]),
     };
-    for (const name of [
-        "GITHERD_URL",
-        "GITHERD_RUN_TOKEN",
-        "GITHERD_STATE_DIR",
-        "GITHERD_NAME",
-        "GITHERD_DEV",
-        "PM2_HOME",
-        "GITHERD_RUN_ID",
-    ])
+    for (const name of ["GITHERD_STATE_DIR", "GITHERD_NAME", "GITHERD_DEV", "PM2_HOME", "GITHERD_JOB", "GITHERD_NONCE"])
         delete env[name];
     // The owner's notify keys never reach a test daemon's environment file, and a test's CLI runs as
     // from a plain terminal, whether or not the test runner was started from Claude Code.
@@ -604,53 +596,6 @@ describe("ledger", () => {
     });
 });
 
-describe("runs and run", () => {
-    it("lists recent runs newest first and shows one with its files", async () => {
-        const state = join(stateDir());
-        expect((await cli(["runs"])).out).toBe("no runs");
-        mkdirSync(join(state, "runs", "run-a"), { recursive: true });
-        writeFileSync(
-            join(state, "state.json"),
-            JSON.stringify({
-                schema: 1,
-                runs: {
-                    "run-a": {
-                        status: "done",
-                        kind: "triage",
-                        target: "issue:1",
-                        startedAt: "2026-10-01T10:00:00Z",
-                        cost: 0.5,
-                    },
-                    "run-b": {
-                        status: "running",
-                        kind: "master-red",
-                        target: "master",
-                        startedAt: "2026-10-02T10:00:00Z",
-                    },
-                },
-            }),
-        );
-        writeFileSync(join(state, "runs", "run-a", "result.json"), '{"outcome":"done"}\n');
-
-        const runs = await cli(["runs"]);
-        expect(runs.code).toBe(0);
-        expect(runs.out.split("\n")).toEqual([
-            "run-b running master-red master 2026-10-02T10:00:00Z -",
-            "run-a done triage issue:1 2026-10-01T10:00:00Z $0.50",
-        ]);
-        expect((await cli(["runs", "--last", "1"])).out.split("\n")).toHaveLength(1);
-        expect((await cli(["runs", "--last", "0"])).code).toBe(2);
-
-        const run = await cli(["run", "run-a"]);
-        expect(run.code).toBe(0);
-        expect(run.out).toContain('"kind": "triage"');
-        expect(run.out).toContain("files in");
-        expect(run.out).toContain('result.json: {"outcome":"done"}');
-        expect((await cli(["run", "run-z"])).code).toBe(1);
-        expect((await cli(["run", "../state.json"])).code).toBe(2);
-    });
-});
-
 describe("ensure and restart", () => {
     it("ensure starts the daemon once and then finds it warm; restart goes through servherd", async () => {
         // The daemon reads the default branch's config (it is not handed GITHERD_CONFIG); with none
@@ -698,13 +643,11 @@ describe("ensure and restart", () => {
         expect(JSON.parse(readFileSync(join(stateDir(), "daemon-env.json"), "utf8")).PUSHOVER_USER_KEY).toBe("k");
     });
 
-    it("refuses install, ensure, restart and dev inside a run", async () => {
-        for (const extraEnv of [{ GITHERD_RUN_ID: "run-1" }, { GITHERD_URL: "http://127.0.0.1:1" }]) {
-            for (const verb of ["install", "ensure", "restart", "dev"]) {
-                const r = await cli([verb], { extraEnv });
-                expect(r.code, verb).toBe(2);
-                expect(r.err).toBe(`githerd ${verb}: runs never start servers`);
-            }
+    it("refuses install, ensure, restart, dev and selftest to a worker", async () => {
+        for (const verb of ["install", "ensure", "restart", "dev", "selftest"]) {
+            const r = await cli([verb], { extraEnv: { GITHERD_JOB: "issue-7" } });
+            expect(r.code, verb).toBe(2);
+            expect(r.err).toBe(`githerd ${verb}: workers never start or change githerd`);
         }
         expect(servherdCalls()).toEqual([]);
         expect(existsSync(join(stateDir(), "daemon-env.json"))).toBe(false);

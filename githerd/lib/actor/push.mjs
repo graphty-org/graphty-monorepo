@@ -1,37 +1,28 @@
 /**
- * Pushing a run's work (design section 8.3). Runs commit locally and never push; the actor checks
- * the branch and pushes it only when every check passes. A failed check is a `denied` escalation
- * and nothing is pushed. In dry-run, paused, or with `actions.runWrites` off, a passing branch is
- * recorded as a `would-do` ledger line and nothing is pushed. `pushRunBranch` serves the headless
- * runs and goes when they do (design section 13).
- *
- * The push queue (design section 4.8, `createPushQueue`) is what workers push through: the daemon
+ * The push queue (design section 4.8, `createPushQueue`): what workers push through. The daemon
  * runs each push in the job's worktree with the normal hooks, so the pre-push gate runs exactly as
- * for a person, as its own child in its own process group, one at a time, in priority order.
+ * for a person, as its own child in its own process group, in priority order.
  *
  * The push is never forced, never to the default branch, and always an explicit refspec.
  *
- * `pushRunBranch` runs every git command in the main checkout, never in the run's worktree: the run
- * can write that worktree's `.git` file and hook directories, and git would run what they name with
- * the daemon's privileges. The run's head is read from its local branch, which createWorktree named.
- * The queue instead pushes from the job's worktree, because the gate must run as a hook there, but
- * with the main checkout's hooks (`-c core.hooksPath`), and it refuses a push whose new commits or
- * uncommitted changes touch a path the gate runs: the guard refuses Edit and Write to them, not
- * Bash. The push and its gate run the branch's code, so they get an allow-listed environment,
- * never the daemon's own. The commit checks run in the main checkout with hooks off.
+ * It pushes from the job's worktree, because the gate must run as a hook there, but with the main
+ * checkout's hooks (`-c core.hooksPath`), and it refuses a push whose new commits or uncommitted
+ * changes touch a path the gate runs: the guard refuses Edit and Write to them, not Bash. The push
+ * and its gate run the branch's code, so they get an allow-listed environment, never the daemon's
+ * own. The commit checks run in the main checkout with hooks off.
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
-import { escalate, move, TERMINAL } from "../board.mjs";
+import { move, TERMINAL } from "../board.mjs";
 import { classify, SHARED_WINDOW_MS } from "../classify.mjs";
 import { identify } from "../proc.mjs";
 import { checkOutgoing } from "../text.mjs";
 import { git as gitIn, run as exec } from "../worktrees.mjs";
 
-/** No hook and no file-system monitor runs while githerd reads or pushes a run's branch. */
+/** No hook and no file-system monitor runs while githerd reads a branch it is about to push. */
 const SAFE = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"];
 
 /**
@@ -60,73 +51,8 @@ function isProtected(path, protectedPaths) {
 const lines = (out) => (out ? out.split("\n") : []);
 
 /**
- * Lists every reason the run's branch must not be pushed.
- * @param {{
- *   root: string,
- *   localBranch: string,
- *   branch: string,
- *   prBranch?: string | null,
- *   defaultBranch: string,
- *   base: string,
- *   greenSha: string,
- *   run: {id: string, kind: string, target: string},
- *   state: any,
- *   protectedPaths: string[],
- *   env?: Record<string, string | undefined>,
- * }} options `root` is the main checkout and `localBranch` the run's branch there (its worktree's
- *   branch); `branch` is the remote branch the push would update; `prBranch` the target pull
- *   request's head branch; `base` the head the run started from (for a pull request) or the green
- *   SHA it was given (for a new branch)
- * @returns {Promise<{head: string, commits: string[], reasons: string[]}>} the head, the run's own
- *   commits (newest first) and the reasons; no reasons means the branch may be pushed
- */
-async function checkBranch({
-    root: dir,
-    localBranch,
-    branch,
-    prBranch = null,
-    defaultBranch,
-    base,
-    greenSha,
-    run,
-    state,
-    protectedPaths,
-    env = process.env,
-}) {
-    const reasons = [];
-    const head = await git(dir, ["rev-parse", "--verify", `refs/heads/${localBranch}^{commit}`]);
-
-    if (branch === defaultBranch) reasons.push(`the branch is the default branch ${defaultBranch}`);
-    else if (!branch.startsWith("githerd/") && branch !== prBranch) {
-        reasons.push(`the branch ${branch} is neither githerd/<...> nor the pull request's head branch`);
-    }
-    if (!prBranch && base !== greenSha)
-        reasons.push(`a new branch must start at the green SHA ${greenSha}, not ${base}`);
-    if ((await exec("git", [...SAFE, "merge-base", "--is-ancestor", base, head], { cwd: dir })).code !== 0) {
-        reasons.push(`the branch no longer contains its base ${base}`);
-        return { head, commits: [], reasons };
-    }
-
-    // The run's own commits: what it added on top of its base, not master's commits a merge of the
-    // green SHA brought in.
-    const commits = lines(await git(dir, ["rev-list", head, `^${base}`, `^${greenSha}`]));
-    for (const sha of commits) reasons.push(...(await commitReasons(dir, sha, greenSha, env)));
-    if (run.kind === "pr-conflict" && !(await hasGreenMerge(dir, commits, greenSha))) {
-        reasons.push(`a pr-conflict run must merge the green SHA ${greenSha.slice(0, 9)}`);
-    }
-
-    reasons.push(...(await diffReasons(dir, { base, head, greenSha, protectedPaths, env })));
-
-    const verdict = state.master?.verdict;
-    if (verdict !== "green" && !isIncidentRun(state, run)) {
-        reasons.push(`master is ${verdict ?? "unknown"} and this is not the incident's master-red run`);
-    }
-    return { head, commits, reasons };
-}
-
-/**
- * What is wrong with one of the run's commits: its signature, its message, or a merge of anything
- * but the green SHA (not checked when `greenSha` is null).
+ * What is wrong with one commit about to be pushed: its signature, its message, or a merge of
+ * anything but the green SHA (not checked when `greenSha` is null).
  * @param {string} dir the main checkout
  * @param {string} sha the commit
  * @param {string | null} greenSha the green SHA
@@ -145,137 +71,6 @@ async function commitReasons(dir, sha, greenSha, env) {
         reasons.push(`merge ${short} merges ${p.slice(0, 9)}, not the green SHA ${greenSha.slice(0, 9)}`);
     }
     return reasons;
-}
-
-/**
- * What is wrong with the run's own changes: a protected path, or added text the outgoing check
- * refuses. A path whose content equals the green SHA's byte for byte is master's, not the run's:
- * that is how taking master's side of a visual-baseline conflict passes.
- * @param {string} dir the main checkout
- * @param {{base: string, head: string, greenSha: string, protectedPaths: string[],
- *   env: Record<string, string | undefined>}} range what to compare and check against
- * @returns {Promise<string[]>} the reasons
- */
-async function diffReasons(dir, { base, head, greenSha, protectedPaths, env }) {
-    const reasons = [];
-    const fromGreen = new Set(lines(await git(dir, ["diff", "--no-renames", "--name-only", greenSha, head])));
-    const own = lines(await git(dir, ["diff", "--no-renames", "--name-only", base, head])).filter((p) =>
-        fromGreen.has(p),
-    );
-    for (const p of own.filter((p) => isProtected(p, protectedPaths))) {
-        reasons.push(`it changes the protected path ${p}`);
-    }
-    if (own.length === 0) return reasons;
-    const diff = await git(dir, [
-        "diff",
-        "--no-renames",
-        "--no-color",
-        "--no-ext-diff",
-        "-U0",
-        base,
-        head,
-        "--",
-        ...own,
-    ]);
-    const added = diff.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++ "));
-    for (const r of checkOutgoing(added.join("\n"), env)) reasons.push(`the diff ${r}`);
-    return reasons;
-}
-
-/**
- * Whether one of the run's commits is a merge whose second parent is the green SHA.
- * @param {string} dir the main checkout
- * @param {string[]} commits the run's commits
- * @param {string} greenSha the green SHA
- * @returns {Promise<boolean>} true when the green SHA was merged
- */
-async function hasGreenMerge(dir, commits, greenSha) {
-    for (const sha of commits) {
-        const parents = (await git(dir, ["rev-list", "--parents", "-n", "1", sha])).split(" ");
-        if (parents[2] === greenSha) return true;
-    }
-    return false;
-}
-
-/**
- * Whether the run is the master-red run of an open incident.
- * @param {any} state the daemon state
- * @param {{id: string, kind: string}} run the run
- * @returns {boolean} true for the incident's own run
- */
-function isIncidentRun(state, run) {
-    if (run.kind !== "master-red") return false;
-    return Object.values(state.incidents ?? {}).some(
-        (inc) => inc.status === "open" && (inc.runs ?? []).some((r) => r.run === run.id),
-    );
-}
-
-/**
- * Checks the branch and pushes it from the main checkout with `--no-verify`, hooks off, and the
- * refspec `<head sha>:refs/heads/<branch>`.
- * The pushed head is recorded in `state.pushedByGitherd`.
- * @param {Parameters<typeof checkBranch>[0] & {
- *   mode: string,
- *   runWrites: boolean,
- *   remote?: string,
- *   ledger: (entry: {kind: string} & Record<string, unknown>) => unknown,
- *   now?: () => Date,
- * }} options the checks' inputs, plus the effective mode, whether `actions.runWrites` is on, the
- *   remote and the ledger
- * @returns {Promise<{pushed: boolean, head: string, reasons: string[], wouldDo?: boolean}>} what
- *   happened; `reasons` is empty unless the push was refused or failed
- */
-export async function pushRunBranch(options) {
-    const { root, branch, run, state, mode, runWrites, remote = "origin", ledger, now = () => new Date() } = options;
-    const { head, commits, reasons } = await checkBranch(options);
-    if (reasons.length === 0 && commits.length === 0) {
-        await ledger({ kind: "push-skipped", run: run.id, target: run.target, branch, head, reason: "no new commits" });
-        return { pushed: false, head, reasons: [] };
-    }
-    if (reasons.length > 0) return deny(state, ledger, run, branch, head, reasons, now());
-
-    if (mode !== "acting" || !runWrites) {
-        await ledger({ kind: "would-do", op: `push ${head} to ${remote} ${branch}`, run: run.id, target: run.target });
-        return { pushed: false, head, reasons: [], wouldDo: true };
-    }
-    const r = await exec("git", [...SAFE, "push", "--no-verify", remote, `${head}:refs/heads/${branch}`], {
-        cwd: root,
-    });
-    if (r.code !== 0) {
-        return deny(state, ledger, run, branch, head, [`git push failed: ${(r.stderr || r.stdout).trim()}`], now());
-    }
-    state.pushedByGitherd ??= {};
-    state.pushedByGitherd[head] = run.target;
-    await ledger({ kind: "action", op: `push ${head} to ${remote} ${branch}`, run: run.id, target: run.target });
-    return { pushed: true, head, reasons: [] };
-}
-
-/**
- * Raises the `denied` escalation for a refused push and logs it.
- * @param {any} state the daemon state
- * @param {(entry: {kind: string} & Record<string, unknown>) => unknown} ledger the ledger
- * @param {{id: string, target: string}} run the run
- * @param {string} branch the branch
- * @param {string} head its head
- * @param {string[]} reasons why
- * @param {Date} now the current time
- * @returns {Promise<{pushed: false, head: string, reasons: string[]}>} the refusal
- */
-async function deny(state, ledger, run, branch, head, reasons, now) {
-    escalate(
-        state,
-        {
-            key: `push-denied:${run.id}`,
-            kind: "denied",
-            summary: `githerd did not push ${branch} for ${run.target}: ${reasons[0]}`,
-            detail: reasons.join("\n"),
-            target: run.target,
-        },
-        { daemon: true },
-        now,
-    );
-    await ledger({ kind: "push-refused", run: run.id, target: run.target, branch, head, reasons });
-    return { pushed: false, head, reasons };
 }
 
 /**

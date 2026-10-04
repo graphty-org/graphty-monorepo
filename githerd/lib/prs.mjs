@@ -32,7 +32,7 @@ import { execFileSync } from "node:child_process";
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
- *   touchesProtected: boolean, touchesNoAutoMerge: boolean,
+ *   touchesProtected: boolean,
  *   autoMerge: boolean, mergeable: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   ownerGate: boolean, ownerRejected: boolean, stackedOn: number | null,
@@ -44,7 +44,6 @@ const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", 
 const PASSED = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 const BREAKING_SUBJECT = /^[a-z]+(\([^)]*\))?!:/;
 const BREAKING_FOOTER = /BREAKING[ -]CHANGE/;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Whether a PR is breaking, from its title and the full commit list of its head.
@@ -166,7 +165,6 @@ function foldPr(node, prev, config, now) {
               breaking: false,
               breakingCheckedFor: null,
               touchesProtected: false,
-              touchesNoAutoMerge: false,
               conflictSightings: 0,
               ownerRejected: false,
           };
@@ -188,7 +186,6 @@ function foldPr(node, prev, config, now) {
         breaking: kept.breaking,
         breakingCheckedFor: kept.breakingCheckedFor,
         touchesProtected: kept.touchesProtected,
-        touchesNoAutoMerge: kept.touchesNoAutoMerge,
         autoMerge: node.autoMergeRequest != null,
         mergeable: prev?.mergeable ?? null,
         conflictSightings: kept.conflictSightings,
@@ -215,7 +212,6 @@ function foldPr(node, prev, config, now) {
     }
     if (detail.files) {
         rec.touchesProtected = touches(detail.files, config.protectedPaths);
-        rec.touchesNoAutoMerge = touches(detail.files, config.noAutoMergePaths);
     }
     if (config.ownerGate?.rejectMarker && detail.comments) {
         const marker = new RegExp(String.raw`<!--\s*${escape(config.ownerGate.rejectMarker)}\b`);
@@ -264,15 +260,13 @@ export function countsAsBreaking(rec) {
  * The reasons a PR is not merging, in the order of design section 6.5.
  * @param {number} number the PR number
  * @param {PrRecord} rec its record
- * @param {{ master: MasterView, config: Config, now?: number, login?: string | null,
+ * @param {{ master: MasterView,
  *   claims?: Record<string, { holder: string, holderName?: string | null }>,
  *   sessions?: Record<string, { branch?: string, name?: string }> }} ctx `claims` and `sessions`
- *   hold only the live ones; `now` is milliseconds since the epoch; `login` is the owner
+ *   hold only the live ones
  * @returns {string[]} the reasons, empty when nothing holds the PR
  */
 export function whyStuck(number, rec, ctx) {
-    const { config } = ctx;
-    const now = ctx.now ?? Date.now();
     const reasons = [...pullRequestReasons(rec, ctx.master)];
 
     const claim = ctx.claims?.[`pr:${number}`];
@@ -280,9 +274,6 @@ export function whyStuck(number, rec, ctx) {
     for (const [id, s] of Object.entries(ctx.sessions ?? {})) {
         if (s.branch === rec.headRef) reasons.push(`worked by session ${s.name ?? id}`);
     }
-
-    const idleDays = Math.floor((now - Date.parse(rec.lastActivityAt)) / DAY_MS);
-    if (idleDays >= config.staleDays) reasons.push(`stale: no activity for ${idleDays} days`);
     return reasons;
 }
 
@@ -306,7 +297,6 @@ function pullRequestReasons(rec, master) {
     }
     reasons.push(...failingReasons(rec, master));
     if (rec.autoMerge) reasons.push("native auto-merge armed: bypasses githerd/merge");
-    if (rec.touchesNoAutoMerge) reasons.push("owner merges: touches githerd or CI config");
     if (Object.values(rec.required).some((v) => v === "PENDING" || v === "MISSING")) reasons.push("checks pending");
     return reasons;
 }

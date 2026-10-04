@@ -914,18 +914,16 @@ async function page(ctx, message) {
  * server at a session's start and once a minute, every CLI call that needs the daemon, and
  * `githerd ensure`.
  * @param {LauncherContext} ctx the context
- * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "gating" | "refused" | "started"
- *   | "upgraded" | "rolled-back" | "other-launcher" | "run", fatal?: string}>} the daemon's URL and
- *   what was done; `waiting` means an upgrade waits for runs in flight, `gating` that the default
- *   branch's version waits for its gates, `refused` that it failed them (the daemon keeps its
- *   version), `rolled-back` that it did not start and the previous version runs again; `down` means
+ * @returns {Promise<{url: string, action: "warm" | "down" | "gating" | "refused" | "started"
+ *   | "upgraded" | "rolled-back" | "other-launcher", fatal?: string}>} the daemon's URL and
+ *   what was done; `gating` that the default branch's version waits for its gates, `refused`
+ *   that it failed them (the daemon keeps its version), `rolled-back` that it did not start and the previous version runs again; `down` means
  *   the daemon is up in fatal mode, with its reason in `fatal`: never restarted for that, since only
  *   a change of its cause may end fatal mode (design 9.6)
  */
 export async function ensureDaemon(ctx) {
-    if (ctx.env.GITHERD_URL) return { url: ctx.env.GITHERD_URL, action: "run" };
     const target = await targetCode(ctx);
-    const up = await upAnswer(ctx, target, true);
+    const up = await upAnswer(ctx, target);
     if (up) return up;
     if (!takeLock(ctx)) {
         const { health, error } = await waitFor(ctx, (h) => ours(ctx, h) && h.codeHash === target.hash);
@@ -933,7 +931,7 @@ export async function ensureDaemon(ctx) {
         return { url: daemonUrl(health), action: "other-launcher" };
     }
     try {
-        return (await upAnswer(ctx, target, false)) ?? (await startOrUpgrade(ctx, target));
+        return (await upAnswer(ctx, target)) ?? (await startOrUpgrade(ctx, target));
     } finally {
         releaseLock(ctx);
     }
@@ -952,15 +950,14 @@ const daemonUrl = (health) => `http://127.0.0.1:${health.port}`;
  * within the wait is an error, never a restart.
  * @param {LauncherContext} ctx the context
  * @param {{branch: string, hash: string, version: string}} target the code the daemon should run
- * @param {boolean} mayWait false inside the restart lock
- * @returns {Promise<{url: string, action: "warm" | "down" | "waiting" | "gating" | "refused", fatal?: string} | null>}
+ * @returns {Promise<{url: string, action: "warm" | "down" | "gating" | "refused", fatal?: string} | null>}
  *   the answer, or null when the daemon is down or must be upgraded
  */
-async function upAnswer(ctx, target, mayWait) {
+async function upAnswer(ctx, target) {
     if (daemonDown(ctx)) return null;
     const { health, error } = await waitFor(ctx, (h) => ours(ctx, h));
     if (!health) throw new Error(`the daemon is running but does not answer: ${error}`);
-    if (health.codeHash !== target.hash) return olderCode(ctx, target, health, mayWait);
+    if (health.codeHash !== target.hash) return olderCode(ctx, target, health);
     settleAdoption(ctx, health.codeHash);
     const url = daemonUrl(health);
     if (health.fatal) return { url, action: "down", fatal: health.fatal };
@@ -972,16 +969,15 @@ async function upAnswer(ctx, target, mayWait) {
  * version runs only once its gates passed: until then the daemon keeps its version (`gating`), and
  * for good once they failed (`refused`). A daemon in fatal mode cannot gate its successor, so the
  * restarter starts its gates in the background, under the gate lock and never inside the restart
- * lock, and answers `down` at once. A version that passed waits for runs in flight (only outside
- * the restart lock).
+ * lock, and answers `down` at once. A version that passed is adopted at once: workers live in tmux,
+ * not in the daemon, so a restart ends none of them.
  * @param {LauncherContext} ctx the context
  * @param {{branch: string, hash: string, version: string}} target the default branch's version
  * @param {any} health the daemon's /health answer
- * @param {boolean} mayWait false inside the restart lock
- * @returns {Promise<{url: string, action: "down" | "waiting" | "gating" | "refused", fatal?: string} | null>}
+ * @returns {Promise<{url: string, action: "down" | "gating" | "refused", fatal?: string} | null>}
  *   the answer, or null when the daemon must be upgraded (or gated, outside the lock)
  */
-async function olderCode(ctx, target, health, mayWait) {
+async function olderCode(ctx, target, health) {
     const url = daemonUrl(health);
     const down = health.fatal ? { url, action: /** @type {const} */ ("down"), fatal: health.fatal } : null;
     const gate = updateGate(ctx.stateDir, target.hash);
@@ -991,7 +987,7 @@ async function olderCode(ctx, target, health, mayWait) {
         return down;
     }
     if (gate === "refused") return down ?? { url, action: "refused" };
-    return mayWait && health.runsInFlight > 0 ? { url, action: "waiting" } : null;
+    return null;
 }
 
 /**
@@ -1064,8 +1060,7 @@ const TRANSCRIPT_TAIL = 256 * 1024;
  * When the owner last typed into a Claude session working in `cwd`: the newest typed user record of
  * the newest transcript in the project directory Claude Code keeps for that cwd (its path with
  * every character other than a letter or a digit made `-`). The heartbeat sends it, so typing into
- * an interactive session counts as presence (design 11.3); a judgment run's launcher sends no
- * heartbeat.
+ * an interactive session counts as presence (design 11.3).
  * ponytail: the newest transcript of the cwd, not this session's own (the launcher does not know
  * its session id); any session the owner types into in that directory is presence all the same.
  * @param {string} cwd the session's working directory
@@ -1130,10 +1125,6 @@ export async function runLauncher({
 }) {
     const { version } = readVersion();
     const serverInfo = { name: NAME, version };
-    if (env.GITHERD_URL) {
-        await forwardRun({ input, write, env, serverInfo, session: `${basename(worktreeTop(cwd) ?? cwd)}-${ppid}` });
-        return { ensured: null };
-    }
     const found = launcherContext({ cwd, env, now, pkgDir, healthWaitMs });
     if (found.kind === "outside") return { ensured: null };
 
@@ -1163,7 +1154,6 @@ export async function runLauncher({
     const headers = {
         "content-type": "application/json",
         "x-githerd-session": session,
-        ...(env.GITHERD_RUN_TOKEN ? { authorization: `Bearer ${env.GITHERD_RUN_TOKEN}` } : {}),
     };
 
     /** @type {Promise<string> | null} */
@@ -1179,7 +1169,7 @@ export async function runLauncher({
         inflight ??= ensureDaemon(ctx)
             .then((r) => {
                 daemonUrl = r.url;
-                upgradeWaiting = r.action === "waiting" || r.action === "gating";
+                upgradeWaiting = r.action === "gating";
                 return r.url;
             })
             .catch((err) => {
@@ -1275,57 +1265,6 @@ export async function runLauncher({
     });
     clearInterval(beat);
     return { ensured };
-}
-
-/**
- * A judgment run's launcher: it talks only to the daemon that started the run. The run's tools
- * depend on its kind and token, so `tools/list` goes to the daemon as well as `tools/call`; no
- * config, servherd or heartbeat is involved.
- * @param {object} options the streams, the environment, the server info and the session name
- * @param {NodeJS.ReadableStream} options.input JSON-RPC lines from the client
- * @param {(line: string) => void} options.write writes one line to the client
- * @param {Record<string, string | undefined>} options.env `GITHERD_URL` and `GITHERD_RUN_TOKEN`
- * @param {{name: string, version: string}} options.serverInfo answered to `initialize`
- * @param {string} options.session the `x-githerd-session` header
- * @returns {Promise<void>} resolves when the input ends
- */
-async function forwardRun({ input, write, env, serverInfo, session }) {
-    const local = createMcpServer({ serverInfo, tools: () => [] });
-    const headers = {
-        "content-type": "application/json",
-        "x-githerd-session": session,
-        ...(env.GITHERD_RUN_TOKEN ? { authorization: `Bearer ${env.GITHERD_RUN_TOKEN}` } : {}),
-    };
-    await lines(input, async (line) => {
-        let msg;
-        try {
-            msg = JSON.parse(line);
-        } catch {
-            msg = null;
-        }
-        const remote = (msg?.method === "tools/list" || msg?.method === "tools/call") && Object.hasOwn(msg, "id");
-        let reply;
-        if (!remote) reply = await local.handle(line);
-        else {
-            try {
-                const res = await fetch(`${env.GITHERD_URL}/rpc`, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify(msg),
-                    signal: AbortSignal.timeout(CALL_WAIT_MS),
-                });
-                reply = await res.json();
-            } catch (err) {
-                const reason = /** @type {any} */ (err).cause?.code ?? /** @type {Error} */ (err).message;
-                reply = {
-                    jsonrpc: "2.0",
-                    id: msg.id,
-                    error: { code: -32603, message: `githerd daemon not reachable: ${reason}` },
-                };
-            }
-        }
-        if (reply) write(JSON.stringify(reply));
-    });
 }
 
 /**

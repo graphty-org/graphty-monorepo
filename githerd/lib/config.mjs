@@ -17,7 +17,7 @@ const MODES = ["paused", "dry-run", "acting"];
 /** Paths every repository protects; a repository's own lists are added to these. */
 const DEFAULT_PROTECTED = ["githerd.config.json", ".mcp.json", ".claude/", ".github/", "CLAUDE.md"];
 
-const ACTION_GROUPS = ["statuses", "prUpkeep", "runWrites", "proposals", "incidents", "ownerItems"];
+const ACTION_GROUPS = ["statuses", "prUpkeep", "workers", "proposals", "incidents", "ownerItems"];
 
 /** The generic defaults. A repository's file overrides any of these except the protected lists. */
 export const DEFAULTS = Object.freeze({
@@ -29,27 +29,13 @@ export const DEFAULTS = Object.freeze({
     ownerGate: null,
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
-    noAutoMergePaths: DEFAULT_PROTECTED,
-    worktreeSetup: null,
-    runRulesFile: null,
     actions: Object.fromEntries(ACTION_GROUPS.map((g) => [g, false])),
     grace: { closeIssueDays: 7, closeIssueShownDays: 3, revertMinutes: 30 },
-    runs: {
-        maxConcurrent: 2,
-        dailyBudgetUsd: 15,
-        dryRunDailyBudgetUsd: 5,
-        // An effort:high issue's backlog run: its own model and larger caps, never the owner's call.
-        model: { default: "claude-opus-5-5", "backlog-high": "claude-opus-5-5" },
-        caps: {
-            default: { turns: 30, budgetUsd: 1.5, timeoutMinutes: 15 },
-            "backlog-high": { turns: 200, budgetUsd: 8, timeoutMinutes: 120 },
-        },
-        writesPerRun: 10,
-    },
-    backlog: { wipCap: 3, agingDays: 60 },
-    refresh: { everyHours: 24, maxIssuesPerRun: 15, minDaysBetween: 14 },
-    retriage: { intervalDays: 7, startHourUtc: 9, batchSize: 25, runsPerHour: 2, budgetUsd: 25 },
-    staleDays: 14,
+    // The worker sessions (design 8.1): the model, the routine slots, the urgent overflow, the
+    // waiting sessions kept open, and the routine worker hours a day until the usage reading is
+    // verified (urgent work is exempt).
+    workers: { model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10 },
+    backlog: { agingDays: 60 },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
 });
@@ -85,7 +71,7 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 /**
- * The only models a run may use: the owner's decision that everything runs on Opus 5.5 or Fable
+ * The only models a worker may use: the owner's decision that everything runs on Opus 5.5 or Fable
  * (design section 2, evidence/owner-decisions.md section 10). Full model ids, not aliases, so an
  * alias moving to a new model never changes what runs.
  */
@@ -93,7 +79,6 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
 
 /**
  * @typedef {{ workflow: string, gating: "required" | "if-run" | "watch", maxMinutes: number | null }} Lane
- * @typedef {{ turns: number, budgetUsd: number, timeoutMinutes: number }} RunCap
  * @typedef {{
  *   repo: string, mode: "paused" | "dry-run" | "acting", pollSeconds: number, servherdCommand: string[],
  *   lanes: Record<string, Lane>, release: { commitPattern: string, stallHours: number } | null,
@@ -101,16 +86,11 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
  *   labels: { types: string[], priorities: string[], efforts: string[] },
- *   protectedPaths: string[], noAutoMergePaths: string[], worktreeSetup: string[] | null,
- *   runRulesFile: string | null, actions: Record<string, boolean>,
+ *   protectedPaths: string[], actions: Record<string, boolean>,
  *   grace: { closeIssueDays: number, closeIssueShownDays: number, revertMinutes: number },
- *   runs: { maxConcurrent: number, dailyBudgetUsd: number, dryRunDailyBudgetUsd: number,
- *     model: Record<string, string>, caps: Record<string, RunCap>, writesPerRun: number },
- *   backlog: { wipCap: number, agingDays: number },
- *   refresh: { everyHours: number, maxIssuesPerRun: number, minDaysBetween: number },
- *   retriage: { intervalDays: number, startHourUtc: number, batchSize: number, runsPerHour: number,
- *     budgetUsd: number },
- *   staleDays: number, notify: { command: string[] | null, maxPerHour: number },
+ *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number },
+ *   backlog: { agingDays: number },
+ *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
  * }} Config
  */
@@ -177,8 +157,6 @@ function number(v, where, { min, max, integer = true }) {
     return /** @type {number} */ (v);
 }
 
-/** A dollar amount a day or a batch may spend. */
-const money = { min: 0, max: 200, integer: false };
 /** A count of days. */
 const days = { min: 1, max: 365 };
 /** An hour of the day in UTC. */
@@ -270,65 +248,29 @@ function ownerGate(raw) {
     };
 }
 
-function runs(raw) {
-    const d = DEFAULTS.runs;
-    if (raw === undefined) return structuredClone(d);
-    onlyKeys(object(raw, "runs"), Object.keys(d), "runs.");
-    const { model, caps, ...rest } = raw;
-    const out = {
-        ...numbers(
-            rest,
-            {
-                maxConcurrent: d.maxConcurrent,
-                dailyBudgetUsd: d.dailyBudgetUsd,
-                dryRunDailyBudgetUsd: d.dryRunDailyBudgetUsd,
-                writesPerRun: d.writesPerRun,
-            },
-            "runs",
-            {
-                maxConcurrent: { min: 0, max: 8 },
-                dailyBudgetUsd: money,
-                dryRunDailyBudgetUsd: money,
-                writesPerRun: { min: 1, max: 100 },
-            },
-        ),
-        model: { ...d.model },
-        caps: structuredClone(d.caps),
-    };
-    if (model !== undefined) {
-        for (const [kind, name] of Object.entries(object(model, "runs.model"))) {
-            if (!NAME.test(kind)) fail(`runs.model.${kind}: a run kind is lowercase letters, digits and "-"`);
-            if (!MODELS.includes(string(name, `runs.model.${kind}`))) {
-                fail(`runs.model.${kind} must be one of ${MODELS.join(", ")}, not "${name}"`);
-            }
-            out.model[kind] = name;
-        }
-    }
-    if (caps !== undefined) {
-        for (const [kind, cap] of Object.entries(object(caps, "runs.caps"))) out.caps[kind] = runCap(kind, cap);
-    }
-    return out;
-}
-
 /**
- * One run kind's caps under `runs.caps`: turns, budgetUsd and timeoutMinutes, all required.
- * @param {string} kind the run kind
- * @param {unknown} cap its caps
- * @returns {any} the checked caps
+ * The `workers` section (design 8.1): the model, limited to `MODELS`, and the session limits.
+ * @param {unknown} raw the section as written
+ * @returns {Config["workers"]} the section
  */
-function runCap(kind, cap) {
-    if (!NAME.test(kind)) fail(`runs.caps.${kind}: a run kind is lowercase letters, digits and "-"`);
-    const at = `runs.caps.${kind}`;
-    const raw = /** @type {any} */ (cap);
-    onlyKeys(object(raw, at), ["turns", "budgetUsd", "timeoutMinutes"], `${at}.`);
-    for (const key of ["turns", "budgetUsd", "timeoutMinutes"]) {
-        if (raw[key] === undefined) fail(`${at}.${key} is required`);
+function workers(raw) {
+    const d = DEFAULTS.workers;
+    if (raw === undefined) return { ...d };
+    const { model, ...rest } = /** @type {any} */ (object(raw, "workers"));
+    onlyKeys(raw, Object.keys(d), "workers.");
+    if (model !== undefined && !MODELS.includes(string(model, "workers.model"))) {
+        fail(`workers.model must be one of ${MODELS.join(", ")}, not "${model}"`);
     }
-    return numbers(raw, { turns: 0, budgetUsd: 0, timeoutMinutes: 0 }, at, {
-        turns: { min: 1, max: 500 },
-        budgetUsd: { min: 0.01, max: 50, integer: false },
-        timeoutMinutes: { min: 1, max: 8 * 60 },
-    });
+    const limits = { slots: d.slots, urgent: d.urgent, waiting: d.waiting, hoursPerDay: d.hoursPerDay };
+    return {
+        model: model ?? d.model,
+        ...numbers(rest, limits, "workers", {
+            slots: { min: 0, max: 8 },
+            urgent: { min: 0, max: 2 },
+            waiting: { min: 0, max: 20 },
+            hoursPerDay: { min: 1, max: 24 },
+        }),
+    };
 }
 
 /**
@@ -344,7 +286,6 @@ export function normalizeConfig(input) {
     const mode = raw.mode ?? DEFAULTS.mode;
     if (!MODES.includes(mode)) fail(`mode must be one of ${MODES.join(", ")}`);
     const opt = (key, check) => (raw[key] === undefined ? structuredClone(DEFAULTS[key]) : check(raw[key], key));
-    const nullable = (key, check) => (raw[key] === null ? null : opt(key, check));
 
     const labelsRaw = raw.labels === undefined ? {} : object(raw.labels, "labels");
     onlyKeys(labelsRaw, ["types", "priorities", "efforts"], "labels.");
@@ -402,30 +343,10 @@ export function normalizeConfig(input) {
         ownerGate: ownerGate(raw.ownerGate),
         labels: /** @type {any} */ (labels),
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),
-        noAutoMergePaths: withDefaults(raw.noAutoMergePaths, DEFAULT_PROTECTED, "noAutoMergePaths"),
-        worktreeSetup: nullable("worktreeSetup", (v, k) => strings(v, k, { nonEmpty: true })),
-        runRulesFile: nullable("runRulesFile", (v, k) => {
-            if (!REPO_PATH.test(string(v, k)))
-                fail(`${k} must be a path inside the repository, relative and without ".."`);
-            return v;
-        }),
         actions,
         grace,
-        runs: runs(raw.runs),
-        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { wipCap: { min: 0, max: 20 }, agingDays: days }),
-        refresh: numbers(raw.refresh, DEFAULTS.refresh, "refresh", {
-            everyHours: { min: 1, max: 168 },
-            maxIssuesPerRun: { min: 1, max: 100 },
-            minDaysBetween: days,
-        }),
-        retriage: numbers(raw.retriage, DEFAULTS.retriage, "retriage", {
-            intervalDays: { min: 1, max: 90 },
-            startHourUtc: hour,
-            batchSize: { min: 1, max: 100 },
-            runsPerHour: { min: 1, max: 20 },
-            budgetUsd: money,
-        }),
-        staleDays: opt("staleDays", (v, k) => number(v, k, days)),
+        workers: workers(raw.workers),
+        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { agingDays: days }),
         notify: {
             command:
                 notifyRaw.command === undefined || notifyRaw.command === null

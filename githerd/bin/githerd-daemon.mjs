@@ -11,7 +11,7 @@
  * development daemon's pages anyway).
  *
  * `--once` runs one poll, prints the status text and exits: a check against the real repository
- * that touches nothing but its state directory, never pages, and starts no judgment run.
+ * that touches nothing but its state directory, never pages, and starts no worker.
  *
  * An uncaught exception or rejection puts the long-running daemon in fatal mode instead of ending
  * the process (design section 9.6).
@@ -46,7 +46,7 @@ const daemon = await startDaemon({
     root,
     port,
     autoPoll: !once,
-    ...(once ? { quiet: true, runs: false } : { fatalOnUncaught: true }),
+    ...(once ? { quiet: true } : { fatalOnUncaught: true }),
     ...(process.env.GITHERD_STATE_DIR ? { stateDir: process.env.GITHERD_STATE_DIR } : {}),
 });
 if (daemon.fenced) process.exit(1);

@@ -2,7 +2,7 @@
     "name": "@graphty/githerd",
     "version": "0.1.0",
     "private": true,
-    "description": "Keeps a GitHub repository's pipeline moving when Claude Code sessions do most of the work: watches the default branch, pull requests and issues, pages the owner, coordinates sessions and starts bounded fix runs",
+    "description": "Keeps a GitHub repository's pipeline moving when Claude Code sessions do most of the work: watches the default branch, pull requests and issues, pages the owner, coordinates sessions and starts worker sessions in tmux",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "bin": {

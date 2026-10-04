@@ -1,42 +1,28 @@
 /**
- * The work queue (design section 10.2): one deterministic order for everything githerd and the
- * sessions could work on, each item with a one-line reason that explains its place.
+ * What githerd could work on, and in what order (design section 5.4). `jobs.mjs` turns the facts
+ * below into job records; `jobOrder` orders the queued ones, each with a one-line reason.
  *
- * Across kinds, finish before starting: a red master, then a stuck release, then the owner's open
- * PRs that need work, then issues (unlabeled ones first, since they cannot be ranked). PRs go
- * oldest first, a quick unblocker ahead of slower work; a stacked PR waits for its base, and a PR
- * waiting on the owner is listed on the owner's waiting list and not worked. Issues go by
- * priority (aged up one level per `backlog.agingDays` untouched, never above the second level),
- * then bugs first, then oldest, then lower effort. `githerd:next` moves an item to the front of its
+ * The facts: which of the owner's open pull requests need work and which wait on the owner, and
+ * which of the owner's open issues are ready, unlabeled ones (to triage) apart from ranked ones.
+ * Issues rank by priority (aged up one level per `backlog.agingDays` untouched, never above the
+ * second level), then bugs first, then oldest. `githerd:next` moves an item to the front of its
  * kind and `githerd:skip` removes it, but only when the owner applied the label (`ownerLabels`,
  * checked by the daemon against the issue's events).
  *
- * Only the owner's issues and PRs are in it. It changes nothing in the state.
+ * Only the owner's issues and pull requests are in it. Nothing here changes the state.
  */
 
-import { byOwner, holderAlive } from "./board.mjs";
+import { byOwner } from "./board.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Labels that keep an issue out of the queue, besides every `needs-*` label. */
-export const NOT_READY = ["blocked", "research", "in-progress"];
+const NOT_READY = ["blocked", "research", "in-progress"];
 /** Labels that mark a breaking change, held for the next major. */
 const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 /** The owner's override labels. */
 export const NEXT = "githerd:next";
 export const SKIP = "githerd:skip";
-/** The effort label whose backlog runs get the `backlog-high` model and caps. */
-const HIGH_EFFORT = "effort:high";
 const DEFAULT_AGING_DAYS = 60;
-const DEFAULT_WIP_CAP = 3;
-
-/**
- * @typedef {object} QueueItem
- * @property {"master" | "release" | "pr" | "triage" | "issue"} kind what sort of work
- * @property {string} target the claim target: `master`, `task:release`, `pr:N` or `issue:N`
- * @property {string} reason one line that explains the item's place
- * @property {string} [waiting] why it is listed but not worked yet
- * @property {"high"} [effort] an effort:high issue
- */
 
 /**
  * Whether the record carries `label` and the owner is the one who applied it.
@@ -44,7 +30,7 @@ const DEFAULT_WIP_CAP = 3;
  * @param {string} label the label
  * @returns {boolean} true when the owner applied it
  */
-function ownerLabel(rec, label) {
+export function ownerLabel(rec, label) {
     return (rec.labels ?? []).includes(label) && (rec.ownerLabels ?? []).includes(label);
 }
 
@@ -77,42 +63,6 @@ export function openPrFor(state, number) {
 }
 
 /**
- * githerd's own open work: its open PRs plus its running backlog runs, held under `backlog.wipCap`.
- * @param {any} state the daemon state
- * @returns {number} the count
- */
-function openWork(state) {
-    const prs = Object.values(state.prs ?? {}).filter((p) => p.headRef?.startsWith("githerd/")).length;
-    const runs = Object.values(state.runs ?? {}).filter((r) => r.kind === "backlog" && r.status === "running").length;
-    return prs + runs;
-}
-
-/**
- * Who already has a target: a live claim, a running githerd run, or a live session on a PR's
- * head branch.
- * @param {any} state the daemon state
- * @param {string} target the target
- * @param {Date} now the current time
- * @param {Date} startedAt when the daemon started
- * @returns {string | null} the holder's name, or null when nobody has it
- */
-export function takenBy(state, target, now, startedAt) {
-    const claim = state.claims?.[target];
-    if (claim && Date.parse(claim.expiresAt) > now.getTime() && holderAlive(state, claim.holder, now, startedAt)) {
-        return claim.holderName ?? claim.holder;
-    }
-    const run = Object.entries(state.runs ?? {}).find(
-        ([, r]) => r.status === "running" && [r.target, ...(r.batch ?? [])].includes(target),
-    );
-    if (run) return run[0];
-    const head = target.startsWith("pr:") ? state.prs?.[target.slice(3)]?.headRef : null;
-    const session = Object.entries(state.sessions ?? {}).find(
-        ([id, s]) => head && s.branch === head && holderAlive(state, id, now, startedAt),
-    );
-    return session ? (session[1].name ?? session[0]) : null;
-}
-
-/**
  * "41 days old", from a creation time.
  * @param {Date} now the current time
  * @param {string | null | undefined} iso the creation time
@@ -123,13 +73,6 @@ function age(now, iso) {
     const days = Math.floor((now.getTime() - Date.parse(iso)) / DAY);
     return `${days} day${days === 1 ? "" : "s"} old`;
 }
-
-/**
- * A label without its `group:` prefix.
- * @param {string} label the label
- * @returns {string} the name
- */
-const bare = (label) => label.replace(/^[^:]*:/, "");
 
 /**
  * Orders by creation time, oldest first; a record without one goes last, then by number.
@@ -166,11 +109,18 @@ function ownerWait(number, rec, state) {
 }
 
 /**
- * What a PR needs from a run or a session, or null when it is landing on its own.
+ * What one of the owner's open pull requests needs from a worker (design 5.1, `pr` jobs): an own
+ * failing required check, a conflict seen twice, or an owner's visual reject. Null when it is
+ * landing on its own, waits on the owner, is a draft, is stacked on another pull request, or is
+ * not the owner's.
+ * @param {string} number the PR number
  * @param {any} rec the PR record
+ * @param {any} state the daemon state
  * @returns {string | null} the need
  */
-function prNeed(rec) {
+export function prWork(number, rec, state) {
+    if (!byOwner(state, rec.author) || rec.draft || rec.stackedOn) return null;
+    if (ownerWait(number, rec, state)) return null;
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
     if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
@@ -179,198 +129,73 @@ function prNeed(rec) {
 }
 
 /**
- * A quick unblocker for a failing PR: a branch update from a verified-green master, or a rerun of
- * checks that all have a known flake mechanism (`state.flakes`, recorded by `githerd_rerun_failed`).
- * @param {any} rec the PR record
+ * The owner's open pull requests that wait on him, oldest first, each with why.
  * @param {any} state the daemon state
- * @returns {string | null} what to do, or null
+ * @param {Date} now the clock
+ * @returns {{target: string, reason: string}[]} the list
  */
-function quickFix(rec, state) {
-    if (!failingRequired(rec).length) return null;
-    const m = state.master ?? {};
-    if (m.verdict === "green" && m.fixedAt && rec.failingStartedAt && rec.failingStartedAt < m.fixedAt) {
-        return "quick: update the branch from green master";
-    }
-    const own = (rec.failingChecks ?? []).filter((/** @type {string} */ c) => !(c in (rec.required ?? {})));
-    if (own.length && own.every((/** @type {string} */ c) => state.flakes?.[c])) {
-        return `quick: rerun ${own.join(", ")}, a known flake`;
-    }
-    return null;
+export function ownerWaitingPrs(state, now) {
+    return Object.entries(state.prs ?? {})
+        .filter(([, rec]) => byOwner(state, rec.author) && !rec.draft && !ownerLabel(rec, SKIP))
+        .map(([n, rec]) => ({ number: Number(n), createdAt: rec.createdAt ?? null, wait: ownerWait(n, rec, state) }))
+        .filter((p) => p.wait)
+        .sort(oldest)
+        .map((p) => ({ target: `pr:${p.number}`, reason: `${p.wait}, ${age(now, p.createdAt)}` }));
 }
 
 /**
- * An issue's rank: its priority after aging, whether it is a bug, and its effort.
+ * An issue's rank: its priority after aging and whether it is a bug.
  * @param {any} issue the issue record
  * @param {any} config the normalized config
  * @param {Date} now the current time
- * @returns {{priority: number, bug: boolean, effort: number, text: string}} the rank and its words
+ * @returns {{priority: number, bug: boolean}} the rank; priority is an index into the configured
+ *   priorities, lower first, -1 for none
  */
 function rankIssue(issue, config, now) {
     const labels = issue.labels ?? [];
     const priorities = config.labels?.priorities ?? [];
-    const efforts = config.labels?.efforts ?? [];
     const base = priorities.findIndex((p) => labels.includes(p));
     const agingDays = config.backlog?.agingDays ?? DEFAULT_AGING_DAYS;
     const untouched = Math.floor((now.getTime() - Date.parse(issue.updatedAt ?? now.toISOString())) / DAY);
     // Aging never lifts past the second level: only a person makes something critical.
     const priority = Math.max(base - Math.floor(untouched / agingDays), Math.min(base, 1));
-    const bug = labels.includes("bug");
-    const type = bug ? "bug" : (config.labels?.types ?? []).find((t) => labels.includes(t));
-    const aged = priority < base ? ` (aged up from ${bare(priorities[base])}, ${untouched} days untouched)` : "";
-    const effort = efforts.find((e) => labels.includes(e));
-    return {
-        priority,
-        bug,
-        // Efforts are listed largest first, so a larger index is less work.
-        effort: efforts.indexOf(/** @type {string} */ (effort)),
-        // A repository without priority labels ranks every issue alike.
-        text: [
-            `${base === -1 ? "unprioritized" : bare(priorities[priority]) + "-priority"} ${type ?? "issue"}${aged}`,
-            age(now, issue.createdAt),
-            ...(effort ? [effort] : []),
-        ].join(", "),
-    };
+    return { priority, bug: labels.includes("bug") };
 }
 
 /**
- * The ordered queue and the owner's waiting list of PRs.
- * @param {{state: any, config: any, now: Date}} ctx the state, the normalized config and the clock
- * @returns {{items: QueueItem[], ownerWaiting: QueueItem[]}} the queue, and the PRs that wait on
- *   the owner, oldest first
- */
-export function workQueue({ state, config, now }) {
-    const red = state.master?.verdict === "red";
-    const { prs, ownerWaiting } = queuedPrs(state, now, red);
-    const { triage, ranked } = queuedIssues(state, config, now, red);
-    const items = [...urgentItems(state, red), ...[...prs, ...triage, ...ranked].map((x) => x.item)];
-    return { items, ownerWaiting: ownerWaiting.map((x) => x.item) };
-}
-
-/**
- * An item's reason, with the owner's `githerd:next` first when it carries one.
- * @param {boolean} next whether the owner put it next
- * @param {string[]} words the rest of the reason
- * @returns {string} the reason
- */
-const front = (next, words) => [...(next ? [`${NEXT} (owner)`] : []), ...words].join(", ");
-
-/**
- * @typedef {{number: number, createdAt: string | null, item: QueueItem}} Sortable
- */
-
-/**
- * What comes before every pull request and issue: a red master's open incident, then a stuck
- * release.
- * @param {any} state the daemon state
- * @param {boolean} red whether master is red
- * @returns {QueueItem[]} the items, in order
- */
-function urgentItems(state, red) {
-    /** @type {QueueItem[]} */
-    const items = [];
-    const incident = Object.values(state.incidents ?? {}).find((i) => i.status === "open");
-    if (red && incident) {
-        const since = state.master.since ? ` since ${state.master.since.slice(11, 16)} UTC` : "";
-        items.push({ kind: "master", target: "master", reason: `master is red${since} (${incident.id})` });
-    }
-    const release = Object.values(state.escalations ?? {}).find(
-        (e) =>
-            !e.resolvedAt &&
-            (e.kind === "release-failed" || e.kind === "release-stalled" || e.key.startsWith("lane-stuck:")),
-    );
-    if (release) items.push({ kind: "release", target: "task:release", reason: `stuck release: ${release.summary}` });
-    return items;
-}
-
-/**
- * The owner's open pull requests that need work, in order, and those that wait on the owner,
- * oldest first.
- * @param {any} state the daemon state
- * @param {Date} now the clock
- * @param {boolean} red whether master is red
- * @returns {{prs: (Sortable & {next: boolean, quick: boolean})[], ownerWaiting: Sortable[]}} both lists
- */
-function queuedPrs(state, now, red) {
-    /** @type {(Sortable & {next: boolean, quick: boolean})[]} */
-    const prs = [];
-    /** @type {Sortable[]} */
-    const ownerWaiting = [];
-    for (const [n, rec] of Object.entries(state.prs ?? {})) {
-        if (!byOwner(state, rec.author) || rec.draft || ownerLabel(rec, SKIP)) continue;
-        const sortable = { number: Number(n), createdAt: rec.createdAt ?? null };
-        const wait = ownerWait(n, rec, state);
-        const need = wait ? null : prNeed(rec);
-        if (wait) {
-            /** @type {QueueItem} */
-            const item = { kind: "pr", target: `pr:${n}`, reason: `${wait}, ${age(now, rec.createdAt)}` };
-            ownerWaiting.push({ ...sortable, item });
-        }
-        if (!need) continue;
-        const quick = quickFix(rec, state);
-        const next = ownerLabel(rec, NEXT);
-        /** @type {QueueItem} */
-        const item = {
-            kind: "pr",
-            target: `pr:${n}`,
-            reason: front(next, [...(quick ? [quick] : []), need, `open PR, ${age(now, rec.createdAt)}`]),
-        };
-        if (rec.stackedOn) item.waiting = `stacked: waits for #${rec.stackedOn}`;
-        else if (red) item.waiting = "held: master is red";
-        prs.push({ ...sortable, next, quick: Boolean(quick), item });
-    }
-    prs.sort((a, b) => Number(b.next) - Number(a.next) || Number(b.quick) - Number(a.quick) || oldest(a, b));
-    ownerWaiting.sort(oldest);
-    return { prs, ownerWaiting };
-}
-
-/**
- * The owner's open issues that are ready: unlabeled ones to triage, oldest first, then the ranked
- * ones (design 5.4).
+ * The owner's open issues that are ready: unlabeled ones (to triage), oldest first, and labeled
+ * ones in rank order (design 5.4): `githerd:next` first, then priority, bug before other types,
+ * oldest. An issue an open pull request already works on is left out of the ranked list.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
- * @param {boolean} red whether master is red
- * @returns {{triage: (Sortable & {next: boolean})[],
- *   ranked: (Sortable & {next: boolean, priority: number, bug: boolean, effort: number})[]}} both lists
+ * @returns {{triage: number[], ranked: {number: number, priority: number, bug: boolean, next: boolean}[]}}
+ *   the issue numbers
  */
-function queuedIssues(state, config, now, red) {
-    const cap = config.backlog?.wipCap ?? DEFAULT_WIP_CAP;
-    const wip = openWork(state);
-    /** @type {(Sortable & {next: boolean})[]} */
+export function readyIssues(state, config, now) {
     const triage = [];
-    /** @type {(Sortable & {next: boolean, priority: number, bug: boolean, effort: number})[]} */
     const ranked = [];
     for (const [n, issue] of Object.entries(state.issues?.byNumber ?? {})) {
         const labels = issue.labels ?? [];
         if (!issueReady(state, issue, labels)) continue;
-        const next = ownerLabel(issue, NEXT);
-        const sortable = { number: Number(n), createdAt: issue.createdAt ?? null, next };
-        if (missingLabels(labels, config)) {
-            const reason = front(next, ["unlabeled: triage it so it can be ranked", age(now, issue.createdAt)]);
-            triage.push({ ...sortable, item: { kind: "triage", target: `issue:${n}`, reason } });
-            continue;
-        }
-        const rank = rankIssue(issue, config, now);
-        /** @type {QueueItem} */
-        const item = { kind: "issue", target: `issue:${n}`, reason: front(next, [rank.text]) };
-        if (labels.includes(HIGH_EFFORT)) item.effort = "high";
-        const pr = openPrFor(state, Number(n));
-        if (pr) item.waiting = `PR #${pr} is open for it`;
-        else if (red) item.waiting = "held: master is red";
-        else if (wip >= cap) item.waiting = `githerd has ${wip} PRs or runs open, cap ${cap}: landing PRs first`;
-        ranked.push({ ...sortable, ...rank, item });
+        const sortable = { number: Number(n), createdAt: issue.createdAt ?? null, next: ownerLabel(issue, NEXT) };
+        if (missingLabels(labels, config)) triage.push(sortable);
+        else if (openPrFor(state, Number(n)) === null) ranked.push({ ...sortable, ...rankIssue(issue, config, now) });
     }
     triage.sort((a, b) => Number(b.next) - Number(a.next) || oldest(a, b));
+    // A repository without priority labels ranks every issue alike (-1 sorts after the ranked ones).
+    const p = (/** @type {number} */ x) => (x === -1 ? Infinity : x);
     ranked.sort(
         (a, b) =>
             Number(b.next) - Number(a.next) ||
-            a.priority - b.priority ||
+            p(a.priority) - p(b.priority) ||
             Number(b.bug) - Number(a.bug) ||
-            String(a.createdAt ?? "~").localeCompare(String(b.createdAt ?? "~")) ||
-            b.effort - a.effort ||
-            a.number - b.number,
+            oldest(a, b),
     );
-    return { triage, ranked };
+    return {
+        triage: triage.map((t) => t.number),
+        ranked: ranked.map(({ number, priority, bug, next }) => ({ number, priority, bug, next })),
+    };
 }
 
 /**

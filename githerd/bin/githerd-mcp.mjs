@@ -4,9 +4,7 @@
  * startup at once, finds or starts the repository's daemon in the background and forwards tool
  * calls to it. Outside a git repository it exits quietly. stdout carries JSON-RPC lines only.
  *
- * Environment: `GITHERD_CONFIG` (a config file instead of the default branch's), `GITHERD_URL`
- * (set by a judgment run: forward there, never start a daemon), `GITHERD_RUN_TOKEN`,
- * `GITHERD_PM2` (the pm2 command as a JSON array, when servherd's own cannot be found),
+ * Environment: `GITHERD_CONFIG` (a config file instead of the default branch's), `GITHERD_PM2` (the pm2 command as a JSON array, when servherd's own cannot be found),
  * `GITHERD_NAME` (a servherd name other than `githerd`, for a separate daemon).
  */
 

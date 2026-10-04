@@ -275,8 +275,6 @@ beforeEach(() => {
     env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHERD_CONFIG: join(dir, "githerd.config.json") };
     env.FAKE_SERVHERD_DIR = fake;
     env.GITHERD_PM2 = JSON.stringify([process.execPath, FAKE_SERVHERD, "pm2"]);
-    delete env.GITHERD_URL;
-    delete env.GITHERD_RUN_TOKEN;
     delete env.PM2_HOME;
     delete env.GITHERD_STATE_DIR;
     env.HOME = join(dir, "home");
@@ -922,33 +920,6 @@ describe("restarts and upgrades", () => {
         expect(readdirSync(join(stateDir(), "versions"))).toHaveLength(4);
     });
 
-    it("waits for runs in flight before an upgrade", async () => {
-        await gateWith(true);
-        // A daemon on old code that reports one run in flight.
-        const server = createServer((req, res) => {
-            res.end(
-                JSON.stringify({
-                    name: "githerd",
-                    protocol: 1,
-                    root,
-                    codeHash: "0".repeat(40),
-                    port: /** @type {any} */ (server.address()).port,
-                    loopTickAt: new Date().toISOString(),
-                    runsInFlight: 1,
-                }),
-            );
-        });
-        servers.push(server);
-        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
-        const port = /** @type {any} */ (server.address()).port;
-        pretendAlive();
-        writeFileSync(join(stateDir(), "daemon.json"), JSON.stringify({ port }));
-
-        const result = await ensureDaemon(context());
-        expect(result).toEqual({ url: `http://127.0.0.1:${port}`, action: "waiting" });
-        expect(calls()).toEqual([]);
-    });
-
     it("logs and pages once when the daemon does not come up, and retries only after 15 minutes", async () => {
         pushPackage("broken daemon", (pkg) =>
             writeFileSync(join(pkg, "bin", "githerd-daemon.mjs"), "process.exit(1);\n"),
@@ -1080,71 +1051,6 @@ describe("the session proxy", () => {
         expect(readFileSync(join(stateDir(), "state.json"), "utf8")).toBe(before);
         input.end();
         await running;
-    });
-
-    it("forwards to GITHERD_URL with the run token and never calls servherd", async () => {
-        /** @type {any[]} */
-        const seen = [];
-        const server = createServer((req, res) => {
-            let body = "";
-            req.on("data", (d) => (body += d));
-            req.on("end", () => {
-                seen.push({ url: req.url, headers: req.headers, body: JSON.parse(body) });
-                const msg = JSON.parse(body);
-                res.end(
-                    JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: "ok" }] } }),
-                );
-            });
-        });
-        servers.push(server);
-        await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
-        const url = `http://127.0.0.1:${/** @type {any} */ (server.address()).port}`;
-        env.GITHERD_URL = url;
-        env.GITHERD_RUN_TOKEN = "t0ken";
-
-        /** @type {string[]} */
-        const written = [];
-        const input = new PassThrough();
-        const running = runLauncher({
-            input,
-            write: (l) => written.push(l),
-            cwd: root,
-            env,
-            ppid: 7,
-            pkgDir: "githerd",
-        });
-        input.end(
-            [
-                { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
-                { jsonrpc: "2.0", id: 2, method: "tools/list" },
-                { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "githerd_status" } },
-            ]
-                .map((m) => `${JSON.stringify(m)}\n`)
-                .join(""),
-        );
-        await running;
-        const replies = written.map((l) => JSON.parse(l));
-        expect(replies.find((r) => r.id === 1).result.serverInfo.name).toBe("githerd");
-        // The run's tool list is the daemon's, per kind and token, never the static session list.
-        expect(seen.map((s) => s.body.method).sort()).toEqual(["tools/call", "tools/list"]);
-        expect(replies.find((r) => r.id === 3).result.content[0].text).toBe("ok");
-        expect(seen[0].url).toBe("/rpc");
-        expect(seen[0].headers.authorization).toBe("Bearer t0ken");
-        expect(seen[0].headers["x-githerd-session"]).toBe("main-7");
-        expect(await ensureDaemon(context())).toEqual({ url, action: "run" });
-        expect(calls()).toEqual([]);
-    });
-
-    it("answers a run's request with an error when its daemon is gone", async () => {
-        env.GITHERD_URL = "http://127.0.0.1:1";
-        /** @type {string[]} */
-        const written = [];
-        const input = new PassThrough();
-        const running = runLauncher({ input, write: (l) => written.push(l), cwd: root, env, pkgDir: "githerd" });
-        input.end(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
-        await running;
-        expect(JSON.parse(written[0]).error.message).toMatch(/githerd daemon not reachable/);
-        expect(calls()).toEqual([]);
     });
 
     it("reports an unreachable daemon as a tool error after the wait", async () => {

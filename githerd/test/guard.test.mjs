@@ -430,7 +430,7 @@ describe("guard: the write log", () => {
 describe("guard: Edit and Write", () => {
     const DENIED = [
         "visual-baselines/graphty-element/a.png",
-        "githerd/lib/runner.mjs",
+        "githerd/lib/daemon.mjs",
         ".claude/settings.json",
         ".github/workflows/ci.yml",
         ".husky/pre-push",

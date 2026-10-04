@@ -1,67 +1,34 @@
 /**
- * The seven tools every session gets (design section 7.1): githerd_status, githerd_next,
- * githerd_claim, githerd_release, githerd_report, githerd_escalate and githerd_resolve.
- *
- * They are pure functions over the daemon's state object. `sessionTools(ctx)` returns MCP tools
- * bound to one request's context; the write tools change `ctx.state` in place through
- * `board.mjs` and hand a ledger entry to `ctx.commit`, which persists the state before the reply.
+ * The status every session and hook reads (design section 11.1): `statusData` builds it as data,
+ * `statusText` renders it, `alertBanner` is the PHONE ALERTS BROKEN line that leads every tool
+ * result. Pure functions over the daemon's state object.
  *
  * Text that came from outside the owner's control is never shown as-is: PR and issue titles appear
- * only for the owner, the account gh is logged in as (others show number and author), and text a judgment run wrote is
- * prefixed `[run text]` so a reader treats it as data. While phone alerts are broken, every tool
- * result starts with the PHONE ALERTS BROKEN banner.
+ * only for the owner, the account gh is logged in as (others show number and author).
  */
 
 import * as board from "./board.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
-import { takenBy, workQueue } from "./queue.mjs";
-import { assertAscii } from "./text.mjs";
-
-/** The prefix on text a judgment run wrote. */
-export const RUN_TEXT = "[run text]";
+import { jobOrder, ownerWaitingPrs } from "./queue.mjs";
 
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
 
-/** The proposal states status lists: the judgment runs' and the two-session kind's. */
+/** The proposal states status lists. */
 const OPEN_PROPOSALS = new Set(["pending", "dry-run", "unconfirmed", "confirmed", "commenting", "commented"]);
-const SECTIONS = ["all", "master", "prs", "queue", "claims", "owner", "proposals", "runs", "issues"];
+const SECTIONS = ["all", "master", "prs", "queue", "sessions", "owner", "proposals", "issues"];
 
 /**
  * One request's view of the daemon.
  * @typedef {object} ToolContext
- * @property {any} state the daemon state; the write tools change it in place
  * @property {any} config the normalized config
- * @property {import("./board.mjs").Caller} caller who is calling
  * @property {Date} now the current time
  * @property {Date} startedAt when the daemon started
  * @property {string} version the githerd version
  * @property {string} mode the effective mode
  * @property {string | null} [polledAt] when the last poll started
  * @property {string | null} [nextPollAt] when the next poll is due
- * @property {(entry: object) => void | Promise<void>} [commit] persists the state and appends the
- *   ledger entry; awaited before the reply
  */
-
-/**
- * Whether a holder or author id names a judgment run.
- * @param {string | null | undefined} id a holder, a session or a `raisedBy`
- * @returns {boolean} it is a run id
- */
-function isRun(id) {
-    return typeof id === "string" && id.startsWith("run-");
-}
-
-/**
- * Marks text a run wrote.
- * @param {string | null | undefined} text the text
- * @param {string | null | undefined} by who wrote it
- * @returns {string | null} the text, prefixed when a run wrote it
- */
-function marked(text, by) {
-    if (text === null || text === undefined) return null;
-    return isRun(by) ? `${RUN_TEXT} ${text}` : text;
-}
 
 /**
  * Shortens a commit SHA.
@@ -128,9 +95,6 @@ function masterData(state) {
     for (const lane of Object.values(m.lanes ?? {})) {
         for (const run of Object.values(lane.inFlight ?? {})) inFlight.add(run.sha);
     }
-    const fixRun = Object.entries(state.runs ?? {}).find(
-        ([, r]) => r.status === "running" && r.target === "master",
-    )?.[0];
     return {
         verdict: m.verdict ?? "unknown",
         since: m.since ?? null,
@@ -144,7 +108,10 @@ function masterData(state) {
                   id: incident.id,
                   lanes: Object.entries(incident.lanes ?? {}).map(([lane, l]) => ({ lane, ...l })),
                   suspects: incident.suspects ?? [],
-                  fixRun: fixRun ?? null,
+                  fixJob:
+                      Object.values(state.jobs ?? {}).find(
+                          (j) => j.kind === "incident" && j.facts?.scope === "master" && j.holder,
+                      )?.id ?? null,
               }
             : null,
         githubDownSince: state.github?.downSince ?? null,
@@ -184,8 +151,8 @@ function prData(number, pr, owned, full) {
 }
 
 /**
- * Builds the status answer as data: every title by another author is already dropped and every run-written
- * string already marked, so the text and JSON forms show the same thing.
+ * Builds the status answer as data: every title by another author is already dropped, so the text
+ * and JSON forms show the same thing.
  * @param {any} state the daemon state
  * @param {ToolContext} ctx the request context
  * @param {{section?: string, pr?: number}} [args] which part to include
@@ -193,7 +160,7 @@ function prData(number, pr, owned, full) {
  */
 export function statusData(state, ctx, { section = "all", pr } = {}) {
     if (!SECTIONS.includes(section)) throw new Error(`unknown section: ${section}`);
-    const { config, now, startedAt } = ctx;
+    const { now, startedAt } = ctx;
     const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
     /** @type {Record<string, any>} */
@@ -217,36 +184,17 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             .map(([n, p]) => prData(n, p, owned(p.author), false));
     }
     if (want("queue")) {
-        const q = workQueue({ state, config, now });
-        const show = (/** @type {import("./queue.mjs").QueueItem} */ i) => ({
-            target: i.target,
-            kind: i.kind,
-            reason: i.reason,
-            waiting: i.waiting ?? null,
-            takenBy: takenBy(state, i.target, now, startedAt),
-        });
-        out.queue = { items: q.items.map(show), ownerWaiting: q.ownerWaiting.map(show) };
+        const order = jobOrder(state.jobs ?? {});
+        const inFlight = Object.values(state.jobs ?? {})
+            .filter((j) => j.state !== "queued" && !board.TERMINAL.includes(j.state))
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map((j) => ({ job: j.id, state: j.state, reason: j.reason ?? "" }));
+        out.queue = { items: order.items, skipped: order.skipped, inFlight, ownerWaiting: ownerWaitingPrs(state, now) };
     }
-    if (want("claims")) {
-        out.claims = Object.values(state.claims ?? {})
-            .filter((c) => Date.parse(c.expiresAt) > now.getTime())
-            .map((c) => ({
-                target: c.target,
-                holder: c.holder,
-                holderName: c.holderName ?? null,
-                purpose: marked(c.purpose, c.holder),
-                expiresAt: c.expiresAt,
-                fixPr: c.fixPr ?? null,
-            }));
+    if (want("sessions")) {
         out.sessions = Object.entries(state.sessions ?? {})
             .filter(([id]) => board.holderAlive(state, id, now, startedAt))
-            .map(([id, s]) => ({
-                id,
-                name: s.name ?? id,
-                branch: s.branch ?? null,
-                doing: s.doing ?? null,
-                targets: s.targets ?? [],
-            }));
+            .map(([id, s]) => ({ id, name: s.name ?? id, branch: s.branch ?? null }));
     }
     if (want("owner")) {
         out.owner = Object.values(state.escalations ?? {})
@@ -255,7 +203,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             .map((e) => ({
                 key: e.key,
                 kind: e.kind,
-                summary: marked(e.summary, e.raisedBy),
+                summary: e.summary,
                 target: e.target ?? null,
                 raisedBy: e.raisedBy,
                 raisedAt: e.raisedAt,
@@ -270,24 +218,12 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
                 target: p.target,
                 closeAs: p.closeAs ?? null,
                 of: p.of ?? null,
-                reason: (p.reason ?? p.evidence) ? marked(p.reason ?? p.evidence, p.proposedBy) : "",
+                reason: p.reason ?? p.evidence ?? "",
                 graceUntil: p.graceUntil ?? null,
                 presentDays: p.presentDays ?? null,
                 dryRun: p.dryRun === true,
                 status: p.status,
             }));
-    }
-    if (want("runs")) {
-        const today = now.toISOString().slice(0, 10);
-        const runs = Object.entries(state.runs ?? {});
-        out.runs = {
-            today: runs.filter(([, r]) => String(r.startedAt ?? "").startsWith(today)).length,
-            spendUsd: state.spend?.[today] ?? 0,
-            budgetUsd: ctx.mode === "acting" ? config.runs?.dailyBudgetUsd : config.runs?.dryRunDailyBudgetUsd,
-            running: runs
-                .filter(([, r]) => r.status === "running")
-                .map(([id, r]) => ({ id, kind: r.kind ?? null, target: r.target ?? null })),
-        };
     }
     if (want("issues")) {
         const issues = Object.values(state.issues?.byNumber ?? {}).filter((i) => i.state !== "closed");
@@ -334,7 +270,7 @@ function redLines(inc, since) {
         const list = inc.suspects.map((s) => (s.pr ? `#${s.pr} ` : "") + short(s.sha)).join(", ");
         second.push(`${inc.suspects.length === 1 ? "Suspect" : "Suspects"}: ${list}.`);
     }
-    if (inc?.fixRun) second.push(`Fix run ${inc.fixRun} in progress.`);
+    if (inc?.fixJob) second.push(`Incident job ${inc.fixJob} at work.`);
     second.push("Hold pushes and merges.");
     return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];
 }
@@ -412,16 +348,21 @@ function prLines(prs) {
 }
 
 /**
- * Renders the queue part of status.
- * @param {{items: any[], ownerWaiting: any[]}} queue the queue data
+ * Renders the queue part of status: the queued jobs in order, the jobs in flight, and the pull
+ * requests that wait on the owner.
+ * @param {{items: {job: string, reason: string}[], skipped: {job: string, reason: string}[],
+ *   inFlight: {job: string, state: string, reason: string}[], ownerWaiting: {target: string, reason: string}[]}} queue
+ *   the queue data
  * @returns {string[]} the lines
  */
-function queueLines({ items, ownerWaiting }) {
+function queueLines({ items, skipped, inFlight, ownerWaiting }) {
     const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
-    for (const i of items) {
-        const notes = [...(i.waiting ? [i.waiting] : []), ...(i.takenBy ? [`taken by ${i.takenBy}`] : [])];
-        const noted = notes.length ? ` [${notes.join("; ")}]` : "";
-        lines.push(`  ${i.target} -- ${i.reason}${noted}`);
+    for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
+    for (const i of skipped) lines.push(`  ${i.job} -- skipped: ${i.reason}`);
+    if (inFlight.length) {
+        lines.push(
+            `IN FLIGHT${countedList(inFlight.map((j) => `${j.job} ${j.state}${j.reason ? ` (${j.reason})` : ""}`))}`,
+        );
     }
     if (ownerWaiting.length) {
         const list = ownerWaiting.map(
@@ -433,21 +374,13 @@ function queueLines({ items, ownerWaiting }) {
 }
 
 /**
- * Renders the claims and sessions part of status.
- * @param {any[]} claims the claims
- * @param {any[]} sessions the sessions
- * @returns {string[]} the lines
+ * Renders the sessions part of status.
+ * @param {any[]} sessions the live sessions
+ * @returns {string} the line
  */
-function claimLines(claims, sessions) {
-    const held = claims.map((c) => `${c.target} -> ${c.holderName ?? c.holder} (until ${hhmm(c.expiresAt)})`);
-    const named = sessions.map((s) => {
-        const bits = [s.branch ?? "no branch", ...(s.doing ? [`"${s.doing}"`] : [])];
-        return `${s.name} (${bits.join(", ")})`;
-    });
-    return [
-        `CLAIMS: ${held.length ? held.join("; ") : "none"}`,
-        `SESSIONS: ${named.length ? named.join(", ") : "none"}`,
-    ];
+function sessionLine(sessions) {
+    const named = sessions.map((s) => `${s.name} (${s.branch ?? "no branch"})`);
+    return `SESSIONS: ${named.length ? named.join(", ") : "none"}`;
 }
 
 /**
@@ -486,25 +419,14 @@ function proposalEntry(p) {
 }
 
 /**
- * Renders the runs part of status.
- * @param {any} r the runs data
- * @returns {string} the line
- */
-function runsLine(r) {
-    const running = r.running.map((x) => `${x.id} (${[x.kind, x.target].filter(Boolean).join(" ")})`);
-    const live = running.length ? `; running: ${running.join(", ")}` : "";
-    return `RUNS TODAY: ${r.today} ($${r.spendUsd.toFixed(2)} of $${r.budgetUsd})${live}`;
-}
-
-/**
  * Renders the trust part of status.
  * @param {any} t the trust data
  * @returns {string} the line
  */
 function trustLine(t) {
     const why = t.error ? ` (${t.error})` : "";
-    const who = t.login ? `acting only on ${t.login}'s issues and PRs` : `login unresolved, no runs start${why}`;
-    return `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from runs`;
+    const who = t.login ? `acting only on ${t.login}'s issues and PRs` : `login unresolved, no workers start${why}`;
+    return `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from workers`;
 }
 
 /**
@@ -521,13 +443,12 @@ export function statusText(data, now) {
     if (data.master) lines.push(...masterLines(data.master, now));
     if (data.prs) lines.push(...prLines(data.prs));
     if (data.queue) lines.push(...queueLines(data.queue));
-    if (data.claims) lines.push(...claimLines(data.claims, data.sessions));
+    if (data.sessions) lines.push(sessionLine(data.sessions));
     if (data.owner) {
         const items = data.owner.map((e) => (OWNER_KINDS.has(e.kind) ? e.summary : `${e.kind}: ${e.summary}`));
         lines.push(`WAITING ON OWNER${countedList(items)}`);
     }
     if (data.proposals) lines.push(`PROPOSALS${countedList(data.proposals.map(proposalEntry))}`);
-    if (data.runs) lines.push(runsLine(data.runs));
     if (data.issues) {
         const i = data.issues;
         const since = i.since ? `, polled since ${i.since}` : "";
@@ -535,280 +456,4 @@ export function statusText(data, now) {
     }
     if (data.trust) lines.push(trustLine(data.trust));
     return lines.join("\n");
-}
-
-/**
- * Formats a claim answer from board.mjs as the tool's JSON text.
- * @param {any} result the board answer
- * @returns {import("./mcp.mjs").ToolResult} the result
- */
-function claimResult(result) {
-    if (!result.ok && "error" in result) return { text: result.error, isError: true };
-    return { text: JSON.stringify(result) };
-}
-
-/**
- * Builds the seven session tools bound to one request.
- * @param {ToolContext} ctx the request context
- * @returns {import("./mcp.mjs").Tool[]} the tools
- */
-export function sessionTools(ctx) {
-    const { state, caller, now, startedAt } = ctx;
-
-    /**
-     * Wraps a tool body: refreshes the session's heartbeat, persists a change before replying, and
-     * puts the alert banner first.
-     * @param {(args: any) => {result: string | import("./mcp.mjs").ToolResult, entry?: object, bare?: boolean}} body
-     *   the tool; `bare` leaves the banner off a result that carries it as a field
-     * @returns {(args: any) => Promise<import("./mcp.mjs").ToolResult>} the handler
-     */
-    const handler = (body) => async (args) => {
-        if (caller.session) {
-            board.heartbeat(state, { session: caller.session }, now);
-            // A steered worker calling githerd again is back on its job (design 7.6).
-            for (const job of Object.values(state.jobs ?? {})) {
-                if (job.steeredAt && job.holder?.session === caller.session) job.steeredAt = null;
-            }
-        }
-        const { result, entry, bare } = body(args);
-        if (entry && ctx.commit) await ctx.commit({ ts: now.toISOString(), ...entry });
-        const out = typeof result === "string" ? { text: result } : result;
-        const banner = alertBanner(state);
-        return banner && !bare ? { ...out, text: `${banner}\n${out.text}` } : out;
-    };
-    const by = caller.run ?? caller.session ?? "daemon";
-    const untrusted = isRun(by) ? { untrusted: true } : {};
-
-    return [
-        {
-            name: "githerd_status",
-            description:
-                "Master state and since when, the PR queue with why each PR is stuck, claims, sessions, the owner's list, pending proposals, runs and spend.",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    section: { type: "string", enum: SECTIONS, default: "all" },
-                    pr: {
-                        type: "integer",
-                        minimum: 1,
-                        description: "Only this pull request, with its full check list.",
-                    },
-                    format: { type: "string", enum: ["text", "json"], default: "text" },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                const { banner, ...data } = statusData(state, ctx, args);
-                if (args.format === "json") return { result: JSON.stringify({ banner, ...data }, null, 2), bare: true };
-                return { result: statusText(data, now) };
-            }),
-        },
-        {
-            name: "githerd_next",
-            description:
-                "Take the next piece of work: the top item of githerd's work queue that nobody holds, claimed for you in the same call so no other session gets it. Returns {ok:true, target, kind, reason, claim} or {ok:false, reason}. Release the claim when you finish.",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    holderName: {
-                        type: "string",
-                        maxLength: 80,
-                        description: "Your ListAgents name, so others can message you.",
-                    },
-                    ttlMinutes: { type: "integer", minimum: 5, maximum: 480, default: 120 },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                // Synchronous from the queue to the claim: the daemon is one Node process, so two
-                // sessions asking at once can never take the same item.
-                for (const item of workQueue({ state, config: ctx.config, now }).items) {
-                    if (item.waiting || takenBy(state, item.target, now, startedAt)) continue;
-                    const purpose = `githerd_next: ${item.reason}`.slice(0, 200);
-                    const result = board.claim(
-                        state,
-                        { target: item.target, purpose, ttlMinutes: args.ttlMinutes, holderName: args.holderName },
-                        caller,
-                        now,
-                        startedAt,
-                    );
-                    if (!result.ok) continue;
-                    const { target, kind, reason } = item;
-                    return {
-                        result: JSON.stringify({ ok: true, target, kind, reason, claim: result.claim }),
-                        entry: { kind: "claim", target, holder: by, purpose, renewed: false, via: "githerd_next" },
-                    };
-                }
-                return {
-                    result: JSON.stringify({
-                        ok: false,
-                        reason: "nothing to take: the queue is empty, waiting or held",
-                    }),
-                };
-            }),
-        },
-        {
-            name: "githerd_claim",
-            description:
-                "Claim a target before working on it, so other sessions keep off. Claiming your own target again renews it. Returns {ok:true, claim} or {ok:false, heldBy, holderName, purpose, expiresAt}.",
-            inputSchema: {
-                type: "object",
-                required: ["target", "purpose"],
-                properties: {
-                    target: {
-                        type: "string",
-                        pattern:
-                            "^(pr:[0-9]+|issue:[0-9]+|master|branch:[A-Za-z0-9._/-]+|path:[A-Za-z0-9._/-]+|task:[a-z0-9-]{3,60})$",
-                    },
-                    purpose: { type: "string", maxLength: 200 },
-                    ttlMinutes: { type: "integer", minimum: 5, maximum: 480, default: 120 },
-                    holderName: {
-                        type: "string",
-                        maxLength: 80,
-                        description: "Your ListAgents name, so others can message you.",
-                    },
-                    fixPr: {
-                        type: "integer",
-                        minimum: 1,
-                        description:
-                            "With target master: the PR that fixes master. It is exempt from the red-master hold. Sessions only.",
-                    },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                const result = board.claim(state, args, caller, now, startedAt);
-                return {
-                    result: claimResult(result),
-                    entry: result.ok
-                        ? {
-                              kind: "claim",
-                              target: args.target,
-                              holder: by,
-                              purpose: args.purpose,
-                              renewed: result.renewed,
-                              ...untrusted,
-                          }
-                        : undefined,
-                };
-            }),
-        },
-        {
-            name: "githerd_release",
-            description:
-                "End a claim. Only the holder can release it, except that anyone can release a claim whose holder session is gone.",
-            inputSchema: {
-                type: "object",
-                required: ["target"],
-                properties: {
-                    target: { type: "string", maxLength: 200 },
-                    outcome: { type: "string", enum: ["done", "abandoned", "handed-off"] },
-                    note: { type: "string", maxLength: 500 },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                const result = board.release(state, args, caller, now, startedAt);
-                if ("error" in result) return { result: { text: result.error, isError: true } };
-                return {
-                    result: `released ${args.target} (${result.outcome})`,
-                    entry: {
-                        kind: "release",
-                        target: args.target,
-                        holder: result.claim.holder,
-                        by,
-                        outcome: result.outcome,
-                        note: args.note ?? null,
-                        ...untrusted,
-                    },
-                };
-            }),
-        },
-        {
-            name: "githerd_report",
-            description: "Say what this session is doing; shown under SESSIONS in githerd_status.",
-            inputSchema: {
-                type: "object",
-                required: ["doing"],
-                properties: {
-                    doing: { type: "string", maxLength: 200 },
-                    targets: { type: "array", maxItems: 10, items: { type: "string", maxLength: 100 } },
-                    pr: { type: "integer", minimum: 1 },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                const result = board.report(state, args, caller, now);
-                if ("error" in result) return { result: { text: result.error, isError: true } };
-                return {
-                    result: `recorded: ${args.doing}`,
-                    entry: { kind: "report", session: caller.session, doing: args.doing, targets: args.targets ?? [] },
-                };
-            }),
-        },
-        {
-            name: "githerd_escalate",
-            description:
-                "Put a question or a blocker on the owner's list. Raising the same key again is a no-op. From an interactive session it is recorded and never pages the phone: end your reply with an ACTION NEEDED: line if the owner must act.",
-            inputSchema: {
-                type: "object",
-                required: ["key", "kind", "summary"],
-                properties: {
-                    key: {
-                        type: "string",
-                        pattern: "^[a-z0-9:._/-]{3,120}$",
-                        description: "Stable id; raising the same key again is a no-op.",
-                    },
-                    kind: {
-                        type: "string",
-                        enum: ["decision", "credential", "visual-review", "approval", "blocked", "other"],
-                    },
-                    summary: {
-                        type: "string",
-                        maxLength: 140,
-                        description: "What the owner must do, actionable from a phone.",
-                    },
-                    detail: { type: "string", maxLength: 4000 },
-                    target: { type: "string", maxLength: 100 },
-                },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                // A run's escalation can reach the phone, which takes plain ASCII only.
-                assertAscii(args.summary, "summary");
-                const result = board.escalate(state, args, caller, now);
-                if (result.existing) return { result: `already on the owner's list: ${args.key}` };
-                const pages = caller.session ? " (recorded; escalations from a session never page)" : "";
-                return {
-                    result: `on the owner's list: ${args.key}${pages}`,
-                    entry: {
-                        kind: "escalation",
-                        key: args.key,
-                        escalationKind: args.kind,
-                        summary: args.summary,
-                        raisedBy: by,
-                        ...untrusted,
-                    },
-                };
-            }),
-        },
-        {
-            name: "githerd_resolve",
-            description: "Clear an escalation from the owner's list.",
-            inputSchema: {
-                type: "object",
-                required: ["key"],
-                properties: { key: { type: "string", pattern: "^[a-z0-9:._/-]{3,120}$" } },
-                additionalProperties: false,
-            },
-            handler: handler((args) => {
-                const result = board.resolve(state, args, now);
-                if ("error" in result) return { result: { text: result.error, isError: true } };
-                return {
-                    result: `resolved ${args.key}`,
-                    entry: { kind: "escalation", key: args.key, resolved: true, by },
-                };
-            }),
-        },
-    ];
 }

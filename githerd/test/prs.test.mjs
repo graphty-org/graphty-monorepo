@@ -198,13 +198,11 @@ describe("files", () => {
         expect(touches(["githerd.config.json.bak", "githerdx/a"], ["githerd.config.json", "githerd/"])).toBe(false);
     });
 
-    it("sets touchesProtected and touchesNoAutoMerge from the head's files", () => {
+    it("sets touchesProtected from the head's files", () => {
         const rec = polls([node({ detail: { commits: { messages: [] }, files: ["visual-baselines/a.png"] } })])["704"];
         expect(rec.touchesProtected).toBe(true);
-        expect(rec.touchesNoAutoMerge).toBe(false);
-        const ci = polls([node({ detail: { commits: { messages: [] }, files: [".github/workflows/ci.yml"] } })])["704"];
-        expect(ci.touchesNoAutoMerge).toBe(true);
-        expect(stuck(ci)).toEqual(["owner merges: touches githerd or CI config"]);
+        const docs = polls([node({ detail: { commits: { messages: [] }, files: ["docs/a.md"] } })])["704"];
+        expect(docs.touchesProtected).toBe(false);
     });
 });
 
@@ -334,19 +332,12 @@ describe("whyStuck", () => {
         expect(stuck(rec, { sessions: { s: { branch: "fix/x", name: "bc" } } })).toEqual(["worked by session bc"]);
     });
 
-    it("stale after staleDays with no activity", () => {
-        const rec = polls([node({ updatedAt: "2026-09-10T15:00:00Z" })])["704"];
-        expect(stuck(rec)).toEqual(["stale: no activity for 22 days"]);
-        expect(stuck(polls([node({ updatedAt: "2026-09-20T15:00:00Z" })])["704"])).toEqual([]);
-    });
-
     it("reports every reason in the design's order", () => {
         const n = withChecks(
             node({ isDraft: true, mergeable: "CONFLICTING", baseRefName: "feat/base", detail: undefined }),
             [run("All Checks Pass", "FAILURE"), run("Lint PR Title", null)],
         );
         const rec = polls([n], [n])["704"];
-        rec.touchesNoAutoMerge = true;
         rec.autoMerge = true;
         rec.mergeStatus = { state: "failure", description: "held: CI lane red since 10-01 15:37 UTC", line: 2 };
         expect(stuck(rec, { sessions: { s: { branch: "fix/x" } } })).toEqual([
@@ -357,7 +348,6 @@ describe("whyStuck", () => {
             "stacked: waiting on branch feat/base",
             "required check failing: All Checks Pass",
             "native auto-merge armed: bypasses githerd/merge",
-            "owner merges: touches githerd or CI config",
             "checks pending",
             "worked by session s",
         ]);

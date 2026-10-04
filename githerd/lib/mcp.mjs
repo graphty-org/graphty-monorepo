@@ -66,7 +66,7 @@ export const INTERNAL_ERROR = -32603;
  * @param {{name: string, version: string}} options.serverInfo reported at initialize
  * @param {string} [options.instructions] shown to the client at initialize
  * @param {(context: any) => Tool[]} options.tools the tools visible to this caller; the context
- *   is whatever the transport passes to `handle` (a session id, a run token)
+ *   is whatever the transport passes to `handle` (a session id)
  * @param {number[] | ((context: any) => number[])} [options.protocols] the tool protocol versions
  *   served, or a function giving them per call; when given, a call whose
  *   `params._meta.githerd.protocol` is not one of them is refused before its arguments are read,

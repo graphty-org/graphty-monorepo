@@ -15,4 +15,6 @@ RULES:
   - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
   - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.
   - Never comment on, react to, or open an issue or pull request in any Cytoscape.js repository; reading them is fine.
+  - Only the owner approves visual changes: never accept a baseline or change what a visual check captures. Never advance a breaking change; the owner groups majors. Bring a branch up to date by merging, never by rebasing.
+  - Never call a failure flaky or blame load or timing without naming the mechanism. Sign every commit. Write plain ASCII and American spelling. Fix a graphty-element defect in graphty-element, never around it in the graphty app.
   - When your turn ends without the job done, take one of four ways forward: keep working, githerd_wait, githerd_ask_owner, or githerd_done with outcome failed and your findings.

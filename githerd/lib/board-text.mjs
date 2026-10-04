@@ -29,7 +29,7 @@ const GROUPS = {
     incidents: "incidents",
     "owner-items": "ownerItems",
     proposals: "proposals",
-    workers: "runWrites",
+    workers: "workers",
 };
 
 const MINUTE = 60_000;

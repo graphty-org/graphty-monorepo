@@ -31,8 +31,8 @@
  * the save never posts it twice. A target githerd closed is watched for 30 days: the owner
  * reopening it (an owner-account `reopened` event that no worker wrote) is a veto.
  *
- * Entries of `state.proposals` in the shape of the judgment runs' revert proposals (keyed
- * `prop-...`, kind `revert`) are not this module's and are skipped.
+ * Entries of `state.proposals` in an older shape (keyed `prop-...`, kind `revert`) are not this
+ * module's and are skipped.
  */
 
 import { notSent } from "./github.mjs";

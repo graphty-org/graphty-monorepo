@@ -29,34 +29,35 @@ describe("normalizeConfig", () => {
         expect(c.actions).toEqual({
             statuses: false,
             prUpkeep: false,
-            runWrites: false,
+            workers: false,
             proposals: false,
             incidents: false,
             ownerItems: false,
         });
         expect(c.protectedPaths).toEqual(DEFAULTS.protectedPaths);
-        expect(c.noAutoMergePaths).toEqual(DEFAULTS.noAutoMergePaths);
         expect(c.notify).toEqual({ command: null, maxPerHour: 6 });
         expect(c.ownerGate).toBeNull();
-        expect(c.worktreeSetup).toBeNull();
-        expect(c.runs.caps.default).toEqual({ turns: 30, budgetUsd: 1.5, timeoutMinutes: 15 });
+        expect(c.workers).toEqual({ model: "claude-opus-5-5", slots: 3, urgent: 1, waiting: 6, hoursPerDay: 10 });
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });
 
     it("does not share default objects between results", () => {
         const a = normalizeConfig(MINIMAL);
-        a.runs.caps.default.turns = 999;
+        a.workers.slots = 7;
         a.protectedPaths.push("x");
-        expect(normalizeConfig(MINIMAL).runs.caps.default.turns).toBe(30);
+        expect(normalizeConfig(MINIMAL).workers.slots).toBe(3);
         expect(normalizeConfig(MINIMAL).protectedPaths).not.toContain("x");
     });
 
     it("rejects unknown keys at every level", () => {
         expect(() => with_({ pollSecond: 60 })).toThrow(/pollSecond is not a setting/);
         expect(() => with_({ actions: { merges: true } })).toThrow(/actions\.merges is not a setting/);
-        expect(() =>
-            with_({ runs: { caps: { default: { turns: 1, budgetUsd: 1, timeoutMinutes: 1, x: 1 } } } }),
-        ).toThrow(/runs\.caps\.default\.x is not a setting/);
+        expect(() => with_({ workers: { slots: 1, x: 1 } })).toThrow(/workers\.x is not a setting/);
+        // The headless-run settings are gone: a stale config is refused, never half-read.
+        for (const key of ["runs", "retriage", "refresh", "staleDays", "worktreeSetup", "runRulesFile"]) {
+            expect(() => with_({ [key]: {} })).toThrow(new RegExp(`${key} is not a setting`));
+        }
+        expect(() => with_({ actions: { runWrites: true } })).toThrow(/actions\.runWrites is not a setting/);
         expect(() => with_({ lanes: { ci: { workflow: "ci.yml", gating: "required", extra: 1 } } })).toThrow(
             /lanes\.ci\.extra/,
         );
@@ -77,13 +78,10 @@ describe("normalizeConfig", () => {
     });
 
     it("adds a repository's lists to the default protected lists, and cannot drop one", () => {
-        const c = with_({ protectedPaths: ["visual-baselines/"], noAutoMergePaths: ["githerd/", ".github/"] });
-        for (const p of DEFAULTS.protectedPaths) {
-            expect(c.protectedPaths).toContain(p);
-            expect(c.noAutoMergePaths).toContain(p);
-        }
+        const c = with_({ protectedPaths: ["visual-baselines/", ".github/"] });
+        for (const p of DEFAULTS.protectedPaths) expect(c.protectedPaths).toContain(p);
         expect(c.protectedPaths).toContain("visual-baselines/");
-        expect(c.noAutoMergePaths.filter((p) => p === ".github/")).toHaveLength(1);
+        expect(c.protectedPaths.filter((p) => p === ".github/")).toHaveLength(1);
         expect(with_({ protectedPaths: [] }).protectedPaths).toEqual(DEFAULTS.protectedPaths);
         expect(() => with_({ protectedPaths: ["../outside"] })).toThrow(/inside the repository/);
     });
@@ -111,38 +109,22 @@ describe("normalizeConfig", () => {
         [{ release: { commitPattern: "(", stallHours: 6 } }, /not a valid regular expression/],
         [{ grace: { closeIssueDays: 2, closeIssueShownDays: 3 } }, /closeIssueShownDays/],
         [{ digest: { weekday: "funday" } }, /digest\.weekday/],
-        [{ retriage: { startHourUtc: 24 } }, /from 0 to 23/],
-        [{ runs: { caps: { "pr-fix": { turns: 10 } } } }, /runs\.caps\.pr-fix\.budgetUsd is required/],
+        [{ digest: { hourUtc: 24 } }, /from 0 to 23/],
+        [{ workers: { slots: 9 } }, /workers\.slots must be an integer from 0 to 8/],
         [{ servherdCommand: [] }, /non-empty array/],
-        [{ runRulesFile: "/etc/passwd" }, /inside the repository/],
         [{ ownerGate: { steps: [] } }, /ownerGate\.steps/],
         [[], /must be a JSON object/],
     ])("rejects %j", (extra, message) => {
         expect(() => (Array.isArray(extra) ? normalizeConfig(extra) : with_(extra))).toThrow(message);
     });
 
-    it("keeps the default cap and model when a repository adds kinds", () => {
-        const c = with_({
-            runs: {
-                model: { "master-red": "claude-fable-5" },
-                caps: { backlog: { turns: 80, budgetUsd: 5, timeoutMinutes: 60 } },
-            },
-        });
-        expect(c.runs.model).toEqual({
-            default: "claude-opus-5-5",
-            "backlog-high": "claude-opus-5-5",
-            "master-red": "claude-fable-5",
-        });
-        expect(Object.keys(c.runs.caps).sort()).toEqual(["backlog", "backlog-high", "default"]);
-    });
-
-    it("runs only Opus 5.5 or Fable, named by full model id", () => {
+    it("runs workers only on Opus 5.5 or Fable, named by full model id", () => {
         for (const name of ["sonnet", "haiku", "opus", "claude-sonnet-4-5"]) {
-            expect(() => with_({ runs: { model: { default: name } } })).toThrow(
-                `runs.model.default must be one of claude-opus-5-5, claude-fable-5, not "${name}"`,
+            expect(() => with_({ workers: { model: name } })).toThrow(
+                `workers.model must be one of claude-opus-5-5, claude-fable-5, not "${name}"`,
             );
         }
-        expect(with_({ runs: { model: { triage: "claude-fable-5" } } }).runs.model.triage).toBe("claude-fable-5");
+        expect(with_({ workers: { model: "claude-fable-5" } }).workers.model).toBe("claude-fable-5");
     });
 
     it("bounds every number in graphty's real file above and below", () => {
@@ -157,7 +139,7 @@ describe("normalizeConfig", () => {
             }
         };
         walk(real, []);
-        expect(paths.length).toBeGreaterThan(30);
+        expect(paths.length).toBeGreaterThan(10);
         for (const path of paths) {
             for (const bad of [1e9, -1]) {
                 const copy = structuredClone(real);

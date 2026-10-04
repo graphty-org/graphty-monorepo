@@ -1,7 +1,7 @@
 /**
  * The githerd command line (design section 11.2). It finds the repository's daemon through
  * `daemon.json` in the state directory and talks to it over HTTP; the commands that only read
- * (`status` and `board` when no daemon answers, `why`, `mode`, `ledger`, `runs`, `run`) read the
+ * (`status` and `board` when no daemon answers, `why`, `mode`, `ledger`) read the
  * state directory directly, so they work while the daemon is down.
  *
  * Exit codes: 0 done, 1 failed (daemon not reachable, nothing found, a doctor check failed), 2 a
@@ -46,8 +46,6 @@ const USAGE = `usage: githerd <command>
   mode                                     each write group's mode and its ledger coverage
   ledger [--since 1d] [--target pr:704] [--kind run-end]
                                            ledger entries, one JSON line each
-  runs [--last 10]                         recent judgment runs
-  run <id>                                 one run's record and files
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
@@ -527,64 +525,6 @@ async function cmdLedger(c) {
 }
 
 /**
- * The state file, or its backup.
- * @param {string} stateDir the state directory
- * @returns {any} the state, or null
- */
-function savedState(stateDir) {
-    return readJson(join(stateDir, "state.json")) ?? readJson(join(stateDir, "state.json.bak"));
-}
-
-/**
- * `runs [--last n]`: recent judgment runs, newest first.
- * @param {Command} c the command
- * @returns {Promise<number>} the exit code
- */
-async function cmdRuns(c) {
-    const last = Number(c.flags.last ?? 10);
-    if (!Number.isInteger(last) || last < 1) {
-        c.err("githerd runs: --last takes a positive number");
-        return 2;
-    }
-    const runs = Object.entries(savedState(c.stateDir)?.runs ?? {})
-        .sort(([, a], [, b]) => String(b.startedAt ?? "").localeCompare(String(a.startedAt ?? "")))
-        .slice(0, last);
-    if (runs.length === 0) c.out("no runs");
-    for (const [id, r] of runs) {
-        const cost = typeof r.cost === "number" ? `$${r.cost.toFixed(2)}` : "-";
-        c.out([id, r.status ?? "-", r.kind ?? "-", r.target ?? "-", r.startedAt ?? "-", cost].join(" "));
-    }
-    return 0;
-}
-
-/**
- * `run <id>`: one run's record and files.
- * @param {Command} c the command
- * @returns {Promise<number>} the exit code
- */
-async function cmdRun(c) {
-    const [id] = c.positional;
-    if (!id || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
-        c.err("usage: githerd run <id>");
-        return 2;
-    }
-    const record = savedState(c.stateDir)?.runs?.[id];
-    const dir = join(c.stateDir, "runs", id);
-    if (!record && !existsSync(dir)) {
-        c.err(`no run ${id}`);
-        return 1;
-    }
-    c.out(JSON.stringify({ id, ...record }, null, 2));
-    if (existsSync(dir)) {
-        const names = readdirSync(dir).sort((a, b) => a.localeCompare(b));
-        c.out(`files in ${dir}: ${names.join(" ")}`);
-        const result = join(dir, "result.json");
-        if (existsSync(result)) c.out(`result.json: ${readFileSync(result, "utf8").trim()}`);
-    }
-    return 0;
-}
-
-/**
  * `mode`: each write group's mode and its ledger coverage. `mode dry-run|paused|clear`: lower the
  * mode locally, or remove the override.
  * @param {Command} c the command
@@ -646,8 +586,8 @@ async function showModes(c, file) {
  * @returns {Promise<number>} the exit code
  */
 async function cmdService(c) {
-    if (c.name !== "doctor" && (c.env.GITHERD_RUN_ID || c.env.GITHERD_URL)) {
-        c.err(`githerd ${c.name}: runs never start servers`);
+    if (c.name !== "doctor" && c.env.GITHERD_JOB) {
+        c.err(`githerd ${c.name}: workers never start or change githerd`);
         return 2;
     }
     const dev = c.name === "dev";
@@ -740,8 +680,6 @@ const HANDLERS = {
     policy: cmdRecord,
     attach: cmdAttach,
     ledger: cmdLedger,
-    runs: cmdRuns,
-    run: cmdRun,
     mode: cmdMode,
     install: cmdService,
     ensure: cmdService,
@@ -757,6 +695,10 @@ const HANDLERS = {
  * @returns {Promise<number>} the exit code: 0 passed, 1 failed, 2 no usable config
  */
 async function cmdSelftest(c) {
+    if (c.env.GITHERD_JOB) {
+        c.err("githerd selftest: workers never start or change githerd");
+        return 2;
+    }
     const found = launcherContext(c.ctxOptions);
     const config = found.kind === "ready" ? found.ctx.config : null;
     if (!config) {
@@ -769,7 +711,7 @@ async function cmdSelftest(c) {
         root: c.root,
         stateDir: c.stateDir,
         repo: config.repo,
-        model: config.runs.model.default,
+        model: config.workers.model,
         env: c.env,
         log: (line) => c.out(`... ${line}`),
     });

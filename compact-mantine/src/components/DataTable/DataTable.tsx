@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Table, TextInput, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Box, Menu, Table, TextInput, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import {
     type Column,
@@ -111,6 +111,20 @@ function ariaSortOf(sorted: false | "asc" | "desc"): "ascending" | "descending" 
     }
 
     return "none";
+}
+
+/**
+ * Wraps a header's focusable part in its tooltip, when the column has one.
+ * @param label - The tooltip, or nothing
+ * @param target - The sort button, or the header's caption
+ * @returns The target, with its tooltip
+ */
+function withTooltip(label: React.ReactNode, target: React.ReactElement): React.ReactElement {
+    if (label === undefined || label === null || label === false) {
+        return target;
+    }
+
+    return <Tooltip label={label}>{target}</Tooltip>;
 }
 
 /**
@@ -367,7 +381,13 @@ function DataTableInner<TRow extends object>(
     });
 
     const { rows } = table.getRowModel();
-    const visibleColumns = table.getVisibleLeafColumns();
+    // Pinned columns are drawn first, in their own order, so they can hold the start edge.
+    const leafColumns = table.getVisibleLeafColumns();
+    const isPinned = (id: string): boolean => columnById.get(id)?.pinned === "start";
+    const visibleColumns = [
+        ...leafColumns.filter((column) => isPinned(column.id)),
+        ...leafColumns.filter((column) => !isPinned(column.id)),
+    ];
     const rowCount = windowRowCount ?? rows.length;
     const columnCount = visibleColumns.length;
 
@@ -401,6 +421,8 @@ function DataTableInner<TRow extends object>(
     // under it -- so it is brought back into range on the way to being drawn
     // rather than corrected in an effect.
     const [focus, setFocus] = useState<GridPosition>({ row: HEADER_ROW, column: 0 });
+    // The column whose header menu is open, if any.
+    const [menuFor, setMenuFor] = useState<string | null>(null);
     const position = useMemo(() => clampGridPosition(focus, { rowCount, columnCount }), [focus, rowCount, columnCount]);
     const focusPendingRef = useRef(false);
     const anchorRef = useRef<string | undefined>(undefined);
@@ -535,6 +557,26 @@ function DataTableInner<TRow extends object>(
      * @param event - The key press, from whichever cell holds focus
      */
     const handleKeyDown = (event: React.KeyboardEvent): void => {
+        // Keys pressed in a header menu reach here through the React tree (the menu is portaled
+        // out of the table, not out of the component); they belong to the menu.
+        if (!(event.target instanceof Node) || gridRef.current?.contains(event.target) !== true) {
+            return;
+        }
+
+        // Alt+ArrowDown, Shift+F10 or the context-menu key opens a header's menu.
+        const menuColumn = position.row === HEADER_ROW ? visibleColumns[position.column] : undefined;
+        if (
+            menuColumn !== undefined &&
+            columnById.get(menuColumn.id)?.menu !== undefined &&
+            ((event.altKey && event.key === "ArrowDown") ||
+                (event.shiftKey && event.key === "F10") ||
+                event.key === "ContextMenu")
+        ) {
+            event.preventDefault();
+            setMenuFor(menuColumn.id);
+            return;
+        }
+
         const multiple = selectionMode === "multiple";
         const jumpToEnd = event.ctrlKey || event.metaKey;
 
@@ -612,6 +654,20 @@ function DataTableInner<TRow extends object>(
         0,
     );
 
+    // Where each pinned column sticks: after the table's 1px padding and the pinned columns
+    // before it.
+    const pinnedStart: number[] = [];
+    {
+        let edge = GRID_GAP;
+        for (const column of visibleColumns) {
+            if (!isPinned(column.id)) {
+                break;
+            }
+            pinnedStart.push(edge);
+            edge += (columnById.get(column.id)?.width ?? PANEL_GRID.FIELD) + GRID_GAP;
+        }
+    }
+
     /**
      * The box one cell of a column occupies.
      *
@@ -624,10 +680,15 @@ function DataTableInner<TRow extends object>(
      */
     const cellBox = (column: DataTableColumn<TRow> | undefined, index: number): React.CSSProperties => {
         const width = column?.width ?? PANEL_GRID.FIELD;
+        // A pinned cell sticks at the start edge, after the pinned columns before it, and draws
+        // over the cells scrolling under it.
+        const pinned: React.CSSProperties =
+            index < pinnedStart.length ? { position: "sticky", insetInlineStart: pinnedStart[index], zIndex: 1 } : {};
 
         return {
             flex: index === columnCount - 1 ? `1 1 ${String(width)}px` : `0 0 ${String(width)}px`,
             justifyContent: column?.align === "end" ? "flex-end" : "flex-start",
+            ...pinned,
         };
     };
 
@@ -753,8 +814,18 @@ function DataTableInner<TRow extends object>(
                                 // when there is not.
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
+                                const hasMenu = config?.menu !== undefined && config.menu !== null;
                                 const caption = (
                                     <>
+                                        {config?.icon !== undefined && config.icon !== null && (
+                                            <span
+                                                className="cm-dt-header-icon"
+                                                data-testid="data-table-header-icon"
+                                                aria-hidden="true"
+                                            >
+                                                {config.icon}
+                                            </span>
+                                        )}
                                         <Box
                                             component="span"
                                             data-testid="data-table-header-label"
@@ -764,7 +835,9 @@ function DataTableInner<TRow extends object>(
                                             // left to right reads correctly, and
                                             // so does the other way round.
                                             dir="auto"
-                                            title={config?.header}
+                                            // A header with a tooltip of its own does not also take
+                                            // the browser's.
+                                            title={config?.headerTooltip === undefined ? config?.header : undefined}
                                             style={{
                                                 flex: "0 1 auto",
                                                 minWidth: 0,
@@ -805,7 +878,7 @@ function DataTableInner<TRow extends object>(
                                     </>
                                 );
 
-                                return (
+                                const header = (
                                     <Table.Th
                                         key={column.id}
                                         scope="col"
@@ -829,38 +902,75 @@ function DataTableInner<TRow extends object>(
                                         }
                                         style={{ ...cellBox(config, index), gap: PANEL_GRID.GUTTER / 2 }}
                                     >
-                                        {sortable ? (
-                                            // A cell holding one control puts
-                                            // the tab stop on the control, so a
-                                            // screen reader says "button" and a
-                                            // reader knows the header does
-                                            // something.
-                                            <UnstyledButton
-                                                type="button"
-                                                data-testid="data-table-sort-button"
-                                                data-grid-row={HEADER_ROW}
-                                                data-grid-column={index}
-                                                tabIndex={rovingTabIndex}
-                                                onClick={(event) => {
-                                                    setFocus({ row: HEADER_ROW, column: index });
-                                                    handleSort(column, event);
+                                        {sortable
+                                            ? withTooltip(
+                                                  config?.headerTooltip,
+                                                  // A cell holding one control puts
+                                                  // the tab stop on the control, so a
+                                                  // screen reader says "button" and a
+                                                  // reader knows the header does
+                                                  // something.
+                                                  <UnstyledButton
+                                                      type="button"
+                                                      data-testid="data-table-sort-button"
+                                                      data-grid-row={HEADER_ROW}
+                                                      data-grid-column={index}
+                                                      tabIndex={rovingTabIndex}
+                                                      onClick={(event) => {
+                                                          setFocus({ row: HEADER_ROW, column: index });
+                                                          handleSort(column, event);
+                                                      }}
+                                                      onFocus={() => {
+                                                          setFocus((previous) =>
+                                                              samePosition(previous, { row: HEADER_ROW, column: index })
+                                                                  ? previous
+                                                                  : { row: HEADER_ROW, column: index },
+                                                          );
+                                                      }}
+                                                      className="cm-dt-sort"
+                                                      data-align={config?.align === "end" ? "end" : undefined}
+                                                      data-with-menu={hasMenu ? "" : undefined}
+                                                  >
+                                                      {caption}
+                                                  </UnstyledButton>,
+                                              )
+                                            : caption}
+                                        {hasMenu && (
+                                            <Menu
+                                                opened={menuFor === column.id}
+                                                onChange={(opened) => {
+                                                    setMenuFor(opened ? column.id : null);
                                                 }}
-                                                onFocus={() => {
-                                                    setFocus((previous) =>
-                                                        samePosition(previous, { row: HEADER_ROW, column: index })
-                                                            ? previous
-                                                            : { row: HEADER_ROW, column: index },
-                                                    );
-                                                }}
-                                                className="cm-dt-sort"
-                                                data-align={config?.align === "end" ? "end" : undefined}
+                                                position="bottom-end"
                                             >
-                                                {caption}
-                                            </UnstyledButton>
-                                        ) : (
-                                            caption
+                                                <Menu.Target>
+                                                    <ActionIcon
+                                                        variant="subtle"
+                                                        size={PANEL_GRID.CONTROL_HEIGHT}
+                                                        // Out of the tab order: the grid has one tab
+                                                        // stop, and the header's keys open the menu.
+                                                        tabIndex={-1}
+                                                        aria-label={labels.columnMenu(config?.header ?? column.id)}
+                                                        data-testid="data-table-header-menu"
+                                                        className="cm-dt-header-menu"
+                                                    >
+                                                        <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
+                                                    </ActionIcon>
+                                                </Menu.Target>
+                                                <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
+                                            </Menu>
                                         )}
                                     </Table.Th>
+                                );
+
+                                // A header that is not a button takes the tab stop itself, so it
+                                // carries the tooltip; a sort button carries its own.
+                                return sortable ? (
+                                    header
+                                ) : (
+                                    <React.Fragment key={column.id}>
+                                        {withTooltip(config?.headerTooltip, header)}
+                                    </React.Fragment>
                                 );
                             })}
                         </Table.Tr>

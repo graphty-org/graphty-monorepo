@@ -538,7 +538,8 @@ const css = `
     color: var(--cm-text);
     ${cmFont("body")}
 }
-.cm-dt .cm-dt-head { display: grid; position: sticky; top: 1px; z-index: 1; background: var(--cm-bg); }
+/* z-index 2: above the pinned body cells (z-index 1) that scroll under it. */
+.cm-dt .cm-dt-head { display: grid; position: sticky; top: 1px; z-index: 2; background: var(--cm-bg); }
 .cm-dt .cm-dt-row { display: flex; gap: 1px; }
 .cm-dt .cm-dt-cell {
     position: relative;
@@ -596,6 +597,21 @@ const css = `
     cursor: default;
 }
 .cm-dt .cm-dt-sort[data-align="end"] { justify-content: flex-end; }
+/* A header's type glyph, and its menu caret: at the trailing end, over the sort button, shown
+   on hover, on focus within the header and while its menu is open. */
+.cm-dt .cm-dt-header-icon { flex: none; display: inline-flex; align-items: center; color: var(--cm-icon-secondary); }
+.cm-dt .cm-dt-sort[data-with-menu] { padding-inline-end: 32px; }
+.cm-dt .cm-dt-header-menu {
+    position: absolute;
+    inset-inline-end: 4px;
+    top: 50%;
+    z-index: 1;
+    transform: translateY(-50%);
+    opacity: 0;
+}
+.cm-dt .cm-dt-header:hover .cm-dt-header-menu,
+.cm-dt .cm-dt-header:focus-within .cm-dt-header-menu,
+.cm-dt .cm-dt-header-menu[aria-expanded="true"] { opacity: 1; }
 .cm-dt .cm-dt-sort-priority { flex: none; color: var(--cm-text-secondary); ${cmFont("caption")} }
 .cm-dt .cm-dt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-dt-empty {

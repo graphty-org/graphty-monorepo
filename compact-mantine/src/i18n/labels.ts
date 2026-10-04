@@ -235,6 +235,12 @@ export interface CompactMantineLabels {
      */
     rowsSelected: (count: string) => string;
     /**
+     * Accessible name of the caret that opens a data table column's menu.
+     * @param header - The column's header text
+     * @returns The name, such as "Options for Degree"
+     */
+    columnMenu: (header: string) => string;
+    /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
      */
@@ -353,6 +359,7 @@ export const defaultLabels: CompactMantineLabels = {
     noMatchingRows: "No rows match the search",
     rowsShown: (shown: string, total: string): string => `${shown} of ${total} rows`,
     rowsSelected: (count: string): string => `${count} selected`,
+    columnMenu: (header: string): string => `Options for ${header}`,
     yes: "Yes",
     no: "No",
 

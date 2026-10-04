@@ -353,5 +353,21 @@ describe("tidyEndedJobs", () => {
         expect(cancelled).toMatchObject({ worktree: null, salvage: ["githerd/issue-1-salvage"] });
         delete state.prs[5];
         expect(await tidyEndedJobs(ctx)).toEqual(["pr-5"]);
+        // A removal that failed waits an hour before its next try.
+        const failing = stateWith({ kind: "issue", target: "#3", id: "issue-3" });
+        Object.assign(failing.jobs["issue-3"], { worktree: "/w/issue-3", base: GREEN });
+        move(failing.jobs["issue-3"], "cancelled", T0);
+        let tries = 0;
+        const refused = {
+            ...ctx,
+            ...ctxOf(failing),
+            remove: async () => (tries++, { ok: false, reason: "unpushed" }),
+        };
+        await tidyEndedJobs(refused);
+        await tidyEndedJobs(refused);
+        expect(tries).toBe(1);
+        clock = new Date(T0.getTime() + 3_600_000);
+        await tidyEndedJobs(refused);
+        expect(tries).toBe(2);
     });
 });

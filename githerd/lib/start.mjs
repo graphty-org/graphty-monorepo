@@ -609,7 +609,7 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
  * Removes the worktree of every job that ended (design 7.8): a done job's once its pull request is
  * closed, a cancelled job's at once with its unpushed commits salvaged on a local branch. First the
  * servherd servers running inside it are stopped. A failed job keeps its worktree for the findings.
- * A removal that fails is ledgered and tried again on a later reconcile.
+ * A removal that fails is ledgered and tried again an hour later.
  * @param {StartContext & {servers: () => Promise<{name: string, cwd: string}[]>,
  *   stopServer: (name: string) => Promise<void>, remove: typeof import("./worktrees.mjs").removeJobWorktree}} ctx
  *   the context, with servherd's list and stop and the removal
@@ -617,14 +617,18 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
  */
 export async function tidyEndedJobs(ctx) {
     const { state, root, env } = ctx;
+    const t = ctx.now().getTime();
     const ended = Object.values(state.jobs ?? {}).filter(
         (j) =>
             j.worktree &&
             !j.holder &&
             !ctx.tasks.has(j.id) &&
+            // A removal that failed is tried again an hour later, not on every pass.
+            !(t - Date.parse(j.tidyAt ?? "") < HOUR) &&
             (j.state === "cancelled" || (j.state === "done" && !state.prs?.[String(j.pr)])),
     );
     if (!ended.length) return [];
+    for (const job of ended) job.tidyAt = new Date(t).toISOString();
     /** @type {{name: string, cwd: string}[]} */
     let servers = [];
     try {

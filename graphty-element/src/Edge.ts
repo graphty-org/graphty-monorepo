@@ -1403,7 +1403,7 @@ export class Edge {
             const dx = dstCentre.x - srcCentre.x;
             const dy = dstCentre.y - srcCentre.y;
             const dz = dstCentre.z - srcCentre.z;
-            const span = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~5x slower here
 
             // Two nodes closer than their own surfaces have no line between them to trim, which
             // is the same case the intersection search reported by finding no hit.

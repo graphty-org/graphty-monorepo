@@ -7,13 +7,17 @@
 import {
     BAD_DEFAULT_CODE,
     BAD_OPTIONS_CODE,
+    BAD_VALUE_CODE,
     COLUMN_RENAMED_CODE,
     COUNT_HINT_CODE,
+    COUNT_MISMATCH_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
+    EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
     INVALID_ENCODING_CODE,
@@ -21,8 +25,10 @@ import {
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MIXED_DIRECTION_CODE,
+    MULTIPLE_GRAPHS_CODE,
     NO_GRAPH_CODE,
     OPTION_IGNORED_CODE,
+    PARENT_CYCLE_CODE,
     PRECISION_CODE,
     ROLE_TAKEN_CODE,
     SINK_OPTION_CODE,
@@ -31,6 +37,7 @@ import {
     UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
+    UNKNOWN_XML_ATTRIBUTE_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 import {
@@ -45,7 +52,9 @@ import {
     OPEN_BOUND_CONFLICT_CODE,
     SPELL_OPEN_CODE,
     TIMED_STATIC_CODE,
+    TIMESTAMP_CONFLICT_CODE,
     UNKNOWN_ATTRIBUTE_CODE,
+    VALUE_OUTSIDE_OPTIONS_CODE,
     VIZ_DYNAMIC_CODE,
     VIZ_SKIPPED_CODE,
     VIZ_VALUE_CODE,
@@ -72,20 +81,32 @@ export const GEXF_ISSUE = Object.freeze({
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
+    /** The input holds no markup at all: empty, whitespace or a byte order mark only (fatal). */
+    EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The root element is not `<gexf>` (fatal). */
     NOT_GEXF: NOT_GEXF_CODE,
     /** The document has no `<graph>` (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
+    /** A second `<graph>`; its nodes and edges are merged into the first, its header is ignored. */
+    MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
     /** `<edges>` without `<nodes>`. */
     MISSING_NODES: MISSING_NODES_CODE,
     /** A node without an id. */
     MISSING_ID: MISSING_ID_CODE,
     /** An edge without a source or target. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
+    /** An edge endpoint that names no declared node (addMissingNodes false, the GEXF default). */
+    UNKNOWN_NODE: "E_UNKNOWN_NODE",
     /** An edge `type` outside directed / undirected / mutual. */
     EDGE_TYPE: EDGE_TYPE_CODE,
-    /** A `pid` / `<parent for>` naming an unknown node. */
+    /** A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node. */
     UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
+    /** A `pid` / nested containment that would close a parent cycle; that link is dropped. */
+    PARENT_CYCLE: PARENT_CYCLE_CODE,
+    /** An inverted interval (start after end) of an element, a spell or a value; it is not kept. */
+    BAD_VALUE: BAD_VALUE_CODE,
     /** An `<attributes class>` outside node / edge. */
     ATTRIBUTES_CLASS: ATTRIBUTES_CLASS_CODE,
     /** An `<attribute>` without an id. */
@@ -94,6 +115,8 @@ export const GEXF_ISSUE = Object.freeze({
     HEADER_VALUE: HEADER_VALUE_CODE,
     /** A `count` hint the sink cannot reserve (ignored). */
     COUNT_HINT: COUNT_HINT_CODE,
+    /** A `count` hint that disagrees with the elements of its section. */
+    COUNT_MISMATCH: COUNT_MISMATCH_CODE,
     /** A node id declared twice. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id declared twice (the second edge is skipped). */
@@ -134,8 +157,14 @@ export const GEXF_ISSUE = Object.freeze({
     VIZ_VALUE: VIZ_VALUE_CODE,
     /** Both `start` and `startopen` (or `end` and `endopen`) on one element. */
     OPEN_BOUND_CONFLICT: OPEN_BOUND_CONFLICT_CODE,
-    /** An element or attribute GEXF does not define was skipped. */
+    /** Both `timestamp` and `start` / `end` on one element or value. */
+    TIMESTAMP_CONFLICT: TIMESTAMP_CONFLICT_CODE,
+    /** A value outside the declared `<options>` (kept). */
+    VALUE_OUTSIDE_OPTIONS: VALUE_OUTSIDE_OPTIONS_CODE,
+    /** An element GEXF does not define at that place was skipped. */
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
+    /** An XML attribute GEXF does not define on that element was ignored. */
+    UNKNOWN_XML_ATTRIBUTE: UNKNOWN_XML_ATTRIBUTE_CODE,
     /** Text where GEXF allows only elements was ignored. */
     STRAY_TEXT: STRAY_TEXT_CODE,
     /** A common option the importer has no use for was given. */

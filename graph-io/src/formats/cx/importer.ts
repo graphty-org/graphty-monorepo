@@ -108,7 +108,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { zAsOption } from "../cx2/importer.js";
+import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -232,6 +232,7 @@ const USED_OPTIONS: ReadonlySet<keyof CommonImportOptions> = new Set<keyof Commo
     "weightFrom",
     "weightDtype",
     "long",
+    "restoreMangledIds",
     "errorLimit",
     "signal",
     "onProgress",
@@ -1078,6 +1079,9 @@ class CxReader {
     /** CX edge id -> sink edge index, for this graph. */
     private readonly edgeRows = new Map<NodeId, number>();
 
+    /** CX node id -> the id given to the sink, for the nodes whose original id was restored. */
+    private readonly sinkIds = new Map<NodeId, NodeId>();
+
     /** The subnetwork ids of the document. */
     private readonly subnetworks = new Set<NodeId>();
 
@@ -1349,7 +1353,11 @@ class CxReader {
         const declared = this.tableColumns(domain === "node" ? "node_table" : "edge_table");
         const names = new Set<string>([...declared.keys(), ...this.doc.attributes[domain].keys()]);
         for (const name of names) {
-            if (name === "" || (domain === "edge" && name === this.options.weightFrom)) {
+            if (
+                name === "" ||
+                (domain === "edge" && name === this.options.weightFrom) ||
+                (domain === "node" && name === ORIGINAL_ID_ATTRIBUTE && this.options.restoreMangledIds)
+            ) {
                 continue;
             }
             const types: CxType[] = [];
@@ -1678,6 +1686,7 @@ class CxReader {
     /** Read the nodes of this graph. */
     private readNodes(): void {
         const { report, sink } = this;
+        const originals = this.originalIds();
         for (const held of aspect(this.doc, "nodes")) {
             this.checkAbort();
             const { value, line } = held;
@@ -1717,12 +1726,19 @@ class CxReader {
                     { line, element },
                 );
             } else {
+                const original = originals.get(refId(value["@id"]) ?? id);
+                if (original !== undefined) {
+                    this.idType = "mixed";
+                }
                 try {
-                    row = sink.addNode(id);
+                    row = sink.addNode(original ?? id);
                 } catch (err) {
                     report.recordError(err, { line, element });
                     report.counts.skippedNodes++;
                     continue;
+                }
+                if (original !== undefined) {
+                    this.sinkIds.set(id, original);
                 }
                 this.nodeRows.set(id, row);
                 report.counts.nodes++;
@@ -1730,6 +1746,25 @@ class CxReader {
             this.writeCore("node", row, "name", value.n, element, line);
             this.writeCore("node", row, "represents", value.r, element, line);
         }
+    }
+
+    /**
+     * The original ids the exporter's `sanitizeIds: "mangle"` kept in the `graphty:originalId`
+     * attribute, when they are to be restored.
+     * @returns CX node id -> original id
+     */
+    private originalIds(): Map<NodeId, string> {
+        const out = new Map<NodeId, string>();
+        if (!this.options.restoreMangledIds) {
+            return out;
+        }
+        for (const { value } of this.doc.attributes.node.get(ORIGINAL_ID_ATTRIBUTE) ?? []) {
+            const po = isRecord(value) && this.scopePeek(value.s) !== 0 ? refId(value.po) : null;
+            if (po !== null && isRecord(value) && typeof value.v === "string") {
+                out.set(po, value.v);
+            }
+        }
+        return out;
     }
 
     /**
@@ -2135,7 +2170,10 @@ class CxReader {
             const before = sink.edgeCount;
             let edge: number;
             try {
-                edge = this.direction.addEdge(s, t, "directed", weight, { line, element });
+                edge = this.direction.addEdge(this.sinkIds.get(s) ?? s, this.sinkIds.get(t) ?? t, "directed", weight, {
+                    line,
+                    element,
+                });
             } catch (err) {
                 report.recordError(err, { line, element });
                 report.counts.skippedEdges++;
@@ -2346,7 +2384,7 @@ class CxReader {
                         name: property,
                         dtype: "string",
                         nullable: true,
-                        origin: { format: CX_FORMAT, id: null, namespace: CX_BYPASS_NAMESPACE },
+                        origin: { format: CX_FORMAT, id: property, namespace: CX_BYPASS_NAMESPACE },
                     },
                     this.report,
                 );

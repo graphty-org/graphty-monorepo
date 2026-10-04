@@ -20,7 +20,7 @@ import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js"
 import { throwIfAborted } from "./common/input.js";
 import { ImportReportBuilder } from "./common/report.js";
 import { csvExporter, csvImporter } from "./formats/csv/index.js";
-import { cxImporter } from "./formats/cx/index.js";
+import { cxExporter, cxImporter } from "./formats/cx/index.js";
 import { cx2Exporter, cx2Importer } from "./formats/cx2/index.js";
 import { cysImporter } from "./formats/cys/index.js";
 import { dotExporter, dotImporter } from "./formats/dot/index.js";
@@ -398,6 +398,7 @@ export function createRegistry(): FormatRegistry {
         .registerImporter(cx2Importer)
         .registerExporter(cx2Exporter)
         .registerImporter(cxImporter)
+        .registerExporter(cxExporter)
         .registerImporter(oboImporter)
         .registerImporter(cysImporter);
 }

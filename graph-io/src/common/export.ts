@@ -29,6 +29,7 @@ import {
     MIXED_DIRECTION_CODE,
     MUTUAL_AS_UNDIRECTED_CODE,
     MUTUAL_EXPANDED_CODE,
+    NONFINITE_AS_NULL_CODE,
     OPTIONS_GAINED_CODE,
     PARENTS_DROPPED_CODE,
     ROLE_ASSUMED_CODE,
@@ -124,6 +125,8 @@ export const LOSS = Object.freeze({
     VIZ: "W_VIZ_DROPPED",
     /** An extension table the format cannot carry. */
     EXTENSION_TABLE: "W_EXTENSION_TABLE_DROPPED",
+    /** A NaN or infinite number the format cannot spell; not written (or written as null), it reads back unset. */
+    NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
 });
 
 /** The capabilities of a format that keeps nothing beyond plain topology; the base every exporter overrides. */

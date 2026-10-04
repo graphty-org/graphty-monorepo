@@ -226,7 +226,7 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2"] as const;
+const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2", "cx"] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -238,10 +238,11 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     neo4j,
     xgmml,
     cx2,
+    cx,
 };
 /** The formats graph-io reads but does not write: one importer, no exporter. */
-const READ_ONLY = ["cx", "obo", "cys"] as const;
-const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo, cys };
+const READ_ONLY = ["obo", "cys"] as const;
+const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { obo, cys };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
     it("exports the registry with importGraph / exportGraph / sniff and the children CSR helper", () => {

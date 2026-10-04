@@ -20,6 +20,7 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { NONFINITE_AS_NULL_CODE } from "../../common/codes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatF32, formatF64 } from "../../common/format.js";
@@ -66,7 +67,7 @@ export interface JsonExportOptions {
  */
 export const JSON_LOSS = Object.freeze({
     /** Non-finite numbers (columns, weights) are written as null. */
-    NONFINITE_AS_NULL: "W_NONFINITE_AS_NULL",
+    NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
     /** Cytoscape, vis and d3 carry no direction; the file re-imports with the dialect's default direction. */
     DIRECTION_DROPPED: "W_DIRECTION_DROPPED",
     /** GEXF mutual pairs are written as two directed edges. */

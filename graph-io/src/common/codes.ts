@@ -218,3 +218,6 @@ export const XML_ILLEGAL_CHAR_CODE = "E_XML_ILLEGAL_CHAR";
 
 /** A dict column without declared options gains one from its dictionary on re-import. */
 export const OPTIONS_GAINED_CODE = "W_OPTIONS_GAINED";
+
+/** A NaN or infinite number the format cannot spell is not written (or written as null); it reads back unset. */
+export const NONFINITE_AS_NULL_CODE = "W_NONFINITE_AS_NULL";

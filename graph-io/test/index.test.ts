@@ -35,7 +35,10 @@ const VALUE_EXPORTS = [
     "CSV_LOSS",
     "csvExporter",
     "csvImporter",
+    "CX_CAPABILITIES",
     "CX_ISSUE",
+    "CX_LOSS",
+    "cxExporter",
     "cxImporter",
     "CX2_CAPABILITIES",
     "CX2_ISSUE",
@@ -169,6 +172,7 @@ const VALUE_EXPORTS = [
     "MUTUAL_AS_UNDIRECTED_CODE",
     "MUTUAL_EXPANDED_CODE",
     "NO_GRAPH_CODE",
+    "NONFINITE_AS_NULL_CODE",
     "OPTIONS_GAINED_CODE",
     "OPTION_IGNORED_CODE",
     "PARENT_CYCLE_CODE",
@@ -225,6 +229,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     it("re-exports each format's importer and exporter under its format name", () => {
         const pairs: [string, graphIo.GraphImporter, graphIo.GraphExporter][] = [
             ["csv", graphIo.csvImporter, graphIo.csvExporter],
+            ["cx", graphIo.cxImporter, graphIo.cxExporter],
             ["cx2", graphIo.cx2Importer, graphIo.cx2Exporter],
             ["dot", graphIo.dotImporter, graphIo.dotExporter],
             ["gexf", graphIo.gexfImporter, graphIo.gexfExporter],
@@ -243,19 +248,16 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
+        // OBO and Cytoscape sessions are read-only: an importer, no exporter
         for (const [format, importer] of [
             ["obo", graphIo.oboImporter],
-            ["cx", graphIo.cxImporter],
             ["cys", graphIo.cysImporter],
         ] as const) {
             expect(importer.format).toBe(format);
             expect(graphIo.registry.importer(format)).toBe(importer);
             expect(graphIo.registry.hasExporter(format)).toBe(false);
         }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
-            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
-        );
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set([...pairs.map(([format]) => format), "obo", "cys"]));
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -264,6 +266,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             CSV_ISSUE: graphIo.CSV_ISSUE,
             CSV_LOSS: graphIo.CSV_LOSS,
             CX_ISSUE: graphIo.CX_ISSUE,
+            CX_LOSS: graphIo.CX_LOSS,
             CX2_ISSUE: graphIo.CX2_ISSUE,
             CX2_LOSS: graphIo.CX2_LOSS,
             DOT_ISSUE: graphIo.DOT_ISSUE,

@@ -110,9 +110,9 @@ export function DataPage(): React.JSX.Element {
                 cancel();
             }
         };
-        window.addEventListener("keydown", onKeyDown, true);
+        globalThis.addEventListener("keydown", onKeyDown, true);
         return () => {
-            window.removeEventListener("keydown", onKeyDown, true);
+            globalThis.removeEventListener("keydown", onKeyDown, true);
         };
     }, [cancel]);
 
@@ -170,9 +170,8 @@ export function DataPage(): React.JSX.Element {
     };
 
     return (
-        <div
+        <section
             className="dp"
-            role="region"
             aria-label="Data page"
             onDragOver={(event) => {
                 event.preventDefault();
@@ -222,7 +221,7 @@ export function DataPage(): React.JSX.Element {
                     void load();
                 }}
             />
-        </div>
+        </section>
     );
 }
 
@@ -390,10 +389,10 @@ function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table:
 function EntryForm({
     kind,
     onDone,
-}: {
+}: Readonly<{
     kind: "url" | "paste";
     onDone: (source: PageSource) => void;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     const [value, setValue] = useState("");
     return (
         <form
@@ -445,7 +444,10 @@ function EntryForm({
  * @param props.onChooseFiles - Choose another file..., the primary action when no setting fixes it
  * @returns The block
  */
-function ProblemBlock({ refusal, onChooseFiles }: { refusal: Refusal; onChooseFiles: () => void }): React.JSX.Element {
+function ProblemBlock({
+    refusal,
+    onChooseFiles,
+}: Readonly<{ refusal: Refusal; onChooseFiles: () => void }>): React.JSX.Element {
     return (
         <Alert color="red" variant="light" title={refusal.what} role="alert">
             <Stack gap="xs" align="flex-start">
@@ -619,10 +621,8 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
     const type = settings.type ?? draft?.type;
     // The separator the element detected is not reported (#911), so only a chosen one is named.
     const separator = SEPARATORS.find((each) => each.value !== "" && each.value === settings.delimiter)?.label;
-    const line =
-        type === undefined
-            ? "File settings"
-            : `${formatName(type)}${type === "csv" && separator !== undefined ? `, ${separator.toLowerCase()}` : ""}`;
+    const named = type === "csv" && separator !== undefined ? `, ${separator.toLowerCase()}` : "";
+    const line = type === undefined ? "File settings" : formatName(type) + named;
     return (
         <Popover position="bottom-start" withinPortal>
             <Popover.Target>
@@ -701,7 +701,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
     ];
     return (
-        <div className="dp-roles" role="group" aria-label="Column roles">
+        <fieldset className="dp-roles" aria-label="Column roles">
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
@@ -725,7 +725,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                     </div>
                 );
             })}
-        </div>
+        </fieldset>
     );
 }
 
@@ -754,13 +754,11 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
         [table],
     );
     const rows = page.rows?.records ?? [];
+    const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const caption =
         page.filter === "all"
             ? `The first ${plural(rows.length, "row")} of ${count(table.rowCount)}`
-            : plural(
-                  page.rows?.total ?? 0,
-                  page.filter === "unmatched" ? "unmatched row" : "row that could not be read",
-              );
+            : plural(page.rows?.total ?? 0, what);
     return (
         <Stack gap={4}>
             <Group gap="xs">

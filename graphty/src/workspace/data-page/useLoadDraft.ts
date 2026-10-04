@@ -126,7 +126,7 @@ export function useLoadDraft(
     mode: "replace" | "merge",
     initial: PageSource | null,
 ): LoadDraftState {
-    const [source, setSourceState] = useState<PageSource | null>(initial);
+    const [source, setSource] = useState<PageSource | null>(initial);
     const [settings, setSettings] = useState<ReadSettings>({});
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
@@ -142,8 +142,8 @@ export function useLoadDraft(
     /** The draft a load was started on: leaving the page must not dispose it mid-load. */
     const loadingDraft = useRef<LoadDraft | null>(null);
 
-    const setSource = useCallback((next: PageSource | null) => {
-        setSourceState(next);
+    const chooseSource = useCallback((next: PageSource | null) => {
+        setSource(next);
         setSettings({});
     }, []);
 
@@ -275,7 +275,7 @@ export function useLoadDraft(
         rows,
         loading,
         loadError,
-        setSource,
+        setSource: chooseSource,
         setSettings,
         setChoices,
         setTableId,

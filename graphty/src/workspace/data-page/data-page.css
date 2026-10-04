@@ -37,6 +37,11 @@
 }
 
 .dp-roles {
+    /* A fieldset: drop the browser's border, padding and margin. */
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 8px 12px;

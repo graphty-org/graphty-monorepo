@@ -2189,6 +2189,17 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             ctx.skip(err, "edge", element);
         }
     }
+    // vis.js draws arrows from the `arrows` edge option; the file declares no graph direction, so the
+    // arrows stay an attribute and the graph is read as the dialect's default
+    const arrows = kind === "undirected" ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "").length : 0;
+    if (arrows > 0) {
+        report.warning(
+            "validation-error",
+            JSON_ISSUE.INCONSISTENT,
+            `${arrows} edge(s) carry vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
+            { element: "arrows" },
+        );
+    }
     ctx.setMeta(
         { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
         ctx.weightOriginPatch(),

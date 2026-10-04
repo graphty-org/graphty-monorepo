@@ -587,6 +587,17 @@ describe("JSON robustness: node-link semantics", () => {
         expect(value(s, "edges", "z", 0)).toBe(1);
     });
 
+    it("json-vis-arrows: arrows on an undirected vis graph are reported, kept as an attribute", async () => {
+        const text = doc({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ from: "a", to: "b", arrows: "to" }] });
+        const { s, report } = await load(text);
+        expect(s.directed).toBe(false);
+        expect(value(s, "edges", "arrows", 0)).toBe("to");
+        expect(issue(report, JSON_ISSUE.INCONSISTENT).message).toMatch(/defaultDirected/);
+        const directed = await load(text, { defaultDirected: true });
+        expect(directed.s.directed).toBe(true);
+        expect(codes(directed.report)).toEqual([]);
+    });
+
     it("json-attr-empty-or-suffix-key: an empty key and a key x#data next to x are separate columns", async () => {
         const { s, report } = await load(doc({ nodes: [{ id: "a", "": 1, x: 2, "x#data": 3 }], links: [] }));
         expect(value(s, "nodes", "", 0)).toBe(1);

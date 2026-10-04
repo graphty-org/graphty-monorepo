@@ -205,6 +205,9 @@ run_step "Formatting (changed files)" "pnpm run format:check:changed"
 # over the entry file and every chunk it statically imports. Needs the build above.
 if affected graphty-element; then
     run_step "Bundle size (graphty-element)" "pnpm run check:bundle-size"
+    # The built public API must match the committed report, graphty-element/api/*.api.md
+    # (CLAUDE.md, "Public API review"). Needs the build above.
+    run_step "Public API report (graphty-element)" "pnpm run check:api-report"
 fi
 
 # Every tool a package's scripts run or its *.config.* files import is declared by that package,

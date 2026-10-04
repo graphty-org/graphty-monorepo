@@ -1387,9 +1387,9 @@ with its own name, its state directory in the worktree and `GITHERD_CONFIG` and 
 added. Since the daemon's environment no longer holds the repository's `.env`, the outgoing-text
 check (`text.mjs`) compares against the secret-named values (TOKEN, KEY, SECRET, COOKIE,
 PASSWORD) of the daemon's environment and of the repository's `.env`, read at start and never
-exported: a run can read `.env` through Bash. Runs never call `githerd install`, `ensure`,
-`restart` or `dev`: the CLI refuses them when `GITHERD_RUN_ID` or `GITHERD_URL` is set, and the
-guard denies them. An uncaught exception enters fatal mode with its stack instead of exiting.
+exported: a worker can read `.env` through Bash. Workers never call `githerd install`, `ensure`,
+`restart`, `dev` or `selftest`: the CLI refuses them when `GITHERD_JOB` is set, and the guard
+denies them ("workers never start or change githerd"). An uncaught exception enters fatal mode with its stack instead of exiting.
 
 ### 9.5 The invariant check
 
@@ -1676,15 +1676,17 @@ It predates this design and is reworked by the plan. Most of its fact-finding an
 | `actor/push.mjs` | pushing a branch after checks, `would-do` in dry-run | becomes the push queue (4.8) |
 | `board.mjs` | atomic claims, owner-only filtering | snapshot versions with changed files, overlap decisions, related jobs, lapse |
 | `merged.mjs` | the merged-pull-request GraphQL query | feeds refresh triage and the related rule |
-| `retriage.mjs` | the export query | full passes become triage jobs |
+| `retriage.mjs` | nothing | removed: refresh and full passes are triage jobs that merges call for (`jobs.mjs`), built from the issue records the poll already keeps |
 | `cli.mjs` | the command frame and state-file fallback | the commands of 11.2 |
 | `daemon.mjs` | the poll loop, HTTP endpoint and tool dispatch | the reconcile of 9.3, fatal mode, `alive` and `progress` |
-| `tools.mjs` | tool plumbing; the board's status text | replaced by the eleven tools (`session-tools.mjs`), which every session's MCP server and the daemon serve; judgment runs keep the old tools until runs go |
-| `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed: they exist for headless runs, run tokens and dollar budgets |
+| `tools.mjs` | the board's status data and text | the seven old tools removed; the eleven tools are `session-tools.mjs` |
+| `runner.mjs`, `run-tools.mjs`, `dispatch.mjs`, `paging.mjs`, `prompts.mjs`, the playbooks | nothing | removed (2026-10-04): they existed for headless runs, run tokens and dollar budgets |
 
 New code: the classifier; the incident procedure; the `githerd/merge` status and stacks; the push queue;
-the reference worktree; the tmux worker start, Stop gate, doorbell, watchdog and death handling;
-owner items, presence and paging; the self-test; the replay suite.
+the reference worktree; the job records made from the facts (`jobs.mjs`), their clocks and waits
+(`advance.mjs`) and the slots they start in (`start.mjs`); the tmux worker start, Stop gate,
+doorbell, watchdog and death handling; owner items, presence and paging; the self-test; the replay
+suite.
 
 ---
 

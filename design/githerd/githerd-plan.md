@@ -162,26 +162,11 @@ the shared daemon does (servherd's `--autorestart`, `env -i`, its environment fr
 test that start path: start it from a Claude session of the owner's, which has the `GIT_CONFIG_*`
 signing variables and the Pushover keys.
 
-The development daemon starts runs, code-editing kinds (master-red, pr-fix, pr-conflict, backlog)
-included, within the dry-run budget. Two facts decide which kinds may run in the soak:
+The development daemon starts no headless run (there are none) and, never above dry-run, no
+worker either: each worker it would start is a `would-do` line in the ledger, so the soak shows the
+jobs githerd makes and the order it would start them in without spending usage. The soak needs no
+run settings and no config copy.
 
-- The Bash sandbox does not run on this machine (`githerd/CLAUDE.md`). Unsandboxed code-editing
-  runs are accepted for the soak: the boundary is owner-only input and the actor's checks before a
-  push, and in dry-run nothing is pushed.
-- Manual check 4 of `githerd/CLAUDE.md` (a signed commit from a run spawned under servherd) must
-  pass before any code-editing run. Run on 2026-10-03, it failed: the run's git config has no
-  `gpg.format=ssh` and a run's environment drops the owner's `GIT_CONFIG_*` variables, so the
-  commit goes to gpg, which has no such key. Until it passes, the soak keeps code-editing kinds
-  off (step 0).
-
-0. **Check signing, and keep code-editing runs off until it passes.** Run check 4 the way
-   `githerd/scripts/sign-check.mjs` describes (a one-shot servherd server under `env -i` with the
-   development state directory), record its `sign-check.json` in `githerd/CLAUDE.md` under check
-   4, and remove the servherd entry. While it fails, copy `githerd.config.json` to
-   `tmp/githerd/two-days/githerd.config.json`, set `runs.caps` `budgetUsd` to 999 for
-   `master-red`, `pr-fix`, `pr-conflict`, `backlog` and `backlog-high` (a run whose budget exceeds
-   the day's never starts; read-only kinds still run), and use that file as `GITHERD_CONFIG` in
-   step 2. The ledger then shows those kinds as "never fits the day", which is expected.
 1. **Pick the days.** Two weekdays the owner expects to be busy (at least 40 master commits a day,
    R17). Before starting: `uptime` (load below 16), `gh auth status` logged in as the owner, and
    `gh api rate_limit` with more than 3,000 core calls left.

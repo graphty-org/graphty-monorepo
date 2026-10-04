@@ -172,7 +172,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
-| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, pages the owner on a red master, coordinates Claude sessions through MCP tools, starts bounded fix runs; configured by `githerd.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, turns them into jobs for interactive Claude worker sessions it starts in tmux, coordinates every session through MCP tools, posts `githerd/merge` for Mergify, pages the owner only for what only he can do; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -888,16 +888,17 @@ Several agents often work in this repository at once. They share one disk and on
   explicitly a whole-repository audit.
 - Report regressions and failures first, then everything else.
 
-**githerd.** To pick up work, call `githerd_next`: it lists the queued jobs you could take, with a
-snapshot of all work in flight. Take one with `githerd_claim`, giving your overlap judgment against
-that snapshot, before any edit. Before any push or merge, call `githerd_status`: if master is red,
-do not push or merge anything except the fix for master. Still end your reply with ACTION NEEDED as
-usual when the owner must act.
+**githerd.** Before any push or merge, call `githerd_status`: if master is red, do not push or merge
+anything except the fix for master. To pick up githerd's work, call `githerd_next`: it lists the
+queued jobs you could take, with a snapshot of all work in flight. If you take one, claim it with
+`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Still
+end your reply with ACTION NEEDED as usual when the owner must act.
 
 ### githerd
 
-githerd is the repository's pipeline daemon: it watches master, pull requests and issues, pages
-the owner when master is red, and gives every Claude session the eleven `githerd_*` MCP tools of
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, turns
+them into jobs it hands to interactive worker sessions in its own tmux server, pages the owner only
+for what only he can do, and gives every Claude session the eleven `githerd_*` MCP tools of
 section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next`, `githerd_claim`,
 `githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
 `githerd_ask_owner`, `githerd_record`) through the server in `.mcp.json`.

@@ -2,11 +2,12 @@
 
 githerd keeps a GitHub repository's pipeline moving when most of the work is done by Claude Code
 sessions and GitHub Actions. One daemon per repository watches the default branch, the open pull
-requests and the issue backlog; it pages the owner when the default branch breaks and stays
-broken, gives every Claude session one shared picture of who is doing what through MCP tools, and
-starts short, bounded Claude runs for what a script cannot fix. Every GitHub write goes through
-deterministic code in the daemon, and in dry-run mode (the default) each write is recorded instead
-of performed.
+requests and the issue backlog, turns what needs doing into jobs, and hands each job to an
+interactive Claude Code worker session it starts in its own tmux server (`githerd attach` shows
+them). It never merges: Mergify merges, gated by the `githerd/merge` status githerd posts. It pages
+the owner only for what only the owner can do. Every GitHub write and every push goes through
+deterministic code in the daemon, and in dry-run mode (the default) each write, push and worker
+start is recorded instead of performed.
 
 The package is private, plain `.mjs` with JSDoc types, and has no runtime dependencies. A
 repository turns it on with a `githerd.config.json` at its root on the default branch.
@@ -18,45 +19,52 @@ The design is `design/githerd/githerd-design.md`; the build order is
 
 Only the repository owner's: the account `gh` is logged in as, which the daemon asks GitHub for
 every poll (`gh api user`). It is not configured anywhere, and `githerd.config.json` rejects a
-`trustedAuthors` key. Every judgment run, of every kind, considers only that account's issues and
-pull requests; issues and PRs by anyone else, Dependabot and other bots included, get no run. Even
-on the owner's own items, comments, reviews and review comments by other accounts never reach a
-run: the run tools return only the owner's text plus a count of what they hid. `githerd status`
-shows those counts on its TRUST line, so nothing disappears silently. If the login cannot be
-resolved, githerd starts no runs and raises a `login-unresolved` escalation.
+`trustedAuthors` key. Jobs are made only from that account's issues and pull requests; issues and
+pull requests by anyone else, Dependabot and other bots included, get no job. Even on the owner's
+own items, comments, reviews and review comments by other accounts never reach a worker:
+`githerd_read` returns only the owner's text plus a count of what it hid, and the guard refuses a
+worker's direct reads of comments and reviews through `gh api`. `githerd status` shows those counts on its TRUST line, so
+nothing disappears silently. If the login cannot be resolved, githerd makes no job, starts no
+worker and raises a `login-unresolved` escalation.
 
-That, together with githerd's own code checking and pushing every branch a run produces, is the
-defense against a run being steered into writing malicious code. Claude Code's Bash sandbox is
-defense in depth: code-editing runs ask for it and get it wherever bubblewrap (`bwrap`) and `socat`
-are installed, and run without it elsewhere, with a `sandbox-disabled` note in the ledger. Runs
-never hold a GitHub credential either way.
+Workers run as the owner (his `gh` login and signing key), under `env -i` with an allow-listed
+environment, a generated settings file whose denies win over his allow-all, and a PreToolUse guard
+that refuses what only the owner or the daemon does: merging, closing, retargeting, the owner's
+labels, `git push` (workers push through `githerd_push`), and every `githerd` command that starts or
+changes githerd itself.
 
 ## What gets worked on next
 
-One deterministic work queue orders everything, and every item carries a one-line reason
-("high-priority bug, 41 days old, effort:low"); `githerd status` shows the whole queue. Across
-kinds, githerd finishes before it starts: a red master, then a stuck release, then the owner's
-open PRs that need work, then issues, unlabeled ones first so they can be triaged. PRs go oldest
-first, with quick unblockers (a branch update from green master, a rerun of a known flake) ahead;
-a stacked PR waits for its base, and a PR waiting on the owner (visual review, a held major, a
-decision) is listed on the owner's waiting list and not worked. Issues go by priority, then bugs
-first, then age, then lower effort; an issue gains one priority level per 60 untouched days, never
-above high. `blocked`, `needs-*`, breaking and other authors' issues are left out. New issue work
-starts only while githerd has fewer than 3 PRs or backlog runs open (`backlog.wipCap`).
+Each reconcile turns the facts into jobs (`lib/jobs.mjs`): an incident for each code-red key on
+master and each failed or stalled release; a `pr` job for each of the owner's pull requests with
+its own failing check, a second conflict sighting or a visual reject; a `title` job when only
+`Lint PR Title` fails; a `review` of each new patch a job pushed; a triage job of at most 20
+unlabeled issues, and a refresh after every 20 merges and a full pass after every 100 (no clock:
+merges count); one issue job for the front of the backlog; and a re-land job after a revert. A
+queued job whose target closed or no longer needs work is cancelled.
 
-effort:high issues are worked like the rest, on opus with larger caps, and a run may split one
-into smaller issues itself; size is never a question for the owner. The owner can steer with two
-labels: `githerd:next` puts an issue or PR first in its kind, `githerd:skip` takes it out. Both
-count only when the owner added them.
+The queue order is design section 5.4, and every job carries a one-line reason: incidents first
+(master and release, then shared ones), reviews, pull requests oldest first, titles, triage of new
+issues, approved majors, then issues (an open order first, then priority, bugs first, oldest), then
+refresh passes and low-priority incidents. The owner steers with two labels: `githerd:next` puts an
+issue or pull request first in its kind, `githerd:skip` takes it out. Both count only when the
+owner's account added them.
+
+Workers start while a slot is free: 3 working sessions, one more for urgent work, at most 6 idle
+sessions waiting on checks, under the machine's load and memory limits and the configured worker
+hours a day (`workers` in the config; `githerd workers <n>` changes the slots at runtime). A worker
+starts only while the `workers` write group acts, the platform self-test passed on the installed
+Claude Code, and the signing probe passes. Its worktree (`.worktrees/githerd-<job>`) is installed
+and built in the background first; sessions open one at a time, urgent ones first.
 
 Every session gets the eleven tools of design section 6 from the MCP server in `.mcp.json`:
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
 `githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner` and `githerd_record`. A
 session calls `githerd_next` for its job (a worker) or the queued jobs it could take (an owner
 session), and `githerd_claim` with its overlap judgment before any edit. Pushes go through
-`githerd_push`, which runs the pre-push gate in githerd's queue. `githerd_done`,
-`githerd_ask_owner` and `githerd_record` answer "not available yet" until the job kinds and the
-owner layer land.
+`githerd_push`, which runs the push and its pre-push gate through the machine's push queue
+(`tools/push-queue.sh`). `githerd_wait` declares a wait the daemon watches and ends with a
+doorbell; `githerd_done` is checked against GitHub before the job counts as done.
 
 ## Commands
 
@@ -64,9 +72,13 @@ owner layer land.
 
 ```bash
 githerd status [--json]          # the daemon's status, as githerd_status shows it
-githerd ledger --since 1d --kind run-end --target pr:704
-githerd runs --last 10           # recent judgment runs; githerd run <id> shows one
+githerd ledger --since 1d --kind job-created --target pr:704
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
+githerd pause | resume           # stop / restart every worker start and doorbell
+githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all
+githerd keep <window> [--with-job]  # hand a worker's window to you
+githerd release <job>            # give back a job you stopped or kept
+githerd attach                   # githerd's tmux server, one window per worker
 githerd ack <key>                # clear an escalation
 githerd veto <proposal id>       # stop a pending close or revert
 githerd install                  # prepare the daemon and print the servherd command that starts it
@@ -109,8 +121,8 @@ start) creates, so a branch's own edits never change its hooks or its MCP server
   first (`githerd: master green; 0 waiting on the owner; 3 open pull requests; mode dry-run`), to
   the person and into the session's context. It waits 2 s for the daemon and then prints why there
   is no answer; it always exits 0, so a broken githerd never blocks a session. Before githerd is
-  installed, the command finds no file and prints nothing. The other hooks of design section 4.10
-  come with the worker platform.
+  installed, the command finds no file and prints nothing. Workers get every hook of design
+  section 4.10 (the Stop gate, steering, API failures, the guard) from their generated settings.
 
 On a branch that is not merged, both files act only in sessions started in that branch's own
 worktree.
@@ -121,7 +133,7 @@ its entry at the end.
 
 ## Prerequisites
 
-The owner does these once, before the first soak (design section 17):
+The owner does these once, before the first soak (design section 12.1):
 
 1. **Start githerd once.** From the owner's own shell (it copies `HOME`, `PATH`, the signing
    variables and the Pushover keys into `~/.githerd/<checkout>/daemon-env.json`, owner-only), run
@@ -139,8 +151,8 @@ The owner does these once, before the first soak (design section 17):
     Outside a git repository the launcher exits quietly, and in a repository without githerd
     `githerd_status` answers that githerd is not configured, with the reason.
 
-4. **Admin pull-request bypass.** Decide whether to keep the Admin bypass on ruleset 23973898
-   (design section 14) and record the answer here. Not decided yet.
+4. **The self-test.** Run `node githerd/bin/githerd.mjs selftest` once, and again after each Claude
+   Code upgrade: no worker starts until it passed on the installed version.
 
 ## Development
 

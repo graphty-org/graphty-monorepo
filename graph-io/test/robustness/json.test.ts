@@ -955,11 +955,11 @@ describe("JSON robustness: OBO Graphs", () => {
         const { s, report } = await load(text);
         expect(s.edgeCount).toBe(2);
         const unread = report.issues.filter((i) => i.code === JSON_ISSUE.UNREAD_KEY).map((i) => i.element);
-        expect(unread).toEqual(["weight", "id"]);
+        expect(unread).toEqual(["edges[0].weight", "edges[0].id"]);
         const bad = report.issues.filter((i) => i.code === JSON_ISSUE.BAD_VALUE).map((i) => i.message);
         expect(bad).toHaveLength(2);
         expect(bad[0]).toMatch(/meta must be an object/);
-        expect(bad[1]).toMatch(/pred must be a string/);
+        expect(bad[1]).toMatch(/has no pred/);
     });
 
     it("obographs-meta-items-filtered: every meta item of the wrong type is E_BAD_VALUE", async () => {
@@ -991,7 +991,7 @@ describe("JSON robustness: OBO Graphs", () => {
         expect(messages.join(" ")).not.toMatch(/meta\.synonyms\[0\]\.xrefs/);
     });
 
-    it("obographs-duplicate-property-node: a repeated PROPERTY node is W_DUPLICATE_NODE", async () => {
+    it("obographs-duplicate-property-node: a repeated PROPERTY node is W_DUPLICATE_NODE, the first kept", async () => {
         const text = graph({
             nodes: [
                 { id: "GO:1", lbl: "x" },
@@ -1002,10 +1002,10 @@ describe("JSON robustness: OBO Graphs", () => {
         const { s, report } = await load(text);
         expect(codes(report)).toEqual([JSON_ISSUE.DUPLICATE_NODE]);
         const { properties } = s.meta.extra.obographs as { properties: Record<string, { lbl: string }> };
-        expect(properties["RO:1"].lbl).toBe("q");
+        expect(properties["RO:1"].lbl).toBe("p");
     });
 
-    it("obographs-curie-collision: two IRIs compacted to one CURIE are W_ID_MERGED naming oboIds", async () => {
+    it("obographs-curie-collision: two IRIs compacted to one CURIE are W_DUPLICATE_NODE naming oboIds", async () => {
         const text = graph({
             nodes: [
                 { id: "http://purl.obolibrary.org/obo/GO_1", lbl: "x" },
@@ -1014,7 +1014,7 @@ describe("JSON robustness: OBO Graphs", () => {
         });
         const { s, report } = await load(text);
         expect(ids(s)).toEqual(["GO:1"]);
-        expect(issue(report, JSON_ISSUE.ID_MERGED).message).toMatch(/oboIds/);
+        expect(issue(report, JSON_ISSUE.DUPLICATE_NODE).message).toMatch(/oboIds/);
     });
 });
 

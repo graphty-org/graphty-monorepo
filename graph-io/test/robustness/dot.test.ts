@@ -328,11 +328,11 @@ describe("DOT robustness: policies and several graphs", () => {
         const later = await rejects(
             importAllGraphs("digraph { a -> b } digraph { c -> c }", { format: "dot", selfLoops: "error" }),
         );
-        expect(later.message).toBe("graph 1: edge 0 is a self-loop at node 0");
+        expect(later.message).toBe("graph 1: the graph cannot be frozen: edge 0 is a self-loop at node 0");
         expect(later.details.graphIndex).toBe(1);
         expect(fatalCode(later)).toBe("E_SELF_LOOP");
         const first = await rejects(importAllGraphs("digraph { c -> c }", { format: "dot", selfLoops: "error" }));
-        expect(first.message).toBe("graph 0: edge 0 is a self-loop at node 0");
+        expect(first.message).toBe("graph 0: the graph cannot be frozen: edge 0 is a self-loop at node 0");
         expect(first.details.graphIndex).toBe(0);
     });
 

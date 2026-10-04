@@ -29,9 +29,6 @@ import { chosenGraph, type ImportContext, JSON_ISSUE, type JsonRecord } from "./
 /** The node keys the schema defines; any other key goes to `obo.unrecognized`. */
 const NODE_KEYS: ReadonlySet<string> = new Set(["id", "lbl", "type", "propertyType", "meta"]);
 
-/** The edge keys the schema defines (`subj` is the outdated spelling of `sub`). */
-const EDGE_KEYS: ReadonlySet<string> = new Set(["sub", "subj", "pred", "obj", "meta"]);
-
 /** The `meta` keys mapped onto columns; any other key goes to `obo.unrecognized` as `meta.<key>`. */
 const META_KEYS: ReadonlySet<string> = new Set([
     "definition",
@@ -119,13 +116,26 @@ interface Vocabulary {
     readonly id: (iri: string) => string;
     /** A predicate as the relation name the edge column holds. */
     readonly relation: (pred: string) => string;
-    /** Whether an IRI names a PROPERTY node. */
+    /** Whether an IRI names a PROPERTY node and no node of another type. */
     readonly isProperty: (iri: string) => boolean;
-    /** The PROPERTY nodes kept as metadata, by IRI. */
+    /** Whether an IRI names a node that is not a PROPERTY (a class, an individual). */
+    readonly isClass: (iri: string) => boolean;
+    /** The PROPERTY nodes kept as metadata, by IRI (a null-prototype record: an IRI may be `__proto__`). */
     readonly properties: Record<string, unknown>;
-    /** The IRI each node id was read from, to tell a repeated node from two IRIs compacted to one id. */
-    readonly sources: Map<string, string>;
+    /** The first id as written of each node id as read (two ids may meet only after IRI compaction). */
+    readonly written: Map<string, string>;
 }
+
+/** The axiom sections of an OBO Graphs graph, each an array (kept verbatim in the metadata). */
+const AXIOM_KEYS: readonly string[] = [
+    "logicalDefinitionAxioms",
+    "equivalentNodesSets",
+    "domainRangeAxioms",
+    "propertyChainAxioms",
+];
+
+/** The edge keys the schema defines (`subj` is the README's outdated spelling of `sub`). */
+const EDGE_KEYS: ReadonlySet<string> = new Set(["sub", "subj", "pred", "obj", "meta"]);
 
 /**
  * The id rule and the property table of one graph: PROPERTY nodes are found first, so an edge's
@@ -137,8 +147,13 @@ interface Vocabulary {
 function vocabularyOf(nodes: readonly unknown[], oboIds: "curie" | "iri"): Vocabulary {
     const shorthands = new Map<string, string>();
     const propertyIds = new Set<string>();
+    const classIds = new Set<string>();
     for (const node of nodes) {
-        if (!isJsonObject(node) || typeof node.id !== "string" || node.type !== "PROPERTY") {
+        if (!isJsonObject(node) || typeof node.id !== "string") {
+            continue;
+        }
+        if (node.type !== "PROPERTY") {
+            classIds.add(node.id);
             continue;
         }
         propertyIds.add(node.id);
@@ -151,9 +166,10 @@ function vocabularyOf(nodes: readonly unknown[], oboIds: "curie" | "iri"): Vocab
     return {
         id: (iri) => (oboIds === "curie" ? (shorthands.get(iri) ?? compactOboIri(iri)) : iri),
         relation: (pred) => BUILTIN_PREDICATES[pred] ?? shorthands.get(pred) ?? compact(pred),
-        isProperty: (iri) => propertyIds.has(iri),
-        properties: {},
-        sources: new Map<string, string>(),
+        isProperty: (iri) => propertyIds.has(iri) && !classIds.has(iri),
+        isClass: (iri) => classIds.has(iri),
+        properties: Object.create(null) as Record<string, unknown>,
+        written: new Map(),
     };
 }
 
@@ -161,52 +177,66 @@ function vocabularyOf(nodes: readonly unknown[], oboIds: "curie" | "iri"): Vocab
 interface PropertyValue {
     readonly pred: string;
     readonly val: string;
+    readonly meta?: unknown;
 }
 
 /**
- * The well-formed `basicPropertyValues` of a node's meta.
+ * The well-formed `basicPropertyValues` of a node's meta, each malformed entry reported when a
+ * context is given (the vocabulary pre-pass reads them silently; writeMeta reports them).
  * @param meta - the node's meta, or anything
- * @param bad - called for each entry that is skipped, or undefined to skip silently (the vocabulary scan)
+ * @param ctx - the context to report through, or null
+ * @param element - the node's name in messages
  * @returns the entries with a string pred and val
  */
-function basicValues(meta: unknown, bad?: (message: string) => void): PropertyValue[] {
-    if (!isJsonObject(meta) || !Array.isArray(meta.basicPropertyValues)) {
+function basicValues(meta: unknown, ctx: ImportContext | null = null, element = ""): PropertyValue[] {
+    if (!isJsonObject(meta) || meta.basicPropertyValues === undefined || meta.basicPropertyValues === null) {
         return [];
     }
-    return meta.basicPropertyValues.filter((pv: unknown, i): pv is PropertyValue => {
-        const ok = isJsonObject(pv) && typeof pv.pred === "string" && typeof pv.val === "string";
-        if (!ok) {
-            bad?.(`meta.basicPropertyValues[${i}] needs a string pred and val; it is skipped`);
+    const path = `${element}.meta.basicPropertyValues`;
+    if (!Array.isArray(meta.basicPropertyValues)) {
+        if (ctx !== null) {
+            badValue(ctx, `${path} must be an array; it is dropped`, path);
         }
-        return ok;
+        return [];
+    }
+    const out: PropertyValue[] = [];
+    meta.basicPropertyValues.forEach((pv: unknown, j: number) => {
+        if (isJsonObject(pv) && typeof pv.pred === "string" && typeof pv.val === "string") {
+            out.push(pv as unknown as PropertyValue);
+        } else if (ctx !== null) {
+            badValue(ctx, `${path}[${j}] needs a string pred and a string val; it is dropped`, `${path}[${j}]`);
+        }
     });
+    return out;
 }
 
 /**
- * The strings of an array, or of an array of `{ val }` records; every other item is reported.
- * @param value - the array, or anything
- * @param what - the field's name for the messages
- * @param bad - called for each item that is skipped
+ * The strings of an array, or of an array of `{ val }` records, each item that is neither
+ * reported (E_BAD_VALUE) and dropped, and a value that is not an array reported whole.
+ * @param ctx - the context
+ * @param value - the array, or anything (undefined and null: none)
+ * @param path - the field's path in messages
  * @returns the strings
  */
-function strings(value: unknown, what: string, bad: (message: string) => void): string[] {
+function strings(ctx: ImportContext, value: unknown, path: string): string[] {
     if (value === undefined || value === null) {
         return [];
     }
     if (!Array.isArray(value)) {
-        bad(`${what} must be an array; it is skipped`);
+        badValue(ctx, `${path} must be an array; it is dropped`, path);
         return [];
     }
-    return value.flatMap((item: unknown, i) => {
+    const out: string[] = [];
+    value.forEach((item: unknown, j: number) => {
         if (typeof item === "string") {
-            return [item];
+            out.push(item);
+        } else if (isJsonObject(item) && typeof item.val === "string") {
+            out.push(item.val);
+        } else {
+            badValue(ctx, `${path}[${j}] is not a string or a { val } record; it is dropped`, `${path}[${j}]`);
         }
-        if (isJsonObject(item) && typeof item.val === "string") {
-            return [item.val];
-        }
-        bad(`${what}[${i}] is neither a string nor a record with a string val; it is skipped`);
-        return [];
     });
+    return out;
 }
 
 /**
@@ -231,6 +261,12 @@ export function importObographs(ctx: ImportContext, root: JsonRecord): void {
     for (const key of Object.keys(graph)) {
         if (key !== "nodes" && key !== "edges") {
             graphMeta[key] = graph[key];
+        }
+    }
+    for (const key of AXIOM_KEYS) {
+        const axioms = graph[key];
+        if (axioms !== undefined && axioms !== null && !Array.isArray(axioms)) {
+            badValue(ctx, `the graph's ${key} must be an array; it is kept as written`, key);
         }
     }
     const document: JsonRecord = {};
@@ -295,52 +331,44 @@ function readNode(
         ctx.badElement("node", element);
         return;
     }
-    if (typeof record.id !== "string") {
+    if (typeof record.id !== "string" || record.id.length === 0) {
         if (record.id === undefined) {
             ctx.coerceId(undefined, element);
+        } else if (record.id === "") {
+            ctx.report.error("missing-value", JSON_ISSUE.MISSING_ID, `${element} has an empty id; it is skipped`, {
+                element,
+            });
         } else {
             badValue(ctx, `${element}.id must be a string; the node is skipped`);
         }
         ctx.countSkipped("node");
         return;
     }
+    if (typeof record.type === "string" && FRAME_TYPES[record.type] === undefined) {
+        ctx.report.warnOnce(
+            "unsupported",
+            JSON_ISSUE.UNKNOWN_ELEMENT,
+            `${element}: node type ${JSON.stringify(record.type)} is not CLASS, INDIVIDUAL or PROPERTY; kept as written`,
+            { element: record.type },
+            `${JSON_ISSUE.UNKNOWN_ELEMENT}:type:${record.type}`,
+        );
+    }
     if (record.type === "PROPERTY" && ctx.json.typedefs === "metadata") {
-        const shorthand = vocabulary.id(record.id) === record.id ? undefined : vocabulary.id(record.id);
-        const entry: JsonRecord = {};
-        for (const [key, value] of Object.entries({
-            lbl: record.lbl,
-            propertyType: record.propertyType,
-            shorthand,
-            meta: record.meta,
-        })) {
-            if (value !== undefined) {
-                entry[key] = value;
-            }
-        }
-        if (Object.prototype.hasOwnProperty.call(vocabulary.properties, record.id)) {
-            ctx.report.warning(
-                "merged",
-                JSON_ISSUE.DUPLICATE_NODE,
-                `${element}: property ${JSON.stringify(record.id)} already exists; the later record replaces it`,
-                { element },
-            );
-        }
-        vocabulary.properties[record.id] = entry;
+        readProperty(ctx, vocabulary, record, record.id, element);
         return;
     }
     const compacted = vocabulary.id(record.id);
-    const earlier = vocabulary.sources.get(compacted);
-    if (earlier !== undefined && earlier !== record.id) {
-        ctx.report.warning(
-            "coercion",
-            JSON_ISSUE.ID_MERGED,
-            `${element}: ${JSON.stringify(record.id)} and ${JSON.stringify(earlier)} both read as the id ${JSON.stringify(compacted)}; pass oboIds: "iri" to keep them apart`,
-            { element },
-        );
-    }
-    vocabulary.sources.set(compacted, record.id);
     const id = ctx.coerceId(compacted, element);
-    const row = id === null ? -1 : ctx.pushNode(id, element);
+    // two ids that differ only by IRI compaction (the PURL and its CURIE) meet here
+    const earlier = vocabulary.written.get(compacted);
+    if (earlier === undefined) {
+        vocabulary.written.set(compacted, record.id);
+    }
+    const why =
+        earlier === undefined || earlier === record.id
+            ? ""
+            : ` (${earlier} and ${record.id} meet only after IRI compaction; oboIds "iri" keeps them apart)`;
+    const row = id === null ? -1 : ctx.pushNode(id, element, why);
     if (row < 0) {
         return;
     }
@@ -349,6 +377,45 @@ function readNode(
     } catch (err) {
         ctx.report.recordError(err, { element: record.id });
     }
+}
+
+/**
+ * Keep a PROPERTY node in the metadata (typedefs "metadata"), the first of a repeated id.
+ * @param ctx - the context
+ * @param vocabulary - the graph's vocabulary
+ * @param record - the node record
+ * @param iri - its id
+ * @param element - its name in messages
+ */
+function readProperty(
+    ctx: ImportContext,
+    vocabulary: Vocabulary,
+    record: JsonRecord,
+    iri: string,
+    element: string,
+): void {
+    if (Object.prototype.hasOwnProperty.call(vocabulary.properties, iri)) {
+        ctx.report.warning(
+            "merged",
+            JSON_ISSUE.DUPLICATE_NODE,
+            `${element}: property ${JSON.stringify(iri)} is declared again; the first declaration is kept`,
+            { element },
+        );
+        return;
+    }
+    const shorthand = vocabulary.id(iri) === iri ? undefined : vocabulary.id(iri);
+    const entry: JsonRecord = {};
+    for (const [key, value] of Object.entries({
+        lbl: record.lbl,
+        propertyType: record.propertyType,
+        shorthand,
+        meta: record.meta,
+    })) {
+        if (value !== undefined) {
+            entry[key] = value;
+        }
+    }
+    vocabulary.properties[iri] = entry;
 }
 
 /**
@@ -387,9 +454,7 @@ function writeNode(
     }
     const { meta } = record;
     if (isJsonObject(meta)) {
-        writeMeta(columns, vocabulary, meta, row, unrecognized, (message) => {
-            badValue(ctx, `${element}.${message}`);
-        });
+        writeMeta(ctx, columns, vocabulary, meta, row, unrecognized, element);
     } else if (meta !== undefined && meta !== null) {
         badValue(ctx, `${element}.meta must be an object`);
     }
@@ -400,68 +465,64 @@ function writeNode(
 
 /**
  * Write a node's `meta` onto the OBO columns (design 4.6): definition, comments, subsets, xrefs,
- * synonyms, deprecated, and the basicPropertyValues mapped back to the OBO tag they came from.
+ * synonyms, deprecated, and the basicPropertyValues mapped back to the OBO tag they came from. A
+ * field of the wrong JSON type is reported and dropped; a nested `meta` (axiom annotations) of
+ * a definition or a property value is kept in `obo.unrecognized`.
+ * @param ctx - the context
  * @param columns - the column writer
  * @param vocabulary - the graph's vocabulary
  * @param meta - the meta record
  * @param row - the node index
  * @param unrecognized - where keys without a column go
- * @param bad - reports an item of the wrong type (E_BAD_VALUE); the item is skipped
+ * @param element - the node's name in messages
  */
 function writeMeta(
+    ctx: ImportContext,
     columns: ColumnWriter,
     vocabulary: Vocabulary,
     meta: JsonRecord,
     row: number,
     unrecognized: JsonRecord,
-    bad: (message: string) => void,
+    element: string,
 ): void {
+    const path = `${element}.meta`;
     const { definition } = meta;
-    if (isJsonObject(definition) && typeof definition.val === "string") {
-        columns.node("def", row, definition.val);
-        columns.node("def.xrefs", row, strings(definition.xrefs, "meta.definition.xrefs", bad));
+    if (isJsonObject(definition)) {
+        const xrefs = strings(ctx, definition.xrefs, `${path}.definition.xrefs`);
+        if (typeof definition.val === "string") {
+            columns.node("def", row, definition.val);
+            columns.node("def.xrefs", row, xrefs);
+        } else {
+            badValue(ctx, `${path}.definition has no string val; it is dropped`, `${path}.definition.val`);
+        }
+        if (definition.meta !== undefined) {
+            unrecognized["meta.definition.meta"] = definition.meta;
+        }
     } else if (definition !== undefined && definition !== null) {
-        bad("meta.definition needs a string val; it is skipped");
+        badValue(ctx, `${path}.definition must be an object with a val; it is dropped`, `${path}.definition`);
     }
-    const comments = strings(meta.comments, "meta.comments", bad);
+    const comments = strings(ctx, meta.comments, `${path}.comments`);
     if (comments.length > 0) {
         columns.node("comment", row, comments.join("\n"));
     }
-    const subsets = strings(meta.subsets, "meta.subsets", bad).map((s) => vocabulary.id(s));
+    const subsets = strings(ctx, meta.subsets, `${path}.subsets`).map((s) => vocabulary.id(s));
     if (subsets.length > 0) {
         columns.node("subset", row, subsets);
     }
-    const xrefs = strings(meta.xrefs, "meta.xrefs", bad);
+    const xrefs = strings(ctx, meta.xrefs, `${path}.xrefs`);
     if (xrefs.length > 0) {
         columns.node("xref", row, xrefs);
     }
-    if (Array.isArray(meta.synonyms) && meta.synonyms.length > 0) {
-        // each synonym keeps its index in meta.synonyms, so a message names the right one
-        const synonyms: { readonly s: JsonRecord & { readonly val: string }; readonly i: number }[] = [];
-        meta.synonyms.forEach((s: unknown, i) => {
-            if (isJsonObject(s) && typeof s.val === "string") {
-                synonyms.push({ s: s as JsonRecord & { readonly val: string }, i });
-            } else {
-                bad(`meta.synonyms[${i}] is not a record with a string val; it is skipped`);
-            }
-        });
-        columns.node(
-            "synonym",
-            row,
-            synonyms.map(({ s, i }) => ({
-                text: s.val,
-                scope: typeof s.pred === "string" ? synonymScopeOf(s.pred) : null,
-                type: typeof s.synonymType === "string" ? vocabulary.id(s.synonymType) : null,
-                xrefs: strings(s.xrefs, `meta.synonyms[${i}].xrefs`, bad),
-            })),
-        );
+    const synonyms = synonymsOf(ctx, vocabulary, meta.synonyms, `${path}.synonyms`);
+    if (synonyms.length > 0) {
+        columns.node("synonym", row, synonyms);
     }
     if (typeof meta.deprecated === "boolean") {
         columns.node("is_obsolete", row, meta.deprecated);
     } else if (meta.deprecated !== undefined && meta.deprecated !== null) {
-        bad("meta.deprecated must be a boolean; it is skipped");
+        badValue(ctx, `${path}.deprecated must be a boolean; it is dropped`, `${path}.deprecated`);
     }
-    writePropertyValues(columns, vocabulary, basicValues(meta, bad), row);
+    writePropertyValues(ctx, columns, vocabulary, meta, row, unrecognized, element);
     for (const key of Object.keys(meta)) {
         if (!META_KEYS.has(key)) {
             unrecognized[`meta.${key}`] = meta[key];
@@ -470,36 +531,117 @@ function writeMeta(
 }
 
 /**
+ * The synonyms of a node's meta as the OBO `synonym` items: each entry that is not an object or
+ * has no string val reported and dropped, a predicate that is not one of the four scopes kept with
+ * scope null (W_UNKNOWN_ELEMENT once per predicate), a nested `meta` kept on the item.
+ * @param ctx - the context
+ * @param vocabulary - the graph's vocabulary
+ * @param value - the `synonyms` field
+ * @param path - its path in messages
+ * @returns the items
+ */
+function synonymsOf(ctx: ImportContext, vocabulary: Vocabulary, value: unknown, path: string): JsonRecord[] {
+    if (value === undefined || value === null) {
+        return [];
+    }
+    if (!Array.isArray(value)) {
+        badValue(ctx, `${path} must be an array; it is dropped`, path);
+        return [];
+    }
+    const out: JsonRecord[] = [];
+    value.forEach((s: unknown, j: number) => {
+        const at = `${path}[${j}]`;
+        if (!isJsonObject(s)) {
+            badValue(ctx, `${at} is not an object; it is dropped`, at);
+            return;
+        }
+        if (typeof s.val !== "string") {
+            badValue(ctx, `${at} has no string val; it is dropped`, `${at}.val`);
+            return;
+        }
+        const scope = typeof s.pred === "string" ? synonymScopeOf(s.pred) : null;
+        if (scope === null && typeof s.pred === "string") {
+            ctx.report.warnOnce(
+                "unsupported",
+                JSON_ISSUE.UNKNOWN_ELEMENT,
+                `${at}: synonym predicate ${JSON.stringify(s.pred)} is not one of the four scopes; kept with scope null`,
+                { element: s.pred },
+                `${JSON_ISSUE.UNKNOWN_ELEMENT}:pred:${s.pred}`,
+            );
+        }
+        const item: JsonRecord = { text: s.val, scope, type: null, xrefs: strings(ctx, s.xrefs, `${at}.xrefs`) };
+        if (typeof s.synonymType === "string") {
+            item.type = vocabulary.id(s.synonymType);
+        } else if (s.synonymType !== undefined && s.synonymType !== null) {
+            badValue(ctx, `${at}.synonymType must be a string; it is dropped`, `${at}.synonymType`);
+        }
+        if (s.meta !== undefined) {
+            item.meta = s.meta;
+        }
+        out.push(item);
+    });
+    return out;
+}
+
+/**
  * Write the basicPropertyValues: the ones an OBO tag maps to onto that tag's column (lists for
- * alt_id, replaced_by, consider), the rest into `property_value`.
+ * alt_id, replaced_by, consider; the first value of a single-valued tag, a repeat warned as the
+ * .obo importer warns it), the rest into `property_value`.
+ * @param ctx - the context
  * @param columns - the column writer
  * @param vocabulary - the graph's vocabulary
- * @param values - the entries
+ * @param meta - the node's meta
  * @param row - the node index
+ * @param unrecognized - where the nested meta of a mapped value goes
+ * @param element - the node's name in messages
  */
 function writePropertyValues(
+    ctx: ImportContext,
     columns: ColumnWriter,
     vocabulary: Vocabulary,
-    values: readonly PropertyValue[],
+    meta: JsonRecord,
     row: number,
+    unrecognized: JsonRecord,
+    element: string,
 ): void {
     const lists = new Map<string, string[]>();
+    const singles = new Map<string, string>();
     const others: JsonRecord[] = [];
-    for (const { pred, val } of values) {
+    const values = basicValues(meta, ctx, element);
+    values.forEach(({ pred, val, meta: nested }, j) => {
         const tag = OBOGRAPHS_PREDICATE_TAGS.get(pred);
         if (tag === "shorthand") {
-            continue;
+            return;
         }
         if (tag === undefined) {
-            others.push({ relation: vocabulary.id(pred), value: val, datatype: null });
-        } else if (OBO_NODE_COLUMNS[tag].dtype === "list") {
+            const item: JsonRecord = { relation: vocabulary.id(pred), value: val, datatype: null };
+            if (nested !== undefined) {
+                item.meta = nested;
+            }
+            others.push(item);
+            return;
+        }
+        if (nested !== undefined) {
+            unrecognized[`meta.basicPropertyValues[${j}].meta`] = nested;
+        }
+        if (OBO_NODE_COLUMNS[tag].dtype === "list") {
             const list = lists.get(tag) ?? [];
             list.push(tag === "alt_id" ? val : vocabulary.id(val));
             lists.set(tag, list);
+        } else if (singles.get(tag) === val) {
+            // an identical value counts once, as an identical .obo clause does
+        } else if (singles.has(tag)) {
+            ctx.report.warning(
+                "validation-error",
+                JSON_ISSUE.DUPLICATE_ATTRIBUTE,
+                `${element}: a second ${tag} (${JSON.stringify(val)}); the first is kept`,
+                { element: tag },
+            );
         } else {
+            singles.set(tag, val);
             columns.node(tag, row, val);
         }
-    }
+    });
     for (const [tag, list] of lists) {
         columns.node(tag, row, list);
     }
@@ -512,9 +654,50 @@ function writePropertyValues(
  * Report a field of the wrong JSON type (the field is left unset, the element kept).
  * @param ctx - the context
  * @param message - what is wrong
+ * @param element - the field's path, when known
  */
-function badValue(ctx: ImportContext, message: string): void {
-    ctx.report.error("validation-error", JSON_ISSUE.BAD_VALUE, message);
+function badValue(ctx: ImportContext, message: string, element?: string): void {
+    ctx.report.error("validation-error", JSON_ISSUE.BAD_VALUE, message, element === undefined ? undefined : { element });
+}
+
+/**
+ * An edge's subject: `sub`, else the README's outdated `subj` (warned once), and a warning when
+ * both are present and differ; every key outside the schema warned once per key name.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param element - its name in messages
+ * @returns the subject value, unchecked
+ */
+function subjectOf(ctx: ImportContext, record: JsonRecord, element: string): unknown {
+    const { report } = ctx;
+    for (const key of Object.keys(record)) {
+        if (!EDGE_KEYS.has(key)) {
+            report.warnOnce(
+                "unsupported",
+                JSON_ISSUE.UNREAD_KEY,
+                `${element}: the key ${JSON.stringify(key)} is not part of an OBO Graphs edge; it is not read`,
+                { element: `${element}.${key}` },
+                `${JSON_ISSUE.UNREAD_KEY}:edge:${key}`,
+            );
+        }
+    }
+    if (!hasKey(record, "sub")) {
+        if (hasKey(record, "subj")) {
+            report.warnOnce("coercion", JSON_ISSUE.OBOGRAPHS_SUBJ, `${element} uses the outdated key subj; read as sub`, {
+                element,
+            });
+        }
+        return record.subj;
+    }
+    if (hasKey(record, "subj") && record.subj !== record.sub) {
+        report.warning(
+            "coercion",
+            JSON_ISSUE.OBOGRAPHS_SUBJ,
+            `${element} has both sub and the outdated subj, which differ; sub is read and subj ignored`,
+            { element },
+        );
+    }
+    return record.sub;
 }
 
 /**
@@ -536,8 +719,6 @@ function readEdges(
     const propertyEdges: unknown[] = [];
     const dangling: string[] = [];
     let dropped = 0;
-    // the edge keys outside the schema, each reported once
-    const unread = new Set<string>();
     const endpoint = (raw: string, element: string): NodeId | null => {
         const id = ctx.coerceId(vocabulary.id(raw), element);
         if (id === null || sink.indexOf(id) !== INVALID_INDEX) {
@@ -560,27 +741,19 @@ function readEdges(
             ctx.badElement("edge", element);
             continue;
         }
-        const subKey = hasKey(record, "sub") ? "sub" : "subj";
-        if (subKey === "subj" && hasKey(record, "subj")) {
-            report.warnOnce(
-                "coercion",
-                JSON_ISSUE.OBOGRAPHS_SUBJ,
-                `${element} uses the outdated key subj; read as sub`,
-                {
-                    element,
-                },
-            );
-        }
-        const sub = record[subKey];
+        const sub = subjectOf(ctx, record, element);
         const { obj, pred } = record;
-        if (typeof sub !== "string" || typeof obj !== "string") {
-            ctx.missingEndpoint(element, typeof sub === "string" ? "obj" : "sub");
+        if (typeof sub !== "string" || typeof obj !== "string" || sub.length === 0 || obj.length === 0) {
+            ctx.missingEndpoint(element, typeof sub === "string" && sub.length > 0 ? "obj" : "sub");
             continue;
         }
+        // only an edge between two properties is property metadata; one that touches a class stays
         const between =
-            (typeof pred === "string" && PROPERTY_PREDICATES.has(pred)) ||
-            vocabulary.isProperty(sub) ||
-            vocabulary.isProperty(obj);
+            (vocabulary.isProperty(sub) && vocabulary.isProperty(obj)) ||
+            (typeof pred === "string" &&
+                PROPERTY_PREDICATES.has(pred) &&
+                !vocabulary.isClass(sub) &&
+                !vocabulary.isClass(obj));
         if (between && ctx.json.typedefs === "metadata") {
             propertyEdges.push(record);
             continue;
@@ -596,28 +769,13 @@ function readEdges(
             const edge = ctx.pushEdge(u, v, "directed", undefined, element);
             if (typeof pred === "string") {
                 columns.edge("relation", edge, vocabulary.relation(pred));
-            } else if (pred === undefined || pred === null) {
-                badValue(ctx, `${element} has no pred; its relation is unset`);
             } else {
-                badValue(ctx, `${element}.pred must be a string; its relation is unset`);
+                badValue(ctx, `${element} has no pred; its relation is unset`);
             }
             if (isJsonObject(record.meta)) {
                 columns.edge("meta", edge, record.meta);
             } else if (record.meta !== undefined && record.meta !== null) {
-                badValue(ctx, `${element}.meta must be an object; it is skipped`);
-            }
-            for (const key of Object.keys(record)) {
-                if (!EDGE_KEYS.has(key) && !unread.has(key)) {
-                    unread.add(key);
-                    report.warning(
-                        "unsupported",
-                        JSON_ISSUE.UNREAD_KEY,
-                        `edge key ${key} is not an OBO Graphs field; dropped`,
-                        {
-                            element: key,
-                        },
-                    );
-                }
+                badValue(ctx, `${element}.meta must be an object; it is dropped`, `${element}.meta`);
             }
         } catch (err) {
             ctx.skip(err, "edge", element);

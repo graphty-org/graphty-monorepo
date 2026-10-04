@@ -17,6 +17,7 @@ import {
 } from "@graphty/graph-format";
 
 import { CellBudgetBuilder, maxEmptyCellsOption } from "./common/cell-budget.js";
+import { EDGES_MERGED_CODE } from "./common/codes.js";
 import { abortable, foreignKind, lockReader, normalizeInput, throwIfAborted } from "./common/input.js";
 import { resolveImportOptions } from "./common/options.js";
 import { ImportReportBuilder, messageOf } from "./common/report.js";
@@ -626,32 +627,14 @@ function result(
     try {
         frozen = builder.freezeWithReport(options.freeze);
     } catch (err) {
-        // a builder policy checked at freeze (selfLoops / duplicateEdges "error"): the import's
-        // ImportError, with the import report and the condition recorded in it
-        if (!(err instanceof GraphFormatError)) {
-            throw err;
-        }
-        const issue = Object.freeze({
-            category: "validation-error" as const,
-            severity: "error" as const,
-            code: err.code,
-            message: err.message,
-            line: null,
-            element: null,
-        });
-        const failed: ImportReport = Object.freeze({
-            ...report,
-            issues: Object.freeze([...report.issues, issue]),
-            errorCount: report.errorCount + 1,
-        });
-        throw new ImportError(err.message, failed, { code: err.code, ...err.details });
+        throw freezeFailure(err, report);
     }
     const { warnings } = chosen;
     return Object.freeze({
         format: chosen.importer.format,
         sniff: chosen.sniff,
         snapshot: frozen.snapshot,
-        report:
+        report: withMergedEdges(
             warnings.length === 0
                 ? report
                 : Object.freeze({
@@ -659,8 +642,66 @@ function result(
                       issues: Object.freeze([...warnings, ...report.issues]),
                       warningCount: report.warningCount + warnings.length,
                   }),
+            frozen.report.mergedEdges,
+        ),
         freeze: frozen.report,
     });
+}
+
+/**
+ * The import report with one W_EDGES_MERGED warning when the freeze merged parallel edges: a
+ * merging duplicateEdges policy (on the builder or as a per-freeze override) keeps one edge per
+ * group, and whatever told the others apart (a relation, a label) is gone.
+ * @param report - the import's report
+ * @param merged - the freeze report's mergedEdges
+ * @returns the report, with the warning when merged is not 0
+ */
+function withMergedEdges(report: ImportReport, merged: number): ImportReport {
+    if (merged === 0) {
+        return report;
+    }
+    const issue = Object.freeze({
+        category: "merged" as const,
+        severity: "warning" as const,
+        code: EDGES_MERGED_CODE,
+        message: `${merged} parallel edge(s) were merged into one edge per pair by the duplicateEdges policy; whatever told them apart (a relation, a label) is lost`,
+        line: null,
+        element: null,
+    });
+    return Object.freeze({
+        ...report,
+        issues: Object.freeze([...report.issues, issue]),
+        warningCount: report.warningCount + 1,
+    });
+}
+
+/**
+ * The ImportError of a freeze the builder refused (a `duplicateEdges: "error"` or `selfLoops:
+ * "error"` policy meeting a duplicate edge or a self-loop the file holds): the builder's code
+ * recorded as an error issue on the import's report, so the caller gets the report and the file's
+ * defect rather than a bare GraphFormatError.
+ * @param err - what freezeWithReport() threw
+ * @param report - the import's report
+ * @returns the error to throw (anything that is not a GraphFormatError, unchanged)
+ */
+function freezeFailure(err: unknown, report: ImportReport): unknown {
+    if (!(err instanceof GraphFormatError) || err instanceof ImportError) {
+        return err;
+    }
+    const issue = Object.freeze({
+        category: "validation-error" as const,
+        severity: "error" as const,
+        code: err.code,
+        message: err.message,
+        line: null,
+        element: null,
+    });
+    const failed: ImportReport = Object.freeze({
+        ...report,
+        issues: Object.freeze([...report.issues, issue]),
+        errorCount: report.errorCount + 1,
+    });
+    return new ImportError(`the graph cannot be frozen: ${err.message}`, failed, { code: err.code, ...err.details });
 }
 
 /**

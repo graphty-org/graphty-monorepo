@@ -145,7 +145,8 @@ export function sniffJsonDialect(root: unknown): JsonImportDialect | null {
         return "jgf";
     }
     if (Array.isArray(root.graphs)) {
-        return isOboGraph(firstJsonObject(root.graphs)) ? "obographs" : "jgf";
+        // any graph decides: an ontology's first graph may be an empty stub before its imports
+        return root.graphs.some((g: unknown) => isJsonObject(g) && isOboGraph(g)) ? "obographs" : "jgf";
     }
     if (!hasKey(root, "edges") && !hasKey(root, "links")) {
         if (hasKey(root, "nodes") && hasKey(root, "adjacency")) {

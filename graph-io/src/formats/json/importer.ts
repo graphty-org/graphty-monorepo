@@ -45,6 +45,7 @@ import { uniqueColumnName } from "../../common/attributes.js";
 import {
     AMBIGUOUS_GRAPH_NAME_CODE,
     BAD_VALUE_CODE,
+    COLUMN_RENAMED_CODE,
     DANGLING_REFERENCE_CODE,
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
@@ -64,8 +65,10 @@ import {
     OPTION_IGNORED_CODE,
     PARENT_CYCLE_CODE,
     PRECISION_CODE,
+    ROLE_TAKEN_CODE,
     SYNTAX_CODE,
     TOO_LARGE_CODE,
+    UNKNOWN_ELEMENT_CODE,
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
@@ -252,8 +255,6 @@ export const JSON_ISSUE = Object.freeze({
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** A number literal no double holds exactly (an integer beyond 2^53 with a fraction or an exponent, or beyond the double range). */
     PRECISION: PRECISION_CODE,
-    /** A key repeated in one JSON object; JSON.parse keeps the last value, the earlier is dropped. */
-    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
     /**
      * The document contradicts itself: a declared option its edges break (multigraph false with
      * parallel links, graphology's options), a record whose section disagrees with its shape, a
@@ -266,6 +267,17 @@ export const JSON_ISSUE = Object.freeze({
     PARENT_CYCLE: PARENT_CYCLE_CODE,
     /** An attribute key that is null on every element makes no column (NetworkX writes None as null). */
     EMPTY_COLUMN_DROPPED: EMPTY_COLUMN_DROPPED_CODE,
+    /** OBO Graphs: a node type or synonym predicate outside the schema's set; kept as written, once per name. */
+    UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
+    /**
+     * A key repeated in one JSON object (JSON.parse keeps the last value, the earlier is dropped),
+     * or, in OBO Graphs, a single-valued OBO tag given twice in basicPropertyValues (the first is kept).
+     */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /** OBO Graphs: a vocabulary column renamed `<name>#<name>` because the sink already holds the name. */
+    COLUMN_RENAMED: COLUMN_RENAMED_CODE,
+    /** OBO Graphs: a vocabulary column declared without its role because the sink already holds it. */
+    ROLE_TAKEN: ROLE_TAKEN_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -965,16 +977,17 @@ export class ImportContext {
      * Add a node, counting it or recording the failure.
      * @param id - the node id
      * @param element - the element name
+     * @param why - more about a repeated id, for the duplicate warning
      * @returns the node index, or -1 when the sink refused the node
      */
-    pushNode(id: NodeId, element: string): number {
+    pushNode(id: NodeId, element: string, why = ""): number {
         this.checkAbort();
         const existing = this.sink.indexOf(id);
         if (existing !== INVALID_INDEX) {
             this.report.warning(
                 "merged",
                 JSON_ISSUE.DUPLICATE_NODE,
-                `${element}: node ${JSON.stringify(id)} already exists; its attributes are merged (the later values win)`,
+                `${element}: node ${JSON.stringify(id)} already exists${why}; its attributes are merged (the later values win)`,
                 { element },
             );
             return existing;

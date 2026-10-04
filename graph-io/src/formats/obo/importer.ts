@@ -63,11 +63,13 @@ import {
     parseXref,
     parseXrefList,
     type Qualifiers,
+    splitFormFeeds,
     splitQualifiers,
     splitTagValue,
     stripComment,
     type Token,
     tokenize,
+    unclosedBlock,
     unescapeObo,
     type Xref,
 } from "./syntax.js";
@@ -107,6 +109,10 @@ export const OBO_ISSUE = Object.freeze({
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
     /** A line without a colon, an unterminated quote, a def without its xref list, a qualifier block that does not parse, an unescaped brace. */
     SYNTAX: "W_OBO_SYNTAX",
+    /** Nothing in the input is OBO: no frame header and no valid header tag (fatal; an HTML page, a JSON or GML file, UTF-16 without a BOM). */
+    NOT_OBO: "E_OBO_NOT_OBO",
+    /** The header has no format-version (required by 1.2 and 1.4), or one that is not 1.0, 1.2 or 1.4; the file is read as the union. */
+    FORMAT_VERSION: "W_OBO_FORMAT_VERSION",
     /** The frame's `id` is not its first clause; it is used anyway. */
     ID_NOT_FIRST: "W_OBO_ID_NOT_FIRST",
     /** A synonym without a scope in a file that does not say 1.2, or with a scope that is not one of the four. */
@@ -224,6 +230,77 @@ const ID_LIST_TAGS: ReadonlySet<string> = new Set([
     "disjoint_over",
 ]);
 
+/** Header tags the specification allows once (the first is kept). */
+const SINGLE_HEADER_TAGS: ReadonlySet<string> = new Set([
+    "format-version",
+    "data-version",
+    "version",
+    "date",
+    "saved-by",
+    "auto-generated-by",
+    "default-namespace",
+    "ontology",
+    "default-relationship-id-prefix",
+]);
+
+/** The format versions the importer knows (it reads their union). */
+const KNOWN_VERSION = /^(GO_)?1\.[024]$/;
+
+/** Tags whose value is an id, where a qualifier block cut short by a truncated file is dropped. */
+const ID_VALUE_TAGS: ReadonlySet<string> = new Set([...ID_LIST_TAGS, "is_a", "instance_of", "relationship", "intersection_of"]);
+
+/** Warnings listed per code before the rest are summed up in one (a file of 50k unknown tags). */
+const MAX_TALLIES_PER_CODE = 100;
+
+/**
+ * Whether a text holds a control character other than tab, line feed, form feed (a line end in
+ * the 1.4 grammar, text inside quotes) and carriage return.
+ * @param text - the text
+ * @returns true when it does
+ */
+function hasControl(text: string): boolean {
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if ((c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0c && c !== 0x0d) || c === 0x7f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Whether a tag could name an OBO tag: no whitespace, control characters or the punctuation of
+ * other formats (`{`, `"`, `<`, brackets, parentheses).
+ * @param tag - the tag
+ * @returns true for a plausible tag
+ */
+function isTagName(tag: string): boolean {
+    return tag.length > 0 && !hasControl(tag) && !/[\s{}"<>[\]()]/.test(tag);
+}
+
+/**
+ * A record with no prototype, so a key named after an Object.prototype member (`__proto__`,
+ * `constructor`, `toString`) is an own key like any other.
+ * @returns the empty record
+ */
+function ownRecord<T>(): Record<string, T> {
+    return Object.create(null) as Record<string, T>;
+}
+
+/**
+ * Append a value to the list of a key in a null-prototype record.
+ * @param map - the record
+ * @param key - the key
+ * @param value - the value
+ */
+function append<T>(map: Record<string, T[]>, key: string, value: T): void {
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+        map[key].push(value);
+    } else {
+        map[key] = [value];
+    }
+}
+
 /** Tags that only a Typedef frame may carry (elsewhere they are unrecognized). */
 const TYPEDEF_TAGS: ReadonlySet<string> = new Set([
     "domain",
@@ -288,7 +365,7 @@ interface Where {
 
 /** A warning counted while reading and recorded once at the end. */
 interface Tally {
-    readonly category: "parse-error" | "validation-error" | "coercion" | "unsupported";
+    readonly category: "parse-error" | "validation-error" | "coercion" | "unsupported" | "merged";
     readonly code: string;
     readonly element: string;
     readonly what: string;
@@ -345,7 +422,19 @@ class OboReader {
     private readonly signal: AbortSignal | null;
 
     /** Header clauses by tag, raw, in order. */
-    private readonly header: Record<string, string[]> = {};
+    private readonly header: Record<string, string[]> = ownRecord<string[]>();
+
+    /** Whether `[Typedef]` frames are nodes (typedefs "nodes"). */
+    private readonly typedefsAsNodes: boolean;
+
+    /** Whether any frame header was read. */
+    private frameSeen = false;
+
+    /** Header clauses whose tag could be an OBO tag. */
+    private tagClauses = 0;
+
+    /** The first line that is not a frame header, a comment or a tag-value line with a plausible tag. */
+    private firstBadLine: number | null = null;
 
     private version: string | null = null;
 
@@ -379,10 +468,12 @@ class OboReader {
      * Create a reader.
      * @param report - the report
      * @param signal - the cancellation signal
+     * @param typedefsAsNodes - whether `[Typedef]` frames are nodes
      */
-    constructor(report: ImportReportBuilder, signal: AbortSignal | null) {
+    constructor(report: ImportReportBuilder, signal: AbortSignal | null, typedefsAsNodes: boolean) {
         this.report = report;
         this.signal = signal;
+        this.typedefsAsNodes = typedefsAsNodes;
     }
 
     /**
@@ -399,19 +490,24 @@ class OboReader {
         if (t.startsWith("!")) {
             return;
         }
-        const header = /^\[([^\]]*)\]\s*(?:!.*)?$/.exec(t);
-        if (header !== null) {
-            this.startFrame(header[1].trim(), line);
+        if (t.startsWith("[") && this.frameHeader(t, line)) {
             return;
         }
         // the comment goes first, so a colon inside it never makes `foo ! a:b` a tag-value line
         const tv = splitTagValue(stripComment(t));
-        if (tv === null) {
-            this.tally("parse-error", OBO_ISSUE.SYNTAX, "a line without a colon was skipped", "line", line);
+        if (tv === null || tv.tag.length === 0) {
+            this.firstBadLine ??= line;
+            const what = tv === null ? "a line without a colon was skipped" : "a line without a tag was skipped";
+            this.tally("parse-error", OBO_ISSUE.SYNTAX, what, "line", line);
             return;
         }
         const clause: Clause = { tag: tv.tag, value: stripComment(tv.rest), line };
         if (this.frame === null) {
+            if (isTagName(tv.tag)) {
+                this.tagClauses++;
+            } else {
+                this.firstBadLine ??= line;
+            }
             this.headerClause(clause);
         } else {
             this.frame.clauses.push(clause);
@@ -419,12 +515,47 @@ class OboReader {
     }
 
     /**
+     * Start a frame at a line opening with `[`: a well-formed header, or one damaged so that only a
+     * frame header can be meant (a known frame name, or no colon: `[Term`, `[Term] extra`), with a
+     * warning, so the clauses after it never merge into the frame before.
+     * @param t - the trimmed line
+     * @param line - its number
+     * @returns false when the line is not a frame header
+     */
+    private frameHeader(t: string, line: number): boolean {
+        const close = t.indexOf("]");
+        const name = (close < 0 ? t.slice(1) : t.slice(1, close)).trim();
+        const after = close < 0 ? "" : t.slice(close + 1).trim();
+        const clean = close >= 0 && (after.length === 0 || after.startsWith("!"));
+        if (!clean && !FRAME_KINDS.has(name) && t.includes(":")) {
+            return false;
+        }
+        if (!clean) {
+            const what =
+                close < 0
+                    ? "a frame header without its closing ] starts the frame"
+                    : "text after a frame header was ignored";
+            this.tally("parse-error", OBO_ISSUE.SYNTAX, what, `[${name}]`, line);
+        }
+        // a known frame name, or a clean header with a name: anything else (`[`, `[{"id": 1}]`, a JSON
+        // array) is read as a damaged header but is no proof the input is OBO
+        const proof = FRAME_KINDS.has(name) || (clean && /^[A-Za-z]/.test(name) && isTagName(name));
+        if (!proof) {
+            this.firstBadLine ??= line;
+        }
+        this.startFrame(name, line, proof);
+        return true;
+    }
+
+    /**
      * Start a frame, finishing the one before.
      * @param name - the frame type
      * @param line - the header's line
+     * @param proof - whether the header shows the input is OBO
      */
-    private startFrame(name: string, line: number): void {
+    private startFrame(name: string, line: number, proof: boolean): void {
         this.finishFrame();
+        this.frameSeen ||= proof;
         const kind = FRAME_KINDS.has(name) ? (name as FrameKind) : null;
         if (kind === null) {
             this.tally(
@@ -443,14 +574,31 @@ class OboReader {
      * @param clause - the clause
      */
     private headerClause(clause: Clause): void {
-        (this.header[clause.tag] ??= []).push(clause.value);
+        append(this.header, clause.tag, clause.value);
         const { tag } = clause;
+        if (SINGLE_HEADER_TAGS.has(tag) && this.header[tag].length > 1) {
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.DUPLICATE_ATTRIBUTE,
+                "a single-valued header tag given twice; the first is kept",
+                tag,
+                clause.line,
+            );
+        }
         const tokens = tokenize(splitQualifiers(clause.value).value);
         const first = tokens.length > 0 && tokens[0].kind === "word" ? tokens[0].text : null;
         if (tag === "format-version") {
             this.version ??= unescapeObo(clause.value).trim();
         } else if (tag === "default-namespace") {
             this.defaultNamespace ??= first;
+        } else if ((tag === "subsetdef" || tag === "synonymtypedef") && first === null) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "a declaration whose name is not a word declares nothing",
+                tag,
+                clause.line,
+            );
         } else if (tag === "subsetdef" && first !== null) {
             this.subsets.add(first);
         } else if (tag === "synonymtypedef" && first !== null) {
@@ -481,9 +629,9 @@ class OboReader {
         }
         if (frame.kind === null) {
             // the guides: an unrecognized frame must survive, so its clauses are kept, raw
-            const clauses: Record<string, string[]> = {};
+            const clauses = ownRecord<string[]>();
             for (const clause of frame.clauses) {
-                (clauses[clause.tag] ??= []).push(clause.value);
+                append(clauses, clause.tag, clause.value);
             }
             this.unknownFrames.push({ type: frame.name, clauses });
             return;
@@ -493,7 +641,11 @@ class OboReader {
             throwIfAborted(this.signal);
         }
         const idAt = frame.clauses.findIndex((c) => c.tag === "id");
-        const id = idAt < 0 ? "" : unescapeObo(splitQualifiers(frame.clauses[idAt].value).value).trim();
+        const idParts = idAt < 0 ? null : splitQualifiers(frame.clauses[idAt].value);
+        const rawId = idParts === null ? "" : idParts.value.trim();
+        const id = unescapeObo(rawId).trim();
+        // a Typedef is metadata unless typedefs "nodes": it would never have been a node
+        const wouldBeNode = frame.kind !== "Typedef" || this.typedefsAsNodes;
         if (id.length === 0) {
             this.report.error(
                 "missing-value",
@@ -503,7 +655,23 @@ class OboReader {
                     line: frame.line,
                 },
             );
-            this.report.counts.skippedNodes++;
+            if (wouldBeNode) {
+                this.report.counts.skippedNodes++;
+            }
+            return;
+        }
+        if (tokenize(rawId).length > 1 || hasControl(id)) {
+            // a reference cannot name such an id (is_a needs one word), so the frame is refused
+            // rather than made a node no edge can reach
+            this.report.error(
+                "validation-error",
+                OBO_ISSUE.BAD_VALUE,
+                `a [${frame.kind}] frame's id ${JSON.stringify(id)} holds unescaped whitespace or a control character; the frame is skipped`,
+                { line: frame.clauses[idAt].line, element: id },
+            );
+            if (wouldBeNode) {
+                this.report.counts.skippedNodes++;
+            }
             return;
         }
         if (idAt > 0) {
@@ -515,7 +683,8 @@ class OboReader {
                 frame.clauses[idAt].line,
             );
         }
-        const record = this.recordFor(frame.kind, id, frame.line);
+        const target = this.recordFor(frame.kind, id, frame.line);
+        this.extraQualifiers(target, "id", id, idParts?.qualifiers ?? null);
         for (let i = 0; i < frame.clauses.length; i++) {
             const clause = frame.clauses[i];
             if (clause.tag === "id") {
@@ -530,10 +699,10 @@ class OboReader {
                 }
                 continue;
             }
-            this.applyClause(record, clause);
+            this.applyClause(target, clause);
         }
-        if (record.kind === "Typedef") {
-            record.raw.id ??= [id];
+        if (target.kind === "Typedef" && !Object.prototype.hasOwnProperty.call(target.raw, "id")) {
+            target.raw.id = [id];
         }
     }
 
@@ -557,19 +726,17 @@ class OboReader {
                     line,
                 );
             } else {
-                this.report.warning(
+                this.tally(
                     "merged",
                     OBO_ISSUE.DUPLICATE_NODE,
-                    `two [${kind}] frames have the id ${id}; they are merged (spec 4.1.1)`,
-                    {
-                        line,
-                        element: id,
-                    },
+                    `[${kind}] frames with this id are merged (spec 4.1.1)`,
+                    id,
+                    line,
                 );
             }
             return existing;
         }
-        const record: NodeRecord = {
+        const created: NodeRecord = {
             id,
             kind,
             line,
@@ -577,10 +744,10 @@ class OboReader {
             lists: new Map(),
             edges: [],
             seen: new Set(),
-            raw: {},
+            raw: ownRecord<string[]>(),
         };
-        map.set(id, record);
-        return record;
+        map.set(id, created);
+        return created;
     }
 
     /**
@@ -608,7 +775,18 @@ class OboReader {
             );
             [tag, scope] = deprecated;
         }
-        const split = splitQualifiers(clause.value);
+        let split = splitQualifiers(clause.value);
+        const open = ID_VALUE_TAGS.has(tag) ? unclosedBlock(split.value) : -1;
+        if (open >= 0) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "a qualifier block without its closing brace was dropped",
+                tag,
+                clause.line,
+            );
+            split = splitQualifiers(split.value.slice(0, open).trimEnd());
+        }
         const { qualifiers } = split;
         if (split.badBlock !== null) {
             this.tally(
@@ -675,17 +853,17 @@ class OboReader {
         }
         record.seen.add(key);
         if (record.kind === "Typedef") {
-            (record.raw[clause.tag] ??= []).push(clause.value);
+            append(record.raw, clause.tag, clause.value);
         }
         const { tag, scope, qualifiers, value } = this.clauseParts(clause);
+        // a control character kept in the value is the shared W_CONTROL_CHARACTER of the text check
         const where = { line: clause.line, element: record.id };
         if (TYPEDEF_TAGS.has(tag) && record.kind !== "Typedef") {
             this.unrecognized(record, clause);
             return;
         }
         if (TEXT_TAGS.has(tag)) {
-            this.single(record, tag, unescapeObo(value).trim(), clause.line);
-            this.extraQualifiers(record, tag, unescapeObo(value).trim(), qualifiers);
+            this.text(record, tag, value, qualifiers, clause.line);
             return;
         }
         if (BOOL_TAGS.has(tag)) {
@@ -799,7 +977,7 @@ class OboReader {
                     return;
                 }
                 this.push(record, "xref", xref.id);
-                this.describe(record, [xref]);
+                this.describe(record, [xref], tag, clause.line);
                 this.extraQualifiers(record, tag, xref.id, qualifiers ?? xref.qualifiers);
                 return;
             }
@@ -809,6 +987,30 @@ class OboReader {
             default:
                 this.unrecognized(record, clause);
         }
+    }
+
+    /**
+     * A single-valued text clause (name, comment, ...), warning about a quote that never closes
+     * (stripComment() then keeps a `!` comment after it as text).
+     * @param record - the record
+     * @param tag - the tag
+     * @param value - the raw value
+     * @param qualifiers - its qualifier block
+     * @param line - its line
+     */
+    private text(record: NodeRecord, tag: string, value: string, qualifiers: Qualifiers | null, line: number): void {
+        if (tokenize(value).some((t) => t.kind === "quoted" && t.unterminated)) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "an unterminated quote; the text after it, a comment included, is kept",
+                tag,
+                line,
+            );
+        }
+        const text = unescapeObo(value).trim();
+        this.single(record, tag, text, line);
+        this.extraQualifiers(record, tag, text, qualifiers);
     }
 
     /**
@@ -867,8 +1069,14 @@ class OboReader {
             this.tally("parse-error", OBO_ISSUE.SYNTAX, "the xref list is missing", tag, line);
             return { text: tokens[0].text, xrefs: [] };
         }
+        if (list.unterminated) {
+            this.tally("parse-error", OBO_ISSUE.SYNTAX, "an xref list without its closing ]; kept as read", tag, line);
+        }
+        if (tokens.length > 2) {
+            this.tally("parse-error", OBO_ISSUE.SYNTAX, "text after the xref list was ignored", tag, line);
+        }
         const xrefs = parseXrefList(list.text);
-        this.describe(record, xrefs);
+        this.describe(record, xrefs, tag, line);
         this.xrefQualifiers(record, tag, xrefs);
         return { text: tokens[0].text, xrefs: xrefs.map((x) => x.id) };
     }
@@ -971,8 +1179,30 @@ class OboReader {
                 line,
             );
         }
+        const listAt = list === undefined ? -1 : tokens.indexOf(list);
+        const stray = tokens.some(
+            (t, k) => k > 0 && (t.kind === "quoted" || (t.kind === "list" && k !== listAt) || (listAt >= 0 && k > listAt)),
+        );
+        if (stray) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "a second quoted string, a second xref list or text after the list was ignored",
+                "synonym",
+                line,
+            );
+        }
+        if (list?.unterminated === true) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "an xref list without its closing ]; kept as read",
+                "synonym",
+                line,
+            );
+        }
         const xrefs = list === undefined ? [] : parseXrefList(list.text);
-        this.describe(record, xrefs);
+        this.describe(record, xrefs, "synonym", line);
         this.xrefQualifiers(record, "synonym", xrefs);
         this.push(
             record,
@@ -1011,7 +1241,26 @@ class OboReader {
             );
             return;
         }
-        const datatype = tokens.length === 3 ? tokens[2].text : null;
+        if (tokens.some((t) => t.unterminated)) {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "an unterminated quote; the text runs to the end of the line",
+                "property_value",
+                where.line,
+            );
+        }
+        let datatype = tokens.length === 3 ? tokens[2].text : null;
+        if (tokens.length === 3 && tokens[2].kind !== "word") {
+            this.tally(
+                "parse-error",
+                OBO_ISSUE.SYNTAX,
+                "a datatype that is not a word was ignored",
+                "property_value",
+                where.line,
+            );
+            datatype = null;
+        }
         this.push(
             record,
             "property_value",
@@ -1061,16 +1310,33 @@ class OboReader {
     }
 
     /**
-     * Record xref descriptions in `xref.descriptions`.
-     * @param record - the record
+     * Record xref descriptions in `xref.descriptions` (the first description of an id is kept),
+     * warning about a description whose quote never closes.
+     * @param target - the record
      * @param xrefs - the xrefs
+     * @param tag - the clause's tag
+     * @param line - the clause's line
      */
-    private describe(record: NodeRecord, xrefs: readonly Xref[]): void {
+    private describe(target: NodeRecord, xrefs: readonly Xref[], tag: string, line: number): void {
         for (const xref of xrefs) {
+            if (xref.unterminated) {
+                this.tally(
+                    "parse-error",
+                    OBO_ISSUE.SYNTAX,
+                    "an xref description whose quote never closes runs to the end",
+                    tag,
+                    line,
+                );
+            }
             if (xref.description !== null) {
-                const map = (record.values.get("xref.descriptions") ?? {}) as Record<string, string>;
-                map[xref.id] ??= xref.description;
-                record.values.set("xref.descriptions", map);
+                let map = target.values.get("xref.descriptions") as Record<string, string> | undefined;
+                if (map === undefined) {
+                    map = ownRecord<string>();
+                    target.values.set("xref.descriptions", map);
+                }
+                if (!Object.prototype.hasOwnProperty.call(map, xref.id)) {
+                    map[xref.id] = xref.description;
+                }
             }
         }
     }
@@ -1099,7 +1365,7 @@ class OboReader {
         if (qualifiers === null) {
             return;
         }
-        const map = (record.values.get("obo.qualifiers") ?? {}) as Record<string, unknown[]>;
+        const map = (record.values.get("obo.qualifiers") as Record<string, unknown[]> | undefined) ?? {};
         (map[tag] ??= []).push({ value, qualifiers });
         record.values.set("obo.qualifiers", map);
     }
@@ -1110,9 +1376,12 @@ class OboReader {
      * @param clause - the clause
      */
     private unrecognized(record: NodeRecord, clause: Clause): void {
-        const map = (record.values.get("obo.unrecognized") ?? {}) as Record<string, string[]>;
-        (map[clause.tag] ??= []).push(unescapeObo(clause.value));
-        record.values.set("obo.unrecognized", map);
+        let map = record.values.get("obo.unrecognized") as Record<string, string[]> | undefined;
+        if (map === undefined) {
+            map = ownRecord<string[]>();
+            record.values.set("obo.unrecognized", map);
+        }
+        append(map, clause.tag, unescapeObo(clause.value));
         this.tally(
             "validation-error",
             OBO_ISSUE.UNKNOWN_ELEMENT,
@@ -1140,9 +1409,22 @@ class OboReader {
         }
     }
 
-    /** Record the counted warnings, in the order they were first seen. */
+    /**
+     * Record the counted warnings, in the order they were first seen; past MAX_TALLIES_PER_CODE
+     * of one code, the rest are summed up in one warning.
+     */
     flushTallies(): void {
+        const listed = new Map<string, number>();
+        const over = new Map<string, Tally[]>();
         for (const t of this.tallies.values()) {
+            const n = (listed.get(t.code) ?? 0) + 1;
+            listed.set(t.code, n);
+            if (n > MAX_TALLIES_PER_CODE) {
+                const rest = over.get(t.code) ?? [];
+                rest.push(t);
+                over.set(t.code, rest);
+                continue;
+            }
             this.report.warning(
                 t.category,
                 t.code,
@@ -1153,7 +1435,60 @@ class OboReader {
                 },
             );
         }
+        for (const [code, rest] of over) {
+            this.report.warning(
+                rest[0].category,
+                code,
+                `${rest.length} more element(s) with this warning, not listed (first: ${rest[0].element}: ${rest[0].what}, line ${rest[0].line})`,
+                { line: rest[0].line },
+            );
+        }
         this.tallies.clear();
+    }
+
+    /**
+     * The first line that makes the input not OBO: null unless no frame header and no plausible
+     * header tag was read while some line was neither (an HTML page, a JSON, GML, DOT or CSV file,
+     * UTF-16 read without its BOM). A file of only comments is OBO, if an empty one.
+     * @returns the line, or null
+     */
+    notObo(): number | null {
+        return this.frameSeen || this.tagClauses > 0 ? null : this.firstBadLine;
+    }
+
+    /**
+     * Warn about the header once the file is read: a missing or unknown format-version (the
+     * synonym-scope rule depends on it), a date that is not a real calendar date.
+     */
+    checkHeader(): void {
+        if (this.version === null) {
+            const empty = this.frameSeen ? "" : " and the file has no frames: nothing was read";
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.FORMAT_VERSION,
+                `the header has no format-version (required by 1.2 and 1.4)${empty}; read as the 1.0 / 1.2 / 1.4 union`,
+                "format-version",
+                1,
+            );
+        } else if (!KNOWN_VERSION.test(this.version)) {
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.FORMAT_VERSION,
+                `format-version ${JSON.stringify(this.version)} is not 1.0, 1.2 or 1.4; read as 1.4`,
+                "format-version",
+                1,
+            );
+        }
+        const date = this.header.date?.[0];
+        if (date !== undefined && /^\d{2}:\d{2}:\d{4}\s+\d{2}:\d{2}$/.test(date.trim()) && oboDate(date.trim()) === null) {
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.SYNTAX,
+                "the header date is not a real calendar date; created is null",
+                "date",
+                1,
+            );
+        }
     }
 
     /**
@@ -1213,7 +1548,9 @@ function oboDate(text: string | null): string | null {
         return null;
     }
     const [, dd, mm, yyyy, hh, min] = m;
-    if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31 || Number(hh) > 23 || Number(min) > 59) {
+    // a real calendar date: 31:02 and 31:04 do not survive the round trip through Date
+    const day = new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd)));
+    if (Number(mm) < 1 || Number(mm) > 12 || day.getUTCDate() !== Number(dd) || Number(hh) > 23 || Number(min) > 59) {
         return null;
     }
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
@@ -1341,7 +1678,7 @@ function planGraph(
         }
     }
     reader.flushTallies();
-    reportDangling(records, dangling, addMissingNodes, danglingEdges, report);
+    reportDangling(records, dangling, addMissingNodes, danglingEdges, report, new Set(reader.typedefs.keys()));
     if (dropped.size > 0) {
         report.warning(
             "merged",
@@ -1365,6 +1702,7 @@ function planGraph(
  * @param addMissingNodes - whether they became placeholder nodes
  * @param droppedEdges - the edges dropped under addMissingNodes false
  * @param report - the report
+ * @param typedefs - the ids of the Typedef frames (kept as metadata, so not nodes)
  */
 function reportDangling(
     records: readonly NodeRecord[],
@@ -1372,6 +1710,7 @@ function reportDangling(
     addMissingNodes: boolean,
     droppedEdges: number,
     report: ImportReportBuilder,
+    typedefs: ReadonlySet<string>,
 ): void {
     if (dangling.length === 0) {
         return;
@@ -1384,6 +1723,9 @@ function reportDangling(
     }
     const shown = dangling.slice(0, 5).map((id) => {
         const primary = altOf.get(id);
+        if (typedefs.has(id)) {
+            return `${id} (a Typedef, kept as metadata, not a node)`;
+        }
         return primary === undefined ? id : `${id} (an alt_id of ${primary})`;
     });
     const more = dangling.length > 5 ? `, ... (${dangling.length - 5} more)` : "";
@@ -1579,6 +1921,71 @@ function writeEdges(plan: GraphPlan, push: Pusher, options: ReturnType<typeof re
 }
 
 /**
+ * Feed the physical lines to the reader as logical lines: backslash continuations joined (the parts
+ * collected and joined once, so a value continued over many lines costs its length), form feeds
+ * outside quotes split. A backslash inside a `!` comment never continues a line, and a continuation
+ * never swallows a frame header or a blank line.
+ * @param lines - the line reader
+ * @param reader - the OBO reader
+ */
+async function readLines(lines: LineReader, reader: OboReader): Promise<void> {
+    const parts: string[] = [];
+    let partLine = 0;
+    const feed = (text: string, line: number): void => {
+        for (const piece of splitFormFeeds(text)) {
+            reader.line(piece, line);
+        }
+    };
+    for await (const physical of lines) {
+        const { line } = lines;
+        if (parts.length > 0) {
+            const head = physical.trimStart();
+            if (head.length === 0 || head.startsWith("[")) {
+                reader.tally(
+                    "parse-error",
+                    OBO_ISSUE.SYNTAX,
+                    "a line continuation before a frame header or a blank line was ignored",
+                    "\\",
+                    partLine,
+                );
+                feed(parts.join(""), partLine);
+                parts.length = 0;
+            } else {
+                reader.tally(
+                    "coercion",
+                    OBO_ISSUE.DEPRECATED_SYNTAX,
+                    "a backslash line continuation was joined (deprecated in 1.4)",
+                    "\\",
+                    partLine,
+                );
+            }
+        }
+        if (endsWithContinuation(physical) && stripComment(physical) === physical) {
+            parts.push(physical.slice(0, -1));
+            partLine = line;
+            continue;
+        }
+        if (parts.length > 0) {
+            parts.push(physical);
+            feed(parts.join(""), line);
+            parts.length = 0;
+        } else {
+            feed(physical, line);
+        }
+    }
+    if (parts.length > 0) {
+        reader.tally(
+            "coercion",
+            OBO_ISSUE.DEPRECATED_SYNTAX,
+            "a backslash line continuation was joined (deprecated in 1.4)",
+            "\\",
+            partLine,
+        );
+        feed(parts.join(""), partLine);
+    }
+}
+
+/**
  * Confidence that a head is OBO (design 1.5): after a BOM, blank lines and `!` comment lines, 0.9
  * when the first significant line is `format-version:` or a `[Term]` / `[Typedef]` / `[Instance]`
  * header, or such a header follows `tag: value` lines; 0.4 for a head of only `tag: value` lines.
@@ -1650,39 +2057,24 @@ export const oboImporter: GraphImporter<OboImportOptions> = Object.freeze({
         const report = new ImportReportBuilder("obo", resolved.errorLimit);
         reportSinkOptions(sink, options, report, true);
         reportUnusedOptions(options, report, USED_OPTIONS);
-        const reader = new OboReader(report, resolved.signal);
-        const lines = new LineReader(input, report, resolved);
-        let pending: string | null = null;
-        for await (const physical of lines) {
-            const { line } = lines;
-            const text: string = pending === null ? physical : pending + physical;
-            pending = null;
-            if (endsWithContinuation(text)) {
-                reader.tally(
-                    "coercion",
-                    OBO_ISSUE.DEPRECATED_SYNTAX,
-                    "a backslash line continuation was joined (deprecated in 1.4)",
-                    "\\",
-                    line,
-                );
-                pending = text.slice(0, -1);
-                continue;
-            }
-            // the 1.4 grammar counts form feed as a line end; LineReader does not
-            for (const piece of text.includes("\f") ? text.split("\f") : [text]) {
-                reader.line(piece, line);
-            }
-        }
-        if (pending !== null) {
-            reader.line(pending, lines.line);
-        }
+        const reader = new OboReader(report, resolved.signal, obo.typedefs === "nodes");
+        await readLines(new LineReader(input, report, resolved), reader);
         reader.finishFrame();
         if (!reader.significant) {
             report.fail(OBO_ISSUE.EMPTY_INPUT, "the input is empty");
         }
+        const notObo = reader.notObo();
+        if (notObo !== null) {
+            report.fail(
+                OBO_ISSUE.NOT_OBO,
+                `the input is not OBO: it has no frame header and no header tag, and line ${notObo} is not a tag-value line`,
+                { line: notObo },
+            );
+        }
         throwIfAborted(resolved.signal);
+        reader.checkHeader();
         writeGraph(reader, sink, report, resolved, obo);
-        const typedefs: Record<string, Record<string, string[]>> = {};
+        const typedefs = ownRecord<Record<string, string[]>>();
         for (const [id, record] of reader.typedefs) {
             typedefs[id] = record.raw;
         }

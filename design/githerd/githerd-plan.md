@@ -237,7 +237,7 @@ Each task adds its write group in dry-run first; it acts only in milestone 8.
 |---|---|---|---|
 | 4.1 Lock in the gate | `tools/prepush.sh` takes `flock` on a lock file outside every worktree, writes its holder to a sidecar file, and starts its background SonarQube step with the lock's descriptor closed; githerd reads holder and waiters from `/proc/<pid>/fdinfo`, never `/proc/locks` (S24) | Two concurrent gates serialize; a gate killed with its process group releases; a killed gate's SonarQube step does not keep the lock; the waiter count is right | Merged to master |
 | 4.2 Shared Nx cache | Nothing to configure: Nx 22.7 shares the main checkout's cache with every worktree (S23). `NX_CACHE_DIRECTORY` is left out of every environment githerd starts, and a job worktree's preparation fails when a built package has no `dist` | A fresh worktree's build hits the cache and has its outputs; the environment builder never passes the variable | Documented in `githerd/CLAUDE.md` |
-| 4.3 Project settings | Register githerd's MCP server and hooks in `.claude/settings.json`, pointing at `~/.githerd/graphty-monorepo/current/` | Owner session start prints the status line | Merged to master |
+| 4.3 Project settings | Register githerd's hooks in `.claude/settings.json` and its MCP server in `.mcp.json` (Claude Code reads a project's MCP servers only from `.mcp.json`; settings files have no key for them), both pointing at `~/.githerd/graphty-monorepo/current/` and silent until that exists | Owner session start prints the status line | Merged to master |
 | 4.4 Config | `githerd.config.json` with bounds for every number and the model allow list | Config tests | Merged to master |
 
 ### Milestone 5: the worker platform

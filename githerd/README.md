@@ -81,10 +81,33 @@ and keeps its state in `<worktree>/.githerd-dev/`; point the other commands at i
 
 ## The MCP server
 
-Claude Code starts `node githerd/bin/githerd-mcp.mjs` (the launcher). It lists the session tools at
+Claude Code starts `node ~/.githerd/graphty-monorepo/current/bin/githerd-mcp.mjs` (the launcher),
+the installed copy of the default branch's githerd, never a worktree's. It lists the session tools at
 once, then finds or starts the repository's one daemon through servherd under the name `githerd`,
 running the default branch's copy of this package from `~/.githerd/<checkout>/current/`, and
 forwards tool calls to it. Its errors go to `~/.githerd/<checkout>/launcher.log`.
+
+## What the committed project settings turn on
+
+Two files register githerd for every Claude Code session opened in a checkout that has them. Both
+point at `~/.githerd/graphty-monorepo/current/`, which `githerd install` (or the first daemon
+start) creates, so a branch's own edits never change its hooks or its MCP server:
+
+- `.mcp.json` registers the MCP server above. Claude Code asks once per project to approve a
+  project's MCP servers. Once approved, every session's launcher finds the one daemon **and starts
+  it through servherd when it is not running**: landing this file on the default branch is what
+  makes githerd run whenever a session is open. Before githerd is installed, `node` finds no file
+  and Claude Code lists the server as failed; nothing else happens.
+- `.claude/settings.json` registers a `SessionStart` hook for new sessions (`startup` only):
+  `bin/githerd-hook.mjs SessionStart` asks the daemon for its status and prints one line, banners
+  first (`githerd: master green; 0 waiting on the owner; 3 open pull requests; mode dry-run`), to
+  the person and into the session's context. It waits 2 s for the daemon and then prints why there
+  is no answer; it always exits 0, so a broken githerd never blocks a session. Before githerd is
+  installed, the command finds no file and prints nothing. The other hooks of design section 4.10
+  come with the worker platform.
+
+On a branch that is not merged, both files act only in sessions started in that branch's own
+worktree.
 
 `githerd/scripts/smoke-launcher.sh` checks the launcher against the real servherd: five launchers
 at once in a scratch repository, under the name `githerd-smoke`, must share one daemon; it removes
@@ -105,12 +128,7 @@ The owner does these once, before the first soak (design section 17):
    from pm2's environment. Check it with `githerd doctor --send-test`; after changing the keys, run
    `githerd install` again and restart the daemon.
 3. **MCP approval.** The server is registered in the repository's `.mcp.json`. Claude Code may ask
-   to approve it once in each new worktree. Either approve it per worktree, or register it once at
-   user scope with a relative path, which starts it in every project:
-
-    ```bash
-    claude mcp add -s user githerd -- node githerd/bin/githerd-mcp.mjs
-    ```
+   to approve it once in each new worktree.
 
     Outside a git repository the launcher exits quietly, and in a repository without githerd
     `githerd_status` answers that githerd is not configured, with the reason.

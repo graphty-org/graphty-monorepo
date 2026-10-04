@@ -741,10 +741,13 @@ Any failure in it is a platform fault (class 3), never a verdict on a pull reque
 
 ### 4.10 Hooks
 
-The committed project settings register the MCP server and the hooks for owner sessions; workers
+The committed project settings register the hooks (`.claude/settings.json`) and the MCP server
+(`.mcp.json`, the only place Claude Code reads a project's MCP servers from) for owner sessions; workers
 get them through their generated `--settings` file, so they never depend on which branch committed
-what [R15]. Every hook command points at `~/.githerd/graphty-monorepo/current/bin/githerd-hook`,
-the daemon-installed copy of master's githerd, so a worktree's edits cannot change its own gate.
+what [R15]. Every hook command points at `~/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs`,
+and the MCP server at `current/bin/githerd-mcp.mjs`: the daemon-installed copy of master's
+githerd, so a worktree's edits cannot change its own gate. Until githerd is installed the hook
+command finds no file and exits 0 without output.
 
 Hooks answer from the daemon's cache only and never make a network call. The daemon gets 2 s; on
 no answer the hook spools the event to `spool/`, checks `alive` (restart only if it is stale and

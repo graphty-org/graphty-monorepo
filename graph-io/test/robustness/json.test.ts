@@ -119,6 +119,13 @@ describe("JSON robustness: truncation and malformed syntax", () => {
         expect(issue(error.report, JSON_ISSUE.SYNTAX).line).toBe(4);
     });
 
+    it("E_SYNTAX names the real error's line, not an earlier NaN token's", async () => {
+        const error = await fail('{"nodes":[\n{"id":1,"w":NaN},\n{"id":2},\n{"id":3,}\n],"links":[]}');
+        const syntax = issue(error.report, JSON_ISSUE.SYNTAX);
+        expect(syntax.line).toBe(4);
+        expect(syntax.message).not.toMatch(/'N'/);
+    });
+
     it("json-whitespace-or-bom-only: whitespace and a lone BOM are E_EMPTY_INPUT", async () => {
         for (const input of [" \n\t ", String.fromCharCode(0xfeff), new Uint8Array([0xef, 0xbb, 0xbf])]) {
             const error = await fail(input);
@@ -304,6 +311,13 @@ describe("JSON robustness: document shape", () => {
         expect(codes(report)).toEqual([]);
     });
 
+    it("json-nodespath-links-from-to: a record's own links key stays node-link under nodesPath", async () => {
+        const text = doc({ data: { nodes: [{ id: 1 }, { id: 2 }], links: [{ from: 1, to: 2 }] } });
+        const { s, report } = await load(text, { nodesPath: "data.nodes" });
+        expect(edges(s)).toEqual(["1->2"]);
+        expect(codes(report)).toEqual([]);
+    });
+
     it("json-dialect-misdetect-vis-from-to-links: from / to links stay node-link", async () => {
         const text = doc({
             directed: true,
@@ -484,6 +498,27 @@ describe("JSON robustness: ids and endpoints", () => {
         expect(value(s, "nodes", "label", 0)).toBe(sentinel);
         expect(Number.isNaN(value(s, "nodes", "w", 0))).toBe(true);
         expect(codes(report)).toEqual([JSON_ISSUE.NONSTANDARD_NUMBER]);
+    });
+
+    it("json-sentinel-escaped-collision: a string spelling the sentinel with escapes is kept as written", async () => {
+        const text = String.raw`{"nodes":[{"id":1,"a":NaN,"s":"\u0000graph\u002dio:NaN"}],"links":[]}`;
+        const { s, report } = await load(text);
+        expect(value(s, "nodes", "s", 0)).toBe(`${String.fromCharCode(0)}graph-io:NaN`);
+        expect(Number.isNaN(value(s, "nodes", "a", 0))).toBe(true);
+        expect(codes(report)).toEqual([JSON_ISSUE.NONSTANDARD_NUMBER]);
+    });
+
+    it("json-precision-split-digits: 16+ digits split by a point before a small exponent are W_PRECISION", async () => {
+        const { report } = await load('{"nodes":[{"id":"a","w":90071992547409.93e2}],"links":[]}');
+        expect(issue(report, JSON_ISSUE.PRECISION).message).toMatch(/90071992547409\.93e2/);
+    });
+
+    it("json-precision-underflow: a non-zero literal that underflows to 0 is W_PRECISION", async () => {
+        const { s, report } = await load('{"nodes":[{"id":"a","w":1e-400,"z":0e-400}],"links":[]}');
+        expect(value(s, "nodes", "w", 0)).toBe(0);
+        const precision = issue(report, JSON_ISSUE.PRECISION);
+        expect(precision.message).toMatch(/1e-400/);
+        expect(precision.message).not.toMatch(/0e-400/);
     });
 
     it("json-big-integer-fraction-or-exponent: lossy literals with a fraction or an exponent are named", async () => {
@@ -709,6 +744,14 @@ describe("JSON robustness: Cytoscape", () => {
         expect(s.nodes.require("parent").isSet(2)).toBe(false);
     });
 
+    it("json-cy-parent-deep-chain: a 100k-deep compound chain listed root first resolves in linear time", async () => {
+        const n = 100_000;
+        const nodes = Array.from({ length: n }, (_, i) => ({ data: i === 0 ? { id: 0 } : { id: i, parent: i - 1 } }));
+        const { s, report } = await load(doc({ elements: { nodes } }));
+        expect(codes(report)).toEqual([]);
+        expect(value(s, "nodes", "parent", n - 1)).toBe(n - 2);
+    }, 5000);
+
     it("json-cy-group-conflicts-section: an edge-shaped record in elements.nodes is reported", async () => {
         const text = doc({
             elements: { nodes: [{ data: { id: "a" } }, { data: { id: "e", source: "a", target: "a" } }] },
@@ -810,6 +853,17 @@ describe("JSON robustness: graphology and JGF", () => {
         expect(report.counts.skippedEdges).toBe(1);
     });
 
+    it("json-jgf-hyperedge-cumulative-cap: the cap counts every hyperedge of the import", async () => {
+        // each clique of 1100 members is 604,450 edges, under the cap alone, over it together
+        const members = Array.from({ length: 1100 }, (_, i) => `n${i}`);
+        const nodes = Object.fromEntries(members.map((m) => [m, {}]));
+        const text = doc({ graph: { nodes, hyperedges: [{ nodes: members }, { nodes: members }] } });
+        const { s, report } = await load(text, { hyperedges: "clique" });
+        expect(s.edgeCount).toBe(604_450);
+        expect(codes(report)).toEqual([JSON_ISSUE.TOO_LARGE]);
+        expect(issue(report, JSON_ISSUE.TOO_LARGE).element).toBe("hyperedges[1]");
+    });
+
     it("json-jgf-hyperedge-partial-expansion: each refused expansion is reported and counted", async () => {
         const text = doc({ graph: { nodes: { a: {}, b: {} }, hyperedges: [{ nodes: ["a", "b", "c"] }] } });
         const { s, report } = await load(text, { hyperedges: "clique" }, { addMissingNodes: false });
@@ -833,6 +887,17 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(messages).toHaveLength(2);
         expect(messages.join(" ")).toMatch(/disagree/);
         expect(messages.join(" ")).toMatch(/mirror/);
+    });
+
+    it("json-adjacency-mirror-key-order: mirrors with the same attributes in another key order agree", async () => {
+        const text = doc({
+            directed: false,
+            nodes: [{ id: 1 }, { id: 2 }],
+            adjacency: [[{ id: 2, a: 1, b: { x: 1, y: 2 } }], [{ b: { y: 2, x: 1 }, a: 1, id: 1 }]],
+        });
+        const { s, report } = await load(text);
+        expect(edges(s)).toEqual(["1->2"]);
+        expect(codes(report)).toEqual([]);
     });
 
     it("json-adjacency-fewer-lists-than-nodes: nodes without an adjacency list are reported", async () => {
@@ -915,6 +980,14 @@ describe("JSON robustness: OBO Graphs", () => {
         const { s, report } = await load(text);
         expect(value(s, "nodes", "xref", 0)).toEqual(["X:1"]);
         expect(report.issues.filter((i) => i.code === JSON_ISSUE.BAD_VALUE)).toHaveLength(5);
+    });
+
+    it("obographs-synonym-index: a bad synonym xref is named by its index in meta.synonyms", async () => {
+        const text = graph({ nodes: [{ id: "GO:1", lbl: "x", meta: { synonyms: ["s", { val: "ok", xrefs: [1] }] } }] });
+        const { report } = await load(text);
+        const messages = report.issues.filter((i) => i.code === JSON_ISSUE.BAD_VALUE).map((i) => i.message);
+        expect(messages.join(" ")).toMatch(/meta\.synonyms\[1\]\.xrefs/);
+        expect(messages.join(" ")).not.toMatch(/meta\.synonyms\[0\]\.xrefs/);
     });
 
     it("obographs-duplicate-property-node: a repeated PROPERTY node is W_DUPLICATE_NODE", async () => {

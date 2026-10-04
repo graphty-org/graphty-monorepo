@@ -436,17 +436,19 @@ function writeMeta(
         columns.node("xref", row, xrefs);
     }
     if (Array.isArray(meta.synonyms) && meta.synonyms.length > 0) {
-        const synonyms = meta.synonyms.filter((s: unknown, i): s is JsonRecord => {
-            if (!isJsonObject(s) || typeof s.val !== "string") {
+        // each synonym keeps its index in meta.synonyms, so a message names the right one
+        const synonyms: { readonly s: JsonRecord & { readonly val: string }; readonly i: number }[] = [];
+        meta.synonyms.forEach((s: unknown, i) => {
+            if (isJsonObject(s) && typeof s.val === "string") {
+                synonyms.push({ s: s as JsonRecord & { readonly val: string }, i });
+            } else {
                 bad(`meta.synonyms[${i}] is not a record with a string val; it is skipped`);
-                return false;
             }
-            return true;
         });
         columns.node(
             "synonym",
             row,
-            synonyms.map((s, i) => ({
+            synonyms.map(({ s, i }) => ({
                 text: s.val,
                 scope: typeof s.pred === "string" ? synonymScopeOf(s.pred) : null,
                 type: typeof s.synonymType === "string" ? vocabulary.id(s.synonymType) : null,

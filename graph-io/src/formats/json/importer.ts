@@ -549,15 +549,17 @@ function pathEdgesKey(json: ResolvedJsonOptions, edgesPath: readonly string[]): 
  * rule over the record, else node-link.
  * @param record - the graph record
  * @param forced - the caller's dialect option
+ * @param placedEdges - whether edgesPath placed the record's edge array (under links or edges)
  * @returns the dialect
  */
-function pathDialect(record: unknown, forced: JsonImportDialect | "auto"): JsonImportDialect {
+function pathDialect(record: unknown, forced: JsonImportDialect | "auto", placedEdges: boolean): JsonImportDialect {
     if (forced !== "auto") {
         return forced;
     }
-    // the edge array sits under links only so a bare d3 document stays d3; under edges, vis and
-    // graphology edges are told apart from NetworkX links again
-    if (isJsonObject(record) && hasKey(record, "links") && !hasKey(record, "edges")) {
+    // edgesPath puts the edge array under links only so a bare d3 document stays d3; under edges,
+    // vis and graphology edges are told apart from NetworkX links again. A links key the document
+    // itself holds is NetworkX's and settles node-link.
+    if (placedEdges && isJsonObject(record) && hasKey(record, "links") && !hasKey(record, "edges")) {
         const { links, ...rest } = record;
         const asEdges = sniffJsonDialect({ ...rest, edges: links });
         if (asEdges === "vis" || asEdges === "graphology") {
@@ -585,7 +587,7 @@ function documentOf(
         return { root: parsed, dialect: detectDialect(parsed, json.dialect, report) };
     }
     const root = applyPaths(parsed, json, report);
-    const dialect = pathDialect(root, json.dialect);
+    const dialect = pathDialect(root, json.dialect, json.edgesPath !== null);
     // vis and graphology read their edges from the edges key only
     if (json.edgesPath !== null && (dialect === "vis" || dialect === "graphology") && isJsonObject(root)) {
         const key = pathEdgesKey(json, json.edgesPath);
@@ -1374,6 +1376,8 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     }
     let root: unknown;
     let syntaxError: string | null = null;
+    // the text the syntax error was found in: the rewrite's when it parsed further than the original
+    let errorText = text;
     try {
         root = JSON.parse(text) as unknown;
     } catch (err) {
@@ -1395,7 +1399,9 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
                 if (err instanceof RangeError) {
                     throw err;
                 }
-                // the rewrite did not make it valid JSON: report the parser's message on the original text
+                // the rewrite read past the non-standard tokens: its error is the real one
+                syntaxError = err instanceof Error ? err.message : String(err);
+                errorText = scan.text;
             }
         }
     } catch (err) {
@@ -1409,7 +1415,7 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     }
     if (syntaxError !== null) {
         return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), {
-            line: syntaxLine(text, syntaxError),
+            line: syntaxLine(errorText, syntaxError),
         });
     }
     reportDuplicateKeys(text, report);
@@ -1431,7 +1437,7 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         report.warning(
             "precision",
             JSON_ISSUE.PRECISION,
-            `${scan.inexact.length} number literal(s) no double holds exactly, read as the nearest double (an infinity beyond the range): ${listed(scan.inexact)}`,
+            `${scan.inexact.length} number literal(s) no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
         );
     }
     return root;
@@ -2397,6 +2403,18 @@ function reportAdjacencyShape(
 }
 
 /**
+ * A JSON.stringify replacer that writes every object's keys in sorted order.
+ * @param _key - the key
+ * @param value - the value
+ * @returns the value, an object with its keys sorted
+ */
+function sortedKeys(_key: string, value: unknown): unknown {
+    return isJsonObject(value)
+        ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => (x < y ? -1 : 1)))
+        : value;
+}
+
+/**
  * Whether an undirected adjacency entry is the mirror of one already read (the same unordered pair
  * and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A self-loop is
  * listed once and never awaits one.
@@ -2421,7 +2439,11 @@ function mirroredEntry(
         return "new";
     }
     const k = JSON.stringify(record.key ?? null);
-    const attributes = JSON.stringify(Object.entries(record).filter(([key]) => key !== idKey));
+    // key order is not part of a JSON object, so two listings in another order still agree
+    const attributes = JSON.stringify(
+        Object.fromEntries(Object.entries(record).filter(([key]) => key !== idKey)),
+        sortedKeys,
+    );
     // an entry is the mirror of one listed by the other end, never of a parallel entry of its own list
     const waiting = pending.get(`${b} ${a} ${k}`);
     if (waiting !== undefined && waiting.length > 0) {
@@ -3115,6 +3137,9 @@ function importHyperedges(
             }
         }
     };
+    // the edges expanded so far: the cap is on the whole import, so many hyperedges just under it
+    // cannot amplify without bound either
+    const budget = { used: 0 };
     for (let i = 0; i < hyperedges.length; i++) {
         const element = `hyperedges[${i}]`;
         const record = hyperedges[i];
@@ -3137,7 +3162,7 @@ function importHyperedges(
                     );
                 }
                 const n = members.length;
-                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, element);
+                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, budget, element);
                 const pairs: [NodeId, NodeId][] = [];
                 if (policy === "star") {
                     for (let k = 1; k < n; k++) {
@@ -3161,7 +3186,7 @@ function importHyperedges(
                         { reason: "hyperedge shape" },
                     );
                 }
-                checkExpansion(sources.length * targets.length, element);
+                checkExpansion(sources.length * targets.length, budget, element);
                 expand(
                     record,
                     sources.flatMap((s) => targets.map((t) => [s, t] as const)),
@@ -3183,23 +3208,27 @@ function importHyperedges(
     }
 }
 
-/** The most edges one hyperedge expands into; a 20k-member clique would be 200M edges. */
+/** The most edges the hyperedges of one import expand into; a 20k-member clique would be 200M edges. */
 // ponytail: a fixed cap; make it an option if a real file needs more
 const MAX_HYPEREDGE_EXPANSION = 1_000_000;
 
 /**
- * Refuse an expansion beyond MAX_HYPEREDGE_EXPANSION before any of it is pushed.
+ * Refuse an expansion that would take the import beyond MAX_HYPEREDGE_EXPANSION expanded edges,
+ * before any of it is pushed; otherwise count it against the budget.
  * @param count - the number of edges the expansion makes
+ * @param budget - the edges the import's hyperedges expanded into so far
+ * @param budget.used - that count, updated
  * @param element - the hyperedge's name
  */
-function checkExpansion(count: number, element: string): void {
-    if (count > MAX_HYPEREDGE_EXPANSION) {
+function checkExpansion(count: number, budget: { used: number }, element: string): void {
+    if (budget.used + count > MAX_HYPEREDGE_EXPANSION) {
         throw new GraphFormatError(
             "E_TOO_LARGE",
-            `${element}: the expansion makes ${count} edges, more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
-            { count, limit: MAX_HYPEREDGE_EXPANSION },
+            `${element}: the expansion makes ${count} edges, which with the ${budget.used} already expanded is more than ${MAX_HYPEREDGE_EXPANSION}; the hyperedge is skipped`,
+            { count, used: budget.used, limit: MAX_HYPEREDGE_EXPANSION },
         );
     }
+    budget.used += count;
 }
 
 /**
@@ -3363,6 +3392,14 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
     ctx.setMeta({ dialect: "cytoscape", cytoscape: extra }, ctx.weightOriginPatch());
 }
 
+/** One Cytoscape parent link: the parent's index and id, its document order and element name. */
+interface ParentLink {
+    readonly parent: number;
+    readonly id: NodeId;
+    readonly order: number;
+    readonly element: string;
+}
+
 /**
  * Set the parent of each Cytoscape node once every node is known (a parent may come later): an
  * unknown parent is E_UNKNOWN_PARENT, a link that would make a node its own ancestor E_PARENT_CYCLE
@@ -3377,9 +3414,10 @@ function resolveCytoscapeParents(
     parentColumn: ColumnHandle,
 ): void {
     const { report } = ctx;
-    // the parent links set so far, child -> parent
-    const parentOf = new Map<number, number>();
-    for (const { index, parent, element } of parents) {
+    // the last link per child (a duplicate node's later parent wins), child -> its link
+    const linkOf = new Map<number, ParentLink>();
+    for (let order = 0; order < parents.length; order++) {
+        const { index, parent, element } = parents[order];
         const parentIndex = ctx.sink.indexOf(parent);
         if (parentIndex === INVALID_INDEX) {
             report.error(
@@ -3390,22 +3428,45 @@ function resolveCytoscapeParents(
             );
             continue;
         }
-        // ponytail: walks the ancestor chain per link, O(depth); compound nesting is shallow in practice
-        let ancestor: number | undefined = parentIndex;
-        while (ancestor !== undefined && ancestor !== index) {
-            ancestor = parentOf.get(ancestor);
+        linkOf.set(index, { parent: parentIndex, id: parent, order, element });
+    }
+    // one walk per chain, each node visited once: on a cycle the link that came last in the document
+    // (the one that closed it) is dropped
+    const done = new Set<number>();
+    for (const start of linkOf.keys()) {
+        const path: number[] = [];
+        const onPath = new Set<number>();
+        let node: number | undefined = start;
+        while (node !== undefined && !done.has(node) && !onPath.has(node)) {
+            path.push(node);
+            onPath.add(node);
+            node = linkOf.get(node)?.parent;
         }
-        if (ancestor === index) {
-            report.error(
-                "validation-error",
-                JSON_ISSUE.PARENT_CYCLE,
-                `${element}: parent ${JSON.stringify(parent)} would make the node its own ancestor; the link is dropped`,
-                { element },
-            );
-            continue;
+        if (node !== undefined && onPath.has(node)) {
+            let closing: [number, ParentLink] | null = null;
+            for (const member of path.slice(path.indexOf(node))) {
+                const link = linkOf.get(member);
+                if (link !== undefined && (closing === null || link.order > closing[1].order)) {
+                    closing = [member, link];
+                }
+            }
+            if (closing !== null) {
+                const { id, element } = closing[1];
+                report.error(
+                    "validation-error",
+                    JSON_ISSUE.PARENT_CYCLE,
+                    `${element}: parent ${JSON.stringify(id)} would make the node its own ancestor; the link is dropped`,
+                    { element },
+                );
+                linkOf.delete(closing[0]);
+            }
         }
-        parentOf.set(index, parentIndex);
-        ctx.nodes.set(parentColumn, index, parentIndex);
+        for (const member of path) {
+            done.add(member);
+        }
+    }
+    for (const [index, { parent }] of linkOf) {
+        ctx.nodes.set(parentColumn, index, parent);
     }
 }
 

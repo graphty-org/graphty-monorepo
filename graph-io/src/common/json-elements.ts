@@ -37,10 +37,15 @@ import { type ImportReportBuilder } from "./report.js";
 export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
 
 /**
- * An exponent of 15 or more: a literal such as `9.007199254740993e15` or `1e400` that may denote an
- * integer beyond 2^53 or overflow the double range, which MAYBE_UNSAFE_INTEGER does not see.
+ * A literal the double read for may not equal: an exponent of 15 or more (`9.007199254740993e15`,
+ * `1e400`: an integer beyond 2^53 or an overflow), an exponent of -300 or less (`1e-400`: an
+ * underflow to 0), or 16 or more digits split by a decimal point before an exponent
+ * (`90071992547409.93e2`). MAYBE_UNSAFE_INTEGER sees none of them.
+ * ponytail: a literal that underflows through 300+ leading fraction zeros and no exponent is not
+ * gated; add a digit-count check if such files turn up.
  */
-export const MAYBE_INEXACT_EXPONENT = /[0-9][eE]\+?0*(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})/;
+export const MAYBE_INEXACT_EXPONENT =
+    /[0-9][eE]\+?0*(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})|[0-9][eE]-0*([3-9][0-9]{2}|[1-9][0-9]{3,})|(?<![0-9.])(?=(?:[0-9]\.?){16})[0-9]+\.[0-9]+[eE]/;
 
 /**
  * The prefix of the string a non-standard token or an exact integer is rewritten to (a NUL
@@ -72,7 +77,8 @@ interface RewrittenNumbers {
     readonly bigIntegers: string[];
     /**
      * The literals with a fraction or an exponent that denote an integer beyond 2^53 a double cannot
-     * hold (`9007199254740993.0`), and the finite literals that overflow to an infinity (`1e400`):
+     * hold (`9007199254740993.0`), and the finite literals that overflow to an infinity (`1e400`) or
+     * underflow to 0 (`1e-400`):
      * read as the nearest double, which changes the value.
      */
     readonly inexact: string[];
@@ -83,24 +89,49 @@ interface RewrittenNumbers {
 }
 
 /**
- * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the text
- * already contains that one (only the NUL-free part is searched, since the JSON text spells a NUL
- * as an escape).
+ * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the document
+ * already holds that one. A string can only decode to a NUL by escaping it (`\u0000`), so when the
+ * text holds that escape the escaped strings are decoded and searched too: any other escape in them
+ * (`graph\u002dio:`) would hide the sentinel from a search of the raw text.
  * @param text - the document text
  * @returns the prefix
  */
 function sentinelFor(text: string): string {
+    let haystack = text;
+    if (/\\u0000/i.test(text)) {
+        const decoded: string[] = [];
+        for (const [literal] of text.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+            if (literal.includes("\\")) {
+                decoded.push(decodeString(literal));
+            }
+        }
+        haystack = `${decoded.join("\n")}\n${text}`;
+    }
     let k = 0;
-    while (text.includes(`graph-io${k === 0 ? "" : String(k)}:`)) {
+    while (haystack.includes(`graph-io${k === 0 ? "" : String(k)}:`)) {
         k++;
     }
     return `${SENTINEL}${k === 0 ? "" : String(k)}:`;
 }
 
 /**
+ * Decode one JSON string literal, or give it back as written when it is not valid (the parse then
+ * reports the syntax error).
+ * @param literal - the literal with its quotes
+ * @returns the decoded value
+ */
+function decodeString(literal: string): string {
+    try {
+        return String(JSON.parse(literal));
+    } catch {
+        return literal;
+    }
+}
+
+/**
  * Whether a number literal with a fraction or an exponent reads back as another value: an integer
  * beyond 2^53 written with more significant digits than a double keeps, which the nearest double
- * misses, or a finite literal beyond the double range.
+ * misses, or a finite literal beyond the double range or a non-zero one below it.
  * @param literal - the literal as written
  * @returns true when the double read for it is not the value it denotes
  */
@@ -108,6 +139,10 @@ function isInexactLiteral(literal: string): boolean {
     const value = Number(literal);
     if (!Number.isFinite(value)) {
         return true;
+    }
+    if (value === 0) {
+        // a non-zero literal below the smallest double underflows to 0
+        return /[1-9]/.test(literal.split(/[eE]/)[0]);
     }
     if (Number.isSafeInteger(value) || !Number.isInteger(value)) {
         return false;

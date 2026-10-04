@@ -194,6 +194,11 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-notes`       | the notes                                                          |
 | `graphty-view-state`  | the selection; never needed to open the file                       |
 
+The data member's graph carries the node-link `directed` key once something settled the
+graph's direction (the file it was loaded from, or `data.directed`), so an undirected graph
+reopens undirected. Opening a project reports that direction in
+`session.data.statistics().directednessSource` as stated by `"directed": false` (or `true`).
+
 Node values are keyed by node id. Edge values are keyed by the edge's position in the data
 member, with the data's fingerprint beside them, so a hand edit of the data is detected rather
 than shifting values onto other edges. A column of numbers is stored as base64 little-endian

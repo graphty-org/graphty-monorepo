@@ -281,6 +281,12 @@ export class Ingest<K extends KnownEdge> {
                 this.addNodes(mutation.records, mutation.idPath, writer);
                 return;
             case "add-edges":
+                if (mutation.directed !== undefined) {
+                    const { directed } = mutation;
+                    const statedBy = `"directed": ${String(directed)}`;
+                    this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
+                }
+
                 this.addEdges(
                     mutation.records,
                     {

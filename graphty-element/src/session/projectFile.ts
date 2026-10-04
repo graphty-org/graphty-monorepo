@@ -449,7 +449,15 @@ function write(
             version: VERSION,
             format: "json",
             dialect: "node-link",
-            graph: { nodes, links: edges.map(({ id: _id, ...edge }) => edge) },
+            // The node-link convention's `directed` key, written only once something settled
+            // the direction, so a graph nobody described still opens with nothing said.
+            graph: {
+                ...(session.data.statistics().directednessSource.by === "unsettled"
+                    ? {}
+                    : { directed: session.status.directed }),
+                nodes,
+                links: edges.map(({ id: _id, ...edge }) => edge),
+            },
         },
         {
             kind: "graphty-session",
@@ -714,6 +722,7 @@ function unknownFormat(): GraphtyError {
 
 /** A data member's graph, checked. */
 interface NodeLink {
+    readonly directed?: unknown;
     readonly nodes: readonly Record<string, unknown>[];
     readonly links: readonly Record<string, unknown>[];
 }
@@ -794,7 +803,13 @@ async function importInto(tx: TransactionScope, graph: NodeLink): Promise<(EdgeI
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
-        mutation: { kind: "add-edges", records: graph.links, source: "source", target: "target" },
+        mutation: {
+            kind: "add-edges",
+            records: graph.links,
+            source: "source",
+            target: "target",
+            ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
+        },
     });
     return tx.data
         .edges()

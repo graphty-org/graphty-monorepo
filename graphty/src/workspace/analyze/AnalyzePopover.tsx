@@ -296,8 +296,9 @@ function Essentials({
     const options = descriptor.options.filter(isEssential);
 
     return (
-        <form
+        <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
             className="ws-analyze"
+            onKeyDown={onKeyDown}
             aria-label={words.name}
             onSubmit={(event) => {
                 event.preventDefault();
@@ -306,8 +307,7 @@ function Essentials({
                 }
             }}
         >
-            {/* Esc bubbles up from any control, the same catch as the list level (Esc steps back). */}
-            <Stack gap={8} onKeyDown={onKeyDown}>
+            <Stack gap={8}>
                 <Group gap={4} wrap="nowrap">
                     <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
                         <ChevronLeft size={16} />

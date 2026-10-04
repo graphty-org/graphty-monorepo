@@ -11,7 +11,7 @@ import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } fro
 export type PageRole = ColumnRole | "attribute";
 
 /** What the reader changed on one table. */
-export interface TableEdits {
+interface TableEdits {
     /** What each row becomes, when the reader changed it. */
     readonly rowsAre?: "nodes" | "edges";
     /** The role the reader gave each column, by column name. */

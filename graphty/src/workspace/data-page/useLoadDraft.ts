@@ -24,7 +24,7 @@ export type PageSource =
     | { readonly kind: "text"; readonly text: string };
 
 /** File settings the reader set; absent means the element detects it. */
-export interface ReadSettings {
+interface ReadSettings {
     /** A format id from the element's catalog. */
     readonly type?: string;
     /** A CSV separator. */
@@ -34,7 +34,7 @@ export interface ReadSettings {
 }
 
 /** How many rows the sample grid shows. */
-export const SAMPLE_ROWS = 50;
+const SAMPLE_ROWS = 50;
 
 /**
  * What the reader calls a source: its file names, its address, or "Pasted text".
@@ -58,7 +58,7 @@ export function sourceName(source: PageSource): string {
  * @param settings - the reader's file settings.
  * @returns what `prepare` takes.
  */
-export function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
+function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
     const extra = {
         ...(settings.delimiter === undefined ? {} : { delimiter: settings.delimiter }),
         ...(settings.errorLimit === undefined ? {} : { errorLimit: settings.errorLimit }),

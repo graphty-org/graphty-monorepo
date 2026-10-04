@@ -89,17 +89,31 @@ export async function readCyTable(
     }
     let at = 0;
     let version = 0;
-    if (records[0]?.cells.length === 2 && records[0].cells[0] === "CyCSV-Version") {
-        version = Number(records[0].cells[1]);
+    if (records[0]?.cells[0] === "CyCSV-Version") {
+        const { cells } = records[0];
+        if (cells.length !== 2 || !/^\d+$/.test(cells[1].trim())) {
+            return tableError(report, entry, `the version row ${JSON.stringify(cells)} does not parse`);
+        }
+        version = Number(cells[1]);
         at = 1;
     }
     if (version !== 0 && version !== 1) {
         return tableError(report, entry, `CyCSV version "${records[0].cells[1]}" is not 0 or 1`);
     }
     // version 1: names, types, column options, table title; version 0: names, types, table title
-    const headerLines = version === 1 ? 4 : 3;
-    if (records.length < at + headerLines) {
+    let headerLines = version === 1 ? 4 : 3;
+    if (records.length < at + headerLines - 1) {
         return tableError(report, entry, "the table header is incomplete");
+    }
+    // the reader skips blank lines, so a blank title line (another tool's) shows only as a gap
+    // in the line numbers: the record after the row before the title is then the first data row
+    const beforeTitle = records[at + headerLines - 2];
+    const title = records.at(at + headerLines - 1);
+    if (
+        title === undefined ||
+        (title.line > beforeTitle.line + 1 && !beforeTitle.cells.some((c) => /[\r\n]/.test(c)))
+    ) {
+        headerLines--;
     }
     const names = records[at].cells;
     const classes = records[at + 1].cells;
@@ -325,6 +339,14 @@ export async function virtualColumnsOf(
             continue;
         }
         const targetKey = target.columns.findIndex((c) => c.name === virtual.targetJoinKey);
+        if (targetKey < 0) {
+            report.error(
+                "parse-error",
+                CYS_ISSUE.TABLE,
+                `${target.entry}: the virtual column "${virtual.name}" joins on the column "${virtual.targetJoinKey}", which the table does not have; the column is not read`,
+            );
+            continue;
+        }
         const values = new Map<string, string>();
         for (const [key, cells] of target.rows) {
             const join = targetKey <= 0 ? key : cells[targetKey];
@@ -388,6 +410,9 @@ async function resolve(
     // re-key the chained values (by the chained source's join key) to this source's join key
     const values = new Map<string, string>();
     const chainedJoin = source.columns.findIndex((c) => c.name === chained.targetJoinKey);
+    if (chainedJoin < 0) {
+        return `reads the virtual column "${chained.name}", which joins on the column "${chained.targetJoinKey}" its table does not have`;
+    }
     for (const [key, cells] of source.rows) {
         const lookup = chainedJoin <= 0 ? key : cells[chainedJoin];
         const value = lookup === undefined ? undefined : inner.values.get(lookup);

@@ -352,13 +352,11 @@ describe.each(FORMATS)("%s: well-formedness of tags, text and comments", (format
         expect(textOf(format, await load(format, textDoc(format, "x]]&gt;y")))).toBe("x]]>y");
     });
 
-    it("xml-double-dash-in-comment: -- inside a comment, or a comment ending --->, is fatal", async () => {
+    it("xml-double-dash-in-comment: -- inside a comment, or a comment ending --->, is accepted (a comment carries no data)", async () => {
         for (const comment of ["<!-- a -- b -->", "<!-- a --->"]) {
-            const issue = fatal(
-                await rejection(format, nodesDoc(format, `${comment}<node id="a"/>`)),
-                "E_XML_SYNTAX",
-            );
-            expect(issue.message, comment).toBe('"--" is not allowed inside a comment');
+            const read = await load(format, nodesDoc(format, `${comment}<node id="a"/>`));
+            expect(codes(read.report), comment).toEqual([]);
+            expect(ids(read), comment).toEqual(["a"]);
         }
     });
 

@@ -43,6 +43,7 @@ import {
     type NodeRec,
     type XgmmlDocument,
 } from "./document.js";
+import { parseScalar } from "./values.js";
 
 /** The XGMML-specific options, resolved. */
 export interface XgmmlSettings {
@@ -133,7 +134,7 @@ export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dial
     let version = 0;
     if (versionText !== null) {
         version = Number(versionText.trim());
-        if (!Number.isFinite(version) || versionText.trim().length === 0) {
+        if (!Number.isFinite(version) || version < 0 || versionText.trim().length === 0) {
             report.warning(
                 "validation-error",
                 XGMML_ISSUE.DOCUMENT_VERSION,
@@ -163,6 +164,17 @@ export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dial
  */
 export function graphsOf(doc: XgmmlDocument, dialect: Dialect): GraphRec[] {
     return dialect.session ? doc.root.subgraphs.filter((g) => isCyTrue(g.registered)) : [doc.root];
+}
+
+/**
+ * A graphics coordinate as Java's `Double.parseDouble` reads Cytoscape's (no hex, no `_`), and
+ * finite.
+ * @param text - the text
+ * @returns the number, or null when it does not parse or is not finite
+ */
+export function parseCoordinate(text: string): number | null {
+    const parsed = parseScalar(text, "real", false);
+    return parsed === null || !Number.isFinite(parsed.value) ? null : (parsed.value as number);
 }
 
 /**
@@ -485,13 +497,31 @@ export class XgmmlEmitter {
     private edgeDirection(record: EdgeRec, header: boolean): boolean {
         let directed = this.directions.get(record);
         if (directed === undefined) {
+            const fallback = this.graphDirected(record.graph, header);
             directed =
                 record.directed === null
-                    ? header
-                    : this.flag(record.directed, header, { line: record.line, element: record.id ?? record.label });
+                    ? fallback
+                    : this.flag(record.directed, fallback, { line: record.line, element: record.id ?? record.label });
             this.directions.set(record, directed);
         }
         return directed;
+    }
+
+    /**
+     * The default direction of the edges of a graph: the `directed` attribute of the graph or of
+     * the nearest graph it is nested in that has one, else the header.
+     * @param graph - the graph that holds the edge
+     * @param header - the header direction
+     * @returns whether the graph's edges are directed by default
+     */
+    private graphDirected(graph: GraphRec, header: boolean): boolean {
+        for (let g: GraphRec | null = graph; g !== null && g !== this.doc.root; g = g.parent) {
+            const text = g.attrs.get("directed");
+            if (text !== undefined) {
+                return this.flag(text, header, { line: g.line, element: "directed" });
+            }
+        }
+        return header;
     }
 
     /**
@@ -740,7 +770,20 @@ export class XgmmlEmitter {
      * @returns true to skip it
      */
     private skipAtt(record: NodeRec | EdgeRec, att: AttRec): boolean {
-        return record.kind === "edge" && record.weight === null && att.name === this.options.weightFrom;
+        if (record.kind !== "edge" || att.name !== this.options.weightFrom) {
+            return false;
+        }
+        if (record.weight === null || att.name !== "weight" || att.children.length > 0) {
+            return record.weight === null;
+        }
+        // weight="2" and <att name="weight" value="3">: the attribute is THE weight
+        this.report.warning(
+            "validation-error",
+            XGMML_ISSUE.DUPLICATE_ATTRIBUTE,
+            `${this.prefix()}an edge has weight="${record.weight}" and a weight att "${att.value ?? ""}"; the weight attribute is the weight and the att is not read`,
+            { line: att.line, element: record.id ?? record.label ?? "weight" },
+        );
+        return true;
     }
 
     /**
@@ -825,21 +868,22 @@ export class XgmmlEmitter {
     private addEdges(records: readonly EdgeRec[], header: boolean): void {
         const ids = new Set<string>();
         const dedupe = this.dialect.cy2 && this.doc.nodes.some((n) => n.nested.length > 0) ? new Set<string>() : null;
+        let repeats = 0;
+        let firstRepeat: IssueLocation | null = null;
         const labels: (string | undefined)[] = [];
         const edgeIds: (string | undefined)[] = [];
         const graphics: [number, Record<string, unknown>][] = [];
         let row = 0;
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
-            const key = record.id ?? record.label;
+            // a repeat has the same id, or without one the same label and endpoints
+            const key =
+                record.id ??
+                (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
             if (dedupe !== null && key !== null) {
                 if (dedupe.has(key)) {
-                    this.report.warnOnce(
-                        "merged",
-                        XGMML_ISSUE.GROUP_DUPLICATE_EDGE,
-                        `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; each repeat is dropped`,
-                        where,
-                    );
+                    repeats++;
+                    firstRepeat ??= where;
                     continue;
                 }
                 dedupe.add(key);
@@ -858,6 +902,14 @@ export class XgmmlEmitter {
                 graphics.push([index, record.graphics]);
             }
             row++;
+        }
+        if (repeats > 0) {
+            this.report.warning(
+                "merged",
+                XGMML_ISSUE.GROUP_DUPLICATE_EDGE,
+                `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; ${repeats} repeat(s) were dropped`,
+                firstRepeat ?? undefined,
+            );
         }
         this.writeEdgeIds(edgeIds);
         this.writeLabels("edge", labels, (r) => this.edgeIndex[r] ?? -1);
@@ -968,10 +1020,13 @@ export class XgmmlEmitter {
             }
         }
         if (text === null) {
+            const ambiguous = alias !== null && this.aliasRow(alias) === null && this.labelRows?.get(alias) === null;
             this.report.error(
                 "missing-value",
                 XGMML_ISSUE.MISSING_ENDPOINT,
-                `${this.prefix()}<edge> without a ${side}`,
+                ambiguous
+                    ? `${this.prefix()}<edge> without a ${side}: its label alias "${alias}" is ambiguous (several nodes have that label); the edge is skipped`
+                    : `${this.prefix()}<edge> without a ${side}`,
                 where,
             );
             return null;
@@ -1274,8 +1329,8 @@ class Positions {
         if (text === null) {
             return null;
         }
-        const n = Number(text.trim());
-        if (text.trim().length === 0 || !Number.isFinite(n)) {
+        const n = parseCoordinate(text);
+        if (n === null) {
             this.emitter.issues.error(
                 "validation-error",
                 XGMML_ISSUE.BAD_VALUE,
@@ -1432,6 +1487,9 @@ class Containment {
 
     private readonly subgraphs = new Map<number, Record<string, unknown>>();
 
+    /** The nodes that are some node's parent: only those can be an ancestor, so close a cycle. */
+    private readonly groups = new Set<number>();
+
     /**
      * Create the resolver.
      * @param emitter - the emitter
@@ -1494,7 +1552,7 @@ class Containment {
      * @param line - the line
      */
     private link(child: number, parent: number, line: number): void {
-        if (child === parent || this.isAncestor(child, parent)) {
+        if (child === parent || (this.groups.has(child) && this.isAncestor(child, parent))) {
             this.emitter.issues.error(
                 "validation-error",
                 XGMML_ISSUE.PARENT_CYCLE,
@@ -1508,6 +1566,7 @@ class Containment {
             list.push(parent);
         }
         this.parents.set(child, list);
+        this.groups.add(parent);
     }
 
     /**

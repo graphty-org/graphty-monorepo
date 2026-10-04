@@ -8,7 +8,9 @@
  * instead of re-reading the token from its `<`, and line numbers are counted from a cached next
  * line-break position, so a document without line breaks costs the same as one with them.
  *
- * What it handles: the XML declaration and processing instructions (skipped), comments (skipped),
+ * What it handles: the XML declaration and processing instructions (skipped), comments (skipped;
+ * a `--` inside one, which XML 1.0 forbids, is accepted: a comment carries no data and banner
+ * comments such as `<!-- ----- -->` are common in hand-written files),
  * CDATA sections (text), a DOCTYPE with an internal subset (skipped; entity declarations are not
  * expanded, so an unknown entity reference is a syntax error), the five predefined entities and
  * numeric character references (decimal and hexadecimal) in text and attribute values, attribute
@@ -56,6 +58,12 @@ export interface XmlHandler {
      * @param line - the 1-based line where the run starts
      */
     text(text: string, line: number): void;
+    /**
+     * A DOCTYPE declaration (optional; its internal subset is never expanded).
+     * @param text - the declaration as written, from `<!DOCTYPE` to its `>`
+     * @param line - the 1-based line of the `<`
+     */
+    doctype?(text: string, line: number): void;
 }
 
 /** A well-formedness or syntax error, with the line it was found on. */
@@ -287,7 +295,10 @@ function countIllegalRows(column: Column): number {
     return bad;
 }
 
-/** The encoding pseudo-attribute of an XML declaration at the very start of a document. */
+/**
+ * The encoding pseudo-attribute of an XML declaration at the very start of a document (one
+ * anywhere else is a syntax error of the tokenizer).
+ */
 const XML_DECLARED_ENCODING = /^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z][A-Za-z0-9._-]*)["']/;
 
 /**
@@ -498,25 +509,35 @@ export async function tokenizeXml(
     let skipped = 0;
     let lines = 1;
     let leading = true;
-    for await (const chunk of chunks) {
-        if (leading) {
-            const start = chunk.search(/\S/);
-            const blank = start < 0 ? chunk : chunk.slice(0, start);
-            skipped += blank.length;
-            lines += blank.split("\n").length - 1;
-            if (start >= 0) {
-                leading = false;
-                if (skipped > 0 && /^<\?xml\s/.test(chunk.slice(start, start + 6))) {
-                    throw new XmlSyntaxError(
-                        "the XML declaration must be at the very start of the document; whitespace precedes it",
-                        lines,
-                    );
+    try {
+        for await (const chunk of chunks) {
+            if (leading) {
+                const start = chunk.search(/\S/);
+                const blank = start < 0 ? chunk : chunk.slice(0, start);
+                skipped += blank.length;
+                lines += blank.split("\n").length - 1;
+                if (start >= 0) {
+                    leading = false;
+                    if (skipped > 0 && /^<\?xml\s/.test(chunk.slice(start, start + 6))) {
+                        throw new XmlSyntaxError(
+                            "the XML declaration must be at the very start of the document; whitespace precedes it",
+                            lines,
+                        );
+                    }
                 }
             }
+            tokenizer.push(chunk);
         }
-        tokenizer.push(chunk);
+        tokenizer.finish();
+    } catch (err) {
+        if (err instanceof XmlSyntaxError && tokenizer.declaresXml11 && !err.message.includes("XML 1.1")) {
+            throw new XmlSyntaxError(
+                `${err.message}; the document declares XML 1.1, which graph-io does not read (it reads XML 1.0)`,
+                err.line,
+            );
+        }
+        throw err;
     }
-    tokenizer.finish();
 }
 
 /** The result of parsing one start tag out of the buffer. */
@@ -648,6 +669,15 @@ export class XmlTokenizer {
     constructor(handler: XmlHandler, repairs?: XmlRepairs) {
         this.handler = handler;
         this.repairs = repairs;
+    }
+
+    /**
+     * Whether the document's XML declaration says version 1.1 (read by the XML 1.0 rules all the
+     * same; the syntax error of a 1.1-only construct then says why).
+     * @returns true after a `<?xml version="1.1"?>` declaration
+     */
+    get declaresXml11(): boolean {
+        return this.version === "1.1";
     }
 
     /**
@@ -1088,10 +1118,7 @@ export class XmlTokenizer {
             if (end < 0) {
                 return -1;
             }
-            const body = buffer.slice(pos + 4, end);
-            if (body.includes("--") || body.endsWith("-")) {
-                throw new XmlSyntaxError('"--" is not allowed inside a comment', this.lineIn(pos, pos + 4 + body.indexOf("-")));
-            }
+            // a "--" inside, which XML 1.0 forbids, is accepted: the comment carries no data
             this.advanceLine(pos, end + 3);
             return end + 3;
         }
@@ -1142,6 +1169,7 @@ export class XmlTokenizer {
             return -1;
         }
         this.doctypeSeen = true;
+        this.handler.doctype?.(buffer.slice(pos, end), this.line);
         this.advanceLine(pos, end);
         return end;
     }

@@ -86,6 +86,8 @@ const ZIP64_EOCD_SIZE = 56;
 const ZIP64_LOCATOR_SIZE = 20;
 const U16_MAX = 0xffff;
 const U32_MAX = 0xffffffff;
+/** General purpose bit 11: the name is UTF-8. */
+const UTF8_FLAG = 0x800;
 /** Bytes between two cancellation checks while a stored entry's CRC is computed. */
 const CRC_SLICE = 1024 * 1024;
 
@@ -171,7 +173,11 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
         if (next > directoryEnd) {
             throw new ZipError("corrupt", `central directory entry ${i + 1} runs past the directory`);
         }
-        const name = decodeEntryName(bytes.subarray(at + CENTRAL_SIZE, at + CENTRAL_SIZE + nameLength));
+        const flags = view.getUint16(at + 8, true);
+        const name = decodeEntryName(
+            bytes.subarray(at + CENTRAL_SIZE, at + CENTRAL_SIZE + nameLength),
+            (flags & UTF8_FLAG) === 0,
+        );
         let compressedSize = view.getUint32(at + 20, true);
         let size = view.getUint32(at + 24, true);
         let localOffset = view.getUint32(at + 42, true);
@@ -186,7 +192,7 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
             Object.freeze({
                 name,
                 method: view.getUint16(at + 10, true),
-                flags: view.getUint16(at + 8, true),
+                flags,
                 crc32: view.getUint32(at + 16, true),
                 compressedSize,
                 size,
@@ -196,7 +202,39 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
         );
         at = next;
     }
+    if (at + 4 <= directoryEnd && view.getUint32(at, true) === CENTRAL_SIGNATURE) {
+        throw new ZipError(
+            "corrupt",
+            `the end record counts ${count} entries but the central directory holds more; entries would go unread`,
+        );
+    }
+    checkOverlap(entries, view);
     return entries;
+}
+
+/**
+ * Refuse entries whose local header and data overlap (several directory entries naming one local
+ * header is a known zip bomb: each inflates the same bytes again). An entry spans its local
+ * header, its local name and extra field, and its compressed data; a trailing data descriptor is
+ * not counted, since overlapping it inflates nothing twice. A damaged local header counts as a bare
+ * header here and is refused when the entry is read.
+ * @param entries - the entries
+ * @param view - the archive
+ */
+function checkOverlap(entries: readonly ZipEntry[], view: DataView): void {
+    const sorted = [...entries].sort((a, b) => a.localOffset - b.localOffset);
+    const end = (entry: ZipEntry): number => {
+        const at = entry.localOffset;
+        const intact = at + LOCAL_SIZE <= view.byteLength && view.getUint32(at, true) === LOCAL_SIGNATURE;
+        const lengths = intact ? view.getUint16(at + 26, true) + view.getUint16(at + 28, true) : 0;
+        return at + LOCAL_SIZE + lengths + entry.compressedSize;
+    };
+    for (let i = 1; i < sorted.length; i++) {
+        const before = sorted[i - 1];
+        if (sorted[i].localOffset < end(before)) {
+            throw new ZipError("corrupt", `the entries ${before.name} and ${sorted[i].name} overlap`);
+        }
+    }
 }
 
 /**
@@ -357,7 +395,18 @@ function entryData(bytes: Uint8Array, entry: ZipEntry): Uint8Array {
     if (at + LOCAL_SIZE > bytes.byteLength || view.getUint32(at, true) !== LOCAL_SIGNATURE) {
         throw new ZipError("corrupt", `${entry.name}: the local header is missing`);
     }
-    const start = at + LOCAL_SIZE + view.getUint16(at + 26, true) + view.getUint16(at + 28, true);
+    const nameLength = view.getUint16(at + 26, true);
+    const localName = decodeEntryName(
+        bytes.subarray(at + LOCAL_SIZE, Math.min(bytes.byteLength, at + LOCAL_SIZE + nameLength)),
+        (entry.flags & UTF8_FLAG) === 0,
+    );
+    if (localName !== entry.name) {
+        throw new ZipError(
+            "corrupt",
+            `${entry.name}: the local header names the entry ${JSON.stringify(localName)}, the central directory ${JSON.stringify(entry.name)}`,
+        );
+    }
+    const start = at + LOCAL_SIZE + nameLength + view.getUint16(at + 28, true);
     const end = start + entry.compressedSize;
     if (end > bytes.byteLength) {
         throw new ZipError("corrupt", `${entry.name}: the entry's data runs past the end of the archive (truncated?)`);

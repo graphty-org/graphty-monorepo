@@ -264,6 +264,29 @@ export class ImportReportBuilder {
     }
 
     /**
+     * A builder that starts from everything this one recorded so far: issues, counts, loss notes,
+     * the warnOnce keys, the error and warning counts and the truncation flag. For an importer that
+     * reads its input once and emits several graphs, each with its own report.
+     * @returns the copy; later records to either builder do not reach the other
+     */
+    fork(): ImportReportBuilder {
+        const copy = new ImportReportBuilder(this.format, this.errorLimit);
+        Object.assign(copy.counts, this.counts);
+        copy.issueList.push(...this.issueList);
+        copy.lossList.push(...this.lossList);
+        for (const key of this.onceCodes) {
+            copy.onceCodes.add(key);
+        }
+        for (const [code, count] of this.warningsByCode) {
+            copy.warningsByCode.set(code, count);
+        }
+        copy.errors = this.errors;
+        copy.warnings = this.warnings;
+        copy.truncatedFlag = this.truncatedFlag;
+        return copy;
+    }
+
+    /**
      * Build the ImportError that aborts the import, carrying the report so far. The caller throws
      * it; this method only constructs it so it can be used in expression position.
      * @param message - a plain-ASCII message

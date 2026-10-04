@@ -1030,6 +1030,7 @@ describe("gexfImporter: less common constructs", () => {
         expect(snapshot.nodes.get("b")).toBeNull();
     });
 
+    // the malformed interval is escaped: a literal "<" in an attribute value is not well-formed XML
     it("reads 1.3 intervals attributes and edge spells, and rejects a malformed interval", async () => {
         // a literal "<" in an attribute value is not well-formed XML (a fatal E_XML_SYNTAX), so the
         // malformed interval is written escaped like the well-formed one

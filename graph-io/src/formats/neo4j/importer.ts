@@ -1532,8 +1532,47 @@ const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = {
  * A Cypher duration (ISO 8601): unit form `P14DT16H12M` / `PT0.75M` / `P2.5W` (components may be
  * signed or fractional) or the date-time form `P2012-02-02T14:37:21.545`.
  */
-const DURATION_TEXT =
-    /^[+-]?P(?:(?=[-+]?[\d.]|T[-+]?[\d.])(?:[-+]?\d+(?:\.\d+)?Y)?(?:[-+]?\d+(?:\.\d+)?M)?(?:[-+]?\d+(?:\.\d+)?W)?(?:[-+]?\d+(?:\.\d+)?D)?(?:T(?=[-+]?[\d.])(?:[-+]?\d+(?:\.\d+)?H)?(?:[-+]?\d+(?:\.\d+)?M)?(?:[-+]?\d+(?:\.\d+)?S)?)?|\d{4}-?\d{2}-?\d{2}T\d{2}:?\d{2}:?\d{2}(?:\.\d+)?)$/i;
+/**
+ * Whether a text is a Cypher duration (ISO 8601): unit form `P14DT16H12M` / `PT0.75M` / `P2.5W`
+ * (components may be signed or fractional) or the date-time form `P2012-02-02T14:37:21.545`.
+ * @param text - the text, trimmed
+ * @returns true when it is
+ */
+function isDuration(text: string): boolean {
+    if (DURATION_DATE_TIME.test(text)) {
+        return true;
+    }
+    const m = /^[+-]?P([^T]*)(?:T(.*))?$/i.exec(text);
+    if (m === null || m[2] === "" || (m[1] === "" && m[2] === undefined)) {
+        return false;
+    }
+    return unitsInOrder(m[1], "YMWD") && unitsInOrder(m[2] ?? "", "HMS");
+}
+
+/** The date-time form of a Cypher duration, `P2012-02-02T14:37:21.545`. */
+const DURATION_DATE_TIME = /^[+-]?P\d{4}-?\d{2}-?\d{2}T\d{2}:?\d{2}:?\d{2}(?:\.\d+)?$/i;
+
+/**
+ * Whether a run of duration components (`14D`, `-1.5H30M`) names its units in the order given,
+ * each at most once.
+ * @param text - the components
+ * @param units - the unit letters in their order
+ * @returns true when it does
+ */
+function unitsInOrder(text: string, units: string): boolean {
+    let rest = text.toUpperCase();
+    let from = 0;
+    while (rest !== "") {
+        const m = /^[-+]?\d+(?:\.\d+)?([A-Z])/.exec(rest);
+        const at = m === null ? -1 : units.indexOf(m[1], from);
+        if (m === null || at < 0) {
+            return false;
+        }
+        from = at + 1;
+        rest = rest.slice(m[0].length);
+    }
+    return true;
+}
 
 /**
  * Check the neo4j-admin types the shared parser maps to a wider dtype: byte and short values within
@@ -1554,12 +1593,13 @@ function checkNeo4jRange(spec: DeclaredTypeSpec, value: unknown, text: string): 
             // a Java char: one UTF-16 code unit
             bad = typeof item === "string" && item.length !== 1;
         } else if (base === "duration") {
-            bad = typeof item === "string" && !DURATION_TEXT.test(item.trim());
+            bad = typeof item === "string" && !isDuration(item.trim());
         }
         if (bad) {
+            const span = range === undefined ? "" : ` (${range[0]} to ${range[1]})`;
             throw new GraphFormatError(
                 "E_COLUMN_TYPE",
-                `"${text}" is not ${withArticle(base)}${range === undefined ? "" : ` (${range[0]} to ${range[1]})`}`,
+                `"${text}" is not ${withArticle(base)}${span}`,
                 {
                     value: text,
                     kind: base,
@@ -1599,11 +1639,16 @@ function overflows(spec: DeclaredTypeSpec, value: unknown, text: string): boolea
  * @returns the text to parse
  */
 function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
-    const m = /^(.*)\[([^\]]+)\]$/.exec(text.trim());
-    if (m === null || spec.temporal !== "dateTime") {
+    const trimmed = text.trim();
+    const open = trimmed.lastIndexOf("[");
+    if (spec.temporal !== "dateTime" || open < 0 || !trimmed.endsWith("]")) {
         return text;
     }
-    const [, local, zone] = m;
+    const local = trimmed.slice(0, open);
+    const zone = trimmed.slice(open + 1, -1);
+    if (zone === "" || zone.includes("]") || /[\n\r\u2028\u2029]/.test(local)) {
+        return text;
+    }
     let format: Intl.DateTimeFormat;
     try {
         format = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" });
@@ -1617,7 +1662,10 @@ function withZoneOffset(text: string, spec: DeclaredTypeSpec): string {
     const offsetAt = (ms: number): number => {
         const name = format.formatToParts(new Date(ms)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
         const o = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
-        return o === null ? 0 : (o[1] === "-" ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
+        if (o === null) {
+            return 0;
+        }
+        return (o[1] === "-" ? -1 : 1) * (Number(o[2]) * 60 + Number(o[3]));
     };
     // the offset at the instant the wall time names (twice, so a wall time near a transition settles)
     const minutes = offsetAt(wall - offsetAt(wall) * 60_000);

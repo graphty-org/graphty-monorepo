@@ -1069,8 +1069,8 @@ export function sessionEscape(text: string): string {
     const wellFormed = text.replaceAll(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
     return encodeURIComponent(wellFormed)
         .replaceAll(/[!~'()]/g, (c) => `%${(c.codePointAt(0) ?? 0).toString(16).toUpperCase()}`)
-        .replaceAll(/%20/g, "+")
-        .replaceAll(/-/g, "%2D");
+        .replaceAll("%20", "+")
+        .replaceAll("-", "%2D");
 }
 
 /**
@@ -1190,25 +1190,28 @@ function* entries(snapshot: GraphSnapshot, p: Plan): Generator<ZipWriteEntry, vo
     const tables = `${ROOT_FOLDER}tables/${p.subSuid}-${name}/LOCAL_ATTRS-org.cytoscape.model.`;
     const rowsOf = (suids: readonly number[], skip?: (row: number) => boolean): [number, number][] =>
         suids.flatMap((suid, row) => (skip?.(row) === true ? [] : [[suid, row] as [number, number]]));
+    const nodeTable = `${p.name} default node`;
+    const edgeTable = `${p.name} default edge`;
+    const networkTable = `${p.name} default network`;
     yield { name: `${ROOT_FOLDER}3.0.0.version`, data: new Uint8Array(0) };
     yield { name: `${ROOT_FOLDER}networks/${p.rootSuid}-${name}.xgmml`, data: encode(networkFile(snapshot, p)) };
     yield {
-        name: `${tables}CyNode-${sessionEscape(`${p.name} default node`)}.cytable`,
-        data: encode(cyTable(`${p.name} default node`, p.nodeTable, rowsOf(p.nodeSuids))),
+        name: `${tables}CyNode-${sessionEscape(nodeTable)}.cytable`,
+        data: encode(cyTable(nodeTable, p.nodeTable, rowsOf(p.nodeSuids))),
     };
     yield {
-        name: `${tables}CyEdge-${sessionEscape(`${p.name} default edge`)}.cytable`,
+        name: `${tables}CyEdge-${sessionEscape(edgeTable)}.cytable`,
         data: encode(
             cyTable(
-                `${p.name} default edge`,
+                edgeTable,
                 p.edgeTable,
                 rowsOf(p.edgeSuids, (e) => p.folding.folded(e)),
             ),
         ),
     };
     yield {
-        name: `${tables}CyNetwork-${sessionEscape(`${p.name} default network`)}.cytable`,
-        data: encode(cyTable(`${p.name} default network`, p.networkTable, [[p.subSuid, 0]])),
+        name: `${tables}CyNetwork-${sessionEscape(networkTable)}.cytable`,
+        data: encode(cyTable(networkTable, p.networkTable, [[p.subSuid, 0]])),
     };
     yield {
         name: `${ROOT_FOLDER}tables/${p.rootSuid}-${name}/LOCAL_ATTRS-org.cytoscape.model.CyNetwork-${p.rootSuid}+default+network.cytable`,
@@ -1269,13 +1272,9 @@ export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
 
     /**
      * A session is a zip archive, not text: always rejects with E_UNSUPPORTED (use exportGraphToBytes() or exportGraphToBlob()).
-     * @param snapshot - the snapshot
-     * @param options - the common options
      * @returns never
      */
-    exportToString(snapshot: GraphSnapshot, options?: CysExportOptions): Promise<string> {
-        void snapshot;
-        void options;
+    exportToString(): Promise<string> {
         return Promise.reject(
             new GraphFormatError(
                 "E_UNSUPPORTED",

@@ -241,7 +241,7 @@ function allIntegral(column: Column): boolean {
 export function declaredType(column: Column): string {
     const { meta } = column;
     const origin = meta.origin?.type ?? null;
-    const longOrigin = origin !== null && /long$/.test(origin) && (meta.dtype !== "f64" || allIntegral(column));
+    const longOrigin = origin !== null && origin.endsWith("long") && (meta.dtype !== "f64" || allIntegral(column));
     if (meta.dtype === "list") {
         return meta.itemDtype === null || meta.itemDtype === "json"
             ? "string"
@@ -403,7 +403,7 @@ export function noteList(): { notes: LossNote[]; note: CxNoteFn } {
  */
 export function stringify(value: unknown): string {
     const text = JSON.stringify(value, (_key, v: unknown) => (Object.is(v, -0) ? `${RAW}-0` : v));
-    return text.includes("\\u0000cx:") ? text.replaceAll(RAW_JSON, "$1") : text;
+    return text.includes(String.raw`\u0000cx:`) ? text.replaceAll(RAW_JSON, "$1") : text;
 }
 
 /**

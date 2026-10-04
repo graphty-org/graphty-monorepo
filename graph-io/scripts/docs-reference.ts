@@ -317,41 +317,55 @@ class Source {
      */
     publishedDocs(): Map<string, string> {
         const out = new Map<string, string>();
-        const full = (s: ts.Symbol): string =>
-            [
-                this.doc(s),
-                ...s
-                    .getJsDocTags(this.checker)
-                    .map((t) => (t.text === undefined ? "" : ts.displayPartsToString(t.text))),
-            ].join("\n");
         for (const entry of Object.values(ENTRIES)) {
             for (const [name, sym] of this.exportsOf(entry)) {
                 // a re-export of another package (GraphFormatError) carries that package's comment
                 if (sym.declarations?.[0]?.getSourceFile().fileName.startsWith(`${pkg}src/`) === false) {
                     continue;
                 }
-                out.set(`${entry}: ${name}`, full(sym));
-                const type =
-                    sym.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.Class | ts.SymbolFlags.TypeAlias)
-                        ? this.checker.getDeclaredTypeOfSymbol(sym)
-                        : this.checker.getTypeOfSymbol(sym);
-                // a function's or a frozen table's own members are what a reader sees; skip library types
-                for (const p of type.getProperties()) {
-                    const decl = p.declarations?.[0];
-                    if (decl?.getSourceFile().fileName.startsWith(`${pkg}src/`) === true) {
-                        out.set(`${entry}: ${name}.${p.name}`, full(p));
-                    }
-                }
-                for (const sig of type.getCallSignatures()) {
-                    const tags = sig.getJsDocTags().map((t) => ts.displayPartsToString(t.text));
-                    out.set(
-                        `${entry}: ${name}()`,
-                        [ts.displayPartsToString(sig.getDocumentationComment(this.checker)), ...tags].join("\n"),
-                    );
-                }
+                out.set(`${entry}: ${name}`, this.fullDoc(sym));
+                this.memberDocs(`${entry}: ${name}`, sym, out);
             }
         }
         return out;
+    }
+
+    /**
+     * A symbol's doc comment with its tags.
+     * @param s - the symbol
+     * @returns the comment text, then each tag's text
+     */
+    private fullDoc(s: ts.Symbol): string {
+        return [
+            this.doc(s),
+            ...s.getJsDocTags(this.checker).map((t) => (t.text === undefined ? "" : ts.displayPartsToString(t.text))),
+        ].join("\n");
+    }
+
+    /**
+     * Add the doc comments of an export's own members and call signatures: what a reader sees of a function or a
+     * frozen table. Members declared by library types are skipped.
+     * @param key - the export's key, `<entry>: <name>`
+     * @param sym - the export's symbol
+     * @param out - where the comments go
+     */
+    private memberDocs(key: string, sym: ts.Symbol, out: Map<string, string>): void {
+        const type =
+            sym.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.Class | ts.SymbolFlags.TypeAlias)
+                ? this.checker.getDeclaredTypeOfSymbol(sym)
+                : this.checker.getTypeOfSymbol(sym);
+        for (const p of type.getProperties()) {
+            if (p.declarations?.[0]?.getSourceFile().fileName.startsWith(`${pkg}src/`) === true) {
+                out.set(`${key}.${p.name}`, this.fullDoc(p));
+            }
+        }
+        for (const sig of type.getCallSignatures()) {
+            const tags = sig.getJsDocTags().map((t) => ts.displayPartsToString(t.text));
+            out.set(
+                `${key}()`,
+                [ts.displayPartsToString(sig.getDocumentationComment(this.checker)), ...tags].join("\n"),
+            );
+        }
     }
 
     /**
@@ -1352,8 +1366,8 @@ async function regenerate(ctx: Context, page: string, text: string, blocks: read
         throw new Error(
             [
                 `${page}: generated blocks`,
-                missing.length > 0 ? "missing " + missing.join(", ") : "",
-                extra.length > 0 ? "unexpected " + extra.join(", ") : "",
+                missing.length > 0 ? `missing ${  missing.join(", ")}` : "",
+                extra.length > 0 ? `unexpected ${  extra.join(", ")}` : "",
             ]
                 .filter((s) => s !== "")
                 .join(" "),

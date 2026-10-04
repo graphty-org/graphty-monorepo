@@ -114,7 +114,7 @@ export function oboColumnDecl(domain: "node" | "edge", name: string): ColumnDecl
  * The OBO PURL base every OBO Foundry IRI starts with.
  * @category Plugin helpers
  */
-export const OBO_PURL = "http://purl.obolibrary.org/obo/";
+export const OBO_PURL = "http://purl.obolibrary.org/obo/"; // NOSONAR(S5332): an identifier the OBO standard fixes, never fetched
 
 /** The same base under https, which newer OBO Graphs writers use. */
 const OBO_PURL_HTTPS = "https://purl.obolibrary.org/obo/";
@@ -123,7 +123,7 @@ const OBO_PURL_HTTPS = "https://purl.obolibrary.org/obo/";
  * The oboInOwl namespace of the OBO-to-OWL mapping's annotation properties.
  * @category Plugin helpers
  */
-export const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#";
+export const OBO_IN_OWL = "http://www.geneontology.org/formats/oboInOwl#"; // NOSONAR(S5332): an identifier the OBO standard fixes, never fetched
 
 /**
  * An IRI as the identifier the `.obo` file writes (the OBO 1.4 mapping, section 5.9, read

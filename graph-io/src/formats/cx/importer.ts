@@ -1023,10 +1023,9 @@ async function readDocument(
     }
     if (members > 0 && known === 0) {
         const found = [...unknownNames].slice(0, 5).map((n) => JSON.stringify(n));
-        report.fail(
-            CX_ISSUE.NOT_CX,
-            `no member of the array is a CX aspect${found.length > 0 ? ` (found ${found.join(", ")}${unknownNames.has("data") ? ": Cytoscape.js elements?" : ""})` : ""}; the input is not CX`,
-        );
+        const hint = unknownNames.has("data") ? ": Cytoscape.js elements?" : "";
+        const seen = found.length > 0 ? ` (found ${found.join(", ")}${hint})` : "";
+        report.fail(CX_ISSUE.NOT_CX, `no member of the array is a CX aspect${seen}; the input is not CX`);
     }
     if (structure.hasStatus && !structure.statusWellFormed()) {
         report.error(
@@ -2712,7 +2711,7 @@ class CxReader {
                     chosenScope = scope;
                 }
             }
-            if (chosen === null || chosen.v === undefined || chosen.v === null) {
+            if (chosen?.v === undefined || chosen.v === null) {
                 continue;
             }
             const type = cxType(chosen.d);
@@ -2789,8 +2788,8 @@ class CxReader {
                 case "edges": {
                     const domain = value.properties_of === "nodes" ? "node" : "edge";
                     const target = refId(value.applies_to);
-                    const row =
-                        target === null ? undefined : (domain === "node" ? this.nodeRows : this.edgeRows).get(target);
+                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+                    const row = target === null ? undefined : rows.get(target);
                     if (row === undefined) {
                         if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
                             this.dangle(`${domain} visual property entry`);

@@ -963,10 +963,10 @@ export class XmlTokenizer {
                     const amp = buffer.lastIndexOf("&");
                     if (
                         amp >= pos &&
-                        buffer.indexOf(";", amp) < 0 &&
+                        !buffer.includes(";", amp) &&
                         // ponytail: a zero-padded reference longer than MAX_ENTITY_LENGTH is held back
                         // whole, so an absurdly long run of zeros is re-scanned once per chunk
-                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0+[0-9a-fA-F]*$/.test(buffer.slice(amp)))
+                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0[\da-fA-F]*$/.test(buffer.slice(amp)))
                     ) {
                         end = amp;
                     }
@@ -1519,7 +1519,7 @@ export class XmlTokenizer {
      */
     private namespaceOf(name: string): string | null {
         const colon = name.indexOf(":");
-        if (colon >= 0 && (colon === 0 || colon === name.length - 1 || name.indexOf(":", colon + 1) >= 0)) {
+        if (colon >= 0 && (colon === 0 || colon === name.length - 1 || name.includes(":", colon + 1))) {
             return null;
         }
         const prefix = colon < 0 ? "" : name.slice(0, colon);

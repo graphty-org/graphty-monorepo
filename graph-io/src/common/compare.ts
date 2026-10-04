@@ -451,7 +451,7 @@ function show(v: unknown): string {
     }
     try {
         const text = JSON.stringify(v);
-        return text === undefined ? String(v) : text;
+        return text ?? String(v);
     } catch {
         return String(v);
     }

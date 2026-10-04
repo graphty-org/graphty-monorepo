@@ -572,8 +572,10 @@ function planIds(
             for (const i of bad) {
                 const base = wordOf(ids[i]);
                 let candidate = base;
-                for (let k = 2; used.has(candidate); k++) {
+                let k = 2;
+                while (used.has(candidate)) {
                     candidate = `${base}_${k}`;
+                    k++;
                 }
                 used.add(candidate);
                 originals.set(i, ids[i]);
@@ -1181,9 +1183,10 @@ function oboColumnNotes(
             ((want === "string" || want === "dict") && column.dtype !== want) ||
             (column.dtype === "list" && column.child.dtype !== "string")
         ) {
+            const held = column.dtype === "list" ? `${column.child.dtype} items` : column.dtype;
             note(
                 LOSS.DTYPE,
-                `node column "${column.meta.name}" holds ${column.dtype === "list" ? `${column.child.dtype} items` : column.dtype}; it reads back as ${column.dtype === "list" ? "string items" : want}`,
+                `node column "${column.meta.name}" holds ${held}; it reads back as ${column.dtype === "list" ? "string items" : want}`,
                 column.meta.name,
                 column.length - column.nullCount,
             );
@@ -1232,11 +1235,11 @@ function planProperties(
         if (slotted.has(column) || (role !== null && UNWRITTEN_ROLES.has(role))) {
             continue;
         }
-        if (name === PLACEHOLDER_COLUMN && rows.every((i) => !column.isSet(i)) && frameless.some((f) => f === 1)) {
+        if (name === PLACEHOLDER_COLUMN && rows.every((i) => !column.isSet(i)) && frameless.includes(1)) {
             // read back from the frameless nodes alone
             continue;
         }
-        const relation = isOboWord(name) && name !== ORIGINAL_ID ? name : wordOf(name.replaceAll(/:/g, "_"));
+        const relation = isOboWord(name) && name !== ORIGINAL_ID ? name : wordOf(name.replaceAll(":", "_"));
         out.push({ column, relation });
         notePropertyColumn(note, column, rows, `property_value lines (relation ${relation})`);
     }
@@ -1451,7 +1454,7 @@ function planHeader(
  * @returns the value to write
  */
 function rawValue(raw: string): string {
-    return raw.replaceAll(/\r\n|\r|\n|\f/g, "\\n");
+    return raw.replaceAll(/\r\n|\r|\n|\f/g, String.raw`\n`);
 }
 
 /**
@@ -1460,7 +1463,7 @@ function rawValue(raw: string): string {
  * @returns the escaped tag
  */
 function escapeTag(tag: string): string {
-    return escapeOboValue(tag).replaceAll(/:/g, "\\:");
+    return escapeOboValue(tag).replaceAll(":", String.raw`\:`);
 }
 
 /**
@@ -1660,7 +1663,8 @@ function xrefText(f: FrameState, id: string, listTag: string | null): string {
  * @returns the list
  */
 function xrefList(f: FrameState, ids: readonly string[], tag: string): string {
-    return `[${ids.map((id) => xrefText(f, id, `${tag}.xrefs`)).join(", ")}]`;
+    const field = `${tag}.xrefs`;
+    return `[${ids.map((id) => xrefText(f, id, field)).join(", ")}]`;
 }
 
 /**
@@ -1831,17 +1835,20 @@ function tagLines(f: FrameState, tag: string, column: Column, out: string[]): vo
                 qualifiers?: unknown;
             }[]) {
                 const block = x.qualifiers === undefined ? "" : qualifierBlock(qualifierPairs(x.qualifiers));
+                const datatype = x.datatype === null ? "" : ` ${escapeOboWord(x.datatype)}`;
                 const literal =
                     x.datatype === null && isOboWord(x.value)
                         ? escapeOboWord(x.value)
-                        : `"${escapeOboQuoted(counted(stats, x.value))}"${x.datatype === null ? "" : ` ${escapeOboWord(x.datatype)}`}`;
+                        : `"${escapeOboQuoted(counted(stats, x.value))}"${datatype}`;
                 out.push(`property_value: ${escapeOboWord(x.relation)} ${literal}${block}`);
             }
             return;
         case "holds_over_chain":
         case "equivalent_to_chain":
             for (const [a, b] of value as [string, string][]) {
-                out.push(`${tag}: ${escapeOboWord(a)} ${escapeOboWord(b)}${cursor.block(tag, `${a} ${b}`)}`);
+                const pair = `${a} ${b}`;
+                const block = cursor.block(tag, pair);
+                out.push(`${tag}: ${escapeOboWord(a)} ${escapeOboWord(b)}${block}`);
             }
             return;
         case "expand_assertion_to":

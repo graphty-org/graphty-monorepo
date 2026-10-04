@@ -1526,7 +1526,8 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
  */
 function listed(literals: readonly string[]): string {
     const more = literals.length - BIG_INTEGERS_SHOWN;
-    return `${literals.slice(0, BIG_INTEGERS_SHOWN).join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
+    const shown = literals.slice(0, BIG_INTEGERS_SHOWN).join(", ");
+    return more > 0 ? `${shown} and ${more} more` : shown;
 }
 
 /** How many repeated keys are reported one by one before the rest is summed up. */
@@ -1596,7 +1597,7 @@ function syntaxLine(text: string, message: string): number {
     if (position !== null) {
         return countLines(text, 0, Number(position[1])) + 1;
     }
-    if (!/^Unexpected token/.test(message) || text.length > SYNTAX_SEARCH_LIMIT) {
+    if (!message.startsWith("Unexpected token") || text.length > SYNTAX_SEARCH_LIMIT) {
         // ponytail: an unexpected end (or a huge text) is placed on the last line
         return countLines(text, 0, text.length) + 1;
     }
@@ -1609,7 +1610,7 @@ function syntaxLine(text: string, message: string): number {
         try {
             JSON.parse(text.slice(0, mid + 1));
         } catch (err) {
-            failsOnToken = err instanceof Error && /^Unexpected token/.test(err.message);
+            failsOnToken = err instanceof Error && err.message.startsWith("Unexpected token");
         }
         if (failsOnToken) {
             hi = mid;
@@ -1760,9 +1761,8 @@ function reportUnreadKeys(ctx: ImportContext, record: JsonRecord, known: Readonl
             continue;
         }
         const value = record[key];
-        const what = Array.isArray(value)
-            ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
-            : describe(value);
+        const entries = Array.isArray(value) && value.length === 1 ? "entry" : "entries";
+        const what = Array.isArray(value) ? `${String(value.length)} ${entries}` : describe(value);
         ctx.report.warning(
             "unsupported",
             JSON_ISSUE.UNREAD_KEY,

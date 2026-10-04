@@ -1188,12 +1188,13 @@ class GraphmlReader implements XmlHandler {
         } else if (edgedefault === undefined) {
             directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
             // once per kind: a file of thousands of nested graphs without edgedefault is one finding
+            const direction = directed ? "directed" : "undirected";
             this.report.warnOnce(
                 "validation-error",
                 GRAPHML_ISSUE.EDGEDEFAULT_MISSING,
                 top
-                    ? `<graph> has no edgedefault; read as ${directed ? "directed" : "undirected"}`
-                    : `a nested <graph> has no edgedefault; it takes its container's (${directed ? "directed" : "undirected"})`,
+                    ? `<graph> has no edgedefault; read as ${direction}`
+                    : `a nested <graph> has no edgedefault; it takes its container's (${direction})`,
                 { line },
                 `${GRAPHML_ISSUE.EDGEDEFAULT_MISSING}:${top ? "top" : "nested"}`,
             );

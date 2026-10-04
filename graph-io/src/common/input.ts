@@ -509,12 +509,16 @@ class ByteDecoder {
                 );
             }
             if (!startsWithUtf8(all)) {
+                const cutNote =
+                    !stream && bad?.cut === true
+                        ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated"
+                        : "";
                 this.report.warning(
                     "coercion",
                     ENCODING_FALLBACK_CODE,
                     this.declaredUtf8
                         ? `the input declares UTF-8 but is not valid UTF-8 (at byte ${at}); everything before was ASCII, so it is read as windows-1252 (pass the encoding option to choose another)`
-                        : `the input is not valid UTF-8 (at byte ${at}${!stream && bad?.cut === true ? ": it ends inside a multi-byte UTF-8 sequence, so it may be truncated" : ""}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
+                        : `the input is not valid UTF-8 (at byte ${at}${cutNote}) and declares no encoding; read as windows-1252 (pass the encoding option to choose another)`,
                 );
                 this.use("windows-1252", false);
                 this.fellBack = true;
@@ -919,18 +923,18 @@ export function inputLength(input: ImportInput): number | null {
  */
 function utf8Length(text: string): number {
     let bytes = 0;
-    for (let i = 0; i < text.length; i++) {
+    let i = 0;
+    while (i < text.length) {
         const c = text.charCodeAt(i); // NOSONAR(S7758): reads UTF-16 code units on purpose
+        const pair = c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00; // NOSONAR(S7758): reads UTF-16 code units on purpose
         if (c < 0x80) {
             bytes++;
         } else if (c < 0x800) {
             bytes += 2;
-        } else if (c >= 0xd800 && c <= 0xdbff && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { // NOSONAR(S7758): reads UTF-16 code units on purpose
-            bytes += 4;
-            i++;
         } else {
-            bytes += 3;
+            bytes += pair ? 4 : 3;
         }
+        i += pair ? 2 : 1;
     }
     return bytes;
 }
@@ -1171,7 +1175,8 @@ export async function* textChunks(
         while (start < input.length) {
             throwIfAborted(signal);
             let end = Math.min(start + DECODE_SLICE, input.length);
-            if (end < input.length && (input.charCodeAt(end - 1) & 0xfc00) === 0xd800) { // NOSONAR(S7758): reads UTF-16 code units on purpose
+            if (end < input.length && (input.charCodeAt(end - 1) & 0xfc00) === 0xd800) {
+                // NOSONAR(S7758): reads UTF-16 code units on purpose
                 end++; // never split a surrogate pair
             }
             const piece = start === 0 && end === input.length ? input : input.slice(start, end);

@@ -540,7 +540,8 @@ function dotCharset(head: string): string | null {
     let list: "graph" | "other" | null = null;
     let previous: DotToken | null = null;
     try {
-        for (let token = lexer.next(); token.kind !== "eof"; token = lexer.next()) {
+        let token = lexer.next();
+        while (token.kind !== "eof") {
             if (isPunct(token, "[")) {
                 list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
             } else if (isPunct(token, "]")) {
@@ -554,6 +555,7 @@ function dotCharset(head: string): string | null {
                 token = value;
             }
             previous = token;
+            token = lexer.next();
         }
     } catch (err) {
         // the head ends inside a comment or a string: nothing further is seen

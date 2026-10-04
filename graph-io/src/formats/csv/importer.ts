@@ -920,7 +920,7 @@ class TableReader {
      * @param line - the line it starts on
      */
     private refuseOtherFormat(preview: string, line: number): void {
-        if (OTHER_FORMAT.test(preview)) {
+        if (OTHER_FORMATS.some((r) => r.test(preview))) {
             this.state.report.fail(
                 OTHER_FORMAT_CODE,
                 `the input opens like another format (XML / HTML, JSON, GML, DOT or Pajek), not CSV: ${JSON.stringify(preview.trimStart().slice(0, 60))}`,
@@ -1834,8 +1834,18 @@ const HEAD_BYTES = 4096;
  * array, a DOT graph, a Pajek section, GML's `Creator "..."` or `graph [`. Matched against the
  * start of the input.
  */
-const OTHER_FORMAT =
-    /^\s*(?:<(?:\?xml|!doctype|!--|[a-z_][\w.-]*(?::[a-z_][\w.-]*)?(?:\s*\/?>\s*(?:[^,;\t|\s]*<|$)|\s+[a-z_][\w.:-]*\s*=))|\/[*/]|\{\s*(?:["}]|$)|\[\s*(?:[[{"\]\d-]|$)|(?:strict\s+)?(?:di)?graph(?:\s+\S+)?\s*\{|\*(?:vertices|network|arcs|edges)\b|creator\s+"|graph\s*\[)/i;
+const TAG_NAME = String.raw`<[a-z_][\w.-]*(?::[a-z_][\w.-]*)?`;
+const OTHER_FORMATS: readonly RegExp[] = [
+    /^\s*<(?:\?xml|!doctype|!--)/i, // an XML declaration, a doctype or a comment
+    new RegExp(String.raw`^\s*${TAG_NAME}\s*\/?>\s*(?:[^,;|\s]*<|$)`, "i"), // a tag, then another tag
+    new RegExp(String.raw`^\s*${TAG_NAME}\s+[a-z_][\w.:-]*\s*=`, "i"), // a tag with an attribute
+    /^\s*\/[*/]/, // a C comment (DOT)
+    /^\s*\{\s*(?:["}]|$)/, // a JSON object
+    /^\s*\[\s*(?:[[{"\]\d-]|$)/, // a JSON array
+    /^\s*(?:strict\s+)?(?:di)?graph(?:\s+\S+)?\s*\{/i, // a DOT graph
+    /^\s*\*(?:vertices|network|arcs|edges)\b/i, // a Pajek section
+    /^\s*(?:creator\s+"|graph\s*\[)/i, // GML
+];
 
 /**
  * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT (also a leading C comment) and Pajek
@@ -1857,7 +1867,7 @@ function sniff(head: Uint8Array): number {
     }
     // the decoder drops the BOM it was chosen by; the reader skips leading comment lines
     const body = stripLeadingComments(new TextDecoder(label).decode(head.subarray(0, HEAD_BYTES)), COMMENT_CHARS);
-    if (body.trim().length === 0 || OTHER_FORMAT.test(body)) {
+    if (body.trim().length === 0 || OTHER_FORMATS.some((r) => r.test(body))) {
         return 0;
     }
     const newline = sniffNewline(body);
@@ -1865,7 +1875,7 @@ function sniff(head: Uint8Array): number {
     if (delimiter === null) {
         // a header naming both endpoints is evidence enough; a short or long row later is the
         // importer's to report, not a reason to refuse the file
-        const first = body.slice(0, body.indexOf(newline) < 0 ? body.length : body.indexOf(newline));
+        const first = body.split(newline, 1)[0];
         return DELIMITER_CANDIDATES.some((d) => hasEndpointHeader(first, d)) ? 0.9 : 0;
     }
     // the first record, honoring quotes (R and pandas quote every header name)

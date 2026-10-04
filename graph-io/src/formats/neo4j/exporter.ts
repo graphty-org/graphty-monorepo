@@ -977,8 +977,10 @@ class ExportPlan {
                 let file = files.get(row.line);
                 if (file === undefined) {
                     let name = `${row.file.name}.csv`;
-                    for (let k = 2; names.has(name); k++) {
+                    let k = 2;
+                    while (names.has(name)) {
                         name = `${row.file.name}-${k}.csv`;
+                        k++;
                     }
                     names.add(name);
                     file = { name, kind: row.file.kind, rows: [] };

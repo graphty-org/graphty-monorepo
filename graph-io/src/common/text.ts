@@ -31,6 +31,19 @@ const I32_MAX = 2147483647;
 export type TextDtype = "bool" | "i32" | "f64" | "string";
 
 /**
+ * A digit string without its trailing zeros (`"1200"` becomes `"12"`).
+ * @param digits - the digits
+ * @returns the digits up to the last one that is not 0
+ */
+export function trimTrailingZeros(digits: string): string {
+    let end = digits.length;
+    while (end > 0 && digits[end - 1] === "0") {
+        end--;
+    }
+    return digits.slice(0, end);
+}
+
+/**
  * Classify one text cell by the fixed grammar.
  * @param text - the cell text, exactly as read (no trimming)
  * @returns bool, i32, f64 or string

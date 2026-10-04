@@ -36,6 +36,7 @@ import {
 } from "./codes.js";
 import { agree, plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
+import { trimTrailingZeros } from "./text.js";
 
 // ============================================================ exact integers
 
@@ -54,8 +55,15 @@ export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
  * gated; add a digit-count check if such files turn up.
  * @category Plugin helpers
  */
-export const MAYBE_INEXACT_EXPONENT =
-    /\d[eE]\+?0*(1[5-9]|[2-9]\d|[1-9]\d{2,})|\d[eE]-0*([3-9]\d{2}|[1-9]\d{3,})|(?<![\d.])(?=(?:\d\.?){16})\d+\.\d+[eE]/;
+export const MAYBE_INEXACT_EXPONENT = new RegExp(
+    [
+        /\d[eE]\+?0*(?:1[5-9]|[2-9]\d|[1-9]\d{2,})/, // an exponent of 15 or more
+        /\d[eE]-0*(?:[3-9]\d{2}|[1-9]\d{3,})/, // an exponent of -300 or less
+        /(?<![\d.])(?=(?:\d\.?){16})\d+\.\d+[eE]/, // 16 or more digits split by a decimal point
+    ]
+        .map((r) => r.source)
+        .join("|"),
+);
 
 /**
  * The prefix of the string a non-standard token or an exact integer is rewritten to (a NUL
@@ -161,7 +169,7 @@ function isInexactLiteral(literal: string): boolean {
     if (m === null) {
         return false;
     }
-    const digits = (m[2] + (m[3] ?? "")).replace(/0+$/, "");
+    const digits = trimTrailingZeros(m[2] + (m[3] ?? ""));
     const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
     if (digits.replace(/^0+/, "").length <= 15 || exponent < 0) {
         // up to 15 significant digits the nearest double reads back as the same text (1e39 is the
@@ -300,7 +308,8 @@ export function findDuplicateKeys(text: string): DuplicateKey[] {
     const wide: (Set<string> | null)[] = [];
     let depth = 0;
     const n = text.length;
-    for (let at = 0; at < n; at++) {
+    let at = 0;
+    while (at < n) {
         const c = text.codePointAt(at);
         if (c === 123 || c === 91) {
             // { or [
@@ -326,6 +335,7 @@ export function findDuplicateKeys(text: string): DuplicateKey[] {
             }
             at = end;
         }
+        at++;
     }
     return found;
 }
@@ -597,7 +607,8 @@ function keyCount(value: unknown): number {
  */
 function duplicateKey(text: string): string | null {
     const stack: (Set<string> | null)[] = [];
-    for (let i = 0; i < text.length; i++) {
+    let i = 0;
+    while (i < text.length) {
         const c = text[i];
         if (c === "{") {
             stack.push(new Set());
@@ -607,11 +618,7 @@ function duplicateKey(text: string): string | null {
             stack.pop();
         } else if (c === '"') {
             const start = i;
-            for (i++; i < text.length && text[i] !== '"'; i++) {
-                if (text[i] === "\\") {
-                    i++;
-                }
-            }
+            i = stringEnd(text, i + 1);
             const keys = stack.at(-1) ?? null;
             if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
@@ -621,8 +628,23 @@ function duplicateKey(text: string): string | null {
                 keys.add(key);
             }
         }
+        i++;
     }
     return null;
+}
+
+/**
+ * The offset of the quote that ends a JSON string, skipping escaped characters.
+ * @param text - the text
+ * @param from - the offset after the opening quote
+ * @returns the closing quote's offset, or the text length (or one past it) when there is none
+ */
+function stringEnd(text: string, from: number): number {
+    let i = from;
+    while (i < text.length && text[i] !== '"') {
+        i += text[i] === "\\" ? 2 : 1;
+    }
+    return i;
 }
 
 /**
@@ -670,7 +692,7 @@ function checkParsed(text: string, parsed: unknown, line: number, report: Import
             report.error(
                 "validation-error",
                 BAD_VALUE_CODE,
-                `${fixed.count} string${plural(fixed.count)} ${agree(fixed.count, "holds", "hold")} a lone surrogate (an unpaired \\uD800-\\uDFFF escape); each is read with U+FFFD in its place`,
+                `${fixed.count} string${plural(fixed.count)} ${agree(fixed.count, "holds", "hold")} a lone surrogate (an unpaired ${String.raw`\uD800-\uDFFF`} escape); each is read with U+FFFD in its place`,
                 { line },
             );
         }
@@ -1298,7 +1320,8 @@ async function* member(
         yield { kind: "deep", aspect: others[0].key, block, depth: deep, line };
         return;
     }
-    const text = `${outer}${others.map((o) => `${JSON.stringify(o.key)}:${o.text ?? ""}`).join(",")}}`;
+    const members = others.map((o) => [JSON.stringify(o.key), o.text ?? ""].join(":"));
+    const text = `${outer}${members.join(",")}}`;
     const parsed = parseAt(text, firstLine, report);
     yield { kind: "member", block, value: parsed.value, exact: parsed.exact, text, line };
 }

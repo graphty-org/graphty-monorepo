@@ -71,11 +71,9 @@ export function splitFormFeeds(line: string): string[] {
     const pieces: string[] = [];
     let quoted = false;
     let start = 0;
-    for (let i = 0; i < line.length; i++) {
+    for (let i = 0; i < line.length; i += line[i] === "\\" ? 2 : 1) {
         const ch = line[i];
-        if (ch === "\\") {
-            i++;
-        } else if (ch === '"') {
+        if (ch === '"') {
             quoted = !quoted;
         } else if (ch === "\f" && !quoted) {
             pieces.push(line.slice(start, i));
@@ -189,7 +187,7 @@ export function splitQualifiers(value: string): QualifiedValue {
         const open = blocks.get(end - 1) ?? -1;
         const block = open < 0 ? null : parseQualifiers(value.slice(open + 1, end - 1));
         if (block === null) {
-            badBlock = value.slice(open < 0 ? 0 : open, end);
+            badBlock = value.slice(Math.max(open, 0), end);
             break;
         }
         parsed.push(block);
@@ -246,10 +244,9 @@ function braceBlocks(value: string): Map<number, number> {
 export function unclosedBlock(value: string): number {
     let quoted = false;
     let open = -1;
-    for (let i = 0; i < value.length; i++) {
+    for (let i = 0; i < value.length; i += value[i] === "\\" ? 2 : 1) {
         const ch = value[i];
         if (ch === "\\") {
-            i++;
             continue;
         }
         if (ch === '"' && open < 0) {
@@ -584,9 +581,9 @@ export function escapeOboQuoted(text: string): string {
     return text.replaceAll(LINE_ENDS, "\n").replaceAll(/[\\"\n\t]/g, (ch) => {
         switch (ch) {
             case "\n":
-                return "\\n";
+                return String.raw`\n`;
             case "\t":
-                return "\\t";
+                return String.raw`\t`;
             default:
                 return `\\${ch}`;
         }
@@ -659,5 +656,6 @@ export function qualifierBlock(pairs: readonly (readonly [string, string])[]): s
     if (pairs.length === 0) {
         return "";
     }
-    return ` {${pairs.map(([name, value]) => `${name}="${escapeOboQuoted(value)}"`).join(", ")}}`;
+    const items = pairs.map(([name, value]) => `${name}="${escapeOboQuoted(value)}"`);
+    return ` {${items.join(", ")}}`;
 }

@@ -282,8 +282,20 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
 const COUNT_TEXT = /^\d+$/;
 
 /** An xs:date / xs:dateTime text (`lastmodifieddate`). */
-const DATE_TEXT =
-    /^-?\d{4,}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[+-]\d{2}:\d{2})?$/;
+const DATE_TEXT = /^-?\d{4,}-\d{2}-\d{2}(.*)$/s;
+
+/** What may follow the date of an xs:dateTime: a time, a zone, or both. */
+const TIME_TEXT = /^(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:\d{2})?$/;
+
+/**
+ * Whether a text is an xs:date or xs:dateTime.
+ * @param text - the text
+ * @returns true when it is
+ */
+function isDateText(text: string): boolean {
+    const m = DATE_TEXT.exec(text);
+    return m !== null && TIME_TEXT.test(m[1]);
+}
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);
 
@@ -933,7 +945,7 @@ class GexfReader implements XmlHandler {
                 const modified = attrs.get("lastmodifieddate");
                 if (modified !== undefined && modified.length > 0) {
                     this.meta.modified = modified;
-                    if (!DATE_TEXT.test(modified.trim())) {
+                    if (!isDateText(modified.trim())) {
                         this.report.warning(
                             "validation-error",
                             HEADER_VALUE_CODE,
@@ -1147,7 +1159,7 @@ class GexfReader implements XmlHandler {
     /** Close a `<nodes>` / `<edges>` section: a count hint that disagrees is reported. */
     private finishSection(): void {
         const section = this.sections.pop();
-        if (section === undefined || section.hint === null || section.hint === section.seen) {
+        if (section?.hint === undefined || section.hint === null || section.hint === section.seen) {
             return;
         }
         this.report.warning(

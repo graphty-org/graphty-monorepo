@@ -205,7 +205,7 @@ export class GmlTokens {
      */
     stringOf(i: number): string {
         let text = this.textOf(i);
-        if (text.indexOf("\r") >= 0) {
+        if (text.includes("\r")) {
             // a line break inside a string is part of it, as LF whatever the file's line ends
             text = text.replaceAll(/\r\n?/g, "\n");
         }
@@ -402,7 +402,7 @@ function classifyBare(text: string, start: number, end: number, line: number): T
     // like something else (a no-break space pasted from a web page looks like a space)
     const hex = (c: string): string => (c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
     const head = token.length > 20 ? `${token.slice(0, 20)}...` : token;
-    const shown = head.replaceAll(/[^\x20-\x7e]/gu, (c) => `\\u${hex(c)}`);
+    const shown = head.replaceAll(/[^\x20-\x7e]/gu, (c) => String.raw`\u` + hex(c));
     const odd = /[^\x21-\x7e]/u.exec(token);
     const note = odd === null ? "" : ` (it holds U+${hex(odd[0])}, which GML allows only inside a string)`;
     throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}${note}`, line);

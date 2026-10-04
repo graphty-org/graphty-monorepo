@@ -254,7 +254,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
     const repeated: string[] = [];
     for (const entry of zipEntries) {
         // a Windows tool may write backslashes, which APPNOTE 4.4.17 forbids: read them as "/"
-        const name = entry.name.replaceAll(/\\/g, "/");
+        const name = entry.name.replaceAll("\\", "/");
         if (name.endsWith("/") || NOISE.test(name)) {
             continue;
         }

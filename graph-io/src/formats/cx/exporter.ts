@@ -374,9 +374,10 @@ function genericNotes(
             continue;
         }
         if (gen.code === LOSS.JSON) {
+            const which = gen.column === null ? "a column" : `column "${gen.column}"`;
             note(
                 CX_LOSS.JSON_AS_STRING,
-                `${gen.column === null ? "a column" : `column "${gen.column}"`} holds nested values; written as a string attribute holding their JSON text`,
+                `${which} holds nested values; written as a string attribute holding their JSON text`,
                 gen.column,
                 gen.count,
             );

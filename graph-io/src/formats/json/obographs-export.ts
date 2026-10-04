@@ -380,8 +380,9 @@ class ObographsExport {
         emptyColumnNotes(snapshot, this.rows, this.frameless, this.written, this.note);
         // a dry run counts the non-finite numbers the document writes as null
         if (this.fatal === null) {
-            for (const part of this.write()) {
-                void part;
+            const parts = this.write();
+            while (parts.next().done !== true) {
+                // only the counts the writing leaves behind are wanted
             }
         }
         if (this.nonfinite.count > 0) {

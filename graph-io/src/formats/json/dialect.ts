@@ -16,6 +16,7 @@
 import { type GraphMeta, type GraphSnapshot } from "@graphty/graph-format";
 
 import { capabilities } from "../../common/export.js";
+import { trimTrailingZeros } from "../../common/text.js";
 import { type ExportCapabilities } from "../../types.js";
 
 /**
@@ -473,7 +474,7 @@ export function exponentIfUnsafe(text: string): string {
         return text;
     }
     const [, sign, digits] = match;
-    const mantissa = digits.replace(/0+$/, "");
+    const mantissa = trimTrailingZeros(digits);
     const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
     return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
 }

@@ -272,7 +272,7 @@ function isWritten(column: Column): boolean {
  */
 function preferredKey(meta: ColumnMeta): string {
     const { origin, name } = meta;
-    if (origin === null || origin.format !== "gml" || origin.id === null) {
+    if (origin?.format !== "gml" || origin.id === null) {
         return name;
     }
     return name === origin.id || name.startsWith(`${origin.id}#`) ? origin.id : name;

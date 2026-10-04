@@ -363,10 +363,11 @@ async function networks3(
         docs.set(network.name, parsed);
         for (const graph of registeredGraphs(parsed)) {
             if (graph.id === null) {
+                const label = graph.label === null ? "" : ` ("${graph.label}")`;
                 report.error(
                     "missing-value",
                     XGMML_ISSUE.MISSING_ID,
-                    `${network.name}: a registered subnetwork${graph.label === null ? "" : ` ("${graph.label}")`} has no id; its tables and views cannot be found and it is skipped`,
+                    `${network.name}: a registered subnetwork${label} has no id; its tables and views cannot be found and it is skipped`,
                     { line: graph.line },
                 );
                 continue;
@@ -740,10 +741,11 @@ async function readVirtuals(
     for (const node of elementsNamed(tree, "virtualColumn")) {
         const missing = ["name", "targetTable", "sourceTable", "sourceColumn"].filter((k) => !node.attrs.has(k));
         if (missing.length > 0) {
+            const named = node.attrs.has("name") ? ` "${node.attrs.get("name") ?? ""}"` : "";
             report.error(
                 "parse-error",
                 CYS_ISSUE.TABLE,
-                `${entryLabel(entry.name)}: a virtual column${node.attrs.has("name") ? ` "${node.attrs.get("name") ?? ""}"` : ""} has no ${missing.join(", ")}; the column is not read`,
+                `${entryLabel(entry.name)}: a virtual column${named} has no ${missing.join(", ")}; the column is not read`,
             );
             continue;
         }
@@ -1451,8 +1453,13 @@ async function listCysGraphs(
  * A session's marker or folder name in the head of the archive, or an entry only a session has
  * (Cytoscape's app state, a network, view or table file), for a session whose folder was renamed.
  */
-const SESSION_NAME =
-    /CytoscapeSession|cysession\.xml|\d+\.\d+\.\d+\.version|(^|\/)apps\/org\.cytoscape\.|(^|\/)(networks|views)\/\d+-[^/]*\.xgmml|(^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/;
+const SESSION_NAMES: readonly RegExp[] = [
+    /CytoscapeSession|cysession\.xml/,
+    /\d+\.\d+\.\d+\.version/,
+    /(?:^|\/)apps\/org\.cytoscape\./,
+    /(?:^|\/)(?:networks|views)\/\d+-[^/]*\.xgmml/,
+    /(?:^|\/)tables\/\d+-[^/]*\/[^/]+\.cytable/,
+];
 
 /**
  * Confidence that a head of bytes is a Cytoscape session: 0.95 for a zip whose head names the
@@ -1466,7 +1473,7 @@ const SESSION_NAME =
 export function sniffCys(head: Uint8Array): number {
     for (let at = 0; at + 4 <= head.byteLength; at++) {
         if (startsLikeZip(head.subarray(at))) {
-            return SESSION_NAME.test(decodeEntryName(head.subarray(at))) ? 0.95 : 0;
+            return SESSION_NAMES.some((r) => r.test(decodeEntryName(head.subarray(at)))) ? 0.95 : 0;
         }
     }
     return 0;

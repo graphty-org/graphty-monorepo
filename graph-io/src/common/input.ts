@@ -61,6 +61,11 @@ export interface ReadOptions {
     readonly declaredEncoding?: ((head: string) => string | null) | undefined;
     /** How many leading bytes the declaration reader sees (default 1024). */
     readonly declarationBytes?: number | undefined;
+    /**
+     * Whether BOM-less UTF-16 that the NUL pattern of its head shows is read in that encoding (JSON:
+     * RFC 8259 section 8.1, RFC 4627 section 3) instead of failing with E_INVALID_ENCODING.
+     */
+    readonly bomlessUtf16?: boolean | undefined;
     /** Whether an input with no text but whitespace is valid (else E_EMPTY_INPUT). */
     readonly allowEmpty?: boolean | undefined;
     /**
@@ -328,6 +333,10 @@ class ByteDecoder {
             return;
         }
         const utf16 = bomlessUtf16(head);
+        if (utf16 !== null && this.options.bomlessUtf16 === true) {
+            this.use(utf16, false);
+            return;
+        }
         if (utf16 !== null) {
             this.report.fail(
                 INVALID_ENCODING_CODE,

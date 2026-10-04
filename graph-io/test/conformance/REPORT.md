@@ -19,8 +19,8 @@ the expectation today; the reference points into
 | gexf | 110 | 104 | 6 | 101 | 1 |
 | gml | 109 | 100 | 9 | 90 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
-| json | 427 | 397 | 30 | 79 | 0 |
-| neo4j | 45 | 25 | 20 | 24 | 0 |
+| json | 427 | 398 | 29 | 80 | 0 |
+| neo4j | 45 | 26 | 19 | 25 | 0 |
 | obo | 102 | 102 | 0 | 0 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -355,10 +355,6 @@ No known failures.
 
 - `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
 
-### Cytoscape position.z ignored (sources.md 8.4 Cytoscape) (1)
-
-- `cytoscape/desktop-export.cyjs`: node "108" role:position: expected [5,90,7.5], got [5,90,0]
-
 ### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (1)
 
 - `sigma/clique3.json`: node "6" label: no such column; node "9" label: no such column
@@ -395,17 +391,13 @@ No known failures.
 
 ### APOC CSV exports are not read (sources.md 9.4) (3)
 
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
+- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
+- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
+- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin impo
 
 ### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
 
 - `admin/boolean-strict.csv`: nodes: expected 5, got 4
-
-### datetime with a [Region/City] zone id is rejected and its row dropped (sources.md 9.1) (1)
-
-- `admin/manual-datetime.csv`: nodes: expected 2, got 1
 
 ### Duplicate node: later row wins, Neo4j keeps the first (sources.md 9.4) (1)
 

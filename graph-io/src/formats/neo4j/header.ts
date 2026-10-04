@@ -39,20 +39,49 @@ const CELL = /^([^:(){}]*)(?::([^:(){}]*))?(?:\(([^)]*)\))?(?:\{([^}]*)\})?$/;
  * Whether a record looks like a section header: some cell declares an `ID`, `START_ID` or `END_ID`
  * field. The neo4j-admin convention allows several files, each with its own header; graphty's
  * single-file convention (the CSVDataSource of graphty-element) concatenates sections, so a header
- * may appear anywhere.
+ * may appear anywhere. Mid-file, a quoted marker cell (`"ref:id"`) is data unless the whole record
+ * is quoted (a QUOTE_ALL export writes its headers that way) and every cell is a valid header cell.
+ * ponytail: a fully quoted data row whose every cell is a valid header cell and one of them a marker
+ * (`"1","ref:id"`) still reads as a header; telling them apart would need the section's column names.
  * @param cells - the record's cells
  * @param count - how many cells are valid
+ * @param quoted - which cells were quoted, or undefined to look at every cell (the first record)
  * @returns true when the record is a header
  */
-export function isHeaderRecord(cells: readonly string[], count: number): boolean {
+export function isHeaderRecord(cells: readonly string[], count: number, quoted?: readonly boolean[]): boolean {
+    let quotedMarker = false;
     for (let i = 0; i < count; i++) {
         const cell = cells[i];
         // every header marker holds a colon; the indexOf keeps the regex off the data rows
         if (cell.indexOf(":") >= 0 && HEADER_MARKER.test(cell.trim())) {
-            return true;
+            if (quoted?.[i] !== true) {
+                return true;
+            }
+            quotedMarker = true;
         }
     }
-    return false;
+    return quotedMarker && quoted !== undefined && isQuotedHeader(cells, count, quoted);
+}
+
+/**
+ * Whether a record is fully quoted and every cell parses as a header cell.
+ * @param cells - the record's cells
+ * @param count - how many cells are valid
+ * @param quoted - which cells were quoted
+ * @returns true when the record reads as a quoted header
+ */
+function isQuotedHeader(cells: readonly string[], count: number, quoted: readonly boolean[]): boolean {
+    for (let i = 0; i < count; i++) {
+        if (!quoted[i]) {
+            return false;
+        }
+        try {
+            parseHeaderField(cells[i]);
+        } catch {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

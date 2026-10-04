@@ -32,6 +32,7 @@ import {
 } from "./exporter.js";
 import {
     COLUMN_COUNT_CODE,
+    DANGLING_REFERENCE_CODE,
     DUPLICATE_NODE_CODE,
     ENDPOINT_SPACE_CODE,
     HEADER_CODE,
@@ -41,7 +42,9 @@ import {
     IGNORED_COLUMNS_LOSS,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
+    MISSING_TYPE_CODE,
     ROLE_TAKEN_CODE,
+    SECTION_KIND_CODE,
 } from "./importer.js";
 
 export { NEO4J_CAPABILITIES, neo4jExporter, type Neo4jExportOptions } from "./exporter.js";
@@ -103,6 +106,12 @@ export const NEO4J_ISSUE = Object.freeze({
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A builder-policy option the sink does not honour. */
     SINK_OPTION: SINK_OPTION_CODE,
+    /** A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. */
+    MISSING_TYPE: MISSING_TYPE_CODE,
+    /** A file under the nodes option holds a relationship header, or the reverse; read by its header. */
+    SECTION_KIND: SECTION_KIND_CODE,
+    /** Relationship endpoints no node row declares became nodes (neo4j-admin refuses them). */
+    DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
 });
 
 /**

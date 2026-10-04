@@ -136,20 +136,22 @@ describe("a run that finishes", () => {
     });
 
     it("takes the fields and caveats the work reported over the ones it started with", async () => {
-        const { run, queue } = makeRun((context) => Promise.resolve({
-            result: stubResult(context.runId),
-            caveats: { precision: "f32", method: "brandes-sampled", exact: false, sampleSize: 500 },
-            fields: [
-                {
-                    name: "value",
-                    plainName: "Betweenness",
-                    technicalName: "betweenness",
-                    kind: "node",
-                    type: "number",
-                    path: "results.degree_test.value",
-                },
-            ],
-        }));
+        const { run, queue } = makeRun((context) =>
+            Promise.resolve({
+                result: stubResult(context.runId),
+                caveats: { precision: "f32", method: "brandes-sampled", exact: false, sampleSize: 500 },
+                fields: [
+                    {
+                        name: "value",
+                        plainName: "Betweenness",
+                        technicalName: "betweenness",
+                        kind: "node",
+                        type: "number",
+                        path: "results.degree_test.value",
+                    },
+                ],
+            }),
+        );
 
         run.start();
         await queue.runLatest();
@@ -350,6 +352,25 @@ describe("the time box", () => {
         assert.strictEqual(run.record.partial, true);
     });
 
+    it("is partial whatever stopped it, when the caveats say why it stopped early (#933)", async () => {
+        const { run, queue } = makeRun(async (context) => {
+            await settle(1);
+
+            return {
+                result: stubResult(context.runId),
+                caveats: { exact: false, partialReason: "iteration cap reached" },
+            };
+        });
+
+        run.start();
+        await queue.runLatest();
+
+        assert.strictEqual(run.status, "succeeded");
+        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.strictEqual(run.partial, true, "the caveats and the flag never disagree");
+        assert.strictEqual(run.record.partial, true);
+    });
+
     it("leaves the work's own signal alone, so stopping early is not an abort", async () => {
         let sawAbort = false;
         const { run, queue } = makeRun(
@@ -476,9 +497,13 @@ describe("rerun", () => {
 describe("staleness", () => {
     it("is derived rather than tracked, and only once there are numbers to qualify", async () => {
         const note = { ranOn: 4, nowVisible: 2, scopeSpec: "visible" as const };
-        const { run, queue } = makeRun(finishAtOnce, {}, {
-            stale: () => note,
-        });
+        const { run, queue } = makeRun(
+            finishAtOnce,
+            {},
+            {
+                stale: () => note,
+            },
+        );
 
         assert.strictEqual(run.stale, null, "a run that has computed nothing cannot be stale");
 

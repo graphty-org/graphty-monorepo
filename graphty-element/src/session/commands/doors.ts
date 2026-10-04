@@ -513,6 +513,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
     ),
+    setValueHidden: calls(
+        ["no-such-layer", "node.color", 0, true],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],
@@ -1370,6 +1374,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
             source: READ,

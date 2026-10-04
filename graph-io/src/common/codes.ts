@@ -14,6 +14,9 @@ import type { GraphFormatErrorCode } from "@graphty/graph-format";
 
 // ============================================================ importer issues
 
+/** Issue code: the URL could not be fetched (network failure, CORS refusal or a non-2xx status). */
+export const FETCH_CODE = "E_FETCH";
+
 /** The element (node, attribute, key, ...) has no id where the format requires one. */
 export const MISSING_ID_CODE = "E_MISSING_ID";
 

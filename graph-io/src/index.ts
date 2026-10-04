@@ -8,6 +8,11 @@
  * only; no default export.
  */
 
+// ============================================================ graph-format re-exports
+// The error class every deliberate graph-io failure extends, and the graph type every function takes
+// or returns, so a caller needs no second import.
+export { GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
+
 // ============================================================ io contract types (12.4)
 export {
     type CommonExportOptions,
@@ -38,15 +43,24 @@ export {
     type BuilderSeed,
     checkExport,
     createRegistry,
+    downloadGraph,
+    type DownloadGraphOptions,
     exportGraph,
     type ExportGraphOptions,
+    exportGraphToBlob,
+    exportGraphToBytes,
     exportGraphToString,
+    type FormatInfo,
     FormatRegistry,
     importAllGraphs,
     importGraph,
     type ImportGraphOptions,
     type ImportGraphResult,
+    listFormats,
     listGraphs,
+    loadFromFile,
+    loadFromUrl,
+    type LoadFromUrlOptions,
     registry,
     sniff,
     SNIFF_FAILED_CODE,
@@ -54,6 +68,7 @@ export {
 } from "./registry.js";
 export {
     extensionOf,
+    type FormatName,
     GRAPH_FORMATS,
     type GraphFormatName,
     headBytes,

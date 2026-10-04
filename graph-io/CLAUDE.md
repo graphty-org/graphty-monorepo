@@ -35,7 +35,9 @@ graph-io/
 +-- src/
 |   +-- index.ts                  # the only root barrel; named exports only
 |   +-- types.ts                  # section 12.4 contract types and ImportError
-|   +-- registry.ts               # FormatRegistry, importGraph / exportGraph / checkExport / sniff, the default registry
+|   +-- registry.ts               # FormatRegistry, importGraph / exportGraph / checkExport / sniff, the default registry,
+|   |                             # and the simple surface wrapping them: loadFromUrl / loadFromFile, exportGraphToBytes /
+|   |                             # exportGraphToBlob / downloadGraph, listFormats (tests: test/simple.test.ts)
 |   +-- sniff.ts                  # rankFormats / sniffFormat (extension + MIME + content), the JSON dialect head sniff
 |   +-- children.ts               # the children CSR over a parent / parents column (design 7.1)
 |   +-- common/                   # shared by every format (see the module map in STATUS.md)

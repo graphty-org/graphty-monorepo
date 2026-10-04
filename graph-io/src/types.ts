@@ -199,13 +199,17 @@ export interface ExportCapabilities {
 
 /** One thing an exporter cannot represent, reported by check() before anything is written (design section 8.5). */
 export interface LossNote {
-    /** A stable code such as "W_OPEN_INTERVAL". */
+    /**
+     * A stable code. Codes starting with "E_" mean the export refuses to write under these options:
+     * the exportGraph*() functions throw a GraphFormatError. Codes starting with "W_" mean the file
+     * is written, but this part will not read back the same.
+     */
     readonly code: string;
-    /** A plain-ASCII human-readable explanation. */
+    /** A plain-English explanation. */
     readonly message: string;
-    /** The affected column, or null when the note is not about a column. */
+    /** The attribute column involved, or null. */
     readonly column: string | null;
-    /** How many rows or elements are affected, or null when not counted. */
+    /** How many nodes, edges or values are affected, or null when not counted. */
     readonly count: number | null;
 }
 
@@ -227,6 +231,13 @@ export interface GraphExporter<Opts = unknown> {
     readonly format: string;
     /** What the format can express. */
     readonly capabilities: ExportCapabilities;
+    /**
+     * File extensions with the leading dot, most common first. Optional; listFormats() uses them
+     * when no importer is registered for the format (an export-only format).
+     */
+    readonly extensions?: readonly string[] | undefined;
+    /** MIME types, most specific first. Optional; used the same way as `extensions`. */
+    readonly mimeTypes?: readonly string[] | undefined;
     /**
      * Pre-flight: what export() would lose, without writing anything.
      * @param snapshot - the snapshot to check
@@ -264,15 +275,18 @@ export type IssueCategory =
 export interface ImportIssue {
     /** The category. */
     readonly category: IssueCategory;
-    /** Errors count toward the error limit; warnings do not. */
+    /**
+     * "error": the element was skipped and counts toward `errorLimit`. "warning": the element was
+     * kept, possibly changed.
+     */
     readonly severity: "error" | "warning";
-    /** A stable code such as "E_UNKNOWN_NODE" or "W_WIDENED". */
+    /** A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). */
     readonly code: string;
-    /** A plain-ASCII human-readable message. */
+    /** A plain-English message. */
     readonly message: string;
-    /** The 1-based source line, or null when unknown. */
+    /** The 1-based line in the input, or null when the format has no lines or it is unknown. */
     readonly line: number | null;
-    /** The element (a node or edge id, an attribute name), or null when unknown. */
+    /** The node id, edge id or attribute name involved, or null. */
     readonly element: string | null;
 }
 
@@ -313,18 +327,60 @@ export interface ImportReport {
  * `err.code === "E_IMPORT"` narrows) carrying the partial report.
  */
 export class ImportError extends GraphFormatError {
-    /** The report as it stood when the import aborted. */
+    /** Everything recorded up to the point the import stopped. */
     readonly report: ImportReport;
+
+    /**
+     * The issue that stopped the import: its `code` ("E_FETCH", "E_UNKNOWN_FORMAT", "E_PARSE", ...),
+     * `message`, `line` and `element`. This is the value to branch on; `code` is always "E_IMPORT".
+     * Null only for an ImportError constructed by hand without a matching issue.
+     * @example
+     * ```ts
+     * if (err instanceof ImportError) {
+     *     switch (err.issue?.code) {
+     *         case "E_FETCH":
+     *             console.error(`download failed with status ${String(err.details.status)}`);
+     *             break;
+     *         case "E_UNKNOWN_FORMAT":
+     *             console.error("not a graph file this library can read; pass `format`");
+     *             break;
+     *         default:
+     *             console.error(err.message);
+     *     }
+     * }
+     * ```
+     */
+    readonly issue: ImportIssue | null;
 
     /**
      * Create an ImportError.
      * @param message - a plain-ASCII human-readable message
      * @param report - the partial report
-     * @param details - optional machine-readable context
+     * @param details - optional machine-readable context; its `code` names the issue that stopped the import
      */
     constructor(message: string, report: ImportReport, details?: Readonly<Record<string, unknown>>) {
         super("E_IMPORT", message, details);
         this.name = "ImportError";
         this.report = report;
+        this.issue = stoppingIssue(report.issues, details?.code);
     }
+}
+
+/**
+ * The issue that stopped an import: the last one with the code the abort named, else the last error.
+ * @param issues - the report's issues
+ * @param code - the code the abort named, if any
+ * @returns the issue, or null
+ */
+function stoppingIssue(issues: readonly ImportIssue[], code: unknown): ImportIssue | null {
+    let lastError: ImportIssue | null = null;
+    for (let i = issues.length - 1; i >= 0; i--) {
+        if (issues[i].code === code) {
+            return issues[i];
+        }
+        if (lastError === null && issues[i].severity === "error") {
+            lastError = issues[i];
+        }
+    }
+    return lastError;
 }

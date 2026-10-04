@@ -41,6 +41,16 @@ export type GraphFormatName =
     | "cys";
 
 /**
+ * A format name: one of the built-in names (with editor autocomplete) or the name of a format you
+ * registered yourself.
+ * @example
+ * ```ts
+ * const format: FormatName = "pajek"; // or "my-format" after registry.registerImporter(myImporter)
+ * ```
+ */
+export type FormatName = GraphFormatName | (string & {});
+
+/**
  * The built-in format names in the default registry's order, which is also the tie-break order of
  * sniffing: the more common format wins an extension two formats claim (`.xml` GraphML before GEXF,
  * `.csv` CSV before Neo4j) when the content does not decide.

@@ -16,6 +16,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import type { NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -125,6 +126,12 @@ export class Graphty extends LitElement {
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
         this.#graph = new Graph(this.#element);
+        // The graph is never rebuilt, so this subscription lives as long as the element.
+        this.#graph.onNodeLabelCounts.add((counts) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+            );
+        });
     }
 
     /**
@@ -1510,6 +1517,26 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * How many node labels the element is drawing, and why the rest are not, as of the last drawn
+     * frame. All zeros before data loads. Reading it never forces a frame.
+     *
+     * The `graphty-label-change` DOM event (detail: the same counts) fires when a count changes,
+     * once the view has stopped changing: never during a camera gesture or while a layout is
+     * still moving nodes. It also fires once after the first frame that has labels.
+     * @since 3.7.0
+     * @example
+     * ```typescript
+     * element.addEventListener("graphty-label-change", () => {
+     *     const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+     * });
+     * ```
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        return this.#graph.nodeLabelCounts;
+    }
+
+    /**
      * How the element DRIVES the layout, as distinct from what the layout engine is configured
      * with.
      * @remarks
@@ -1522,6 +1549,7 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
+     * {@link Graphty.nodeLabelCounts} says how many it hid.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -4024,6 +4052,12 @@ declare global {
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
+
+    // It bubbles and is composed, so a listener on the document is typed the same way.
+    interface DocumentEventMap {
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 }
 

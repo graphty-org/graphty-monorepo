@@ -492,7 +492,9 @@ describe("a community result", () => {
         const metric = createRunResult({
             runId: "degree",
             shape: "node-metric",
-            fields: [field({ name: "value", plainName: "Value", technicalName: "value", kind: "node", type: "number" })],
+            fields: [
+                field({ name: "value", plainName: "Value", technicalName: "value", kind: "node", type: "number" }),
+            ],
             measured: { nodes: 1, edges: 0 },
             nodes: [{ id: "a", values: { value: 1 } }],
             caveats: CAVEATS,

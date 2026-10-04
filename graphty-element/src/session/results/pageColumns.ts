@@ -210,7 +210,8 @@ export function resultCellRanks(
     target: "node" | "edge",
     ids: readonly (NodeId | EdgeId)[],
 ): readonly (number | undefined)[] | undefined {
-    const ranks = resolved.result?.shape === "community" && resolved.field === "group" ? sizeRanks(resolved) : undefined;
+    const ranks =
+        resolved.result?.shape === "community" && resolved.field === "group" ? sizeRanks(resolved) : undefined;
 
     return ranks === undefined ? undefined : ids.map((id) => ranks.get(resultCell(resolved, target, id)));
 }

@@ -19,7 +19,7 @@ interface NoticeViewProps {
  * @param props.onClose - Takes it down
  * @returns The notice
  */
-export function NoticeView({ notice, onClose }: NoticeViewProps): React.JSX.Element {
+export function NoticeView({ notice, onClose }: Readonly<NoticeViewProps>): React.JSX.Element {
     const { action } = notice;
     return (
         <Toast

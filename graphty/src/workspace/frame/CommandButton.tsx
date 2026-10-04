@@ -25,7 +25,7 @@ interface CommandButtonProps {
  * @param props.pressed - Whether the thing it opens is open
  * @returns The button, or null
  */
-export function CommandButton({ id, icon, pressed }: CommandButtonProps): React.JSX.Element | null {
+export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps>): React.JSX.Element | null {
     const door = useCommand(id);
     if (door === null) {
         return null;

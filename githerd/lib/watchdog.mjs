@@ -388,8 +388,9 @@ async function carryOut(state, job, window, { decision, screen, now, sleep }, le
     /** @type {Record<string, () => Promise<void> | void>} */
     const handlers = {
         "usage-limit": () => {
-            usageLimit(state, job, screen, now);
+            const ended = usageLimit(state, job, screen, now);
             line("usage-limit-screen", { resets: screen.resets ?? null, extraUsage: Boolean(screen.extraUsage) });
+            for (const id of ended) ledger.push({ kind: "session-retiring", job: id, reason: EXTRA_USAGE });
         },
         "steering-ended": () => {
             job.steeredAt = null;
@@ -435,12 +436,20 @@ async function carryOut(state, job, window, { decision, screen, now, sleep }, le
     await handlers[decision.action]?.();
 }
 
+/** Why every worker session ends when a screen shows paid extra usage. */
+const EXTRA_USAGE = "paid extra usage in use";
+
 /**
- * The usage-limit screen (design 8.3): a usage stop, and with extra usage in use one owner item.
+ * The usage-limit screen (design 8.3): a usage stop, and with extra usage in use one owner item
+ * and the end of every worker session githerd runs, at once: no worker spends paid extra usage
+ * while the owner has not looked. Each job keeps its state and its worktree, with its commits,
+ * and continues by resume once starts are allowed again. A session the owner is steering is his
+ * to end.
  * @param {any} state the daemon state
  * @param {any} job the job whose screen shows it
  * @param {import("./screen.mjs").Screen} screen the screen
  * @param {Date} now the current time
+ * @returns {string[]} the jobs whose session was put on `state.retiring`
  */
 function usageLimit(state, job, screen, now) {
     // A new stop, or the canary of the last one showing the limit again (design 8.3).
@@ -459,12 +468,26 @@ function usageLimit(state, job, screen, now) {
             {
                 id: "extra-usage",
                 kind: "money",
-                question: "A worker's screen says extra usage is in use. githerd starts no worker until you look.",
+                question:
+                    "A worker's screen says paid extra usage is in use. githerd ended every worker session and starts none until you turn extra usage off and answer this.",
                 blocks: "workers",
             },
             now,
         );
+        const ended = [];
+        for (const j of Object.values(state.jobs ?? {})) {
+            if (!j.holder?.pane || j.steeredAt) continue;
+            state.retiring = [
+                ...(state.retiring ?? []),
+                { job: j.id, holder: j.holder, reason: EXTRA_USAGE, at: now.toISOString() },
+            ];
+            j.holder = null;
+            j.watch = null;
+            ended.push(j.id);
+        }
+        return ended;
     }
+    return [];
 }
 
 /**

@@ -1286,8 +1286,9 @@ shows each limit with the measurement that applied at the last start.
   limit screen, so its menu is never answered by a doorbell. The daemon's own non-Claude work
   (re-runs, parent re-tests, statuses) continues, and so does Mergify.
 - **Extra usage**: never (owner's decision 1 in 12.3). githerd pauses at the limit and resumes at
-  the reset. If the limit screen shows extra usage in use anyway, starts stop and one owner item
-  is raised. The screen's menu offers paid options and an automatic resume, so githerd never types
+  the reset. If the limit screen shows extra usage in use anyway, every worker session githerd
+  runs ends at once (each job keeps its state and worktree and resumes later; a window the owner
+  is steering is his), starts stop, and one owner item is raised. The screen's menu offers paid options and an automatic resume, so githerd never types
   into it (S19 in the plan).
 - **Weekly-limit text**: once [S19] verifies it can be read, above 80 percent routine slots drop to
   2, above 90 percent to 1, above 95 percent urgent only.

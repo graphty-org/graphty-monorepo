@@ -318,16 +318,28 @@ describe("watchPass", () => {
         expect(fw.keys("issue-22")).toEqual([]);
     });
 
-    it("stops starts on the usage-limit screen and raises one item when extra usage is on", async () => {
+    it("stops starts on the usage-limit screen, and with extra usage on ends every worker session at once", async () => {
         const j = await held("issue-23", { screen: "usage-limit" });
+        // Another worker, busy and fine: it would keep spending paid extra usage.
+        const other = await held("issue-25", { screen: "idle", registry: { status: "busy" } });
+        const steered = await held("issue-26", { screen: "idle", registry: { status: "busy" } });
+        steered.steeredAt = T0.toISOString();
         /** @type {any} */
-        const state = { jobs: { [j.id]: j } };
+        const state = { jobs: { [j.id]: j, [other.id]: other, [steered.id]: steered } };
         const pass = await watchPass(state, T0, options());
+        const reason = "paid extra usage in use";
         expect(pass.ledger).toEqual([
             { kind: "usage-limit-screen", job: "issue-23", resets: "3pm (America/Los_Angeles)", extraUsage: true },
+            { kind: "session-retiring", job: "issue-23", reason },
+            { kind: "session-retiring", job: "issue-25", reason },
         ]);
         expect(state.apiStop).toMatchObject({ kind: "usage", resets: "3pm (America/Los_Angeles)" });
         expect(state.ownerItems["extra-usage"].blocks).toBe("workers");
+        expect(state.retiring.map((/** @type {any} */ r) => r.job)).toEqual(["issue-23", "issue-25"]);
+        // Each job keeps its state and continues by resume later; the owner's steered window stays.
+        expect(j).toMatchObject({ state: "working", holder: null });
+        expect(other).toMatchObject({ state: "working", holder: null });
+        expect(steered.holder.pane).toBeTruthy();
         expect(fw.keys("issue-23")).toEqual([]);
     });
 

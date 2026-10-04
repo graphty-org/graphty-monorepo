@@ -154,7 +154,12 @@ export function refusals(candidate, lastGood, ledger, stretches) {
 export function workflowName(root, file) {
     try {
         const text = readFileSync(join(root, ".github", "workflows", file), "utf8");
-        return /^name:\s*["']?([^"'\n]+?)["']?\s*$/m.exec(text)?.[1] ?? null;
+        const line = text.split("\n").find((l) => l.startsWith("name:"));
+        const name = line
+            ?.slice("name:".length)
+            .trim()
+            .replaceAll(/^["']|["']$/g, "");
+        return name || null;
     } catch {
         return null;
     }

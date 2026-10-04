@@ -1,5 +1,8 @@
 # GraphML
 
+[GraphML](http://graphml.graphdrawing.org/) is an XML format for graphs, written by yEd,
+NetworkX, igraph, Gephi and many other tools.
+
 ## At a glance
 
 <!-- generated:begin glance:graphml -->
@@ -17,34 +20,101 @@
 
 What a saved file can hold:
 
-| Capability        | Value                       | Meaning                                                                         |
-| ----------------- | --------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                         | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                         | Parallel edges.                                                                 |
-| `selfLoops`       | yes                         | Self-loops.                                                                     |
-| `edgeIds`         | optional                    | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | nmtoken                     | Which node ids can be written unchanged.                                        |
-| `dtypes`          | bool, i32, f32, f64, string | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                          | Multi-component (stride) columns.                                               |
-| `lists`           | no                          | List columns.                                                                   |
-| `json`            | no                          | Nested json columns.                                                            |
-| `defaults`        | yes                         | Declared defaults.                                                              |
-| `options`         | no                          | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | yes                         | Containment (parent / parents roles).                                           |
-| `temporal`        | none                        | Temporal support level.                                                         |
-| `graphAttributes` | yes                         | Graph-level attributes.                                                         |
-| `positions`       | no                          | The position role.                                                              |
-| `viz`             | no                          | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                       | Meaning                                                                                                                            |
+| ----------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                         | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                         | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                         | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional                    | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | nmtoken                     | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | bool, i32, f32, f64, string | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                          | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | no                          | List columns.                                                                                                                      |
+| `json`            | no                          | Nested JSON values.                                                                                                                |
+| `defaults`        | yes                         | Columns' declared default values.                                                                                                  |
+| `options`         | no                          | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | yes                         | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                        | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                         | Graph-level attributes.                                                                                                            |
+| `positions`       | no                          | Node positions.                                                                                                                    |
+| `viz`             | no                          | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/graphml -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("got-network.graphml"), { filename: "got-network.graphml" });
+console.log(`${snapshot.nodeCount} nodes; edge columns: ${snapshot.edges.names().join(", ")}`);
+
+// Two node ids hold characters a GraphML id cannot; "mangle" rewrites them and keeps the originals
+const options = { sanitizeIds: "mangle" } as const;
+console.log(checkExport(snapshot, "graphml", options).map((n) => n.code));
+await writeFile("got.graphml", await exportGraphToBytes(snapshot, "graphml", options));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/graphml -->
+
+```text
+107 nodes; edge columns: Edge Label, id
+[ 'W_ID_MANGLED' ]
+```
+
+<!-- generated:end -->
+
+GraphML ids cannot contain spaces. Two of this graph's ids do, so the example passes
+`sanitizeIds: "mangle"`: the ids are rewritten in the file, the originals are stored next to them,
+and graph-io puts them back when it reads the file.
 
 ## How graph-io reads it
 
+- The file is streamed, so a large file is never held in memory as text.
+- Each `<key>` becomes a column of its declared type (`boolean`, `int`, `long`, `float`, `double`,
+  `string`), with its `<default>`. A key declared `for="all"` becomes a column of nodes, edges and
+  the graph.
+- `edgedefault` sets the direction, and an edge's own `directed` attribute overrides it, so one
+  file can mix directed and undirected edges.
+- The edge attribute named `weight` (or whatever `weightFrom` names) is the edge weight.
+- A graph nested inside a node becomes a parent column: the nodes of the inner graph point at the
+  node that holds it.
+- `sourceport` and `targetport` on edges are kept. `<port>` declarations and `<locator>` elements
+  are reported and left out.
+- Hyperedges are left out with a warning by default; the `hyperedges` option can turn each one into
+  a hub node or into edges between every pair of its ends.
+- yEd graphics (keys with a `yfiles.type`) are kept as a JSON tree per node and edge, so a file
+  written by yEd keeps its look when you save it as GraphML again. The common parts of yEd's node
+  and edge graphics are also read into plain columns: `yfiles.position`, `yfiles.width`,
+  `yfiles.height`, `yfiles.color`, `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label`,
+  `yfiles.shape`, and for edges `yfiles.color`, `yfiles.width`, `yfiles.targetArrow` and
+  `yfiles.sourceArrow`. Pass `yfiles: "skip"` to ignore yEd graphics.
+- Ids follow the `ids` option.
+
 ## What a saved file keeps and loses
+
+GraphML keeps mixed direction, parallel edges, edge ids, typed columns with defaults, graph
+attributes and nesting. What does not survive:
+
+- Node ids must be valid XML name tokens: no spaces, quotes or most punctuation. Other ids need
+  `sanitizeIds: "mangle"` (restored when graph-io reads the file).
+- Lists, positions, colors and other visual columns, and time columns have no GraphML type. They
+  are written as JSON text or reported, and read back as text.
+- A column that is neither a number, a boolean nor text is written as JSON text and reads back as
+  text (`W_JSON_UNSUPPORTED`), except yEd graphics read from GraphML, which go back as yEd XML.
+- yEd graphics are written as they were read. If you change a value that also has a plain column,
+  such as a node's position after a layout, the change is not written back
+  (`W_GRAPHML_YFILES_GRAPHICS_STALE`).
+- A mutual pair of edges (a GEXF `mutual` edge, for example) becomes one undirected edge
+  (`W_MUTUAL_AS_UNDIRECTED`).
+- A label column is written as the key titled `label`, so a label column with another name reads
+  back as `label` (`W_COLUMN_NAME_CHANGED`).
 
 <!-- generated:begin reference:graphml -->
 
@@ -133,7 +203,7 @@ The codes this format's import report can hold, also exported as `GRAPHML_ISSUE`
 | `W_UNKNOWN_ATTR_TYPE`              | `UNKNOWN_ATTR_TYPE`      | warning  | A declared type the format does not define (kept as string).                                                                |
 | `W_BAD_DEFAULT`                    | `BAD_DEFAULT`            | warning  | A default that does not parse as the declared type.                                                                         |
 | `W_PRECISION`                      | `PRECISION`              | warning  | A long value beyond 2^53 rounded.                                                                                           |
-| `W_SINK_OPTION`                    | `SINK_OPTION`            | warning  | A builder-policy option the sink does not honour.                                                                           |
+| `W_SINK_OPTION`                    | `SINK_OPTION`            | warning  | A builder-policy option the sink does not honor.                                                                            |
 | `W_DIRECTION_REFUSED`              | `DIRECTION_REFUSED`      | warning  | The sink refused the file's direction.                                                                                      |
 | `W_DIRECTION_FORCED`               | `DIRECTION_FORCED`       | warning  | Edges forced to the policy's direction.                                                                                     |
 | `E_MIXED_DIRECTION`                | `MIXED_DIRECTION`        | error    | A mixed file under onMixedDirection "error" (fatal).                                                                        |
@@ -153,6 +223,6 @@ The codes `check()` can return before a save, also exported as `GRAPHML_LOSS` fr
 | `W_ID_TEXT_TYPE`                  | `ID_TEXT_TYPE`          | warning             | Node ids that change type after a round trip under the canonical rule.                         |
 | `W_GRAPHML_EDGE_ID_TEXT`          | `EDGE_ID_TEXT`          | warning             | A numeric edge id column reads back as string.                                                 |
 | `W_GRAPHML_YFILES_GRAPHICS_STALE` | `YFILES_GRAPHICS_STALE` | warning             | A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. |
-| `E_GRAPHML_YFILES_TREE`           | `YFILES_TREE`           | error (save throws) | A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE.        |
+| `E_GRAPHML_YFILES_TREE`           | `YFILES_TREE`           | error (save throws) | A yfiles json value that is not a serializable tree: export() will throw E_COLUMN_TYPE.        |
 
 <!-- generated:end -->

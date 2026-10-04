@@ -13,7 +13,7 @@
  * temporal roles, extension tables) plus the GraphML-specific ones (mutual edges written as
  * undirected, json columns without a yfiles origin written as JSON text, multi-parent columns,
  * containment order, ids that change type under the canonical rule, edge ids that read back as
- * strings, roles GraphML cannot express, yfiles values that are not serialisable trees).
+ * strings, roles GraphML cannot express, yfiles values that are not serializable trees).
  */
 
 import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -888,7 +888,7 @@ function weightsIntegral(snapshot: GraphSnapshot, weights: ExplicitWeights): boo
 }
 
 /**
- * How many values of a yfiles column are not serialisable trees.
+ * How many values of a yfiles column are not serializable trees.
  * @param column - a json column
  * @returns the count
  */

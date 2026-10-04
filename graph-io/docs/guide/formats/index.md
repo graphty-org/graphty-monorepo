@@ -1,5 +1,9 @@
 # Formats
 
+graph-io reads and writes every format below. The first table lists them; the second shows what a
+saved file of each format can hold, with one row per JSON dialect. When a graph holds something a
+format cannot, `checkExport()` tells you before you save; see [Saving graphs](../saving.md).
+
 <!-- generated:begin matrix -->
 
 | Format                  | Subpath                     | Extensions                            | Reads | Writes | Several graphs per file |
@@ -45,20 +49,33 @@
 - `mixedDirection`: Directed and undirected edges in one file.
 - `multiEdges`: Parallel edges.
 - `selfLoops`: Self-loops.
-- `edgeIds`: Whether edge ids are required (generated when absent), optional or unsupported.
-- `idCharset`: Which node ids can be written unchanged.
-- `dtypes`: The column dtypes the format keeps as declared.
-- `components`: Multi-component (stride) columns.
+- `edgeIds`: Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).
+- `idCharset`: Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).
+- `dtypes`: The column types the format keeps exactly.
+- `components`: Columns with several numbers per row, such as a position.
 - `lists`: List columns.
-- `json`: Nested json columns.
-- `defaults`: Declared defaults.
-- `options`: Declared enumerations (GEXF options).
-- `hierarchy`: Containment (parent / parents roles).
-- `temporal`: Temporal support level.
+- `json`: Nested JSON values.
+- `defaults`: Columns' declared default values.
+- `options`: Declared lists of allowed values (GEXF options).
+- `hierarchy`: Nesting: nodes inside other nodes (parent columns).
+- `temporal`: Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time).
 - `graphAttributes`: Graph-level attributes.
-- `positions`: The position role.
-- `viz`: The visual roles (color, size, shape, thickness).
+- `positions`: Node positions.
+- `viz`: Visual columns: color, size, shape and thickness.
 
 <!-- generated:end -->
 
 ## Which format should I use
+
+- To move a graph between tools without losing anything, use **GEXF** when the other tool is Gephi,
+  and **GraphML** for most other desktop tools (yEd, igraph, NetworkX). Both keep typed attributes,
+  mixed direction and parallel edges.
+- For a web page, use **JSON**: the `node-link` dialect for NetworkX and d3, `cytoscape` for
+  Cytoscape.js, `graphology` for graphology and sigma.js.
+- For a spreadsheet, a database or a script, use **CSV**, and write the node table and the edge
+  table as two files.
+- For Cytoscape, use **CX2** or **XGMML** to add a network to an open session, and a **Cytoscape
+  session** to hand over a whole session. Use **CX2** for NDEx.
+- For a Neo4j database, use **Neo4j CSV** and load it with `neo4j-admin database import`.
+- For ontologies, use **OBO** or the `obographs` dialect of JSON.
+- For Graphviz, use **DOT**; for Pajek, **Pajek**; for tools that read GML, **GML**.

@@ -1,0 +1,3 @@
+read 124686 bytes
+235 nodes
+stopped: AbortError

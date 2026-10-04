@@ -89,11 +89,15 @@ import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsO
 
 /** The format-specific options of the session importer. */
 export interface CysImportOptions extends GraphChoiceOptions {
-    /** Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position. */
+    /**
+     * Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.
+     * @default "column"
+     */
     zAs?: "column" | "position" | undefined;
     /**
-     * The most bytes one import may inflate, in total (default 2 GiB); an entry beyond it, or one
+     * The most bytes one import may inflate, in total (2 GiB by default); an entry beyond it, or one
      * whose compression ratio is above 1000:1, is E_TOO_LARGE.
+     * @default 2147483648
      */
     maxUncompressedBytes?: number | undefined;
 }

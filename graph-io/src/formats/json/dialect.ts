@@ -34,7 +34,7 @@ export const JSON_DIALECTS: readonly JsonDialect[] = Object.freeze([
 
 /**
  * The dialects the importer reads: every JsonDialect plus two it only reads, NetworkX
- * adjacency_data (`nodes` plus one neighbour list per node under `adjacency`) and tree_data (a
+ * adjacency_data (`nodes` plus one neighbor list per node under `adjacency`) and tree_data (a
  * nested `id` / `children` record). The exporter writes neither.
  */
 export type JsonImportDialect = JsonDialect | "adjacency" | "tree";

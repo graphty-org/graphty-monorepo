@@ -1,0 +1,2 @@
+2 nodes; node columns: name, represents
+[ 'W_EDGE_IDS_GENERATED', 'W_CX_UNDIRECTED_AS_DIRECTED' ]

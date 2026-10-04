@@ -1,5 +1,9 @@
 # GEXF
 
+[GEXF](https://gexf.net/) is the XML format of [Gephi](https://gephi.org/). Besides nodes, edges
+and typed attributes, it can hold node colors, sizes and positions, nested nodes, and attributes
+whose values change over time.
+
 ## At a glance
 
 <!-- generated:begin glance:gexf -->
@@ -17,34 +21,100 @@
 
 What a saved file can hold:
 
-| Capability        | Value                             | Meaning                                                                         |
-| ----------------- | --------------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                               | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                               | Parallel edges.                                                                 |
-| `selfLoops`       | yes                               | Self-loops.                                                                     |
-| `edgeIds`         | optional                          | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any                               | Which node ids can be written unchanged.                                        |
-| `dtypes`          | f32, f64, i32, bool, dict, string | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                                | Multi-component (stride) columns.                                               |
-| `lists`           | yes                               | List columns.                                                                   |
-| `json`            | no                                | Nested json columns.                                                            |
-| `defaults`        | yes                               | Declared defaults.                                                              |
-| `options`         | yes                               | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | yes                               | Containment (parent / parents roles).                                           |
-| `temporal`        | dynamic-values                    | Temporal support level.                                                         |
-| `graphAttributes` | no                                | Graph-level attributes.                                                         |
-| `positions`       | yes                               | The position role.                                                              |
-| `viz`             | yes                               | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                             | Meaning                                                                                                                            |
+| ----------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                               | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                               | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                               | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional                          | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any                               | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | f32, f64, i32, bool, dict, string | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                                | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                               | List columns.                                                                                                                      |
+| `json`            | no                                | Nested JSON values.                                                                                                                |
+| `defaults`        | yes                               | Columns' declared default values.                                                                                                  |
+| `options`         | yes                               | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | yes                               | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | dynamic-values                    | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | no                                | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                               | Node positions.                                                                                                                    |
+| `viz`             | yes                               | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/gexf -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("lesmiserables.gexf"), { filename: "lesmiserables.gexf" });
+console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
+
+// GEXF 1.3 is written by default; ask for 1.2 when an older tool needs it
+const options = { version: "1.2" } as const;
+console.log(checkExport(snapshot, "gexf", options));
+await writeFile("lesmiserables-1.2.gexf", await exportGraphToBytes(snapshot, "gexf", options));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/gexf -->
+
+```text
+77 nodes; node columns: label
+[]
+```
+
+<!-- generated:end -->
+
+The file is GEXF 1.3 by default. `version: "1.2"` writes GEXF 1.2 for older tools; 1.2 has no
+parallel edges and needs an id on every edge, and `checkExport()` says so when that matters.
 
 ## How graph-io reads it
 
+- GEXF 1.1, 1.2 and 1.3 files are read. The file is streamed, so a large file is never held in
+  memory as text.
+- Each declared attribute (`<attribute>`) becomes a column of its declared type: `integer` and
+  `long` become numbers, `float` and `double` floating-point numbers, `boolean` true or false, and
+  `string` text. List types become list columns. A declared default and declared options are kept
+  on the column.
+- The `viz` elements become visual columns: `viz:color` a color column (red, green, blue and alpha,
+  each from 0 to 1), `viz:position` a position column (x, y, z), and `viz:size`, `viz:shape` and
+  `viz:thickness` size, shape and thickness columns. Pass `viz: false` to ignore them.
+- `defaultedgetype` sets the direction; a file without it is undirected, as the GEXF specification
+  says. An edge's own `type` (`directed`, `undirected` or `mutual`) overrides it, so one file can
+  mix directed and undirected edges.
+- The edge's `weight` is the edge weight.
+- Nested `<nodes>`, `pid` and `<parents>` become a parent column: the node a node sits inside.
+- Element lifetimes (`start`, `end`, `timestamp`, `<spells>`) become time columns, and attribute
+  values that change over time are kept in a separate table per attribute
+  (`snapshot.extensions`, named `temporal:node:<attribute>` and `temporal:edge:<attribute>`).
+- Ids follow the `ids` option, whatever the file's `idtype` says (Gephi writes `idtype="string"`
+  for every file): `"1"` becomes the number 1 and `"n1"` stays text.
+- An edge to a node the file does not declare is an error (`E_UNKNOWN_NODE`) unless you pass
+  `addMissingNodes: true`.
+- An attribute titled like one of GEXF's own fields (`label`, `parent`, `start`, ...) is renamed
+  `<title>#<attribute id>` so it does not collide with that field.
+
 ## What a saved file keeps and loses
+
+GEXF keeps more of a graph than any other format: mixed direction, parallel edges, any node id,
+typed and list columns, defaults, options, nesting, time, positions and visual attributes. What
+does not survive:
+
+- Graph-level attributes, which GEXF has no place for.
+- The exact type of some ids. A node id that is a fractional number reads back as text, and a text
+  id that looks like an integer (`"7"`) reads back as the number 7 (`W_ID_TEXT_TYPE`). Read with
+  `ids: "string"` to keep every id as text.
+- A text column with few distinct values gains a list of options on the way back
+  (`W_OPTIONS_GAINED`).
+- Text holding a character XML 1.0 forbids, such as most control characters, cannot be written at
+  all; the export throws (`E_XML_ILLEGAL_CHAR`).
+- GEXF 1.2 has no parallel edges.
 
 <!-- generated:begin reference:gexf -->
 
@@ -123,7 +193,7 @@ The codes this format's import report can hold, also exported as `GEXF_ISSUE` fr
 | `W_UNKNOWN_XML_ATTRIBUTE`      | `UNKNOWN_XML_ATTRIBUTE` | warning  | An XML attribute GEXF does not define on that element was ignored.                                            |
 | `W_STRAY_TEXT`                 | `STRAY_TEXT`            | warning  | Text where GEXF allows only elements was ignored.                                                             |
 | `W_OPTION_IGNORED`             | `OPTION_IGNORED`        | warning  | A common option the importer has no use for was given.                                                        |
-| `W_SINK_OPTION`                | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honour.                                                             |
+| `W_SINK_OPTION`                | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honor.                                                              |
 | `W_DIRECTION_REFUSED`          | `DIRECTION_REFUSED`     | warning  | The sink refused the file's direction.                                                                        |
 | `W_DIRECTION_FORCED`           | `DIRECTION_FORCED`      | warning  | Edges forced to the policy's direction.                                                                       |
 | `E_MIXED_DIRECTION`            | `MIXED_DIRECTION`       | error    | A mixed file under onMixedDirection "error" (fatal).                                                          |

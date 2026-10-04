@@ -1,5 +1,5 @@
 /**
- * The importer / exporter registry: the eight built-in formats
+ * The importer / exporter registry: the built-in formats
  * registered by name, `sniff()` over them, and the two conveniences for callers who do not own a
  * sink: `importGraph()` sniffs the format, creates a builder seeded from the common options
  * (`directed: true` as a placeholder; the importer sets the real value), imports and freezes;
@@ -51,12 +51,12 @@ import {
     type LossNote,
 } from "./types.js";
 
-/** The issue code of an input whose format no registered importer recognises. */
+/** The issue code of an input whose format no registered importer recognizes. */
 export const UNKNOWN_FORMAT_CODE = "E_UNKNOWN_FORMAT";
 
 /**
  * The issue code of a registered importer whose sniff() threw while the format was being chosen;
- * that importer was treated as not recognising the input (a defect in that importer).
+ * that importer was treated as not recognizing the input (a defect in that importer).
  */
 export const SNIFF_FAILED_CODE = "W_SNIFF_FAILED";
 
@@ -494,7 +494,7 @@ export class FormatRegistry {
             const what = foreign === null ? "" : `: it is ${foreign}`;
             return failures.fail(
                 UNKNOWN_FORMAT_CODE,
-                `no registered importer recognises the input${describeHints(options)}${what}; pass the format explicitly`,
+                `no registered importer recognizes the input${describeHints(options)}${what}; pass the format explicitly`,
                 undefined,
                 { formats: this.formats() },
             );
@@ -586,7 +586,7 @@ export class FormatRegistry {
 }
 
 /**
- * A registry holding the eight built-in importers and exporters in the order of GRAPH_FORMATS.
+ * A new registry holding every built-in importer and exporter, in the order of GRAPH_FORMATS.
  * @returns a new registry
  */
 export function createRegistry(): FormatRegistry {

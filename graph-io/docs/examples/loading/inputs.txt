@@ -1,0 +1,4 @@
+text: dot, 2 edges
+bytes: gml, 34 nodes
+stream: pajek, 62 nodes
+blob: json, 77 nodes

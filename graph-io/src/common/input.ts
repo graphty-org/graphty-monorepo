@@ -1068,7 +1068,7 @@ class TextFilter {
             }
             this.first = false;
             // ponytail: only the first non-empty chunk is checked, so a document arriving one
-            // character per chunk is not recognised; the parser then fails on it instead
+            // character per chunk is not recognized; the parser then fails on it instead
             refuseForeign(text, this.report, this.options);
         }
         if (text.endsWith(SUB)) {

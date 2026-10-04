@@ -1,6 +1,17 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
+const src = fileURLToPath(new URL("./src/", import.meta.url));
+
 export default defineConfig({
+    // the documentation examples (docs/examples/) import the package by its published name, as a reader does
+    resolve: {
+        alias: [
+            { find: /^@graphty\/graph-io\/([a-z0-9]+)$/, replacement: `${src}formats/$1/index.ts` },
+            { find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` },
+        ],
+    },
     test: {
         globals: true,
         environment: "node",

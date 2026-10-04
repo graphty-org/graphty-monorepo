@@ -30,59 +30,109 @@ export type ImportInput = string | Uint8Array | ReadableStream<Uint8Array> | Asy
  * The options every importer accepts next to its format-specific ones. The
  * builder-policy fields (`addMissingNodes`, `duplicateEdges`, `selfLoops`, `weightDtype`) seed the
  * registry's builder; on a caller's sink they are read back from `sink.options` and every option the
- * sink cannot honour is reported.
+ * sink cannot honor is reported.
  */
 export interface CommonImportOptions {
     /**
-     * Id coercion rule applied before an id reaches the sink: "canonical" by default for
-     * text-cell formats, "keep" for JSON.
+     * How id text becomes a node id. "canonical": integer text such as "42" becomes the number 42
+     * and everything else ("042", "4.2", "a") stays text. "string": every id stays text. "number":
+     * every id is read as a number, so "042" and "42" become one node (with a warning) and text that
+     * is not a number is an error. "keep": ids keep the type the file gives them (JSON). The default
+     * is "canonical" for text formats and "keep" for JSON.
      */
     ids?: IdCoercion | undefined;
-    /** Which field becomes the node id; "id" by default; "label" / "index" resolve the GML / Pajek / d3 ambiguity. */
+    /**
+     * Which field becomes the node id: "id" (the default), the node's "label", or its position in
+     * the file ("index"). For GML, Pajek and d3 files whose ids are missing or meaningless.
+     * @default "id"
+     */
     nodeIdFrom?: "id" | "label" | "index" | undefined;
-    /** Whether an edge may reference an undeclared node (default true; the GEXF importer defaults false for edges). */
+    /**
+     * Whether an edge may name a node the file never declares; that node is then created. True by
+     * default, except for GEXF edges.
+     * @default true
+     */
     addMissingNodes?: boolean | undefined;
-    /** The builder's duplicate-edge policy seed; default "keep". */
+    /**
+     * What to do with a second edge between the same two nodes: "keep" (the default) keeps both,
+     * "first" / "last" keep one, "sum" / "min" / "max" keep one with the weights combined, and
+     * "error" skips it as an error.
+     * @default "keep"
+     */
     duplicateEdges?: DuplicatePolicy | undefined;
-    /** The builder's self-loop policy seed; default "keep". */
+    /**
+     * What to do with an edge from a node to itself: "keep" (the default), "drop", or "error" to skip
+     * it as an error.
+     * @default "keep"
+     */
     selfLoops?: "keep" | "drop" | "error" | undefined;
-    /** What to do with a file whose edges disagree on direction; default "expand". */
+    /**
+     * What to do with a file that has both directed and undirected edges. "expand" (the default)
+     * makes a directed graph in which each undirected edge is two edges, marked so an exporter can
+     * write them back as one. "directed" / "undirected" read every edge that way. "error" stops the
+     * import.
+     * @default "expand"
+     */
     onMixedDirection?: "expand" | "directed" | "undirected" | "error" | undefined;
-    /** The direction assumed for a file that declares none (GEXF: undirected per spec). */
+    /**
+     * Whether the graph is directed when the file does not say. Each format has its own default:
+     * undirected for GEXF, GML and JSON, directed for DOT, CSV and Pajek.
+     */
     defaultDirected?: boolean | undefined;
-    /** The attribute that becomes THE weight (per-format default: "weight", GML "value"); null = unweighted. */
+    /**
+     * The edge attribute read as the edge weight: "weight" by default ("value" for GML). Pass null to
+     * read every attribute as a plain attribute and leave the graph unweighted.
+     */
     weightFrom?: string | null | undefined;
     /**
-     * Weight staging precision; "f64" for every importer by default so 0.1 and 16777217 survive.
+     * The precision weights are stored at while reading. "f64" (the default) keeps 0.1 and 16777217
+     * exact; "f32" uses half the memory.
      * @default "f64"
      */
     weightDtype?: "f32" | "f64" | undefined;
-    /** How a declared `long` column is stored: "f64" (default) or "string". */
+    /**
+     * How a column the file declares as a 64-bit integer is stored: "f64" (the default; exact up to
+     * 2^53) or "string" (every digit kept, as text).
+     * @default "f64"
+     */
     long?: "f64" | "string" | undefined;
-    /** Restore ids mangled by sanitizeIds "mangle" from the graphty:originalId attribute (default true). */
+    /**
+     * Whether to give back the original ids that an export with `sanitizeIds: "mangle"` had to
+     * rewrite (the file keeps them in a `graphty:originalId` attribute).
+     * @default true
+     */
     restoreMangledIds?: boolean | undefined;
     /**
-     * GraphML / JGF hyperedges: refuse, skip with a report entry (default), or expand to a star / clique.
+     * What to do with a GraphML or JGF hyperedge (an edge with more than two ends): "skip" (the
+     * default) leaves it out with a warning, "error" stops the import, "star" adds a hub node joined
+     * to every end, "clique" joins every pair of ends.
      * @default "skip"
      */
     hyperedges?: "error" | "skip" | "star" | "clique" | undefined;
-    /** Errors tolerated before the importer aborts with E_IMPORT (default 100). */
+    /**
+     * How many errors an import tolerates. Each error skips one node, edge or value and is listed in
+     * the report; one error more than this stops the import with an ImportError. Pass 0 to stop at
+     * the first error.
+     * @default 100
+     */
     errorLimit?: number | undefined;
-    /** Cancellation; the importer stops between chunks and rejects with the signal's reason. */
+    /**
+     * Cancels the import. When it aborts, the import stops and rejects with the signal's reason
+     * (an AbortError, or a TimeoutError from `AbortSignal.timeout()`).
+     */
     signal?: AbortSignal | undefined;
     /**
-     * Progress in bytes: byte input counts its bytes, text (a string input or a string chunk) counts
-     * its UTF-8 length. `bytesTotal` is known for in-memory input only; a string or a Uint8Array
-     * reports after every 256 KiB, a stream after every chunk, and the last call is (total, total).
+     * Called as the input is read, with the bytes read so far and the total when it is known (it is
+     * known for a string or a Uint8Array, not for a stream). Text counts its UTF-8 length. The last
+     * call has `bytesDone === bytesTotal`.
      */
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
     /**
-     * The character encoding of byte input (a WHATWG label such as "utf-8", "windows-1252",
-     * "iso-8859-1", "utf-16le"); overrides any encoding the file declares (W_ENCODING_CONFLICT when
-     * they differ). A byte order mark still wins over it, with the same warning when they differ.
-     * Absent: a BOM decides, else the declaration (XML prolog, DOT `charset`), else UTF-8, and
-     * bytes that are not valid UTF-8 are read as windows-1252 with a warning. Text input has nothing
-     * to decode: the option is then reported W_OPTION_IGNORED.
+     * The character encoding of byte input, as a label such as "utf-8", "windows-1252" or
+     * "utf-16le". Without it graph-io uses a byte order mark, then the encoding the file declares
+     * (an XML declaration, DOT's `charset`), then UTF-8, and reads bytes that are not UTF-8 as
+     * windows-1252 with a warning. A byte order mark wins over this option. Has no effect on a
+     * string input.
      */
     encoding?: string | undefined;
 }
@@ -175,31 +225,31 @@ export interface ExportCapabilities {
     readonly multiEdges: boolean;
     /** Self-loops. */
     readonly selfLoops: boolean;
-    /** Whether edge ids are required (generated when absent), optional or unsupported. */
+    /** Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored). */
     readonly edgeIds: "required" | "optional" | "none";
-    /** Which node ids can be written unchanged. */
+    /** Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N). */
     readonly idCharset: "any" | "nmtoken" | "integer" | "dense-1-based";
-    /** The column dtypes the format keeps as declared. */
+    /** The column types the format keeps exactly. */
     readonly dtypes: readonly Dtype[];
-    /** Multi-component (stride) columns. */
+    /** Columns with several numbers per row, such as a position. */
     readonly components: boolean;
     /** List columns. */
     readonly lists: boolean;
-    /** Nested json columns. */
+    /** Nested JSON values. */
     readonly json: boolean;
-    /** Declared defaults. */
+    /** Columns' declared default values. */
     readonly defaults: boolean;
-    /** Declared enumerations (GEXF options). */
+    /** Declared lists of allowed values (GEXF options). */
     readonly options: boolean;
-    /** Containment (parent / parents roles). */
+    /** Nesting: nodes inside other nodes (parent columns). */
     readonly hierarchy: boolean;
-    /** Temporal support level. */
+    /** Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). */
     readonly temporal: "none" | "intervals" | "spells" | "dynamic-values";
     /** Graph-level attributes. */
     readonly graphAttributes: boolean;
-    /** The position role. */
+    /** Node positions. */
     readonly positions: boolean;
-    /** The visual roles (color, size, shape, thickness). */
+    /** Visual columns: color, size, shape and thickness. */
     readonly viz: boolean;
 }
 
@@ -221,10 +271,17 @@ export interface LossNote {
 
 /** The options every exporter accepts next to its format-specific ones. */
 export interface CommonExportOptions {
-    /** "error" (default): never rename a node; "mangle": rewrite ids the format cannot hold and keep the original. */
+    /**
+     * What to do with node ids the format cannot hold. "error" (the default): the export throws and
+     * no node is renamed. "mangle": such ids are rewritten and the originals are kept in the file, so
+     * graph-io reads the original ids back.
+     * @default "error"
+     */
     sanitizeIds?: "error" | "mangle" | undefined;
     /**
-     * For formats without mixed-direction support: refuse (default) or write every edge one way.
+     * What a format with one direction per file does with a graph that has both directed and
+     * undirected edges: "error" (the default) throws, "directed" writes every edge as directed (an
+     * undirected edge once, as one directed edge), "undirected" writes the whole graph undirected.
      * @default "error"
      */
     onMixedDirection?: "error" | "directed" | "undirected" | undefined;

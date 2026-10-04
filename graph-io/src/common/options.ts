@@ -106,7 +106,7 @@ const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "we
  * @param options - the caller's raw options, possibly undefined
  * @param report - the report to record into
  * @param enforcesMissingNodes - true when the importer applies `addMissingNodes: false` itself (it
- * refuses unknown endpoints before the sink sees them), so that request is honoured on any sink and
+ * refuses unknown endpoints before the sink sees them), so that request is honored on any sink and
  * only `addMissingNodes: true` against a refusing sink is reported
  * @returns the number of warnings recorded
  */

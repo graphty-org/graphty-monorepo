@@ -8,7 +8,7 @@
  * every node block first, then every edge block, so node indices follow the file's node order
  * and forward edge references resolve.
  *
- * Conventions honoured: NetworkX's `_networkx_list_start` marker and `"[]"` empty lists, `&#NN;`
+ * Conventions honored: NetworkX's `_networkx_list_start` marker and `"[]"` empty lists, `&#NN;`
  * character references in strings, `Creator` / `Version` top-level metadata, `directed 0|1` and
  * `multigraph 0|1` graph flags, comments, keys and values on one line or split across lines, and
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the

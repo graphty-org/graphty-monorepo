@@ -69,10 +69,10 @@ export const PRECISION_CODE = "W_PRECISION";
 /** Two distinct id texts became one number under ids "number". */
 export const ID_MERGED_CODE = "W_ID_MERGED";
 
-/** A builder-policy option the caller asked for that the sink does not honour. */
+/** A builder-policy option the caller asked for that the sink does not honor. */
 export const SINK_OPTION_CODE = "W_SINK_OPTION";
 
-/** A common option the format has no use for (or cannot honour) was given a non-default value. */
+/** A common option the format has no use for (or cannot honor) was given a non-default value. */
 export const OPTION_IGNORED_CODE = "W_OPTION_IGNORED";
 
 /** An invalid UTF-8 sequence in the input (fatal). */

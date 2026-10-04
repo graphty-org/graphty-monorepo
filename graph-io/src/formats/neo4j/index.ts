@@ -104,7 +104,7 @@ export const NEO4J_ISSUE = Object.freeze({
     ROLE_TAKEN: ROLE_TAKEN_CODE,
     /** A common option the importer has no use for (nodeIdFrom, defaultDirected, ...). */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /** A builder-policy option the sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. */
     MISSING_TYPE: MISSING_TYPE_CODE,

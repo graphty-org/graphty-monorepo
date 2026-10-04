@@ -62,7 +62,10 @@ export interface XgmmlImportOptions extends GraphChoiceOptions {
     repairBareAmpersands?: boolean | undefined;
     /** Join two surrogate character references into one character (warned per pair). Default false. */
     pairSurrogateReferences?: boolean | undefined;
-    /** Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position. */
+    /**
+     * Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.
+     * @default "column"
+     */
     zAs?: "column" | "position" | undefined;
 }
 

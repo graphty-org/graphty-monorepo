@@ -1,0 +1,16 @@
+pairs .pairs: read true, write true
+pairs: 3 nodes, 2 edges
+[ 'E_INVALID_WEIGHT line 5' ]
+[
+  {
+    code: 'W_PAIRS_COLUMN_DROPPED',
+    message: 'node column "label" is not written',
+    column: 'label',
+    count: 1
+  }
+]
+# undirected
+1
+2
+1 2
+

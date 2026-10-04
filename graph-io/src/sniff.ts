@@ -10,7 +10,7 @@
  * candidate is
  *
  * - `0.5 + 0.35 * content + 0.1 * [extension matches] + 0.05 * [MIME type matches]` when the
- *   importer recognises the content (`content > 0`), so a content match always scores at least
+ *   importer recognizes the content (`content > 0`), so a content match always scores at least
  *   0.5 and at most 1;
  * - `0.3 * [extension matches] + 0.1 * [MIME type matches]` when the content is absent or the
  *   importer rejects it, so a hint alone never reaches 0.5;
@@ -24,7 +24,7 @@
 import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect.js";
 import { type GraphImporter } from "./types.js";
 
-/** The format names of the eight built-in importers and exporters. */
+/** The names of the built-in formats. */
 export type GraphFormatName =
     | "gexf"
     | "graphml"
@@ -88,7 +88,7 @@ export interface SniffHints {
 export interface SniffResult {
     /** The importer's format name. */
     readonly format: string;
-    /** The combined confidence in 0..1 (at least 0.5 when the content was recognised). */
+    /** The combined confidence in 0..1 (at least 0.5 when the content was recognized). */
     readonly confidence: number;
     /** The importer's own content confidence, 0 when no head was given or it rejected the head. */
     readonly content: number;
@@ -154,7 +154,7 @@ export function headBytes(head: Uint8Array | string): Uint8Array {
  * @param hints - what is known about the input
  * @param importers - the registered importers, in registration order
  * @param onSniffError - called with the format and the error when an importer's sniff() throws
- * (that importer is then treated as not recognising the head)
+ * (that importer is then treated as not recognizing the head)
  * @returns the candidates, best first; empty when nothing matches
  */
 export function rankFormats(
@@ -175,7 +175,7 @@ export function rankFormats(
             try {
                 content = clamp(importer.sniff(head));
             } catch (err) {
-                // a plugin's sniffer that throws does not recognise the head: one buggy importer
+                // a plugin's sniffer that throws does not recognize the head: one buggy importer
                 // must not break the detection of every other format, but the error is handed on
                 onSniffError?.(importer.format, err);
                 content = 0;

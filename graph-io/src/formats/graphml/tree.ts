@@ -162,7 +162,7 @@ export function isXmlTree(value: unknown): boolean {
 }
 
 /**
- * Why a value is not a serialisable tree.
+ * Why a value is not a serializable tree.
  * @param value - the value
  * @returns a message, or null when the value is a tree
  */

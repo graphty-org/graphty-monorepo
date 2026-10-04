@@ -35,7 +35,7 @@ const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
 );
 const docsDir = `${pkg}docs/`;
 
-const BEGIN = /<!-- generated:begin ([\w:-]+) -->/g;
+const BEGIN = /<!-- generated:begin ([\w:/-]+) -->/g;
 const END = "<!-- generated:end -->";
 const ESCAPED_PIPE = String.raw`\|`;
 const CODE_RE = /^[EW]_[A-Z0-9_]+$/;
@@ -827,6 +827,53 @@ function skeleton(name: string): string {
 }
 
 /**
+ * A runnable example as a code block: the file under docs/examples/ verbatim, so what a reader copies is what
+ * test/docs-examples.test.ts runs.
+ * @param name - the example's path under docs/examples/, without `.ts`
+ * @returns the markdown
+ */
+function exampleBlock(name: string): string {
+    const file = `${docsDir}examples/${name}.ts`;
+    if (!existsSync(file)) {
+        throw new Error(`example ${name}: ${file} does not exist`);
+    }
+    return ["```ts", readFileSync(file, "utf8").trim(), "```"].join("\n");
+}
+
+/**
+ * What a runnable example prints, as a text block: docs/examples/<name>.txt, which test/docs-examples.test.ts keeps
+ * equal to the example's real output.
+ * @param name - the example's path under docs/examples/, without an extension
+ * @returns the markdown
+ */
+function outputBlock(name: string): string {
+    const file = `${docsDir}examples/${name}.txt`;
+    if (!existsSync(file)) {
+        throw new Error(`example ${name} prints nothing (${file} does not exist)`);
+    }
+    return ["```text", readFileSync(file, "utf8").trimEnd(), "```"].join("\n");
+}
+
+/**
+ * Every Markdown page under docs/, relative to it, except the generated API reference. The package README, which
+ * shows an example too, is added by pages().
+ * @param dir - the directory relative to docs/
+ * @returns the page paths
+ */
+function markdownPages(dir = ""): string[] {
+    if (!existsSync(`${docsDir}${dir}`)) {
+        return [];
+    }
+    return readdirSync(`${docsDir}${dir}`, { withFileTypes: true }).flatMap((e) => {
+        const rel = `${dir}${e.name}`;
+        if (e.isDirectory()) {
+            return rel === "api" || rel === "examples" ? [] : markdownPages(`${rel}/`);
+        }
+        return e.name.endsWith(".md") ? [rel] : [];
+    });
+}
+
+/**
  * One block's markdown.
  * @param ctx - the context
  * @param block - the block name
@@ -834,6 +881,12 @@ function skeleton(name: string): string {
  */
 function render(ctx: Context, block: string): string {
     const [kind, name] = block.split(":");
+    if (kind === "example") {
+        return exampleBlock(name);
+    }
+    if (kind === "output") {
+        return outputBlock(name);
+    }
     const f = ctx.formats.find((x) => x.name === name);
     switch (kind) {
         case "options":
@@ -859,6 +912,15 @@ function render(ctx: Context, block: string): string {
 }
 
 /**
+ * Whether a block shows an example or its output, which any page may hold.
+ * @param block - the block name
+ * @returns true for `example:` and `output:` blocks
+ */
+function isExampleBlock(block: string): boolean {
+    return block.startsWith("example:") || block.startsWith("output:");
+}
+
+/**
  * A page with every generated block replaced.
  * @param ctx - the context
  * @param page - the page path relative to docs/
@@ -869,14 +931,14 @@ function render(ctx: Context, block: string): string {
 async function regenerate(ctx: Context, page: string, text: string, blocks: readonly string[]): Promise<string> {
     const found = [...text.matchAll(BEGIN)].map((m) => m[1]);
     const missing = blocks.filter((b) => !found.includes(b));
-    const extra = found.filter((b) => !blocks.includes(b));
+    const extra = found.filter((b) => !blocks.includes(b) && !isExampleBlock(b));
     if (missing.length > 0 || extra.length > 0) {
         throw new Error(
             `${page}: generated blocks ${missing.length > 0 ? `missing ${missing.join(", ")}` : ""}${extra.length > 0 ? ` unexpected ${extra.join(", ")}` : ""}`,
         );
     }
     let out = text;
-    for (const b of blocks) {
+    for (const b of [...blocks, ...found.filter(isExampleBlock)]) {
         const begin = `<!-- generated:begin ${b} -->`;
         const start = out.indexOf(begin) + begin.length;
         const end = out.indexOf(END, start);
@@ -909,7 +971,14 @@ export async function pages(): Promise<PageResult[]> {
         throw new Error(`format pages without a registered format: ${stray.join(", ")}`);
     }
     const out: PageResult[] = [];
-    for (const [page, blocks] of p) {
+    // a page outside the plan may still show examples
+    const all = new Map(p);
+    for (const page of [...markdownPages(), "../README.md"]) {
+        if (!all.has(page) && existsSync(`${docsDir}${page}`)) {
+            all.set(page, []);
+        }
+    }
+    for (const [page, blocks] of all) {
         const path = `${docsDir}${page}`;
         const current = existsSync(path) ? readFileSync(path, "utf8") : null;
         const name = /^guide\/formats\/(.+)\.md$/.exec(page)?.[1];
@@ -958,7 +1027,7 @@ export async function undocumented(): Promise<string[]> {
 
 /** What a published doc comment must not mention: the package's internal design documents and process. */
 export const INTERNAL_REFERENCE =
-    /design\s+sections?\b|\bdesign\s+\d+\.\d|research\s+note|STATUS\.md|decision\s+D-[A-Z]/i;
+    /design\s+sections?\b|\bdesign\s+\d+\.\d|research\s+note|STATUS\.md|decision\s+D-[A-Z]|\bissue\s+#\d+/i;
 
 /**
  * Every published doc comment that mentions the package's internal design documents.

@@ -1,5 +1,9 @@
 # XGMML
 
+[XGMML](https://manual.cytoscape.org/en/stable/Supported_Network_File_Formats.html) is the
+XML network format of [Cytoscape](https://cytoscape.org/). graph-io reads the 1.0 draft, the
+files Cytoscape 2 and 3 export, and the network files inside Cytoscape 3 session files.
+
 ## At a glance
 
 <!-- generated:begin glance:xgmml -->
@@ -17,34 +21,95 @@
 
 What a saved file can hold:
 
-| Capability        | Value                                            | Meaning                                                                         |
-| ----------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                                              | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                                              | Parallel edges.                                                                 |
-| `selfLoops`       | yes                                              | Self-loops.                                                                     |
-| `edgeIds`         | optional                                         | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any                                              | Which node ids can be written unchanged.                                        |
-| `dtypes`          | string, dict, f64, f32, i32, u32, u8, bool, list | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                                               | Multi-component (stride) columns.                                               |
-| `lists`           | yes                                              | List columns.                                                                   |
-| `json`            | no                                               | Nested json columns.                                                            |
-| `defaults`        | no                                               | Declared defaults.                                                              |
-| `options`         | no                                               | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | yes                                              | Containment (parent / parents roles).                                           |
-| `temporal`        | none                                             | Temporal support level.                                                         |
-| `graphAttributes` | yes                                              | Graph-level attributes.                                                         |
-| `positions`       | yes                                              | The position role.                                                              |
-| `viz`             | no                                               | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                                            | Meaning                                                                                                                            |
+| ----------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                                              | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                                              | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                                              | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional                                         | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any                                              | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | string, dict, f64, f32, i32, u32, u8, bool, list | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                                               | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                                              | List columns.                                                                                                                      |
+| `json`            | no                                               | Nested JSON values.                                                                                                                |
+| `defaults`        | no                                               | Columns' declared default values.                                                                                                  |
+| `options`         | no                                               | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | yes                                              | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                                             | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                                              | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                                              | Node positions.                                                                                                                    |
+| `viz`             | no                                               | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/xgmml -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("cytoscape3-small.xgmml"), {
+    filename: "cytoscape3-small.xgmml",
+});
+console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
+
+console.log(checkExport(snapshot, "xgmml").map((n) => n.code));
+await writeFile("network.xgmml", await exportGraphToBytes(snapshot, "xgmml"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/xgmml -->
+
+```text
+3 nodes; node columns: graphics, label, position, z, name, score, degree
+[]
+```
+
+<!-- generated:end -->
+
+The node positions, the `graphics` values Cytoscape wrote, and every typed attribute come
+back as columns.
 
 ## How graph-io reads it
 
+- The direction follows the XGMML specification: the root element's `directed` (undirected when
+  absent), then each edge's `cy:directed`. A file can mix directed and undirected edges.
+- Ids are kept as written, so `"1"` and `"01"` are two nodes.
+- Each `att` becomes a column typed by its `cy:type`, else its `type`: integers, 64-bit `Long`
+  values (as 64-bit floats, or as text with `long: "string"`), floating-point numbers, booleans,
+  text and lists. An XGMML `integer` holding a value too large for 32 bits widens the column with
+  a warning (`W_WIDENED`), because Cytoscape before 3.3 wrote 64-bit values that way.
+- Groups become a parent column. A node that points at another network gets that network's name in
+  `cytoscape.nestedNetwork`.
+- A node's `graphics` x and y are its position. Cytoscape's y axis points down; graph-io stores y
+  pointing up, so it negates y when it reads and again when it writes. `z` goes to a separate `z`
+  column (`zAs: "position"` makes it the third coordinate). Every other `graphics` value is kept in
+  a JSON column `graphics`.
+- Cytoscape's `\n` and `\t` escapes are decoded in Cytoscape files (`cytoscapeEscapes`), and an
+  edge whose ends are missing is resolved from Cytoscape's `source (interaction) target` edge label
+  (`labelAliases`).
+- Two bugs of old Cytoscape writers can be repaired on request: bare `&` characters
+  (`repairBareAmpersands`) and split surrogate character references (`pairSurrogateReferences`).
+- An edge to a node the file does not declare is an error (`E_UNKNOWN_NODE`) unless you pass
+  `addMissingNodes: true`.
+- A session network file lists several networks; see
+  [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
+
 ## What a saved file keeps and loses
+
+graph-io writes the Cytoscape 3 dialect, which Cytoscape 3 opens with every attribute type
+intact. It keeps mixed direction, parallel edges, edge ids, lists, nesting, graph attributes and
+positions. What does not survive:
+
+- Column types Cytoscape does not have: 32-bit floats, small and unsigned integers and dictionary
+  columns are written as the nearest wider Cytoscape type, and JSON values as text.
+- Styles. The `graphics` values an XGMML import kept are written back, but graph-io's color, size
+  and shape columns are not turned into graphics.
+- A number id reads back as text (`W_ID_TEXT_TYPE`), because XGMML ids are kept as written.
 
 <!-- generated:begin reference:xgmml -->
 
@@ -52,15 +117,15 @@ What a saved file can hold:
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                    | Type                     | Default | Meaning                                                                                                                                                                                                                                         |
-| ------------------------- | ------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `labelAliases`            | `boolean`                |         | Resolve an edge endpoint that is missing or names no node through Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it. Default: on for files that use the Cytoscape (`cy`) namespace, off otherwise. |
-| `cytoscapeEscapes`        | `boolean`                |         | Decode Cytoscape's two-character `\n` and `\t` escapes in string values. Default: on for files that use the Cytoscape namespace, off otherwise.                                                                                                 |
-| `repairBareAmpersands`    | `boolean`                | `false` | Read an `&` not followed by `;` within 7 characters as `&amp;` (warned per occurrence). Default false.                                                                                                                                          |
-| `pairSurrogateReferences` | `boolean`                | `false` | Join two surrogate character references into one character (warned per pair). Default false.                                                                                                                                                    |
-| `zAs`                     | `"column" \| "position"` |         | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                                                                                                                          |
-| `graphIndex`              | `number`                 |         | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                                                                                                            |
-| `graphName`               | `string`                 |         | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                                                                                                                     |
+| Option                    | Type                     | Default    | Meaning                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `labelAliases`            | `boolean`                |            | Resolve an edge endpoint that is missing or names no node through Cytoscape's `"source (interaction) target"` edge label, and fill a missing interaction from it. Default: on for files that use the Cytoscape (`cy`) namespace, off otherwise. |
+| `cytoscapeEscapes`        | `boolean`                |            | Decode Cytoscape's two-character `\n` and `\t` escapes in string values. Default: on for files that use the Cytoscape namespace, off otherwise.                                                                                                 |
+| `repairBareAmpersands`    | `boolean`                | `false`    | Read an `&` not followed by `;` within 7 characters as `&amp;` (warned per occurrence). Default false.                                                                                                                                          |
+| `pairSurrogateReferences` | `boolean`                | `false`    | Join two surrogate character references into one character (warned per pair). Default false.                                                                                                                                                    |
+| `zAs`                     | `"column" \| "position"` | `"column"` | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                                                                                                                          |
+| `graphIndex`              | `number`                 |            | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                                                                                                            |
+| `graphName`               | `string`                 |            | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                                                                                                                     |
 
 ## Export options
 
@@ -127,7 +192,7 @@ The codes this format's import report can hold, also exported as `XGMML_ISSUE` f
 | `W_ROLE_TAKEN`                 | `ROLE_TAKEN`           | warning  | A column declared without its role because the table already holds it.                              |
 | `W_ID_MERGED`                  | `ID_MERGED`            | warning  | Two id texts merged into one number under ids "number".                                             |
 | `W_OPTION_IGNORED`             | `OPTION_IGNORED`       | warning  | An option the format has no use for.                                                                |
-| `W_SINK_OPTION`                | `SINK_OPTION`          | warning  | A builder-policy option the sink does not honour.                                                   |
+| `W_SINK_OPTION`                | `SINK_OPTION`          | warning  | A builder-policy option the sink does not honor.                                                    |
 | `W_DIRECTION_REFUSED`          | `DIRECTION_REFUSED`    | warning  | The sink refused the file's direction.                                                              |
 | `W_DIRECTION_FORCED`           | `DIRECTION_FORCED`     | warning  | Edges forced to the policy's direction.                                                             |
 | `E_MIXED_DIRECTION`            | `MIXED_DIRECTION`      | error    | A mixed file under onMixedDirection "error" (fatal).                                                |

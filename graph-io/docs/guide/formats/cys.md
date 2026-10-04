@@ -1,5 +1,9 @@
 # Cytoscape session (.cys)
 
+A Cytoscape session (`.cys`) is the file [Cytoscape Desktop](https://cytoscape.org/) saves: a zip
+archive of every network open at the time, with their tables and views. It is the one binary
+format graph-io reads and writes, so always give it bytes, never text.
+
 ## At a glance
 
 <!-- generated:begin glance:cys -->
@@ -17,34 +21,112 @@
 
 What a saved file can hold:
 
-| Capability        | Value                              | Meaning                                                                         |
-| ----------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                                | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                                | Parallel edges.                                                                 |
-| `selfLoops`       | yes                                | Self-loops.                                                                     |
-| `edgeIds`         | required                           | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | integer                            | Which node ids can be written unchanged.                                        |
-| `dtypes`          | string, dict, f64, i32, bool, list | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                                 | Multi-component (stride) columns.                                               |
-| `lists`           | yes                                | List columns.                                                                   |
-| `json`            | no                                 | Nested json columns.                                                            |
-| `defaults`        | no                                 | Declared defaults.                                                              |
-| `options`         | no                                 | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                                 | Containment (parent / parents roles).                                           |
-| `temporal`        | none                               | Temporal support level.                                                         |
-| `graphAttributes` | yes                                | Graph-level attributes.                                                         |
-| `positions`       | yes                                | The position role.                                                              |
-| `viz`             | no                                 | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                              | Meaning                                                                                                                            |
+| ----------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                                | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                                | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                                | Self-loops.                                                                                                                        |
+| `edgeIds`         | required                           | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | integer                            | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | string, dict, f64, i32, bool, list | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                                 | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                                | List columns.                                                                                                                      |
+| `json`            | no                                 | Nested JSON values.                                                                                                                |
+| `defaults`        | no                                 | Columns' declared default values.                                                                                                  |
+| `options`         | no                                 | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                                 | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                               | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                                | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                                | Node positions.                                                                                                                    |
+| `viz`             | no                                 | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/cys -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph, listGraphs } from "@graphty/graph-io";
+
+// A session is a zip file: always pass bytes, never text
+const session = await readFile("authored-3x.cys");
+for (const g of (await listGraphs(session, { filename: "authored-3x.cys" })) ?? []) {
+    console.log(`network ${g.index}: ${g.name}`);
+}
+const { snapshot } = await importGraph(session, { filename: "authored-3x.cys", graphName: "Alpha" });
+console.log(`Alpha: ${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
+
+// Write any graph as a session Cytoscape Desktop can open
+const karate = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
+console.log(checkExport(karate.snapshot, "cys").map((n) => n.code));
+await writeFile("karate.cys", await exportGraphToBytes(karate.snapshot, "cys"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/cys -->
+
+```text
+network 0: Beta
+network 1: Alpha
+Alpha: 4 nodes; node columns: graphics, name, position, z, selected, score, count, big, tags, flags, formula, note, shared name, species, count#SHARED_ATTRS, appScore, count#MYAPP, parent, xgmml.subgraph, position@2
+[ 'W_EDGE_IDS_GENERATED', 'W_ID_TEXT_TYPE' ]
+```
+
+<!-- generated:end -->
+
+A session usually holds several networks. `listGraphs()` names them, and `graphName` or
+`graphIndex` picks one; `importAllGraphs()` reads them all.
 
 ## How graph-io reads it
 
+- The zip archive is read with no extra dependency. Encrypted archives and compression methods
+  other than deflate are refused by name.
+- Each network of the session is one graph. Without `graphIndex` or `graphName`, the first one is
+  read.
+- Cytoscape 3 sessions: the network's topology, its node, edge and network tables as columns
+  (including shared columns and the hidden columns apps add), positions from its first view (y
+  pointing up; further views as `position@2`, ...), and the view's per-element visual values in the
+  `graphics` column. Cytoscape 2 sessions: one XGMML file per network, with the selection and hidden
+  state in `cytoscape.selected` and `cytoscape.hidden`.
+- A table's `name` column is the label, as Cytoscape shows it, and a network's `weight` edge column
+  is the weight.
+- Groups become a parent column; the members of a collapsed group are listed in
+  `snapshot.meta.extra.cytoscape.groups`.
+- Styles are not applied (`W_STYLES_NOT_IMPORTED`). Apps, properties and images in the archive are
+  skipped with `W_CYS_ENTRY_SKIPPED`.
+- Text input is refused (`E_CYS_NOT_ZIP`).
+- To protect against zip bombs, an import stops (`E_TOO_LARGE`) once it would inflate more than
+  `maxUncompressedBytes` (2 GiB by default) or an entry is compressed more than 1000 to 1.
+
 ## What a saved file keeps and loses
+
+graph-io writes a session Cytoscape Desktop 3 opens, holding one network with its columns as
+tables and the label as `name`. It writes a view only when the graph has positions: graph-io does
+not compute a layout, so without positions you create the view in Cytoscape.
+
+Opening a session in Cytoscape replaces everything open there. To add a network to an open
+session, save [XGMML](./xgmml.md) or [CX2](./cx2.md) instead.
+
+What does not survive:
+
+- Node ids must be positive integers (Cytoscape's SUIDs). Other ids need `sanitizeIds: "mangle"`,
+  which numbers the nodes and keeps the originals in `graphty:originalId`; graph-io restores them.
+- Number ids read back as text (`W_ID_TEXT_TYPE`).
+- Cytoscape's tables have no empty text cell, so a text cell with no value reads back as `""`
+  (`W_CYS_UNSET_AS_EMPTY_STRING`).
+- List cells are joined with line breaks (`W_CYS_LIST_ITEMS`), JSON values are written as text
+  (`W_CYS_JSON_AS_STRING`), and text starting with `=` is a formula to Cytoscape
+  (`W_CYS_TEXT_AS_EQUATION`).
+- A column named like one of Cytoscape's own (`SUID`, a `name` that is not text, or a name that
+  differs from one only in case) is renamed `<name>#2` (`W_COLUMN_NAME_CHANGED`).
+- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
+- Groups, styles and time columns are not written.
+- The archive is stored without compression, so it is larger than the same session saved by
+  Cytoscape.
 
 <!-- generated:begin reference:cys -->
 
@@ -52,12 +134,12 @@ What a saved file can hold:
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                 | Type                     | Default | Meaning                                                                                                                                              |
-| ---------------------- | ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zAs`                  | `"column" \| "position"` |         | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                               |
-| `maxUncompressedBytes` | `number`                 | `2`     | The most bytes one import may inflate, in total (default 2 GiB); an entry beyond it, or one whose compression ratio is above 1000:1, is E_TOO_LARGE. |
-| `graphIndex`           | `number`                 |         | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                 |
-| `graphName`            | `string`                 |         | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                          |
+| Option                 | Type                     | Default      | Meaning                                                                                                                                                 |
+| ---------------------- | ------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `zAs`                  | `"column" \| "position"` | `"column"`   | Where Cytoscape's z (a stacking order) goes: the `z` column (default) or the position.                                                                  |
+| `maxUncompressedBytes` | `number`                 | `2147483648` | The most bytes one import may inflate, in total (2 GiB by default); an entry beyond it, or one whose compression ratio is above 1000:1, is E_TOO_LARGE. |
+| `graphIndex`           | `number`                 |              | The 0-based position of the graph, as `GraphListing.index` gives it.                                                                                    |
+| `graphName`            | `string`                 |              | The name of the graph, as `GraphListing.name` gives it; a name two graphs share is refused.                                                             |
 
 ## Export options
 
@@ -121,8 +203,8 @@ The codes this format's import report can hold, also exported as `CYS_ISSUE` fro
 | `W_COLUMN_RENAMED`             | `COLUMN_RENAMED`             | warning  | A column was renamed `<name>#<origin.id>` because the name was taken in the sink's table.                                                       |
 | `W_ROLE_TAKEN`                 | `ROLE_TAKEN`                 | warning  | A column's role was dropped because another column of the table already holds it.                                                               |
 | `W_ID_MERGED`                  | `ID_MERGED`                  | warning  | Two distinct id texts became one number under ids "number".                                                                                     |
-| `W_OPTION_IGNORED`             | `OPTION_IGNORED`             | warning  | A common option the format has no use for (or cannot honour) was given a non-default value.                                                     |
-| `W_SINK_OPTION`                | `SINK_OPTION`                | warning  | A builder-policy option the caller asked for that the sink does not honour.                                                                     |
+| `W_OPTION_IGNORED`             | `OPTION_IGNORED`             | warning  | A common option the format has no use for (or cannot honor) was given a non-default value.                                                      |
+| `W_SINK_OPTION`                | `SINK_OPTION`                | warning  | A builder-policy option the caller asked for that the sink does not honor.                                                                      |
 | `W_DIRECTION_REFUSED`          | `DIRECTION_REFUSED`          | warning  | The sink refused the file's direction (locked or non-empty); the file is read as the sink's.                                                    |
 | `W_DIRECTION_FORCED`           | `DIRECTION_FORCED`           | warning  | Edges of the other direction were forced to the policy's direction.                                                                             |
 | `E_MIXED_DIRECTION`            | `MIXED_DIRECTION`            | error    | A mixed-direction file under onMixedDirection "error" (import), or a mixed snapshot under the same export policy.                               |
@@ -137,7 +219,7 @@ The codes this format's import report can hold, also exported as `CYS_ISSUE` fro
 | `W_CYS_ENTRY_SKIPPED`          | `ENTRY_SKIPPED`              | warning  | Entries the importer does not read (apps, global tables, properties, images, thumbnails).                                                       |
 | `W_CYS_DUPLICATE_ENTRY`        | `DUPLICATE_ENTRY`            | warning  | Two entries with one name; the first is read.                                                                                                   |
 | `W_CYS_SESSION_RECORD`         | `SESSION_RECORD`             | warning  | A cysession.xml network record without an id, or naming a file an earlier record names.                                                         |
-| `W_STYLES_NOT_IMPORTED`        | `STYLES_NOT_IMPORTED`        | warning  | The session's styles are not applied (issue #706).                                                                                              |
+| `W_STYLES_NOT_IMPORTED`        | `STYLES_NOT_IMPORTED`        | warning  | The session's styles are not applied.                                                                                                           |
 
 ## Loss codes
 

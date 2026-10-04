@@ -1,5 +1,20 @@
 # JSON
 
+JSON is not one graph format but many. graph-io reads and writes these JSON shapes, called
+dialects:
+
+| Dialect      | Written by                                                                                                 | Looks like                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `node-link`  | [NetworkX](https://networkx.org/documentation/stable/reference/readwrite/json_graph.html) `node_link_data` | `{ "nodes": [...], "edges": [...] }`                 |
+| `d3`         | d3 force examples                                                                                          | `{ "nodes": [...], "links": [...] }`                 |
+| `jgf`        | [JSON Graph Format](https://jsongraphformat.info/)                                                         | `{ "graph": { "nodes": {...}, "edges": [...] } }`    |
+| `cytoscape`  | [Cytoscape.js](https://js.cytoscape.org/#notation/elements-json)                                           | `{ "elements": { "nodes": [...], "edges": [...] } }` |
+| `graphology` | [graphology](https://graphology.github.io/serialization.html)                                              | `{ "nodes": [{ "key": ... }], "edges": [...] }`      |
+| `vis`        | [vis-network](https://visjs.github.io/vis-network/docs/network/)                                           | edges with `from` and `to`                           |
+| `obographs`  | [OBO Graphs](https://github.com/geneontology/obographs), the JSON of the Gene Ontology                     | `{ "graphs": [{ "nodes": [...], "edges": [...] }] }` |
+| `adjacency`  | NetworkX `adjacency_data` (read only)                                                                      | `{ "nodes": [...], "adjacency": [[...]] }`           |
+| `tree`       | NetworkX `tree_data` (read only)                                                                           | nested `{ "id": ..., "children": [...] }`            |
+
 ## At a glance
 
 <!-- generated:begin glance:json -->
@@ -17,34 +32,149 @@
 
 What a saved file can hold:
 
-| Capability                                                                                 | `node-link`            | `d3`                   | `jgf`                  | `cytoscape`            | `graphology`           | `vis`                  | `obographs` |
-| ------------------------------------------------------------------------------------------ | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ----------- |
-| `mixedDirection`: Directed and undirected edges in one file.                               | no                     | no                     | yes                    | no                     | yes                    | no                     | no          |
-| `multiEdges`: Parallel edges.                                                              | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
-| `selfLoops`: Self-loops.                                                                   | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
-| `edgeIds`: Whether edge ids are required (generated when absent), optional or unsupported. | none                   | none                   | optional               | required               | optional               | optional               | none        |
-| `idCharset`: Which node ids can be written unchanged.                                      | any                    | any                    | any                    | any                    | any                    | any                    | any         |
-| `dtypes`: The column dtypes the format keeps as declared.                                  | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string |             |
-| `components`: Multi-component (stride) columns.                                            | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| `lists`: List columns.                                                                     | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| `json`: Nested json columns.                                                               | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | no          |
-| `defaults`: Declared defaults.                                                             | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| `options`: Declared enumerations (GEXF options).                                           | no                     | no                     | no                     | no                     | no                     | no                     | no          |
-| `hierarchy`: Containment (parent / parents roles).                                         | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
-| `temporal`: Temporal support level.                                                        | none                   | none                   | none                   | none                   | none                   | none                   | none        |
-| `graphAttributes`: Graph-level attributes.                                                 | yes                    | no                     | yes                    | yes                    | yes                    | no                     | no          |
-| `positions`: The position role.                                                            | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
-| `viz`: The visual roles (color, size, shape, thickness).                                   | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| Capability                                                                                                                                     | `node-link`            | `d3`                   | `jgf`                  | `cytoscape`            | `graphology`           | `vis`                  | `obographs` |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ---------------------- | ----------- |
+| `mixedDirection`: Directed and undirected edges in one file.                                                                                   | no                     | no                     | yes                    | no                     | yes                    | no                     | no          |
+| `multiEdges`: Parallel edges.                                                                                                                  | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
+| `selfLoops`: Self-loops.                                                                                                                       | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes         |
+| `edgeIds`: Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                       | none                   | none                   | optional               | required               | optional               | optional               | none        |
+| `idCharset`: Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                 | any                    | any                    | any                    | any                    | any                    | any                    | any         |
+| `dtypes`: The column types the format keeps exactly.                                                                                           | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string | f64, i32, bool, string |             |
+| `components`: Columns with several numbers per row, such as a position.                                                                        | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| `lists`: List columns.                                                                                                                         | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| `json`: Nested JSON values.                                                                                                                    | yes                    | yes                    | yes                    | yes                    | yes                    | yes                    | no          |
+| `defaults`: Columns' declared default values.                                                                                                  | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| `options`: Declared lists of allowed values (GEXF options).                                                                                    | no                     | no                     | no                     | no                     | no                     | no                     | no          |
+| `hierarchy`: Nesting: nodes inside other nodes (parent columns).                                                                               | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
+| `temporal`: Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). | none                   | none                   | none                   | none                   | none                   | none                   | none        |
+| `graphAttributes`: Graph-level attributes.                                                                                                     | yes                    | no                     | yes                    | yes                    | yes                    | no                     | no          |
+| `positions`: Node positions.                                                                                                                   | no                     | no                     | no                     | yes                    | no                     | no                     | no          |
+| `viz`: Visual columns: color, size, shape and thickness.                                                                                       | no                     | no                     | no                     | no                     | no                     | no                     | no          |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/json -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { exportGraphToString, importGraph } from "@graphty/graph-io";
+
+// The dialect is detected from the document; a re-export writes the same dialect back
+const { snapshot, sniff } = await importGraph(await readFile("miserables.json"), { filename: "miserables.json" });
+console.log(`${sniff?.dialect}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+
+// Pick another dialect with the dialect option
+const cytoscape = await exportGraphToString(snapshot, "json", { dialect: "cytoscape", indent: 2 });
+console.log(cytoscape.split("\n").slice(0, 8).join("\n"));
+await writeFile("miserables.cyjs", cytoscape);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/json -->
+
+```text
+d3: 77 nodes, 254 edges
+{
+  "elements": {
+    "nodes": [
+      {
+        "data": {
+          "id": "Myriel",
+          "group": 1
+        }
+```
+
+<!-- generated:end -->
+
+The dialect is detected from the document, and graph-io remembers it: saving to JSON without
+a `dialect` writes the same dialect back, with the same keys. Pass `dialect` to write another one.
+The adjacency and tree dialects are written as node-link.
 
 ## How graph-io reads it
 
+- The whole document is read as text before it is parsed. A document longer than the longest
+  JavaScript string (about 512 MB) fails with `E_TOO_LARGE`.
+- The dialect is detected from the document's shape; pass `dialect` to choose it.
+- JSON values keep their types, so ids are read as they are (`ids: "keep"`): `1` is a number and
+  `"1"` is text. Attribute columns take the type of their values.
+- The edge attribute `weight` (or whatever `weightFrom` names) is the edge weight.
+- `nodesPath` and `edgesPath` point at node and edge arrays nested anywhere in the document, as
+  dotted paths (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`), for the node-link,
+  d3, vis and graphology dialects.
+- Python writes `NaN`, `Infinity` and `-Infinity`, which strict JSON does not allow; graph-io reads
+  them as numbers with a warning (`W_JSON_NONSTANDARD_NUMBER`). An integer beyond 2^53 keeps its
+  exact digits as text (`W_JSON_BIG_INTEGER`), so two large ids never round to the same number.
+- A repeated node id is merged (`W_DUPLICATE_NODE`); a repeated edge id is an error and that edge is
+  skipped (`E_DUPLICATE_EDGE_ID`).
+
+## The dialects
+
+### node-link and d3
+
+NetworkX's node-link shape: a `nodes` array and an `edges` (or older `links`) array, with
+`directed`, `multigraph` and `graph` at the top. d3's examples use the same shape with `links`,
+`name` as the node id, and edges that point at nodes by their position in the array.
+`indexLinks` says whether edge ends are positions; by default graph-io decides from the data.
+
+### JSON Graph Format (jgf)
+
+Nodes keyed by id, a `directed` flag per graph and per edge, so one file can mix directions, and a
+`graphs` array for several graphs. Hyperedges follow the `hyperedges` option.
+
+### Cytoscape.js (cytoscape)
+
+An `elements` object, or array, of `{ data, position, classes }`. `data.parent` becomes the parent
+column and `position` the position. Cytoscape's y axis points down; graph-io stores y pointing up,
+so it negates y when it reads and again when it writes. The dialect has no undirected edges:
+every edge is written directed.
+
+### graphology
+
+`nodes` of `{ key, attributes }`, `edges` that can each be `undirected`, and an `options` object.
+A file written back keeps only the options it declared.
+
+### vis.js (vis)
+
+`nodes` and `edges` arrays whose edges use `from` and `to`. Like Cytoscape.js, it has no undirected
+edges.
+
+### OBO Graphs (obographs)
+
+The JSON the Gene Ontology and the OBO Foundry publish: `graphs` of nodes and `sub` / `pred` /
+`obj` edges. It is read into the same columns as the [OBO](./obo.md) format: an IRI becomes the id
+an `.obo` file uses (`http://purl.obolibrary.org/obo/GO_0008150` becomes `GO:0008150`; `oboIds:
+"iri"` keeps the IRIs), and a relation is named by its short name (`part_of`). Property nodes and
+axioms are kept in `snapshot.meta.extra.obographs` (`typedefs: "nodes"` makes the properties
+nodes), and an edge to a node the file does not list creates a placeholder node with a warning.
+Writing OBO Graphs turns the OBO columns back into `lbl`, `type` and `meta`, and ids back into IRIs
+under the `ontologyIri` option.
+
+### adjacency and tree (read only)
+
+NetworkX's `adjacency_data` (`nodes` plus an `adjacency` list per node; an undirected file lists
+each edge from both ends, and graph-io reads it once) and `tree_data` (nested `id` / `children`,
+read as a directed tree). They are written back as node-link.
+
 ## What a saved file keeps and loses
+
+What survives depends on the dialect; the [All formats](./index.md) table has one row per
+dialect. In every dialect:
+
+- JSON declares no types, so a column comes back with the type its values suggest: smaller number
+  types come back as 64-bit floats or integers, a floating-point column whose values are all whole
+  numbers comes back as integers, and dictionary, list and vector columns come back as text or JSON.
+  `checkExport()` names each such column.
+- `NaN` and the infinities are written as `null` and reported.
+- An integer beyond 2^53 is written in exponent form (`1e+20`) so it reads back as a number.
+- Edge ids exist in JGF, Cytoscape.js, graphology and vis only; positions in Cytoscape.js only;
+  graph attributes in node-link, JGF, Cytoscape.js and graphology.
+- Columns that a dialect has no slot for are written as plain attributes under their names, and a
+  column with a role the dialect cannot express (a position in node-link, say) loses the role
+  (`W_ROLE_DROPPED`).
 
 <!-- generated:begin reference:json -->
 

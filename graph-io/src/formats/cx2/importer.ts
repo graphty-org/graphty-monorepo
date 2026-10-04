@@ -179,7 +179,7 @@ export const CX2_ISSUE = Object.freeze({
     MULTI_ASPECT_FRAGMENT: MULTI_ASPECT_FRAGMENT_CODE,
     /** The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers. */
     JSON_NONSTANDARD_NUMBER: JSON_NONSTANDARD_NUMBER_CODE,
-    /** The file's style rules are not applied (issue #706). */
+    /** The file's style rules are not applied; they are kept so a CX2 export writes them back. */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
     /** A member of the top-level array that is not a one-key aspect block, or an element that is not an object. */
     BAD_ASPECT_BLOCK: BAD_ASPECT_BLOCK_CODE,
@@ -229,7 +229,7 @@ export const CX2_ISSUE = Object.freeze({
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /** A common option CX2 has no use for. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder option the caller's sink does not honour. */
+    /** A builder option the caller's sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The input is beyond a size limit (fatal). */
     TOO_LARGE: TOO_LARGE_CODE,

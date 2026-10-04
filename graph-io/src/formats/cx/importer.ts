@@ -187,7 +187,7 @@ export const CX_ISSUE = Object.freeze({
     UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
     /** A group membership that would close a parent cycle; dropped. */
     PARENT_CYCLE: PARENT_CYCLE_CODE,
-    /** The style rules of cyVisualProperties are not applied (issue #706). */
+    /** The style rules of cyVisualProperties are not applied; they are kept so a CX export writes them back. */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
     /** A node without an @id. */
     MISSING_ID: MISSING_ID_CODE,
@@ -235,7 +235,7 @@ export const CX_ISSUE = Object.freeze({
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
     /** A common option CX has no use for. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder option the caller's sink does not honour. */
+    /** A builder option the caller's sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The input is beyond a size limit (fatal). */
     TOO_LARGE: TOO_LARGE_CODE,

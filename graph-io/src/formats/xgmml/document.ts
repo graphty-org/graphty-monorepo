@@ -6,7 +6,7 @@
  * Cytoscape does, and the `.cys` importer reuses the same records for the network and view files
  * of a session.
  *
- * It recognises the five shapes of `research-xgmml.md` section 2: the 1.0 draft, the Cytoscape
+ * It recognizes the five shapes of `research-xgmml.md` section 2: the 1.0 draft, the Cytoscape
  * 2.x export and session, the 3.x export, the 3.x session network file (root `cy:registered="0"`)
  * and the 3.x session view file (root `cy:view="1"`).
  */

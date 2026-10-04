@@ -1,5 +1,9 @@
 # Neo4j CSV
 
+These are the CSV files the [`neo4j-admin database import`](https://neo4j.com/docs/operations-manual/current/tutorial/neo4j-admin-import/)
+command reads: node files with `:ID` and `:LABEL` columns, and relationship files with
+`:START_ID`, `:END_ID` and `:TYPE`. Their headers carry property types (`born:int`).
+
 ## At a glance
 
 <!-- generated:begin glance:neo4j -->
@@ -17,34 +21,98 @@
 
 What a saved file can hold:
 
-| Capability        | Value                       | Meaning                                                                         |
-| ----------------- | --------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no                          | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                         | Parallel edges.                                                                 |
-| `selfLoops`       | yes                         | Self-loops.                                                                     |
-| `edgeIds`         | none                        | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any                         | Which node ids can be written unchanged.                                        |
-| `dtypes`          | f32, f64, i32, bool, string | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                          | Multi-component (stride) columns.                                               |
-| `lists`           | yes                         | List columns.                                                                   |
-| `json`            | no                          | Nested json columns.                                                            |
-| `defaults`        | no                          | Declared defaults.                                                              |
-| `options`         | no                          | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                          | Containment (parent / parents roles).                                           |
-| `temporal`        | none                        | Temporal support level.                                                         |
-| `graphAttributes` | no                          | Graph-level attributes.                                                         |
-| `positions`       | no                          | The position role.                                                              |
-| `viz`             | no                          | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                       | Meaning                                                                                                                            |
+| ----------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no                          | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                         | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                         | Self-loops.                                                                                                                        |
+| `edgeIds`         | none                        | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any                         | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | f32, f64, i32, bool, string | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                          | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                         | List columns.                                                                                                                      |
+| `json`            | no                          | Nested JSON values.                                                                                                                |
+| `defaults`        | no                          | Columns' declared default values.                                                                                                  |
+| `options`         | no                          | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                          | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                        | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | no                          | Graph-level attributes.                                                                                                            |
+| `positions`       | no                          | Node positions.                                                                                                                    |
+| `viz`             | no                          | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/neo4j -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+// Node files first, then relationship files, as neo4j-admin import takes them
+const { snapshot, report } = await importGraph(await readFile("movies-nodes.csv"), {
+    format: "neo4j",
+    relationships: await readFile("movies-rels.csv"),
+});
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} relationships, ${report.warningCount} warnings`);
+console.log(`node columns: ${snapshot.nodes.names().join(", ")}`);
+
+await writeFile("movies-nodes-out.csv", await exportGraphToBytes(snapshot, "neo4j", { part: "nodes" }));
+await writeFile("movies-rels-out.csv", await exportGraphToBytes(snapshot, "neo4j", { part: "relationships" }));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/neo4j -->
+
+```text
+7 nodes, 6 relationships, 0 warnings
+node columns: labels, idSpace, originalId, movieId, title, released, personId, name, born
+```
+
+<!-- generated:end -->
+
+Pass the node files as the input (or with the `nodes` option) and the relationship files with
+the `relationships` option; each option takes one input or an array. When saving, `part` writes the
+node sections, the relationship sections, or both into one file (the default).
 
 ## How graph-io reads it
 
+- A header with `:ID`, `:START_ID` or `:END_ID` is recognized as Neo4j even in a `.csv` file, so
+  you rarely need `format: "neo4j"`. Pass it when the input has no header graph-io can see, such as
+  a relationships-only string.
+- One file can hold several sections, each starting with its own header row.
+- Property columns get the type their header declares: `int` an integer column, `long` and
+  `double` 64-bit floats, `float` a 32-bit float, `boolean` booleans, `string` text, date and time
+  types milliseconds (with the original text kept in a `<name>.text` column when it is not in
+  canonical form), `point` JSON, and `type[]` a list. A column without a type is text.
+- `:LABEL` becomes the `labels` list column and `:TYPE` the edge column `type`.
+- An id space (`movieId:ID(Movie)`) keeps the same id in two spaces apart: a node of a space is
+  stored under the id `Movie:m1`, with its id text in the `originalId` column and its space in
+  `idSpace`. `:START_ID(Movie)` and `:END_ID(Movie)` look ids up in their space.
+- A `weight` property is the edge weight.
+- Every relationship is directed, as in Neo4j. Pass `onMixedDirection: "undirected"` to read the
+  file as an undirected graph.
+- An unquoted empty cell means "no value"; a quoted empty cell is an empty string.
+- `:IGNORE` columns are skipped, and the report's `lossy` list says how many.
+
 ## What a saved file keeps and loses
+
+What does not survive:
+
+- Direction. Every relationship is directed, so an undirected graph is written as directed
+  relationships (`W_NEO4J_UNDIRECTED_AS_DIRECTED`).
+- Edge ids, nesting, time columns other than Neo4j's own date and time types, and graph
+  attributes.
+- JSON values other than points, and dictionary columns, which read back as text.
+- A position or visual column is written as a plain property.
+- A list item containing the array delimiter (`;` by default; `arrayDelimiter` changes it).
+- A text id that looks like a number reads back as a number (`W_ID_TEXT_TYPE`).
+
+The id spaces, labels, types and declared property types a Neo4j import read are written back,
+so a file read from Neo4j CSV saves as the same file.
 
 <!-- generated:begin reference:neo4j -->
 
@@ -105,7 +173,7 @@ The codes this format's import report can hold, also exported as `NEO4J_ISSUE` f
 | `W_COLUMN_RENAMED`              | `COLUMN_RENAMED`        | warning  | A column renamed `<name>#<id>` because the name was taken.                                                |
 | `W_ROLE_TAKEN`                  | `ROLE_TAKEN`            | warning  | A role the caller's sink already holds.                                                                   |
 | `W_OPTION_IGNORED`              | `OPTION_IGNORED`        | warning  | A common option the importer has no use for (nodeIdFrom, defaultDirected, ...).                           |
-| `W_SINK_OPTION`                 | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honour.                                                         |
+| `W_SINK_OPTION`                 | `SINK_OPTION`           | warning  | A builder-policy option the sink does not honor.                                                          |
 | `W_NEO4J_MISSING_TYPE`          | `MISSING_TYPE`          | warning  | A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type.                  |
 | `W_NEO4J_SECTION_KIND`          | `SECTION_KIND`          | warning  | A file under the nodes option holds a relationship header, or the reverse; read by its header.            |
 | `W_DANGLING_REFERENCE`          | `DANGLING_REFERENCE`    | warning  | Relationship endpoints no node row declares became nodes (neo4j-admin refuses them).                      |

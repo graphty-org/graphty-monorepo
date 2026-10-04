@@ -1,5 +1,9 @@
 # CSV and TSV
 
+CSV and TSV files hold one table per file. graph-io reads three kinds of table: an edge list
+(one edge per row), a node table (one node per row), and an adjacency list (a node and its
+neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use.
+
 ## At a glance
 
 <!-- generated:begin glance:csv -->
@@ -17,34 +21,112 @@
 
 What a saved file can hold:
 
-| Capability        | Value                        | Meaning                                                                         |
-| ----------------- | ---------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                          | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                          | Parallel edges.                                                                 |
-| `selfLoops`       | yes                          | Self-loops.                                                                     |
-| `edgeIds`         | optional                     | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any                          | Which node ids can be written unchanged.                                        |
-| `dtypes`          | bool, i32, f64, string, dict | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                           | Multi-component (stride) columns.                                               |
-| `lists`           | no                           | List columns.                                                                   |
-| `json`            | no                           | Nested json columns.                                                            |
-| `defaults`        | no                           | Declared defaults.                                                              |
-| `options`         | no                           | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                           | Containment (parent / parents roles).                                           |
-| `temporal`        | none                         | Temporal support level.                                                         |
-| `graphAttributes` | no                           | Graph-level attributes.                                                         |
-| `positions`       | no                           | The position role.                                                              |
-| `viz`             | no                           | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                        | Meaning                                                                                                                            |
+| ----------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                          | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                          | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                          | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional                     | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any                          | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | bool, i32, f64, string, dict | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                           | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | no                           | List columns.                                                                                                                      |
+| `json`            | no                           | Nested JSON values.                                                                                                                |
+| `defaults`        | no                           | Columns' declared default values.                                                                                                  |
+| `options`         | no                           | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                           | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                         | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | no                           | Graph-level attributes.                                                                                                            |
+| `positions`       | no                           | Node positions.                                                                                                                    |
+| `viz`             | no                           | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/csv -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+// An edge table, with the node table passed alongside it
+const { snapshot } = await importGraph(await readFile("got-edges.csv"), {
+    filename: "got-edges.csv",
+    nodes: await readFile("got-nodes.csv"),
+});
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+
+// One CSV file holds one table: write the edges and the nodes separately
+console.log(checkExport(snapshot, "csv").map((n) => n.code));
+await writeFile("edges.csv", await exportGraphToBytes(snapshot, "csv"));
+await writeFile("nodes.csv", await exportGraphToBytes(snapshot, "csv", { table: "nodes" }));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/csv -->
+
+```text
+107 nodes, 352 edges
+[ 'W_CSV_NODE_TABLE' ]
+```
+
+<!-- generated:end -->
+
+A CSV file holds one table, so the example writes the edges and the nodes to two files.
+The default export is the edge table, which has no room for node attributes (`W_CSV_NODE_TABLE`);
+`table: "nodes"` writes the node table. To read the pair back, pass the edge table as the input
+and the node table as the `nodes` option, as the example does when loading.
 
 ## How graph-io reads it
 
+- The delimiter is detected from the first rows (`,`, tab, `;`, `|` or space) unless you pass
+  `delimiter`. Excel's `sep=;` first line is understood. A space delimiter reads the format of SNAP
+  and KONECT files: runs of spaces and tabs are one separator.
+- The first row is a header when it names known columns or is all text above a row of numbers
+  (`header` overrides this). The column names decide what each column is: `source` / `target`,
+  `from` / `to`, or Gephi's `Source` / `Target` for the ends of an edge; `id` / `Id` for a node or
+  edge id; `label` / `Label` for the label; `weight` for the weight; Gephi's `Type` for the direction
+  of each row. `sourceColumn`, `targetColumn`, `idColumn` and `typeColumn` name columns yourself.
+- A file without a header is read as source, target, weight, then `column4`, `column5`, ... as
+  attributes.
+- Every other column is an attribute. Its type comes from its values: a column of whole numbers is
+  an integer column, `2.0` stays a floating-point number, `true` / `false` make a boolean column,
+  and anything else is text.
+- A quoted empty cell (`""`) is an empty string; a bare empty cell has no value.
+- The direction comes from Gephi's `Type` column (`Directed`, `Undirected`, `Mutual`) when there is
+  one, otherwise from a leading `# Directed graph` comment (SNAP) or `% sym` / `% asym` line
+  (KONECT), otherwise from `defaultDirected` (directed).
+- Lines starting with `#` or `%` before the first row are comments.
+- The `nodes` option takes a node table to read alongside the edge list; its ids become nodes and
+  its other columns node attributes. A node table on its own is read when the header has an id
+  column but no source and target.
+- `table: "adjacency"` reads an adjacency list: each row is a node followed by its neighbors, and
+  `neighbor:2.5` gives that edge a weight. graph-io never guesses this table, because its rows look
+  like an edge list.
+- A file that is really XML, JSON, GML, DOT or Pajek is refused (`E_CSV_OTHER_FORMAT`) rather than
+  read as a table of nonsense.
+- Guesses graph-io had to make are reported once each: a stray quote, an id with spaces around it,
+  two columns that both look like the source, and others. See the codes below.
+
 ## What a saved file keeps and loses
+
+A CSV file is one table, so one file cannot hold everything:
+
+- The edge table (the default) holds the edges and their attributes, but no node attributes
+  (`W_CSV_NODE_TABLE`), no node without edges (`W_CSV_ISOLATED_NODES`), and not the node order
+  (`W_CSV_NODE_ORDER`). Write the node table as a second file with `table: "nodes"`.
+- `table: "adjacency"` keeps the ids, the node order, nodes without edges, the edge order and the
+  weights, but no direction and no attribute columns.
+- The Gephi dialect (the default) writes a `Type` column with each edge's direction. The generic
+  dialect (`dialect: "generic"`) has no direction column, so an undirected graph reads back as
+  directed (`W_CSV_DIRECTION_DROPPED`).
+- Booleans, integers, floating-point numbers and text read back with the same type. Lists and JSON
+  values are written as text, and `NaN` and infinities read back as text.
+- An id that is text but looks like a number (`"7"`) reads back as a number (`W_ID_TEXT_TYPE`).
+- Nesting, positions, visual columns, time columns and graph attributes are not written.
 
 <!-- generated:begin reference:csv -->
 
@@ -56,7 +138,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | -------------- | --------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `delimiter`    | `string`                                      |          | The field delimiter; sniffed from the first rows when omitted (`,`, tab, `;`, `\|`, space).                                                                                                                                                                                                                                                                                        |
 | `header`       | `boolean \| "auto"`                           | `"auto"` | Whether the first row is a header; "auto" (default) decides from its content.                                                                                                                                                                                                                                                                                                      |
-| `table`        | `"adjacency" \| "auto" \| "nodes" \| "edges"` | `"auto"` | What the input is: an edge table, a node table, an adjacency table (`node,neighbour[:weight],...` per row, no header by default), or "auto" (default): an edge table when source and target columns resolve, a node table when only an id column does. An adjacency table is never guessed: nothing in its rows tells it from an edge list.                                        |
+| `table`        | `"adjacency" \| "auto" \| "nodes" \| "edges"` | `"auto"` | What the input is: an edge table, a node table, an adjacency table (`node,neighbor[:weight],...` per row, no header by default), or "auto" (default): an edge table when source and target columns resolve, a node table when only an id column does. An adjacency table is never guessed: nothing in its rows tells it from an edge list.                                         |
 | `sourceColumn` | `CsvColumnRef`                                |          | The source column, by name or 0-based position; resolved from the header by default.                                                                                                                                                                                                                                                                                               |
 | `targetColumn` | `CsvColumnRef`                                |          | The target column, by name or 0-based position; resolved from the header by default.                                                                                                                                                                                                                                                                                               |
 | `typeColumn`   | `CsvColumnRef`                                |          | The per-row direction column (Directed / Undirected / Mutual); by default the exact `Type` column of a Gephi table (exact `Source` and `Target` headers); null reads no such column.                                                                                                                                                                                               |
@@ -71,7 +153,7 @@ These come on top of the [options every exporter takes](../options.md#every-expo
 | Option      | Type                                | Default   | Meaning                                                                                                                                                                        |
 | ----------- | ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dialect`   | `"gephi" \| "generic"`              | `"gephi"` | The header spelling: "gephi" (default) writes `Source,Target,Type,...,Weight` with the per-row direction; "generic" writes `source,target,...,weight` and no direction column. |
-| `table`     | `"adjacency" \| "nodes" \| "edges"` |           | Which table to write: the edge table (default), the node table, or an adjacency table (a node and its neighbours per row; read back with the importer's `table: "adjacency"`). |
+| `table`     | `"adjacency" \| "nodes" \| "edges"` |           | Which table to write: the edge table (default), the node table, or an adjacency table (a node and its neighbors per row; read back with the importer's `table: "adjacency"`).  |
 | `delimiter` | `string`                            | `","`     | The field delimiter; "," by default.                                                                                                                                           |
 | `newline`   | `"\n" \| "\r\n"`                    | `"\n"`    | The line terminator; "\n" by default.                                                                                                                                          |
 | `header`    | `boolean`                           | `true`    | Whether to write the header row; true by default (an adjacency table never has one).                                                                                           |
@@ -108,7 +190,7 @@ The codes this format's import report can hold, also exported as `CSV_ISSUE` fro
 | `W_ROLE_TAKEN`                    | `ROLE_TAKEN`                | warning  | A column whose role another column of the sink already holds.                                          |
 | `W_COLUMN_RENAMED`                | `COLUMN_RENAMED`            | warning  | A column renamed `<name>#<position>` (a repeated header, or a name the sink holds with another shape). |
 | `W_OPTION_IGNORED`                | `OPTION_IGNORED`            | warning  | A common option the importer has no use for was given.                                                 |
-| `W_SINK_OPTION`                   | `SINK_OPTION`               | warning  | A builder-policy option the sink does not honour.                                                      |
+| `W_SINK_OPTION`                   | `SINK_OPTION`               | warning  | A builder-policy option the sink does not honor.                                                       |
 | `W_DIRECTION_REFUSED`             | `DIRECTION_REFUSED`         | warning  | The sink refused the file's direction.                                                                 |
 | `W_DIRECTION_FORCED`              | `DIRECTION_FORCED`          | warning  | Edges forced to the policy's direction.                                                                |
 | `E_MIXED_DIRECTION`               | `MIXED_DIRECTION`           | error    | A mixed file under onMixedDirection "error" (fatal).                                                   |
@@ -137,7 +219,7 @@ The codes `check()` can return before a save, also exported as `CSV_LOSS` from `
 | `W_MUTUAL_EXPANDED`       | `MUTUAL_EXPANDED`       | warning             | Mutual pairs are written as two directed rows.                                                                                                                                                             |
 | `W_CSV_RESERVED_NAME`     | `RESERVED_NAME`         | warning             | An attribute column named like a reserved header is not written.                                                                                                                                           |
 | `W_ROLE_ASSUMED`          | `ROLE_ASSUMED`          | warning             | A column without a role that the importer gives one back by its name.                                                                                                                                      |
-| `W_CSV_ROLE_NAME`         | `ROLE_NAME`             | warning             | A role column (id, label) whose name the importer does not recognise; the role is lost.                                                                                                                    |
+| `W_CSV_ROLE_NAME`         | `ROLE_NAME`             | warning             | A role column (id, label) whose name the importer does not recognize; the role is lost.                                                                                                                    |
 | `W_CSV_TEXT_ROLE`         | `TEXT_ROLE`             | warning             | A role column (id, label) that is not string / dict reads back as string.                                                                                                                                  |
 | `W_CSV_NONFINITE`         | `NONFINITE`             | warning             | NaN / Infinity in a numeric column read back as text.                                                                                                                                                      |
 | `W_TEXT_INFERRED`         | `TEXT_INFERRED`         | warning             | A text column whose every value reads back as a number or boolean.                                                                                                                                         |

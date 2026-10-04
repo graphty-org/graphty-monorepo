@@ -1,0 +1,4 @@
+network 0: Beta
+network 1: Alpha
+Alpha: 4 nodes; node columns: graphics, name, position, z, selected, score, count, big, tags, flags, formula, note, shared name, species, count#SHARED_ATTRS, appScore, count#MYAPP, parent, xgmml.subgraph, position@2
+[ 'W_EDGE_IDS_GENERATED', 'W_ID_TEXT_TYPE' ]

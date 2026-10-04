@@ -216,7 +216,7 @@ export const XGMML_ISSUE = Object.freeze({
     ID_MERGED: ID_MERGED_CODE,
     /** An option the format has no use for. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /** A builder-policy option the sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The sink refused the file's direction. */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,

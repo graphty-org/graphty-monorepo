@@ -1,5 +1,9 @@
 # OBO
 
+[OBO](https://owlcollab.github.io/oboformat/doc/obo-syntax.html) is the text format of the
+[Gene Ontology](https://geneontology.org/) and the [OBO Foundry](https://obofoundry.org/)
+ontologies. Each term is a node, and its `is_a` and `relationship` lines are edges to its parents.
+
 ## At a glance
 
 <!-- generated:begin glance:obo -->
@@ -17,34 +21,108 @@
 
 What a saved file can hold:
 
-| Capability        | Value | Meaning                                                                         |
-| ----------------- | ----- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no    | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes   | Parallel edges.                                                                 |
-| `selfLoops`       | yes   | Self-loops.                                                                     |
-| `edgeIds`         | none  | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any   | Which node ids can be written unchanged.                                        |
-| `dtypes`          |       | The column dtypes the format keeps as declared.                                 |
-| `components`      | no    | Multi-component (stride) columns.                                               |
-| `lists`           | no    | List columns.                                                                   |
-| `json`            | no    | Nested json columns.                                                            |
-| `defaults`        | no    | Declared defaults.                                                              |
-| `options`         | no    | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no    | Containment (parent / parents roles).                                           |
-| `temporal`        | none  | Temporal support level.                                                         |
-| `graphAttributes` | no    | Graph-level attributes.                                                         |
-| `positions`       | no    | The position role.                                                              |
-| `viz`             | no    | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value | Meaning                                                                                                                            |
+| ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no    | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes   | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes   | Self-loops.                                                                                                                        |
+| `edgeIds`         | none  | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any   | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          |       | The column types the format keeps exactly.                                                                                         |
+| `components`      | no    | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | no    | List columns.                                                                                                                      |
+| `json`            | no    | Nested JSON values.                                                                                                                |
+| `defaults`        | no    | Columns' declared default values.                                                                                                  |
+| `options`         | no    | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no    | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none  | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | no    | Graph-level attributes.                                                                                                            |
+| `positions`       | no    | Node positions.                                                                                                                    |
+| `viz`             | no    | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/obo -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { exportGraphToString, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("basic.obo"), { filename: "basic.obo" });
+for (let i = 0; i < snapshot.nodeCount; i++) {
+    console.log(`${String(snapshot.ids.idOf(i))} ${String(snapshot.nodes.value("name", i))}`);
+}
+for (let e = 0; e < snapshot.edgeCount; e++) {
+    const from = snapshot.ids.idOf(snapshot.edgeSource(e));
+    const to = snapshot.ids.idOf(snapshot.edgeTarget(e));
+    console.log(`${String(from)} ${String(snapshot.edges.value("relation", e))} ${String(to)}`);
+}
+
+// Write it back as OBO, or as OBO Graphs JSON
+await writeFile("basic-copy.obo", await exportGraphToString(snapshot, "obo"));
+await writeFile("basic.json", await exportGraphToString(snapshot, "json", { dialect: "obographs" }));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/obo -->
+
+```text
+UBERON:0002398 manus
+UBERON:0002470 autopod region
+UBERON:0002102 forelimb
+UBERON:0002101 limb
+UBERON:0002398 is_a UBERON:0002470
+UBERON:0002398 part_of UBERON:0002102
+UBERON:0002470 part_of UBERON:0002101
+UBERON:0002102 is_a UBERON:0002101
+```
+
+<!-- generated:end -->
+
+Every edge points from a term to its parent, and the `relation` column says how they are
+related. The same graph can be saved as OBO again or as [OBO Graphs JSON](./json.md#obo-graphs-obographs).
 
 ## How graph-io reads it
 
+- OBO 1.0, 1.2 and 1.4 are read as one format: real files do not say which they follow. The file
+  is streamed line by line.
+- `[Term]` and `[Instance]` frames are nodes. `is_a`, `relationship` and `instance_of` lines are
+  directed edges from the term to the target, with the relation (`is_a`, `part_of`, ...) in the
+  `relation` column and a trailing `{...}` qualifier block in `qualifiers`.
+- Every other tag fills the column of its name: `name` (the label), `namespace`, `def`, `synonym`,
+  `xref`, `alt_id`, `subset`, `is_obsolete`, `property_value`, and so on. A tag graph-io does not
+  know is kept in `obo.unrecognized`.
+- `[Typedef]` frames (the relations) are kept in `snapshot.meta.extra.obo.typedefs`, and the header
+  in `snapshot.meta.extra.obo.header`. `typedefs: "nodes"` makes typedefs nodes too.
+- Frames that share an id are merged.
+- A target that no frame declares, typically a term from an imported ontology, becomes a placeholder
+  node (with the `graphty.placeholder` column set). `addMissingNodes: false` drops the edge instead.
+- Obsolete terms are kept; `obsolete: "drop"` leaves them and their edges out.
+- `import` and the treat-xrefs macros in the header are kept but not applied
+  (`W_OBO_HEADER_NOT_APPLIED`).
+
 ## What a saved file keeps and loses
+
+graph-io writes OBO 1.4. A file read from OBO writes back as the same graph: the header,
+typedefs and unknown frames it kept are written back. For a graph from another format:
+
+- Every node becomes a `[Term]` frame (or `[Instance]` / `[Typedef]` from a `type` column), and
+  every edge a line in its source's frame.
+- An edge without a relation is written as `is_a` (`W_RELATION_ASSUMED`); `relation` chooses
+  another. Ontology tools read `is_a` as "is a subclass of".
+- Node columns outside the OBO vocabulary become `property_value` lines
+  (`W_COLUMN_AS_PROPERTY_VALUE`), and edge columns become qualifiers
+  (`W_OBO_EDGE_COLUMN_AS_QUALIFIER`).
+- Every edge is directed (`W_OBO_UNDIRECTED_AS_DIRECTED`). Edges read back grouped by their source
+  (`W_OBO_EDGE_ORDER`), and identical lines in one frame read back as one
+  (`W_OBO_DUPLICATE_CLAUSE`).
+- An OBO id cannot be empty or hold whitespace, a control character, `!`, `{` or `}`;
+  `sanitizeIds: "mangle"` rewrites such ids and graph-io restores them.
+- Edge ids, positions, visual columns and graph attributes are not written.
 
 <!-- generated:begin reference:obo -->
 

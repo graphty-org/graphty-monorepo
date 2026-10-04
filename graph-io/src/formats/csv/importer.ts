@@ -2,7 +2,7 @@
  * The CSV / TSV importer (design sections 8.4 and 8.6; research note 07 section 2.6): a streaming
  * edge-list reader for the generic (`source,target[,weight,...]`), Gephi (`Source,Target,Type,Id,
  * Label,Weight,...`) and headerless (`u v [w]`) dialects, with an optional node table merged by id,
- * and, with `table: "adjacency"`, an adjacency table (`node,neighbour[:weight],...`).
+ * and, with `table: "adjacency"`, an adjacency table (`node,neighbor[:weight],...`).
  *
  * - The delimiter is sniffed from a preview unless given; LF, CRLF and lone-CR files all read.
  * - The first row is a header when it holds a known column name or when it is all text over a
@@ -21,7 +21,7 @@
  *   all-text column of low cardinality becomes a dict (design section 5.4); an `id` column of the
  *   edge table is the edge id (role id, unique); a `label` column is the label (role label).
  * - An adjacency table has no header (unless `header: true`, which skips the first row): each row
- *   is a node followed by its neighbours, one edge per neighbour in row order. A neighbour cell
+ *   is a node followed by its neighbors, one edge per neighbor in row order. A neighbor cell
  *   `id:weight` carries the edge's weight when the text after its LAST colon is a number; a cell
  *   ending in a bare colon (`a:1:`) is the id before it with no weight; any other cell is the id
  *   as written (`http://x`). A row holding only its node adds an isolated node. An empty adjacency
@@ -102,7 +102,7 @@ export interface CsvImportOptions {
     /** Whether the first row is a header; "auto" (default) decides from its content. */
     header?: boolean | "auto" | undefined;
     /**
-     * What the input is: an edge table, a node table, an adjacency table (`node,neighbour[:weight],...`
+     * What the input is: an edge table, a node table, an adjacency table (`node,neighbor[:weight],...`
      * per row, no header by default), or "auto" (default): an edge table when source and target
      * columns resolve, a node table when only an id column does. An adjacency table is never
      * guessed: nothing in its rows tells it from an edge list.
@@ -251,7 +251,7 @@ interface NodePlan {
     readonly optionalLast: boolean;
 }
 
-/** An adjacency table: no columns, a node and its neighbours per row. */
+/** An adjacency table: no columns, a node and its neighbors per row. */
 interface AdjacencyPlan {
     readonly kind: "adjacency";
     readonly names: readonly string[];
@@ -523,7 +523,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
 }
 
 /**
- * Split an adjacency neighbour cell into its id and weight: the text after the LAST colon is the
+ * Split an adjacency neighbor cell into its id and weight: the text after the LAST colon is the
  * weight when it is a number, nothing when it is empty (`a:1:` is the id `a:1`, unweighted, the
  * form the exporter writes for an id containing a colon), and part of the id otherwise.
  * @param text - the cell text
@@ -1247,7 +1247,7 @@ class TableReader {
     }
 
     /**
-     * Push one adjacency row: the node, then one edge per set neighbour cell, in row order.
+     * Push one adjacency row: the node, then one edge per set neighbor cell, in row order.
      * @param row - the cells
      * @param quoted - whether each cell was quoted
      * @param line - the row's line

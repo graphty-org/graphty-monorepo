@@ -394,7 +394,7 @@ function makeIssue(
 /**
  * Whether a thrown value is a cancellation reason (the DOMException or Error named "AbortError" that
  * AbortSignal.reason holds, or the "TimeoutError" of AbortSignal.timeout()), which an importer must
- * let through untouched. A custom reason passed to `abort(reason)` is not recognised: compare it with
+ * let through untouched. A custom reason passed to `abort(reason)` is not recognized: compare it with
  * `signal.reason`.
  * @param err - the thrown value
  * @returns true for an AbortError or a TimeoutError

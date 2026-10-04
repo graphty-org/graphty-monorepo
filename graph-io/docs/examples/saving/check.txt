@@ -1,0 +1,3 @@
+E_ID_CHARSET: 2 node id(s) outside the nmtoken charset; export() will throw unless sanitizeIds is "mangle"
+W_COLUMN_NAME_CHANGED: node column "Label" (label) is written into the format's label slot and reads back as "label"
+[ 'W_ID_MANGLED', 'W_COLUMN_NAME_CHANGED' ]

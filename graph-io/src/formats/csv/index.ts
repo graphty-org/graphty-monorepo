@@ -97,7 +97,7 @@ export const CSV_ISSUE = Object.freeze({
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
     /** A common option the importer has no use for was given. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /** A builder-policy option the sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The sink refused the file's direction. */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,

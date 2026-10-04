@@ -1,5 +1,9 @@
 # CX2
 
+[CX2](<https://cytoscape.org/cx/cx2/specification/cytoscape-exchange-format-specification-(version-2)/>)
+is the JSON exchange format of [NDEx](https://www.ndexbio.org/), Cytoscape 3.10 and later, and
+Cytoscape Web.
+
 ## At a glance
 
 <!-- generated:begin glance:cx2 -->
@@ -17,34 +21,93 @@
 
 What a saved file can hold:
 
-| Capability        | Value                  | Meaning                                                                         |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                    | Parallel edges.                                                                 |
-| `selfLoops`       | yes                    | Self-loops.                                                                     |
-| `edgeIds`         | required               | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | integer                | Which node ids can be written unchanged.                                        |
-| `dtypes`          | string, f64, i32, bool | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                     | Multi-component (stride) columns.                                               |
-| `lists`           | yes                    | List columns.                                                                   |
-| `json`            | no                     | Nested json columns.                                                            |
-| `defaults`        | yes                    | Declared defaults.                                                              |
-| `options`         | no                     | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                     | Containment (parent / parents roles).                                           |
-| `temporal`        | none                   | Temporal support level.                                                         |
-| `graphAttributes` | yes                    | Graph-level attributes.                                                         |
-| `positions`       | yes                    | The position role.                                                              |
-| `viz`             | no                     | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                  | Meaning                                                                                                                            |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                    | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                    | Self-loops.                                                                                                                        |
+| `edgeIds`         | required               | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | integer                | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | string, f64, i32, bool | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                     | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                    | List columns.                                                                                                                      |
+| `json`            | no                     | Nested JSON values.                                                                                                                |
+| `defaults`        | yes                    | Columns' declared default values.                                                                                                  |
+| `options`         | no                     | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                     | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                   | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                    | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                    | Node positions.                                                                                                                    |
+| `viz`             | no                     | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/cx2 -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot, report } = await importGraph(await readFile("glypican2.cx2"), { filename: "glypican2.cx2" });
+console.log(`${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges`);
+console.log(report.issues.map((i) => i.code));
+
+console.log(checkExport(snapshot, "cx2").map((n) => n.code));
+await writeFile("glypican2-copy.cx2", await exportGraphToBytes(snapshot, "cx2"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/cx2 -->
+
+```text
+2 nodes, 1 edges
+[ 'W_STYLES_NOT_IMPORTED' ]
+[]
+```
+
+<!-- generated:end -->
+
+A CX2 file read by graph-io keeps its style rules and other aspects in the snapshot's
+metadata, and writes them back when you save as CX2, even though graph-io does not apply them
+(`W_STYLES_NOT_IMPORTED`).
 
 ## How graph-io reads it
 
+- The document is read element by element, so a file longer than the longest JavaScript string
+  still loads.
+- Every edge is directed: CX2 has no undirected edges.
+- Node ids are integers. An id beyond 2^53 keeps its digits as text (`W_PRECISION`), and `"5"` or
+  `5.0` read as 5 (`W_ID_TEXT_TYPE`).
+- Declared attributes (`attributeDeclarations`) become typed columns named by their full names, with
+  their declared defaults. An undeclared attribute takes the type of its values
+  (`W_CX2_UNDECLARED_ATTRIBUTE`). A value of the wrong type is an error, and that value is left
+  out.
+- `name` is the label.
+- `x` and `y` are the position. Cytoscape's y axis points down; graph-io stores y pointing up, so it
+  negates y when it reads and again when it writes. `z` is a stacking order and goes to the `z`
+  column (`zAs: "position"` makes it the third coordinate).
+- Per-node and per-edge visual values (`nodeBypasses`, `edgeBypasses`) become one column per visual
+  property.
+- A document without a `status` is an error (`E_CX2_NO_STATUS`), and one whose status says the
+  export failed stops the import (`E_STATUS_FAILED`).
+- An edge to an unknown node is an error (`E_UNKNOWN_NODE`); `addMissingNodes: true` creates the
+  node instead, as Cytoscape does.
+
 ## What a saved file keeps and loses
+
+What does not survive:
+
+- Undirected edges: every edge is written directed (`W_CX2_UNDIRECTED_AS_DIRECTED`).
+- Node ids that are not integers. They need `sanitizeIds: "mangle"`, which keeps the original in a
+  `graphty:originalId` attribute that graph-io turns back into the id.
+- `NaN` and the infinities are written as `null` (`W_CX2_NONFINITE_AS_NULL`), and JSON values as
+  text (`W_CX2_JSON_AS_STRING`).
+- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
+- Nesting and time columns.
 
 <!-- generated:begin reference:cx2 -->
 
@@ -98,7 +161,7 @@ The codes this format's import report can hold, also exported as `CX2_ISSUE` fro
 | `W_SINGLE_OBJECT_ASPECT`     | `SINGLE_OBJECT_ASPECT`    | warning  | An aspect CX2 defines as an array of elements written as one object; read as one element.                |
 | `W_MULTI_ASPECT_FRAGMENT`    | `MULTI_ASPECT_FRAGMENT`   | warning  | A member holding several aspects; each array-valued key is read as its own block.                        |
 | `W_JSON_NONSTANDARD_NUMBER`  | `JSON_NONSTANDARD_NUMBER` | warning  | The bare tokens NaN / Infinity / -Infinity (Python's json writes them), read as numbers.                 |
-| `W_STYLES_NOT_IMPORTED`      | `STYLES_NOT_IMPORTED`     | warning  | The file's style rules are not applied (issue #706).                                                     |
+| `W_STYLES_NOT_IMPORTED`      | `STYLES_NOT_IMPORTED`     | warning  | The file's style rules are not applied; they are kept so a CX2 export writes them back.                  |
 | `E_BAD_ASPECT_BLOCK`         | `BAD_ASPECT_BLOCK`        | error    | A member of the top-level array that is not a one-key aspect block, or an element that is not an object. |
 | `W_ASPECT_ORDER`             | `ASPECT_ORDER`            | warning  | An aspect out of its place (after the post-metadata or the status, a third metaData, late declarations). |
 | `W_COUNT_MISMATCH`           | `COUNT_MISMATCH`          | warning  | A metaData element count disagrees with what was read.                                                   |
@@ -123,7 +186,7 @@ The codes this format's import report can hold, also exported as `CX2_ISSUE` fro
 | `W_DIRECTION_REFUSED`        | `DIRECTION_REFUSED`       | warning  | The sink refused the direction.                                                                          |
 | `W_DIRECTION_FORCED`         | `DIRECTION_FORCED`        | warning  | Edges forced to the policy's direction.                                                                  |
 | `W_OPTION_IGNORED`           | `OPTION_IGNORED`          | warning  | A common option CX2 has no use for.                                                                      |
-| `W_SINK_OPTION`              | `SINK_OPTION`             | warning  | A builder option the caller's sink does not honour.                                                      |
+| `W_SINK_OPTION`              | `SINK_OPTION`             | warning  | A builder option the caller's sink does not honor.                                                       |
 
 ## Loss codes
 

@@ -1,5 +1,9 @@
 # GML
 
+GML, the [Graph Modelling Language](https://networkx.org/documentation/stable/reference/readwrite/gml.html),
+is a text format of nested `key value` records. graph-io reads and writes it the way NetworkX and
+igraph do.
+
 ## At a glance
 
 <!-- generated:begin glance:gml -->
@@ -17,34 +21,94 @@
 
 What a saved file can hold:
 
-| Capability        | Value                        | Meaning                                                                         |
-| ----------------- | ---------------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no                           | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                          | Parallel edges.                                                                 |
-| `selfLoops`       | yes                          | Self-loops.                                                                     |
-| `edgeIds`         | optional                     | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | integer                      | Which node ids can be written unchanged.                                        |
-| `dtypes`          | i32, f64, string, dict, json | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                           | Multi-component (stride) columns.                                               |
-| `lists`           | yes                          | List columns.                                                                   |
-| `json`            | yes                          | Nested json columns.                                                            |
-| `defaults`        | no                           | Declared defaults.                                                              |
-| `options`         | no                           | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                           | Containment (parent / parents roles).                                           |
-| `temporal`        | none                         | Temporal support level.                                                         |
-| `graphAttributes` | yes                          | Graph-level attributes.                                                         |
-| `positions`       | yes                          | The position role.                                                              |
-| `viz`             | no                           | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                        | Meaning                                                                                                                            |
+| ----------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no                           | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                          | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                          | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional                     | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | integer                      | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | i32, f64, string, dict, json | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                           | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                          | List columns.                                                                                                                      |
+| `json`            | yes                          | Nested JSON values.                                                                                                                |
+| `defaults`        | no                           | Columns' declared default values.                                                                                                  |
+| `options`         | no                           | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                           | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                         | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                          | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                          | Node positions.                                                                                                                    |
+| `viz`             | no                           | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/gml -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("polbooks.gml"), { filename: "polbooks.gml" });
+console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
+console.log(`node 0: ${String(snapshot.nodes.value("label", 0))}, ${String(snapshot.nodes.value("value", 0))}`);
+
+console.log(checkExport(snapshot, "gml"));
+await writeFile("polbooks-copy.gml", await exportGraphToBytes(snapshot, "gml"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/gml -->
+
+```text
+105 nodes; node columns: label, value
+node 0: 1000 Years for Revenge, n
+[]
+```
+
+<!-- generated:end -->
+
+The node labels and the `value` key of every node came back as columns, and the file
+saves back to GML with nothing lost.
 
 ## How graph-io reads it
 
+- The whole file is read as text before it is parsed.
+- Node and edge keys become columns. GML values carry their own type, so a column of `int` values
+  is an integer column, `real` values make a floating-point column, quoted strings make text, a
+  nested `[ ]` record is kept as JSON, and a key repeated within one node is a list. NetworkX's
+  `_networkx_list_start` marker and its `"[]"` empty list are understood.
+- `directed 1` makes a directed graph; a file without `directed` is undirected. The `directed` key
+  as the file wrote it is kept in `snapshot.meta.extra.gml.directed` (absent when the file has
+  none), so you can tell `directed 0` from a file that relies on the default.
+- An edge's `value` key is its weight (the `weightFrom` option changes the key).
+- A node's `graphics [ x y z ]` becomes its position; the other `graphics` keys are kept as JSON.
+  Pass `positions: false` to keep the whole `graphics` record as JSON.
+- The GML specification makes node ids integers. NetworkX and Gephi also write text ids; graph-io
+  reads them under the `ids` option with one `W_GML_STRING_ID` warning per file.
+- `nodeIdFrom: "label"` or `"index"` takes node ids from the labels or from the node order, for
+  files whose `id` keys are missing or meaningless.
+- `#` comments, `+INF`, `-INF` and `NAN` are read. A file can hold several `graph [ ]` blocks; see
+  [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
+- Text columns with many repeated values are stored as dictionaries to save memory; pass
+  `dictionaries: false` to store them as plain text.
+
 ## What a saved file keeps and loses
+
+What does not survive:
+
+- One direction per file. A graph with both kinds of edges needs `onMixedDirection`.
+- Node ids must be integers. Other ids need `sanitizeIds: "mangle"`, which numbers the nodes and
+  keeps each original id in a `graphty_originalId` key that graph-io restores.
+- Column names must be GML keys: a letter followed by letters, digits or underscores, and not one
+  of GML's own keys. Other names make the export throw (`E_GML_INVALID_KEY`,
+  `E_GML_RESERVED_KEY`) unless you pass `sanitizeKeys: "mangle"`, which rewrites them.
+- Inside a JSON record, GML cannot tell integers from reals, writes booleans as 1 and 0, and has no
+  null (`W_GML_RECORD_NUMBER_TYPE` and related notes).
+- Edge ids are kept; time columns, visual columns other than the position, and nesting are not.
 
 <!-- generated:begin reference:gml -->
 
@@ -78,7 +142,7 @@ The codes this format's import report can hold, also exported as `GML_ISSUE` fro
 | `W_CONTROL_CHARACTER`  | `CONTROL_CHARACTER` | warning  | A control character or a stray U+FEFF in the text, or an ignored trailing Ctrl-Z.                                        |
 | `E_FOREIGN_FORMAT`     | `FOREIGN_FORMAT`    | error    | The input is an HTML page, a PDF, compressed or archived data or an image (fatal).                                       |
 | `W_ISSUES_SUPPRESSED`  | `ISSUES_SUPPRESSED` | warning  | Warnings of one code beyond the number a report keeps, counted in one warning.                                           |
-| `E_SYNTAX`             | `SYNTAX`            | error    | A grammar violation: an untokenisable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal). |
+| `E_SYNTAX`             | `SYNTAX`            | error    | A grammar violation: an untokenizable bare token, an unclosed string or `[`, a stray `]`, a key without a value (fatal). |
 | `E_INVALID_UTF8`       | `INVALID_UTF8`      | error    | The input holds invalid UTF-8 (fatal).                                                                                   |
 | `E_INVALID_ENCODING`   | `INVALID_ENCODING`  | error    | Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal).                                 |
 | `W_ENCODING_FALLBACK`  | `ENCODING_FALLBACK` | warning  | Bytes that are not UTF-8 and declare no encoding were read as windows-1252.                                              |
@@ -105,7 +169,7 @@ The codes this format's import report can hold, also exported as `GML_ISSUE` fro
 | `W_ROLE_TAKEN`         | `ROLE_TAKEN`        | warning  | A column declared without its role because the sink already holds it.                                                    |
 | `W_ID_MERGED`          | `ID_MERGED`         | warning  | Two id texts merged into one number under ids "number".                                                                  |
 | `W_OPTION_IGNORED`     | `OPTION_IGNORED`    | warning  | A common option the importer has no use for was given.                                                                   |
-| `W_SINK_OPTION`        | `SINK_OPTION`       | warning  | A builder-policy option the sink does not honour.                                                                        |
+| `W_SINK_OPTION`        | `SINK_OPTION`       | warning  | A builder-policy option the sink does not honor.                                                                         |
 | `W_DIRECTION_REFUSED`  | `DIRECTION_REFUSED` | warning  | The sink refused the file's direction.                                                                                   |
 | `W_DIRECTION_FORCED`   | `DIRECTION_FORCED`  | warning  | Edges forced to the policy's direction.                                                                                  |
 | `E_MIXED_DIRECTION`    | `MIXED_DIRECTION`   | error    | A mixed file under onMixedDirection "error" (fatal).                                                                     |

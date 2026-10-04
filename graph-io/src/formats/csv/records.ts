@@ -606,7 +606,7 @@ class RecordScanner {
 
     private lastWasCr = false;
 
-    /** Whether no record has started yet (comment lines are recognised until one does). */
+    /** Whether no record has started yet (comment lines are recognized until one does). */
     private leading: boolean;
 
     private comment = "";

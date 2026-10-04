@@ -238,7 +238,7 @@ export const GRAPHML_ISSUE = Object.freeze({
     BAD_DEFAULT: BAD_DEFAULT_CODE,
     /** A long value beyond 2^53 rounded. */
     PRECISION: PRECISION_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /** A builder-policy option the sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The sink refused the file's direction. */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
@@ -272,6 +272,6 @@ export const GRAPHML_LOSS = Object.freeze({
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
-    /** A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE. */
+    /** A yfiles json value that is not a serializable tree: export() will throw E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

@@ -1,5 +1,9 @@
 # Pajek
 
+[Pajek](http://mrvar.fdv.uni-lj.si/pajek/) is a program for large network analysis. Its `.net`
+files list numbered vertices, then arcs (directed edges) and edges (undirected). A `.paj` project
+file bundles several networks with partitions and vectors.
+
 ## At a glance
 
 <!-- generated:begin glance:pajek -->
@@ -17,34 +21,96 @@
 
 What a saved file can hold:
 
-| Capability        | Value                  | Meaning                                                                         |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | yes                    | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                    | Parallel edges.                                                                 |
-| `selfLoops`       | yes                    | Self-loops.                                                                     |
-| `edgeIds`         | none                   | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | dense-1-based          | Which node ids can be written unchanged.                                        |
-| `dtypes`          | f64, i32, bool, string | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                     | Multi-component (stride) columns.                                               |
-| `lists`           | no                     | List columns.                                                                   |
-| `json`            | no                     | Nested json columns.                                                            |
-| `defaults`        | no                     | Declared defaults.                                                              |
-| `options`         | no                     | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | no                     | Containment (parent / parents roles).                                           |
-| `temporal`        | spells                 | Temporal support level.                                                         |
-| `graphAttributes` | no                     | Graph-level attributes.                                                         |
-| `positions`       | yes                    | The position role.                                                              |
-| `viz`             | no                     | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                  | Meaning                                                                                                                            |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | yes                    | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                    | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                    | Self-loops.                                                                                                                        |
+| `edgeIds`         | none                   | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | dense-1-based          | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | f64, i32, bool, string | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                     | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | no                     | List columns.                                                                                                                      |
+| `json`            | no                     | Nested JSON values.                                                                                                                |
+| `defaults`        | no                     | Columns' declared default values.                                                                                                  |
+| `options`         | no                     | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | no                     | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | spells                 | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | no                     | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                    | Node positions.                                                                                                                    |
+| `viz`             | no                     | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/pajek -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+// Pajek numbers vertices 1..N; with sanitizeIds: "mangle" the file also keeps the original ids ("Myriel", ...)
+const { snapshot } = await importGraph(await readFile("miserables.json"), { filename: "miserables.json" });
+const options = { sanitizeIds: "mangle" } as const;
+for (const note of checkExport(snapshot, "pajek", options)) {
+    console.log(`${note.code}: ${note.message}`);
+}
+const bytes = await exportGraphToBytes(snapshot, "pajek", options);
+await writeFile("miserables.net", bytes);
+
+// Reading the file back restores the original ids
+const back = await importGraph(bytes, { filename: "miserables.net" });
+console.log(`first id after the round trip: ${String(back.snapshot.ids.idOf(0))}`);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/pajek -->
+
+```text
+W_ID_RENUMBERED: 77 node id(s) are not their 1-based index; nodes are numbered 1..N, the originals kept in the exporter's originalId attribute (restored by restoreMangledIds) and as labels of the nodes without a label value
+W_PAJEK_LABEL_GAINED: 77 vertex line(s) carry coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label
+first id after the round trip: Myriel
+```
+
+<!-- generated:end -->
+
+Pajek numbers vertices 1 to N, so the string ids of this graph cannot be written as they are.
+With `sanitizeIds: "mangle"` each vertex also gets a `graphty_originalId` parameter, and reading
+the file back gives the original ids.
 
 ## How graph-io reads it
 
+- The file is streamed line by line.
+- `*Vertices N` declares vertices 1 to N. A file numbered from 0, as some scripts write, is
+  detected from its first vertex line (`firstVertex` sets this yourself). A vertex line's label,
+  coordinates, shape and `key value` parameters become columns; the coordinates are the position.
+- `*Arcs` sections are directed and `*Edges` sections undirected, so a file with both is a mixed
+  graph. `*Arcslist`, `*Edgeslist` and `*Matrix` sections are read too.
+- The number after the two ends of an arc or edge is its weight.
+- Time intervals such as `[1-5,7-*]` become a time column.
+- A `.paj` project's `*Partition` and `*Vector` objects become the node columns `partition` and
+  `vector` (`partition#2`, ... for further ones). Other project sections, such as `*Events`, are
+  skipped with a warning. A project with several networks is a file with several graphs; see
+  [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
+- Pajek files are often in windows-1252 rather than UTF-8; graph-io detects this. See
+  [Text encodings](../loading.md#text-encodings).
+
 ## What a saved file keeps and loses
+
+Pajek keeps mixed direction, parallel edges, weights, positions and time intervals. What does
+not survive:
+
+- Node ids. Vertices are always written 1 to N in node order (`W_ID_RENUMBERED`). The original id
+  is written as the label of a node that has no label. With `sanitizeIds: "mangle"` it is also
+  written as a `graphty_originalId` parameter, and graph-io restores it.
+- Edge ids, lists, JSON values, nesting and graph attributes.
+- A label holding a double quote or a line break cannot be written.
+- A mutual pair of edges becomes one undirected edge (`W_MUTUAL_AS_UNDIRECTED`).
+- When a vertex line needs a label to carry coordinates or parameters, the id is written there and
+  reads back as a label (`W_PAJEK_LABEL_GAINED`).
 
 <!-- generated:begin reference:pajek -->
 
@@ -108,7 +174,7 @@ The codes this format's import report can hold, also exported as `PAJEK_ISSUE` f
 | `W_ROLE_TAKEN`                   | `ROLE_TAKEN`             | warning  | A structural column declared without its role because the sink already holds it.                                                                     |
 | `W_PAJEK_ORIGINAL_ID_MERGED`     | `ORIGINAL_ID_MERGED`     | warning  | Two vertices carry the same `graphty_originalId` under restoreMangledIds and became one node.                                                        |
 | `W_PAJEK_ORIGINAL_ID_UNRESTORED` | `ORIGINAL_ID_UNRESTORED` | warning  | A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number.                                               |
-| `W_OPTION_IGNORED`               | `OPTION_IGNORED`         | warning  | A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honoured; long, hyperedges are not).            |
+| `W_OPTION_IGNORED`               | `OPTION_IGNORED`         | warning  | A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honored; long, hyperedges are not).             |
 | `W_SINK_OPTION`                  | `SINK_OPTION`            | warning  | A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION).                                            |
 | `W_PAJEK_QUOTE_IN_TOKEN`         | `QUOTE_IN_TOKEN`         | warning  | A double quote inside a token (a CSV-style doubled quote, a quote mid-word): removed and the parts joined.                                           |
 | `W_DUPLICATE_ATTRIBUTE`          | `DUPLICATE_ATTRIBUTE`    | warning  | The same parameter twice on one line; the later value stands.                                                                                        |

@@ -1,0 +1,4 @@
+E_IMPORT: error limit of 0 exceeded: line 3: 1 field(s), the header has 2
+stopped by E_CSV_FIELD_COUNT on line 3
+1 edges had been read
+not a graph file: no registered importer recognizes the input (filename "graph.graphml"): it is an HTML document (likely an error page saved in place of the file); pass the format explicitly

@@ -1,0 +1,4 @@
+netscope: 3 nodes, 2 edges
+[
+  'W_NETSCOPE_PREAMBLE: skipped the NetScope preamble (instrument bench-3)'
+]

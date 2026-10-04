@@ -91,7 +91,7 @@ export const CYS_ISSUE = Object.freeze({
     SESSION_RECORD: "W_CYS_SESSION_RECORD",
     /** The archive inflates beyond maxUncompressedBytes, or an entry beyond the ratio limit. */
     TOO_LARGE: TOO_LARGE_CODE,
-    /** The session's styles are not applied (issue #706). */
+    /** The session's styles are not applied. */
     STYLES_NOT_IMPORTED: STYLES_NOT_IMPORTED_CODE,
     /** A view, table or network the session names but does not hold. */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,

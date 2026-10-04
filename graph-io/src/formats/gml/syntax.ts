@@ -47,7 +47,7 @@ export const ORIGINAL_ID_KEY = "graphty_originalId";
  * `[`, a `]` with no open `[`, a value without a key or a key without a value.
  */
 export const SYNTAX_STRUCTURE_CODE = SYNTAX_CODE;
-/** The code of an untokenisable bare token (E_SYNTAX). */
+/** The code of an untokenizable bare token (E_SYNTAX). */
 export const SYNTAX_TOKEN_CODE = SYNTAX_CODE;
 /** The code of an unclosed string (E_SYNTAX). */
 export const SYNTAX_STRING_CODE = SYNTAX_CODE;

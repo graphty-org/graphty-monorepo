@@ -4,7 +4,7 @@
  * <attributes>` in the generic one) or, with `table: "nodes"`, the node table (`Id,Label,
  * <attributes>`), RFC 4180 quoted, one row per logical edge with expanded pairs folded back
  * through the `pair` role column; or, with `table: "adjacency"`, an adjacency table: a node and its
- * neighbours per row (`id:weight` for an explicit weight), no header, no attribute columns.
+ * neighbors per row (`id:weight` for an explicit weight), no header, no attribute columns.
  *
  * What survives a re-import exactly: ids (as text under the canonical rule), topology and
  * orientation, explicit weights (blank cells for defaulted ones), the per-row direction of the
@@ -18,7 +18,7 @@
  *
  * The adjacency table keeps ids, the node order, isolated nodes, the edge order, orientation and
  * explicit weights: consecutive edges with the same source share a row, a node the rows would
- * otherwise introduce out of index order gets a row of its own first, and a neighbour id holding a
+ * otherwise introduce out of index order gets a row of its own first, and a neighbor id holding a
  * colon is written `id:` when it has no weight so the importer does not read its tail as one.
  */
 
@@ -48,7 +48,7 @@ export interface CsvExportOptions {
     dialect?: "gephi" | "generic" | undefined;
     /**
      * Which table to write: the edge table (default), the node table, or an adjacency table (a node
-     * and its neighbours per row; read back with the importer's `table: "adjacency"`).
+     * and its neighbors per row; read back with the importer's `table: "adjacency"`).
      */
     table?: "edges" | "nodes" | "adjacency" | undefined;
     /** The field delimiter; "," by default. */
@@ -77,7 +77,7 @@ export const CSV_LOSS = Object.freeze({
     RESERVED_NAME: "W_CSV_RESERVED_NAME",
     /** A column without a role that the importer gives one back by its name. */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** A role column (id, label) whose name the importer does not recognise; the role is lost. */
+    /** A role column (id, label) whose name the importer does not recognize; the role is lost. */
     ROLE_NAME: "W_CSV_ROLE_NAME",
     /** A role column (id, label) that is not string / dict reads back as string. */
     TEXT_ROLE: "W_CSV_TEXT_ROLE",
@@ -810,10 +810,10 @@ function typeText(snapshot: GraphSnapshot, plan: Plan, e: number): string {
 }
 
 /**
- * A neighbour cell of the adjacency table: `id:weight` for an explicit weight; `id:` for an id
+ * A neighbor cell of the adjacency table: `id:weight` for an explicit weight; `id:` for an id
  * holding a colon without one, so the importer does not read the id's tail as a weight; `id`
  * otherwise.
- * @param id - the neighbour's id text
+ * @param id - the neighbor's id text
  * @param weight - the weight text, or null
  * @returns the cell text (unquoted)
  */

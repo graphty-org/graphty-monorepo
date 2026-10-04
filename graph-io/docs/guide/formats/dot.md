@@ -1,5 +1,8 @@
 # DOT (Graphviz)
 
+DOT is the language of [Graphviz](https://graphviz.org/doc/info/lang.html). graph-io reads the
+graph structure and the attributes; it does not lay out or draw the graph.
+
 ## At a glance
 
 <!-- generated:begin glance:dot -->
@@ -17,34 +20,101 @@
 
 What a saved file can hold:
 
-| Capability        | Value                  | Meaning                                                                         |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                    | Parallel edges.                                                                 |
-| `selfLoops`       | yes                    | Self-loops.                                                                     |
-| `edgeIds`         | optional               | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | any                    | Which node ids can be written unchanged.                                        |
-| `dtypes`          | bool, i32, f64, string | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                     | Multi-component (stride) columns.                                               |
-| `lists`           | no                     | List columns.                                                                   |
-| `json`            | no                     | Nested json columns.                                                            |
-| `defaults`        | no                     | Declared defaults.                                                              |
-| `options`         | no                     | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | yes                    | Containment (parent / parents roles).                                           |
-| `temporal`        | none                   | Temporal support level.                                                         |
-| `graphAttributes` | yes                    | Graph-level attributes.                                                         |
-| `positions`       | yes                    | The position role.                                                              |
-| `viz`             | no                     | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                  | Meaning                                                                                                                            |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                    | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                    | Self-loops.                                                                                                                        |
+| `edgeIds`         | optional               | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | any                    | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | bool, i32, f64, string | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                     | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | no                     | List columns.                                                                                                                      |
+| `json`            | no                     | Nested JSON values.                                                                                                                |
+| `defaults`        | no                     | Columns' declared default values.                                                                                                  |
+| `options`         | no                     | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | yes                    | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                   | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                    | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                    | Node positions.                                                                                                                    |
+| `viz`             | no                     | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/dot -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { exportGraphToString, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("cluster.gv"), { filename: "cluster.gv" });
+console.log(`${snapshot.nodeCount} nodes (the two clusters are nodes too), ${snapshot.edgeCount} edges`);
+// A node's cluster is in the column with the "parent" role, as the cluster's node index
+const parent = snapshot.nodes.byRole("parent");
+const a0 = snapshot.ids.requireIndex("a0");
+console.log(`a0 is inside ${String(snapshot.ids.idOf(Number(parent?.value(a0))))}`);
+
+const dot = await exportGraphToString(snapshot, "dot");
+console.log(dot.split("\n").slice(0, 6).join("\n"));
+await writeFile("cluster-copy.gv", dot);
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/dot -->
+
+```text
+12 nodes (the two clusters are nodes too), 13 edges
+a0 is inside cluster_0
+digraph G {
+    graph [fontname="Helvetica,Arial,sans-serif"];
+    subgraph cluster_0 {
+        graph [style=filled, color=lightgrey, label="process #1"];
+        a0 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
+        a1 [fontname="Helvetica,Arial,sans-serif", style=filled, color=white];
+```
+
+<!-- generated:end -->
+
+The clusters of the file became nodes, and each member points at its cluster through
+the parent column. Saving writes the clusters back as `subgraph cluster_...` blocks.
 
 ## How graph-io reads it
 
+- The whole file is read as text and parsed with the same grammar as Graphviz. A syntax error
+  stops the import (`E_DOT_SYNTAX`), as it does in Graphviz.
+- `graph` makes an undirected graph and `digraph` a directed one. `strict` is kept, and parallel
+  edges are merged the way Graphviz merges them.
+- Default attribute statements (`node [...]`, `edge [...]`) apply to the nodes and edges that
+  follow them in the same subgraph, as in Graphviz. Each node and edge gets the attributes that
+  apply to it as its own values.
+- Edge chains (`a -> b -> c`) and subgraph endpoints (`{a b} -> c`) become one edge per pair.
+- A subgraph whose name starts with `cluster` becomes a node, and its members point at it through a
+  parent column. Other subgraphs only group statements; their attributes are reported and left
+  out.
+- `label` is the label, `weight` the edge weight, `key` the edge id, and a node's `pos` its
+  position (a trailing `!` sets `pin`). Pass `positions: false` to keep `pos` as text.
+- Ports on edge endpoints (`a:n -> b:s`) are kept in edge columns.
+- Every other attribute value is text in DOT; graph-io reads a column whose every value is a
+  number as numbers, and the rest as text.
+- `1` and `"1"` are the same node, as the DOT language says.
+- A file can hold several graphs; see [Files that hold several graphs](../loading.md#files-that-hold-several-graphs).
+
 ## What a saved file keeps and loses
+
+DOT keeps any node id, parallel edges, graph attributes, clusters and positions. What does
+not survive:
+
+- One direction per file. A graph with both kinds of edges needs `onMixedDirection`.
+- DOT has no types. Booleans, integers, floating-point numbers and text are written so they read
+  back with the same type; other column types read back as the type their values look like.
+- Lists, JSON values, defaults, options, time columns and visual columns other than the position
+  are not written.
+- A text holding a backslash right before a quote or a line break, or at its end, cannot be spelled
+  in DOT (`E_DOT_TRAILING_BACKSLASH`).
 
 <!-- generated:begin reference:dot -->
 
@@ -104,7 +174,7 @@ The codes this format's import report can hold, also exported as `DOT_ISSUE` fro
 | `W_COLUMN_RENAMED`                  | `COLUMN_RENAMED`              | warning  | A column of another shape exists in the caller's sink under a name the importer declares; renamed `<name>#<id>`. |
 | `W_OPTION_IGNORED`                  | `OPTION_IGNORED`              | warning  | A common option the format has no use for was given a non-default value.                                         |
 | `W_ID_MERGED`                       | `ID_MERGED`                   | warning  | Two distinct id texts merged under ids: "number".                                                                |
-| `W_SINK_OPTION`                     | `SINK_OPTION`                 | warning  | A builder-policy option the sink does not honour.                                                                |
+| `W_SINK_OPTION`                     | `SINK_OPTION`                 | warning  | A builder-policy option the sink does not honor.                                                                 |
 | `W_DIRECTION_REFUSED`               | `DIRECTION_REFUSED`           | warning  | The sink refused the file's direction.                                                                           |
 | `W_DIRECTION_FORCED`                | `DIRECTION_FORCED`            | warning  | Edges forced to the policy's direction.                                                                          |
 | `E_MIXED_DIRECTION`                 | `MIXED_DIRECTION`             | error    | A mixed file under onMixedDirection "error" (fatal).                                                             |

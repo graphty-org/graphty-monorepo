@@ -1,5 +1,10 @@
 # CX
 
+[CX](<https://cytoscape.org/cx/specification/cytoscape-exchange-format-specification-(version-1)/>)
+is version 1 of the Cytoscape exchange format, still served by [NDEx](https://www.ndexbio.org/)
+and read by Cytoscape. Prefer [CX2](./cx2.md) for NDEx and Cytoscape 3.10 and later; use CX for
+tools that only read version 1.
+
 ## At a glance
 
 <!-- generated:begin glance:cx -->
@@ -17,34 +22,96 @@
 
 What a saved file can hold:
 
-| Capability        | Value                  | Meaning                                                                         |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                      |
-| `multiEdges`      | yes                    | Parallel edges.                                                                 |
-| `selfLoops`       | yes                    | Self-loops.                                                                     |
-| `edgeIds`         | required               | Whether edge ids are required (generated when absent), optional or unsupported. |
-| `idCharset`       | integer                | Which node ids can be written unchanged.                                        |
-| `dtypes`          | string, f64, i32, bool | The column dtypes the format keeps as declared.                                 |
-| `components`      | no                     | Multi-component (stride) columns.                                               |
-| `lists`           | yes                    | List columns.                                                                   |
-| `json`            | no                     | Nested json columns.                                                            |
-| `defaults`        | no                     | Declared defaults.                                                              |
-| `options`         | no                     | Declared enumerations (GEXF options).                                           |
-| `hierarchy`       | yes                    | Containment (parent / parents roles).                                           |
-| `temporal`        | none                   | Temporal support level.                                                         |
-| `graphAttributes` | yes                    | Graph-level attributes.                                                         |
-| `positions`       | yes                    | The position role.                                                              |
-| `viz`             | no                     | The visual roles (color, size, shape, thickness).                               |
+| Capability        | Value                  | Meaning                                                                                                                            |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `mixedDirection`  | no                     | Directed and undirected edges in one file.                                                                                         |
+| `multiEdges`      | yes                    | Parallel edges.                                                                                                                    |
+| `selfLoops`       | yes                    | Self-loops.                                                                                                                        |
+| `edgeIds`         | required               | Edge ids: "required" (generated when the graph has none), "optional", or "none" (not stored).                                      |
+| `idCharset`       | integer                | Which node ids are written unchanged: "any", "nmtoken" (XML name tokens), "integer", or "dense-1-based" (1 to N).                  |
+| `dtypes`          | string, f64, i32, bool | The column types the format keeps exactly.                                                                                         |
+| `components`      | no                     | Columns with several numbers per row, such as a position.                                                                          |
+| `lists`           | yes                    | List columns.                                                                                                                      |
+| `json`            | no                     | Nested JSON values.                                                                                                                |
+| `defaults`        | no                     | Columns' declared default values.                                                                                                  |
+| `options`         | no                     | Declared lists of allowed values (GEXF options).                                                                                   |
+| `hierarchy`       | yes                    | Nesting: nodes inside other nodes (parent columns).                                                                                |
+| `temporal`        | none                   | Time: "none", "intervals", "spells" (several intervals per element), or "dynamic-values" (attribute values that change over time). |
+| `graphAttributes` | yes                    | Graph-level attributes.                                                                                                            |
+| `positions`       | yes                    | Node positions.                                                                                                                    |
+| `viz`             | no                     | Visual columns: color, size, shape and thickness.                                                                                  |
 
 <!-- generated:end -->
 
-## Loading
+## Loading and saving
 
-## Saving
+<!-- generated:begin example:formats/cx -->
+
+```ts
+import { readFile, writeFile } from "node:fs/promises";
+
+import { checkExport, exportGraphToBytes, importGraph } from "@graphty/graph-io";
+
+const { snapshot } = await importGraph(await readFile("SimpleNetwork.cx"), { filename: "SimpleNetwork.cx" });
+console.log(`${snapshot.nodeCount} nodes; node columns: ${snapshot.nodes.names().join(", ")}`);
+
+// Every CX edge is directed, so an undirected graph is written with a warning
+const karate = await importGraph(await readFile("karate.gml"), { filename: "karate.gml" });
+console.log(checkExport(karate.snapshot, "cx").map((n) => n.code));
+await writeFile("karate.cx", await exportGraphToBytes(karate.snapshot, "cx"));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:formats/cx -->
+
+```text
+2 nodes; node columns: name, represents
+[ 'W_EDGE_IDS_GENERATED', 'W_CX_UNDIRECTED_AS_DIRECTED' ]
+```
+
+<!-- generated:end -->
+
+graph-io writes the form NDEx and Cytoscape both open: one network with at most one view.
 
 ## How graph-io reads it
 
+- The document is read element by element, and its aspects can come in any order.
+- Every edge is directed. Ids follow the same rule as CX2.
+- `n` is the `name` label, `r` the `represents` column and `i` the `interaction` column.
+- Attributes are typed by their `d`. As in Cytoscape, `""` and `"null"` mean no value and `"NaN"`
+  is NaN in a double attribute. An attribute that appears with several types takes the widest one
+  (`W_WIDENED`).
+- A collection (several `cySubNetworks`) holds one graph per subnetwork. `listGraphs()` lists them
+  and `graphIndex` / `graphName` choose one; see
+  [Files that hold several graphs](../loading.md#files-that-hold-several-graphs). A subnetwork's own
+  values beat the shared ones, and nodes or edges that no subnetwork holds are not read
+  (`W_CX_ROOT_ONLY`).
+- Positions come from the subnetwork's view, with y negated so it points up; other views become
+  `position@2`, `position@3`, ... columns.
+- `cyGroups` become a parent column. A group whose id is not a node gets a node
+  (`W_CX_GROUP_NODE_ADDED`).
+- Per-element visual properties become one column per property. Style rules are kept in the
+  snapshot's metadata and written back, but not applied (`W_STYLES_NOT_IMPORTED`).
+- Citations and supports become the tables `cx:citations` and `cx:supports` in
+  `snapshot.extensions`.
+- Older aspect names (`visualProperties`, `subNetworks`, ...) are read with a warning
+  (`W_CX_OLD_ASPECT_NAME`). A CX2 document is refused with a pointer to the CX2 format
+  (`E_CX_NOT_CX`).
+
 ## What a saved file keeps and loses
+
+What does not survive:
+
+- Undirected edges: every edge is written directed (`W_CX_UNDIRECTED_AS_DIRECTED`).
+- Node ids that are not integers. They need `sanitizeIds: "mangle"`, which keeps the original in a
+  `graphty:originalId` attribute that graph-io turns back into the id.
+- JSON values are written as text (`W_CX_JSON_AS_STRING`).
+- A NaN or infinite position, and a NaN weight, are not written (`W_NONFINITE_AS_NULL`). NaN and
+  the infinities in double attributes survive.
+- Edge ids are generated when the graph has none (`W_EDGE_IDS_GENERATED`).
+
+A file read from CX gets its citations, supports, style rules and other aspects back.
 
 <!-- generated:begin reference:cx -->
 
@@ -98,7 +165,7 @@ The codes this format's import report can hold, also exported as `CX_ISSUE` from
 | `W_DUPLICATE_ATTRIBUTE`     | `DUPLICATE_ATTRIBUTE`     | warning  | The same attribute twice on one element (or n and a different name attribute); the later wins.                                                      |
 | `E_UNKNOWN_PARENT`          | `UNKNOWN_PARENT`          | error    | A group member naming no node.                                                                                                                      |
 | `E_PARENT_CYCLE`            | `PARENT_CYCLE`            | error    | A group membership that would close a parent cycle; dropped.                                                                                        |
-| `W_STYLES_NOT_IMPORTED`     | `STYLES_NOT_IMPORTED`     | warning  | The style rules of cyVisualProperties are not applied (issue #706).                                                                                 |
+| `W_STYLES_NOT_IMPORTED`     | `STYLES_NOT_IMPORTED`     | warning  | The style rules of cyVisualProperties are not applied; they are kept so a CX export writes them back.                                               |
 | `E_MISSING_ID`              | `MISSING_ID`              | error    | A node without an                                                                                                                                   |
 | `E_MISSING_ENDPOINT`        | `MISSING_ENDPOINT`        | error    | An edge without s or t.                                                                                                                             |
 | `W_DUPLICATE_NODE`          | `DUPLICATE_NODE`          | warning  | A node id declared twice; the second merges into the first.                                                                                         |
@@ -122,7 +189,7 @@ The codes this format's import report can hold, also exported as `CX_ISSUE` from
 | `W_DIRECTION_REFUSED`       | `DIRECTION_REFUSED`       | warning  | The sink refused the direction.                                                                                                                     |
 | `W_DIRECTION_FORCED`        | `DIRECTION_FORCED`        | warning  | Edges forced to the policy's direction.                                                                                                             |
 | `W_OPTION_IGNORED`          | `OPTION_IGNORED`          | warning  | A common option CX has no use for.                                                                                                                  |
-| `W_SINK_OPTION`             | `SINK_OPTION`             | warning  | A builder option the caller's sink does not honour.                                                                                                 |
+| `W_SINK_OPTION`             | `SINK_OPTION`             | warning  | A builder option the caller's sink does not honor.                                                                                                  |
 
 ## Loss codes
 

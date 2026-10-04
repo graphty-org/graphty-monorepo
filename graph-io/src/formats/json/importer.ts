@@ -2223,7 +2223,7 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
 
 /**
  * Read a NetworkX adjacency_data document: `nodes` as in node-link, and `adjacency[i]` the
- * neighbour list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
+ * neighbor list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
  * file lists every edge from both ends, so an entry whose mirror (the same pair and `key`) was
  * already read is that edge again and is not pushed twice; a self-loop is listed once.
  * @param ctx - the context

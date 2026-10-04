@@ -1,0 +1,5 @@
+#0 Beta: 3 nodes, 2 edges
+#1 Alpha: 4 nodes, 2 edges
+Alpha: 4 nodes
+first: 1 edges
+second: 2 edges

@@ -158,7 +158,7 @@ export const PAJEK_ISSUE = Object.freeze({
     ORIGINAL_ID_MERGED: "W_PAJEK_ORIGINAL_ID_MERGED",
     /** A vertex line's `graphty_originalId` came after a later vertex's line had created it under its number. */
     ORIGINAL_ID_UNRESTORED: "W_PAJEK_ORIGINAL_ID_UNRESTORED",
-    /** A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honoured; long, hyperedges are not). */
+    /** A common option the importer has no use for (weightFrom naming a parameter and restoreMangledIds are honored; long, hyperedges are not). */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** A builder-policy option the caller passed that the caller's sink does not use (the shared W_SINK_OPTION). */
     SINK_OPTION: SINK_OPTION_CODE,

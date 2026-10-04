@@ -1,0 +1,9 @@
+d3: 77 nodes, 254 edges
+{
+  "elements": {
+    "nodes": [
+      {
+        "data": {
+          "id": "Myriel",
+          "group": 1
+        }

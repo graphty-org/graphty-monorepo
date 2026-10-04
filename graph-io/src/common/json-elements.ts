@@ -282,7 +282,7 @@ const LINEAR_KEYS = 32;
  * to the last value (RFC 8259 section 4: names SHOULD be unique). One pass over the characters
  * that jumps over strings; the keys of a small object are compared in place, without
  * slicing (the parse itself costs about as much as this scan, so it allocates nothing per key).
- * Keys are compared as written: `"\u0069d"` and `"id"` are not recognised as one key.
+ * Keys are compared as written: `"\u0069d"` and `"id"` are not recognized as one key.
  * @param text - a text JSON.parse accepted (or its rewrite)
  * @returns every repetition in document order
  */

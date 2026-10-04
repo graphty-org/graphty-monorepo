@@ -35,6 +35,7 @@ graph-io/
 +-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
 +-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
 +-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/
+|   +-- examples/<topic>/<name>.ts  # every code example the guide shows, runnable; <name>.txt is what it prints
 +-- src/
 |   +-- index.ts                  # the only root barrel; named exports only
 |   +-- types.ts                  # section 12.4 contract types and ImportError
@@ -179,9 +180,20 @@ the two correctly.
 7. Run `npm run docs:reference`: it creates `docs/guide/formats/<fmt>.md` with the generated
    blocks (capabilities, options, issue and loss codes) filled in from the registry, the subpath
    barrel and the doc comments; then write the page's prose (what the format is, loading and
-   saving, what a saved file keeps and loses). `test/docs-reference.test.ts` fails while a page is
-   stale, an option or code has no doc comment, or a published doc comment mentions the internal
-   design documents.
+   saving, what a saved file keeps and loses) and its example, `docs/examples/formats/<fmt>.ts`.
+   `test/docs-reference.test.ts` fails while a page is stale, an option or code has no doc
+   comment, or a published doc comment mentions the internal design documents.
+
+## Documentation examples
+
+Every code block in `docs/` and in README.md is a file under `docs/examples/`, copied in by
+`npm run docs:reference` through an `<!-- generated:begin example:<path> -->` block; an
+`output:<path>` block shows what the example prints (`<path>.txt`). `test/docs-examples.test.ts`
+runs every example in a directory holding the corpus files, with `fetch` and a small `document`
+stubbed, and fails when what it prints differs from its `.txt` (rerun with `UPDATE_EXAMPLES=1`) or
+when the files it writes change (a vitest snapshot). Examples import `@graphty/graph-io` by name;
+`vitest.config.ts` and the `paths` of `tsconfig.json` map it to `src/`. Write user docs from the
+reader's side: what to call and what happens, never how the package is built or tested.
 
 ## Conformance suite
 

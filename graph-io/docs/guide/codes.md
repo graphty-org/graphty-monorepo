@@ -1,5 +1,11 @@
 # Issue and loss codes
 
+Every code graph-io records, in two lists. An import records codes in its
+[report](./report.md); `checkExport()` returns codes before a [save](./saving.md). Codes starting
+with `E_` are errors: an import skips the element, or a save refuses to write. Codes starting with
+`W_` are warnings: the element is kept or the file is written, with the change the meaning
+describes. Each entry names the formats that use the code.
+
 <!-- generated:begin codes -->
 
 ## Errors
@@ -57,7 +63,7 @@
 - `E_GRAPHML_KEY_FOR_INVALID`: A `<key>` whose `for` is not a GraphML domain. Import: [graphml](./formats/graphml.md).
 - `E_GRAPHML_KEY_MISSING_ID`: A `<key>` without an id. Import: [graphml](./formats/graphml.md).
 - `E_GRAPHML_UNKNOWN_KEY`: A `<data>` whose key was never declared. Import: [graphml](./formats/graphml.md).
-- `E_GRAPHML_YFILES_TREE`: A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE. Save: [graphml](./formats/graphml.md).
+- `E_GRAPHML_YFILES_TREE`: A yfiles json value that is not a serializable tree: export() will throw E_COLUMN_TYPE. Save: [graphml](./formats/graphml.md).
 - `E_GRAPH_NOT_FOUND`: `graphIndex` is beyond the graphs of the input, or `graphName` names none of them (fatal). Import: [json](./formats/json.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - `E_HYPEREDGE`: A hyperedge under the `hyperedges: "error"` policy (fatal). Import: [json](./formats/json.md), [graphml](./formats/graphml.md).
 - `E_HYPEREDGE_SHAPE`: A JGF hyperedge with neither a nodes array nor source / target arrays. Import: [json](./formats/json.md).
@@ -100,7 +106,7 @@
 - `E_STATUS_FAILED`: The producer marked the document as failed (CX `status.success: false`): it is incomplete (fatal). Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - `E_SYNTAX`: The text grammar of the format is violated (fatal; the message carries the detail). Import: [json](./formats/json.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - `E_TOO_LARGE`: The input is beyond a size limit (a zip's uncompressed total or ratio, a document longer than one string); the same string as graph-format's E_TOO_LARGE, recorded with category "unsupported". Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `E_UNKNOWN_FORMAT`: The issue code of an input whose format no registered importer recognises.
+- `E_UNKNOWN_FORMAT`: The issue code of an input whose format no registered importer recognizes.
 - `E_UNKNOWN_NODE`: An edge endpoint that names no declared node under `addMissingNodes: false`; the edge is skipped. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [pajek](./formats/pajek.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - `E_UNKNOWN_PARENT`: A `pid` / parent reference names a node the document never declares. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cx](./formats/cx.md), [cys](./formats/cys.md).
 - `E_UNSUPPORTED_ID`: A node id is a JSON boolean or null (legal in NetworkX, not a NodeId); coerced only under ids "string". Import: [json](./formats/json.md).
@@ -135,7 +141,7 @@
 - `W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
 - `W_CSV_PADDED_ID`: An unquoted id with leading or trailing whitespace, kept as written (once per import). Import: [csv](./formats/csv.md).
 - `W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
-- `W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognise; the role is lost. Save: [csv](./formats/csv.md).
+- `W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognize; the role is lost. Save: [csv](./formats/csv.md).
 - `W_CSV_SINGLE_COLUMN`: Every row is one cell another delimiter would split (a likely wrong delimiter option). Import: [csv](./formats/csv.md).
 - `W_CSV_STRAY_QUOTE`: A quote inside an unquoted field, kept as text (once per import). Import: [csv](./formats/csv.md).
 - `W_CSV_TEXT_ROLE`: A role column (id, label) that is not string / dict reads back as string. Save: [csv](./formats/csv.md).
@@ -313,7 +319,7 @@
 - `W_OBO_UNDIRECTED_AS_DIRECTED`: Every edge is written from its source to its target: an undirected snapshot reads back directed. Save: [obo](./formats/obo.md).
 - `W_OPTIONS_DROPPED`: Declared options: CX has no enumerations. Save: [cx](./formats/cx.md), [obo](./formats/obo.md).
 - `W_OPTIONS_GAINED`: A dict column without declared options gains one from its dictionary on re-import. Save: [gexf](./formats/gexf.md).
-- `W_OPTION_IGNORED`: A common option the format has no use for (or cannot honour) was given a non-default value. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- `W_OPTION_IGNORED`: A common option the format has no use for (or cannot honor) was given a non-default value. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - `W_PAJEK_COORD_DIMS`: Vertex lines mix two and three coordinates. Import: [pajek](./formats/pajek.md).
 - `W_PAJEK_FIRST_MODE_DROPPED`: meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. Save: [pajek](./formats/pajek.md).
 - `W_PAJEK_HEADER_EXTRA`: Tokens after a section header the grammar does not account for. Import: [pajek](./formats/pajek.md).
@@ -349,8 +355,8 @@
 - `W_ROLE_SHAPE`: A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. Save: [gexf](./formats/gexf.md).
 - `W_ROLE_TAKEN`: A column's role was dropped because another column of the table already holds it. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
 - `W_SINGLE_OBJECT_ASPECT`: A CX aspect, an array of elements, written as one object (`{"nodes": {"@id": 1}}`); read as one element. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
-- `W_SINK_OPTION`: A builder-policy option the caller asked for that the sink does not honour. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
-- `W_SNIFF_FAILED`: The issue code of a registered importer whose sniff() threw while the format was being chosen; that importer was treated as not recognising the input (a defect in that importer).
+- `W_SINK_OPTION`: A builder-policy option the caller asked for that the sink does not honor. Import: [json](./formats/json.md), [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [dot](./formats/dot.md), [pajek](./formats/pajek.md), [neo4j](./formats/neo4j.md), [xgmml](./formats/xgmml.md), [cx2](./formats/cx2.md), [cx](./formats/cx.md), [obo](./formats/obo.md), [cys](./formats/cys.md).
+- `W_SNIFF_FAILED`: The issue code of a registered importer whose sniff() threw while the format was being chosen; that importer was treated as not recognizing the input (a defect in that importer).
 - `W_STATUS_WARNING`: The producer marked the document as successful but attached an error text. Import: [cx2](./formats/cx2.md), [cx](./formats/cx.md).
 - `W_STORAGE_CLASS_CHANGED`: A string / dict column whose cardinality makes the importer read it back as the other storage class. Save: [csv](./formats/csv.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).
 - `W_STRAY_TEXT`: Text where the format allows only elements was ignored. Import: [graphml](./formats/graphml.md), [gexf](./formats/gexf.md), [xgmml](./formats/xgmml.md), [cys](./formats/cys.md).

@@ -1,0 +1,2 @@
+W_CSV_NODE_ORDER: 8 node(s) are first mentioned by an edge row out of index order; a re-import numbers nodes by first appearance
+W_CSV_NODE_TABLE: 1 node column(s) are written by a table: "nodes" export only

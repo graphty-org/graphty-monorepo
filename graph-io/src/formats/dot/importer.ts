@@ -169,7 +169,7 @@ export const DOT_ISSUE = Object.freeze({
     OPTION_IGNORED: OPTION_IGNORED_CODE,
     /** Two distinct id texts merged under ids: "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /** A builder-policy option the sink does not honor. */
     SINK_OPTION: SINK_OPTION_CODE,
     /** The sink refused the file's direction. */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,

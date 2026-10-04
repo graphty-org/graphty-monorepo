@@ -1309,6 +1309,7 @@ Everything is under `~/.githerd/graphty-monorepo/`, outside the repository:
 | Jobs, claims, attempts, sessions, steering, orders, policies, vetoes, settings, owner items without a GitHub target, the allow overlay | `state.json`, written whole to a temp file, fsynced and renamed after every change; previous copy `state.json.bak` | `.bak`; then ledger replay; then GitHub (branches `githerd/*`, pull request bodies carrying `githerd-job: <id>`, githerd's `needs-decision` comments) |
 | Every decision, write, would-do, doorbell and session start or end | `ledger.jsonl`, append only, rotated monthly | it is the history |
 | Config in use, and the last good one | memory, `config.last-good.json` | master |
+| Refused configs and their reverts | `config-refused.json` (by text hash: reasons, the revert's number or its last error), written by rename | the gate's replay; a revert opened again is taken from GitHub's open one |
 | Liveness | `alive` (every 10 s: pid, start time, version, PID 1 start time) | n/a |
 | Progress | `progress` (current reconcile step and when it began) | n/a |
 | Starts | `starts` (the last 10 start times, for the crash-loop rule) | n/a |
@@ -1418,7 +1419,9 @@ and the incident procedure read, so the replay runs only for a workflow that sto
 stretch of it in the recorded month refuses the config. A refused config keeps the last good one
 (`config.last-good.json`), says so on the board, and the daemon opens a revert pull request of the
 pull request that brought the config commit, once per refused text, through the `incidents`
-group. With no good config ever loaded the daemon is in fatal mode (9.6); each tick it fetches the
+group. The refusals and their reverts are kept in `config-refused.json`, so a restart neither
+gates the same text again nor opens a second revert; a revert that failed to open is tried again
+on each check, with its error on the `config-refused` escalation. With no good config ever loaded the daemon is in fatal mode (9.6); each tick it fetches the
 default branch and leaves fatal mode once a config there passes the gate. A code change and a
 config change in one commit go through the self-update gate together (9.8).
 

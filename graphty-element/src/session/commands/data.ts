@@ -57,8 +57,10 @@ export type DataMutation =
           /**
            * The graph's direction, declared the way a node-link JSON file's `"directed"` key
            * declares it, and taken on the same terms: only while the graph holds no edges, and
-           * never over a `data.directed` the configuration set to a boolean. Default: leave the
-           * direction as it is.
+           * never over a `data.directed` the configuration set to a boolean. On a graph that
+           * already holds edges it changes nothing, not even where the direction came from; a
+           * value that disagrees is logged. Undo takes it back with the edges. Default: leave
+           * the direction as it is.
            */
           readonly directed?: boolean;
       }

@@ -178,9 +178,11 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
-        const { text, report } = await this.session.project.save(options);
+        // The download is the write, and the caller never sees a SavedProject to mark, so this
+        // save always clears `dirty`.
+        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
         const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
         const link = document.createElement("a");
         link.href = url;

@@ -482,7 +482,7 @@ function write(
             // The node-link convention's `directed` key, written only once something settled
             // the direction, so a graph nobody described still opens with nothing said.
             graph: {
-                ...(session.data.statistics().directednessSource.by === "unsettled"
+                ...(session.data.store.directionSettledBy.by === "unsettled"
                     ? {}
                     : { directed: session.status.directed }),
                 nodes,
@@ -1169,7 +1169,7 @@ export const PROJECT_FILE = Object.freeze({
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
- * for a project with no name. Opening a file with that name gives the project its name back.
+ * for a project with no name. Opening a file with that name gives a named project its name back.
  * @param name - The project's name, such as `session.project.name`; blank or null for none.
  * @returns The file name.
  */
@@ -1213,7 +1213,10 @@ export function projectOf(
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
     let point: SavePoint = { step: null, lost: false, seq: 0 };
-    const waiting = new Map<SavedProject, SavePoint>();
+    // Unmarked saves: the point alone is followed, and the SavedProject (with its text) is held
+    // only weakly, so a write that failed and is never marked keeps no copy of the file alive.
+    const waiting = new Set<SavePoint>();
+    const pointOf = new WeakMap<SavedProject, SavePoint>();
     let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
@@ -1230,9 +1233,9 @@ export function projectOf(
     const pointNow = (): SavePoint => ({ step: topNow(), lost: false, seq: ++seq });
     const adopt = (next: SavePoint): void => {
         point = next;
-        for (const [saved, each] of waiting) {
+        for (const each of waiting) {
             if (each.seq <= next.seq) {
-                waiting.delete(saved);
+                waiting.delete(each);
             }
         }
 
@@ -1277,7 +1280,9 @@ export function projectOf(
                 }),
             });
             if (options.markSaved === false) {
-                waiting.set(saved, pointNow());
+                const waited = pointNow();
+                waiting.add(waited);
+                pointOf.set(saved, waited);
             } else {
                 adopt(pointNow());
             }
@@ -1285,8 +1290,8 @@ export function projectOf(
             return Promise.resolve(saved);
         },
         markSaved(saved) {
-            const waited = waiting.get(saved);
-            if (waited !== undefined) {
+            const waited = pointOf.get(saved);
+            if (waited !== undefined && waiting.has(waited)) {
                 adopt(waited);
             }
         },

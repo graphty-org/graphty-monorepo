@@ -6,6 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, PROJECT_FILE, projectFileName } from "../../session";
+import { DataConfig } from "../../src/config/DataConfig";
 
 const UNDIRECTED_GML = `graph [
   node [ id 1 label "a" ]
@@ -75,5 +76,54 @@ describe("the project file's name and type", () => {
         assert.strictEqual(opened.project.name, "Pioneers");
         saved.dispose();
         opened.dispose();
+    });
+});
+
+describe("add-edges with a declared direction", () => {
+    const edges = [{ source: "a", target: "b" }];
+
+    it("settles the direction of a graph with no edges, as one undoable step", async () => {
+        const session = createGraphSession();
+        await session.execute({ op: "data.apply", mutation: { kind: "add-edges", records: edges, directed: false } });
+        assert.isFalse(session.status.directed);
+        assert.deepInclude(session.data.store.directionSettledBy, { by: "file", statedBy: '"directed": false' });
+
+        await session.undo();
+        assert.strictEqual(session.data.store.directionSettledBy.by, "unsettled");
+        assert.lengthOf(session.data.edges(), 0);
+        session.dispose();
+    });
+
+    it("leaves a graph that already holds edges, and where its direction came from, alone", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "gml",
+            config: { data: UNDIRECTED_GML.replace("graph [", "graph [ directed 1") },
+        });
+        const before = session.data.store.directionSettledBy;
+        const steps = session.history.steps.length;
+        await session.execute({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ source: "1", target: "3" }], directed: true },
+        });
+        assert.isTrue(session.status.directed);
+        assert.deepStrictEqual(session.data.store.directionSettledBy, before);
+        assert.strictEqual(session.history.steps.length, steps + 1, "only the edges were added");
+
+        await session.execute({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ source: "3", target: "1" }], directed: false },
+        });
+        assert.isTrue(session.status.directed, "edges already built keep their direction");
+        assert.deepStrictEqual(session.data.store.directionSettledBy, before);
+        session.dispose();
+    });
+
+    it("never overrides a direction the configuration set", async () => {
+        const session = createGraphSession({ config: { data: DataConfig.parse({ directed: true }) } });
+        await session.execute({ op: "data.apply", mutation: { kind: "add-edges", records: edges, directed: false } });
+        assert.isTrue(session.status.directed);
+        assert.strictEqual(session.data.store.directionSettledBy.by, "configuration");
+        session.dispose();
     });
 });

@@ -127,8 +127,8 @@ const handle = await window.showSaveFilePicker({
 ```
 
 - **`projectFileName(name)`** is the name `downloadProject` gives the file: `<name>.graphty.json`,
-  or `project.graphty.json` when the project has no name. Opening a file of that name gives the
-  project its name back.
+  or `project.graphty.json` when the project has no name. Opening a file of that name gives a
+  named project its name back (a project with no name reopens named `project`).
 - **`PROJECT_FILE.extension`** is `".graphty.json"` and **`PROJECT_FILE.mediaType`** is
   `"application/vnd.graphty+json"`.
 

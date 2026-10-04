@@ -2,7 +2,7 @@
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, and the
 // record tools/pr-status-broker.mjs writes for agents.
 //
-//   node --test tools/ci-workflows.test.mjs
+//   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";

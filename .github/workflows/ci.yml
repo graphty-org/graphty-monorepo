@@ -6,7 +6,8 @@ on:
     pull_request:
         # No "labeled": no job reads labels any more (Chromatic's label is switched off), and Mergify adds
         # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
-        types: [opened, synchronize, reopened]
+        # A draft runs nothing (see the build job), so marking it ready ("ready_for_review") starts its run.
+        types: [opened, synchronize, reopened, ready_for_review]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
     # their SHA, while every workflow showed state=active). Without a dispatch
@@ -35,14 +36,24 @@ concurrency:
 # (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
+# Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
+# - a pull request: the affected suite, the screenshots and the visual gate. A draft runs nothing:
+#   agents iterate on drafts behind the local pre-push gate and mark them ready when done.
+# - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
+#   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
+#   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
+# - a push to master or a manual dispatch: the full suite, which release.yml and deploy-pages.yml use.
 jobs:
-    # Build job - runs once, shares artifacts with test shards
+    # Build job - runs once, shares artifacts with test shards. Skipping it on a draft skips every job
+    # that needs it; the two summary jobs check the same condition.
     build:
         name: Build
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/')
         runs-on: ubuntu-24.04
         # What the rest of the run tests, decided once here: the test job's matrix and the Chromatic jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
+            full: ${{ steps.plan.outputs.full }}
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.plan.outputs.test-count }}
@@ -76,17 +87,29 @@ jobs:
             # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
-            # explicitly for the same reason as "Build affected (PR)" below.
+            # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
+            # request event but tests everything, like master: full=true selects the master path for the
+            # build and lint steps below as well.
             - name: Plan affected projects and test shards
               id: plan
+              env:
+                  EVENT: ${{ github.event_name }}
+                  HEAD_REF: ${{ github.head_ref }}
+                  BASE_REF: ${{ github.base_ref }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-                      affected=$(pnpm exec nx show projects --affected --base=origin/${{ github.base_ref }} --head=HEAD --json)
+                  if [[ "$EVENT" == "pull_request" && "$HEAD_REF" != mergify/merge-queue/* ]]; then
+                      echo "full=false" >> "$GITHUB_OUTPUT"
+                      affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
+                      echo "full=true" >> "$GITHUB_OUTPUT"
                       affected="$all"
                   fi
                   node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+
+            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            - name: CI workflow tests
+              run: pnpm run test:ci-workflows
 
             # Security audit - run early to catch vulnerabilities before building
             # Only fail on critical and high severity vulnerabilities
@@ -106,7 +129,7 @@ jobs:
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
-              if: github.event_name == 'pull_request'
+              if: steps.plan.outputs.full == 'false'
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Every test shard downloads every package's dist, so every package must be built even when the
@@ -119,7 +142,7 @@ jobs:
             # project is what master already does, and the Nx cache makes it a no-op for whatever the
             # affected build above produced.
             - name: Build the rest (PR), so every shard finds its artifact
-              if: github.event_name == 'pull_request'
+              if: steps.plan.outputs.full == 'false'
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -130,10 +153,11 @@ jobs:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
             - name: Lint affected (PR)
-              if: github.event_name == 'pull_request'
+              if: steps.plan.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
-            # Master and every manual dispatch: build then lint (build first for type dependencies).
+            # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
+            # then lint (build first for type dependencies).
             # graphty build needs Sentry env vars for error tracking.
             #
             # The dispatch clause stands on its own rather than sitting inside the master test, because each
@@ -144,8 +168,8 @@ jobs:
             # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
-            - name: Build all (master or a manual dispatch)
-              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
+            - name: Build all (master, a manual dispatch or the merge queue)
+              if: steps.plan.outputs.full == 'true'
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -155,8 +179,8 @@ jobs:
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-            - name: Lint all (master or a manual dispatch)
-              if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/master' && github.event_name == 'push')
+            - name: Lint all (master, a manual dispatch or the merge queue)
+              if: steps.plan.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3
 
             # Every package is built by now on both paths (PR builds the rest above). knip reads
@@ -183,6 +207,14 @@ jobs:
 
             - name: Bundle size (graphty-element)
               run: pnpm run check:bundle-size
+
+            # graphty-element's public API, as built, must match the committed report
+            # (graphty-element/api/*.api.md, one per typed entry point in its package.json "exports").
+            # A change fails here until `npm run api:report` in graphty-element regenerates the report,
+            # so every API change shows up in the pull request as a diff of that report.
+            # The same check runs in tools/prepush.sh.
+            - name: Public API report (graphty-element)
+              run: pnpm run check:api-report
 
             - name: Declared build tools
               run: pnpm run check:declared-tools
@@ -518,12 +550,27 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
-            - name: Upload coverage (graph-format/graph-io/graph-samples/algorithms/layout/graphty/remote-logger/compact-mantine)
-              if: ${{ !cancelled() && (matrix.shard == 'graph-format' || matrix.shard == 'graph-io' || matrix.shard == 'graph-samples' || startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
+            # A shard group (tools/ci-test-matrix.mjs, GROUPS) uploads one artifact holding a
+            # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
+            # coverage.yml lifts them back out before tools/merge-coverage.sh reads them.
+            - name: Collect the shard group's coverage
+              if: ${{ !cancelled() && matrix.coverage }}
+              env:
+                  COVERAGE: ${{ matrix.coverage }}
+              run: |
+                  for pair in $COVERAGE; do
+                      shard="${pair%%=*}" file="${pair#*=}"
+                      [[ -f "$file" ]] || continue
+                      mkdir -p "$RUNNER_TEMP/coverage/coverage-$shard"
+                      cp "$file" "$RUNNER_TEMP/coverage/coverage-$shard/lcov.info"
+                  done
+
+            - name: Upload coverage (shard group)
+              if: ${{ !cancelled() && matrix.coverage }}
               uses: actions/upload-artifact@v4
               with:
-                  name: coverage-${{ matrix.shard }}
-                  path: ${{ matrix.package }}/coverage/lcov.info
+                  name: coverage-group-${{ matrix.shard }}
+                  path: ${{ runner.temp }}/coverage/
                   retention-days: 1
                   if-no-files-found: ignore
 
@@ -842,11 +889,14 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare
+    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare.
+    # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
+    # measurement with no pass/fail role must not hold them.
     performance:
         name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -880,14 +930,14 @@ jobs:
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
-    # same on this runner as on a workstation. It is a measurement, not a gate: master and dispatch
-    # only, and not in "All Checks Pass", so a drift shows as a red job on master and never blocks a
-    # pull request. Each failure names the row, the graph, n, m, both times and the ratio; every
-    # row's ratio also lands in the job summary.
+    # same on this runner as on a workstation. It runs on every pull request that affects
+    # graphty-element and on every full run, and "All Checks Pass" needs it: a check that ran only on
+    # master could only ever turn master red (design/ci/ci-cd-plan.md, section 3). Each failure names
+    # the row, the graph, n, m, both times and the ratio; every row's ratio also lands in the job summary.
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: build
-        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: contains(fromJSON(needs.build.outputs.affected), 'graphty-element')
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -1074,8 +1124,9 @@ jobs:
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
     # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
-    # would read as a pass. On master and dispatch every job must succeed: nothing is meant to be skipped
-    # there, so a skip means the plan went wrong and must not pass silently.
+    # would read as a pass. On master, dispatch and the merge queue (the build job's full=true) every job
+    # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
+    # not pass silently. A draft skips this job with the rest of the run.
     all-checks:
         name: All Checks Pass
         needs:
@@ -1083,6 +1134,7 @@ jobs:
                 build,
                 test,
                 links,
+                cost-accuracy,
                 chromatic-element,
                 chromatic-app,
                 chromatic-compact-mantine,
@@ -1090,16 +1142,16 @@ jobs:
                 chromatic-layout,
                 visual,
             ]
-        if: always()
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/'))
         runs-on: ubuntu-24.04
         steps:
             - name: Check all jobs passed
               env:
                   NEEDS: ${{ toJSON(needs) }}
-                  EVENT: ${{ github.event_name }}
+                  FULL: ${{ needs.build.outputs.full }}
               run: |
                   ok='["success"]'
-                  [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
+                  [[ "$FULL" == "false" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
                   # The visual job never decides here, whatever result job-level continue-on-error makes
@@ -1161,3 +1213,29 @@ jobs:
                   pr=()
                   if grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then pr=(--pr "$PR"); fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
+
+    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
+    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded, and on a
+    # mergify/merge-queue/* branch only when the run was the full suite: a pass on a pull request's own
+    # affected run can never stand in for the queue's run.
+    queue-checks:
+        name: Queue Checks Pass
+        needs: [build, all-checks]
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || startsWith(github.head_ref, 'mergify/merge-queue/'))
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Check the run passed, and was the full suite in the queue
+              env:
+                  ALL_CHECKS: ${{ needs.all-checks.result }}
+                  FULL: ${{ needs.build.outputs.full }}
+                  HEAD_REF: ${{ github.head_ref }}
+              run: |
+                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, branch: ${HEAD_REF:-none}"
+                  if [[ "$ALL_CHECKS" != "success" ]]; then
+                      echo "::error::All Checks Pass did not succeed"
+                      exit 1
+                  fi
+                  if [[ "$HEAD_REF" == mergify/merge-queue/* && "$FULL" != "true" ]]; then
+                      echo "::error::a merge-queue run must run the full suite"
+                      exit 1
+                  fi

@@ -14,7 +14,7 @@
  *
  * Nothing can reach GitHub as a write: the mode is dry-run, every `actions` group is off, and the
  * `gh` this daemon uses refuses anything but reads. The phone is never paged (no notify command).
- * Runs use sonnet and caps that sum to under $3; a run whose cap would take the total over $3 is
+ * Runs use Opus 5.5 (the config accepts only Opus 5.5 and Fable) and caps that sum to under $3; a run whose cap would take the total over $3 is
  * not started. Code-editing runs ask for the Bash sandbox (bwrap and socat); without it they run
  * anyway, and the summary lists what is missing.
  *
@@ -55,7 +55,7 @@ const smokeConfig = {
         maxConcurrent: 1,
         dailyBudgetUsd: CAP_USD,
         dryRunDailyBudgetUsd: CAP_USD,
-        model: { default: "sonnet" },
+        model: { default: "claude-opus-5-5" },
         caps: {
             default: { turns: 30, budgetUsd: 0.5, timeoutMinutes: 15 },
             "retriage-candidates": { turns: 30, budgetUsd: 0.9, timeoutMinutes: 15 },

@@ -33,7 +33,7 @@ const CONFIG = normalizeConfig({
     lanes: { ci: { workflow: "ci.yml", gating: "required" } },
     protectedPaths: ["visual-baselines/"],
     runs: {
-        model: { "master-red": "opus", default: "sonnet" },
+        model: { "master-red": "claude-fable-5", default: "claude-opus-5-5" },
         caps: {
             "master-red": { turns: 80, budgetUsd: 6, timeoutMinutes: 60 },
             "pr-fix": { turns: 60, budgetUsd: 4, timeoutMinutes: 45 },
@@ -148,7 +148,7 @@ describe("pure parts", () => {
         expect(at("-p")).toBe("P");
         expect(at("--tools")).toBe("Read Edit Write Grep Glob Bash mcp__githerd");
         expect(at("--allowedTools")).toBe("Read Grep Glob mcp__githerd");
-        expect(at("--model")).toBe("opus");
+        expect(at("--model")).toBe("claude-fable-5");
         expect(at("--max-turns")).toBe("80");
         expect(at("--max-budget-usd")).toBe("6");
         expect(at("--permission-mode")).toBe("auto");
@@ -159,20 +159,20 @@ describe("pure parts", () => {
         expect(argv).toContain("--strict-mcp-config");
         const ro = runArgv({ kind: "triage", config: CONFIG, runDir: "/r", prompt: "P" });
         expect(ro[ro.indexOf("--tools") + 1]).toBe("Read Grep Glob mcp__githerd");
-        expect(ro[ro.indexOf("--model") + 1]).toBe("sonnet");
+        expect(ro[ro.indexOf("--model") + 1]).toBe("claude-opus-5-5");
     });
 
-    it("gives an effort:high backlog run the larger model and caps of the backlog-high profile", () => {
+    it("gives an effort:high backlog run the model and larger caps of the backlog-high profile", () => {
         const at = (/** @type {string[]} */ argv, /** @type {string} */ flag) => argv[argv.indexOf(flag) + 1];
         const high = runArgv({ kind: "backlog", profile: "backlog-high", config: CONFIG, runDir: "/r", prompt: "P" });
         expect([at(high, "--model"), at(high, "--max-turns"), at(high, "--max-budget-usd")]).toEqual([
-            "opus",
+            "claude-opus-5-5",
             "200",
             "8",
         ]);
         expect(at(high, "--tools")).toBe("Read Edit Write Grep Glob Bash mcp__githerd");
         const plain = runArgv({ kind: "backlog", config: CONFIG, runDir: "/r", prompt: "P" });
-        expect(at(plain, "--model")).toBe("sonnet");
+        expect(at(plain, "--model")).toBe("claude-opus-5-5");
         expect(Number(at(plain, "--max-turns"))).toBeLessThan(200);
     });
 

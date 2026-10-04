@@ -38,8 +38,8 @@ export const DEFAULTS = Object.freeze({
         maxConcurrent: 2,
         dailyBudgetUsd: 15,
         dryRunDailyBudgetUsd: 5,
-        // An effort:high issue's backlog run: the larger model and caps, never the owner's call.
-        model: { default: "sonnet", "backlog-high": "opus" },
+        // An effort:high issue's backlog run: its own model and larger caps, never the owner's call.
+        model: { default: "claude-opus-5-5", "backlog-high": "claude-opus-5-5" },
         caps: {
             default: { turns: 30, budgetUsd: 1.5, timeoutMinutes: 15 },
             "backlog-high": { turns: 200, budgetUsd: 8, timeoutMinutes: 120 },
@@ -83,6 +83,13 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/**
+ * The only models a run may use: the owner's decision that everything runs on Opus 5.5 or Fable
+ * (design section 2, evidence/owner-decisions.md section 10). Full model ids, not aliases, so an
+ * alias moving to a new model never changes what runs.
+ */
+const MODELS = ["claude-opus-5-5", "claude-fable-5"];
 
 /**
  * @typedef {{ workflow: string, gating: "required" | "if-run" | "watch", maxMinutes: number | null }} Lane
@@ -154,16 +161,28 @@ function regex(v, where) {
     return v;
 }
 
-function number(v, where, { min = 0, max = Infinity, integer = true } = {}) {
+/**
+ * Checks a number against its bounds. Every number in the file has a minimum and a maximum
+ * (design section 9.7), so a typo such as an extra zero is refused rather than adopted.
+ * @param {unknown} v the value
+ * @param {string} where the key for messages
+ * @param {{min: number, max: number, integer?: boolean}} bounds the range, and whether it must be
+ *   a whole number
+ * @returns {number} the value
+ */
+function number(v, where, { min, max, integer = true }) {
     if (typeof v !== "number" || !Number.isFinite(v) || (integer && !Number.isInteger(v)) || v < min || v > max) {
-        const range = max === Infinity ? `at least ${min}` : `from ${min} to ${max}`;
-        fail(`${where} must be ${integer ? "an integer" : "a number"} ${range}`);
+        fail(`${where} must be ${integer ? "an integer" : "a number"} from ${min} to ${max}`);
     }
-    return v;
+    return /** @type {number} */ (v);
 }
 
-const positive = { min: 1 };
-const money = { min: 0, integer: false };
+/** A dollar amount a day or a batch may spend. */
+const money = { min: 0, max: 200, integer: false };
+/** A count of days. */
+const days = { min: 1, max: 365 };
+/** An hour of the day in UTC. */
+const hour = { min: 0, max: 23 };
 
 /**
  * Checks an object section of numbers against its defaults: every key is optional and must be
@@ -171,15 +190,15 @@ const money = { min: 0, integer: false };
  * @param {unknown} raw the section as written
  * @param {Record<string, number>} defaults its defaults
  * @param {string} where the section's name for messages
- * @param {Record<string, object>} [rules] per-key ranges; a positive integer otherwise
+ * @param {Record<string, {min: number, max: number, integer?: boolean}>} rules each key's range
  * @returns {any} the section
  */
-function numbers(raw, defaults, where, rules = {}) {
+function numbers(raw, defaults, where, rules) {
     if (raw === undefined) return { ...defaults };
     onlyKeys(object(raw, where), Object.keys(defaults), `${where}.`);
     const out = { ...defaults };
     for (const [key, value] of Object.entries(raw)) {
-        out[key] = number(value, `${where}.${key}`, rules[key] ?? positive);
+        out[key] = number(value, `${where}.${key}`, rules[key]);
     }
     return out;
 }
@@ -218,7 +237,10 @@ function lanes(raw) {
         out[id] = {
             workflow: string(lane.workflow, `${at}.workflow`),
             gating: lane.gating,
-            maxMinutes: lane.maxMinutes === undefined ? null : number(lane.maxMinutes, `${at}.maxMinutes`, positive),
+            maxMinutes:
+                lane.maxMinutes === undefined
+                    ? null
+                    : number(lane.maxMinutes, `${at}.maxMinutes`, { min: 1, max: 24 * 60 }),
         };
     }
     return out;
@@ -263,7 +285,12 @@ function runs(raw) {
                 writesPerRun: d.writesPerRun,
             },
             "runs",
-            { dailyBudgetUsd: money, dryRunDailyBudgetUsd: money },
+            {
+                maxConcurrent: { min: 0, max: 8 },
+                dailyBudgetUsd: money,
+                dryRunDailyBudgetUsd: money,
+                writesPerRun: { min: 1, max: 100 },
+            },
         ),
         model: { ...d.model },
         caps: structuredClone(d.caps),
@@ -271,7 +298,10 @@ function runs(raw) {
     if (model !== undefined) {
         for (const [kind, name] of Object.entries(object(model, "runs.model"))) {
             if (!NAME.test(kind)) fail(`runs.model.${kind}: a run kind is lowercase letters, digits and "-"`);
-            out.model[kind] = string(name, `runs.model.${kind}`);
+            if (!MODELS.includes(string(name, `runs.model.${kind}`))) {
+                fail(`runs.model.${kind} must be one of ${MODELS.join(", ")}, not "${name}"`);
+            }
+            out.model[kind] = name;
         }
     }
     if (caps !== undefined) {
@@ -295,7 +325,9 @@ function runCap(kind, cap) {
         if (raw[key] === undefined) fail(`${at}.${key} is required`);
     }
     return numbers(raw, { turns: 0, budgetUsd: 0, timeoutMinutes: 0 }, at, {
-        budgetUsd: { min: 0.01, integer: false },
+        turns: { min: 1, max: 500 },
+        budgetUsd: { min: 0.01, max: 50, integer: false },
+        timeoutMinutes: { min: 1, max: 8 * 60 },
     });
 }
 
@@ -338,11 +370,15 @@ export function normalizeConfig(input) {
         onlyKeys(object(raw.release, "release"), ["commitPattern", "stallHours"], "release.");
         release = {
             commitPattern: regex(raw.release.commitPattern, "release.commitPattern"),
-            stallHours: number(raw.release.stallHours, "release.stallHours", { min: 1, integer: false }),
+            stallHours: number(raw.release.stallHours, "release.stallHours", { min: 1, max: 168, integer: false }),
         };
     }
 
-    const grace = numbers(raw.grace, DEFAULTS.grace, "grace");
+    const grace = numbers(raw.grace, DEFAULTS.grace, "grace", {
+        closeIssueDays: { min: 1, max: 90 },
+        closeIssueShownDays: { min: 1, max: 90 },
+        revertMinutes: { min: 1, max: 24 * 60 },
+    });
     if (grace.closeIssueShownDays > grace.closeIssueDays) {
         fail("grace.closeIssueShownDays cannot be more than grace.closeIssueDays");
     }
@@ -358,7 +394,7 @@ export function normalizeConfig(input) {
     return {
         repo: raw.repo,
         mode,
-        pollSeconds: opt("pollSeconds", (v, k) => number(v, k, { min: 60 })),
+        pollSeconds: opt("pollSeconds", (v, k) => number(v, k, { min: 60, max: 3600 })),
         servherdCommand: opt("servherdCommand", (v, k) => strings(v, k, { nonEmpty: true })),
         lanes: lanes(raw.lanes),
         release,
@@ -376,13 +412,20 @@ export function normalizeConfig(input) {
         actions,
         grace,
         runs: runs(raw.runs),
-        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { wipCap: { min: 0 } }),
-        refresh: numbers(raw.refresh, DEFAULTS.refresh, "refresh"),
+        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { wipCap: { min: 0, max: 20 }, agingDays: days }),
+        refresh: numbers(raw.refresh, DEFAULTS.refresh, "refresh", {
+            everyHours: { min: 1, max: 168 },
+            maxIssuesPerRun: { min: 1, max: 100 },
+            minDaysBetween: days,
+        }),
         retriage: numbers(raw.retriage, DEFAULTS.retriage, "retriage", {
-            startHourUtc: { min: 0, max: 23 },
+            intervalDays: { min: 1, max: 90 },
+            startHourUtc: hour,
+            batchSize: { min: 1, max: 100 },
+            runsPerHour: { min: 1, max: 20 },
             budgetUsd: money,
         }),
-        staleDays: opt("staleDays", (v, k) => number(v, k, positive)),
+        staleDays: opt("staleDays", (v, k) => number(v, k, days)),
         notify: {
             command:
                 notifyRaw.command === undefined || notifyRaw.command === null
@@ -391,18 +434,18 @@ export function normalizeConfig(input) {
             maxPerHour:
                 notifyRaw.maxPerHour === undefined
                     ? DEFAULTS.notify.maxPerHour
-                    : number(notifyRaw.maxPerHour, "notify.maxPerHour", positive),
+                    : number(notifyRaw.maxPerHour, "notify.maxPerHour", { min: 1, max: 60 }),
         },
         digest: {
             weekday,
             hourUtc:
                 digestRaw.hourUtc === undefined
                     ? DEFAULTS.digest.hourUtc
-                    : number(digestRaw.hourUtc, "digest.hourUtc", { min: 0, max: 23 }),
+                    : number(digestRaw.hourUtc, "digest.hourUtc", hour),
             issue:
                 digestRaw.issue === undefined || digestRaw.issue === null
                     ? null
-                    : number(digestRaw.issue, "digest.issue", positive),
+                    : number(digestRaw.issue, "digest.issue", { min: 1, max: 10_000_000 }),
         },
     };
 }

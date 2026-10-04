@@ -46,7 +46,7 @@
         "maxConcurrent": 2,
         "dailyBudgetUsd": 15,
         "dryRunDailyBudgetUsd": 5,
-        "model": { "master-red": "opus", "backlog-high": "opus", "default": "sonnet" },
+        "model": { "master-red": "claude-opus-5-5", "backlog-high": "claude-opus-5-5", "default": "claude-opus-5-5" },
         "caps": {
             "master-red": { "turns": 80, "budgetUsd": 6, "timeoutMinutes": 60 },
             "pr-fix": { "turns": 60, "budgetUsd": 4, "timeoutMinutes": 45 },

@@ -106,7 +106,7 @@ describe("normalizeConfig", () => {
         [{ lanes: {} }, /lanes must name at least one/],
         [{ lanes: { ci: { workflow: "ci.yml", gating: "sometimes" } } }, /gating/],
         [{ mode: "yolo" }, /mode must be/],
-        [{ pollSeconds: 30 }, /pollSeconds must be an integer at least 60/],
+        [{ pollSeconds: 30 }, /pollSeconds must be an integer from 60 to 3600/],
         [{ actions: { statuses: "yes" } }, /actions\.statuses must be true or false/],
         [{ release: { commitPattern: "(", stallHours: 6 } }, /not a valid regular expression/],
         [{ grace: { closeIssueDays: 2, closeIssueShownDays: 3 } }, /closeIssueShownDays/],
@@ -124,12 +124,51 @@ describe("normalizeConfig", () => {
     it("keeps the default cap and model when a repository adds kinds", () => {
         const c = with_({
             runs: {
-                model: { "master-red": "opus" },
+                model: { "master-red": "claude-fable-5" },
                 caps: { backlog: { turns: 80, budgetUsd: 5, timeoutMinutes: 60 } },
             },
         });
-        expect(c.runs.model).toEqual({ default: "sonnet", "backlog-high": "opus", "master-red": "opus" });
+        expect(c.runs.model).toEqual({
+            default: "claude-opus-5-5",
+            "backlog-high": "claude-opus-5-5",
+            "master-red": "claude-fable-5",
+        });
         expect(Object.keys(c.runs.caps).sort()).toEqual(["backlog", "backlog-high", "default"]);
+    });
+
+    it("runs only Opus 5.5 or Fable, named by full model id", () => {
+        for (const name of ["sonnet", "haiku", "opus", "claude-sonnet-4-5"]) {
+            expect(() => with_({ runs: { model: { default: name } } })).toThrow(
+                `runs.model.default must be one of claude-opus-5-5, claude-fable-5, not "${name}"`,
+            );
+        }
+        expect(with_({ runs: { model: { triage: "claude-fable-5" } } }).runs.model.triage).toBe("claude-fable-5");
+    });
+
+    it("bounds every number in graphty's real file above and below", () => {
+        const real = JSON.parse(readFileSync(join(ROOT, CONFIG_FILE), "utf8"));
+        real.digest.issue = 5;
+        /** @type {string[][]} */
+        const paths = [];
+        const walk = (/** @type {any} */ node, /** @type {string[]} */ at) => {
+            for (const [k, v] of Object.entries(node)) {
+                if (typeof v === "number") paths.push([...at, k]);
+                else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, [...at, k]);
+            }
+        };
+        walk(real, []);
+        expect(paths.length).toBeGreaterThan(30);
+        for (const path of paths) {
+            for (const bad of [1e9, -1]) {
+                const copy = structuredClone(real);
+                let node = copy;
+                for (const k of path.slice(0, -1)) node = node[k];
+                node[path.at(-1)] = bad;
+                expect(() => normalizeConfig(copy), `${path.join(".")} = ${bad}`).toThrow(
+                    new RegExp(`${path.join("\\.")} must be an? (integer|number) from `),
+                );
+            }
+        }
     });
 
     it("validates graphty's real file", () => {

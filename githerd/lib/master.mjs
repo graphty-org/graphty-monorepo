@@ -446,12 +446,12 @@ export const LANE_CODE = /** @type {Record<string, string[]>} */ ({
  * @returns {string[]} their paths
  */
 export function buildFiles(files) {
-    const versionOnly = (/** @type {string | undefined} */ patch) =>
-        patch !== undefined &&
-        patch
-            .split("\n")
-            .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"))
-            .every((l) => l.slice(1).trimStart().startsWith('"version":'));
+    const versionOnly = (/** @type {string | undefined} */ patch) => {
+        const changed = patch
+            ?.split("\n")
+            .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"));
+        return changed?.every((l) => l.slice(1).trimStart().startsWith('"version":')) === true;
+    };
     return files
         .filter((f) => !f.filename.endsWith(".md"))
         .filter((f) => !(f.filename.endsWith("package.json") && versionOnly(f.patch)))

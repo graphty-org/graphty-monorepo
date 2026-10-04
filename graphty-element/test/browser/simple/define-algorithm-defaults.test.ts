@@ -111,6 +111,7 @@ describe("the caveats a run is filled in with", () => {
         assert.strictEqual(run.caveats.iterations, 7);
         assert.isFalse(run.caveats.exact, "stopping at the cap publishes what the run has, marked inexact");
         assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.isTrue(run.partial, "a result that stopped at its cap is partial, as its caveats say (#933)");
     });
 
     it("warns when nothing was measured", async () => {

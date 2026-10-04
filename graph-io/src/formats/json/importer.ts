@@ -77,6 +77,7 @@ import { ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { readText, throwIfAborted } from "../../common/input.js";
 import {
     findDuplicateKeys,
+    flipY,
     MAYBE_INEXACT_EXPONENT,
     MAYBE_UNSAFE_INTEGER,
     rewriteNumbers,
@@ -3365,7 +3366,8 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
                 const z = isJsonObject(position) ? (position.z ?? 0) : 0;
                 if (isJsonObject(position) && isCoordinate(position.x) && isCoordinate(position.y) && isCoordinate(z)) {
                     point[0] = position.x;
-                    point[1] = position.y;
+                    // Cytoscape's y grows downward; positions are stored y-up (the exporter flips back)
+                    point[1] = flipY(position.y);
                     point[2] = z;
                     ctx.nodes.set(positionColumn, index, point);
                 } else {

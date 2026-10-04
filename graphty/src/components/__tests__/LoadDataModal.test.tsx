@@ -214,6 +214,33 @@ describe("LoadDataModal", () => {
     });
 
     describe("formats come from graphty-element's catalog", () => {
+        it("offers the networks of a file that holds several, and loads the one picked", async () => {
+            // graphty-element lists the graphs of the file; the dialog renders the list and
+            // passes the reader's choice back as graphIndex.
+            const onLoad = vi.fn((_request: LoadDataRequest) => Promise.resolve());
+            const { container } = renderModal(onLoad);
+            const doc = {
+                graphs: [
+                    { id: "Beta", nodes: [{ id: "a" }], edges: [] },
+                    { id: "Alpha", nodes: [{ id: "x" }, { id: "y" }], edges: [{ source: "x", target: "y" }] },
+                ],
+            };
+            const file = new File([JSON.stringify(doc)], "two-networks.json", { type: "application/json" });
+            const input = container.ownerDocument.querySelector<HTMLInputElement>("#file-input");
+            expect(input).not.toBeNull();
+            fireEvent.change(input as HTMLInputElement, { target: { files: [file] } });
+
+            const picker = await screen.findByRole("combobox", { name: "Network" });
+            fireEvent.click(picker);
+            fireEvent.click(await screen.findByRole("option", { name: /^Alpha/ }));
+            fireEvent.click(screen.getByRole("button", { name: /^Load / }));
+
+            await waitFor(() => {
+                expect(onLoad).toHaveBeenCalledTimes(1);
+            });
+            expect(onLoad.mock.calls[0][0]).toMatchObject({ inputMethod: "file", graphIndex: 1 });
+        });
+
         it("lists every format the element can import, and nothing else", async () => {
             renderModal(
                 vi.fn(async () => {

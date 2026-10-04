@@ -610,7 +610,7 @@ describe("JSON robustness: node-link semantics", () => {
         const s = b.freeze();
         expect(codes(report)).toEqual(["E_COLUMN_TYPE"]);
         expect(value(s, "nodes", "c", 0)).toBe(2);
-        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, 2, 0]);
+        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, -2, 0]);
         expect(value(s, "nodes", "classes", 0)).toEqual(["k"]);
     });
 
@@ -723,8 +723,8 @@ describe("JSON robustness: Cytoscape", () => {
                 },
             }),
         );
-        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, 2, 3]);
-        expect(Array.from(value(s, "nodes", "position", 1) as ArrayLike<number>)).toEqual([4, 5, 0]);
+        expect(Array.from(value(s, "nodes", "position", 0) as ArrayLike<number>)).toEqual([1, -2, 3]);
+        expect(Array.from(value(s, "nodes", "position", 1) as ArrayLike<number>)).toEqual([4, -5, 0]);
         expect(codes(report)).toEqual([]);
     });
 

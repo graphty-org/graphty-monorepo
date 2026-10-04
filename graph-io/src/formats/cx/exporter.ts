@@ -363,14 +363,7 @@ function genericNotes(
         // a parents column reads back as parents only when some node has several parents
         roleNames: several ? { ...ROLE_NAMES, parents: "parents" } : ROLE_NAMES,
     })) {
-        if (gen.column !== null && ownNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
-            continue;
-        }
-        if (gen.code === LOSS.ID_CHARSET || gen.code === LOSS.ID_MANGLED) {
-            // counted by planNodeIds(): CX also keeps integer ids beyond 2^53, which the generic rule refuses
-            continue;
-        }
-        if (gen.code === LOSS.EXTENSION_TABLE && gen.column !== null && gen.column in PROVENANCE_TABLES) {
+        if (writtenOtherwise(gen, ownNames)) {
             continue;
         }
         if (gen.code === LOSS.JSON) {
@@ -383,15 +376,11 @@ function genericNotes(
             );
             continue;
         }
-        if (
-            gen.code === LOSS.COLUMN_NAME_CHANGED &&
-            gen.column === edgeLabel &&
-            gen.message.startsWith("edge column")
-        ) {
+        if (isEdgeLabelRename(gen, edgeLabel)) {
             // only nodes have a label slot (n); an edge label is a plain attribute
             note(
                 LOSS.ROLE,
-                `edge column "${edgeLabel}" (label) is written as a plain attribute; CX edges have no label slot and the role is lost`,
+                `edge column "${edgeLabel ?? ""}" (label) is written as a plain attribute; CX edges have no label slot and the role is lost`,
                 gen.column,
                 gen.count,
             );
@@ -411,6 +400,85 @@ function genericNotes(
         );
     }
     return fatal;
+}
+
+/**
+ * Whether a generic note is about something CX writes another way: the functionTerm and
+ * reifiedEdge columns (their own aspects), ids (counted by planNodeIds(), since CX also keeps
+ * integer ids beyond 2^53, which the generic rule refuses) and the provenance tables.
+ * @param gen - the generic note
+ * @param ownNames - the names of the columns written as their own aspects
+ * @returns true when the note does not apply
+ */
+function writtenOtherwise(gen: LossNote, ownNames: ReadonlySet<string>): boolean {
+    if (gen.column !== null && ownNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
+        return true;
+    }
+    if (gen.code === LOSS.ID_CHARSET || gen.code === LOSS.ID_MANGLED) {
+        return true;
+    }
+    return gen.code === LOSS.EXTENSION_TABLE && gen.column !== null && gen.column in PROVENANCE_TABLES;
+}
+
+/**
+ * Whether a generic note is the rename of the edge label column.
+ * @param gen - the generic note
+ * @param edgeLabel - the edge label column's name, if any
+ * @returns true when it is
+ */
+function isEdgeLabelRename(gen: LossNote, edgeLabel: string | undefined): boolean {
+    return gen.code === LOSS.COLUMN_NAME_CHANGED && gen.column === edgeLabel && gen.message.startsWith("edge column");
+}
+
+/**
+ * The node positions to write: the position column, the z column (when it fits the layout), whether
+ * the position's third coordinate is written as z, and the count of non-finite values left out.
+ * @param snapshot - the snapshot
+ * @param note - records a note
+ * @returns the position plan
+ */
+function planPositions(
+    snapshot: GraphSnapshot,
+    note: CxNoteFn,
+): { position: Column | null; z: Column | null; positionZ: boolean; nonfinite: number } {
+    const position = snapshot.nodes.byRole("position");
+    const zColumn = [...snapshot.nodes].find(isZ) ?? null;
+    const z = zColumn !== null && zFitsLayout(zColumn, position) ? zColumn : null;
+    if (position === null) {
+        return { position, z, positionZ: false, nonfinite: 0 };
+    }
+    let nonfinite = nonFiniteCells(position, (v) => [v[0], v[1]]);
+    const depth = nonFiniteCells(position, (v) => (v[2] === 0 ? [] : [Number.NaN]));
+    const positionZ = zColumn === null && (position.meta.extra.sourceDims === 3 || depth > 0);
+    if (positionZ) {
+        nonfinite += nonFiniteCells(position, (v) => (Number.isFinite(v[0]) && Number.isFinite(v[1]) ? [v[2]] : []));
+        note(
+            LOSS.COMPONENTS,
+            `node column "${position.meta.name}" (position) has a third coordinate; CX writes it as the layout's z, which reads back in the z column (a stacking order), not in the position`,
+            position.meta.name,
+            depth,
+        );
+    }
+    return { position, z, positionZ, nonfinite };
+}
+
+/**
+ * Note the graph columns that read back as the graph's name or description.
+ * @param snapshot - the snapshot
+ * @param note - records a note
+ */
+function graphColumnNotes(snapshot: GraphSnapshot, note: CxNoteFn): void {
+    for (const c of snapshot.graph) {
+        const named = c.meta.name === "name" || c.meta.name === "description";
+        if (!isBypass(c) && named && (c.dtype === "string" || c.dtype === "dict")) {
+            note(
+                LOSS.ROLE_ASSUMED,
+                `graph column "${c.meta.name}" is written as the network attribute ${c.meta.name}, which reads back as the graph's ${c.meta.name}, not as a column`,
+                c.meta.name,
+                null,
+            );
+        }
+    }
 }
 
 /**
@@ -446,21 +514,9 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     }
 
     // nodes: n, r, the z column, the groups' collapsed flags, provenance
-    const position = snapshot.nodes.byRole("position");
-    const zColumn = [...snapshot.nodes].find(isZ) ?? null;
-    const z = zColumn !== null && zFitsLayout(zColumn, position) ? zColumn : null;
-    let nonfinite = position === null ? 0 : nonFiniteCells(position, (v) => [v[0], v[1]]);
-    const depth = position === null ? 0 : nonFiniteCells(position, (v) => (v[2] === 0 ? [] : [Number.NaN]));
-    const positionZ = position !== null && zColumn === null && (position.meta.extra.sourceDims === 3 || depth > 0);
-    if (position !== null && positionZ) {
-        nonfinite += nonFiniteCells(position, (v) => (Number.isFinite(v[0]) && Number.isFinite(v[1]) ? [v[2]] : []));
-        note(
-            LOSS.COMPONENTS,
-            `node column "${position.meta.name}" (position) has a third coordinate; CX writes it as the layout's z, which reads back in the z column (a stacking order), not in the position`,
-            position.meta.name,
-            depth,
-        );
-    }
+    const positions = planPositions(snapshot, note);
+    const { position, z, positionZ } = positions;
+    let { nonfinite } = positions;
     const collapsed = [...snapshot.nodes].find((c) => fromCx(c, "cyGroups") && c.dtype === "bool") ?? null;
     const nodeCore = corePlans(snapshot, note);
     const edgeCore: CorePlan[] = [];
@@ -502,20 +558,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     );
     nonfinite += weight.nonfinite;
 
-    for (const c of snapshot.graph) {
-        if (
-            !isBypass(c) &&
-            (c.meta.name === "name" || c.meta.name === "description") &&
-            (c.dtype === "string" || c.dtype === "dict")
-        ) {
-            note(
-                LOSS.ROLE_ASSUMED,
-                `graph column "${c.meta.name}" is written as the network attribute ${c.meta.name}, which reads back as the graph's ${c.meta.name}, not as a column`,
-                c.meta.name,
-                null,
-            );
-        }
-    }
+    graphColumnNotes(snapshot, note);
     const graphAttrs = attributePlans(snapshot.graph, isBypass, (c) => c.meta.name);
 
     if (children.column !== null && children.column.meta.role === "parents" && !several) {
@@ -673,17 +716,25 @@ function planWeight(
             plan = { value: (e) => (plain.isSet(e) ? (plain.value(e) as number) : undefined) };
         }
     }
-    let nonfinite = 0;
-    if (plan !== null) {
-        for (let e = 0; e < snapshot.edgeCount; e++) {
-            const w = plan.value(e);
-            // NaN is not a weight on re-import; the infinities are
-            if (!folding.folded(e) && w !== undefined && Number.isNaN(w)) {
-                nonfinite++;
-            }
+    return { plan, nonfinite: plan === null ? 0 : nanWeights(snapshot.edgeCount, plan, folding) };
+}
+
+/**
+ * The written weights that are NaN, which is not a weight on re-import (the infinities are).
+ * @param edgeCount - the number of edges
+ * @param plan - the weight plan
+ * @param folding - the pair folding
+ * @returns the count
+ */
+function nanWeights(edgeCount: number, plan: WeightPlan, folding: PairFolding): number {
+    let nan = 0;
+    for (let e = 0; e < edgeCount; e++) {
+        const w = plan.value(e);
+        if (!folding.folded(e) && w !== undefined && Number.isNaN(w)) {
+            nan++;
         }
     }
-    return { plan, nonfinite };
+    return nan;
 }
 
 /**
@@ -1113,24 +1164,7 @@ function* groupElements(
     if (groups.length === 0) {
         return;
     }
-    const internal = new Map<number, number[]>();
-    const external = new Map<number, number[]>();
-    const add = (table: Map<number, number[]>, g: number, id: number): void => {
-        table.set(g, [...(table.get(g) ?? []), id]);
-    };
-    const { src, dst } = snapshot.edgeList();
-    for (const e of edges) {
-        const ofSource = groupsOf.get(src[e]) ?? [];
-        const ofTarget = groupsOf.get(dst[e]) ?? [];
-        for (const g of ofSource) {
-            add(ofTarget.includes(g) ? internal : external, g, p.edgeIds[e]);
-        }
-        for (const g of ofTarget) {
-            if (!ofSource.includes(g)) {
-                add(external, g, p.edgeIds[e]);
-            }
-        }
-    }
+    const { internal, external } = groupEdges(snapshot, p, groupsOf, edges);
     const label = p.nodeCore.find((c) => c.key === "n")?.column ?? null;
     for (const g of groups) {
         const entry: Record<string, unknown> = { "@id": ids.idAt(g) };
@@ -1146,6 +1180,39 @@ function* groupElements(
         }
         yield entry;
     }
+}
+
+/**
+ * The written edges of each group: internal (both ends among its members) and external (one end).
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param groupsOf - the groups each member node is in
+ * @param edges - the written edges
+ * @returns the edge ids by group
+ */
+function groupEdges(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    groupsOf: ReadonlyMap<number, number[]>,
+    edges: readonly number[],
+): { internal: Map<number, number[]>; external: Map<number, number[]> } {
+    const internal = new Map<number, number[]>();
+    const external = new Map<number, number[]>();
+    const add = (table: Map<number, number[]>, g: number, id: number): void => {
+        table.set(g, [...(table.get(g) ?? []), id]);
+    };
+    const { src, dst } = snapshot.edgeList();
+    for (const e of edges) {
+        const ofSource = groupsOf.get(src[e]) ?? [];
+        const ofTarget = groupsOf.get(dst[e]) ?? [];
+        for (const g of ofSource) {
+            add(ofTarget.includes(g) ? internal : external, g, p.edgeIds[e]);
+        }
+        for (const g of ofTarget.filter((t) => !ofSource.includes(t))) {
+            add(external, g, p.edgeIds[e]);
+        }
+    }
+    return { internal, external };
 }
 
 /**

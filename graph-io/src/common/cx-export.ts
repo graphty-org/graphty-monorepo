@@ -280,24 +280,9 @@ export function nonFinitePositions(position: Column): number {
  */
 export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
     const column = snapshot.edges.byRole("id");
-    const ids: (number | null)[] = new Array<number | null>(snapshot.edgeCount).fill(null);
     const used = new Set<number>();
     let generated = 0;
-    if (column !== null) {
-        for (let e = 0; e < snapshot.edgeCount; e++) {
-            const value = column.isSet(e) ? column.value(e) : undefined;
-            let n = Number.NaN;
-            if (typeof value === "number") {
-                n = value;
-            } else if (typeof value === "string") {
-                n = Number(value);
-            }
-            if (Number.isSafeInteger(n) && !used.has(n)) {
-                ids[e] = n === 0 ? 0 : n;
-                used.add(n);
-            }
-        }
-    }
+    const ids: (number | null)[] = keptEdgeIds(column, snapshot.edgeCount, used);
     let next = 0;
     const out: number[] = [];
     for (let e = 0; e < snapshot.edgeCount; e++) {
@@ -329,6 +314,29 @@ export function planEdgeIds(snapshot: GraphSnapshot, note: CxNoteFn): number[] {
         );
     }
     return out;
+}
+
+/**
+ * The edge ids an id column can keep: its distinct safe integers (numbers, or text that reads as one).
+ * @param column - the edge id column, or null
+ * @param edgeCount - the number of edges
+ * @param used - receives the kept ids
+ * @returns the kept id per edge, null where it cannot be kept
+ */
+function keptEdgeIds(column: Column | null, edgeCount: number, used: Set<number>): (number | null)[] {
+    const ids: (number | null)[] = new Array<number | null>(edgeCount).fill(null);
+    if (column === null) {
+        return ids;
+    }
+    for (let e = 0; e < edgeCount; e++) {
+        const value = column.isSet(e) ? column.value(e) : undefined;
+        const n = typeof value === "number" || typeof value === "string" ? Number(value) : Number.NaN;
+        if (Number.isSafeInteger(n) && !used.has(n)) {
+            ids[e] = n === 0 ? 0 : n;
+            used.add(n);
+        }
+    }
+    return ids;
 }
 
 /**
